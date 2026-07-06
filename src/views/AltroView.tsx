@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { INSURANCE, EMERGENCY_CONTACTS } from "../data/mockData";
 import {
-  IcDocs, IcNote, IcCheck, IcPhone, IcSettings, IcWallet,
+  IcNote, IcCheck, IcSettings, IcWallet,
   IcChevronRight, IcChevronDown, IcPlus,
 } from "../components/Icons";
 
@@ -45,7 +45,46 @@ const LS_DOCS_KEY = "hrb_documents_v2";
 function loadDocuments(): DocumentItem[] {
   try {
     const raw = localStorage.getItem(LS_DOCS_KEY);
-    if (raw) return JSON.parse(raw) as DocumentItem[];
+    if (raw) {
+      let list = JSON.parse(raw) as DocumentItem[];
+      
+      // Sincronizzazione/Migrazione delle categorie per i vecchi dati privi di campo "category"
+      list = list.map((doc) => {
+        if (!doc.category) {
+          const titleLower = doc.title.toLowerCase();
+          const idLower = doc.id.toLowerCase();
+          if (idLower.includes("pass") || titleLower.includes("passaporto")) {
+            return { ...doc, category: "Passaporti" };
+          } else if (idLower.includes("visa-au") || idLower.includes("au") || titleLower.includes("australia")) {
+            return { ...doc, category: "Visto Australia" };
+          } else if (idLower.includes("visa-ph") || idLower.includes("ph") || titleLower.includes("filippine") || titleLower.includes("etravel")) {
+            return { ...doc, category: "Visto / eTravel Filippine" };
+          } else if (idLower.includes("licence") || titleLower.includes("patente")) {
+            return { ...doc, category: "Patente internazionale" };
+          } else if (idLower.includes("ins") || titleLower.includes("assicurazione") || titleLower.includes("polizza")) {
+            return { ...doc, category: "Assicurazione" };
+          } else {
+            return { ...doc, category: "Altri documenti" };
+          }
+        }
+        return doc;
+      });
+
+      if (list.length === 0) {
+        return DEFAULT_DOCUMENTS;
+      }
+      
+      const merged = [...list];
+      DEFAULT_DOCUMENTS.forEach((def) => {
+        const exists = list.some(
+          (d) => d.id === def.id || d.title.toLowerCase() === def.title.toLowerCase()
+        );
+        if (!exists) {
+          merged.push(def);
+        }
+      });
+      return merged;
+    }
   } catch { /* ignore */ }
   return DEFAULT_DOCUMENTS;
 }
@@ -151,9 +190,8 @@ function AddDocumentSheet({
                 <button
                   key={o}
                   onClick={() => setOwner(o)}
-                  className={`flex-1 py-2 rounded-xl text-[12px] font-semibold transition-colors ${
-                    owner === o ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
-                  }`}
+                  className={`flex-1 py-2 rounded-xl text-[12px] font-semibold transition-colors ${owner === o ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
+                    }`}
                 >
                   {o}
                 </button>

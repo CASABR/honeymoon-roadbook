@@ -59,15 +59,16 @@ confirmationCode?: string
 - "La tua giornata" mostra 4 voci visibili, poi espandibile.
 - "In evidenza" ha solo card utili reali: Budgeter, Assicurazione (Heymondo), Emergenze.
 - DatePicker in TodayView è interattivo: cliccando sull'icona calendario si apre un foglio per cambiare giorno e mostrare le relative attività.
+- Navigazione giorno nell'header di Oggi: aggiunti pulsanti freccia sinistra/destra ai lati dell'icona calendario per passare rapidamente al giorno precedente o successivo. I pulsanti sono disabilitati e sfumati se ci si trova all'inizio (G1) o alla fine (G44) del viaggio.
 - L'anteprima di domani in TodayView è orizzontale scorrevole con tutte le attività del giorno successivo. "Vedi tutto" apre un modal di riepilogo.
 - Dettaglio dei trasporti in TransportsView: cliccando su una tratta si apre un bottom sheet con dettagli completi (tipo mezzo, partenza/arrivo, data/ora, codici, bagagli, note, segmenti).
 - Scheda Viaggio (Itinerario completo): mostra tutti i giorni del viaggio. Cliccando su un giorno si espande rivelando la timeline delle sue attività. È implementata la logica ad espansione esclusiva (un solo giorno può essere aperto alla volta, l'apertura di un giorno chiude il precedente).
 - Il pulsante del calendario in Viaggio apre un bottom sheet di selezione del giorno (`TripDatePickerSheet`) che reindirizza e scrolla la pagina sul giorno selezionato in modo smooth.
 - AltroView arricchito con accordion informativi reali: Assicurazione Heymondo (chiuso di default), Numeri Emergenza per paese, Bagagli e franchigie, Scadenze.
-- Sezione Documenti in Altro: supporta l'inserimento/rimozione e compilazione di passaporti e visti con persistenza in `hrb_documents_v2` e reminder default in "Non compilato ⚠️".
-- Budgeter dinamico: calcola spesa totale, residuo e categorie in tempo reale leggendo i prezzi reali dagli alloggi (`hrb_accommodations_v2`) e trasporti (`hrb_transports_v2`) persistiti. Include ereditarietà difensiva dei prezzi reali dai mock statici se non compilati localmente.
-- Dettaglio Categoria Budgeter: un bottom sheet (`CategoryDetailSheet`) visualizza l'elenco delle singole voci di costo associate alla categoria toccata.
-- Form spese manuali/extra: permette all'utente di aggiungere o rimuovere spese personali sincronizzandole sul budgeter locale.
+- Sezione Documenti in Altro: raggruppati per "cosa" (categoria) anziché per persona. Include un foglio di dettaglio della singola categoria per visualizzare ed inserire documenti ed una logica di migrazione automatica per i vecchi record precedentemente salvati privi del metadato `category`.
+- Budgeter dinamico: calcola spesa totale, residuo e categorie in tempo reale leggendo i prezzi reali dagli alloggi (`hrb_accommodations_v2`) e trasporti (`hrb_transports_v2`) persistiti. Riorganizzato su 5 categorie stabili ("Attività" e "Altro" con assicurazione inclusa) con layout asimmetrico `col-span-2` per la quinta card. Include migrazione automatica dei vecchi record.
+- Sincronizzazione itinerario: la logica di caricamento rileva discrepanze di lunghezza tra la cache locale e la definizione mock per aggiornare smooth l'itinerario a 44 giorni completo e continuo, conservando le attività create a mano dall'utente.
+- Routing Basename Dinamico: in `main.tsx` `BrowserRouter` adotta `import.meta.env.BASE_URL` privato dello slash terminale come basename, risolvendo conflitti di instradamento in dev ed in produzione (es. GitHub Pages).
 - localStorage per form aggiungi alloggio/trasporto/attività: semplice, offline, sostituibile (chiavi di versione _v2 per resettare vecchi dati inquinati di debug).
 - Nessun drawer/modal pesante: sheet bottom semplice con CSS vanilla.
 

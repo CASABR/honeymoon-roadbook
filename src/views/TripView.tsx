@@ -22,7 +22,24 @@ const LS_KEY = "hrb_trip_days_v2";
 function loadTripDays(): DayData[] {
   try {
     const raw = localStorage.getItem(LS_KEY);
-    if (raw) return JSON.parse(raw) as DayData[];
+    if (raw) {
+      const list = JSON.parse(raw) as DayData[];
+      if (list.length !== DAYS.length) {
+        const merged = DAYS.map((d) => {
+          const savedDay = list.find((s) => s.date === d.date);
+          if (savedDay) {
+            const userActs = savedDay.activities.filter((a) => a.id.startsWith("act-user-"));
+            if (userActs.length > 0) {
+              return { ...d, activities: [...d.activities, ...userActs] };
+            }
+          }
+          return d;
+        });
+        localStorage.setItem(LS_KEY, JSON.stringify(merged));
+        return merged;
+      }
+      return list;
+    }
   } catch { /* ignore */ }
   return DAYS;
 }
