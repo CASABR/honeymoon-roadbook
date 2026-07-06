@@ -3,12 +3,11 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
+  base: "/honeymoon-roadbook/",
   plugins: [react(), tailwindcss()],
   server: {
     watch: {
-      // Ignora la cartella del vecchio progetto estratta accidentalmente qui dentro
       ignored: ["**/honeymoon-roadbookzip/**", "**/node_modules/**"],
     },
   },
 });
-
