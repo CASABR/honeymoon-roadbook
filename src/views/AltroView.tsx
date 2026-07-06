@@ -18,6 +18,14 @@ const CATEGORIES: { name: DocumentCategory; icon: string }[] = [
   { name: "Altri documenti", icon: "📁" },
 ];
 
+// ── Allegati documento ───────────────────────────────────────────────────────
+interface AttachmentItem {
+  id: string;
+  name: string; // nome file originale
+  type: "image" | "pdf" | "other";
+  dataUrl: string; // base64 data URL
+}
+
 // ── Interfaccia documento ─────────────────────────────────────────────────────
 interface DocumentItem {
   id: string;
@@ -27,6 +35,7 @@ interface DocumentItem {
   number: string;
   notes?: string;
   isMockDefault?: boolean; // Se vero, indica che è un reminder pre-caricato
+  attachments?: AttachmentItem[]; // Allegati locali (base64 in localStorage)
 }
 
 const DEFAULT_DOCUMENTS: DocumentItem[] = [
@@ -250,6 +259,8 @@ function CategoryDocumentsSheet({
   onCompile,
   onDelete,
   onAddClick,
+  onAttachmentAdd,
+  onAttachmentDelete,
   onClose,
 }: {
   category: DocumentCategory;
@@ -257,9 +268,32 @@ function CategoryDocumentsSheet({
   onCompile: (doc: DocumentItem) => void;
   onDelete: (id: string) => void;
   onAddClick: () => void;
+  onAttachmentAdd: (docId: string, att: AttachmentItem) => void;
+  onAttachmentDelete: (docId: string, attId: string) => void;
   onClose: () => void;
 }) {
   const filtered = documents.filter((d) => d.category === category);
+  const [previewAtt, setPreviewAtt] = useState<AttachmentItem | null>(null);
+
+  function handleFileUpload(docId: string, e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Limite: avviso se il file supera 2MB
+    if (file.size > 2 * 1024 * 1024) {
+      alert("File troppo grande (max 2 MB). Gli allegati sono salvati nel browser (localStorage) e lo spazio è limitato.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const type: AttachmentItem["type"] = file.type.startsWith("image/") ? "image" : file.type === "application/pdf" ? "pdf" : "other";
+      const att: AttachmentItem = { id: `att-${Date.now()}`, name: file.name, type, dataUrl };
+      onAttachmentAdd(docId, att);
+    };
+    reader.readAsDataURL(file);
+    // Reset input
+    e.target.value = "";
+  }
 
   return (
     <div
@@ -268,50 +302,107 @@ function CategoryDocumentsSheet({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[430px] bg-white rounded-t-[32px] p-5 pb-8 max-h-[85dvh] overflow-y-auto shadow-2xl border-t border-gray-100"
+        className="w-full max-w-[430px] bg-white rounded-t-[32px] p-5 pb-8 max-h-[90dvh] overflow-y-auto shadow-2xl border-t border-gray-100"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
         <h2 className="text-[17px] font-black text-gray-900 mb-1">Dettaglio Categoria</h2>
         <p className="text-[12px] text-gray-400 mb-4">{category}</p>
 
-        <div className="space-y-3 max-h-[45vh] overflow-y-auto pr-1">
+        {/* Nota tecnica allegati */}
+        <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-4">
+          <p className="text-[10px] text-amber-700 font-semibold leading-relaxed">
+            ⚠️ Gli allegati sono salvati <strong>solo nel browser locale</strong> (localStorage base64).
+            Max 2 MB per file. Si perdono se si pulisce la cache del browser.
+          </p>
+        </div>
+
+        <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
           {filtered.length === 0 ? (
             <p className="text-[12px] text-gray-400 italic text-center py-6 bg-gray-50 rounded-xl">
               Nessun documento inserito in questa categoria.
             </p>
           ) : (
             filtered.map((doc) => (
-              <div key={doc.id} className="bg-gray-50/70 border border-gray-100 rounded-xl p-3 flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[12px] font-black text-gray-800 leading-snug">{doc.title}</span>
-                    <span className="bg-gray-200/80 text-gray-600 text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                      {doc.owner}
-                    </span>
+              <div key={doc.id} className="bg-gray-50/70 border border-gray-100 rounded-xl p-3">
+                {/* Header documento */}
+                <div className="flex items-start justify-between gap-3 mb-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[12px] font-black text-gray-800 leading-snug">{doc.title}</span>
+                      <span className="bg-gray-200/80 text-gray-600 text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                        {doc.owner}
+                      </span>
+                    </div>
+                    <p className={`text-[13px] font-mono mt-1 ${doc.isMockDefault && doc.number.includes("⚠️") ? "text-amber-600 font-bold" : "text-gray-700 font-semibold"}`}>
+                      {doc.number}
+                    </p>
+                    {doc.notes && <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{doc.notes}</p>}
                   </div>
-                  <p className={`text-[13px] font-mono mt-1 ${doc.isMockDefault && doc.number.includes("⚠️") ? "text-amber-600 font-bold" : "text-gray-700 font-semibold"}`}>
-                    {doc.number}
-                  </p>
-                  {doc.notes && <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{doc.notes}</p>}
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {doc.isMockDefault && doc.number.includes("⚠️") ? (
+                      <button
+                        onClick={() => onCompile(doc)}
+                        className="text-[10px] bg-blue-50 text-blue-600 font-extrabold px-2 py-1 rounded-lg"
+                      >
+                        Compila
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => onDelete(doc.id)}
+                        className="text-[11px] text-red-500 font-bold px-1 py-1"
+                      >
+                        Rimuovi
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {doc.isMockDefault && doc.number.includes("⚠️") ? (
-                    <button
-                      onClick={() => onCompile(doc)}
-                      className="text-[10px] bg-blue-50 text-blue-600 font-extrabold px-2 py-1 rounded-lg"
-                    >
-                      Compila
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => onDelete(doc.id)}
-                      className="text-[11px] text-red-500 font-bold px-1 py-1"
-                    >
-                      Rimuovi
-                    </button>
-                  )}
-                </div>
+
+                {/* Allegati */}
+                {doc.attachments && doc.attachments.length > 0 && (
+                  <div className="flex gap-2 flex-wrap mt-2 mb-2">
+                    {doc.attachments.map((att) => (
+                      <div key={att.id} className="relative group">
+                        {att.type === "image" ? (
+                          <button onClick={() => setPreviewAtt(att)}>
+                            <img
+                              src={att.dataUrl}
+                              alt={att.name}
+                              className="w-16 h-16 object-cover rounded-xl border border-gray-200 hover:opacity-80 transition-opacity"
+                            />
+                          </button>
+                        ) : (
+                          <a
+                            href={att.dataUrl}
+                            download={att.name}
+                            className="w-16 h-16 flex flex-col items-center justify-center bg-red-50 border border-red-100 rounded-xl hover:bg-red-100 transition-colors"
+                          >
+                            <span className="text-[20px]">📄</span>
+                            <span className="text-[8px] text-red-600 font-bold mt-0.5 px-1 text-center leading-tight truncate w-full">{att.name.split(".")[0]}</span>
+                          </a>
+                        )}
+                        <button
+                          onClick={() => onAttachmentDelete(doc.id, att.id)}
+                          className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-[8px] font-bold flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Upload allegato */}
+                <label className="flex items-center gap-1.5 text-[11px] font-bold text-gray-500 cursor-pointer hover:text-blue-600 transition-colors mt-1">
+                  <span className="text-[14px]">📎</span>
+                  Aggiungi allegato (foto/PDF)
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={(e) => handleFileUpload(doc.id, e)}
+                  />
+                </label>
               </div>
             ))
           )}
@@ -333,6 +424,26 @@ function CategoryDocumentsSheet({
           </button>
         </div>
       </div>
+
+      {/* Preview immagine a schermo intero */}
+      {previewAtt && (
+        <div
+          className="fixed inset-0 z-[70] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setPreviewAtt(null)}
+        >
+          <img
+            src={previewAtt.dataUrl}
+            alt={previewAtt.name}
+            className="max-w-full max-h-[80dvh] rounded-2xl object-contain"
+          />
+          <button
+            className="absolute top-4 right-4 text-white text-[24px] font-bold"
+            onClick={() => setPreviewAtt(null)}
+          >
+            ×
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -378,6 +489,26 @@ export default function AltroView() {
       prev.map((d) =>
         d.id === defDoc.id
           ? { ...d, number: val.trim(), isMockDefault: false }
+          : d
+      )
+    );
+  }
+
+  function handleAttachmentAdd(docId: string, att: AttachmentItem) {
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === docId
+          ? { ...d, attachments: [...(d.attachments ?? []), att] }
+          : d
+      )
+    );
+  }
+
+  function handleAttachmentDelete(docId: string, attId: string) {
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === docId
+          ? { ...d, attachments: (d.attachments ?? []).filter((a) => a.id !== attId) }
           : d
       )
     );
@@ -571,6 +702,8 @@ export default function AltroView() {
           documents={documents}
           onCompile={handleCompileDefault}
           onDelete={handleDeleteDoc}
+          onAttachmentAdd={handleAttachmentAdd}
+          onAttachmentDelete={handleAttachmentDelete}
           onAddClick={() => {
             setShowAddDocCategory(selectedCategory);
             setSelectedCategory(null);

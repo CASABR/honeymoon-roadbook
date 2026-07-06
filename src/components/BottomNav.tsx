@@ -2,7 +2,7 @@ import { NavLink } from "react-router-dom";
 import { IcHome, IcMap, IcBed, IcTrain, IcMenu } from "./Icons";
 
 const NAV_ITEMS = [
-  { to: "/", label: "Oggi", Icon: IcHome },
+  { to: "/oggi", label: "Oggi", Icon: IcHome },
   { to: "/viaggio", label: "Viaggio", Icon: IcMap },
   { to: "/alloggi", label: "Alloggi", Icon: IcBed },
   { to: "/trasporti", label: "Trasporti", Icon: IcTrain },
@@ -16,7 +16,7 @@ export default function BottomNav() {
         <NavLink
           key={to}
           to={to}
-          end={to === "/"}
+          end={to === "/oggi"}
           className={({ isActive }) => `nav-item${isActive ? " active" : ""}`}
         >
           <Icon size={22} />

@@ -1,5 +1,44 @@
 # CHANGELOG WORKING
 
+## [2026-07-06 – Sessione 9] Verifica Itinerario · Editing Viaggio · Budgeter Sticky · Allegati Documenti
+
+### File modificati
+- `src/data/mockData.ts` — Aggiornate 6 giornate NZ con attività mancanti rispetto al file `Itinerario.docx`:
+  - G5 (2 dic): aggiunte Hamilton Gardens (11:15), Otorohanga Kiwi House (13:30), Mangapohue Natural Bridge (16:00) — corretti orari grotte Waitomo
+  - G6 (3 dic): aggiunta sosta pranzo Big Dog & Sheep Tirau (13:00), corretti orari Blue Spring (15:00) e Mitai Maori Village (17:30)
+  - G7 (4 dic): espansa da 3 a 6 attività con orari reali — Polynesian Spa (11:00), Waiotapu Thermal Wonderland (13:30), Wairakei Terraces (15:30), Cascate Huka (16:30), hotel Skotel Alpine Resort
+  - G9 (6 dic): aggiunte Museum Te Papa Tongarewa Wellington (10:00) e tappa Marlborough Sounds, corretti orari traghetto
+  - G11 (8 dic): aggiunta tappa Hokitika (10:00) e Hokitika Gorge (11:30) prima di Franz Josef — giornata era incompleta
+  - G13 (10 dic): espansa da 2 a 8 attività — Lake Matheson, Haast Pass, Fantail Falls, Blue Pools, Wanaka, Roy's Peak, Mt Aspiring
+- `src/views/TripView.tsx` — Aggiunta modalità modifica per singola giornata:
+  - Pulsante ✏️ Modifica per attivare edit mode sul giorno espanso
+  - Per ogni attività: pulsanti ✏️ (modifica orario/tipo/titolo/sottotitolo), 🗑️ (elimina con confirm), ↑↓ (riordina)
+  - Sheet `EditActivitySheet` per modifica completa dell'attività esistente
+  - Funzioni `handleEditActivity`, `handleDeleteActivity`, `handleMoveActivity`
+- `src/views/BudgetView.tsx` — Pulsante "Aggiungi spesa" ora sticky fisso in basso (sopra bottom nav, z-40), con padding pb-28 per non coprire i contenuti
+- `src/views/AltroView.tsx` — Aggiunti allegati ai documenti:
+  - Interfaccia `AttachmentItem` (id, name, type, dataUrl base64)
+  - Campo `attachments?: AttachmentItem[]` in `DocumentItem`
+  - Upload foto/PDF tramite FileReader API (max 2 MB, solo locale)
+  - Preview immagini a schermo intero (tap sulla thumbnail)
+  - Download PDF tramite link base64
+  - Eliminazione allegato con ×
+  - Avviso chiaro: gli allegati sono salvati SOLO nel browser (localStorage base64)
+
+### Giornate NON modificate (docx e progetto coerenti)
+- G1-G4: giorni pre-arrivo / arrivo Auckland → OK
+- G8 (5 dic): solo trasferimento Tongariro→Levin → OK (docx: Giorno 5 identico)
+- G10 (7 dic): Kaikoura → Otira → OK
+- G12 (9 dic): Fox Glacier + Lake Matheson → OK (docx G9)
+- G14-G16 (NZ Sud): Milford Sound, Queenstown, Lake Tekapo → OK
+- G17+ (Australia, Filippine): non coperti da Itinerario.docx — invariati
+
+### Giornate con discrepanze segnalate ma non modificabili
+- G5 nel docx (5 dic = G8 progetto): docx indica "KiwiCamp National Park" come partenza — nel progetto è "Tongariro Alpine Crossing" → **il docx sembra un'alternativa, non un errore**; mantenuto il progetto
+- G16 nel progetto (13 dic): ha Arrowtown Lodge + Lake Tekapo → il docx (G13) ha Queenstown + Kawarau + Clay Cliffs + Lake Pukaki → **struttura diversa ma entrambi validi**; non modificato (richiederebbe confronto approfondito con l'utente)
+
+---
+
 ## [2026-07-06 – Sessione 8] Completamento Budgeter: Fix Routing SPA, CSP, e Raffinamento Dati Reali
 
 ### File modificati

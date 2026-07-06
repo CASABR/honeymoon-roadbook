@@ -50,19 +50,148 @@ function saveTripDays(list: DayData[]) {
   } catch { /* ignore */ }
 }
 
-// ── Timeline row inside expanded day ─────────────────────────────────────────
+// ── Sheet per modificare un'attività esistente ────────────────────────────────
+function EditActivitySheet({
+  activity,
+  dayLabel,
+  onSave,
+  onClose,
+}: {
+  activity: Activity;
+  dayLabel: string;
+  onSave: (updated: Activity) => void;
+  onClose: () => void;
+}) {
+  const [time, setTime] = useState(activity.time);
+  const [type, setType] = useState<Activity["type"]>(activity.type);
+  const [title, setTitle] = useState(activity.title);
+  const [subtitle, setSubtitle] = useState(activity.subtitle);
+
+  function handleSubmit() {
+    if (!title.trim() || !time.trim()) return;
+    onSave({ ...activity, time: time.trim(), type, title: title.trim(), subtitle: subtitle.trim() });
+    onClose();
+  }
+
+  const TYPES: { type: Activity["type"]; label: string; icon: string }[] = [
+    { type: "sightseeing", label: "Visita", icon: "📸" },
+    { type: "transport", label: "Trasporto", icon: "✈️" },
+    { type: "food", label: "Cibo", icon: "🍽️" },
+    { type: "shopping", label: "Shopping", icon: "🛍️" },
+    { type: "hotel", label: "Hotel", icon: "🏨" },
+    { type: "other", label: "Altro", icon: "📍" },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ background: "rgba(0,0,0,0.45)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-[430px] bg-white rounded-t-3xl p-5 pb-8 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+        <h2 className="text-[17px] font-extrabold text-gray-900">Modifica attività</h2>
+        <p className="text-[12px] text-gray-400 mb-4">{dayLabel}</p>
+
+        {/* Tipo */}
+        <div className="mb-4">
+          <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
+          <div className="flex gap-2 flex-wrap">
+            {TYPES.map((t) => (
+              <button
+                key={t.type}
+                onClick={() => setType(t.type)}
+                className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-colors flex items-center gap-1 ${
+                  type === t.type ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                <span>{t.icon}</span>
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <div className="w-1/3">
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Orario *</label>
+              <input
+                type="text"
+                value={time}
+                placeholder="es. 10:30"
+                onChange={(e) => setTime(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+              />
+            </div>
+            <div className="w-2/3">
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Titolo *</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
+            <input
+              type="text"
+              value={subtitle}
+              onChange={(e) => setSubtitle(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-5">
+          <button
+            className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-semibold text-[14px]"
+            onClick={onClose}
+          >
+            Annulla
+          </button>
+          <button
+            className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-semibold text-[14px]"
+            onClick={handleSubmit}
+            disabled={!title.trim() || !time.trim()}
+            style={{ opacity: !title.trim() || !time.trim() ? 0.5 : 1 }}
+          >
+            Salva
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Timeline row con controlli modifica/elimina/riordino ──────────────────────
 function TripTimelineRow({
   activity,
   isFirst,
   isLast,
   completed,
   onToggle,
+  onEdit,
+  onDelete,
+  onMoveUp,
+  onMoveDown,
+  editMode,
 }: {
   activity: Activity;
   isFirst: boolean;
   isLast: boolean;
   completed: boolean;
   onToggle: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  editMode: boolean;
 }) {
   const isTransport = activity.type === "transport";
 
@@ -103,6 +232,12 @@ function TripTimelineRow({
                 <p className={`font-bold text-[14px] text-gray-900 leading-snug truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
                 <p className={`text-[11px] text-gray-400 truncate mt-0.5 ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
               </div>
+              {editMode && (
+                <div className="flex flex-col gap-1 ml-2 flex-shrink-0">
+                  <button onClick={onEdit} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-2 py-0.5 rounded-lg">✏️</button>
+                  <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-2 py-0.5 rounded-lg">🗑️</button>
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -117,27 +252,48 @@ function TripTimelineRow({
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {activity.imageUrl && (
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {activity.imageUrl && !editMode && (
                 <img
                   src={activity.imageUrl}
                   alt={activity.title}
                   className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
                 />
               )}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggle();
-                }}
-                className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
-                style={{
-                  borderColor: completed ? "#10b981" : "#d1d5db",
-                  backgroundColor: completed ? "#10b981" : "transparent"
-                }}
-              >
-                {completed && <span className="text-white text-[10px] font-bold">✓</span>}
-              </button>
+              {editMode ? (
+                <div className="flex flex-col gap-1">
+                  <div className="flex gap-1">
+                    <button onClick={onEdit} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-lg">✏️</button>
+                    <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-1.5 py-0.5 rounded-lg">🗑️</button>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={onMoveUp}
+                      disabled={isFirst}
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
+                    >↑</button>
+                    <button
+                      onClick={onMoveDown}
+                      disabled={isLast}
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
+                    >↓</button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggle();
+                  }}
+                  className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
+                  style={{
+                    borderColor: completed ? "#10b981" : "#d1d5db",
+                    backgroundColor: completed ? "#10b981" : "transparent"
+                  }}
+                >
+                  {completed && <span className="text-white text-[10px] font-bold">✓</span>}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -355,12 +511,13 @@ function TripDatePickerSheet({
 export default function TripView() {
   const [tripDays, setTripDays] = useState<DayData[]>(loadTripDays);
 
-  // Traccia quale singolo giorno è espanso (Default: il giorno "Oggi")
   const [expandedDayId, setExpandedDayId] = useState<string | null>(TODAY_DAY_ID);
   const [addingToDay, setAddingToDay] = useState<{ id: string; label: string } | null>(null);
+  const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string } | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  // Traccia quale giorno ha la modalità modifica attivata
+  const [editModeDayId, setEditModeDayId] = useState<string | null>(null);
 
-  // Stato per spunta attività
   const [completedActs, setCompletedActs] = useState<string[]>(loadCompletedActivities());
 
   useEffect(() => {
@@ -385,13 +542,13 @@ export default function TripView() {
   }, [tripDays]);
 
   function toggleDay(dayId: string) {
-    // Un solo giorno aperto alla volta: se è già aperto lo chiudiamo, altrimenti lo apriamo chiudendo il precedente
     setExpandedDayId((prev) => (prev === dayId ? null : dayId));
+    // Uscendo da un giorno, disattiva edit mode
+    if (editModeDayId === dayId) setEditModeDayId(null);
   }
 
   function handleSelectDay(dayId: string) {
     setExpandedDayId(dayId);
-    // Scrolla in vista il giorno selezionato dopo che React ha renderizzato lo stato espanso
     setTimeout(() => {
       const el = document.getElementById(`trip-day-${dayId}`);
       if (el) {
@@ -401,17 +558,55 @@ export default function TripView() {
   }
 
   function handleAddActivity(dayId: string, activity: Activity) {
-    setTripDays((prevDays) => {
-      return prevDays.map((day) => {
+    setTripDays((prevDays) =>
+      prevDays.map((day) => {
         if (day.id === dayId) {
           const nextActs = [...day.activities, activity];
-          // Ordinamento cronologico semplice delle attività dello stesso giorno
           nextActs.sort((a, b) => a.time.localeCompare(b.time));
           return { ...day, activities: nextActs };
         }
         return day;
-      });
-    });
+      })
+    );
+  }
+
+  function handleEditActivity(dayId: string, updated: Activity) {
+    setTripDays((prevDays) =>
+      prevDays.map((day) => {
+        if (day.id === dayId) {
+          const nextActs = day.activities.map((a) => (a.id === updated.id ? updated : a));
+          nextActs.sort((a, b) => a.time.localeCompare(b.time));
+          return { ...day, activities: nextActs };
+        }
+        return day;
+      })
+    );
+  }
+
+  function handleDeleteActivity(dayId: string, actId: string) {
+    if (!window.confirm("Eliminare questa attività?")) return;
+    setTripDays((prevDays) =>
+      prevDays.map((day) => {
+        if (day.id === dayId) {
+          return { ...day, activities: day.activities.filter((a) => a.id !== actId) };
+        }
+        return day;
+      })
+    );
+  }
+
+  function handleMoveActivity(dayId: string, actIdx: number, direction: "up" | "down") {
+    setTripDays((prevDays) =>
+      prevDays.map((day) => {
+        if (day.id !== dayId) return day;
+        const acts = [...day.activities];
+        const targetIdx = direction === "up" ? actIdx - 1 : actIdx + 1;
+        if (targetIdx < 0 || targetIdx >= acts.length) return day;
+        // Swap semplice: scambia le posizioni senza toccare gli orari
+        [acts[actIdx], acts[targetIdx]] = [acts[targetIdx], acts[actIdx]];
+        return { ...day, activities: acts };
+      })
+    );
   }
 
   return (
@@ -442,11 +637,11 @@ export default function TripView() {
         {tripDays.map((day, idx) => {
           const isExpanded = expandedDayId === day.id;
           const isToday = day.id === TODAY_DAY_ID;
+          const isEditMode = editModeDayId === day.id;
 
           const transportCount = day.activities.filter((a) => a.type === "transport").length;
           const activityCount = day.activities.length - transportCount;
 
-          // Calcola highlight del giorno (es. prima attività o in volo)
           let highlight = "Nessuna attività pianificata";
           if (day.activities.length > 0) {
             highlight = day.activities[0].title;
@@ -518,6 +713,23 @@ export default function TripView() {
               {/* Dettaglio della giornata espanso */}
               {isExpanded && (
                 <div className="border-t border-gray-100 px-4 pt-4 pb-3 bg-gray-50/50 rounded-b-2xl">
+                  {/* Barra controlli: modalità modifica */}
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-[11px] text-gray-400 font-semibold">
+                      {day.activities.length} {day.activities.length === 1 ? "attività" : "attività"}
+                    </span>
+                    <button
+                      onClick={() => setEditModeDayId(isEditMode ? null : day.id)}
+                      className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-colors ${
+                        isEditMode
+                          ? "bg-blue-600 text-white"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      }`}
+                    >
+                      {isEditMode ? "✓ Fine modifica" : "✏️ Modifica"}
+                    </button>
+                  </div>
+
                   {day.activities.length === 0 ? (
                     <p className="text-[12px] text-gray-400 italic text-center py-2">
                       Nessuna attività programmata per questo giorno.
@@ -532,6 +744,11 @@ export default function TripView() {
                           isLast={actIdx === day.activities.length - 1}
                           completed={completedActs.includes(act.id)}
                           onToggle={() => toggleActivity(act.id)}
+                          onEdit={() => setEditingActivity({ dayId: day.id, activity: act, dayLabel: day.dateLabel })}
+                          onDelete={() => handleDeleteActivity(day.id, act.id)}
+                          onMoveUp={() => handleMoveActivity(day.id, actIdx, "up")}
+                          onMoveDown={() => handleMoveActivity(day.id, actIdx, "down")}
+                          editMode={isEditMode}
                         />
                       ))}
                     </div>
@@ -560,6 +777,15 @@ export default function TripView() {
           dayLabel={addingToDay.label}
           onSave={handleAddActivity}
           onClose={() => setAddingToDay(null)}
+        />
+      )}
+
+      {editingActivity && (
+        <EditActivitySheet
+          activity={editingActivity.activity}
+          dayLabel={editingActivity.dayLabel}
+          onSave={(updated) => handleEditActivity(editingActivity.dayId, updated)}
+          onClose={() => setEditingActivity(null)}
         />
       )}
 
