@@ -479,27 +479,34 @@ export default function TodayView() {
         {/* In evidenza — solo card utili, senza ridondanze */}
         <section>
           <span className="section-label block mb-3">In evidenza</span>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-4 gap-2">
             <QuickCard
               icon="€"
               bgColor="#fffbeb"
               label="Budgeter"
-              desc="Controlla le spese"
+              desc="Controlla spese"
               onClick={() => navigate("/budgeter")}
+            />
+            <QuickCard
+              icon="📋"
+              bgColor="#f3e8ff"
+              label="Checklist"
+              desc="Cose da fare"
+              onClick={() => navigate("/altro?open=checklist")}
             />
             <QuickCard
               icon="🛡️"
               bgColor="#f0f9ff"
               label="Assicurazione"
-              desc="Heymondo · 24/7"
-              onClick={() => navigate("/altro")}
+              desc="Heymondo 24h"
+              onClick={() => navigate("/altro?open=insurance")}
             />
             <QuickCard
               icon="🚨"
               bgColor="#fff0f0"
               label="Emergenze"
               desc="Numeri utili"
-              onClick={() => navigate("/altro")}
+              onClick={() => navigate("/altro?open=emergencies")}
             />
           </div>
         </section>

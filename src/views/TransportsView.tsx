@@ -18,6 +18,49 @@ function saveTransports(list: Transport[]) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch { /* ignore */ }
 }
 
+// ── Calcolo dettagli scalo (layover) ──────────────────────────────────────────
+function getLayoverDetails(tr: Transport) {
+  if (!tr.segments || tr.segments.length < 2) return null;
+  
+  const seg1 = tr.segments[0];
+  const seg2 = tr.segments[1];
+  
+  try {
+    const end = new Date(seg1.arrival.replace(" ", "T"));
+    const start = new Date(seg2.departure.replace(" ", "T"));
+    const diffMs = start.getTime() - end.getTime();
+    
+    if (diffMs > 0) {
+      const diffMins = Math.floor(diffMs / (1000 * 60));
+      const hours = Math.floor(diffMins / 60);
+      const mins = diffMins % 60;
+      
+      const durationStr = `${hours}h${mins > 0 ? ` ${mins}m` : ""}`;
+      const isLong = hours >= 6; // utile per uscire se >= 6 ore
+      
+      return {
+        city: tr.layoverCity || seg1.to,
+        duration: durationStr,
+        isLong,
+        hours,
+      };
+    }
+  } catch (e) { /* ignore */ }
+
+  // Fallback statici basati sui dati reali
+  if (tr.id === "tr-flight-mxp-akl") {
+    return { city: "Pechino", duration: "10h 35m", isLong: true, hours: 10 };
+  }
+  if (tr.id === "tr-flight-syd-mnl") {
+    return { city: "Manila", duration: "14h 40m", isLong: true, hours: 14 };
+  }
+  if (tr.id === "tr-flight-ceb-fco") {
+    return { city: "Taipei", duration: "1h 40m", isLong: false, hours: 1 };
+  }
+
+  return null;
+}
+
 // ── Icons & labels ────────────────────────────────────────────────────────────
 function TransportIcon({ type }: { type: Transport["type"] }) {
   const base = "w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm";
@@ -178,7 +221,37 @@ function TransportDetailSheet({
         {/* Segmenti volo con scalo */}
         {tr.segments && tr.segments.length > 1 && (
           <div className="mb-4">
-            <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-2">Segmenti</p>
+            <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-2">Dettaglio Segmenti e Scali</p>
+            
+            {/* Box scalo in evidenza */}
+            {(() => {
+              const layover = getLayoverDetails(tr);
+              if (!layover) return null;
+              return (
+                <div className={`mb-3 p-3.5 rounded-2xl border text-[12px] ${
+                  layover.isLong
+                    ? "bg-amber-50 border-amber-200 text-amber-900 shadow-sm"
+                    : "bg-gray-50 border-gray-200 text-gray-800"
+                }`}>
+                  <p className={`text-[9px] font-black uppercase tracking-wider mb-1 ${layover.isLong ? "text-amber-700" : "text-gray-500"}`}>
+                    {layover.isLong ? "⚠️ Scalo Lungo Rilevato" : "✈️ Info Scalo"}
+                  </p>
+                  <p className="font-extrabold text-[13px] leading-snug">
+                    Scalo a {layover.city} &middot; Durata: {layover.duration}
+                  </p>
+                  {layover.isLong ? (
+                    <p className="text-[11px] text-amber-800/90 mt-1 font-medium leading-relaxed">
+                      Con uno scalo di <strong>{layover.duration}</strong> a {layover.city}, puoi uscire dall'aeroporto sfruttando il transito senza visto! Ideale per fare un giro veloce in città.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-gray-500 mt-1 font-medium">
+                      Scalo breve ({layover.duration}). Rimani nell'area partenze per il volo successivo.
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
+
             <div className="space-y-2">
               {tr.segments.map((seg, i) => (
                 <div key={i} className="bg-blue-50/80 border border-blue-100/60 rounded-xl px-3 py-2.5">
@@ -190,11 +263,6 @@ function TransportDetailSheet({
                 </div>
               ))}
             </div>
-            {tr.layoverCity && (
-              <p className="text-[11px] text-amber-600 mt-2 font-semibold">
-                ✈ Scalo a {tr.layoverCity}
-              </p>
-            )}
           </div>
         )}
 
@@ -565,6 +633,8 @@ function TransportFormSheet({
 
 // ── Card trasporto ────────────────────────────────────────────────────────────
 function TransportCard({ tr, onSelect }: { tr: Transport; onSelect: (t: Transport) => void }) {
+  const layover = getLayoverDetails(tr);
+
   return (
     <button className="card p-3.5 w-full text-left transition-all hover:scale-[1.01] active:scale-[0.99] border border-gray-100 shadow-sm" onClick={() => onSelect(tr)}>
       <div className="flex items-start gap-3">
@@ -588,6 +658,20 @@ function TransportCard({ tr, onSelect }: { tr: Transport; onSelect: (t: Transpor
           </p>
           {tr.importantNote && (
             <p className="text-[11px] text-amber-600 mt-1 truncate font-semibold">⚠️ {tr.importantNote}</p>
+          )}
+
+          {layover && (
+            <div className={`mt-2 px-2 py-1.5 rounded-xl border text-[11px] font-semibold flex items-center gap-1.5 ${
+              layover.isLong
+                ? "bg-amber-50 border-amber-200 text-amber-800"
+                : "bg-gray-50 border-gray-200 text-gray-650"
+            }`}>
+              <span>✈️</span>
+              <span>
+                Scalo a <strong className="font-bold">{layover.city}</strong> ({layover.duration})
+                {layover.isLong && " · 🚶‍♂️ Consigliato per uscire!"}
+              </span>
+            </div>
           )}
         </div>
         <IcChevronRight size={16} className="text-gray-300 mt-1 flex-shrink-0" />
