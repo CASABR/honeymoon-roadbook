@@ -14,6 +14,7 @@ import {
   IcMapPin,
   IcCalendar,
   IcChevronRight,
+  IcChevronLeft,
   IcChevronDown,
   IcQR,
   ActivityIcon,
@@ -331,6 +332,20 @@ export default function TodayView() {
   const tomorrow = getTomorrow(selectedDayId);
   const acco = getTodayAccommodation();
 
+  const currentIdx = DAYS.findIndex((d) => d.id === selectedDayId);
+
+  function handlePrevDay() {
+    if (currentIdx > 0) {
+      setSelectedDayId(DAYS[currentIdx - 1].id);
+    }
+  }
+
+  function handleNextDay() {
+    if (currentIdx < DAYS.length - 1) {
+      setSelectedDayId(DAYS[currentIdx + 1].id);
+    }
+  }
+
   const [expanded, setExpanded] = useState(false);
   const [qrActivity, setQrActivity] = useState<Activity | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -386,23 +401,48 @@ export default function TodayView() {
               </span>
             </div>
           )}
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-[22px] font-bold text-gray-900 leading-tight">
+          <div className="flex items-center justify-between">
+            <div className="min-w-0 flex-1 pr-2">
+              <h1 className="text-[21px] font-bold text-gray-900 leading-tight truncate">
                 Oggi &middot; {todayLabel}
               </h1>
               <div className="flex items-center gap-1 mt-1">
                 <IcMapPin size={13} className="text-green-500" />
-                <span className="text-[13px] text-green-600 font-medium">{today.location}</span>
+                <span className="text-[13px] text-green-600 font-medium truncate">{today.location}</span>
               </div>
             </div>
-            {/* Calendario: apre selezione giorno viaggio */}
-            <button
-              className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center"
-              onClick={() => setShowDatePicker(true)}
-            >
-              <IcCalendar size={18} className="text-gray-600" />
-            </button>
+            {/* Navigazione giorno e Calendario */}
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <button
+                className={`w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center transition-opacity ${
+                  currentIdx <= 0 ? "opacity-35 cursor-not-allowed" : "hover:bg-gray-50 active:scale-95"
+                }`}
+                onClick={handlePrevDay}
+                disabled={currentIdx <= 0}
+                aria-label="Giorno precedente"
+              >
+                <IcChevronLeft size={16} className="text-gray-600" />
+              </button>
+
+              <button
+                className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center hover:bg-gray-50 active:scale-95"
+                onClick={() => setShowDatePicker(true)}
+                aria-label="Seleziona giorno"
+              >
+                <IcCalendar size={18} className="text-gray-600" />
+              </button>
+
+              <button
+                className={`w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center transition-opacity ${
+                  currentIdx >= DAYS.length - 1 ? "opacity-35 cursor-not-allowed" : "hover:bg-gray-50 active:scale-95"
+                }`}
+                onClick={handleNextDay}
+                disabled={currentIdx >= DAYS.length - 1}
+                aria-label="Giorno successivo"
+              >
+                <IcChevronRight size={16} className="text-gray-600" />
+              </button>
+            </div>
           </div>
         </div>
 

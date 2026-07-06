@@ -1,5 +1,18 @@
 # CHANGELOG WORKING
 
+## [2026-07-06 – Sessione 7] Riorganizzazione Documenti per Categoria, Budgeter 5 Categorie (Attività/Altro), Itinerario 44 Giorni ed Allineamento Cache/Routing
+
+### File modificati
+- `src/views/TodayView.tsx` — Aggiunti pulsanti freccia sinistra (`IcChevronLeft`) e destra (`IcChevronRight`) ai lati dell'icona calendario nell'header per navigare velocemente tra il giorno precedente ed il giorno successivo dell'itinerario. Gestito lo stato disabilitato per il primo (G1) e l'ultimo giorno (G44).
+- `src/main.tsx` — Risolto il bug di routing locale configurando il `basename` di `BrowserRouter` dinamicamente con `import.meta.env.BASE_URL.replace(/\/$/, "")` per essere coerenti alla base path `/honeymoon-roadbook/` impostata in Vite.
+- `src/views/TripView.tsx` — Risolto il problema del caricamento bloccato a 13 giorni: implementata una logica di sincronizzazione in `loadTripDays()` che rileva la discrepanza di lunghezza con l'itinerario di default, aggiorna la cache locale a 44 giorni e preserva le attività create manualmente dall'utente.
+- `src/views/AltroView.tsx` — Riorganizzato l'accordion dei Documenti per "cosa" (categoria). Aggiunto il bottom sheet `CategoryDocumentsSheet` per visualizzare/sfoltire i documenti della categoria selezionata. Integrata una logica di migrazione in `loadDocuments()` per assegnare le categorie ai vecchi record in locale.
+- `src/views/BudgetView.tsx` — Ristrutturate le categorie del budgeter a 5 voci (Trasporti, Alloggi, Attività, Cibo & Extra, Altro) con layout asimmetrico per la quinta scheda. Spostata l'assicurazione sotto "Altro" ed inserite le nuove spese reali sotto "Attività". Integrato il caricamento con migrazione per aggiornare la cache locale del browser.
+- `PROJECT_RULES.md` & `ARCHITECTURE_NOTES.md` — Aggiornati con i dettagli della migrazione della cache, del routing e dei nuovi controlli dell'header.
+- `CHANGELOG_WORKING.md` — Aggiornato questo file.
+
+---
+
 ## [2026-07-06 – Sessione 6] Gestione Documenti Offline + Calcolo Dinamico Spese e Dettaglio Categorie Budgeter
 
 ### File modificati

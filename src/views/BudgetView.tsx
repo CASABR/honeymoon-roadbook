@@ -5,15 +5,15 @@ import {
   ACCOMMODATIONS,
 } from "../data/mockData";
 import type { Transport, Accommodation } from "../data/mockData";
-import { IcPlus, IcChevronRight, IcChevronDown, IcPlus as IcTrash } from "../components/Icons";
+import { IcPlus, IcChevronRight, IcChevronDown } from "../components/Icons";
 
 // ── Interfaccia Spesa Manuale ──────────────────────────────────────────────────
 interface BudgetEntry {
   id: string;
-  date: string; // es. "06 lug"
+  date: string; // es. "06 jul"
   label: string;
   amount: number;
-  category: "Trasporti" | "Alloggi" | "Assicurazione" | "Cibo & Extra" | "Altro";
+  category: "Trasporti" | "Alloggi" | "Attività" | "Cibo & Extra" | "Altro";
 }
 
 const LS_TRANSPORTS = "hrb_transports_v2";
@@ -37,15 +37,36 @@ function loadAccommodations(): Accommodation[] {
 }
 
 const INITIAL_ENTRIES: BudgetEntry[] = [
-  { id: "entry-insurance", date: "18 giu", label: "Assicurazione Heymondo Premium", amount: 294, category: "Assicurazione" },
-  { id: "entry-food-mock", date: "02 dic", label: "Cena tipica Maori (Waitomo)", amount: 120, category: "Cibo & Extra" },
-  { id: "entry-extra-mock", date: "10 dic", label: "Noleggio tavola da surf (Cardrona)", amount: 80, category: "Cibo & Extra" },
+  { id: "entry-insurance", date: "18 giu", label: "Assicurazione Heymondo Premium", amount: 294, category: "Altro" },
+  { id: "entry-maori-village", date: "03 dic", label: "Mitai Maori Village (Cena + Show)", amount: 120, category: "Attività" },
+  { id: "entry-surf-bondi", date: "26 dic", label: "Corso di Surf (Bondi Beach)", amount: 80, category: "Attività" },
+  { id: "entry-glowworm-caves", date: "02 dic", label: "Waitomo Glowworm Caves Entry", amount: 65, category: "Attività" },
+  { id: "entry-food-mock", date: "30 dic", label: "Pranzo di pesce a Boracay", amount: 45, category: "Cibo & Extra" },
 ];
 
 function loadBudgetEntries(): BudgetEntry[] {
   try {
     const raw = localStorage.getItem(LS_BUDGET_ENTRIES);
-    if (raw) return JSON.parse(raw) as BudgetEntry[];
+    if (raw) {
+      let list = JSON.parse(raw) as BudgetEntry[];
+      
+      // 1. Migrazione: Spostiamo i record con category "Assicurazione" (vecchio tipo) sotto "Altro"
+      list = list.map((e) => {
+        if ((e.category as any) === "Assicurazione") {
+          return { ...e, category: "Altro" };
+        }
+        return e;
+      });
+      
+      // 2. Integrazione: Aggiungiamo i record di default di INITIAL_ENTRIES che non sono ancora presenti nella lista salvata
+      INITIAL_ENTRIES.forEach((init) => {
+        if (!list.some((e) => e.id === init.id)) {
+          list.push(init);
+        }
+      });
+      
+      return list;
+    }
   } catch { /* ignore */ }
   return INITIAL_ENTRIES;
 }
@@ -114,7 +135,7 @@ function CategoryDetailSheet({
       total += e.amount;
     });
   } else {
-    // Assicurazione, Cibo & Extra, Altro derivano interamente da entries
+    // Attività, Cibo & Extra, Altro derivano interamente da entries
     entries.filter((e) => e.category === category).forEach((e) => {
       listItems.push({ label: e.label, date: e.date, amount: e.amount, isManual: true, id: e.id });
       total += e.amount;
@@ -252,7 +273,7 @@ function AddExpenseSheet({
           <div>
             <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Categoria</label>
             <div className="grid grid-cols-2 gap-2">
-              {(["Cibo & Extra", "Trasporti", "Alloggi", "Assicurazione", "Altro"] as BudgetEntry["category"][]).map((cat) => (
+              {(["Cibo & Extra", "Trasporti", "Alloggi", "Attività", "Altro"] as BudgetEntry["category"][]).map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setCategory(cat)}
@@ -331,8 +352,8 @@ export default function BudgetView() {
   finalAccommodations.forEach((a) => { if (a.price && a.price > 0) spentAccommodations += a.price; });
   entries.filter((e) => e.category === "Alloggi").forEach((e) => spentAccommodations += e.amount);
 
-  let spentInsurance = 0;
-  entries.filter((e) => e.category === "Assicurazione").forEach((e) => spentInsurance += e.amount);
+  let spentActivities = 0;
+  entries.filter((e) => e.category === "Attività").forEach((e) => spentActivities += e.amount);
 
   let spentFoodExtra = 0;
   entries.filter((e) => e.category === "Cibo & Extra").forEach((e) => spentFoodExtra += e.amount);
@@ -340,7 +361,7 @@ export default function BudgetView() {
   let spentAltro = 0;
   entries.filter((e) => e.category === "Altro").forEach((e) => spentAltro += e.amount);
 
-  const totalSpent = spentTransports + spentAccommodations + spentInsurance + spentFoodExtra + spentAltro;
+  const totalSpent = spentTransports + spentAccommodations + spentActivities + spentFoodExtra + spentAltro;
   const residuo = BUDGET_TOTAL - totalSpent;
   const totalPct = pct(totalSpent, BUDGET_TOTAL);
 
@@ -348,8 +369,9 @@ export default function BudgetView() {
   const categoriesRender = [
     { id: "cat-tr", label: "Trasporti", icon: "✈️", spent: spentTransports, budget: 4000 },
     { id: "cat-acc", label: "Alloggi", icon: "🏨", spent: spentAccommodations, budget: 3000 },
-    { id: "cat-ins", label: "Assicurazione", icon: "🛡️", spent: spentInsurance, budget: 300 },
-    { id: "cat-food", label: "Cibo & Extra", icon: "🍜", spent: spentFoodExtra, budget: 4700 },
+    { id: "cat-act", label: "Attività", icon: "🎫", spent: spentActivities, budget: 2000 },
+    { id: "cat-food", label: "Cibo & Extra", icon: "🍜", spent: spentFoodExtra, budget: 3000 },
+    { id: "cat-other", label: "Altro", icon: "📁", spent: spentAltro, budget: 1000 },
   ];
 
   function handleSaveExpense(newEntry: BudgetEntry) {
@@ -405,12 +427,15 @@ export default function BudgetView() {
         <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Tocca per dettagli</span>
       </div>
       <div className="grid grid-cols-2 gap-3 mb-5">
-        {categoriesRender.map((cat) => {
+        {categoriesRender.map((cat, idx) => {
           const p = pct(cat.spent, cat.budget);
+          const isLastAndOdd = idx === categoriesRender.length - 1 && categoriesRender.length % 2 !== 0;
           return (
             <button
               key={cat.id}
-              className="card p-3.5 text-left w-full transition-all hover:scale-[1.01] active:scale-[0.99]"
+              className={`card p-3.5 text-left w-full transition-all hover:scale-[1.01] active:scale-[0.99] ${
+                isLastAndOdd ? "col-span-2" : ""
+              }`}
               onClick={() => setSelectedCat(cat.label)}
             >
               <div className="flex items-center justify-between mb-2">
