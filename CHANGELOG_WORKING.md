@@ -1,5 +1,23 @@
 # CHANGELOG WORKING
 
+## [2026-07-06 – Sessione 10] Checklist interattiva · Navigazione da homepage ad Altro · Evidenza scali lunghi
+
+### File modificati
+- `src/views/AltroView.tsx`
+  - Implementata la gestione Checklist offline interattiva (salvata localmente in `hrb_checklists_v3`).
+  - È possibile creare più liste, spuntare/disattivare elementi, aggiungere rapidamente nuovi elementi alle singole liste e creare/eliminare liste.
+  - Integrati i parametri URL (`?open=...`) per consentire a link esterni di aprire l'accordion corrispondente e scrollare in modo automatico e smooth ad esso (tramite `document.getElementById` e `scrollIntoView`).
+  - Rimossa la voce Checklist mockata da `NAV_ITEMS`.
+- `src/views/TodayView.tsx`
+  - Aggiunta la card "Checklist" a "In evidenza" (totale 4 card in griglia responsive `grid-cols-4`).
+  - Reindirizzati i click delle card "Checklist", "Assicurazione", ed "Emergenze" per puntare rispettivamente a `/altro?open=checklist`, `/altro?open=insurance` e `/altro?open=emergencies`.
+- `src/views/TransportsView.tsx`
+  - Aggiunta la funzione helper `getLayoverDetails(tr: Transport)` che calcola dinamicamente la durata degli scali per i voli con segmenti multipli e categorizza come "scalo lungo" quelli superiori a 6 ore (es. Pechino 10h 35m, Manila 14h 40m).
+  - Inserito un banner informativo colorato e ben visibile in `TransportCard` per gli scali lunghi (arancione con avviso transito e indicazione per uscire) e per gli scali brevi (grigio neutro).
+  - Integrato un box dettagliato con avviso specifico scalo lungo all'interno di `TransportDetailSheet` sopra la lista dei singoli segmenti di volo.
+
+---
+
 ## [2026-07-06 – Sessione 9] Verifica Itinerario · Editing Viaggio · Budgeter Sticky · Allegati Documenti
 
 ### File modificati

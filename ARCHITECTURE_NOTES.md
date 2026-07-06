@@ -74,6 +74,9 @@ confirmationCode?: string
 - Routing Basename Dinamico: in `main.tsx` `BrowserRouter` adotta `import.meta.env.BASE_URL` privato dello slash terminale come basename, risolvendo conflitti di instradamento in dev ed in produzione (es. GitHub Pages).
 - localStorage per form aggiungi alloggio/trasporto/attività: semplice, offline, sostituibile (chiavi di versione _v2 per resettare vecchi dati inquinati di debug).
 - Nessun drawer/modal pesante: sheet bottom semplice con CSS vanilla.
+- Sezione Checklist: memorizzata localmente in `hrb_checklists_v3` che gestisce liste multiple offline con aggiunta/rimozione dinamica di elementi e liste.
+- Rilevamento scalo aereo: calcolo automatico dei tempi di attesa tra segmenti in TransportsView e visualizzazione differenziata con evidenza (scalo lungo >= 6 ore colorato in arancione con consiglio di uscita visa-free, scalo breve in grigio).
+- Navigazione deep-link con auto-scroll: l'URL parametrizzato `/altro?open=...` gestisce l'apertura all'avvio e lo scorrimento smooth all'accordion corrispondente.
 
 ## Evoluzione Futura e Roadmap
 
