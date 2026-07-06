@@ -398,7 +398,7 @@ export default function BudgetView() {
   }
 
   return (
-    <div className="px-4 pt-5 pb-4">
+    <div className="px-4 pt-5 pb-28">
       <h1 className="text-[24px] font-extrabold text-gray-900 mb-5">Budgeter</h1>
 
       {/* ── Totale ─────────────────────────────────────────────────────────── */}
@@ -515,14 +515,23 @@ export default function BudgetView() {
         )}
       </div>
 
-      {/* ── Aggiungi spesa ─────────────────────────────────────────────────── */}
-      <button
-        onClick={() => setShowAddExpense(true)}
-        className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-extrabold text-[14px] py-3.5 rounded-2xl shadow-lg shadow-blue-200 transition-all hover:bg-blue-700 hover:scale-[1.01] active:scale-[0.99]"
+      {/* ── Aggiungi spesa — sticky FAB ──────────────────────────────────── */}
+      {/* Spacer visivo ridondante rimosso: il padding pb-28 tiene spazio */}
+
+      {/* Pulsante fisso sempre visibile in basso, sopra la bottom nav */}
+      <div
+        className="fixed bottom-[68px] left-1/2 -translate-x-1/2 w-full max-w-[430px] px-4 z-40"
+        style={{ pointerEvents: "none" }}
       >
-        <IcPlus size={18} />
-        Aggiungi spesa
-      </button>
+        <button
+          onClick={() => setShowAddExpense(true)}
+          style={{ pointerEvents: "auto" }}
+          className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-extrabold text-[14px] py-3.5 rounded-2xl shadow-xl shadow-blue-300/50 transition-all hover:bg-blue-700 active:scale-[0.98]"
+        >
+          <IcPlus size={18} />
+          Aggiungi spesa
+        </button>
+      </div>
 
       {selectedCat && (
         <CategoryDetailSheet

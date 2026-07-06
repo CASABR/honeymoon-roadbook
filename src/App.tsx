@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import BottomNav from "./components/BottomNav";
 import TodayView from "./views/TodayView";
 import TripView from "./views/TripView";
@@ -12,7 +12,8 @@ export default function App() {
     <div className="app-shell">
       <div className="page-content">
         <Routes>
-          <Route path="/" element={<TodayView />} />
+          <Route path="/" element={<Navigate to="/oggi" replace />} />
+          <Route path="/oggi" element={<TodayView />} />
           <Route path="/viaggio" element={<TripView />} />
           <Route path="/alloggi" element={<AccommodationsView />} />
           <Route path="/trasporti" element={<TransportsView />} />
