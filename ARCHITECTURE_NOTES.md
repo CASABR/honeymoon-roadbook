@@ -32,12 +32,15 @@ src/
 - `.hide-scrollbar` → scrollbar nascosta
 
 ## Routing
-- `/` → TodayView
+- `/` → redirect a `/oggi` (via `<Navigate replace>`)
+- `/oggi` → TodayView
 - `/viaggio` → TripView
 - `/alloggi` → AccommodationsView
 - `/trasporti` → TransportsView
 - `/budgeter` → BudgetView
 - `/altro` → AltroView
+
+**SPA su GitHub Pages:** `public/404.html` cattura i 404 e reindirizza alla root con il subpath come query. Lo script in `index.html` ripristina l'URL corretto prima del mount di React Router.
 
 ## Persistenza locale
 - Alloggi e Trasporti: stato locale React + localStorage
@@ -66,7 +69,7 @@ confirmationCode?: string
 - Il pulsante del calendario in Viaggio apre un bottom sheet di selezione del giorno (`TripDatePickerSheet`) che reindirizza e scrolla la pagina sul giorno selezionato in modo smooth.
 - AltroView arricchito con accordion informativi reali: Assicurazione Heymondo (chiuso di default), Numeri Emergenza per paese, Bagagli e franchigie, Scadenze.
 - Sezione Documenti in Altro: raggruppati per "cosa" (categoria) anziché per persona. Include un foglio di dettaglio della singola categoria per visualizzare ed inserire documenti ed una logica di migrazione automatica per i vecchi record precedentemente salvati privi del metadato `category`.
-- Budgeter dinamico: calcola spesa totale, residuo e categorie in tempo reale leggendo i prezzi reali dagli alloggi (`hrb_accommodations_v2`) e trasporti (`hrb_transports_v2`) persistiti. Riorganizzato su 5 categorie stabili ("Attività" e "Altro" con assicurazione inclusa) con layout asimmetrico `col-span-2` per la quinta card. Include migrazione automatica dei vecchi record.
+- Budgeter dinamico: calcola spesa totale, residuo e categorie in tempo reale leggendo i prezzi reali dagli alloggi (`hrb_accommodations_v2`) e trasporti (`hrb_transports_v2`) persistiti. 5 categorie stabili: Trasporti, Alloggi, Attività, Cibo & Extra, Altro. Assicurazione (dato reale €294,21 da polizza HEY2101185) inclusa sotto "Altro". Il popup dettaglio "Altro" mostra anche la card informativa della polizza (brand, numero polizza, periodo, copertura). Migrazione automatica dei vecchi record.
 - Sincronizzazione itinerario: la logica di caricamento rileva discrepanze di lunghezza tra la cache locale e la definizione mock per aggiornare smooth l'itinerario a 44 giorni completo e continuo, conservando le attività create a mano dall'utente.
 - Routing Basename Dinamico: in `main.tsx` `BrowserRouter` adotta `import.meta.env.BASE_URL` privato dello slash terminale come basename, risolvendo conflitti di instradamento in dev ed in produzione (es. GitHub Pages).
 - localStorage per form aggiungi alloggio/trasporto/attività: semplice, offline, sostituibile (chiavi di versione _v2 per resettare vecchi dati inquinati di debug).
@@ -75,7 +78,7 @@ confirmationCode?: string
 ## Evoluzione Futura e Roadmap
 
 Per le fasi successive dello sviluppo, il progetto dovrà essere configurato per:
-1. **Hosting Iniziale:** Deployment su **GitHub Pages** per una preview statica/client-side accessibile online.
+1. **Hosting Iniziale:** ✅ **Completato** — Deployment su **GitHub Pages** (`https://casabr.github.io/honeymoon-roadbook/`). Supporto SPA 404 via `public/404.html` + script redirect in `index.html`. CSP configurata via meta tag.
 2. **Autenticazione:** Integrazione del **Login con Google / Gmail**, consentendo l'accesso sicuro.
 3. **Stato Iniziale Utente:** Avvio dell'applicazione con uno stato vuoto (empty state) per i nuovi utenti che non hanno ancora inserito dati, guidandoli nell'importazione.
 4. **Gmail Import Reale:** Implementazione di un servizio (serverless o client-side con token OAuth) che legga le email di conferma (voli, hotel, treni) da Gmail per estrarre e mappare automaticamente i dati nel roadbook.

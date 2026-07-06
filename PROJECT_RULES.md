@@ -32,7 +32,7 @@ Utilità pratica durante il viaggio, non un prodotto commerciale.
   - `Transport` → supporta `source`, `confirmationCode`, `qrCodeData` e `qrCodes?: string[]` (per multipli QR code/biglietti scorrevoli)
   - `Completed Activities` → persistito tramite `hrb_completed_activities_v2` e sincronizzato in tempo reale tra Oggi e Viaggio tramite un custom event listener
   - `DocumentItem` → raggruppati per categoria ("cosa"), persistiti in `hrb_documents_v2` con migrazione automatica delle categorie per vecchi record privi di metadati.
-  - `BudgetEntry` → diviso in 5 categorie (Trasporti, Alloggi, Attività, Cibo & Extra, Altro) persistito in `hrb_budget_entries_v2` con migrazione e unione automatica dei default.
+  - `BudgetEntry` → diviso in 5 categorie (Trasporti, Alloggi, Attività, Cibo & Extra, Altro) persistito in `hrb_budget_entries_v2` con migrazione e unione automatica dei default. Assicurazione (€294,21 reale, polizza HEY2101185) inclusa sotto "Altro". Trasporti e Alloggi NZ hanno price reali; AU/PH da completare.
 - Conflitti orario: le strutture hanno già `date` + `time` ISO → confronto facile in futuro
 - Strategia: isolare la fonte dati in `src/data/store.ts` (da creare quando serve)
 

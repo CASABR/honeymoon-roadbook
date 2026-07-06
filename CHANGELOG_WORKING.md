@@ -1,5 +1,30 @@
 # CHANGELOG WORKING
 
+## [2026-07-06 – Sessione 8] Completamento Budgeter: Fix Routing SPA, CSP, e Raffinamento Dati Reali
+
+### File modificati
+- `src/App.tsx` — Route `/` ora fa redirect a `/oggi` via `<Navigate replace>`. Aggiunta route `/oggi` esplicita per `TodayView`.
+- `src/components/BottomNav.tsx` — Tab "Oggi" ora punta a `/oggi` (non più a `/`). Aggiornata prop `end` di conseguenza.
+- `index.html` — Aggiunto tag CSP `<meta http-equiv="Content-Security-Policy">` che autorizza solo Google Fonts e font.gstatic.com. Aggiunto script SPA redirect per GitHub Pages (pattern rafgraph/spa-github-pages). Corretto favicon da `/vite.svg` a `favicon.svg` (path relativo al base).
+- `public/404.html` — **Nuovo file**. Intercetta i 404 di GitHub Pages su route interne (es. `/viaggio`) e reindirizza alla root preservando il subpath come query string per il redirect handler in `index.html`.
+- `src/views/BudgetView.tsx` — Importata costante `INSURANCE` da mockData. Corretto importo assicurazione a €294,21 (valore reale da polizza HEY2101185). Aggiunta card informativa polizza nel popup dettaglio "Altro" (mostra brand, numero polizza, piano, assicurati, periodo, copertura geografica). Aggiunti commenti che documentano quali voci sono reali e quali sono stime.
+
+### Stato Budgeter dopo Sessione 8
+**Categorie presenti:** Trasporti ✅ · Alloggi ✅ · Attività ✅ · Cibo & Extra ✅ · Altro ✅
+
+**Dati reali integrati:**
+- Trasporti: 6 tratte con price reale da mockData (somma automatica)
+- Alloggi: 9 strutture NZ con price reale da mockData (somma automatica)
+- Assicurazione: €294,21 reale (polizza Heymondo HEY2101185)
+
+**Dati ancora mancanti / mock:**
+- Alloggi AU e PH: nessun price nei dati → non vengono sommati (da aggiungere quando disponibili)
+- Trasporti PH (Busuanga→Cebu, MPH→ENI, CEB→FCO): nessun price reale → non sommati
+- Attività: Mitai Maori Village (€120), Surf Bondi (€80), Waitomo Caves (€65) → stime credibili, non confermate con ricevuta
+- Cibo & Extra: solo voce placeholder Boracay (€45)
+
+---
+
 ## [2026-07-06 – Sessione 7] Riorganizzazione Documenti per Categoria, Budgeter 5 Categorie (Attività/Altro), Itinerario 44 Giorni ed Allineamento Cache/Routing
 
 ### File modificati

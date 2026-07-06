@@ -3,9 +3,10 @@ import {
   BUDGET_TOTAL,
   TRANSPORTS,
   ACCOMMODATIONS,
+  INSURANCE,
 } from "../data/mockData";
 import type { Transport, Accommodation } from "../data/mockData";
-import { IcPlus, IcChevronRight, IcChevronDown } from "../components/Icons";
+import { IcPlus, IcChevronRight } from "../components/Icons";
 
 // ── Interfaccia Spesa Manuale ──────────────────────────────────────────────────
 interface BudgetEntry {
@@ -37,10 +38,13 @@ function loadAccommodations(): Accommodation[] {
 }
 
 const INITIAL_ENTRIES: BudgetEntry[] = [
-  { id: "entry-insurance", date: "18 giu", label: "Assicurazione Heymondo Premium", amount: 294, category: "Altro" },
+  // Dato reale: costo esatto da polizza Heymondo (HEY2101185)
+  { id: "entry-insurance", date: "18 giu", label: "Assicurazione Heymondo Premium", amount: 294.21, category: "Altro" },
+  // Attività prenotate / stimate (non inventate ma non ancora confermate con ricevuta)
   { id: "entry-maori-village", date: "03 dic", label: "Mitai Maori Village (Cena + Show)", amount: 120, category: "Attività" },
   { id: "entry-surf-bondi", date: "26 dic", label: "Corso di Surf (Bondi Beach)", amount: 80, category: "Attività" },
   { id: "entry-glowworm-caves", date: "02 dic", label: "Waitomo Glowworm Caves Entry", amount: 65, category: "Attività" },
+  // Cibo: voce mock — da aggiornare durante il viaggio
   { id: "entry-food-mock", date: "30 dic", label: "Pranzo di pesce a Boracay", amount: 45, category: "Cibo & Extra" },
 ];
 
@@ -49,7 +53,7 @@ function loadBudgetEntries(): BudgetEntry[] {
     const raw = localStorage.getItem(LS_BUDGET_ENTRIES);
     if (raw) {
       let list = JSON.parse(raw) as BudgetEntry[];
-      
+
       // 1. Migrazione: Spostiamo i record con category "Assicurazione" (vecchio tipo) sotto "Altro"
       list = list.map((e) => {
         if ((e.category as any) === "Assicurazione") {
@@ -57,14 +61,14 @@ function loadBudgetEntries(): BudgetEntry[] {
         }
         return e;
       });
-      
+
       // 2. Integrazione: Aggiungiamo i record di default di INITIAL_ENTRIES che non sono ancora presenti nella lista salvata
       INITIAL_ENTRIES.forEach((init) => {
         if (!list.some((e) => e.id === init.id)) {
           list.push(init);
         }
       });
-      
+
       return list;
     }
   } catch { /* ignore */ }
@@ -142,6 +146,9 @@ function CategoryDetailSheet({
     });
   }
 
+  // Dati reali polizza per il popup Altro
+  const showInsuranceCard = category === "Altro";
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px]"
@@ -158,6 +165,15 @@ function CategoryDetailSheet({
           <span className="text-[16px] font-extrabold text-blue-600">Total: €{total.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
         <p className="text-[12px] text-gray-400 mb-4">Composizione analitica dei costi reali registrati</p>
+
+        {/* Card polizza assicurazione — visibile solo nel popup Altro */}
+        {showInsuranceCard && (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3">
+            <p className="text-[11px] font-black text-blue-700 uppercase tracking-wider mb-1">🛡️ Polizza {INSURANCE.brand} · {INSURANCE.policyNumber}</p>
+            <p className="text-[11px] text-blue-600 font-medium">{INSURANCE.plan} · {INSURANCE.insured}</p>
+            <p className="text-[11px] text-blue-500 mt-0.5">{INSURANCE.startDate} – {INSURANCE.endDate} · {INSURANCE.coverage}</p>
+          </div>
+        )}
 
         <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
           {listItems.length === 0 ? (
@@ -277,9 +293,8 @@ function AddExpenseSheet({
                 <button
                   key={cat}
                   onClick={() => setCategory(cat)}
-                  className={`py-2 rounded-xl text-[12px] font-semibold transition-colors ${
-                    category === cat ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
-                  }`}
+                  className={`py-2 rounded-xl text-[12px] font-semibold transition-colors ${category === cat ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
+                    }`}
                 >
                   {cat}
                 </button>
@@ -411,8 +426,8 @@ export default function BudgetView() {
                 totalPct > 90
                   ? "#ef4444"
                   : totalPct > 70
-                  ? "#f97316"
-                  : "#1d4ed8",
+                    ? "#f97316"
+                    : "#1d4ed8",
             }}
           />
         </div>
@@ -433,9 +448,8 @@ export default function BudgetView() {
           return (
             <button
               key={cat.id}
-              className={`card p-3.5 text-left w-full transition-all hover:scale-[1.01] active:scale-[0.99] ${
-                isLastAndOdd ? "col-span-2" : ""
-              }`}
+              className={`card p-3.5 text-left w-full transition-all hover:scale-[1.01] active:scale-[0.99] ${isLastAndOdd ? "col-span-2" : ""
+                }`}
               onClick={() => setSelectedCat(cat.label)}
             >
               <div className="flex items-center justify-between mb-2">
