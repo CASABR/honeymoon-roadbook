@@ -16,7 +16,7 @@ interface BudgetEntry {
   category: "Trasporti" | "Alloggi" | "Attività" | "Cibo & Extra" | "Altro";
 }
 
-const LS_TRANSPORTS = "hrb_transports_v2";
+const LS_TRANSPORTS = "hrb_transports_v3";
 const LS_ACCOMMODATIONS = "hrb_accommodations_v2";
 const LS_BUDGET_ENTRIES = "hrb_budget_entries_v2";
 
