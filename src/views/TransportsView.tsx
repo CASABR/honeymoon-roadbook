@@ -49,13 +49,13 @@ function getLayoverDetails(tr: Transport) {
 
   // Fallback statici basati sui dati reali
   if (tr.id === "tr-flight-mxp-akl") {
-    return { city: "Pechino", duration: "10h 35m", isLong: true, hours: 10 };
+    return { city: "Pechino", duration: "18h 35m", isLong: true, hours: 18 };
   }
   if (tr.id === "tr-flight-syd-mnl") {
     return { city: "Manila", duration: "14h 40m", isLong: true, hours: 14 };
   }
   if (tr.id === "tr-flight-ceb-fco") {
-    return { city: "Taipei", duration: "1h 40m", isLong: false, hours: 1 };
+    return { city: "Taipei", duration: "8h 30m", isLong: true, hours: 8 };
   }
 
   return null;

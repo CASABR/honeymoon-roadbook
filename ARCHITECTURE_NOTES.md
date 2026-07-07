@@ -60,7 +60,7 @@ confirmationCode?: string
 ## Decisioni prese
 - QR non va in "In evidenza" → apre dal tap sulla voce trasporto in timeline.
 - "La tua giornata" mostra 4 voci visibili, poi espandibile.
-- "In evidenza" ha solo card utili reali: Budgeter, Assicurazione (Heymondo), Emergenze.
+- "In evidenza" ha 3 card pulite e utili: Budgeter, Checklist (cose da fare), Emergenze (numeri utili).
 - DatePicker in TodayView è interattivo: cliccando sull'icona calendario si apre un foglio per cambiare giorno e mostrare le relative attività.
 - Navigazione giorno nell'header di Oggi: aggiunti pulsanti freccia sinistra/destra ai lati dell'icona calendario per passare rapidamente al giorno precedente o successivo. I pulsanti sono disabilitati e sfumati se ci si trova all'inizio (G1) o alla fine (G44) del viaggio.
 - L'anteprima di domani in TodayView è orizzontale scorrevole con tutte le attività del giorno successivo. "Vedi tutto" apre un modal di riepilogo.
