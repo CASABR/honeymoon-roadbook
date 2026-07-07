@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { INSURANCE, EMERGENCY_CONTACTS } from "../data/mockData";
 import {
   IcNote, IcSettings, IcWallet,
@@ -514,7 +514,7 @@ function saveChecklists(list: Checklist[]) {
   } catch { /* ignore */ }
 }
 
-import { useSearchParams } from "react-router-dom";
+// (useSearchParams già importato in cima)
 
 export default function AltroView() {
   const navigate = useNavigate();
@@ -549,6 +549,13 @@ export default function AltroView() {
   useEffect(() => {
     saveChecklists(checklists);
   }, [checklists]);
+
+  // Sincronizza openAccordion se openSection cambia (navigazione SPA senza rimontaggio)
+  useEffect(() => {
+    if (openSection) {
+      setOpenAccordion(openSection);
+    }
+  }, [openSection]);
 
   // Gestione scroll smooth all'avvio se c'è openSection
   useEffect(() => {
