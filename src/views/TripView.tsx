@@ -223,20 +223,48 @@ function TripTimelineRow({
         isFirst ? "bg-white shadow-sm border border-blue-100" : "bg-white/60 shadow-sm"
       }`}>
         {isTransport ? (
-          <div className="p-3 pr-2">
-            <div className="flex items-start justify-between">
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold tracking-widest text-blue-500 uppercase mb-0.5">
-                  Trasporto
-                </p>
-                <p className={`font-bold text-[14px] text-gray-900 leading-snug truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                <p className={`text-[11px] text-gray-400 truncate mt-0.5 ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
-              </div>
-              {editMode && (
-                <div className="flex flex-col gap-1 ml-2 flex-shrink-0">
-                  <button onClick={onEdit} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-2 py-0.5 rounded-lg">✏️</button>
-                  <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-2 py-0.5 rounded-lg">🗑️</button>
+          <div className="px-3 py-2.5 flex items-center justify-between gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold tracking-widest text-blue-500 uppercase mb-0.5">
+                Trasporto
+              </p>
+              <p className={`font-bold text-[14px] text-gray-900 leading-snug truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+              <p className={`text-[11px] text-gray-400 truncate mt-0.5 ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
+            </div>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              {editMode ? (
+                <div className="flex flex-col gap-1">
+                  <div className="flex gap-1">
+                    <button onClick={onEdit} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-lg">✏️</button>
+                    <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-1.5 py-0.5 rounded-lg">🗑️</button>
+                  </div>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={onMoveUp}
+                      disabled={isFirst}
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
+                    >↑</button>
+                    <button
+                      onClick={onMoveDown}
+                      disabled={isLast}
+                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
+                    >↓</button>
+                  </div>
                 </div>
+              ) : (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggle();
+                  }}
+                  className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
+                  style={{
+                    borderColor: completed ? "#10b981" : "#d1d5db",
+                    backgroundColor: completed ? "#10b981" : "transparent"
+                  }}
+                >
+                  {completed && <span className="text-white text-[10px] font-bold">✓</span>}
+                </button>
               )}
             </div>
           </div>
@@ -574,8 +602,11 @@ export default function TripView() {
     setTripDays((prevDays) =>
       prevDays.map((day) => {
         if (day.id === dayId) {
+          const oldAct = day.activities.find((a) => a.id === updated.id);
           const nextActs = day.activities.map((a) => (a.id === updated.id ? updated : a));
-          nextActs.sort((a, b) => a.time.localeCompare(b.time));
+          if (oldAct && oldAct.time !== updated.time) {
+            nextActs.sort((a, b) => a.time.localeCompare(b.time));
+          }
           return { ...day, activities: nextActs };
         }
         return day;
