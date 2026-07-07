@@ -1,5 +1,18 @@
 # CHANGELOG WORKING
 
+## [2026-07-07 – Sessione 16] Miglioramento UX rimozione allegati in Documenti su Mobile
+
+### File modificati
+- `src/views/AltroView.tsx`
+  - Rimosso lo stato `opacity-0 group-hover:opacity-100` dal pulsante di rimozione allegati (`×`).
+  - Il pulsante di rimozione è reso **sempre visibile** (`opacity-95`) ed è stato ingrandito a `w-5 h-5` con un font-size `text-[10px]` e shadow per facilitare il tap touch su mobile, evitando il problema della mancanza di hover sui dispositivi touch.
+
+### Note
+- I flussi di upload, preview, rimozione e persistenza (in base64 nel localStorage `hrb_documents_v2`) sono stati testati e risultano stabili.
+- Build completata con successo con 0 errori.
+
+---
+
 ## [2026-07-07 – Sessione 15] Automazione calcoli scali e allineamento localStorage voli
 
 ### File modificati

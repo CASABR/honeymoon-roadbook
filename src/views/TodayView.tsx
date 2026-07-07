@@ -23,15 +23,28 @@ import {
 // ── QR image localStorage helpers ───────────────────────────────────────────
 const LS_QR_KEY = "hrb_qr_images_v1";
 
-function loadQRImages(): Record<string, string> {
+function loadQRImages(): Record<string, string[]> {
   try {
     const raw = localStorage.getItem(LS_QR_KEY);
-    if (raw) return JSON.parse(raw) as Record<string, string>;
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, any>;
+      const converted: Record<string, string[]> = {};
+      for (const k in parsed) {
+        if (typeof parsed[k] === "string") {
+          converted[k] = [parsed[k]];
+        } else if (Array.isArray(parsed[k])) {
+          converted[k] = parsed[k];
+        } else {
+          converted[k] = [];
+        }
+      }
+      return converted;
+    }
   } catch { /* ignore */ }
   return {};
 }
 
-function saveQRImages(map: Record<string, string>) {
+function saveQRImages(map: Record<string, string[]>) {
   try { localStorage.setItem(LS_QR_KEY, JSON.stringify(map)); } catch { /* ignore */ }
 }
 
@@ -52,32 +65,42 @@ function getTodayAccommodation() {
 
 // ── QR / Dettaglio trasporto Modal ────────────────────────────────────────────
 function QRModal({ activity, onClose }: { activity: Activity; onClose: () => void }) {
-  const [qrImages, setQrImages] = useState<Record<string, string>>(loadQRImages);
-  const imgUrl = qrImages[activity.id];
+  const [qrImages, setQrImages] = useState<Record<string, string[]>>(loadQRImages);
+  const images = qrImages[activity.id] ?? [];
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 3 * 1024 * 1024) {
-      alert("File troppo grande (max 3 MB). Le immagini sono salvate solo nel browser locale.");
+    if (file.size > 2 * 1024 * 1024) {
+      alert("File troppo grande (max 2 MB). Le immagini sono salvate solo nel browser locale.");
       return;
     }
     const reader = new FileReader();
     reader.onload = () => {
       const dataUrl = reader.result as string;
-      const updated = { ...qrImages, [activity.id]: dataUrl };
+      const updatedList = [...images, dataUrl];
+      const updated = { ...qrImages, [activity.id]: updatedList };
       setQrImages(updated);
       saveQRImages(updated);
+      setCurrentIndex(updatedList.length - 1);
     };
     reader.readAsDataURL(file);
     e.target.value = "";
   }
 
   function handleRemove() {
+    if (images.length === 0) return;
+    const updatedList = images.filter((_, idx) => idx !== currentIndex);
     const updated = { ...qrImages };
-    delete updated[activity.id];
+    if (updatedList.length === 0) {
+      delete updated[activity.id];
+    } else {
+      updated[activity.id] = updatedList;
+    }
     setQrImages(updated);
     saveQRImages(updated);
+    setCurrentIndex(Math.max(0, currentIndex - 1));
   }
 
   return (
@@ -96,19 +119,66 @@ function QRModal({ activity, onClose }: { activity: Activity; onClose: () => voi
         <p className="text-[13px] text-gray-500 mb-4">{activity.subtitle}</p>
 
         {/* Area QR / Biglietto */}
-        {imgUrl ? (
+        {images.length > 0 ? (
           <div className="mb-4">
-            <img
-              src={imgUrl}
-              alt="Biglietto"
-              className="w-full rounded-2xl border border-gray-100 object-contain max-h-64"
-            />
-            <button
-              onClick={handleRemove}
-              className="mt-2 text-[11px] text-red-500 font-semibold w-full text-center"
-            >
-              🗑 Rimuovi foto biglietto
-            </button>
+            <div className="relative border border-gray-100 rounded-2xl overflow-hidden bg-gray-50 flex items-center justify-center min-h-[200px]">
+              <img
+                src={images[currentIndex]}
+                alt={`Biglietto ${currentIndex + 1}`}
+                className="w-full object-contain max-h-64"
+              />
+              {images.length > 1 && (
+                <div className="absolute inset-y-0 inset-x-0 flex items-center justify-between px-2 pointer-events-none">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setCurrentIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1)); }}
+                    className="w-8 h-8 rounded-full bg-black/60 text-white font-bold flex items-center justify-center hover:bg-black/80 pointer-events-auto active:scale-90"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setCurrentIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0)); }}
+                    className="w-8 h-8 rounded-full bg-black/60 text-white font-bold flex items-center justify-center hover:bg-black/80 pointer-events-auto active:scale-90"
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {images.length > 1 && (
+              <div className="flex justify-center gap-1.5 mt-2">
+                {images.map((_, idx) => (
+                  <div
+                    key={idx}
+                    className={`w-1.5 h-1.5 rounded-full transition-all ${
+                      idx === currentIndex ? "bg-blue-600 w-3" : "bg-gray-300"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-4 mt-3">
+              <label className="cursor-pointer text-[12px] bg-blue-50 text-blue-600 font-extrabold px-3 py-2 rounded-xl flex-1 text-center hover:bg-blue-100 transition-colors">
+                ➕ Aggiungi altro
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+              </label>
+              <button
+                onClick={handleRemove}
+                className="text-[12px] bg-red-50 text-red-500 font-extrabold px-3 py-2 rounded-xl flex-1 text-center hover:bg-red-100 transition-colors"
+              >
+                🗑 Rimuovi corrente
+              </button>
+            </div>
+
+            <p className="text-[10px] text-gray-400 text-center mt-2.5">
+              File {currentIndex + 1} di {images.length}
+            </p>
           </div>
         ) : (
           <div className="bg-gray-50 rounded-2xl p-5 flex flex-col items-center gap-3 mb-4 border border-dashed border-gray-200">
@@ -126,7 +196,7 @@ function QRModal({ activity, onClose }: { activity: Activity; onClose: () => voi
               />
             </label>
             <p className="text-[10px] text-gray-400 text-center leading-relaxed">
-              ⚠️ Salvata solo nel browser locale (max 3 MB).
+              ⚠️ Salvata solo nel browser locale (max 2 MB).
               Si perde se si pulisce la cache.
             </p>
           </div>

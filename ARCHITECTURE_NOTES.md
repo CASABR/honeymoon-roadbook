@@ -77,6 +77,7 @@ confirmationCode?: string
 - Sezione Checklist: memorizzata localmente in `hrb_checklists_v3` che gestisce liste multiple offline con aggiunta/rimozione dinamica di elementi e liste.
 - Rilevamento scalo aereo: calcolo automatico dei tempi di attesa tra segmenti in TransportsView e visualizzazione differenziata con evidenza (scalo lungo >= 6 ore colorato in arancione con consiglio di uscita visa-free, scalo breve in grigio).
 - Navigazione deep-link con auto-scroll: l'URL parametrizzato `/altro?open=...` gestisce l'apertura all'avvio e lo scorrimento smooth all'accordion corrispondente.
+- UX Documenti su Mobile: rimosso l'effetto hover dal pulsante per eliminare gli allegati dei documenti. Il pulsante "×" è ora sempre visibile, ingrandito e dotato di shadow per favorire il tap touch su mobile.
 
 ## Evoluzione Futura e Roadmap
 
