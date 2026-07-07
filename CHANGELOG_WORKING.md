@@ -1,5 +1,21 @@
 # CHANGELOG WORKING
 
+## [2026-07-07 – Sessione 21] Implementazione Fase 2: Uniformazione Bottom Sheet e Modali
+
+### File modificati
+- `src/views/TodayView.tsx`
+  - Uniformati `QRModal`, `DatePickerSheet`, `DayFullModal` e `EditActivitySheet` per utilizzare la classe `.bottom-sheet-container`.
+- `src/views/TripView.tsx`
+  - Uniformati `EditActivitySheet`, `AddActivitySheet` e `TripDatePickerSheet` per utilizzare la classe `.bottom-sheet-container`.
+- `src/views/TransportsView.tsx`
+  - Uniformati `TransportDetailSheet` e `AddTransportSheet` per utilizzare la classe `.bottom-sheet-container`.
+
+### Note
+- Questa modifica applica le regole visive unificate per raggi superiori, spaziatura interna, altezza massima e scorrimento su tutti i modali principali delle tre aree di destinazione.
+- Build completata con successo con 0 errori.
+
+---
+
 ## [2026-07-07 – Sessione 20] Implementazione Fase 1: Foundation UI
 
 ### File modificati

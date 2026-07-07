@@ -111,7 +111,7 @@ function QRModal({ activity, onClose }: { activity: Activity; onClose: () => voi
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[430px] bg-white rounded-t-3xl p-5 pb-8"
+        className="bottom-sheet-container"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
@@ -234,7 +234,7 @@ function DatePickerSheet({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[430px] bg-white rounded-t-3xl p-5 pb-8"
+        className="bottom-sheet-container"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
@@ -297,7 +297,7 @@ function DayFullModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[430px] bg-white rounded-t-3xl p-5 pb-8 max-h-[85dvh] overflow-y-auto"
+        className="bottom-sheet-container"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
@@ -817,7 +817,7 @@ function EditActivitySheet({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[430px] bg-white rounded-t-3xl p-5 pb-8 max-h-[90dvh] overflow-y-auto"
+        className="bottom-sheet-container"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
