@@ -1,5 +1,20 @@
 # CHANGELOG WORKING
 
+## [2026-07-07 – Sessione 14] Rifinitura editing giornata in Viaggio e rimozione Assicurazione
+
+### File modificati
+- `src/views/TripView.tsx`
+  - Aggiunti controlli di riordino (tasti ↑/↓) e completamento (checkbox) anche per i trasporti in `TripTimelineRow` durante la modalità `editMode`, uniformandoli con le altre attività.
+  - Modificato `handleEditActivity` per ordinare cronologicamente per `time` solo se l'orario è stato effettivamente cambiato rispetto al precedente valore, salvaguardando il riordino manuale effettuato dall'utente tramite i pulsanti ↑/↓.
+- `src/views/TodayView.tsx`
+  - Verificato che la card "Assicurazione" sia stata effettivamente rimossa in produzione (confermato con screenshot nel browser). La rimozione era già presente nel codice sorgente ma non era stata caricata/propagata correttamente su GitHub Pages a causa di file non inclusi nello stage della push precedente.
+
+### Note
+- Build completata con successo con 0 errori.
+- Nessun dato o layout rotto.
+
+---
+
 ## [2026-07-07 – Sessione 13] Verifica e allineamento dati reali voli/trasporti
 
 ### File modificati
