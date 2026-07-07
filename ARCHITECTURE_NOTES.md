@@ -78,6 +78,10 @@ confirmationCode?: string
 - Rilevamento scalo aereo: calcolo automatico dei tempi di attesa tra segmenti in TransportsView e visualizzazione differenziata con evidenza (scalo lungo >= 6 ore colorato in arancione con consiglio di uscita visa-free, scalo breve in grigio).
 - Navigazione deep-link con auto-scroll: l'URL parametrizzato `/altro?open=...` gestisce l'apertura all'avvio e lo scorrimento smooth all'accordion corrispondente.
 - UX Documenti su Mobile: rimosso l'effetto hover dal pulsante per eliminare gli allegati dei documenti. Il pulsante "×" è ora sempre visibile, ingrandito e dotato di shadow per favorire il tap touch su mobile.
+- Sincronizzazione Itinerario e Dettagli: esportata la persistenza dinamica di `tripDays` per condividere ed aggiornare in tempo reale le modifiche/cancellazioni di attività tra la tab Oggi (`TodayView`) e Viaggio (`TripView`).
+- Cliccabilità ed Editing: reso cliccabile l'intero target delle card delle attività (trasporti compresi) sia in Oggi che in Viaggio per aprire direttamente il foglio di consultazione/modifica/cancellazione delle attività.
+- Dimensione Allegati Elevata: incrementata a **10 MB** la dimensione massima degli allegati in Oggi e Trasporti per supportare screenshot e PDF complessi sul telefono offline.
+
 
 ## Evoluzione Futura e Roadmap
 

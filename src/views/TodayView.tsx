@@ -8,8 +8,10 @@ import {
   getTodayLabel,
   loadCompletedActivities,
   saveCompletedActivities,
+  loadTripDays,
+  saveTripDays,
 } from "../data/mockData";
-import type { Activity } from "../data/mockData";
+import type { Activity, DayData } from "../data/mockData";
 import {
   IcMapPin,
   IcCalendar,
@@ -49,13 +51,13 @@ function saveQRImages(map: Record<string, string[]>) {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-function getToday(dayId: string) {
-  return DAYS.find((d) => d.id === dayId) ?? DAYS[0];
+function getToday(days: DayData[], dayId: string) {
+  return days.find((d) => d.id === dayId) ?? days[0];
 }
 
-function getTomorrow(dayId: string) {
-  const idx = DAYS.findIndex((d) => d.id === dayId);
-  return idx >= 0 && idx < DAYS.length - 1 ? DAYS[idx + 1] : null;
+function getTomorrow(days: DayData[], dayId: string) {
+  const idx = days.findIndex((d) => d.id === dayId);
+  return idx >= 0 && idx < days.length - 1 ? days[idx + 1] : null;
 }
 
 function getTodayAccommodation() {
@@ -71,8 +73,8 @@ function QRModal({ activity, onClose }: { activity: Activity; onClose: () => voi
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 3.5 * 1024 * 1024) {
-      alert("File troppo grande (max 3.5 MB). Le immagini sono salvate solo nel browser locale.");
+    if (file.size > 10 * 1024 * 1024) {
+      alert("File troppo grande (max 10 MB). Le immagini sono salvate solo nel browser locale.");
       return;
     }
     const reader = new FileReader();
@@ -195,7 +197,7 @@ function QRModal({ activity, onClose }: { activity: Activity; onClose: () => voi
               />
             </label>
             <p className="text-[10px] text-gray-400 text-center leading-relaxed">
-              ⚠️ Salvata solo nel browser locale (max 3.5 MB).
+              ⚠️ Salvata solo nel browser locale (max 10 MB).
               Si perde se si pulisce la cache.
             </p>
           </div>
@@ -332,6 +334,7 @@ function TimelineRow({
   isFirst,
   isLast,
   onQRTap,
+  onEdit,
   completed,
   onToggle,
 }: {
@@ -339,11 +342,11 @@ function TimelineRow({
   isFirst: boolean;
   isLast: boolean;
   onQRTap: (act: Activity) => void;
+  onEdit: () => void;
   completed: boolean;
   onToggle: () => void;
 }) {
   const isTransport = activity.type === "transport";
-  const tappable = isTransport && activity.hasQR;
 
   return (
     <div className={`flex gap-3 items-start transition-opacity ${completed ? "opacity-60" : ""}`}>
@@ -361,9 +364,8 @@ function TimelineRow({
         {!isLast && <div className="flex-1 w-0.5 bg-gray-200 mt-1" style={{ minHeight: 32 }} />}
       </div>
       <div
-        className={`flex-1 mb-2 rounded-2xl overflow-hidden ${isFirst ? "bg-white shadow-sm border border-blue-100" : "bg-white shadow-sm"}`}
-        onClick={() => tappable && onQRTap(activity)}
-        style={{ cursor: tappable ? "pointer" : "default" }}
+        className={`flex-1 mb-2 rounded-2xl overflow-hidden cursor-pointer ${isFirst ? "bg-white shadow-sm border border-blue-100" : "bg-white shadow-sm"}`}
+        onClick={onEdit}
       >
         {isFirst && isTransport ? (
           <div className="p-3 pr-2">
@@ -373,20 +375,42 @@ function TimelineRow({
                 <p className={`font-bold text-[15px] text-gray-900 leading-snug ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
                 {activity.status === "in_corso" && <span className="badge-in-corso mt-1">In corso</span>}
               </div>
-              <div className="flex items-center gap-1 ml-2 flex-shrink-0">
-                {activity.hasQR && <div className="bg-gray-50 rounded-xl p-2"><IcQR size={26} className="text-gray-700" /></div>}
+              <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                {activity.hasQR && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onQRTap(activity);
+                    }}
+                    className="bg-gray-100 hover:bg-gray-200 rounded-xl p-2 active:scale-90 transition-transform"
+                    title="Visualizza Biglietti"
+                  >
+                    <IcQR size={26} className="text-gray-700" />
+                  </button>
+                )}
                 <IcChevronRight size={16} className="text-gray-400" />
               </div>
             </div>
           </div>
-        ) : tappable ? (
+        ) : isTransport ? (
           <div className="px-3 py-2.5 flex items-center gap-2.5">
             <ActivityIcon type={activity.type} size={16} />
             <div className="flex-1 min-w-0">
               <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
               <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
             </div>
-            <IcQR size={18} className="text-gray-400 flex-shrink-0" />
+            {activity.hasQR && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onQRTap(activity);
+                }}
+                className="p-1.5 bg-gray-100 rounded-lg hover:bg-gray-200 active:scale-90 transition-transform flex items-center justify-center shrink-0"
+                title="Visualizza Biglietti"
+              >
+                <IcQR size={18} className="text-gray-400" />
+              </button>
+            )}
           </div>
         ) : (
           <div className="px-3 py-2.5 flex items-center justify-between gap-2.5">
@@ -471,23 +495,56 @@ function AccoBanner({ acc }: { acc: ReturnType<typeof getTodayAccommodation> }) 
 export default function TodayView() {
   const navigate = useNavigate();
   const [selectedDayId, setSelectedDayId] = useState(TODAY_DAY_ID);
+  const [tripDays, setTripDays] = useState<DayData[]>(loadTripDays);
+  const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string } | null>(null);
 
-  const today = getToday(selectedDayId);
-  const tomorrow = getTomorrow(selectedDayId);
+  useEffect(() => {
+    saveTripDays(tripDays);
+  }, [tripDays]);
+
+  const today = getToday(tripDays, selectedDayId);
+  const tomorrow = getTomorrow(tripDays, selectedDayId);
   const acco = getTodayAccommodation();
 
-  const currentIdx = DAYS.findIndex((d) => d.id === selectedDayId);
+  const currentIdx = tripDays.findIndex((d) => d.id === selectedDayId);
 
   function handlePrevDay() {
     if (currentIdx > 0) {
-      setSelectedDayId(DAYS[currentIdx - 1].id);
+      setSelectedDayId(tripDays[currentIdx - 1].id);
     }
   }
 
   function handleNextDay() {
-    if (currentIdx < DAYS.length - 1) {
-      setSelectedDayId(DAYS[currentIdx + 1].id);
+    if (currentIdx < tripDays.length - 1) {
+      setSelectedDayId(tripDays[currentIdx + 1].id);
     }
+  }
+
+  function handleEditActivity(dayId: string, updated: Activity) {
+    setTripDays((prevDays) =>
+      prevDays.map((day) => {
+        if (day.id === dayId) {
+          const oldAct = day.activities.find((a) => a.id === updated.id);
+          const nextActs = day.activities.map((a) => (a.id === updated.id ? updated : a));
+          if (oldAct && oldAct.time !== updated.time) {
+            nextActs.sort((a, b) => a.time.localeCompare(b.time));
+          }
+          return { ...day, activities: nextActs };
+        }
+        return day;
+      })
+    );
+  }
+
+  function handleDeleteActivity(dayId: string, actId: string) {
+    setTripDays((prevDays) =>
+      prevDays.map((day) => {
+        if (day.id === dayId) {
+          return { ...day, activities: day.activities.filter((a) => a.id !== actId) };
+        }
+        return day;
+      })
+    );
   }
 
   const [expanded, setExpanded] = useState(false);
@@ -604,6 +661,7 @@ export default function TodayView() {
                 isFirst={idx === 0}
                 isLast={idx === visibleActivities.length - 1}
                 onQRTap={setQrActivity}
+                onEdit={() => setEditingActivity({ dayId: today.id, activity: act, dayLabel: today.dateLabel })}
                 completed={completedActs.includes(act.id)}
                 onToggle={() => toggleActivity(act.id)}
               />
@@ -705,6 +763,153 @@ export default function TodayView() {
           onClose={() => setShowTomorrowFull(false)}
         />
       )}
+      {editingActivity && (
+        <EditActivitySheet
+          activity={editingActivity.activity}
+          dayLabel={editingActivity.dayLabel}
+          onSave={(updated) => handleEditActivity(editingActivity.dayId, updated)}
+          onDelete={() => handleDeleteActivity(editingActivity.dayId, editingActivity.activity.id)}
+          onClose={() => setEditingActivity(null)}
+        />
+      )}
     </>
+  );
+}
+
+// ── Sheet per modificare un'attività esistente ────────────────────────────────
+function EditActivitySheet({
+  activity,
+  dayLabel,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  activity: Activity;
+  dayLabel: string;
+  onSave: (updated: Activity) => void;
+  onDelete?: () => void;
+  onClose: () => void;
+}) {
+  const [time, setTime] = useState(activity.time);
+  const [type, setType] = useState<Activity["type"]>(activity.type);
+  const [title, setTitle] = useState(activity.title);
+  const [subtitle, setSubtitle] = useState(activity.subtitle);
+
+  function handleSubmit() {
+    if (!title.trim() || !time.trim()) return;
+    onSave({ ...activity, time: time.trim(), type, title: title.trim(), subtitle: subtitle.trim() });
+    onClose();
+  }
+
+  const TYPES: { type: Activity["type"]; label: string; icon: string }[] = [
+    { type: "sightseeing", label: "Visita", icon: "📸" },
+    { type: "transport", label: "Trasporto", icon: "✈️" },
+    { type: "food", label: "Cibo", icon: "🍽️" },
+    { type: "shopping", label: "Shopping", icon: "🛍️" },
+    { type: "hotel", label: "Hotel", icon: "🏨" },
+    { type: "other", label: "Altro", icon: "📍" },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ background: "rgba(0,0,0,0.45)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-[430px] bg-white rounded-t-3xl p-5 pb-8 max-h-[90dvh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-[17px] font-extrabold text-gray-900">Modifica attività</h2>
+            <p className="text-[12px] text-gray-400">{dayLabel}</p>
+          </div>
+          {onDelete && (
+            <button
+              onClick={() => {
+                if (window.confirm("Eliminare questa attività?")) {
+                  onDelete();
+                  onClose();
+                }
+              }}
+              className="text-[12px] text-red-500 font-extrabold px-3 py-1.5 bg-red-50 rounded-xl hover:bg-red-100 transition-colors active:scale-95"
+            >
+              🗑️ Elimina
+            </button>
+          )}
+        </div>
+
+        {/* Tipo */}
+        <div className="mb-4">
+          <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
+          <div className="flex gap-2 flex-wrap">
+            {TYPES.map((t) => (
+              <button
+                key={t.type}
+                onClick={() => setType(t.type)}
+                className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-colors flex items-center gap-1 ${
+                  type === t.type ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
+                }`}
+              >
+                <span>{t.icon}</span>
+                <span>{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <div className="flex gap-2">
+            <div className="w-1/3">
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Orario *</label>
+              <input
+                type="text"
+                value={time}
+                placeholder="es. 10:30"
+                onChange={(e) => setTime(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+              />
+            </div>
+            <div className="w-2/3">
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Titolo *</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
+            <input
+              type="text"
+              value={subtitle}
+              onChange={(e) => setSubtitle(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+            />
+          </div>
+        </div>
+
+        <div className="flex gap-2 mt-5">
+          <button
+            className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-semibold text-[14px]"
+            onClick={onClose}
+          >
+            Annulla
+          </button>
+          <button
+            className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-semibold text-[14px]"
+            onClick={handleSubmit}
+            disabled={!title.trim() || !time.trim()}
+            style={{ opacity: !title.trim() || !time.trim() ? 0.5 : 1 }}
+          >
+            Salva
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
