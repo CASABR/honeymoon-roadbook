@@ -136,6 +136,32 @@ function TransportDetailSheet({
     onSave(updatedTr);
   }
 
+  function handleFileAttachmentUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert("File troppo grande (max 2 MB). Gli allegati sono salvati nel browser locale.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const updatedList = [...qrList, dataUrl];
+      setQrList(updatedList);
+      setShowAddInput(false);
+      setActiveQrIdx(updatedList.length - 1);
+
+      const updatedTr = {
+        ...tr,
+        qrCodes: updatedList,
+        qrCodeData: updatedList[0],
+      };
+      onSave(updatedTr);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px]"
@@ -282,23 +308,40 @@ function TransportDetailSheet({
           </div>
 
           {showAddInput && (
-            <div className="space-y-2 mb-3 bg-white p-3 rounded-xl border border-gray-200">
-              <label className="text-[10px] font-bold text-gray-500 block">Testo QR / Codice Biglietto</label>
-              <input
-                type="text"
-                value={newQrText}
-                placeholder="Inserisci link, codice o nota del documento"
-                onChange={(e) => setNewQrText(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-[12px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
-              />
-              <button
-                onClick={handleAddQRDirect}
-                disabled={!newQrText.trim()}
-                className="w-full bg-blue-600 text-white font-semibold py-2 rounded-lg text-[12px]"
-                style={{ opacity: newQrText.trim() ? 1 : 0.5 }}
-              >
-                Salva QR
-              </button>
+            <div className="space-y-3 mb-3 bg-white p-3 rounded-xl border border-gray-200">
+              <div>
+                <label className="text-[10px] font-bold text-gray-500 block mb-1">Codice / Testo QR</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newQrText}
+                    placeholder="Codice, link o PNR"
+                    onChange={(e) => setNewQrText(e.target.value)}
+                    className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 text-[12px] text-gray-900 outline-none focus:border-blue-400"
+                  />
+                  <button
+                    onClick={handleAddQRDirect}
+                    disabled={!newQrText.trim()}
+                    className="bg-blue-600 text-white font-semibold px-3 py-1.5 rounded-lg text-[12px] shrink-0"
+                    style={{ opacity: newQrText.trim() ? 1 : 0.5 }}
+                  >
+                    Salva
+                  </button>
+                </div>
+              </div>
+              
+              <div className="border-t border-gray-100 pt-2 flex flex-col items-center">
+                <span className="text-[9px] font-bold text-gray-400 mb-2">— OPPURE —</span>
+                <label className="w-full cursor-pointer bg-gray-100 text-gray-700 text-[12px] font-bold py-2 rounded-xl flex items-center justify-center gap-1.5 hover:bg-gray-200 transition-colors">
+                  📎 Carica Foto / PDF
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={handleFileAttachmentUpload}
+                  />
+                </label>
+              </div>
             </div>
           )}
 
@@ -326,9 +369,28 @@ function TransportDetailSheet({
               )}
 
               {/* QR visualizzato */}
-              <div className="w-full text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200 flex flex-col items-center justify-center">
-                <IcQR size={48} className="text-blue-500 opacity-90 mb-2" />
-                <p className="text-[12px] font-mono break-all px-4 text-gray-700 font-semibold">{qrList[activeQrIdx]}</p>
+              <div className="w-full text-center py-3 bg-gray-50 rounded-lg border border-dashed border-gray-200 flex flex-col items-center justify-center overflow-hidden">
+                {qrList[activeQrIdx].startsWith("data:image/") ? (
+                  <img
+                    src={qrList[activeQrIdx]}
+                    alt={`Biglietto ${activeQrIdx + 1}`}
+                    className="w-full max-h-48 object-contain rounded-lg"
+                  />
+                ) : qrList[activeQrIdx].startsWith("data:application/pdf") ? (
+                  <a
+                    href={qrList[activeQrIdx]}
+                    download={`biglietto-${activeQrIdx + 1}.pdf`}
+                    className="flex flex-col items-center justify-center p-4 bg-red-50 border border-red-150 rounded-xl hover:bg-red-100 transition-colors w-11/12"
+                  >
+                    <span className="text-[28px]">📄</span>
+                    <span className="text-[11px] text-red-600 font-bold mt-1">Scarica PDF Allegato</span>
+                  </a>
+                ) : (
+                  <>
+                    <IcQR size={40} className="text-blue-500 opacity-95 mb-1.5" />
+                    <p className="text-[12px] font-mono break-all px-4 text-gray-700 font-semibold">{qrList[activeQrIdx]}</p>
+                  </>
+                )}
               </div>
 
               {/* Azioni sul QR attivo */}
@@ -338,9 +400,9 @@ function TransportDetailSheet({
                     handleDeleteQRDirect(activeQrIdx);
                   }
                 }}
-                className="text-[10px] text-red-500 font-bold mt-2"
+                className="text-[10px] text-red-500 font-bold mt-2 hover:underline"
               >
-                Rimuovi questo QR
+                Rimuovi questo biglietto
               </button>
             </div>
           ) : (
