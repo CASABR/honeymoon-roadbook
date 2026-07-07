@@ -104,16 +104,24 @@ function saveDocuments(list: DocumentItem[]) {
   } catch { /* ignore */ }
 }
 
-// ── Accordion semplice ────────────────────────────────────────────────────────
-function Accordion({ title, children, defaultOpen = false }: {
-  title: string; children: React.ReactNode; defaultOpen?: boolean;
+// ── Accordion semplice ───────────────────────────────────────────────────────────────────
+function Accordion({ title, children, defaultOpen = false, isOpen, onToggle }: {
+  title: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+  // Props controllati opzionali: se forniti, il componente opera in modalità controllata
+  isOpen?: boolean;
+  onToggle?: () => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [localOpen, setLocalOpen] = useState(defaultOpen);
+  // Usa props controllati se forniti, altrimenti stato locale
+  const open = isOpen !== undefined ? isOpen : localOpen;
+  const handleToggle = onToggle ?? (() => setLocalOpen((o) => !o));
   return (
     <div className="card overflow-hidden">
       <button
         className="w-full flex items-center justify-between px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50"
-        onClick={() => setOpen((o) => !o)}
+        onClick={handleToggle}
       >
         <span className="text-[14px] font-bold text-gray-900">{title}</span>
         <IcChevronDown size={16} className={`text-gray-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`} />
@@ -518,6 +526,21 @@ export default function AltroView() {
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
   const [showAddDocCategory, setShowAddDocCategory] = useState<DocumentCategory | null>(null);
   const [activeInfoLabel, setActiveInfoLabel] = useState<string | null>(null);
+  // Accordion a singola apertura: id dell'accordion aperto (null = tutti chiusi)
+  const [openAccordion, setOpenAccordion] = useState<string | null>(() => {
+    // Se c'è un openSection da URL, apri quell'accordion; altrimenti tutto chiuso
+    if (openSection === "checklist") return "checklist";
+    if (openSection === "insurance") return "insurance";
+    if (openSection === "emergencies") return "emergencies";
+    if (openSection === "documents") return "documents";
+    if (openSection === "baggage") return "baggage";
+    if (openSection === "deadlines") return "deadlines";
+    return null;
+  });
+
+  function toggleAccordion(id: string) {
+    setOpenAccordion((prev) => (prev === id ? null : id));
+  }
 
   useEffect(() => {
     saveDocuments(documents);
@@ -688,7 +711,11 @@ export default function AltroView() {
 
       {/* Accordion delle Checklist */}
       <div id="altro-sec-checklist">
-        <Accordion title="📋 Le mie Checklist" defaultOpen={openSection === "checklist"}>
+        <Accordion
+          title="📋 Le mie Checklist"
+          isOpen={openAccordion === "checklist"}
+          onToggle={() => toggleAccordion("checklist")}
+        >
           <div className="space-y-4">
             {checklists.map((chk) => (
               <div key={chk.id} className="bg-gray-50/50 border border-gray-100 rounded-xl p-3">
@@ -744,7 +771,11 @@ export default function AltroView() {
 
       {/* Accordion 1: 📁 Documenti di viaggio (raggruppati per COSA) */}
       <div id="altro-sec-documents">
-        <Accordion title="📁 Documenti di viaggio">
+        <Accordion
+          title="📁 Documenti di viaggio"
+          isOpen={openAccordion === "documents"}
+          onToggle={() => toggleAccordion("documents")}
+        >
           <div className="divide-y divide-gray-100">
             {CATEGORIES.map((cat) => {
               const count = documents.filter((d) => d.category === cat.name).length;
@@ -771,9 +802,13 @@ export default function AltroView() {
         </Accordion>
       </div>
 
-      {/* Accordion 2: Assicurazione — dati reali Heymondo (CHIUSO DI DEFAULT) */}
+      {/* Accordion 2: Assicurazione — dati reali Heymondo */}
       <div id="altro-sec-insurance">
-        <Accordion title="🛡️ Assicurazione Heymondo" defaultOpen={openSection === "insurance"}>
+        <Accordion
+          title="🛡️ Assicurazione Heymondo"
+          isOpen={openAccordion === "insurance"}
+          onToggle={() => toggleAccordion("insurance")}
+        >
           <div className="space-y-0">
             <InfoRow label="Polizza" value={`${INSURANCE.brand} · ${INSURANCE.policyNumber}`} />
             <InfoRow label="Piano" value={INSURANCE.plan} />
@@ -819,7 +854,11 @@ export default function AltroView() {
 
       {/* Accordion 3: Emergenze per paese — dati reali */}
       <div id="altro-sec-emergencies">
-        <Accordion title="🚨 Numeri di emergenza" defaultOpen={openSection === "emergencies"}>
+        <Accordion
+          title="🚨 Numeri di emergenza"
+          isOpen={openAccordion === "emergencies"}
+          onToggle={() => toggleAccordion("emergencies")}
+        >
           <div className="space-y-3">
             {EMERGENCY_CONTACTS.map((ec) => (
               <div key={ec.country} className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
@@ -849,7 +888,11 @@ export default function AltroView() {
 
       {/* Accordion 4: Bagagli e note operative */}
       <div id="altro-sec-baggage">
-        <Accordion title="🧳 Bagagli e franchigie">
+        <Accordion
+          title="🧳 Bagagli e franchigie"
+          isOpen={openAccordion === "baggage"}
+          onToggle={() => toggleAccordion("baggage")}
+        >
           <div className="space-y-2">
             <InfoRow label="Bluebridge (traghetto)" value="A mano: borsa piccola 7 kg + effetti personali · Principali in auto" />
             <InfoRow label="Cebu Pacific (Go Easy)" value="20 kg stiva a testa confermati" />
@@ -866,7 +909,11 @@ export default function AltroView() {
 
       {/* Accordion 5: Scadenze assicurazione */}
       <div id="altro-sec-deadlines">
-        <Accordion title="⏱ Scadenze e segnalazioni">
+        <Accordion
+          title="⏱ Scadenze e segnalazioni"
+          isOpen={openAccordion === "deadlines"}
+          onToggle={() => toggleAccordion("deadlines")}
+        >
           <div className="space-y-3">
             {[
               { label: "Sinistri medici / viaggio", note: "Di norma entro 15 giorni dall'evento" },
