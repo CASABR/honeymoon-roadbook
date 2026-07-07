@@ -1,5 +1,20 @@
 # CHANGELOG WORKING
 
+## [2026-07-07 – Sessione 22] Implementazione Fase 3: Uniformazione delle Card di Timeline
+
+### File modificati
+- `src/views/TodayView.tsx`
+  - Aggiornato `TimelineRow` per utilizzare la classe `.app-card` e la spaziatura coerente `p-3`, rimuovendo i padding annidati ridondanti.
+- `src/views/TripView.tsx`
+  - Aggiornato `TripTimelineRow` per utilizzare la classe `.app-card` e la spaziatura coerente `p-3`, rimuovendo i padding interni duplicati.
+  - Disattivato il click sull'intera card e rimossi i cursori interattivi quando `editMode` è attivo per prevenire conflitti di bubbling visivo.
+
+### Note
+- Le card delle attività (trasporti compresi) in Oggi e in Viaggio condividono ora lo stesso raggio di curvatura (16px), spessore di bordo, ombra morbida e densità visiva interna.
+- Build completata con successo con 0 errori.
+
+---
+
 ## [2026-07-07 – Sessione 21] Implementazione Fase 2: Uniformazione Bottom Sheet e Modali
 
 ### File modificati

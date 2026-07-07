@@ -364,40 +364,40 @@ function TimelineRow({
         {!isLast && <div className="flex-1 w-0.5 bg-gray-200 mt-1" style={{ minHeight: 32 }} />}
       </div>
       <div
-        className={`flex-1 mb-2 rounded-2xl overflow-hidden cursor-pointer ${isFirst ? "bg-white shadow-sm border border-blue-100" : "bg-white shadow-sm"}`}
+        className={`flex-1 mb-2 app-card p-3 cursor-pointer ${isFirst ? "border-blue-200" : "bg-white/80"}`}
         onClick={onEdit}
       >
         {isFirst && isTransport ? (
-          <div className="p-3 pr-2">
-            <div className="flex items-start justify-between">
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-0.5">Trasporto</p>
-                <p className={`font-bold text-[15px] text-gray-900 leading-snug ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                {activity.status === "in_corso" && <span className="badge-in-corso mt-1">In corso</span>}
-              </div>
-              <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
-                {activity.hasQR && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onQRTap(activity);
-                    }}
-                    className="bg-gray-100 hover:bg-gray-200 rounded-xl p-2 active:scale-90 transition-transform"
-                    title="Visualizza Biglietti"
-                  >
-                    <IcQR size={26} className="text-gray-700" />
-                  </button>
-                )}
-                <IcChevronRight size={16} className="text-gray-400" />
-              </div>
+          <div className="flex items-start justify-between">
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-0.5">Trasporto</p>
+              <p className={`font-bold text-[15px] text-gray-900 leading-snug ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+              {activity.status === "in_corso" && <span className="badge-in-corso mt-1">In corso</span>}
+            </div>
+            <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+              {activity.hasQR && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onQRTap(activity);
+                  }}
+                  className="bg-gray-100 hover:bg-gray-200 rounded-xl p-2 active:scale-90 transition-transform"
+                  title="Visualizza Biglietti"
+                >
+                  <IcQR size={26} className="text-gray-700" />
+                </button>
+              )}
+              <IcChevronRight size={16} className="text-gray-400" />
             </div>
           </div>
         ) : isTransport ? (
-          <div className="px-3 py-2.5 flex items-center gap-2.5">
-            <ActivityIcon type={activity.type} size={16} />
-            <div className="flex-1 min-w-0">
-              <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-              <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <ActivityIcon type={activity.type} size={16} />
+              <div className="flex-1 min-w-0">
+                <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
+              </div>
             </div>
             {activity.hasQR && (
               <button
@@ -413,7 +413,7 @@ function TimelineRow({
             )}
           </div>
         ) : (
-          <div className="px-3 py-2.5 flex items-center justify-between gap-2.5">
+          <div className="flex items-center justify-between gap-2.5">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <ActivityIcon type={activity.type} size={16} />
               <div className="flex-1 min-w-0">

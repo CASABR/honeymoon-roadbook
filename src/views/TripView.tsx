@@ -206,11 +206,12 @@ function TripTimelineRow({
       </div>
 
       {/* Card */}
-      <div className={`flex-1 mb-2 rounded-xl overflow-hidden ${
-        isFirst ? "bg-white shadow-sm border border-blue-100" : "bg-white/60 shadow-sm"
-      }`}>
+      <div
+        className={`flex-1 mb-2 app-card p-3 ${editMode ? "" : "cursor-pointer"} ${isFirst ? "border-blue-200" : "bg-white/80"}`}
+        onClick={editMode ? undefined : onEdit}
+      >
         {isTransport ? (
-          <div className="px-3 py-2.5 flex items-center justify-between gap-3 cursor-pointer" onClick={onEdit}>
+          <div className="flex items-center justify-between gap-3">
             <div className="flex-1 min-w-0">
               <p className="text-[10px] font-bold tracking-widest text-blue-500 uppercase mb-0.5">
                 Trasporto
@@ -256,7 +257,7 @@ function TripTimelineRow({
             </div>
           </div>
         ) : (
-          <div className="px-3 py-2 flex items-center justify-between gap-3 cursor-pointer" onClick={onEdit}>
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <ActivityIcon type={activity.type} size={15} />
               <div className="flex-1 min-w-0">
