@@ -286,9 +286,9 @@ function CategoryDocumentsSheet({
   function handleFileUpload(docId: string, e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    // Limite: avviso se il file supera 2MB
-    if (file.size > 2 * 1024 * 1024) {
-      alert("File troppo grande (max 2 MB). Gli allegati sono salvati nel browser (localStorage) e lo spazio è limitato.");
+    // Limite: avviso se il file supera 10MB
+    if (file.size > 10 * 1024 * 1024) {
+      alert("File troppo grande (max 10 MB). Gli allegati sono salvati nel browser (localStorage) e lo spazio è limitato.");
       return;
     }
     const reader = new FileReader();
@@ -321,7 +321,7 @@ function CategoryDocumentsSheet({
         <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-4">
           <p className="text-[10px] text-amber-700 font-semibold leading-relaxed">
             ⚠️ Gli allegati sono salvati <strong>solo nel browser locale</strong> (localStorage base64).
-            Max 2 MB per file. Si perdono se si pulisce la cache del browser.
+            Max 10 MB per file. Si perdono se si pulisce la cache del browser.
           </p>
         </div>
 

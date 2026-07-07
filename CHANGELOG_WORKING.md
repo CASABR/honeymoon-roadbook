@@ -1,5 +1,18 @@
 # CHANGELOG WORKING
 
+## [2026-07-07 – Sessione 19] Chiusura bug residui e allineamento limiti allegati
+
+### File modificati
+- `src/views/BudgetView.tsx`
+  - Corretto disallineamento della chiave localStorage per i trasporti, cambiandola da `hrb_transports_v2` a `hrb_transports_v3`. Questo risolve il problema del budgeter che non visualizzava i dati aggiornati dei trasporti.
+- `src/views/TodayView.tsx`
+  - Corretto il controllo della navigazione giorno successivo: ora confronta `currentIdx >= tripDays.length - 1` invece di `DAYS.length - 1` statico.
+- `src/views/AltroView.tsx`
+  - Aumentato a **10 MB** (da 2 MB) il limite per singolo file allegato nella sezione Documenti per uniformarlo al resto dell'applicazione.
+  - Aggiornato l'alert di errore e il box informativo per riflettere il nuovo limite di 10 MB.
+
+---
+
 ## [2026-07-07 – Sessione 18] Incremento limite allegati a 10 MB e consultazione attività in Oggi e Viaggio
 
 ### File modificati

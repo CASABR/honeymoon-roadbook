@@ -635,10 +635,10 @@ export default function TodayView() {
 
               <button
                 className={`w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center transition-opacity ${
-                  currentIdx >= DAYS.length - 1 ? "opacity-35 cursor-not-allowed" : "hover:bg-gray-50 active:scale-95"
+                  currentIdx >= tripDays.length - 1 ? "opacity-35 cursor-not-allowed" : "hover:bg-gray-50 active:scale-95"
                 }`}
                 onClick={handleNextDay}
-                disabled={currentIdx >= DAYS.length - 1}
+                disabled={currentIdx >= tripDays.length - 1}
                 aria-label="Giorno successivo"
               >
                 <IcChevronRight size={16} className="text-gray-600" />
