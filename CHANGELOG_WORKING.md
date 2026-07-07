@@ -1,5 +1,15 @@
 # CHANGELOG WORKING
 
+## [2026-07-07 – Sessione 20] Implementazione Fase 1: Foundation UI
+
+### File modificati
+- `src/index.css`
+  - Aggiunti i token globali in `:root` per definire la palette colori (sfondi, superfici, testi e accenti), radius e ombre.
+  - Implementate classi CSS riutilizzabili per i componenti base: `.app-card`, `.btn-primary`, `.input-field`, `.bottom-sheet-container`.
+  - Mantenuti intatti i reset e gli stili preesistenti del layout per evitare regressioni visive.
+
+---
+
 ## [2026-07-07 – Sessione 19] Chiusura bug residui e allineamento limiti allegati
 
 ### File modificati
