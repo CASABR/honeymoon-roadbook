@@ -173,7 +173,6 @@ export const DAYS: DayData[] = [
     location: "Roma, Italia",
     activities: [
       { id: "d1-1", time: "11:05", type: "transport", title: "Roma Termini → Milano Centrale", subtitle: "Trenitalia Frecciarossa · 1h 55m", status: "futuro", hasQR: true },
-      { id: "d1-2", time: "19:50", type: "transport", title: "Milano MXP → Pechino PEK", subtitle: "Air China CA950 · Volo", hasQR: true },
     ],
   },
   {
@@ -184,10 +183,9 @@ export const DAYS: DayData[] = [
     dateShort: "29",
     monthShort: "nov",
     dayShort: "Dom",
-    location: "In volo / Pechino",
+    location: "Milano / In volo",
     activities: [
-      { id: "d2-1", time: "05:50", type: "transport", title: "Arrivo Pechino PEK", subtitle: "Scalo lungo · Terminal 3" },
-      { id: "d2-2", time: "13:00", type: "sightseeing", title: "Transito Pechino (scalo)", subtitle: "Pechino Terminal 3 (scalo 13:00 - 00:25)" },
+      { id: "d2-1", time: "12:30", type: "transport", title: "Milano MXP → Pechino PEK", subtitle: "Air China CA950 · Volo", hasQR: true },
     ],
   },
   {
@@ -200,8 +198,9 @@ export const DAYS: DayData[] = [
     dayShort: "Lun",
     location: "Pechino, Cina",
     activities: [
-      { id: "d3-1", time: "10:00", type: "sightseeing", title: "Giro città Pechino (scalo)", subtitle: "Città Proibita, Piazza Tiananmen, Jingshan Park" },
-      { id: "d3-2", time: "00:25", type: "transport", title: "PEK → Auckland AKL", subtitle: "Air China CA783 · volo di notte", hasQR: true },
+      { id: "d3-1", time: "05:50", type: "transport", title: "Arrivo Pechino PEK", subtitle: "Scalo lungo · Terminal 3" },
+      { id: "d3-2", time: "10:00", type: "sightseeing", title: "Transito Pechino (scalo)", subtitle: "Pechino Terminal 3 (scalo 05:50 - 00:25 del 01/12)" },
+      { id: "d3-3", time: "00:25", type: "transport", title: "PEK → Auckland AKL", subtitle: "Air China CA783 · volo di notte", hasQR: true },
     ],
   },
   {
@@ -963,19 +962,19 @@ export const TRANSPORTS: Transport[] = [
     id: "tr-flight-mxp-akl",
     date: "2026-11-29",
     dateLabel: "Dom 29 nov",
-    time: "19:50",
+    time: "12:30",
     from: "Milano MXP",
     to: "Auckland AKL",
     type: "plane",
-    detail: "Air China · via Pechino · 24h 30m",
+    detail: "Air China · via Pechino · 18h 35m scalo",
     bookingRef: "1688897340550151",
-    importantNote: "Prezzo: 1.074,86 € · Scalo lungo a Pechino (Terminal 3)",
+    importantNote: "Prezzo: 1.074,80 € · Scalo lungo a Pechino (18h 35m) - Terminal 3",
     segments: [
-      { from: "MXP", to: "PEK", departure: "2026-11-29 19:50", arrival: "2026-11-30 13:50", operator: "Air China", flightNumber: "CA950" },
+      { from: "MXP", to: "PEK", departure: "2026-11-29 12:30", arrival: "2026-11-30 05:50", operator: "Air China", flightNumber: "CA950" },
       { from: "PEK", to: "AKL", departure: "2026-12-01 00:25", arrival: "2026-12-01 17:25", operator: "Air China", flightNumber: "CA783" },
     ],
     layoverCity: "Pechino",
-    price: 1074.86,
+    price: 1074.80,
   },
   {
     id: "tr-ferry-wlg-pic",
@@ -1021,11 +1020,11 @@ export const TRANSPORTS: Transport[] = [
     detail: "Virgin Australia VA242 · 1h 50m",
     arrivalTime: "21:40",
     bookingRef: "1688897638041991",
-    importantNote: "Prezzo: 121,64 €",
+    importantNote: "Prezzo: 121,04 €",
     segments: [
       { from: "ADL", to: "MEL", departure: "2026-12-16 19:50", arrival: "2026-12-16 21:40", operator: "Virgin Australia", flightNumber: "VA242" },
     ],
-    price: 121.64,
+    price: 121.04,
   },
   {
     id: "tr-flight-syd-mnl",
@@ -1089,12 +1088,12 @@ export const TRANSPORTS: Transport[] = [
     detail: "China Airlines · via Taipei · 17h 35m",
     arrivalTime: "07:15",
     bookingRef: "30598518",
-    confirmationCode: "X8KORM",
+    confirmationCode: "X8K0RM",
     baggageNote: "Franchigia da verificare",
-    importantNote: "1 scalo a Taipei",
+    importantNote: "1 scalo a Taipei (8h 30m)",
     segments: [
-      { from: "CEB", to: "TPE", departure: "2027-01-09 12:10", arrival: "2027-01-09 15:20", operator: "China Airlines" },
-      { from: "TPE", to: "FCO", departure: "2027-01-09 17:00", arrival: "2027-01-10 07:15", operator: "China Airlines" },
+      { from: "CEB", to: "TPE", departure: "2027-01-09 12:10", arrival: "2027-01-09 14:55", operator: "China Airlines", flightNumber: "CI0706" },
+      { from: "TPE", to: "FCO", departure: "2027-01-09 23:25", arrival: "2027-01-10 07:15", operator: "China Airlines", flightNumber: "CI0075" },
     ],
     layoverCity: "Taipei",
   },
@@ -1132,7 +1131,7 @@ export const BUDGET_ENTRIES: BudgetEntry[] = [
   { id: "be-2", date: "nov", label: "Volo MXP→PEK→AKL (Air China)", amount: 1075, category: "Trasporti" },
   { id: "be-3", date: "nov", label: "Treno Roma–Milano", amount: 60, category: "Trasporti" },
   { id: "be-4", date: "dic", label: "Volo CHC→ADL (Air NZ)", amount: 356, category: "Trasporti" },
-  { id: "be-5", date: "dic", label: "Volo ADL→MEL (Virgin AU)", amount: 122, category: "Trasporti" },
+  { id: "be-5", date: "dic", label: "Volo ADL→MEL (Virgin AU)", amount: 121, category: "Trasporti" },
   { id: "be-6", date: "dic", label: "Traghetto Wellington–Picton (Bluebridge)", amount: 356, category: "Trasporti" },
   { id: "be-7", date: "dic", label: "Volo SYD→MNL→Caticlan (Cebu Pacific)", amount: 955, category: "Trasporti" },
 ];

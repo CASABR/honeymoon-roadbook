@@ -1,5 +1,37 @@
 # CHANGELOG WORKING
 
+## [2026-07-07 – Sessione 13] Verifica e allineamento dati reali voli/trasporti
+
+### File modificati
+- `src/data/mockData.ts`
+  - Allineata la timeline dei primi giorni del viaggio (`day-1`, `day-2`, `day-3`) con la partenza reale del volo Milano MXP → Pechino PEK (CA950) il 29 novembre alle 12:30 (arrivo 30 novembre 05:50) e la partenza Pechino PEK → Auckland AKL (CA783) il 1 dicembre alle 00:25 (arrivo 1 dicembre 17:25), garantendo l'arrivo in Nuova Zelanda al 1 dicembre senza conflitti cronologici ed evidenziando lo scalo di 18 ore e 35 minuti a Pechino.
+  - Aggiornato il prezzo del primo blocco voli Air China a `1074.80` € (da `1074.86` €).
+  - Corretto il prezzo del volo Adelaide ADL → Melbourne MEL (Virgin VA242) a `121.04` € (da `121.64` €) e allineata la spesa budget `be-5` a `121` €.
+  - Corretto il codice di conferma del rientro China Airlines (Cebu → Taipei → Roma) a `X8K0RM` (con lo zero al posto della 'O').
+  - Aggiornati i dettagli dei segmenti di rientro con gli orari reali: CEB → TPE (12:10 → 14:55, China Airlines CI0706) e TPE → FCO (23:25 → 07:15, China Airlines CI0075), con relativo scalo a Taipei di 8 ore e 30 minuti.
+- `src/views/TransportsView.tsx`
+  - Aggiornati i fallback statici del calcolo scalo (`getLayoverDetails`) per allinearli ai dati reali: scalo a Pechino impostato su 18h 35m (isLong: true) e scalo a Taipei impostato su 8h 30m (isLong: true).
+
+### Note
+- I voli CHC→ADL e SYD→MNL→MPH sono stati verificati e sono risultati già corretti in orari e prezzi nel codice del progetto.
+- Build completata con successo con 0 errori.
+
+---
+
+## [2026-07-07 – Sessione 12] Pulizia card "In evidenza" in Oggi
+
+### File modificati
+- `src/views/TodayView.tsx`
+  - Rimossa la card "Assicurazione" da "In evidenza" (ridondante: l'assicurazione è già accessibile da Altro).
+  - Grid ridotto da `grid-cols-4` a `grid-cols-3` (3 card: Budgeter, Checklist, Emergenze).
+  - Checklist e Emergenze restano collegati a `/altro?open=checklist` e `/altro?open=emergencies` — funzionanti con apertura accordion e scroll smooth.
+
+### Note
+- Nessun altro file toccato. L'Accordion singola apertura e il deep link `?open=...` in AltroView funzionano già correttamente (sessione 11).
+- Build completata con 0 errori.
+
+---
+
 ## [2026-07-07 – Sessione 11] QR Modal con upload locale · Accordion singola apertura in Altro
 
 ### File modificati
