@@ -20,6 +20,21 @@ import {
   ActivityIcon,
 } from "../components/Icons";
 
+// ── QR image localStorage helpers ───────────────────────────────────────────
+const LS_QR_KEY = "hrb_qr_images_v1";
+
+function loadQRImages(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(LS_QR_KEY);
+    if (raw) return JSON.parse(raw) as Record<string, string>;
+  } catch { /* ignore */ }
+  return {};
+}
+
+function saveQRImages(map: Record<string, string>) {
+  try { localStorage.setItem(LS_QR_KEY, JSON.stringify(map)); } catch { /* ignore */ }
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 function getToday(dayId: string) {
   return DAYS.find((d) => d.id === dayId) ?? DAYS[0];
@@ -37,6 +52,34 @@ function getTodayAccommodation() {
 
 // ── QR / Dettaglio trasporto Modal ────────────────────────────────────────────
 function QRModal({ activity, onClose }: { activity: Activity; onClose: () => void }) {
+  const [qrImages, setQrImages] = useState<Record<string, string>>(loadQRImages);
+  const imgUrl = qrImages[activity.id];
+
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) {
+      alert("File troppo grande (max 3 MB). Le immagini sono salvate solo nel browser locale.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = reader.result as string;
+      const updated = { ...qrImages, [activity.id]: dataUrl };
+      setQrImages(updated);
+      saveQRImages(updated);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  function handleRemove() {
+    const updated = { ...qrImages };
+    delete updated[activity.id];
+    setQrImages(updated);
+    saveQRImages(updated);
+  }
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center"
@@ -50,13 +93,45 @@ function QRModal({ activity, onClose }: { activity: Activity; onClose: () => voi
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
         <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-1">Trasporto</p>
         <h2 className="text-[18px] font-extrabold text-gray-900 mb-1">{activity.title}</h2>
-        <p className="text-[13px] text-gray-500 mb-5">{activity.subtitle}</p>
-        <div className="bg-gray-50 rounded-2xl p-6 flex flex-col items-center gap-3 mb-5">
-          <div className="w-36 h-36 bg-gray-200 rounded-xl flex items-center justify-center">
-            <IcQR size={72} className="text-gray-500" />
+        <p className="text-[13px] text-gray-500 mb-4">{activity.subtitle}</p>
+
+        {/* Area QR / Biglietto */}
+        {imgUrl ? (
+          <div className="mb-4">
+            <img
+              src={imgUrl}
+              alt="Biglietto"
+              className="w-full rounded-2xl border border-gray-100 object-contain max-h-64"
+            />
+            <button
+              onClick={handleRemove}
+              className="mt-2 text-[11px] text-red-500 font-semibold w-full text-center"
+            >
+              🗑 Rimuovi foto biglietto
+            </button>
           </div>
-          <p className="text-[12px] text-gray-400">QR biglietto — da aggiungere</p>
-        </div>
+        ) : (
+          <div className="bg-gray-50 rounded-2xl p-5 flex flex-col items-center gap-3 mb-4 border border-dashed border-gray-200">
+            <div className="w-24 h-24 bg-gray-100 rounded-xl flex items-center justify-center">
+              <IcQR size={48} className="text-gray-400" />
+            </div>
+            <p className="text-[12px] text-gray-400 text-center">Nessuna foto biglietto allegata</p>
+            <label className="cursor-pointer bg-blue-600 text-white text-[12px] font-semibold px-4 py-2 rounded-xl hover:bg-blue-700 transition-colors">
+              📷 Aggiungi foto biglietto
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileUpload}
+              />
+            </label>
+            <p className="text-[10px] text-gray-400 text-center leading-relaxed">
+              ⚠️ Salvata solo nel browser locale (max 3 MB).
+              Si perde se si pulisce la cache.
+            </p>
+          </div>
+        )}
+
         {activity.status === "in_corso" && (
           <span className="badge-in-corso mb-4 block w-fit">In corso</span>
         )}

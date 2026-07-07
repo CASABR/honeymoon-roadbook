@@ -1,5 +1,24 @@
 # CHANGELOG WORKING
 
+## [2026-07-07 – Sessione 11] QR Modal con upload locale · Accordion singola apertura in Altro
+
+### File modificati
+- `src/views/TodayView.tsx`
+  - Aggiunta persistenza QR biglietti in `localStorage` (`hrb_qr_images_v1`, mappa `activityId → base64 dataUrl`).
+  - `QRModal` ora è stateful: mostra il pulsante "📷 Aggiungi foto biglietto" se nessuna immagine è salvata; visualizza l'immagine caricata con opzione di rimozione.
+  - Limite upload: 3 MB, con avviso esplicito che i dati sono locali/browser e si perdono alla pulizia cache.
+- `src/views/AltroView.tsx`
+  - Componente `Accordion` ora supporta props controllate opzionali (`isOpen`, `onToggle`). Se fornite, opera in modalità controllata; altrimenti mantiene lo stato locale (retrocompatibile).
+  - Introdotto `openAccordion: string|null` in `AltroView` con funzione `toggleAccordion(id)`.
+  - Tutti e 5 gli accordion (`checklist`, `documents`, `insurance`, `emergencies`, `baggage`, `deadlines`) ora ricevono `isOpen`/`onToggle`, garantendo che l'apertura di uno chiuda automaticamente gli altri.
+  - Il valore iniziale di `openAccordion` è derivato da `openSection` (parametro URL `?open=...`) per mantenere la compatibilità con la navigazione da homepage.
+
+### Note tecniche
+- Build `npm run build` completata con 0 errori TypeScript.
+- Nessun refactor di struttura: modifiche chirurgiche a soli 2 file.
+
+---
+
 ## [2026-07-06 – Sessione 10] Checklist interattiva · Navigazione da homepage ad Altro · Evidenza scali lunghi
 
 ### File modificati
