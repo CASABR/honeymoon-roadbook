@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { IcChevronRight, IcPlus } from "../components/Icons";
 import {
   BUDGET_TOTAL,
@@ -254,6 +254,7 @@ export default function BudgetView() {
   const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
   const [entries, setEntries] = useState<BudgetEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const isLoadedRef = useRef(false);
 
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
   const [showAddExpense, setShowAddExpense] = useState(false);
@@ -266,16 +267,17 @@ export default function BudgetView() {
       setTransports(tr);
       setAccommodations(acc);
       setEntries(ent);
+      isLoadedRef.current = true;
       setIsLoading(false);
     }
     initData();
   }, []);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (isLoadedRef.current) {
       repository.saveBudgetEntries(entries);
     }
-  }, [entries, isLoading]);
+  }, [entries]);
 
   if (isLoading) {
     return (

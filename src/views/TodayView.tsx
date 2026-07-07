@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   DAYS,
@@ -478,6 +478,7 @@ export default function TodayView() {
   const [tripDays, setTripDays] = useState<DayData[]>([]);
   const [completedActs, setCompletedActs] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const isLoadedRef = useRef(false);
   const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string } | null>(null);
 
   useEffect(() => {
@@ -486,16 +487,17 @@ export default function TodayView() {
       const completed = await repository.getCompletedActivities();
       setTripDays(days);
       setCompletedActs(completed);
+      isLoadedRef.current = true;
       setIsLoading(false);
     }
     initData();
   }, []);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (isLoadedRef.current) {
       repository.saveTripDays(tripDays);
     }
-  }, [tripDays, isLoading]);
+  }, [tripDays]);
 
   const [expanded, setExpanded] = useState(false);
   const [qrActivity, setQrActivity] = useState<Activity | null>(null);

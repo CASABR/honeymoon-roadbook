@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { INSURANCE, EMERGENCY_CONTACTS } from "../data/mockData";
 import {
@@ -427,6 +427,7 @@ export default function AltroView() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const isLoadedRef = useRef(false);
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
   const [showAddDocCategory, setShowAddDocCategory] = useState<DocumentCategory | null>(null);
   const [activeInfoLabel, setActiveInfoLabel] = useState<string | null>(null);
@@ -437,22 +438,23 @@ export default function AltroView() {
       const chks = await repository.getChecklists(DEFAULT_CHECKLISTS);
       setDocuments(docs);
       setChecklists(chks);
+      isLoadedRef.current = true;
       setIsLoading(false);
     }
     initData();
   }, []);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (isLoadedRef.current) {
       repository.saveDocuments(documents);
     }
-  }, [documents, isLoading]);
+  }, [documents]);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (isLoadedRef.current) {
       repository.saveChecklists(checklists);
     }
-  }, [checklists, isLoading]);
+  }, [checklists]);
 
   // Accordion a singola apertura: id dell'accordion aperto (null = tutti chiusi)
   const [openAccordion, setOpenAccordion] = useState<string | null>(() => {

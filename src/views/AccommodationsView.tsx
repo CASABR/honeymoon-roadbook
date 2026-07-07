@@ -1,28 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { ACCOMMODATIONS } from "../data/mockData";
 import type { Accommodation } from "../data/mockData";
 import { IcMapPin, IcChevronRight, IcPlus } from "../components/Icons";
-
-// ── localStorage persistence ──────────────────────────────────────────────────
-const LS_KEY = "hrb_accommodations_v2";
-
-function loadAccommodations(): Accommodation[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) return JSON.parse(raw) as Accommodation[];
-  } catch {
-    // ignore parse errors
-  }
-  return ACCOMMODATIONS; // fallback ai mock
-}
-
-function saveAccommodations(list: Accommodation[]) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(list));
-  } catch {
-    // ignore storage errors
-  }
-}
+import { repository } from "../services/repository";
 
 // ── Form vuoto ────────────────────────────────────────────────────────────────
 const EMPTY_FORM = {
@@ -261,16 +241,36 @@ function AccoCard({ acc }: { acc: Accommodation }) {
 
 // ── Main AccommodationsView ───────────────────────────────────────────────────
 export default function AccommodationsView() {
-  const [accos, setAccos] = useState<Accommodation[]>(loadAccommodations);
+  const [accos, setAccos] = useState<Accommodation[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const isLoadedRef = useRef(false);
   const [showForm, setShowForm] = useState(false);
 
-  // Salva su localStorage ad ogni modifica
   useEffect(() => {
-    saveAccommodations(accos);
+    repository.getAccommodations(ACCOMMODATIONS).then((data) => {
+      setAccos(data);
+      isLoadedRef.current = true;
+      setIsLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (isLoadedRef.current) {
+      repository.saveAccommodations(accos);
+    }
   }, [accos]);
 
   function handleSave(acc: Accommodation) {
     setAccos((prev) => [...prev, acc]);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60dvh] gap-3">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <span className="text-[12px] text-slate-500 font-semibold">Caricamento alloggi...</span>
+      </div>
+    );
   }
 
   return (
