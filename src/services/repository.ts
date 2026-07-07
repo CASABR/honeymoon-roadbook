@@ -54,6 +54,8 @@ async function checkAndMigrate(): Promise<void> {
     "hrb_budget_entries_v2"
   ];
 
+  let hasError = false;
+
   for (const key of keys) {
     const raw = localStorage.getItem(key);
     if (raw) {
@@ -62,11 +64,14 @@ async function checkAndMigrate(): Promise<void> {
         await kvStorage.set(key, parsed);
       } catch (e) {
         console.error(`Errore di migrazione per la chiave ${key}:`, e);
+        hasError = true;
       }
     }
   }
 
-  localStorage.setItem(MIGRATED_FLAG, "true");
+  if (!hasError) {
+    localStorage.setItem(MIGRATED_FLAG, "true");
+  }
 }
 
 export const repository = {

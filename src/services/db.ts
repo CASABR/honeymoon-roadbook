@@ -2,7 +2,12 @@ const DB_NAME = "HoneymoonRoadbookDB";
 const STORE_NAME = "keyValueStore";
 const DB_VERSION = 1;
 
+let cachedDB: IDBDatabase | null = null;
+
 function getDB(): Promise<IDBDatabase> {
+  if (cachedDB) {
+    return Promise.resolve(cachedDB);
+  }
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
 
@@ -14,6 +19,7 @@ function getDB(): Promise<IDBDatabase> {
     };
 
     request.onsuccess = () => {
+      cachedDB = request.result;
       resolve(request.result);
     };
 

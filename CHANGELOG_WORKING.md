@@ -4,24 +4,19 @@
 
 ### File modificati e creati
 - `src/services/db.ts` (Nuovo)
-  - Creato un wrapper IndexedDB minimale asincrono (`kvStorage`) per l'accesso `get` e `set`.
+  - Creato un wrapper IndexedDB minimale asincrono (`kvStorage`) per l'accesso `get` e `set`, ottimizzato mantenendo in cache l'handle di connessione aperta.
 - `src/services/repository.ts` (Nuovo)
   - Creato il Facade asincrono `repository` che centralizza tutte le persistenze locali.
-  - Implementata la migrazione non distruttiva dei dati esistenti da `localStorage` ad IndexedDB all'inizializzazione.
-- `src/views/TodayView.tsx`
-  - Migrato lo stato del componente all'avvio asincrono da repository e aggiornato il caricamento dei biglietti QR.
-- `src/views/TripView.tsx`
-  - Sincronizzati i salvataggi dei giorni e delle spunte attività con il repository asincrono.
-- `src/views/TransportsView.tsx`
-  - Adattato il caricamento e salvataggio dei voli in modalità asincrona.
-- `src/views/BudgetView.tsx`
-  - Sincronizzate le spese ed alloggi con il repository e rimossa la persistenza locale sincrona.
-- `src/views/AltroView.tsx`
-  - Rimosse le interfacce duplicate e migrato il caricamento di documenti e checklist al repository asincrono.
+  - Implementata la migrazione non distruttiva dei dati esistenti da `localStorage` ad IndexedDB all'inizializzazione, resa più robusta registrando il completamento solo in assenza di errori.
+- `src/views/TodayView.tsx`, `src/views/TripView.tsx`, `src/views/TransportsView.tsx`, `src/views/BudgetView.tsx`, `src/views/AltroView.tsx`
+  - Aggiunto il meccanismo di protezione `isLoadedRef` (`useRef(false)`) per prevenire la sovrascrittura accidentale di database con array vuoti (`[]`) all'avvio prima del caricamento asincrono.
+- `src/views/AccommodationsView.tsx`
+  - Migrato il caricamento e il salvataggio degli alloggi in asincrono su IndexedDB tramite `repository`, risolvendo il disallineamento/perdita dati con `BudgetView`.
 
 ### Note
 - La migrazione dei dati è non distruttiva (i vecchi dati in `localStorage` restano intatti come backup freddo).
 - Aggiunta una schermata di caricamento visiva durante l'inizializzazione asincrona dei dati delle viste.
+- Risolto il potenziale bug di azzeramento array in caso di render intermedio.
 - Build completata con successo con 0 errori.
 
 ---

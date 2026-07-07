@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   DAYS,
   TRIP_NAME,
@@ -524,6 +524,7 @@ function TripDatePickerSheet({
 export default function TripView() {
   const [tripDays, setTripDays] = useState<DayData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const isLoadedRef = useRef(false);
 
   const [expandedDayId, setExpandedDayId] = useState<string | null>(TODAY_DAY_ID);
   const [addingToDay, setAddingToDay] = useState<{ id: string; label: string } | null>(null);
@@ -540,6 +541,7 @@ export default function TripView() {
       const completed = await repository.getCompletedActivities();
       setTripDays(days);
       setCompletedActs(completed);
+      isLoadedRef.current = true;
       setIsLoading(false);
     }
     initData();
@@ -563,10 +565,10 @@ export default function TripView() {
   }
 
   useEffect(() => {
-    if (!isLoading) {
+    if (isLoadedRef.current) {
       repository.saveTripDays(tripDays);
     }
-  }, [tripDays, isLoading]);
+  }, [tripDays]);
 
   if (isLoading) {
     return (

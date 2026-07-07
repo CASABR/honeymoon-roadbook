@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { TRANSPORTS } from "../data/mockData";
 import type { Transport } from "../data/mockData";
 import { IcPlane, IcTrain, IcFerry, IcCar, IcChevronRight, IcPlus, IcQR } from "../components/Icons";
@@ -732,21 +732,23 @@ function TransportCard({ tr, onSelect }: { tr: Transport; onSelect: (t: Transpor
 export default function TransportsView() {
   const [transports, setTransports] = useState<Transport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const isLoadedRef = useRef(false);
   const [formState, setFormState] = useState<{ show: boolean; tr: Transport | null }>({ show: false, tr: null });
   const [selected, setSelected] = useState<Transport | null>(null);
 
   useEffect(() => {
     repository.getTransports(TRANSPORTS).then((data) => {
       setTransports(data);
+      isLoadedRef.current = true;
       setIsLoading(false);
     });
   }, []);
 
   useEffect(() => {
-    if (!isLoading) {
+    if (isLoadedRef.current) {
       repository.saveTransports(transports);
     }
-  }, [transports, isLoading]);
+  }, [transports]);
 
   function handleSave(tr: Transport) {
     setTransports((prev) => {
