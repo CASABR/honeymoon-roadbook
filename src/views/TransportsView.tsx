@@ -169,7 +169,7 @@ function TransportDetailSheet({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[430px] bg-white/95 rounded-t-[32px] p-5 pb-8 max-h-[88dvh] overflow-y-auto shadow-2xl border-t border-gray-100 backdrop-blur-lg"
+        className="bottom-sheet-container"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
@@ -569,7 +569,7 @@ function TransportFormSheet({
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px]"
       style={{ background: "rgba(0,0,0,0.3)" }} onClick={onClose}>
-      <div className="w-full max-w-[430px] bg-white rounded-t-[32px] p-5 pb-8 max-h-[90dvh] overflow-y-auto shadow-2xl border-t border-gray-100"
+      <div className="bottom-sheet-container"
         onClick={(e) => e.stopPropagation()}>
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
         <h2 className="text-[17px] font-black text-gray-900 mb-4">
