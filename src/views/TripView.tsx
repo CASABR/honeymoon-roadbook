@@ -4,10 +4,6 @@ import {
   TRIP_NAME,
   TRIP_DURATION,
   TODAY_DAY_ID,
-  loadCompletedActivities,
-  saveCompletedActivities,
-  loadTripDays,
-  saveTripDays,
 } from "../data/mockData";
 import type { Activity, DayData } from "../data/mockData";
 import {
@@ -17,6 +13,7 @@ import {
   IcPlus,
   ActivityIcon,
 } from "../components/Icons";
+import { repository } from "../services/repository";
 
 // ── Sheet per modificare un'attività esistente ────────────────────────────────
 function EditActivitySheet({
@@ -525,7 +522,8 @@ function TripDatePickerSheet({
 
 // ── Main TripView ─────────────────────────────────────────────────────────────
 export default function TripView() {
-  const [tripDays, setTripDays] = useState<DayData[]>(loadTripDays);
+  const [tripDays, setTripDays] = useState<DayData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [expandedDayId, setExpandedDayId] = useState<string | null>(TODAY_DAY_ID);
   const [addingToDay, setAddingToDay] = useState<{ id: string; label: string } | null>(null);
@@ -534,7 +532,18 @@ export default function TripView() {
   // Traccia quale giorno ha la modalità modifica attivata
   const [editModeDayId, setEditModeDayId] = useState<string | null>(null);
 
-  const [completedActs, setCompletedActs] = useState<string[]>(loadCompletedActivities());
+  const [completedActs, setCompletedActs] = useState<string[]>([]);
+
+  useEffect(() => {
+    async function initData() {
+      const days = await repository.getTripDays(DAYS);
+      const completed = await repository.getCompletedActivities();
+      setTripDays(days);
+      setCompletedActs(completed);
+      setIsLoading(false);
+    }
+    initData();
+  }, []);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -545,17 +554,28 @@ export default function TripView() {
     return () => window.removeEventListener("hrb_completed_activities_change", handler as EventListener);
   }, []);
 
-  function toggleActivity(id: string) {
+  async function toggleActivity(id: string) {
     const next = completedActs.includes(id)
       ? completedActs.filter((item) => item !== id)
       : [...completedActs, id];
     setCompletedActs(next);
-    saveCompletedActivities(next);
+    await repository.saveCompletedActivities(next);
   }
 
   useEffect(() => {
-    saveTripDays(tripDays);
-  }, [tripDays]);
+    if (!isLoading) {
+      repository.saveTripDays(tripDays);
+    }
+  }, [tripDays, isLoading]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60dvh] gap-3">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <span className="text-[12px] text-slate-500 font-semibold">Caricamento roadbook...</span>
+      </div>
+    );
+  }
 
   function toggleDay(dayId: string) {
     setExpandedDayId((prev) => (prev === dayId ? null : dayId));
