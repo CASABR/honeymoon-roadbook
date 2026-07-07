@@ -139,8 +139,8 @@ function TransportDetailSheet({
   function handleFileAttachmentUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert("File troppo grande (max 2 MB). Gli allegati sono salvati nel browser locale.");
+    if (file.size > 3.5 * 1024 * 1024) {
+      alert("File troppo grande (max 3.5 MB). Gli allegati sono salvati nel browser locale.");
       return;
     }
     const reader = new FileReader();

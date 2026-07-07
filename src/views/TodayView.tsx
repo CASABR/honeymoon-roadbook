@@ -68,12 +68,11 @@ function QRModal({ activity, onClose }: { activity: Activity; onClose: () => voi
   const [qrImages, setQrImages] = useState<Record<string, string[]>>(loadQRImages);
   const images = qrImages[activity.id] ?? [];
   const [currentIndex, setCurrentIndex] = useState(0);
-
   function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert("File troppo grande (max 2 MB). Le immagini sono salvate solo nel browser locale.");
+    if (file.size > 3.5 * 1024 * 1024) {
+      alert("File troppo grande (max 3.5 MB). Le immagini sono salvate solo nel browser locale.");
       return;
     }
     const reader = new FileReader();
@@ -196,7 +195,7 @@ function QRModal({ activity, onClose }: { activity: Activity; onClose: () => voi
               />
             </label>
             <p className="text-[10px] text-gray-400 text-center leading-relaxed">
-              ⚠️ Salvata solo nel browser locale (max 2 MB).
+              ⚠️ Salvata solo nel browser locale (max 3.5 MB).
               Si perde se si pulisce la cache.
             </p>
           </div>

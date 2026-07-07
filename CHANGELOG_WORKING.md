@@ -1,5 +1,20 @@
 # CHANGELOG WORKING
 
+## [2026-07-07 – Sessione 17] Incremento limite dimensione allegati a 3.5 MB
+
+### File modificati
+- `src/views/TodayView.tsx`
+  - Aumentato il limite per singolo allegato a **3.5 MB** (da 2 MB) per consentire scansioni di biglietti o PDF più grandi.
+  - Aggiornato l'alert di errore e la descrizione testuale nel popup visualizzato.
+- `src/views/TransportsView.tsx`
+  - Aumentato il limite per singolo allegato a **3.5 MB** (da 2 MB) con relativo alert informativo di errore.
+
+### Note
+- Il limite di 3.5 MB è un incremento prudente che non mette a rischio i limiti globali di `localStorage` (~5-10 MB totali del browser) ma allarga lo spazio per uso mobile reale.
+- Build completata con successo con 0 errori.
+
+---
+
 ## [2026-07-07 – Sessione 16] Miglioramento UX rimozione allegati in Documenti su Mobile
 
 ### File modificati
