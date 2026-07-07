@@ -6,10 +6,6 @@ import {
   ACCOMMODATIONS,
   getDaysToDeparture,
   getTodayLabel,
-  loadCompletedActivities,
-  saveCompletedActivities,
-  loadTripDays,
-  saveTripDays,
 } from "../data/mockData";
 import type { Activity, DayData } from "../data/mockData";
 import {
@@ -21,34 +17,7 @@ import {
   IcQR,
   ActivityIcon,
 } from "../components/Icons";
-
-// ── QR image localStorage helpers ───────────────────────────────────────────
-const LS_QR_KEY = "hrb_qr_images_v1";
-
-function loadQRImages(): Record<string, string[]> {
-  try {
-    const raw = localStorage.getItem(LS_QR_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw) as Record<string, any>;
-      const converted: Record<string, string[]> = {};
-      for (const k in parsed) {
-        if (typeof parsed[k] === "string") {
-          converted[k] = [parsed[k]];
-        } else if (Array.isArray(parsed[k])) {
-          converted[k] = parsed[k];
-        } else {
-          converted[k] = [];
-        }
-      }
-      return converted;
-    }
-  } catch { /* ignore */ }
-  return {};
-}
-
-function saveQRImages(map: Record<string, string[]>) {
-  try { localStorage.setItem(LS_QR_KEY, JSON.stringify(map)); } catch { /* ignore */ }
-}
+import { repository } from "../services/repository";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function getToday(days: DayData[], dayId: string) {
@@ -67,10 +36,19 @@ function getTodayAccommodation() {
 
 // ── QR / Dettaglio trasporto Modal ────────────────────────────────────────────
 function QRModal({ activity, onClose }: { activity: Activity; onClose: () => void }) {
-  const [qrImages, setQrImages] = useState<Record<string, string[]>>(loadQRImages);
+  const [qrImages, setQrImages] = useState<Record<string, string[]>>({});
+  const [isLoading, setIsLoading] = useState(true);
   const images = qrImages[activity.id] ?? [];
   const [currentIndex, setCurrentIndex] = useState(0);
-  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+
+  useEffect(() => {
+    repository.getQRImages().then((data) => {
+      setQrImages(data);
+      setIsLoading(false);
+    });
+  }, []);
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 10 * 1024 * 1024) {
@@ -78,19 +56,19 @@ function QRModal({ activity, onClose }: { activity: Activity; onClose: () => voi
       return;
     }
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const dataUrl = reader.result as string;
       const updatedList = [...images, dataUrl];
       const updated = { ...qrImages, [activity.id]: updatedList };
       setQrImages(updated);
-      saveQRImages(updated);
+      await repository.saveQRImages(updated);
       setCurrentIndex(updatedList.length - 1);
     };
     reader.readAsDataURL(file);
     e.target.value = "";
   }
 
-  function handleRemove() {
+  async function handleRemove() {
     if (images.length === 0) return;
     const updatedList = images.filter((_, idx) => idx !== currentIndex);
     const updated = { ...qrImages };
@@ -100,9 +78,11 @@ function QRModal({ activity, onClose }: { activity: Activity; onClose: () => voi
       updated[activity.id] = updatedList;
     }
     setQrImages(updated);
-    saveQRImages(updated);
+    await repository.saveQRImages(updated);
     setCurrentIndex(Math.max(0, currentIndex - 1));
   }
+
+  if (isLoading) return null;
 
   return (
     <div
@@ -495,12 +475,58 @@ function AccoBanner({ acc }: { acc: ReturnType<typeof getTodayAccommodation> }) 
 export default function TodayView() {
   const navigate = useNavigate();
   const [selectedDayId, setSelectedDayId] = useState(TODAY_DAY_ID);
-  const [tripDays, setTripDays] = useState<DayData[]>(loadTripDays);
+  const [tripDays, setTripDays] = useState<DayData[]>([]);
+  const [completedActs, setCompletedActs] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string } | null>(null);
 
   useEffect(() => {
-    saveTripDays(tripDays);
-  }, [tripDays]);
+    async function initData() {
+      const days = await repository.getTripDays(DAYS);
+      const completed = await repository.getCompletedActivities();
+      setTripDays(days);
+      setCompletedActs(completed);
+      setIsLoading(false);
+    }
+    initData();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      repository.saveTripDays(tripDays);
+    }
+  }, [tripDays, isLoading]);
+
+  const [expanded, setExpanded] = useState(false);
+  const [qrActivity, setQrActivity] = useState<Activity | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTomorrowFull, setShowTomorrowFull] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setCompletedActs(detail);
+    };
+    window.addEventListener("hrb_completed_activities_change", handler as EventListener);
+    return () => window.removeEventListener("hrb_completed_activities_change", handler as EventListener);
+  }, []);
+
+  async function toggleActivity(id: string) {
+    const next = completedActs.includes(id)
+      ? completedActs.filter((item) => item !== id)
+      : [...completedActs, id];
+    setCompletedActs(next);
+    await repository.saveCompletedActivities(next);
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60dvh] gap-3">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <span className="text-[12px] text-slate-500 font-semibold">Caricamento roadbook...</span>
+      </div>
+    );
+  }
 
   const today = getToday(tripDays, selectedDayId);
   const tomorrow = getTomorrow(tripDays, selectedDayId);
@@ -545,31 +571,6 @@ export default function TodayView() {
         return day;
       })
     );
-  }
-
-  const [expanded, setExpanded] = useState(false);
-  const [qrActivity, setQrActivity] = useState<Activity | null>(null);
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTomorrowFull, setShowTomorrowFull] = useState(false);
-
-  // Stato per spunta attività
-  const [completedActs, setCompletedActs] = useState<string[]>(loadCompletedActivities());
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail) setCompletedActs(detail);
-    };
-    window.addEventListener("hrb_completed_activities_change", handler as EventListener);
-    return () => window.removeEventListener("hrb_completed_activities_change", handler as EventListener);
-  }, []);
-
-  function toggleActivity(id: string) {
-    const next = completedActs.includes(id)
-      ? completedActs.filter((item) => item !== id)
-      : [...completedActs, id];
-    setCompletedActs(next);
-    saveCompletedActivities(next);
   }
 
   const daysLeft = getDaysToDeparture();

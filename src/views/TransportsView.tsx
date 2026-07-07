@@ -2,21 +2,7 @@ import { useState, useEffect } from "react";
 import { TRANSPORTS } from "../data/mockData";
 import type { Transport } from "../data/mockData";
 import { IcPlane, IcTrain, IcFerry, IcCar, IcChevronRight, IcPlus, IcQR } from "../components/Icons";
-
-// ── localStorage persistence ──────────────────────────────────────────────────
-const LS_KEY = "hrb_transports_v3";
-
-function loadTransports(): Transport[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) return JSON.parse(raw) as Transport[];
-  } catch { /* ignore */ }
-  return TRANSPORTS;
-}
-
-function saveTransports(list: Transport[]) {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch { /* ignore */ }
-}
+import { repository } from "../services/repository";
 
 // ── Calcolo dettagli scalo (layover) ──────────────────────────────────────────
 function getLayoverDetails(tr: Transport) {
@@ -744,11 +730,23 @@ function TransportCard({ tr, onSelect }: { tr: Transport; onSelect: (t: Transpor
 
 // ── Main TransportsView ───────────────────────────────────────────────────────
 export default function TransportsView() {
-  const [transports, setTransports] = useState<Transport[]>(loadTransports);
+  const [transports, setTransports] = useState<Transport[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [formState, setFormState] = useState<{ show: boolean; tr: Transport | null }>({ show: false, tr: null });
   const [selected, setSelected] = useState<Transport | null>(null);
 
-  useEffect(() => { saveTransports(transports); }, [transports]);
+  useEffect(() => {
+    repository.getTransports(TRANSPORTS).then((data) => {
+      setTransports(data);
+      setIsLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      repository.saveTransports(transports);
+    }
+  }, [transports, isLoading]);
 
   function handleSave(tr: Transport) {
     setTransports((prev) => {
@@ -771,6 +769,15 @@ export default function TransportsView() {
 
   function handleDelete(id: string) {
     setTransports((prev) => prev.filter((item) => item.id !== id));
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60dvh] gap-3">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <span className="text-[12px] text-slate-500 font-semibold">Caricamento trasporti...</span>
+      </div>
+    );
   }
 
   return (

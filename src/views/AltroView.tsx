@@ -5,6 +5,8 @@ import {
   IcNote, IcSettings, IcWallet,
   IcChevronRight, IcChevronDown, IcPlus,
 } from "../components/Icons";
+import { repository } from "../services/repository";
+import type { Checklist, DocumentItem, AttachmentItem, ChecklistItem } from "../services/repository";
 
 // ── Categorie Documento ───────────────────────────────────────────────────────
 type DocumentCategory = "Passaporti" | "Visto Australia" | "Visto / eTravel Filippine" | "Patente internazionale" | "Assicurazione" | "Altri documenti";
@@ -18,26 +20,6 @@ const CATEGORIES: { name: DocumentCategory; icon: string }[] = [
   { name: "Altri documenti", icon: "📁" },
 ];
 
-// ── Allegati documento ───────────────────────────────────────────────────────
-interface AttachmentItem {
-  id: string;
-  name: string; // nome file originale
-  type: "image" | "pdf" | "other";
-  dataUrl: string; // base64 data URL
-}
-
-// ── Interfaccia documento ─────────────────────────────────────────────────────
-interface DocumentItem {
-  id: string;
-  category: DocumentCategory;
-  title: string;
-  owner: string; // "Nunzio" | "Giusy" | "Entrambi"
-  number: string;
-  notes?: string;
-  isMockDefault?: boolean; // Se vero, indica che è un reminder pre-caricato
-  attachments?: AttachmentItem[]; // Allegati locali (base64 in localStorage)
-}
-
 const DEFAULT_DOCUMENTS: DocumentItem[] = [
   { id: "def-pass-n", category: "Passaporti", title: "Passaporto Nunzio", owner: "Nunzio", number: "Non compilato ⚠️", notes: "Verificare scadenza (valido almeno 6 mesi)", isMockDefault: true },
   { id: "def-pass-g", category: "Passaporti", title: "Passaporto Giusy", owner: "Giusy", number: "Non compilato ⚠️", notes: "Verificare scadenza (valido almeno 6 mesi)", isMockDefault: true },
@@ -49,60 +31,7 @@ const DEFAULT_DOCUMENTS: DocumentItem[] = [
   { id: "def-ins", category: "Assicurazione", title: "Polizza Heymondo", owner: "Entrambi", number: "HEY2101185", notes: "IMA Italia Assistance S.p.A.", isMockDefault: true }
 ];
 
-const LS_DOCS_KEY = "hrb_documents_v2";
 
-function loadDocuments(): DocumentItem[] {
-  try {
-    const raw = localStorage.getItem(LS_DOCS_KEY);
-    if (raw) {
-      let list = JSON.parse(raw) as DocumentItem[];
-      
-      // Sincronizzazione/Migrazione delle categorie per i vecchi dati privi di campo "category"
-      list = list.map((doc) => {
-        if (!doc.category) {
-          const titleLower = doc.title.toLowerCase();
-          const idLower = doc.id.toLowerCase();
-          if (idLower.includes("pass") || titleLower.includes("passaporto")) {
-            return { ...doc, category: "Passaporti" };
-          } else if (idLower.includes("visa-au") || idLower.includes("au") || titleLower.includes("australia")) {
-            return { ...doc, category: "Visto Australia" };
-          } else if (idLower.includes("visa-ph") || idLower.includes("ph") || titleLower.includes("filippine") || titleLower.includes("etravel")) {
-            return { ...doc, category: "Visto / eTravel Filippine" };
-          } else if (idLower.includes("licence") || titleLower.includes("patente")) {
-            return { ...doc, category: "Patente internazionale" };
-          } else if (idLower.includes("ins") || titleLower.includes("assicurazione") || titleLower.includes("polizza")) {
-            return { ...doc, category: "Assicurazione" };
-          } else {
-            return { ...doc, category: "Altri documenti" };
-          }
-        }
-        return doc;
-      });
-
-      if (list.length === 0) {
-        return DEFAULT_DOCUMENTS;
-      }
-      
-      const merged = [...list];
-      DEFAULT_DOCUMENTS.forEach((def) => {
-        const exists = list.some(
-          (d) => d.id === def.id || d.title.toLowerCase() === def.title.toLowerCase()
-        );
-        if (!exists) {
-          merged.push(def);
-        }
-      });
-      return merged;
-    }
-  } catch { /* ignore */ }
-  return DEFAULT_DOCUMENTS;
-}
-
-function saveDocuments(list: DocumentItem[]) {
-  try {
-    localStorage.setItem(LS_DOCS_KEY, JSON.stringify(list));
-  } catch { /* ignore */ }
-}
 
 // ── Accordion semplice ───────────────────────────────────────────────────────────────────
 function Accordion({ title, children, defaultOpen = false, isOpen, onToggle }: {
@@ -463,20 +392,7 @@ const NAV_ITEMS = [
   { label: "Impostazioni", desc: "Preferenze app e reset cache", info: "Honeymoon Roadbook v2.0. Funzionamento offline attivo." },
 ];
 
-// ── Interfacce Checklist ─────────────────────────────────────────────────────
-interface ChecklistItem {
-  id: string;
-  text: string;
-  checked: boolean;
-}
 
-interface Checklist {
-  id: string;
-  title: string;
-  items: ChecklistItem[];
-}
-
-const LS_CHECKLISTS_KEY = "hrb_checklists_v3";
 
 const DEFAULT_CHECKLISTS: Checklist[] = [
   {
@@ -501,20 +417,6 @@ const DEFAULT_CHECKLISTS: Checklist[] = [
   },
 ];
 
-function loadChecklists(): Checklist[] {
-  try {
-    const raw = localStorage.getItem(LS_CHECKLISTS_KEY);
-    if (raw) return JSON.parse(raw) as Checklist[];
-  } catch { /* ignore */ }
-  return DEFAULT_CHECKLISTS;
-}
-
-function saveChecklists(list: Checklist[]) {
-  try {
-    localStorage.setItem(LS_CHECKLISTS_KEY, JSON.stringify(list));
-  } catch { /* ignore */ }
-}
-
 // (useSearchParams già importato in cima)
 
 export default function AltroView() {
@@ -522,11 +424,36 @@ export default function AltroView() {
   const [searchParams] = useSearchParams();
   const openSection = searchParams.get("open");
 
-  const [documents, setDocuments] = useState<DocumentItem[]>(loadDocuments);
-  const [checklists, setChecklists] = useState<Checklist[]>(loadChecklists);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [checklists, setChecklists] = useState<Checklist[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
   const [showAddDocCategory, setShowAddDocCategory] = useState<DocumentCategory | null>(null);
   const [activeInfoLabel, setActiveInfoLabel] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function initData() {
+      const docs = await repository.getDocuments(DEFAULT_DOCUMENTS);
+      const chks = await repository.getChecklists(DEFAULT_CHECKLISTS);
+      setDocuments(docs);
+      setChecklists(chks);
+      setIsLoading(false);
+    }
+    initData();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      repository.saveDocuments(documents);
+    }
+  }, [documents, isLoading]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      repository.saveChecklists(checklists);
+    }
+  }, [checklists, isLoading]);
+
   // Accordion a singola apertura: id dell'accordion aperto (null = tutti chiusi)
   const [openAccordion, setOpenAccordion] = useState<string | null>(() => {
     // Se c'è un openSection da URL, apri quell'accordion; altrimenti tutto chiuso
@@ -543,13 +470,14 @@ export default function AltroView() {
     setOpenAccordion((prev) => (prev === id ? null : id));
   }
 
-  useEffect(() => {
-    saveDocuments(documents);
-  }, [documents]);
-
-  useEffect(() => {
-    saveChecklists(checklists);
-  }, [checklists]);
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60dvh] gap-3">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <span className="text-[12px] text-slate-500 font-semibold">Caricamento dati...</span>
+      </div>
+    );
+  }
 
   // Sincronizza openAccordion se openSection cambia (navigazione SPA senza rimontaggio)
   useEffect(() => {

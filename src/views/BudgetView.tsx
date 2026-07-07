@@ -6,35 +6,8 @@ import {
   ACCOMMODATIONS,
 } from "../data/mockData";
 import type { Transport, Accommodation } from "../data/mockData";
-
-// ── Interfaccia Spesa Manuale ──────────────────────────────────────────────────
-interface BudgetEntry {
-  id: string;
-  date: string; // es. "06 jul"
-  label: string;
-  amount: number;
-  category: "Trasporti" | "Alloggi" | "Attività" | "Cibo & Extra" | "Altro";
-}
-
-const LS_TRANSPORTS = "hrb_transports_v3";
-const LS_ACCOMMODATIONS = "hrb_accommodations_v2";
-const LS_BUDGET_ENTRIES = "hrb_budget_entries_v2";
-
-function loadTransports(): Transport[] {
-  try {
-    const raw = localStorage.getItem(LS_TRANSPORTS);
-    if (raw) return JSON.parse(raw) as Transport[];
-  } catch { /* ignore */ }
-  return TRANSPORTS;
-}
-
-function loadAccommodations(): Accommodation[] {
-  try {
-    const raw = localStorage.getItem(LS_ACCOMMODATIONS);
-    if (raw) return JSON.parse(raw) as Accommodation[];
-  } catch { /* ignore */ }
-  return ACCOMMODATIONS;
-}
+import { repository } from "../services/repository";
+import type { BudgetEntry } from "../services/repository";
 
 const INITIAL_ENTRIES: BudgetEntry[] = [
   { id: "entry-insurance", date: "18 giu", label: "Assicurazione Heymondo Premium", amount: 294, category: "Altro" },
@@ -43,39 +16,6 @@ const INITIAL_ENTRIES: BudgetEntry[] = [
   { id: "entry-glowworm-caves", date: "02 dic", label: "Waitomo Glowworm Caves Entry", amount: 65, category: "Attività" },
   { id: "entry-food-mock", date: "30 dic", label: "Pranzo di pesce a Boracay", amount: 45, category: "Cibo & Extra" },
 ];
-
-function loadBudgetEntries(): BudgetEntry[] {
-  try {
-    const raw = localStorage.getItem(LS_BUDGET_ENTRIES);
-    if (raw) {
-      let list = JSON.parse(raw) as BudgetEntry[];
-
-      // 1. Migrazione: Spostiamo i record con category "Assicurazione" (vecchio tipo) sotto "Altro"
-      list = list.map((e) => {
-        if ((e.category as any) === "Assicurazione") {
-          return { ...e, category: "Altro" };
-        }
-        return e;
-      });
-
-      // 2. Integrazione: Aggiungiamo i record di default di INITIAL_ENTRIES che non sono ancora presenti nella lista salvata
-      INITIAL_ENTRIES.forEach((init) => {
-        if (!list.some((e) => e.id === init.id)) {
-          list.push(init);
-        }
-      });
-
-      return list;
-    }
-  } catch { /* ignore */ }
-  return INITIAL_ENTRIES;
-}
-
-function saveBudgetEntries(list: BudgetEntry[]) {
-  try {
-    localStorage.setItem(LS_BUDGET_ENTRIES, JSON.stringify(list));
-  } catch { /* ignore */ }
-}
 
 function pct(spent: number, budget: number) {
   return Math.min(100, Math.round((spent / budget) * 100));
@@ -310,16 +250,41 @@ function AddExpenseSheet({
 
 // ── Main BudgetView ───────────────────────────────────────────────────────────
 export default function BudgetView() {
-  const [transports] = useState<Transport[]>(loadTransports);
-  const [accommodations] = useState<Accommodation[]>(loadAccommodations);
-  const [entries, setEntries] = useState<BudgetEntry[]>(loadBudgetEntries);
+  const [transports, setTransports] = useState<Transport[]>([]);
+  const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
+  const [entries, setEntries] = useState<BudgetEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
   const [showAddExpense, setShowAddExpense] = useState(false);
 
   useEffect(() => {
-    saveBudgetEntries(entries);
-  }, [entries]);
+    async function initData() {
+      const tr = await repository.getTransports(TRANSPORTS);
+      const acc = await repository.getAccommodations(ACCOMMODATIONS);
+      const ent = await repository.getBudgetEntries(INITIAL_ENTRIES);
+      setTransports(tr);
+      setAccommodations(acc);
+      setEntries(ent);
+      setIsLoading(false);
+    }
+    initData();
+  }, []);
+
+  useEffect(() => {
+    if (!isLoading) {
+      repository.saveBudgetEntries(entries);
+    }
+  }, [entries, isLoading]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60dvh] gap-3">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <span className="text-[12px] text-slate-500 font-semibold">Caricamento budget...</span>
+      </div>
+    );
+  }
 
   // Eredita i prezzi reali di default per i record privi di price nel localStorage
   const finalTransports = transports.map(t => {

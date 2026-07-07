@@ -1,5 +1,31 @@
 # CHANGELOG WORKING
 
+## [2026-07-07 – Sessione 23] Implementazione Fase 1: Migrazione locale da localStorage a IndexedDB
+
+### File modificati e creati
+- `src/services/db.ts` (Nuovo)
+  - Creato un wrapper IndexedDB minimale asincrono (`kvStorage`) per l'accesso `get` e `set`.
+- `src/services/repository.ts` (Nuovo)
+  - Creato il Facade asincrono `repository` che centralizza tutte le persistenze locali.
+  - Implementata la migrazione non distruttiva dei dati esistenti da `localStorage` ad IndexedDB all'inizializzazione.
+- `src/views/TodayView.tsx`
+  - Migrato lo stato del componente all'avvio asincrono da repository e aggiornato il caricamento dei biglietti QR.
+- `src/views/TripView.tsx`
+  - Sincronizzati i salvataggi dei giorni e delle spunte attività con il repository asincrono.
+- `src/views/TransportsView.tsx`
+  - Adattato il caricamento e salvataggio dei voli in modalità asincrona.
+- `src/views/BudgetView.tsx`
+  - Sincronizzate le spese ed alloggi con il repository e rimossa la persistenza locale sincrona.
+- `src/views/AltroView.tsx`
+  - Rimosse le interfacce duplicate e migrato il caricamento di documenti e checklist al repository asincrono.
+
+### Note
+- La migrazione dei dati è non distruttiva (i vecchi dati in `localStorage` restano intatti come backup freddo).
+- Aggiunta una schermata di caricamento visiva durante l'inizializzazione asincrona dei dati delle viste.
+- Build completata con successo con 0 errori.
+
+---
+
 ## [2026-07-07 – Sessione 22] Implementazione Fase 3: Uniformazione delle Card di Timeline
 
 ### File modificati
