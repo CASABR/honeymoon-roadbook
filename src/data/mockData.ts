@@ -968,13 +968,13 @@ export const TRANSPORTS: Transport[] = [
     type: "plane",
     detail: "Air China · via Pechino · 18h 35m scalo",
     bookingRef: "1688897340550151",
-    importantNote: "Prezzo: 1.074,80 € · Scalo lungo a Pechino (18h 35m) - Terminal 3",
+    importantNote: "Prezzo: 1.074,86 € · Scalo lungo a Pechino (18h 35m) - Terminal 3",
     segments: [
       { from: "MXP", to: "PEK", departure: "2026-11-29 12:30", arrival: "2026-11-30 05:50", operator: "Air China", flightNumber: "CA950" },
       { from: "PEK", to: "AKL", departure: "2026-12-01 00:25", arrival: "2026-12-01 17:25", operator: "Air China", flightNumber: "CA783" },
     ],
     layoverCity: "Pechino",
-    price: 1074.80,
+    price: 1074.86,
   },
   {
     id: "tr-ferry-wlg-pic",

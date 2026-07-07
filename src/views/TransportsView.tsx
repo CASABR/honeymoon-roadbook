@@ -4,7 +4,7 @@ import type { Transport } from "../data/mockData";
 import { IcPlane, IcTrain, IcFerry, IcCar, IcChevronRight, IcPlus, IcQR } from "../components/Icons";
 
 // ── localStorage persistence ──────────────────────────────────────────────────
-const LS_KEY = "hrb_transports_v2";
+const LS_KEY = "hrb_transports_v3";
 
 function loadTransports(): Transport[] {
   try {

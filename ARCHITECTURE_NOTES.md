@@ -44,7 +44,7 @@ src/
 
 ## Persistenza locale
 - Alloggi e Trasporti: stato locale React + localStorage
-- Chiavi: `hrb_accommodations` (Accommodation[]), `hrb_transports` (Transport[])
+- Chiavi: `hrb_accommodations_v2` (Accommodation[]), `hrb_transports_v3` (Transport[])
 - Pattern: init = localStorage ?? mockData, salva su ogni modifica
 - Pronto per essere sostituito da un store centralizzato
 
@@ -69,7 +69,7 @@ confirmationCode?: string
 - Il pulsante del calendario in Viaggio apre un bottom sheet di selezione del giorno (`TripDatePickerSheet`) che reindirizza e scrolla la pagina sul giorno selezionato in modo smooth.
 - AltroView arricchito con accordion informativi reali: Assicurazione Heymondo (chiuso di default), Numeri Emergenza per paese, Bagagli e franchigie, Scadenze.
 - Sezione Documenti in Altro: raggruppati per "cosa" (categoria) anziché per persona. Include un foglio di dettaglio della singola categoria per visualizzare ed inserire documenti ed una logica di migrazione automatica per i vecchi record precedentemente salvati privi del metadato `category`.
-- Budgeter dinamico: calcola spesa totale, residuo e categorie in tempo reale leggendo i prezzi reali dagli alloggi (`hrb_accommodations_v2`) e trasporti (`hrb_transports_v2`) persistiti. 5 categorie stabili: Trasporti, Alloggi, Attività, Cibo & Extra, Altro. Assicurazione (dato reale €294,21 da polizza HEY2101185) inclusa sotto "Altro". Il popup dettaglio "Altro" mostra anche la card informativa della polizza (brand, numero polizza, periodo, copertura). Migrazione automatica dei vecchi record.
+- Budgeter dinamico: calcola spesa totale, residuo e categorie in tempo reale leggendo i prezzi reali dagli alloggi (`hrb_accommodations_v2`) e trasporti (`hrb_transports_v3`) persistiti. 5 categorie stabili: Trasporti, Alloggi, Attività, Cibo & Extra, Altro. Assicurazione (dato reale €294,21 da polizza HEY2101185) inclusa sotto "Altro". Il popup dettaglio "Altro" mostra anche la card informativa della polizza (brand, numero polizza, periodo, copertura). Migrazione automatica dei vecchi record.
 - Sincronizzazione itinerario: la logica di caricamento rileva discrepanze di lunghezza tra la cache locale e la definizione mock per aggiornare smooth l'itinerario a 44 giorni completo e continuo, conservando le attività create a mano dall'utente.
 - Routing Basename Dinamico: in `main.tsx` `BrowserRouter` adotta `import.meta.env.BASE_URL` privato dello slash terminale come basename, risolvendo conflitti di instradamento in dev ed in produzione (es. GitHub Pages).
 - localStorage per form aggiungi alloggio/trasporto/attività: semplice, offline, sostituibile (chiavi di versione _v2 per resettare vecchi dati inquinati di debug).
