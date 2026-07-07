@@ -6,6 +6,8 @@ import {
   TODAY_DAY_ID,
   loadCompletedActivities,
   saveCompletedActivities,
+  loadTripDays,
+  saveTripDays,
 } from "../data/mockData";
 import type { Activity, DayData } from "../data/mockData";
 import {
@@ -16,50 +18,18 @@ import {
   ActivityIcon,
 } from "../components/Icons";
 
-// ── localStorage persistence ──────────────────────────────────────────────────
-const LS_KEY = "hrb_trip_days_v2";
-
-function loadTripDays(): DayData[] {
-  try {
-    const raw = localStorage.getItem(LS_KEY);
-    if (raw) {
-      const list = JSON.parse(raw) as DayData[];
-      if (list.length !== DAYS.length) {
-        const merged = DAYS.map((d) => {
-          const savedDay = list.find((s) => s.date === d.date);
-          if (savedDay) {
-            const userActs = savedDay.activities.filter((a) => a.id.startsWith("act-user-"));
-            if (userActs.length > 0) {
-              return { ...d, activities: [...d.activities, ...userActs] };
-            }
-          }
-          return d;
-        });
-        localStorage.setItem(LS_KEY, JSON.stringify(merged));
-        return merged;
-      }
-      return list;
-    }
-  } catch { /* ignore */ }
-  return DAYS;
-}
-
-function saveTripDays(list: DayData[]) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify(list));
-  } catch { /* ignore */ }
-}
-
 // ── Sheet per modificare un'attività esistente ────────────────────────────────
 function EditActivitySheet({
   activity,
   dayLabel,
   onSave,
+  onDelete,
   onClose,
 }: {
   activity: Activity;
   dayLabel: string;
   onSave: (updated: Activity) => void;
+  onDelete?: () => void;
   onClose: () => void;
 }) {
   const [time, setTime] = useState(activity.time);
@@ -93,8 +63,25 @@ function EditActivitySheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
-        <h2 className="text-[17px] font-extrabold text-gray-900">Modifica attività</h2>
-        <p className="text-[12px] text-gray-400 mb-4">{dayLabel}</p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-[17px] font-extrabold text-gray-900">Modifica attività</h2>
+            <p className="text-[12px] text-gray-400">{dayLabel}</p>
+          </div>
+          {onDelete && (
+            <button
+              onClick={() => {
+                if (window.confirm("Eliminare questa attività?")) {
+                  onDelete();
+                  onClose();
+                }
+              }}
+              className="text-[12px] text-red-500 font-extrabold px-3 py-1.5 bg-red-50 rounded-xl hover:bg-red-100 transition-colors active:scale-95"
+            >
+              🗑️ Elimina
+            </button>
+          )}
+        </div>
 
         {/* Tipo */}
         <div className="mb-4">
@@ -223,7 +210,7 @@ function TripTimelineRow({
         isFirst ? "bg-white shadow-sm border border-blue-100" : "bg-white/60 shadow-sm"
       }`}>
         {isTransport ? (
-          <div className="px-3 py-2.5 flex items-center justify-between gap-3">
+          <div className="px-3 py-2.5 flex items-center justify-between gap-3 cursor-pointer" onClick={onEdit}>
             <div className="flex-1 min-w-0">
               <p className="text-[10px] font-bold tracking-widest text-blue-500 uppercase mb-0.5">
                 Trasporto
@@ -269,7 +256,7 @@ function TripTimelineRow({
             </div>
           </div>
         ) : (
-          <div className="px-3 py-2 flex items-center justify-between gap-3">
+          <div className="px-3 py-2 flex items-center justify-between gap-3 cursor-pointer" onClick={onEdit}>
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <ActivityIcon type={activity.type} size={15} />
               <div className="flex-1 min-w-0">
@@ -816,6 +803,7 @@ export default function TripView() {
           activity={editingActivity.activity}
           dayLabel={editingActivity.dayLabel}
           onSave={(updated) => handleEditActivity(editingActivity.dayId, updated)}
+          onDelete={() => handleDeleteActivity(editingActivity.dayId, editingActivity.activity.id)}
           onClose={() => setEditingActivity(null)}
         />
       )}

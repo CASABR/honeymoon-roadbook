@@ -1,5 +1,23 @@
 # CHANGELOG WORKING
 
+## [2026-07-07 – Sessione 18] Incremento limite allegati a 10 MB e consultazione attività in Oggi e Viaggio
+
+### File modificati
+- `src/data/mockData.ts`
+  - Esportate le funzioni `loadTripDays` e `saveTripDays` per sincronizzare lo stato tra le varie viste dell'applicazione in tempo reale.
+- `src/views/TripView.tsx`
+  - Importate `loadTripDays` e `saveTripDays` globali rimuovendo le definizioni locali ridondanti.
+  - Abilitata la cliccabilità delle card (attività e trasporti) anche al di fuori della modalità edit per mostrare i dettagli.
+  - Aggiunto il supporto alla cancellazione diretta delle attività tramite pulsante "Elimina" in `EditActivitySheet`.
+- `src/views/TodayView.tsx`
+  - Aumentato il limite dimensione allegati a **10 MB** (da 3.5 MB).
+  - Integrata la gestione dello stato dinamico dei giorni `tripDays` sincronizzato con la visualizzazione di Viaggio.
+  - Abilitata la cliccabilità delle righe per visualizzare, modificare o cancellare le attività tramite l'apertura del modale `EditActivitySheet` dedicato.
+- `src/views/TransportsView.tsx`
+  - Aumentato il limite dimensione allegati a **10 MB** (da 3.5 MB).
+
+---
+
 ## [2026-07-07 – Sessione 17] Incremento limite dimensione allegati a 3.5 MB
 
 ### File modificati
