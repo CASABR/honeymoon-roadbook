@@ -1,5 +1,24 @@
 # CHANGELOG WORKING
 
+## [2026-07-07 – Sessione 15] Automazione calcoli scali e allineamento localStorage voli
+
+### File modificati
+- `src/data/mockData.ts`
+  - Allineato il prezzo di `tr-flight-mxp-akl` al valore esatto di `1074.86` € (da `1074.80` €) come indicato dal prompt.
+- `src/views/TransportsView.tsx`
+  - Incrementata la chiave di persistenza locale `LS_KEY` da `hrb_transports_v2` a `hrb_transports_v3` per forzare il refresh dei dati dei voli del browser (inclusi i datetime reali per la tratta MXP→PEK→AKL).
+- `src/views/BudgetView.tsx`
+  - Incrementata la chiave di persistenza locale `LS_TRANSPORTS` da `hrb_transports_v2` a `hrb_transports_v3` per allineamento ed integrità del caricamento dati.
+- `ARCHITECTURE_NOTES.md`
+  - Aggiornato il riferimento della chiave localStorage dei trasporti a `hrb_transports_v3`.
+
+### Note
+- Il calcolo dei tempi di scalo viene eseguito in modo 100% automatico a partire dai datetime reali dei segmenti (es. `2026-11-30 05:50` e `2026-12-01 00:25` produce esattamente **18h 35m**).
+- Il bump della chiave `localStorage` ha risolto la discrepanza del calcolo scalo sul browser (in cui precedentemente persisteva la vecchia cache con la durata di 10h 35m).
+- Build completata con successo con 0 errori.
+
+---
+
 ## [2026-07-07 – Sessione 14] Rifinitura editing giornata in Viaggio e rimozione Assicurazione
 
 ### File modificati

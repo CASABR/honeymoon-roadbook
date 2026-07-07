@@ -3,10 +3,8 @@ import {
   BUDGET_TOTAL,
   TRANSPORTS,
   ACCOMMODATIONS,
-  INSURANCE,
 } from "../data/mockData";
 import type { Transport, Accommodation } from "../data/mockData";
-import { IcPlus, IcChevronRight } from "../components/Icons";
 
 // ── Interfaccia Spesa Manuale ──────────────────────────────────────────────────
 interface BudgetEntry {
@@ -38,13 +36,10 @@ function loadAccommodations(): Accommodation[] {
 }
 
 const INITIAL_ENTRIES: BudgetEntry[] = [
-  // Dato reale: costo esatto da polizza Heymondo (HEY2101185)
-  { id: "entry-insurance", date: "18 giu", label: "Assicurazione Heymondo Premium", amount: 294.21, category: "Altro" },
-  // Attività prenotate / stimate (non inventate ma non ancora confermate con ricevuta)
+  { id: "entry-insurance", date: "18 giu", label: "Assicurazione Heymondo Premium", amount: 294, category: "Altro" },
   { id: "entry-maori-village", date: "03 dic", label: "Mitai Maori Village (Cena + Show)", amount: 120, category: "Attività" },
   { id: "entry-surf-bondi", date: "26 dic", label: "Corso di Surf (Bondi Beach)", amount: 80, category: "Attività" },
   { id: "entry-glowworm-caves", date: "02 dic", label: "Waitomo Glowworm Caves Entry", amount: 65, category: "Attività" },
-  // Cibo: voce mock — da aggiornare durante il viaggio
   { id: "entry-food-mock", date: "30 dic", label: "Pranzo di pesce a Boracay", amount: 45, category: "Cibo & Extra" },
 ];
 
@@ -146,9 +141,6 @@ function CategoryDetailSheet({
     });
   }
 
-  // Dati reali polizza per il popup Altro
-  const showInsuranceCard = category === "Altro";
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px]"
@@ -165,15 +157,6 @@ function CategoryDetailSheet({
           <span className="text-[16px] font-extrabold text-blue-600">Total: €{total.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
         <p className="text-[12px] text-gray-400 mb-4">Composizione analitica dei costi reali registrati</p>
-
-        {/* Card polizza assicurazione — visibile solo nel popup Altro */}
-        {showInsuranceCard && (
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 mb-3">
-            <p className="text-[11px] font-black text-blue-700 uppercase tracking-wider mb-1">🛡️ Polizza {INSURANCE.brand} · {INSURANCE.policyNumber}</p>
-            <p className="text-[11px] text-blue-600 font-medium">{INSURANCE.plan} · {INSURANCE.insured}</p>
-            <p className="text-[11px] text-blue-500 mt-0.5">{INSURANCE.startDate} – {INSURANCE.endDate} · {INSURANCE.coverage}</p>
-          </div>
-        )}
 
         <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
           {listItems.length === 0 ? (
@@ -398,7 +381,7 @@ export default function BudgetView() {
   }
 
   return (
-    <div className="px-4 pt-5 pb-28">
+    <div className="px-4 pt-5 pb-4">
       <h1 className="text-[24px] font-extrabold text-gray-900 mb-5">Budgeter</h1>
 
       {/* ── Totale ─────────────────────────────────────────────────────────── */}
@@ -515,23 +498,14 @@ export default function BudgetView() {
         )}
       </div>
 
-      {/* ── Aggiungi spesa — sticky FAB ──────────────────────────────────── */}
-      {/* Spacer visivo ridondante rimosso: il padding pb-28 tiene spazio */}
-
-      {/* Pulsante fisso sempre visibile in basso, sopra la bottom nav */}
-      <div
-        className="fixed bottom-[68px] left-1/2 -translate-x-1/2 w-full max-w-[430px] px-4 z-40"
-        style={{ pointerEvents: "none" }}
+      {/* ── Aggiungi spesa ─────────────────────────────────────────────────── */}
+      <button
+        onClick={() => setShowAddExpense(true)}
+        className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-extrabold text-[14px] py-3.5 rounded-2xl shadow-lg shadow-blue-200 transition-all hover:bg-blue-700 hover:scale-[1.01] active:scale-[0.99]"
       >
-        <button
-          onClick={() => setShowAddExpense(true)}
-          style={{ pointerEvents: "auto" }}
-          className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-extrabold text-[14px] py-3.5 rounded-2xl shadow-xl shadow-blue-300/50 transition-all hover:bg-blue-700 active:scale-[0.98]"
-        >
-          <IcPlus size={18} />
-          Aggiungi spesa
-        </button>
-      </div>
+        <IcPlus size={18} />
+        Aggiungi spesa
+      </button>
 
       {selectedCat && (
         <CategoryDetailSheet
