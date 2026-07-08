@@ -51,8 +51,7 @@ function EditActivitySheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      className="bottom-sheet-backdrop"
       onClick={onClose}
     >
       <div
@@ -204,7 +203,7 @@ function TripTimelineRow({
 
       {/* Card */}
       <div
-        className={`flex-1 mb-2 app-card p-3 ${editMode ? "" : "cursor-pointer"} ${isFirst ? "border-blue-200" : "bg-white/80"}`}
+        className={`flex-1 min-w-0 mb-2 app-card p-3 ${editMode ? "" : "cursor-pointer"} ${isFirst ? "border-blue-200" : "bg-white/80"}`}
         onClick={editMode ? undefined : onEdit}
       >
         {isTransport ? (
@@ -358,8 +357,7 @@ function AddActivitySheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      className="bottom-sheet-backdrop"
       onClick={onClose}
     >
       <div
@@ -469,8 +467,7 @@ function TripDatePickerSheet({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      className="bottom-sheet-backdrop"
       onClick={onClose}
     >
       <div

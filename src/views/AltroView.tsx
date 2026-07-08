@@ -105,12 +105,11 @@ function AddDocumentSheet({
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-end justify-center backdrop-blur-[2px]"
-      style={{ background: "rgba(0,0,0,0.3)" }}
+      className="bottom-sheet-backdrop"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[430px] bg-white rounded-t-[32px] p-5 pb-8 max-h-[85dvh] overflow-y-auto shadow-2xl border-t border-gray-100"
+        className="bottom-sheet-container"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
@@ -234,12 +233,11 @@ function CategoryDocumentsSheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px]"
-      style={{ background: "rgba(0,0,0,0.3)" }}
+      className="bottom-sheet-backdrop"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[430px] bg-white rounded-t-[32px] p-5 pb-8 max-h-[90dvh] overflow-y-auto shadow-2xl border-t border-gray-100"
+        className="bottom-sheet-container"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
@@ -472,15 +470,6 @@ export default function AltroView() {
     setOpenAccordion((prev) => (prev === id ? null : id));
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-[60dvh] gap-3">
-        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        <span className="text-[12px] text-slate-500 font-semibold">Caricamento dati...</span>
-      </div>
-    );
-  }
-
   // Sincronizza openAccordion se openSection cambia (navigazione SPA senza rimontaggio)
   useEffect(() => {
     if (openSection) {
@@ -499,6 +488,15 @@ export default function AltroView() {
       }, 300);
     }
   }, [openSection]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60dvh] gap-3">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <span className="text-[12px] text-slate-500 font-semibold">Caricamento dati...</span>
+      </div>
+    );
+  }
 
   function handleSaveDoc(newDoc: DocumentItem) {
     setDocuments((prev) => {

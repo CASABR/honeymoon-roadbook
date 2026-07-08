@@ -84,12 +84,11 @@ function CategoryDetailSheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px]"
-      style={{ background: "rgba(0,0,0,0.3)" }}
+      className="bottom-sheet-backdrop"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[430px] bg-white rounded-t-[32px] p-5 pb-8 max-h-[80dvh] overflow-y-auto shadow-2xl border-t border-gray-100"
+        className="bottom-sheet-container"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
@@ -176,12 +175,11 @@ function AddExpenseSheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px]"
-      style={{ background: "rgba(0,0,0,0.3)" }}
+      className="bottom-sheet-backdrop"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[430px] bg-white rounded-t-[32px] p-5 pb-8 max-h-[85dvh] overflow-y-auto shadow-2xl border-t border-gray-100"
+        className="bottom-sheet-container"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />

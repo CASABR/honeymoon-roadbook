@@ -1,5 +1,15 @@
 # CHANGELOG WORKING
 
+## [2026-07-08 – Sessione 24] Isolamento dei Bottom Sheet con Classi CSS Esplicite (Safe Area & Z-Index), Risoluzione Overflow in Viaggio e Fix React Hook Crash in AltroView
+
+### File modificati
+- `src/index.css` — Eseguito il rollback della patch globale. Introdotta la classe esplicita `.bottom-sheet-container` e `.bottom-sheet-backdrop` per incapsulare l'altezza massima a `82dvh !important`, il padding dinamico della safe area `calc(32px + env(safe-area-inset-bottom, 16px)) !important` e lo `z-index: 90 !important` per prevenire la sovrapposizione con la bottom navigation bar dell'applicazione in modo robusto ed isolato.
+- `src/views/AccommodationsView.tsx`, `src/views/TransportsView.tsx`, `src/views/BudgetView.tsx`, `src/views/AltroView.tsx` — Sostituiti gli overlay fixed inline e i contenitori di dettaglio con le classi standard `.bottom-sheet-backdrop` e `.bottom-sheet-container`.
+- `src/views/TripView.tsx` — Aggiunta la classe `min-w-0` alla card dei timeline row per impedire l'overflow orizzontale a destra dei controlli (✏️, 🗑️, ↑, ↓) in modalità modifica.
+- `src/views/AltroView.tsx` — Risolto il crash all'avvio della pagina (React Hook violation): spostato il return condizionale di `isLoading` al di sotto di tutti gli `useEffect` in conformità alle regole di React.
+
+---
+
 ## [2026-07-07 – Sessione 23] Implementazione Fase 1: Migrazione locale da localStorage a IndexedDB
 
 ### File modificati e creati
