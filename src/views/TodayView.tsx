@@ -480,12 +480,17 @@ export default function TodayView() {
 
   useEffect(() => {
     async function initData() {
-      const days = await repository.getTripDays(DAYS);
-      const completed = await repository.getCompletedActivities();
-      setTripDays(days);
-      setCompletedActs(completed);
-      isLoadedRef.current = true;
-      setIsLoading(false);
+      try {
+        const days = await repository.getTripDays(DAYS);
+        const completed = await repository.getCompletedActivities();
+        setTripDays(days);
+        setCompletedActs(completed);
+        isLoadedRef.current = true;
+      } catch (e) {
+        console.error("Errore durante il caricamento dei dati in TodayView:", e);
+      } finally {
+        setIsLoading(false);
+      }
     }
     initData();
   }, []);

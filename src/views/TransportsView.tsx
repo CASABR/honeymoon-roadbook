@@ -735,11 +735,13 @@ export default function TransportsView() {
   const [selected, setSelected] = useState<Transport | null>(null);
 
   useEffect(() => {
-    repository.getTransports(TRANSPORTS).then((data) => {
-      setTransports(data);
-      isLoadedRef.current = true;
-      setIsLoading(false);
-    });
+    repository.getTransports(TRANSPORTS)
+      .then((data) => {
+        setTransports(data);
+        isLoadedRef.current = true;
+      })
+      .catch((e) => console.error("Errore caricamento trasporti:", e))
+      .finally(() => setIsLoading(false));
   }, []);
 
   useEffect(() => {

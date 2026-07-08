@@ -184,6 +184,8 @@ export const repository = {
   // Reset totale dell'applicazione
   async clearAllData(): Promise<void> {
     await kvStorage.clear();
-    localStorage.clear();
+    localStorage.removeItem("hrb_local_auth_bypass");
+    localStorage.removeItem("hrb_intro_seen");
+    localStorage.removeItem("hrb_indexeddb_migrated");
   }
 };
