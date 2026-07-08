@@ -13,6 +13,7 @@ export default function LoginView() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [conflictError, setConflictError] = useState(false);
 
   async function handleGoogleLogin() {
     if (!auth) {
@@ -21,6 +22,7 @@ export default function LoginView() {
     }
     setIsLoading(true);
     setError(null);
+    setConflictError(false);
     try {
       if (auth.currentUser && auth.currentUser.isAnonymous) {
         // Collega l'account Google all'utente ospite anonimo attivo mantenendo lo stesso UID
@@ -36,10 +38,26 @@ export default function LoginView() {
       } else if (err.code === "auth/configuration-not-found") {
         setError("La configurazione Firebase per Google Sign-In non è configurata o attiva.");
       } else if (err.code === "auth/credential-already-in-use") {
-        setError("Questo account Google è già associato ad un altro utente del Roadbook.");
+        setConflictError(true);
       } else {
         setError(err.message || "Errore durante l'autenticazione con Google.");
       }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleForceGoogleLogin() {
+    if (!auth) return;
+    setIsLoading(true);
+    setConflictError(false);
+    setError(null);
+    try {
+      // Accede direttamente con l'account Google esistente (scollegando l'anonimo)
+      await signInWithPopup(auth, googleProvider);
+    } catch (err: any) {
+      console.error("Errore login forzato:", err);
+      setError(err.message || "Errore durante l'accesso.");
     } finally {
       setIsLoading(false);
     }
@@ -182,6 +200,27 @@ export default function LoginView() {
             >
               Usa bypass locale (offline di sicurezza) &rarr;
             </button>
+          </div>
+        )}
+
+        {conflictError && (
+          <div className="mt-5 p-4 bg-amber-950/80 border border-amber-800/60 rounded-xl text-[12px] text-amber-200 font-medium space-y-2.5 max-w-[280px] text-left">
+            <span className="font-extrabold block text-amber-100">⚠️ Conflitto di Collegamento</span>
+            Questo account Google è già associato ad un altro diario di nozze. Vuoi disconnettere la sessione ospite ed accedere direttamente all'account Google esistente?
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={handleForceGoogleLogin}
+                className="flex-1 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-[10.5px] rounded-lg text-center"
+              >
+                Entra con Google
+              </button>
+              <button
+                onClick={() => setConflictError(false)}
+                className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[10.5px] rounded-lg text-center"
+              >
+                Annulla
+              </button>
+            </div>
           </div>
         )}
       </div>
