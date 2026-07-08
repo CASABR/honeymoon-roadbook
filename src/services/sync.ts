@@ -68,13 +68,11 @@ export const syncService = {
     const user = auth?.currentUser;
     if (!user || user.uid === "local-bypass-user" || !db) return;
 
-    // NOTA: Passiamo un array vuoto come fallback per non rischiare di sovrascrivere o inserire i default a questo livello
     const localEntries = await repository.getBudgetEntries([]);
 
     const { collection, getDocs, deleteDoc } = await import("firebase/firestore");
     const budgetColRef = collection(db, `users/${user.uid}/budget`);
 
-    // Rileva ed elimina le spese rimosse localmente nel cloud
     const querySnapshot = await getDocs(budgetColRef);
     const localIds = new Set(localEntries.map(e => e.id));
 
@@ -84,12 +82,11 @@ export const syncService = {
       }
     }
 
-    // Scrive o aggiorna le spese correnti
     for (const entry of localEntries) {
       const docRef = doc(db, `users/${user.uid}/budget/${entry.id}`);
       await setDoc(docRef, {
         ...entry,
-        updatedAt: Date.now()
+        updatedAt: entry.updatedAt || Date.now()
       }, { merge: true });
     }
   },
@@ -112,7 +109,8 @@ export const syncService = {
           date: data.date || "",
           label: data.label || "",
           amount: typeof data.amount === "number" ? data.amount : 0,
-          category: data.category || "Altro"
+          category: data.category || "Altro",
+          updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : undefined
         });
       }
     });
@@ -128,12 +126,11 @@ export const syncService = {
 
     const localEntries = await repository.getAccommodations([]);
 
-    // Scrive o aggiorna gli alloggi locali correnti nel cloud (senza cancellare quelli remoti)
     for (const entry of localEntries) {
       const docRef = doc(db, `users/${user.uid}/accommodations/${entry.id}`);
       await setDoc(docRef, {
         ...entry,
-        updatedAt: Date.now()
+        updatedAt: entry.updatedAt || Date.now()
       }, { merge: true });
     }
   },
@@ -154,19 +151,23 @@ export const syncService = {
         cloudEntries.push({
           id: data.id,
           name: data.name || "",
+          city: data.city || "",
+          area: data.area || "",
           checkIn: data.checkIn || "",
           checkOut: data.checkOut || "",
-          address: data.address || "",
-          notes: data.notes || "",
-          phone: data.phone || "",
-          lat: typeof data.lat === "number" ? data.lat : undefined,
-          lng: typeof data.lng === "number" ? data.lng : undefined,
-          isMockDefault: data.isMockDefault || false
+          dates: data.dates || "",
+          note: data.note || "",
+          mapsUrl: data.mapsUrl || "",
+          imageUrl: data.imageUrl || "",
+          price: typeof data.price === "number" ? data.price : undefined,
+          source: data.source || "manual",
+          confirmationCode: data.confirmationCode || "",
+          updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : undefined
         });
       }
     });
 
-    // Merge additivo e non distruttivo per evitare perdite dati
+    // Merge additivo e non distruttivo
     const localEntries = await repository.getAccommodations([]);
     const mergedMap = new Map<string, any>();
 

@@ -277,6 +277,15 @@ export default function BudgetView() {
   }, []);
 
   useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setEntries(detail);
+    };
+    window.addEventListener("hrb_budget_change", handler as EventListener);
+    return () => window.removeEventListener("hrb_budget_change", handler as EventListener);
+  }, []);
+
+  useEffect(() => {
     if (isLoadedRef.current) {
       repository.saveBudgetEntries(entries);
     }

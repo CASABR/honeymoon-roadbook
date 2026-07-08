@@ -34,6 +34,7 @@ export interface BudgetEntry {
   label: string;
   amount: number;
   category: "Trasporti" | "Alloggi" | "Attività" | "Cibo & Extra" | "Altro";
+  updatedAt?: number;
 }
 
 const MIGRATED_FLAG = "hrb_indexeddb_migrated";
@@ -124,6 +125,7 @@ export const repository = {
   },
   async saveAccommodations(accommodations: Accommodation[]): Promise<void> {
     await kvStorage.set("hrb_accommodations_v2", accommodations);
+    window.dispatchEvent(new CustomEvent("hrb_accommodations_change", { detail: accommodations }));
   },
 
   // Checklist
@@ -169,6 +171,7 @@ export const repository = {
   },
   async saveBudgetEntries(entries: BudgetEntry[]): Promise<void> {
     await kvStorage.set("hrb_budget_entries_v2", entries);
+    window.dispatchEvent(new CustomEvent("hrb_budget_change", { detail: entries }));
   },
 
   // Note personali
