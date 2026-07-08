@@ -84,14 +84,17 @@ confirmationCode?: string
 - Dimensione Allegati Elevata: incrementata a **10 MB** la dimensione massima degli allegati in Oggi e Trasporti per supportare screenshot e PDF complessi sul telefono offline.
 
 
-## Evoluzione Futura e Roadmap
+## Autenticazione e Gating (Firebase Auth)
+- **Gating di accesso:** L'intera applicazione in `App.tsx` è protetta da una verifica di autenticazione. Se l'utente non è autenticato, viene renderizzata esclusivamente la schermata `LoginView`. Se autenticato (con Google o come ospite anonimo), viene visualizzato l'itinerario e sbloccata la bottom navigation.
+- **Firebase Auth Web SDK:** Utilizza Firebase Auth per gestire l'accesso sicuro con Google (`signInWithPopup`) e l'accesso anonimo (`signInAnonymously`). I dati salvati come ospite sono memorizzati localmente e l'account anonimo può essere aggiornato (linking) ad un account Google tramite `linkWithPopup` per preservare i dati sul cloud.
+- **Bypass Locale di Emergenza:** Per scopi di sviluppo, emulazione offline locale o nel caso in cui Firebase non sia configurato/attivo, è implementato un pulsante di bypass che memorizza un utente mock in `localStorage` (`hrb_local_auth_bypass`), sbloccando l'applicazione all'istante senza arrestare il funzionamento offline.
+- **Note debounzate:** La scrittura ad IndexedDB per le note personali in `AltroView.tsx` adotta un debounce leggero di `800ms` a livello di `onChange` per evitare carichi I/O continui durante la digitazione, combinato con un salvataggio immediato all'evento `onBlur` per non rischiare perdite di dati all'uscita dal campo.
 
-Per le fasi successive dello sviluppo, il progetto dovrà essere configurato per:
+## Evoluzione Futura e Roadmap
 1. **Hosting Iniziale:** ✅ **Completato** — Deployment su **GitHub Pages** (`https://casabr.github.io/honeymoon-roadbook/`). Supporto SPA 404 via `public/404.html` + script redirect in `index.html`. CSP configurata via meta tag.
-2. **Autenticazione:** Integrazione del **Login con Google / Gmail**, consentendo l'accesso sicuro.
-3. **Stato Iniziale Utente:** Avvio dell'applicazione con uno stato vuoto (empty state) per i nuovi utenti che non hanno ancora inserito dati, guidandoli nell'importazione.
-4. **Gmail Import Reale:** Implementazione di un servizio (serverless o client-side con token OAuth) che legga le email di conferma (voli, hotel, treni) da Gmail per estrarre e mappare automaticamente i dati nel roadbook.
-5. **Supporto Multi-utente:** Struttura dei dati isolata per ID utente.
-6. **Sincronizzazione Cross-device:** Meccanismo di sync (es. tramite database leggero come Firebase o Supabase, o sync su Google Drive personale) per allineare i dati tra dispositivi mobili diversi in tempo reale.
+2. **Autenticazione:** ✅ **Completato** — Integrazione del **Login con Google / Gmail** e Anonymous Sign-In tramite Firebase Auth, con gating di sicurezza ed account linking abilitato.
+3. **Gmail Import Reale:** Implementazione di un servizio (serverless o client-side con token OAuth) che legga le email di conferma (voli, hotel, treni) da Gmail per estrarre e mappare automaticamente i dati nel roadbook.
+4. **Supporto Multi-utente:** Struttura dei dati isolata per ID utente.
+5. **Sincronizzazione Cloud Reale:** Meccanismo di sync (tramite Firebase Firestore/Realtime Database) per allineare i dati tra dispositivi mobili diversi in tempo reale sfruttando l'ID utente autenticato.
 
 
