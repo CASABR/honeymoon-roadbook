@@ -534,12 +534,17 @@ export default function TripView() {
 
   useEffect(() => {
     async function initData() {
-      const days = await repository.getTripDays(DAYS);
-      const completed = await repository.getCompletedActivities();
-      setTripDays(days);
-      setCompletedActs(completed);
-      isLoadedRef.current = true;
-      setIsLoading(false);
+      try {
+        const days = await repository.getTripDays(DAYS);
+        const completed = await repository.getCompletedActivities();
+        setTripDays(days);
+        setCompletedActs(completed);
+        isLoadedRef.current = true;
+      } catch (e) {
+        console.error("Errore nel caricamento dei dati in TripView:", e);
+      } finally {
+        setIsLoading(false);
+      }
     }
     initData();
   }, []);

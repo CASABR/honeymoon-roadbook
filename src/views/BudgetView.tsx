@@ -259,14 +259,19 @@ export default function BudgetView() {
 
   useEffect(() => {
     async function initData() {
-      const tr = await repository.getTransports(TRANSPORTS);
-      const acc = await repository.getAccommodations(ACCOMMODATIONS);
-      const ent = await repository.getBudgetEntries(INITIAL_ENTRIES);
-      setTransports(tr);
-      setAccommodations(acc);
-      setEntries(ent);
-      isLoadedRef.current = true;
-      setIsLoading(false);
+      try {
+        const tr = await repository.getTransports(TRANSPORTS);
+        const acc = await repository.getAccommodations(ACCOMMODATIONS);
+        const ent = await repository.getBudgetEntries(INITIAL_ENTRIES);
+        setTransports(tr);
+        setAccommodations(acc);
+        setEntries(ent);
+        isLoadedRef.current = true;
+      } catch (e) {
+        console.error("Errore caricamento dati budgeter:", e);
+      } finally {
+        setIsLoading(false);
+      }
     }
     initData();
   }, []);

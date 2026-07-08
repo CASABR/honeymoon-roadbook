@@ -246,11 +246,13 @@ export default function AccommodationsView() {
   const [showForm, setShowForm] = useState(false);
 
   useEffect(() => {
-    repository.getAccommodations(ACCOMMODATIONS).then((data) => {
-      setAccos(data);
-      isLoadedRef.current = true;
-      setIsLoading(false);
-    });
+    repository.getAccommodations(ACCOMMODATIONS)
+      .then((data) => {
+        setAccos(data);
+        isLoadedRef.current = true;
+      })
+      .catch((e) => console.error("Errore caricamento alloggi:", e))
+      .finally(() => setIsLoading(false));
   }, []);
 
   useEffect(() => {

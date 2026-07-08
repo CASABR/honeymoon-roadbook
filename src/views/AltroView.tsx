@@ -8,6 +8,7 @@ import {
 import { repository } from "../services/repository";
 import type { Checklist, DocumentItem, AttachmentItem, ChecklistItem } from "../services/repository";
 import { auth, googleProvider, linkWithPopup, signOut } from "../services/firebase";
+import { syncService } from "../services/sync";
 
 // ── Categorie Documento ───────────────────────────────────────────────────────
 type DocumentCategory = "Passaporti" | "Visto Australia" | "Visto / eTravel Filippine" | "Patente internazionale" | "Assicurazione" | "Altri documenti";
@@ -459,10 +460,53 @@ export default function AltroView() {
   async function handleLogout() {
     if (window.confirm("Disconnettersi dall'applicazione?")) {
       localStorage.removeItem("hrb_local_auth_bypass");
+      localStorage.removeItem("hrb_intro_seen");
       if (auth) {
         await signOut(auth);
       }
       window.location.reload();
+    }
+  }
+
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
+
+  async function handleSyncPush() {
+    setIsSyncing(true);
+    setSyncStatus("Salvataggio nel cloud...");
+    try {
+      await syncService.pushNotes();
+      await syncService.pushCompletedActivities();
+      setSyncStatus("Dati salvati con successo!");
+      setTimeout(() => setSyncStatus(null), 3000);
+    } catch (e: any) {
+      console.error(e);
+      setSyncStatus("Errore durante l'invio.");
+    } finally {
+      setIsSyncing(false);
+    }
+  }
+
+  async function handleSyncPull() {
+    if (!window.confirm("Attenzione: scaricando i dati dal cloud, le note ed i completamenti locali correnti verranno sovrascritti con quelli remoti. Continuare?")) {
+      return;
+    }
+    setIsSyncing(true);
+    setSyncStatus("Download dal cloud...");
+    try {
+      const notes = await syncService.pullNotes();
+      const completed = await syncService.pullCompletedActivities();
+      if (notes !== null) setPersonalNotes(notes);
+      if (completed !== null) {
+        window.dispatchEvent(new CustomEvent("hrb_completed_activities_change", { detail: completed }));
+      }
+      setSyncStatus("Dati scaricati con successo!");
+      setTimeout(() => setSyncStatus(null), 3000);
+    } catch (e: any) {
+      console.error(e);
+      setSyncStatus("Errore durante il download.");
+    } finally {
+      setIsSyncing(false);
     }
   }
 
@@ -494,14 +538,19 @@ export default function AltroView() {
 
   useEffect(() => {
     async function initData() {
-      const docs = await repository.getDocuments(DEFAULT_DOCUMENTS);
-      const chks = await repository.getChecklists(DEFAULT_CHECKLISTS);
-      const notesVal = await repository.getNotes();
-      setDocuments(docs);
-      setChecklists(chks);
-      setPersonalNotes(notesVal);
-      isLoadedRef.current = true;
-      setIsLoading(false);
+      try {
+        const docs = await repository.getDocuments(DEFAULT_DOCUMENTS);
+        const chks = await repository.getChecklists(DEFAULT_CHECKLISTS);
+        const notesVal = await repository.getNotes();
+        setDocuments(docs);
+        setChecklists(chks);
+        setPersonalNotes(notesVal);
+        isLoadedRef.current = true;
+      } catch (e) {
+        console.error("Errore caricamento dati in AltroView:", e);
+      } finally {
+        setIsLoading(false);
+      }
     }
     initData();
   }, []);
@@ -801,6 +850,34 @@ export default function AltroView() {
                   </div>
                 </div>
               </div>
+
+              {/* Sincronizzazione Manuale Cloud */}
+              {user && !user.isAnonymous && user.uid !== "local-bypass-user" && (
+                <div>
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Sincronizzazione Cloud (Note & Attività)</p>
+                  <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 space-y-2">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleSyncPush}
+                        disabled={isSyncing}
+                        className="flex-1 py-2 bg-blue-50 text-blue-600 border border-blue-100 font-extrabold text-[11px] rounded-lg transition-colors hover:bg-blue-100 disabled:opacity-50"
+                      >
+                        📤 Invia al Cloud
+                      </button>
+                      <button
+                        onClick={handleSyncPull}
+                        disabled={isSyncing}
+                        className="flex-1 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[11px] rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        📥 Scarica dal Cloud
+                      </button>
+                    </div>
+                    {syncStatus && (
+                      <p className="text-[10px] text-center font-semibold text-blue-600 mt-1">{syncStatus}</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Informazione archiviazione */}
               <div className="p-2.5 bg-blue-50/40 border border-blue-100/50 rounded-xl text-[11px] text-slate-500 leading-normal">
