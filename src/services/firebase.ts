@@ -20,20 +20,30 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || "placeholder-app-id"
 };
 
+// Rileva se il client Firebase è stato configurato con chiavi reali
+const isConfigured = 
+  import.meta.env.VITE_FIREBASE_API_KEY && 
+  import.meta.env.VITE_FIREBASE_API_KEY !== "placeholder-api-key" &&
+  import.meta.env.VITE_FIREBASE_API_KEY.trim() !== "";
+
 // Inizializza Firebase con controllo degli errori
 let app;
-let auth: any;
-let googleProvider: any;
+let auth: any = null;
+let googleProvider: any = null;
 let db: any = null;
 
-try {
-  app = initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  googleProvider = new GoogleAuthProvider();
-  googleProvider.setCustomParameters({ prompt: 'select_account' });
-  db = getFirestore(app);
-} catch (error) {
-  console.error("Errore nell'inizializzazione di Firebase:", error);
+if (isConfigured) {
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    googleProvider = new GoogleAuthProvider();
+    googleProvider.setCustomParameters({ prompt: 'select_account' });
+    db = getFirestore(app);
+  } catch (error) {
+    console.error("Errore nell'inizializzazione di Firebase:", error);
+  }
+} else {
+  console.warn("Firebase Auth non configurato. Crea il file .env.local per abilitare le funzionalità di autenticazione e sincronizzazione cloud.");
 }
 
 export { auth, googleProvider, db, signInWithPopup, signInAnonymously, signOut, linkWithPopup, onAuthStateChanged };
