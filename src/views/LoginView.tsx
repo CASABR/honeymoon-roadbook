@@ -7,6 +7,9 @@ import {
 } from "../services/firebase";
 
 export default function LoginView() {
+  const [step, setStep] = useState<"intro" | "auth">(() => {
+    return localStorage.getItem("hrb_intro_seen") === "true" ? "auth" : "intro";
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -21,7 +24,6 @@ export default function LoginView() {
       await signInWithPopup(auth, googleProvider);
     } catch (err: any) {
       console.error("Errore login Google:", err);
-      // Gestione errori amichevole
       if (err.code === "auth/popup-blocked") {
         setError("Il popup per il login è stato bloccato dal browser. Abilita i popup e riprova.");
       } else if (err.code === "auth/configuration-not-found") {
@@ -55,9 +57,7 @@ export default function LoginView() {
     }
   }
 
-  // Bypass di sviluppo se Firebase non è configurato o in caso di errore persistente
   function handleBypass() {
-    // Crea un utente mock in localStorage per simulare l'accesso locale bypassando Firebase
     const mockUser = {
       uid: "local-bypass-user",
       isAnonymous: true,
@@ -65,31 +65,111 @@ export default function LoginView() {
       email: "ospite@local.roadbook"
     };
     localStorage.setItem("hrb_local_auth_bypass", JSON.stringify(mockUser));
-    // Forza il ricaricamento della pagina per far leggere il bypass a App.tsx
+    localStorage.setItem("hrb_intro_seen", "true");
     window.location.reload();
   }
 
-  return (
-    <div className="app-shell flex flex-col justify-between p-6 text-slate-800 bg-[#f8fafc]">
-      {/* Top Section / Logo */}
-      <div className="flex-1 flex flex-col justify-center items-center text-center my-auto">
-        <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center text-white text-[38px] font-black shadow-lg shadow-blue-100 mb-6 animate-pulse">
-          ✨
+  function handleStart() {
+    localStorage.setItem("hrb_intro_seen", "true");
+    setStep("auth");
+  }
+
+  // Schermata 1: Intro Futuristica Premium ed Esclusiva
+  if (step === "intro") {
+    return (
+      <div className="app-shell flex flex-col justify-between p-8 text-white bg-[#0b0f19] relative overflow-hidden">
+        {/* Glow ed elementi grafici di profondità */}
+        <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[50%] rounded-full bg-blue-600/10 blur-[80px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[50%] rounded-full bg-blue-500/10 blur-[80px]" />
+
+        {/* Top/Center: Logo e Titolo di grande impatto */}
+        <div className="flex-1 flex flex-col justify-center items-center text-center my-auto z-10">
+          {/* Logo Geometrico Stella Polare SVG */}
+          <div className="relative mb-8">
+            <div className="absolute inset-0 rounded-full bg-blue-500/25 blur-xl animate-pulse" />
+            <svg className="w-24 h-24 relative drop-shadow-[0_4px_12px_rgba(37,99,235,0.3)]" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="100" height="100" rx="24" fill="url(#logo-intro-grad)" />
+              <path d="M50 20 L55 45 L80 50 L55 55 L50 80 L45 55 L20 50 L45 45 Z" fill="#ffffff" />
+              <circle cx="50" cy="50" r="6" fill="#2563eb" />
+              <defs>
+                <linearGradient id="logo-intro-grad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+                  <stop stopColor="#2563eb" />
+                  <stop offset="1" stopColor="#3b82f6" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+
+          <span className="text-[10px] font-bold tracking-[0.25em] text-blue-400 uppercase mb-2">HONEYMOON ROADBOOK</span>
+          <h1 className="text-[28px] font-black tracking-tight text-white leading-tight">
+            Il Viaggio più Bello
+          </h1>
+          <p className="text-[13.5px] text-slate-400 mt-4 leading-relaxed max-w-[280px]">
+            Nuova Zelanda, Australia, Filippine.
+            <br />
+            Il vostro diario di nozze organizzato, sicuro ed utilizzabile anche in assenza di rete.
+          </p>
         </div>
-        <h1 className="text-[26px] font-black text-gray-900 leading-tight">
-          Honeymoon Roadbook
-        </h1>
-        <p className="text-[13.5px] text-gray-400 font-semibold mt-2.5 max-w-[280px]">
-          Il vostro diario di viaggio di nozze organizzato, consultabile e sempre disponibile offline.
+
+        {/* Footer / CTA */}
+        <div className="space-y-4 pb-4 z-10">
+          <button
+            onClick={handleStart}
+            className="w-full h-13 bg-white text-slate-900 font-extrabold text-[14.5px] rounded-2xl flex items-center justify-center gap-2 transition-all hover:bg-gray-50 active:scale-97 shadow-lg shadow-white/5"
+          >
+            Inizia il Viaggio
+            <span className="text-[16px]">&rarr;</span>
+          </button>
+          
+          <div className="flex justify-center gap-1.5 pt-2">
+            <span className="w-6 h-1.5 rounded-full bg-blue-600" />
+            <span className="w-1.5 h-1.5 rounded-full bg-slate-700" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Schermata 2: Schermata Autenticazione (Google / Ospite)
+  return (
+    <div className="app-shell flex flex-col justify-between p-8 text-white bg-[#0b0f19] relative overflow-hidden">
+      {/* Glow */}
+      <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[50%] rounded-full bg-blue-600/10 blur-[80px]" />
+      
+      {/* Back Button per tornare alla schermata d'impatto */}
+      <button 
+        onClick={() => setStep("intro")}
+        className="absolute top-6 left-6 text-slate-400 hover:text-white font-bold text-[12px] flex items-center gap-1 z-10 active:scale-95"
+      >
+        &larr; Indietro
+      </button>
+
+      {/* Center: Logo ridotto e testo */}
+      <div className="flex-1 flex flex-col justify-center items-center text-center my-auto z-10">
+        <svg className="w-16 h-16 mb-5 drop-shadow-[0_4px_8px_rgba(37,99,235,0.2)]" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="100" height="100" rx="24" fill="url(#logo-auth-grad)" />
+          <path d="M50 20 L55 45 L80 50 L55 55 L50 80 L45 55 L20 50 L45 45 Z" fill="#ffffff" />
+          <circle cx="50" cy="50" r="6" fill="#2563eb" />
+          <defs>
+            <linearGradient id="logo-auth-grad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+              <stop stopColor="#2563eb" />
+              <stop offset="1" stopColor="#3b82f6" />
+            </linearGradient>
+          </defs>
+        </svg>
+
+        <h2 className="text-[20px] font-black text-white">Scegli come accedere</h2>
+        <p className="text-[12.5px] text-slate-400 mt-2 max-w-[240px] leading-relaxed">
+          Accedi con Google per sincronizzare i dati sul cloud o continua offline come ospite.
         </p>
 
         {error && (
-          <div className="mt-6 p-3 bg-red-50 border border-red-100 rounded-2xl text-[12px] text-red-600 font-medium leading-relaxed max-w-[290px] text-left">
-            <span className="font-bold block mb-0.5">⚠️ Attenzione:</span>
+          <div className="mt-5 p-3 bg-red-950/80 border border-red-800/60 rounded-xl text-[11.5px] text-red-300 font-medium leading-relaxed max-w-[280px] text-left">
+            <span className="font-bold block text-red-200 mb-0.5">⚠️ Errore di connessione:</span>
             {error}
             <button 
               onClick={handleBypass}
-              className="mt-2.5 block text-blue-600 font-extrabold hover:underline text-left text-[11px]"
+              className="mt-2 block text-blue-400 font-extrabold hover:underline text-left text-[10.5px]"
             >
               Usa bypass locale (offline di sicurezza) &rarr;
             </button>
@@ -97,14 +177,13 @@ export default function LoginView() {
         )}
       </div>
 
-      {/* Buttons Section */}
-      <div className="space-y-3 pb-6">
+      {/* Buttons */}
+      <div className="space-y-3 pb-4 z-10">
         <button
           onClick={handleGoogleLogin}
           disabled={isLoading}
-          className="w-full h-12 bg-white border border-gray-200 hover:bg-gray-50 text-gray-800 font-bold text-[14px] rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-98 shadow-sm disabled:opacity-50"
+          className="w-full h-12 bg-white text-slate-900 hover:bg-gray-100 font-bold text-[13.5px] rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-98 shadow-md disabled:opacity-50"
         >
-          {/* Icona Google minimale SVG */}
           <svg className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24">
             <path
               fill="#4285F4"
@@ -123,19 +202,19 @@ export default function LoginView() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
             />
           </svg>
-          {isLoading ? "Connessione..." : "Accedi con Google"}
+          {isLoading ? "Connessione..." : "Continua con Google"}
         </button>
 
         <button
           onClick={handleGuestLogin}
           disabled={isLoading}
-          className="w-full h-12 bg-blue-600 text-white font-bold text-[14px] rounded-2xl flex items-center justify-center transition-all hover:bg-blue-700 active:scale-98 shadow-md shadow-blue-100 disabled:opacity-50"
+          className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[13.5px] rounded-2xl flex items-center justify-center transition-all active:scale-98 shadow-lg shadow-blue-600/20 disabled:opacity-50"
         >
           {isLoading ? "Accesso in corso..." : "Continua come Ospite"}
         </button>
 
-        <p className="text-[10px] text-gray-400 text-center leading-relaxed px-4 pt-1">
-          I dati modificati come ospite rimangono salvati sul dispositivo locale e potranno essere sincronizzati collegando l'account in seguito.
+        <p className="text-[10px] text-slate-500 text-center leading-relaxed px-4 pt-1">
+          I dati rimangono archiviati sul browser locale e verranno sincronizzati quando collegherai l'account Google nelle impostazioni.
         </p>
       </div>
     </div>
