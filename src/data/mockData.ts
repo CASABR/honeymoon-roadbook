@@ -52,6 +52,7 @@ export interface Accommodation {
   // Campi pronti per import futuro Gmail/Google:
   source?: "manual" | "gmail" | "google_calendar";
   confirmationCode?: string;
+  updatedAt?: number;
 }
 
 export interface Transport {

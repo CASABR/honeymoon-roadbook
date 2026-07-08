@@ -256,6 +256,15 @@ export default function AccommodationsView() {
   }, []);
 
   useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setAccos(detail);
+    };
+    window.addEventListener("hrb_accommodations_change", handler as EventListener);
+    return () => window.removeEventListener("hrb_accommodations_change", handler as EventListener);
+  }, []);
+
+  useEffect(() => {
     if (isLoadedRef.current) {
       repository.saveAccommodations(accos);
     }
