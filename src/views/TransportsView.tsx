@@ -150,8 +150,7 @@ function TransportDetailSheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px]"
-      style={{ background: "rgba(0,0,0,0.3)" }}
+      className="bottom-sheet-backdrop"
       onClick={onClose}
     >
       <div
@@ -553,8 +552,7 @@ function TransportFormSheet({
   const valid = from.trim() && to.trim() && date.trim();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center backdrop-blur-[2px]"
-      style={{ background: "rgba(0,0,0,0.3)" }} onClick={onClose}>
+    <div className="bottom-sheet-backdrop" onClick={onClose}>
       <div className="bottom-sheet-container"
         onClick={(e) => e.stopPropagation()}>
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />

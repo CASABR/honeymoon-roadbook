@@ -36,8 +36,15 @@ Utilità pratica durante il viaggio, non un prodotto commerciale.
 - Conflitti orario: le strutture hanno già `date` + `time` ISO → confronto facile in futuro
 - Strategia: isolare la fonte dati in `src/data/store.ts` (da creare quando serve)
 
+## Gestione Bottom Sheet e Safe Area Mobile
+- **Backdrop dei popup:** Usare sempre la classe `.bottom-sheet-backdrop` per tutti gli overlay e backdrop dei fogli che si aprono dal basso. Questa classe ha preimpostato lo `z-index: 90 !important` (per stare sopra la bottom-nav che è a `z-index: 50`) e l'effetto blur dello sfondo. Non usare `.fixed.inset-0` con z-index bassi o stili inline.
+- **Contenitore del foglio:** Usare sempre la classe `.bottom-sheet-container` per il wrapper interno del bottom-sheet. Questa classe limita l'altezza a `82dvh !important` (lasciando spazio in alto per la chiusura ed evitando scroll bloccanti) e calcola automaticamente il padding inferiore per la safe area mobile con fallback integrato (`calc(32px + env(safe-area-inset-bottom, 16px)) !important`).
+- **Modali centrati / media viewer:** Per visualizzatori d'immagini o modali a schermo intero non allineati in basso, usare `.fixed.inset-0.items-center` e `z-index` elevati (es. `z-[100]`), senza toccare le classi del bottom-sheet.
+- **Contenimento Overflow Timeline:** Le card flessibili (`flex-1`) all'interno di timeline row orizzontali che supportano la modalità modifica (editMode) devono avere sempre la classe `min-w-0` abilitata. Questo garantisce che il browser possa restringere la card e troncare con ellisse i titoli lunghi, salvaguardando lo spazio a destra per l'action block dei controlli (`✏️`, `🗑️`, `↑`, `↓`) ed evitando l'overflow orizzontale.
+
 ## Cose da NON fare
 - Refactor speculativi
 - Toccare file non richiesti
 - Aggiungere dipendenze non richieste
 - Pensare a viralità, monetizzazione, multi-utente
+- Introdurre selettori CSS globali troppo larghi su classi utility di Tailwind (es. sovrascrivere `.fixed.inset-0` o `.fixed.items-end` in modo generico), che rompono layout e overlay invisibili in altre parti dell'app.

@@ -86,8 +86,7 @@ function QRModal({ activity, onClose }: { activity: Activity; onClose: () => voi
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      className="bottom-sheet-backdrop"
       onClick={onClose}
     >
       <div
@@ -209,8 +208,7 @@ function DatePickerSheet({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      className="bottom-sheet-backdrop"
       onClick={onClose}
     >
       <div
@@ -272,8 +270,7 @@ function DayFullModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      className="bottom-sheet-backdrop"
       onClick={onClose}
     >
       <div
@@ -815,8 +812,7 @@ function EditActivitySheet({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center"
-      style={{ background: "rgba(0,0,0,0.45)" }}
+      className="bottom-sheet-backdrop"
       onClick={onClose}
     >
       <div
