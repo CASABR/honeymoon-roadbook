@@ -9,6 +9,7 @@ import {
   onAuthStateChanged,
   type User
 } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "placeholder-api-key",
@@ -23,15 +24,17 @@ const firebaseConfig = {
 let app;
 let auth: any;
 let googleProvider: any;
+let db: any = null;
 
 try {
   app = initializeApp(firebaseConfig);
   auth = getAuth(app);
   googleProvider = new GoogleAuthProvider();
   googleProvider.setCustomParameters({ prompt: 'select_account' });
+  db = getFirestore(app);
 } catch (error) {
   console.error("Errore nell'inizializzazione di Firebase:", error);
 }
 
-export { auth, googleProvider, signInWithPopup, signInAnonymously, signOut, linkWithPopup, onAuthStateChanged };
+export { auth, googleProvider, db, signInWithPopup, signInAnonymously, signOut, linkWithPopup, onAuthStateChanged };
 export type { User };

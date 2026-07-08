@@ -477,6 +477,8 @@ export default function AltroView() {
     try {
       await syncService.pushNotes();
       await syncService.pushCompletedActivities();
+      await syncService.pushBudget();
+      await syncService.pushAccommodations();
       setSyncStatus("Dati salvati con successo!");
       setTimeout(() => setSyncStatus(null), 3000);
     } catch (e: any) {
@@ -488,7 +490,7 @@ export default function AltroView() {
   }
 
   async function handleSyncPull() {
-    if (!window.confirm("Attenzione: scaricando i dati dal cloud, le note ed i completamenti locali correnti verranno sovrascritti con quelli remoti. Continuare?")) {
+    if (!window.confirm("Attenzione: scaricando i dati dal cloud, le note, i completamenti, il budget e gli alloggi correnti verranno sovrascritti o uniti con quelli remoti. Continuare?")) {
       return;
     }
     setIsSyncing(true);
@@ -496,6 +498,8 @@ export default function AltroView() {
     try {
       const notes = await syncService.pullNotes();
       const completed = await syncService.pullCompletedActivities();
+      await syncService.pullBudget();
+      await syncService.pullAccommodations();
       if (notes !== null) setPersonalNotes(notes);
       if (completed !== null) {
         window.dispatchEvent(new CustomEvent("hrb_completed_activities_change", { detail: completed }));
