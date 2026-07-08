@@ -384,11 +384,7 @@ function CategoryDocumentsSheet({
   );
 }
 
-// ── Sezioni di navigazione mock (Note, Impostazioni) ───────────────────────────
-const NAV_ITEMS = [
-  { label: "Note", desc: "Appunti e promemoria rapidi", info: "Funzionalità in arrivo. Usa la timeline per note locali." },
-  { label: "Impostazioni", desc: "Preferenze app e reset cache", info: "Honeymoon Roadbook v2.0. Funzionamento offline attivo." },
-];
+
 
 
 
@@ -429,13 +425,16 @@ export default function AltroView() {
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
   const [showAddDocCategory, setShowAddDocCategory] = useState<DocumentCategory | null>(null);
   const [activeInfoLabel, setActiveInfoLabel] = useState<string | null>(null);
+  const [personalNotes, setPersonalNotes] = useState("");
 
   useEffect(() => {
     async function initData() {
       const docs = await repository.getDocuments(DEFAULT_DOCUMENTS);
       const chks = await repository.getChecklists(DEFAULT_CHECKLISTS);
+      const notesVal = await repository.getNotes();
       setDocuments(docs);
       setChecklists(chks);
+      setPersonalNotes(notesVal);
       isLoadedRef.current = true;
       setIsLoading(false);
     }
@@ -619,30 +618,90 @@ export default function AltroView() {
           <IcChevronRight size={15} className="text-gray-300 flex-shrink-0" />
         </button>
 
-        {NAV_ITEMS.map((item) => (
-          <div key={item.label} className="w-full">
-            <button
-              className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50"
-              onClick={() => setActiveInfoLabel(activeInfoLabel === item.label ? null : item.label)}
-            >
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-gray-50 border border-gray-100">
-                <span className="text-gray-500">
-                  {item.label === "Note" ? <IcNote size={20} /> : <IcSettings size={20} />}
-                </span>
+        {/* Note Personali Reali */}
+        <div className="w-full">
+          <button
+            className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50"
+            onClick={() => setActiveInfoLabel(activeInfoLabel === "Note" ? null : "Note")}
+          >
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-50 border border-blue-100">
+              <span className="text-blue-600"><IcNote size={20} /></span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[14px] font-bold text-gray-900">Note</p>
+              <p className="text-[12px] text-gray-400">Appunti e promemoria rapidi</p>
+            </div>
+            <IcChevronDown size={14} className={`text-gray-300 flex-shrink-0 transition-transform duration-200 ${activeInfoLabel === "Note" ? "rotate-180 text-blue-500" : ""}`} />
+          </button>
+          {activeInfoLabel === "Note" && (
+            <div className="px-4 pb-4 pt-1 bg-white border-t border-gray-50">
+              <label className="text-[11px] font-semibold text-gray-400 block mb-1.5 uppercase tracking-wider">Appunti di viaggio (Salvataggio automatico)</label>
+              <textarea
+                value={personalNotes}
+                onChange={(e) => {
+                  setPersonalNotes(e.target.value);
+                  repository.saveNotes(e.target.value);
+                }}
+                placeholder="Scrivi qui i tuoi appunti, liste bagaglio speciali, idee o annotazioni... Vengono salvati istantaneamente nel database locale del telefono."
+                className="w-full min-h-[140px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-[13px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:bg-white resize-none"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Impostazioni Reali */}
+        <div className="w-full">
+          <button
+            className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50"
+            onClick={() => setActiveInfoLabel(activeInfoLabel === "Impostazioni" ? null : "Impostazioni")}
+          >
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-gray-50 border border-gray-100">
+              <span className="text-gray-500"><IcSettings size={20} /></span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[14px] font-bold text-gray-900">Impostazioni</p>
+              <p className="text-[12px] text-gray-400">Statistiche e reset cache locale</p>
+            </div>
+            <IcChevronDown size={14} className={`text-gray-300 flex-shrink-0 transition-transform duration-200 ${activeInfoLabel === "Impostazioni" ? "rotate-180 text-blue-500" : ""}`} />
+          </button>
+          {activeInfoLabel === "Impostazioni" && (
+            <div className="px-4 pb-4 pt-2 bg-white border-t border-gray-50 space-y-3">
+              <div>
+                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Statistiche database locale</p>
+                <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-[12px] text-gray-600 space-y-1.5 font-medium">
+                  <div className="flex justify-between">
+                    <span>Documenti allegati:</span>
+                    <span className="font-bold text-gray-800">{documents.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Checklist attive:</span>
+                    <span className="font-bold text-gray-800">{checklists.length}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Elementi checklist completati:</span>
+                    <span className="font-bold text-gray-800">
+                      {checklists.reduce((acc, c) => acc + c.items.filter(i => i.checked).length, 0)} / {checklists.reduce((acc, c) => acc + c.items.length, 0)}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[14px] font-bold text-gray-900">{item.label}</p>
-                <p className="text-[12px] text-gray-400">{item.desc}</p>
+              <div className="pt-2 border-t border-gray-100">
+                <button
+                  onClick={async () => {
+                    if (window.confirm("ATTENZIONE!\nSei sicuro di voler cancellare tutti i dati dell'applicazione? Questa operazione eliminerà tutti i documenti allegati, le note, i QR code e le spese personali registrate e ripristinerà i default mock iniziali.\nQuesta azione non è revocabile.")) {
+                      await repository.clearAllData();
+                      alert("Dati resettati correttamente! L'applicazione verrà ricaricata.");
+                      window.location.href = window.location.pathname;
+                    }
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-red-50 text-red-600 font-extrabold text-[12px] border border-red-100 hover:bg-red-100 transition-colors active:scale-95 text-center"
+                >
+                  ⚠️ Reset Dati Applicazione
+                </button>
               </div>
-              <IcChevronDown size={14} className={`text-gray-300 flex-shrink-0 transition-transform duration-200 ${activeInfoLabel === item.label ? "rotate-180 text-blue-500" : ""}`} />
-            </button>
-            {activeInfoLabel === item.label && (
-              <div className="bg-blue-50/30 px-14 pb-3 pt-1 text-[11px] font-semibold text-blue-600 border-l-2 border-blue-400">
-                {item.info}
-              </div>
-            )}
-          </div>
-        ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Accordion delle Checklist */}
