@@ -7,6 +7,7 @@ import {
 } from "../components/Icons";
 import { repository } from "../services/repository";
 import type { Checklist, DocumentItem, AttachmentItem, ChecklistItem } from "../services/repository";
+import { auth, googleProvider, linkWithPopup, signOut } from "../services/firebase";
 
 // ── Categorie Documento ───────────────────────────────────────────────────────
 type DocumentCategory = "Passaporti" | "Visto Australia" | "Visto / eTravel Filippine" | "Patente internazionale" | "Assicurazione" | "Altri documenti";
@@ -426,6 +427,70 @@ export default function AltroView() {
   const [showAddDocCategory, setShowAddDocCategory] = useState<DocumentCategory | null>(null);
   const [activeInfoLabel, setActiveInfoLabel] = useState<string | null>(null);
   const [personalNotes, setPersonalNotes] = useState("");
+  const notesTimeoutRef = useRef<any>(null);
+
+  const user = auth?.currentUser || (localStorage.getItem("hrb_local_auth_bypass") ? JSON.parse(localStorage.getItem("hrb_local_auth_bypass")!) : null);
+  const [isLinking, setIsLinking] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
+  async function handleLinkGoogle() {
+    if (!auth || !auth.currentUser) {
+      alert("Il collegamento richiede che le chiavi Firebase siano configurate ed attive (non in modalità bypass locale).");
+      return;
+    }
+    setIsLinking(true);
+    setLinkError(null);
+    try {
+      await linkWithPopup(auth.currentUser, googleProvider);
+      alert("Account Google collegato con successo! I vostri dati sono ora pronti per la sincronizzazione cloud.");
+      window.location.reload();
+    } catch (err: any) {
+      console.error("Errore linking Google:", err);
+      if (err.code === "auth/credential-already-in-use") {
+        setLinkError("Questo account Google è già associato a un altro utente del Roadbook.");
+      } else {
+        setLinkError(err.message || "Errore durante il collegamento dell'account.");
+      }
+    } finally {
+      setIsLinking(false);
+    }
+  }
+
+  async function handleLogout() {
+    if (window.confirm("Disconnettersi dall'applicazione?")) {
+      localStorage.removeItem("hrb_local_auth_bypass");
+      if (auth) {
+        await signOut(auth);
+      }
+      window.location.reload();
+    }
+  }
+
+  // Pulisce il timeout del debounce all'unmount
+  useEffect(() => {
+    return () => {
+      if (notesTimeoutRef.current) {
+        clearTimeout(notesTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  function handleNotesChange(text: string) {
+    setPersonalNotes(text);
+    if (notesTimeoutRef.current) {
+      clearTimeout(notesTimeoutRef.current);
+    }
+    notesTimeoutRef.current = setTimeout(() => {
+      repository.saveNotes(text);
+    }, 800);
+  }
+
+  function handleNotesBlur() {
+    if (notesTimeoutRef.current) {
+      clearTimeout(notesTimeoutRef.current);
+    }
+    repository.saveNotes(personalNotes);
+  }
 
   useEffect(() => {
     async function initData() {
@@ -638,11 +703,9 @@ export default function AltroView() {
               <label className="text-[11px] font-semibold text-gray-400 block mb-1.5 uppercase tracking-wider">Appunti di viaggio (Salvataggio automatico)</label>
               <textarea
                 value={personalNotes}
-                onChange={(e) => {
-                  setPersonalNotes(e.target.value);
-                  repository.saveNotes(e.target.value);
-                }}
-                placeholder="Scrivi qui i tuoi appunti, liste bagaglio speciali, idee o annotazioni... Vengono salvati istantaneamente nel database locale del telefono."
+                onChange={(e) => handleNotesChange(e.target.value)}
+                onBlur={handleNotesBlur}
+                placeholder="Scrivi qui i tuoi appunti, liste bagaglio speciali, idee o annotazioni... Vengono salvati localmente con debounce."
                 className="w-full min-h-[140px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-[13px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:bg-white resize-none"
               />
             </div>
@@ -660,14 +723,67 @@ export default function AltroView() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-[14px] font-bold text-gray-900">Impostazioni</p>
-              <p className="text-[12px] text-gray-400">Statistiche e reset cache locale</p>
+              <p className="text-[12px] text-gray-400">Account, statistiche e cache</p>
             </div>
             <IcChevronDown size={14} className={`text-gray-300 flex-shrink-0 transition-transform duration-200 ${activeInfoLabel === "Impostazioni" ? "rotate-180 text-blue-500" : ""}`} />
           </button>
           {activeInfoLabel === "Impostazioni" && (
-            <div className="px-4 pb-4 pt-2 bg-white border-t border-gray-50 space-y-3">
+            <div className="px-4 pb-4 pt-2 bg-white border-t border-gray-50 space-y-4">
+              {/* Stato dell'account */}
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 space-y-2 text-[12px] text-gray-700">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Stato Account</p>
+                {user ? (
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span>Accesso:</span>
+                      <span className={`font-bold ${user.isAnonymous ? "text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md" : "text-green-600 bg-green-50 px-2 py-0.5 rounded-md"}`}>
+                        {user.isAnonymous ? "Ospite Temporaneo" : "Autenticato Google"}
+                      </span>
+                    </div>
+                    {user.displayName && (
+                      <div className="flex justify-between">
+                        <span>Nome:</span>
+                        <span className="font-semibold text-gray-900">{user.displayName}</span>
+                      </div>
+                    )}
+                    {user.email && (
+                      <div className="flex justify-between">
+                        <span>Email:</span>
+                        <span className="font-semibold text-gray-900 truncate max-w-[180px]">{user.email}</span>
+                      </div>
+                    )}
+
+                    {/* Bottone di collegamento se è Guest */}
+                    {user.isAnonymous && user.uid !== "local-bypass-user" && (
+                      <div className="pt-2 border-t border-gray-200/60">
+                        <button
+                          onClick={handleLinkGoogle}
+                          disabled={isLinking}
+                          className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-lg text-[11px] transition-colors disabled:opacity-50"
+                        >
+                          {isLinking ? "Collegamento..." : "🔗 Collega Account Google"}
+                        </button>
+                        {linkError && (
+                          <p className="text-[10px] text-red-500 font-semibold mt-1">{linkError}</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-gray-400 font-medium">Nessun utente collegato.</p>
+                )}
+
+                <div className="pt-2 border-t border-gray-200/60 flex justify-between items-center">
+                  <span className="text-[10.5px] text-gray-400">Sincronizzazione dati:</span>
+                  <span className="text-[10.5px] font-semibold text-gray-500">
+                    {user?.isAnonymous ? "Solo locale" : "Cloud abilitato"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Statistiche Database */}
               <div>
-                <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Statistiche database locale</p>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5">Statistiche Database</p>
                 <div className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-[12px] text-gray-600 space-y-1.5 font-medium">
                   <div className="flex justify-between">
                     <span>Documenti allegati:</span>
@@ -685,16 +801,31 @@ export default function AltroView() {
                   </div>
                 </div>
               </div>
-              <div className="pt-2 border-t border-gray-100">
+
+              {/* Informazione archiviazione */}
+              <div className="p-2.5 bg-blue-50/40 border border-blue-100/50 rounded-xl text-[11px] text-slate-500 leading-normal">
+                💡 <strong>Nota:</strong> Le note testuali, le checklist e le spese sono salvate localmente. Se collegate Google Auth, in futuro le preferenze e il diario verranno sincronizzati automaticamente con il cloud di Firebase Firestore. Le foto e i file allegati molto grandi rimangono custoditi localmente per massimizzare la velocità offline.
+              </div>
+
+              {/* Bottoni Logout e Reset */}
+              <div className="pt-2 border-t border-gray-100 space-y-2">
+                <button
+                  onClick={handleLogout}
+                  className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[12px] rounded-xl transition-all active:scale-97 text-center"
+                >
+                  Disconnetti / Esci
+                </button>
                 <button
                   onClick={async () => {
                     if (window.confirm("ATTENZIONE!\nSei sicuro di voler cancellare tutti i dati dell'applicazione? Questa operazione eliminerà tutti i documenti allegati, le note, i QR code e le spese personali registrate e ripristinerà i default mock iniziali.\nQuesta azione non è revocabile.")) {
+                      // Pulisce anche eventuale bypass
+                      localStorage.removeItem("hrb_local_auth_bypass");
                       await repository.clearAllData();
                       alert("Dati resettati correttamente! L'applicazione verrà ricaricata.");
                       window.location.href = window.location.pathname;
                     }
                   }}
-                  className="w-full py-2.5 rounded-xl bg-red-50 text-red-600 font-extrabold text-[12px] border border-red-100 hover:bg-red-100 transition-colors active:scale-95 text-center"
+                  className="w-full py-2.5 rounded-xl bg-red-50 text-red-600 font-extrabold text-[12px] border border-red-100 hover:bg-red-100 transition-colors active:scale-97 text-center"
                 >
                   ⚠️ Reset Dati Applicazione
                 </button>

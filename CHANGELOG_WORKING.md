@@ -1,5 +1,18 @@
 # CHANGELOG WORKING
 
+## [2026-07-08 – Sessione 25] Integrazione Firebase Auth (Google Sign-In, Anonymous Auth, Account Linking), Schermata di Accesso Gated e Note & Impostazioni Reali
+
+### File modificati e creati
+- `package.json` — Installato il pacchetto `firebase` per la gestione dell'autenticazione.
+- `src/services/firebase.ts` (Nuovo) — Creato il file di configurazione e inizializzazione di Firebase Auth, GoogleAuthProvider, con gestione delle chiavi d'ambiente standard di Vite (`import.meta.env.VITE_FIREBASE_...`) e fallback di sicurezza.
+- `src/services/db.ts` — Aggiunto il metodo `clear()` a `kvStorage` per la pulizia del database IndexedDB.
+- `src/services/repository.ts` — Aggiunti i metodi asincroni `getNotes()`, `saveNotes(notes)` e `clearAllData()` per supportare la persistenza delle note e il reset totale dell'applicazione.
+- `src/views/LoginView.tsx` (Nuovo) — Creata la schermata di login mobile-first con pulsanti "Accedi con Google", "Continua come Ospite" ed un bypass offline locale di sicurezza in caso di credenziali Firebase assenti o non configurate.
+- `src/App.tsx` — Implementato il gating di autenticazione Firebase. Se non autenticato, mostra `LoginView`; altrimenti mostra l'applicazione principale, con supporto integrato al bypass offline memorizzato in localStorage.
+- `src/views/AltroView.tsx` — Migrata la sezione **Note** ad una textarea reale con autosave debounzato a 800ms (`onChange` con debounce + `onBlur` immediato). Ridisegnata la sezione **Impostazioni** per visualizzare lo stato dell'account (Google o Ospite), nome/email, pulsante di linking account `linkWithPopup`, disconnessione e reset dati distruttivo separato. Rimossa la costante inutilizzata `NAV_ITEMS` per evitare errori TypeScript.
+
+---
+
 ## [2026-07-08 – Sessione 24] Isolamento dei Bottom Sheet con Classi CSS Esplicite (Safe Area & Z-Index), Risoluzione Overflow in Viaggio e Fix React Hook Crash in AltroView
 
 ### File modificati
