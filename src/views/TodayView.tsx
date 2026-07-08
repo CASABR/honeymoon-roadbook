@@ -341,7 +341,7 @@ function TimelineRow({
         {!isLast && <div className="flex-1 w-0.5 bg-gray-200 mt-1" style={{ minHeight: 32 }} />}
       </div>
       <div
-        className={`flex-1 mb-2 app-card p-3 cursor-pointer ${isFirst ? "border-blue-200" : "bg-white/80"}`}
+        className={`flex-1 min-w-0 mb-2 app-card p-3 cursor-pointer ${isFirst ? "border-blue-200" : "bg-white/80"}`}
         onClick={onEdit}
       >
         {isFirst && isTransport ? (

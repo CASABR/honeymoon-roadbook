@@ -169,5 +169,21 @@ export const repository = {
   },
   async saveBudgetEntries(entries: BudgetEntry[]): Promise<void> {
     await kvStorage.set("hrb_budget_entries_v2", entries);
+  },
+
+  // Note personali
+  async getNotes(): Promise<string> {
+    await checkAndMigrate();
+    const data = await kvStorage.get<string>("hrb_notes_v2");
+    return data || "";
+  },
+  async saveNotes(notes: string): Promise<void> {
+    await kvStorage.set("hrb_notes_v2", notes);
+  },
+
+  // Reset totale dell'applicazione
+  async clearAllData(): Promise<void> {
+    await kvStorage.clear();
+    localStorage.clear();
   }
 };
