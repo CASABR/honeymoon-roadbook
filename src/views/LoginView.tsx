@@ -3,7 +3,8 @@ import {
   auth, 
   googleProvider, 
   signInWithPopup, 
-  signInAnonymously 
+  signInAnonymously,
+  linkWithPopup
 } from "../services/firebase";
 
 export default function LoginView() {
@@ -21,13 +22,21 @@ export default function LoginView() {
     setIsLoading(true);
     setError(null);
     try {
-      await signInWithPopup(auth, googleProvider);
+      if (auth.currentUser && auth.currentUser.isAnonymous) {
+        // Collega l'account Google all'utente ospite anonimo attivo mantenendo lo stesso UID
+        await linkWithPopup(auth.currentUser, googleProvider);
+      } else {
+        // Esegue un login Google pulito per utenti non anonimi
+        await signInWithPopup(auth, googleProvider);
+      }
     } catch (err: any) {
-      console.error("Errore login Google:", err);
+      console.error("Errore login/linking Google:", err);
       if (err.code === "auth/popup-blocked") {
         setError("Il popup per il login è stato bloccato dal browser. Abilita i popup e riprova.");
       } else if (err.code === "auth/configuration-not-found") {
         setError("La configurazione Firebase per Google Sign-In non è configurata o attiva.");
+      } else if (err.code === "auth/credential-already-in-use") {
+        setError("Questo account Google è già associato ad un altro utente del Roadbook.");
       } else {
         setError(err.message || "Errore durante l'autenticazione con Google.");
       }
