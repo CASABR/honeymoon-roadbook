@@ -223,7 +223,7 @@ export default function LoginView() {
   // Schermata 1: Intro Futuristica Premium ed Esclusiva
   if (step === "intro") {
     return (
-      <div className="app-shell flex flex-col justify-between p-8 text-white bg-[#0b0f19] relative overflow-hidden">
+      <div className="app-shell flex flex-col justify-between p-8 text-white bg-dark relative overflow-hidden">
         {/* Glow ed elementi grafici di profondità */}
         <div className="absolute top-[-10%] left-[-10%] w-[60%] h-[50%] rounded-full bg-blue-600/10 blur-[80px]" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[50%] rounded-full bg-blue-500/10 blur-[80px]" />
@@ -279,7 +279,7 @@ export default function LoginView() {
   // Schermata 4: Reset Password
   if (step === "reset") {
     return (
-      <div className="app-shell flex flex-col justify-between p-8 text-white bg-[#0b0f19] relative overflow-hidden">
+      <div className="app-shell flex flex-col justify-between p-8 text-white bg-dark relative overflow-hidden">
         <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[50%] rounded-full bg-blue-600/10 blur-[80px]" />
         
         <button 
@@ -324,7 +324,7 @@ export default function LoginView() {
 
   // Schermata 2: Schermata Autenticazione Standard con Card Tabbed (Crea account / Accedi)
   return (
-    <div className="app-shell flex flex-col justify-between p-6 text-white bg-[#0b0f19] relative overflow-hidden">
+    <div className="app-shell flex flex-col justify-between p-6 text-white bg-dark relative overflow-hidden">
       {/* Glow */}
       <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[50%] rounded-full bg-blue-600/10 blur-[80px]" />
       

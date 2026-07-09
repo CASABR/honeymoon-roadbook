@@ -125,6 +125,14 @@ body,
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
+.app-shell.bg-dark {
+  background: #0b0f19 !important;
+}
+
+.app-shell.bg-radial-gradient {
+  background: radial-gradient(circle at top left, #1e293b, #0f172a) !important;
+}
+
 @media (min-width: 440px) {
   .app-shell {
     height: 840px;
