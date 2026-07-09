@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { auth, onAuthStateChanged } from "./services/firebase";
+import { syncService } from "./services/sync";
 import BottomNav from "./components/BottomNav";
 import LoginView from "./views/LoginView";
 import TodayView from "./views/TodayView";
@@ -39,6 +40,12 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (currentUser && currentUser.uid !== "local-bypass-user") {
+      const unsubscribeSync = syncService.startBudgetRealtimeSync(currentUser);
+      return () => unsubscribeSync();
+    }
+  }, [currentUser]);
   if (isAuthChecking) {
     return (
       <div className="app-shell flex flex-col items-center justify-center bg-radial-gradient">

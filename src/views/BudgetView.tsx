@@ -8,6 +8,7 @@ import {
 import type { Transport, Accommodation } from "../data/mockData";
 import { repository } from "../services/repository";
 import type { BudgetEntry } from "../services/repository";
+import { syncService } from "../services/sync";
 
 const INITIAL_ENTRIES: BudgetEntry[] = [
   { id: "entry-insurance", date: "18 giu", label: "Assicurazione Heymondo Premium", amount: 294, category: "Altro" },
@@ -276,18 +277,33 @@ export default function BudgetView() {
     initData();
   }, []);
 
+  const [syncStatus, setSyncStatus] = useState<"sincronizzato" | "pending" | "errore" | null>(() => {
+    return syncService.getBudgetSyncStatus();
+  });
+
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail) setEntries(detail);
     };
     window.addEventListener("hrb_budget_change", handler as EventListener);
-    return () => window.removeEventListener("hrb_budget_change", handler as EventListener);
+
+    const statusHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setSyncStatus(detail);
+    };
+    window.addEventListener("hrb_budget_sync_status_change", statusHandler as EventListener);
+
+    return () => {
+      window.removeEventListener("hrb_budget_change", handler as EventListener);
+      window.removeEventListener("hrb_budget_sync_status_change", statusHandler as EventListener);
+    };
   }, []);
 
   useEffect(() => {
     if (isLoadedRef.current) {
       repository.saveBudgetEntries(entries);
+      syncService.pushBudget().catch(e => console.error("Errore autosync budget:", e));
     }
   }, [entries]);
 
@@ -362,7 +378,31 @@ export default function BudgetView() {
 
   return (
     <div className="px-4 pt-5 pb-4">
-      <h1 className="text-[24px] font-extrabold text-gray-900 mb-5">Budgeter</h1>
+      <div className="flex justify-between items-center mb-5">
+        <h1 className="text-[24px] font-extrabold text-gray-900">Budgeter</h1>
+        {syncStatus && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10.5px] font-bold bg-gray-50 border border-gray-100 shadow-sm transition-all">
+            {syncStatus === "sincronizzato" && (
+              <>
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-green-700">Sincronizzato</span>
+              </>
+            )}
+            {syncStatus === "pending" && (
+              <>
+                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping" />
+                <span className="text-amber-700">In attesa...</span>
+              </>
+            )}
+            {syncStatus === "errore" && (
+              <>
+                <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+                <span className="text-red-700">Offline / Errore</span>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* ── Totale ─────────────────────────────────────────────────────────── */}
       <div className="card p-4 mb-4">
