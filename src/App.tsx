@@ -10,18 +10,24 @@ import AccommodationsView from "./views/AccommodationsView";
 import TransportsView from "./views/TransportsView";
 import BudgetView from "./views/BudgetView";
 import AltroView from "./views/AltroView";
+import TripOnboarding from "./components/TripOnboarding";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [needsTripOnboarding, setNeedsTripOnboarding] = useState(false);
 
   useEffect(() => {
     // 1. Controlla se c'è un bypass locale attivo in localStorage
     const localBypass = localStorage.getItem("hrb_local_auth_bypass");
     if (localBypass) {
       try {
-        setCurrentUser(JSON.parse(localBypass));
+        const parsed = JSON.parse(localBypass);
+        setCurrentUser(parsed);
+        if (localStorage.getItem("hrb_trip_onboarding_done") !== "true") {
+          setNeedsTripOnboarding(true);
+        }
         setIsAuthChecking(false);
         return;
       } catch (e) {
@@ -63,6 +69,10 @@ export default function App() {
         } catch (e) {
           console.error("[AUTH DEBUG] Errore verifica profilo utente:", e);
         }
+      }
+
+      if (user && localStorage.getItem("hrb_trip_onboarding_done") !== "true") {
+        setNeedsTripOnboarding(true);
       }
     };
 
@@ -134,6 +144,10 @@ export default function App() {
         onComplete={() => setNeedsOnboarding(false)} 
       />
     );
+  }
+
+  if (needsTripOnboarding) {
+    return <TripOnboarding />;
   }
 
   return (
