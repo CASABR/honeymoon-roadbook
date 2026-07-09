@@ -464,6 +464,22 @@ export default function LoginView() {
       {/* Buttons */}
       <div className="space-y-3 pb-4 z-10">
         <button
+          onClick={() => { setStep("email"); setIsRegistering(true); setError(null); }}
+          disabled={isLoading}
+          className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[13.5px] rounded-2xl flex items-center justify-center transition-all active:scale-98 shadow-lg shadow-blue-600/20 disabled:opacity-50"
+        >
+          Crea account
+        </button>
+
+        <button
+          onClick={() => { setStep("email"); setIsRegistering(false); setError(null); }}
+          disabled={isLoading}
+          className="w-full h-12 bg-[#1e293b] hover:bg-[#334155] text-white font-bold text-[13.5px] rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-98 shadow-md border border-slate-700 disabled:opacity-50"
+        >
+          ✉️ Accedi con Email
+        </button>
+
+        <button
           onClick={handleGoogleLogin}
           disabled={isLoading}
           className="w-full h-12 bg-white text-slate-900 hover:bg-gray-100 font-bold text-[13.5px] rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-98 shadow-md disabled:opacity-50"
@@ -489,24 +505,18 @@ export default function LoginView() {
           {isLoading ? "Connessione..." : "Continua con Google"}
         </button>
 
-        <button
-          onClick={() => { setStep("email"); setError(null); }}
-          disabled={isLoading}
-          className="w-full h-12 bg-[#1e293b] hover:bg-[#334155] text-white font-bold text-[13.5px] rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-98 shadow-md border border-slate-700 disabled:opacity-50"
-        >
-          ✉️ Accedi con Email
-        </button>
-
-        <button
-          onClick={handleGuestLogin}
-          disabled={isLoading}
-          className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-[13.5px] rounded-2xl flex items-center justify-center transition-all active:scale-98 shadow-lg shadow-blue-600/20 disabled:opacity-50"
-        >
-          {isLoading ? "Accesso in corso..." : "Continua come Ospite"}
-        </button>
+        <div className="pt-2 text-center">
+          <button
+            onClick={handleGuestLogin}
+            disabled={isLoading}
+            className="text-slate-400 hover:text-slate-300 font-bold text-[12px] transition-all bg-transparent border-none active:scale-95 cursor-pointer"
+          >
+            {isLoading ? "Accesso..." : "Continua come ospite →"}
+          </button>
+        </div>
 
         <p className="text-[10px] text-slate-500 text-center leading-relaxed px-4 pt-1">
-          I dati rimangono archiviati sul browser locale e verranno sincronizzati quando collegherai l'account Google nelle impostazioni.
+          I dati rimangono archiviati sul browser locale e verranno sincronizzati quando collegherai l'account Google o Email nelle impostazioni.
         </p>
       </div>
     </div>
