@@ -35,11 +35,21 @@ export default function App() {
       return;
     }
 
-    // Timeout di sicurezza per sbloccare l'app in max 5 secondi
+    let redirectResolved = false;
+    let authStateResolved = false;
+
+    // Timeout di sicurezza per sbloccare l'app come fallback finale (6 secondi)
     const safetyTimeout = setTimeout(() => {
-      console.warn("[AUTH DEBUG] Safety timeout triggered! Rilascio forzato di isAuthChecking.");
+      console.warn("[AUTH DEBUG] Safety timeout triggered! Sblocco forzato del gating.");
       setIsAuthChecking(false);
-    }, 5000);
+    }, 6000);
+
+    const resolveGating = () => {
+      if (redirectResolved && authStateResolved) {
+        clearTimeout(safetyTimeout);
+        setIsAuthChecking(false);
+      }
+    };
 
     const checkUserProfile = async (user: any) => {
       if (user && !user.isAnonymous && user.uid !== "local-bypass-user") {
@@ -67,6 +77,10 @@ export default function App() {
       })
       .catch((err) => {
         console.error("[AUTH DEBUG] Errore getRedirectResult:", err);
+      })
+      .finally(() => {
+        redirectResolved = true;
+        resolveGating();
       });
 
     console.log("[AUTH DEBUG] Registrazione onAuthStateChanged...");
@@ -75,12 +89,13 @@ export default function App() {
       setCurrentUser(user);
       if (user) {
         checkUserProfile(user).finally(() => {
-          clearTimeout(safetyTimeout);
-          setIsAuthChecking(false);
+          authStateResolved = true;
+          redirectResolved = true; // Sblocca immediatamente se loggato
+          resolveGating();
         });
       } else {
-        clearTimeout(safetyTimeout);
-        setIsAuthChecking(false);
+        authStateResolved = true;
+        resolveGating();
       }
     });
 
