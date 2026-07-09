@@ -134,22 +134,20 @@ export default function LoginView() {
       }
     } catch (err: any) {
       console.error("Errore login/linking Google:", err);
-      if (err.code === "auth/popup-blocked" || err.code === "auth/cancelled-popup-request") {
-        try {
-          if (auth.currentUser && auth.currentUser.isAnonymous) {
-            await linkWithRedirect(auth.currentUser, googleProvider);
-          } else {
-            await signInWithRedirect(auth, googleProvider);
-          }
-        } catch (redirErr: any) {
-          setError(redirErr.message || "Errore durante l'autenticazione con Google.");
-        }
+      if (err.code === "auth/popup-blocked") {
+        setError("La finestra di Google è stata bloccata dal browser. Consenti i popup o prova a usare l'accesso tramite Email.");
+      } else if (err.code === "auth/popup-closed-by-user") {
+        setError("Hai chiuso la finestra popup di Google prima di inserire le credenziali. Riprova.");
+      } else if (err.code === "auth/cancelled-popup-request") {
+        setError("La richiesta di accesso Google è stata annullata. Riprova.");
+      } else if (err.code === "auth/unauthorized-domain") {
+        setError("Questo dominio (o localhost) non è autorizzato per Google Auth. Aggiungilo nei 'Domini autorizzati' della Firebase Console.");
       } else if (err.code === "auth/configuration-not-found") {
-        setError("La configurazione Firebase per Google Sign-In non è configurata o attiva.");
+        setError("Il provider Google non è configurato o abilitato nella console di Firebase.");
       } else if (err.code === "auth/credential-already-in-use") {
         setConflictError(true);
       } else {
-        setError(err.message || "Errore durante l'autenticazione con Google.");
+        setError(err.message || "Errore durante l'autenticazione con Google. In caso di persistenza, accedi con Email.");
       }
     } finally {
       setIsLoading(false);
@@ -170,12 +168,12 @@ export default function LoginView() {
       }
     } catch (err: any) {
       console.error("Errore login forzato:", err);
-      if (err.code === "auth/popup-blocked" || err.code === "auth/cancelled-popup-request") {
-        try {
-          await signInWithRedirect(auth, googleProvider);
-        } catch (redirErr: any) {
-          setError(redirErr.message || "Errore durante l'accesso.");
-        }
+      if (err.code === "auth/popup-blocked") {
+        setError("La finestra popup di Google è stata bloccata. Consenti i popup o prova a usare l'accesso tramite Email.");
+      } else if (err.code === "auth/popup-closed-by-user") {
+        setError("Hai chiuso la finestra popup di Google. Riprova.");
+      } else if (err.code === "auth/unauthorized-domain") {
+        setError("Questo dominio (o localhost) non è autorizzato per Google Auth. Aggiungilo nei 'Domini autorizzati' della Firebase Console.");
       } else {
         setError(err.message || "Errore durante l'accesso.");
       }
