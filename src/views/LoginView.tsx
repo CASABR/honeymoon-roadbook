@@ -6,16 +6,85 @@ import {
   signInAnonymously,
   linkWithPopup,
   signInWithRedirect,
-  linkWithRedirect
+  linkWithRedirect,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail
 } from "../services/firebase";
 
 export default function LoginView() {
-  const [step, setStep] = useState<"intro" | "auth">(() => {
+  const [step, setStep] = useState<"intro" | "auth" | "email" | "reset">(() => {
     return localStorage.getItem("hrb_intro_seen") === "true" ? "auth" : "intro";
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [conflictError, setConflictError] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+
+  async function handleEmailAuth() {
+    if (!auth) {
+      setError("Servizio di autenticazione non inizializzato. Controlla le chiavi Firebase.");
+      return;
+    }
+    if (!email.trim() || !password.trim()) {
+      setError("Inserisci email e password.");
+      return;
+    }
+    if (isRegistering && password !== confirmPassword) {
+      setError("Le password non coincidono.");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setInfoMessage(null);
+
+    try {
+      if (isRegistering) {
+        await createUserWithEmailAndPassword(auth, email.trim(), password);
+      } else {
+        await signInWithEmailAndPassword(auth, email.trim(), password);
+      }
+    } catch (err: any) {
+      console.error("Errore email auth:", err);
+      if (err.code === "auth/email-already-in-use") {
+        setError("Questo indirizzo email è già registrato.");
+      } else if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
+        setError("Email o password non valide.");
+      } else if (err.code === "auth/weak-password") {
+        setError("La password deve contenere almeno 6 caratteri.");
+      } else {
+        setError(err.message || "Errore durante l'autenticazione.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handlePasswordReset() {
+    if (!auth) return;
+    if (!email.trim()) {
+      setError("Inserisci l'indirizzo email per reimpostare la password.");
+      return;
+    }
+    setIsLoading(true);
+    setError(null);
+    setInfoMessage(null);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setInfoMessage("Email di ripristino inviata con successo! Controlla la tua casella di posta.");
+      setStep("email");
+    } catch (err: any) {
+      console.error("Errore password reset:", err);
+      setError(err.message || "Errore durante l'invio dell'email.");
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   async function handleGoogleLogin() {
     if (!auth) {
@@ -189,7 +258,142 @@ export default function LoginView() {
     );
   }
 
-  // Schermata 2: Schermata Autenticazione (Google / Ospite)
+  // Schermata 3: Email Auth
+  if (step === "email") {
+    return (
+      <div className="app-shell flex flex-col justify-between p-8 text-white bg-[#0b0f19] relative overflow-hidden">
+        <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[50%] rounded-full bg-blue-600/10 blur-[80px]" />
+        
+        <button 
+          onClick={() => { setStep("auth"); setError(null); setInfoMessage(null); }}
+          className="absolute top-6 left-6 text-slate-400 hover:text-white font-bold text-[12px] flex items-center gap-1 z-10 active:scale-95"
+        >
+          &larr; Indietro
+        </button>
+
+        <div className="flex-1 flex flex-col justify-center items-center text-center my-auto z-10 w-full max-w-[280px] mx-auto space-y-4">
+          <h2 className="text-[20px] font-black text-white">{isRegistering ? "Crea account" : "Accedi"}</h2>
+          <p className="text-[12px] text-slate-400">
+            {isRegistering ? "Registrati per proteggere i tuoi dati" : "Inserisci le tue credenziali per entrare"}
+          </p>
+
+          {error && <div className="p-3 bg-red-950/80 border border-red-800/60 rounded-xl text-[11px] text-red-300 w-full text-left">{error}</div>}
+          {infoMessage && <div className="p-3 bg-green-950/80 border border-green-800/60 rounded-xl text-[11px] text-green-300 w-full text-left">{infoMessage}</div>}
+
+          <div className="w-full space-y-3">
+            <div className="space-y-1 text-left">
+              <label className="text-[10px] uppercase tracking-wider font-extrabold text-blue-500">Email</label>
+              <input 
+                type="email" 
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full h-11 px-3 bg-slate-900 border border-slate-800 rounded-xl text-[13px] text-white focus:outline-none focus:border-blue-600 transition-all font-semibold"
+                placeholder="nome@esempio.com"
+              />
+            </div>
+
+            <div className="space-y-1 text-left">
+              <label className="text-[10px] uppercase tracking-wider font-extrabold text-blue-500">Password</label>
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full h-11 px-3 bg-slate-900 border border-slate-800 rounded-xl text-[13px] text-white focus:outline-none focus:border-blue-600 transition-all font-semibold"
+                placeholder="******"
+              />
+            </div>
+
+            {isRegistering && (
+              <div className="space-y-1 text-left">
+                <label className="text-[10px] uppercase tracking-wider font-extrabold text-blue-500">Conferma Password</label>
+                <input 
+                  type="password" 
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full h-11 px-3 bg-slate-900 border border-slate-800 rounded-xl text-[13px] text-white focus:outline-none focus:border-blue-600 transition-all font-semibold"
+                  placeholder="******"
+                />
+              </div>
+            )}
+
+            {!isRegistering && (
+              <button 
+                onClick={() => setStep("reset")}
+                className="block text-[11px] text-slate-500 hover:text-blue-400 text-left font-bold"
+              >
+                Password dimenticata?
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-3 pb-4 z-10 w-full max-w-[280px] mx-auto">
+          <button
+            onClick={handleEmailAuth}
+            disabled={isLoading}
+            className="w-full h-12 bg-white text-slate-900 font-extrabold text-[13.5px] rounded-2xl flex items-center justify-center transition-all active:scale-98 shadow-md disabled:opacity-50"
+          >
+            {isLoading ? "Elaborazione..." : (isRegistering ? "Registrati" : "Accedi")}
+          </button>
+
+          <button
+            onClick={() => { setIsRegistering(!isRegistering); setError(null); }}
+            className="w-full h-12 bg-transparent text-slate-400 hover:text-white font-bold text-[13px] rounded-2xl flex items-center justify-center transition-all border border-slate-800 hover:border-slate-700"
+          >
+            {isRegistering ? "Hai già un account? Accedi" : "Nuovo utente? Registrati"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Schermata 4: Reset Password
+  if (step === "reset") {
+    return (
+      <div className="app-shell flex flex-col justify-between p-8 text-white bg-[#0b0f19] relative overflow-hidden">
+        <div className="absolute top-[-10%] right-[-10%] w-[60%] h-[50%] rounded-full bg-blue-600/10 blur-[80px]" />
+        
+        <button 
+          onClick={() => { setStep("email"); setError(null); }}
+          className="absolute top-6 left-6 text-slate-400 hover:text-white font-bold text-[12px] flex items-center gap-1 z-10 active:scale-95"
+        >
+          &larr; Indietro
+        </button>
+
+        <div className="flex-1 flex flex-col justify-center items-center text-center my-auto z-10 w-full max-w-[280px] mx-auto space-y-4">
+          <h2 className="text-[20px] font-black text-white">Reset Password</h2>
+          <p className="text-[12px] text-slate-400">
+            Ti invieremo un link per reimpostare la tua password
+          </p>
+
+          {error && <div className="p-3 bg-red-950/80 border border-red-800/60 rounded-xl text-[11px] text-red-300 w-full text-left">{error}</div>}
+
+          <div className="w-full space-y-1 text-left">
+            <label className="text-[10px] uppercase tracking-wider font-extrabold text-blue-500">Email di Registrazione</label>
+            <input 
+              type="email" 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full h-11 px-3 bg-slate-900 border border-slate-800 rounded-xl text-[13px] text-white focus:outline-none focus:border-blue-600 transition-all font-semibold"
+              placeholder="nome@esempio.com"
+            />
+          </div>
+        </div>
+
+        <div className="pb-4 z-10 w-full max-w-[280px] mx-auto">
+          <button
+            onClick={handlePasswordReset}
+            disabled={isLoading}
+            className="w-full h-12 bg-white text-slate-900 font-extrabold text-[13.5px] rounded-2xl flex items-center justify-center transition-all active:scale-98 shadow-md disabled:opacity-50"
+          >
+            {isLoading ? "Invio in corso..." : "Invia email di ripristino"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Schermata 2: Schermata Autenticazione Standard (Google / Email / Ospite)
   return (
     <div className="app-shell flex flex-col justify-between p-8 text-white bg-[#0b0f19] relative overflow-hidden">
       {/* Glow */}
@@ -219,7 +423,7 @@ export default function LoginView() {
 
         <h2 className="text-[20px] font-black text-white">Scegli come accedere</h2>
         <p className="text-[12.5px] text-slate-400 mt-2 max-w-[240px] leading-relaxed">
-          Accedi con Google per sincronizzare i dati sul cloud o continua offline come ospite.
+          Accedi con Google o Email per sincronizzare i dati, o continua offline come ospite.
         </p>
 
         {error && (
@@ -283,6 +487,14 @@ export default function LoginView() {
             />
           </svg>
           {isLoading ? "Connessione..." : "Continua con Google"}
+        </button>
+
+        <button
+          onClick={() => { setStep("email"); setError(null); }}
+          disabled={isLoading}
+          className="w-full h-12 bg-[#1e293b] hover:bg-[#334155] text-white font-bold text-[13.5px] rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-98 shadow-md border border-slate-700 disabled:opacity-50"
+        >
+          ✉️ Accedi con Email
         </button>
 
         <button
