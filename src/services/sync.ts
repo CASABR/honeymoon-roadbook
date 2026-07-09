@@ -1,8 +1,18 @@
 import { auth, db } from "./firebase";
-import { doc, setDoc, getDoc } from "firebase/firestore";
+import { doc, setDoc, getDoc, collection, onSnapshot } from "firebase/firestore";
 import { repository, type BudgetEntry } from "./repository";
 
+let currentBudgetSyncStatus: "sincronizzato" | "pending" | "errore" = "sincronizzato";
+
+const setBudgetSyncStatus = (status: "sincronizzato" | "pending" | "errore") => {
+  currentBudgetSyncStatus = status;
+  window.dispatchEvent(new CustomEvent("hrb_budget_sync_status_change", { detail: status }));
+};
+
 export const syncService = {
+  getBudgetSyncStatus(): "sincronizzato" | "pending" | "errore" {
+    return currentBudgetSyncStatus;
+  },
   // 1. PUSH NOTE
   async pushNotes(): Promise<void> {
     const user = auth?.currentUser;
@@ -177,5 +187,82 @@ export const syncService = {
     const finalEntries = Array.from(mergedMap.values());
     await repository.saveAccommodations(finalEntries);
     return finalEntries;
+  },
+
+  // 9. REALTIME BUDGET SYNC (WhatsApp-style)
+  startBudgetRealtimeSync(user: any): () => void {
+    if (!user || user.uid === "local-bypass-user" || !db) {
+      setBudgetSyncStatus("sincronizzato");
+      return () => {};
+    }
+
+    setBudgetSyncStatus("pending");
+
+    const budgetColRef = collection(db, `users/${user.uid}/budget`);
+
+    const unsubscribe = onSnapshot(budgetColRef, 
+      async (snapshot) => {
+        if (snapshot.metadata.hasPendingWrites) {
+          setBudgetSyncStatus("pending");
+          return;
+        }
+
+        try {
+          const cloudEntries: BudgetEntry[] = [];
+          snapshot.forEach((snapDoc) => {
+            const data = snapDoc.data();
+            if (data && data.id) {
+              cloudEntries.push({
+                id: data.id,
+                date: data.date || "",
+                label: data.label || "",
+                amount: typeof data.amount === "number" ? data.amount : 0,
+                category: data.category || "Altro",
+                updatedAt: typeof data.updatedAt === "number" ? data.updatedAt : undefined
+              });
+            }
+          });
+
+          const localEntries = await repository.getBudgetEntries([]);
+
+          let hasChanges = false;
+          if (localEntries.length !== cloudEntries.length) {
+            hasChanges = true;
+          } else {
+            for (const cloudItem of cloudEntries) {
+              const localItem = localEntries.find(l => l.id === cloudItem.id);
+              if (!localItem) {
+                hasChanges = true;
+                break;
+              }
+              if (
+                localItem.date !== cloudItem.date ||
+                localItem.label !== cloudItem.label ||
+                localItem.amount !== cloudItem.amount ||
+                localItem.category !== cloudItem.category ||
+                (cloudItem.updatedAt && localItem.updatedAt !== cloudItem.updatedAt)
+              ) {
+                hasChanges = true;
+                break;
+              }
+            }
+          }
+
+          if (hasChanges) {
+            await repository.saveBudgetEntries(cloudEntries);
+          }
+          setBudgetSyncStatus("sincronizzato");
+        } catch (err) {
+          console.error("Errore elaborazione realtime sync budget:", err);
+          setBudgetSyncStatus("errore");
+        }
+      },
+      (error) => {
+        console.error("Errore snapshot realtime sync budget:", error);
+        setBudgetSyncStatus("errore");
+      }
+    );
+
+    return unsubscribe;
   }
 };
