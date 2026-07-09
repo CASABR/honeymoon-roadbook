@@ -115,7 +115,18 @@ export default function LoginView() {
     setError(null);
     setConflictError(false);
 
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     try {
+      if (isMobile) {
+        if (auth.currentUser && auth.currentUser.isAnonymous) {
+          await linkWithRedirect(auth.currentUser, googleProvider);
+        } else {
+          await signInWithRedirect(auth, googleProvider);
+        }
+        return;
+      }
+
       if (auth.currentUser && auth.currentUser.isAnonymous) {
         await linkWithPopup(auth.currentUser, googleProvider);
       } else {
@@ -124,17 +135,7 @@ export default function LoginView() {
     } catch (err: any) {
       console.error("Errore login/linking Google:", err);
       if (err.code === "auth/popup-blocked") {
-        // Se il popup viene bloccato dal browser, proviamo il redirect come fallback
-        try {
-          if (auth.currentUser && auth.currentUser.isAnonymous) {
-            await linkWithRedirect(auth.currentUser, googleProvider);
-          } else {
-            await signInWithRedirect(auth, googleProvider);
-          }
-        } catch (redirErr: any) {
-          console.error("Errore fallback redirect Google:", redirErr);
-          setError("La finestra di Google è stata bloccata dal browser. Consenti i popup per questo sito e riprova.");
-        }
+        setError("La finestra di Google è stata bloccata dal browser. Consenti i popup o prova a usare l'accesso tramite Email.");
       } else if (err.code === "auth/popup-closed-by-user") {
         setError("Hai chiuso la finestra popup di Google prima di inserire le credenziali. Riprova.");
       } else if (err.code === "auth/cancelled-popup-request") {
@@ -158,17 +159,17 @@ export default function LoginView() {
     setIsLoading(true);
     setConflictError(false);
     setError(null);
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     try {
-      await signInWithPopup(auth, googleProvider);
+      if (isMobile) {
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        await signInWithPopup(auth, googleProvider);
+      }
     } catch (err: any) {
       console.error("Errore login forzato:", err);
       if (err.code === "auth/popup-blocked") {
-        try {
-          await signInWithRedirect(auth, googleProvider);
-        } catch (redirErr: any) {
-          console.error("Errore fallback redirect in login forzato:", redirErr);
-          setError("La finestra popup di Google è stata bloccata. Consenti i popup o prova a usare l'accesso tramite Email.");
-        }
+        setError("La finestra popup di Google è stata bloccata. Consenti i popup o prova a usare l'accesso tramite Email.");
       } else if (err.code === "auth/popup-closed-by-user") {
         setError("Hai chiuso la finestra popup di Google. Riprova.");
       } else if (err.code === "auth/unauthorized-domain") {
