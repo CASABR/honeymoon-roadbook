@@ -4,7 +4,9 @@ import {
   googleProvider, 
   signInWithPopup, 
   signInAnonymously,
-  linkWithPopup
+  linkWithPopup,
+  signInWithRedirect,
+  linkWithRedirect
 } from "../services/firebase";
 
 export default function LoginView() {
@@ -23,18 +25,36 @@ export default function LoginView() {
     setIsLoading(true);
     setError(null);
     setConflictError(false);
+
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
     try {
+      if (isMobile) {
+        if (auth.currentUser && auth.currentUser.isAnonymous) {
+          await linkWithRedirect(auth.currentUser, googleProvider);
+        } else {
+          await signInWithRedirect(auth, googleProvider);
+        }
+        return;
+      }
+
       if (auth.currentUser && auth.currentUser.isAnonymous) {
-        // Collega l'account Google all'utente ospite anonimo attivo mantenendo lo stesso UID
         await linkWithPopup(auth.currentUser, googleProvider);
       } else {
-        // Esegue un login Google pulito per utenti non anonimi
         await signInWithPopup(auth, googleProvider);
       }
     } catch (err: any) {
       console.error("Errore login/linking Google:", err);
-      if (err.code === "auth/popup-blocked") {
-        setError("Il popup per il login è stato bloccato dal browser. Abilita i popup e riprova.");
+      if (err.code === "auth/popup-blocked" || err.code === "auth/cancelled-popup-request") {
+        try {
+          if (auth.currentUser && auth.currentUser.isAnonymous) {
+            await linkWithRedirect(auth.currentUser, googleProvider);
+          } else {
+            await signInWithRedirect(auth, googleProvider);
+          }
+        } catch (redirErr: any) {
+          setError(redirErr.message || "Errore durante l'autenticazione con Google.");
+        }
       } else if (err.code === "auth/configuration-not-found") {
         setError("La configurazione Firebase per Google Sign-In non è configurata o attiva.");
       } else if (err.code === "auth/credential-already-in-use") {
@@ -52,12 +72,24 @@ export default function LoginView() {
     setIsLoading(true);
     setConflictError(false);
     setError(null);
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     try {
-      // Accede direttamente con l'account Google esistente (scollegando l'anonimo)
-      await signInWithPopup(auth, googleProvider);
+      if (isMobile) {
+        await signInWithRedirect(auth, googleProvider);
+      } else {
+        await signInWithPopup(auth, googleProvider);
+      }
     } catch (err: any) {
       console.error("Errore login forzato:", err);
-      setError(err.message || "Errore durante l'accesso.");
+      if (err.code === "auth/popup-blocked" || err.code === "auth/cancelled-popup-request") {
+        try {
+          await signInWithRedirect(auth, googleProvider);
+        } catch (redirErr: any) {
+          setError(redirErr.message || "Errore durante l'accesso.");
+        }
+      } else {
+        setError(err.message || "Errore durante l'accesso.");
+      }
     } finally {
       setIsLoading(false);
     }

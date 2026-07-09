@@ -264,5 +264,40 @@ export const syncService = {
     );
 
     return unsubscribe;
+  },
+
+  // 10. GESTIONE PROFILO UTENTE ED ONBOARDING SU FIRESTORE
+  async getOrCreateUserProfile(user: any): Promise<{ onboardingCompleted: boolean }> {
+    if (!db) return { onboardingCompleted: true };
+    const userDocRef = doc(db, `users/${user.uid}`);
+    const snap = await getDoc(userDocRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      await setDoc(userDocRef, {
+        lastLoginAt: Date.now()
+      }, { merge: true });
+      return { onboardingCompleted: !!data.onboardingCompleted };
+    } else {
+      const profile = {
+        uid: user.uid,
+        displayName: user.displayName || "Viaggiatore",
+        email: user.email || "",
+        photoURL: user.photoURL || "",
+        createdAt: Date.now(),
+        lastLoginAt: Date.now(),
+        onboardingCompleted: false
+      };
+      await setDoc(userDocRef, profile);
+      return { onboardingCompleted: false };
+    }
+  },
+
+  async completeUserProfileOnboarding(uid: string): Promise<void> {
+    if (!db) return;
+    const userDocRef = doc(db, `users/${uid}`);
+    await setDoc(userDocRef, {
+      onboardingCompleted: true,
+      lastLoginAt: Date.now()
+    }, { merge: true });
   }
 };

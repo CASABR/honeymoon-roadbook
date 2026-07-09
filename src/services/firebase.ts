@@ -7,6 +7,9 @@ import {
   signOut,
   linkWithPopup,
   onAuthStateChanged,
+  signInWithRedirect,
+  getRedirectResult,
+  linkWithRedirect,
   type User
 } from "firebase/auth";
 import { 
@@ -15,9 +18,12 @@ import {
   persistentMultipleTabManager 
 } from "firebase/firestore";
 
+const isGithubPages = typeof window !== "undefined" && window.location.hostname.includes("github.io");
+const useSelfHost = import.meta.env.VITE_FIREBASE_USE_SELF_HOST === "true";
+
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "placeholder-api-key",
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "placeholder-auth-domain.firebaseapp.com",
+  authDomain: (isGithubPages && useSelfHost) ? window.location.hostname : (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "placeholder-auth-domain.firebaseapp.com"),
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "placeholder-project-id",
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "placeholder-storage-bucket.appspot.com",
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "placeholder-sender-id",
@@ -54,5 +60,17 @@ if (isConfigured) {
   console.warn("Firebase Auth non configurato. Crea il file .env.local per abilitare le funzionalità di autenticazione e sincronizzazione cloud.");
 }
 
-export { auth, googleProvider, db, signInWithPopup, signInAnonymously, signOut, linkWithPopup, onAuthStateChanged };
+export { 
+  auth, 
+  googleProvider, 
+  db, 
+  signInWithPopup, 
+  signInAnonymously, 
+  signOut, 
+  linkWithPopup, 
+  onAuthStateChanged,
+  signInWithRedirect,
+  getRedirectResult,
+  linkWithRedirect
+};
 export type { User };
