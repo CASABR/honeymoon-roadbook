@@ -279,9 +279,17 @@ export default function LoginView() {
         </button>
 
         <div className="flex-1 flex flex-col justify-center items-center text-center my-auto z-10 w-full max-w-[280px] mx-auto space-y-4">
-          <h2 className="text-[20px] font-black text-white">{isRegistering ? "Crea account" : "Accedi"}</h2>
+          <h2 className="text-[20px] font-black text-white">
+            {isRegistering 
+              ? (auth.currentUser && auth.currentUser.isAnonymous ? "Salva il tuo diario" : "Nuovo account e-mail") 
+              : "Accedi con e-mail"}
+          </h2>
           <p className="text-[12px] text-slate-400">
-            {isRegistering ? "Registrati per proteggere i tuoi dati" : "Inserisci le tue credenziali per entrare"}
+            {isRegistering 
+              ? (auth.currentUser && auth.currentUser.isAnonymous 
+                  ? "Associa un'e-mail a questo dispositivo per salvare al sicuro i tuoi dati sul cloud." 
+                  : "Inserisci e-mail e password per iniziare da zero.") 
+              : "Inserisci le tue credenziali per ripristinare il tuo diario di nozze."}
           </p>
 
           {error && <div className="p-3 bg-red-950/80 border border-red-800/60 rounded-xl text-[11px] text-red-300 w-full text-left">{error}</div>}
@@ -428,9 +436,13 @@ export default function LoginView() {
           </defs>
         </svg>
 
-        <h2 className="text-[20px] font-black text-white">Scegli come accedere</h2>
-        <p className="text-[12.5px] text-slate-400 mt-2 max-w-[240px] leading-relaxed">
-          Accedi con Google o Email per sincronizzare i dati, o continua offline come ospite.
+        <h2 className="text-[20px] font-black text-white">
+          {(auth && auth.currentUser && auth.currentUser.isAnonymous) ? "Metti al sicuro i dati" : "Accedi al tuo Roadbook"}
+        </h2>
+        <p className="text-[12.5px] text-slate-400 mt-2 max-w-[250px] leading-relaxed">
+          {(auth && auth.currentUser && auth.currentUser.isAnonymous)
+            ? "Associa un'email o Google a questa sessione per salvare al sicuro i dati sul cloud."
+            : "Scegli il tuo metodo di accesso preferito per riprendere il viaggio."}
         </p>
 
         {error && (
