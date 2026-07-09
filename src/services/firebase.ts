@@ -13,6 +13,8 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   sendPasswordResetEmail,
+  EmailAuthProvider,
+  linkWithCredential,
   type User
 } from "firebase/auth";
 import { 
@@ -74,6 +76,8 @@ export {
   linkWithRedirect,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  EmailAuthProvider,
+  linkWithCredential
 };
 export type { User };
