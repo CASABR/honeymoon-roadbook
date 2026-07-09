@@ -9,7 +9,9 @@ import {
   linkWithRedirect,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  EmailAuthProvider,
+  linkWithCredential
 } from "../services/firebase";
 
 export default function LoginView() {
@@ -45,7 +47,12 @@ export default function LoginView() {
 
     try {
       if (isRegistering) {
-        await createUserWithEmailAndPassword(auth, email.trim(), password);
+        if (auth.currentUser && auth.currentUser.isAnonymous) {
+          const credential = EmailAuthProvider.credential(email.trim(), password);
+          await linkWithCredential(auth.currentUser, credential);
+        } else {
+          await createUserWithEmailAndPassword(auth, email.trim(), password);
+        }
       } else {
         await signInWithEmailAndPassword(auth, email.trim(), password);
       }
