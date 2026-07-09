@@ -50,9 +50,12 @@ export interface Accommodation {
   imageUrl?: string;
   price?: number; // Prezzo dell'alloggio
   // Campi pronti per import futuro Gmail/Google:
-  source?: "manual" | "gmail" | "google_calendar";
+  source?: "manual" | "gmail" | "google_calendar" | "booking";
   confirmationCode?: string;
   updatedAt?: number;
+  startDate?: string; // ISO YYYY-MM-DD
+  endDate?: string; // ISO YYYY-MM-DD
+  type?: "hotel";
 }
 
 export interface Transport {
@@ -88,7 +91,7 @@ export interface Transport {
   qrCodeData?: string; // QR o riferimento documento
   qrCodes?: string[]; // Lista di QR code o riferimenti a documenti associati
   price?: number; // Prezzo della tratta
-  source?: "manual" | "imported" | "gmail" | "google_calendar";
+  source?: "manual" | "imported" | "gmail" | "google_calendar" | "booking";
 }
 
 export interface BudgetCategory {
@@ -138,9 +141,18 @@ export const EMERGENCY_CONTACTS = [
 
 // ── TODAY config ───────────────────────────────────────────────────────────────
 // Partenza reale: 28 novembre 2026 da Roma
-export const DEPARTURE_DATE = new Date("2026-11-28T00:00:00");
-export const TRIP_NAME = "Honeymoon NZ · AU · PH";
-export const TRIP_DURATION = "43 giorni";
+export const DEPARTURE_DATE = (() => {
+  const stored = localStorage.getItem("hrb_departure_date");
+  return stored ? new Date(stored + "T00:00:00") : new Date("2026-11-28T00:00:00");
+})();
+
+export const TRIP_NAME = (() => {
+  return localStorage.getItem("hrb_trip_name") || "Honeymoon NZ · AU · PH";
+})();
+
+export const TRIP_DURATION = (() => {
+  return localStorage.getItem("hrb_trip_duration") || "43 giorni";
+})();
 
 // Calcolati dinamicamente (vedi helpers in TodayView)
 export function getDaysToDeparture(): number {
