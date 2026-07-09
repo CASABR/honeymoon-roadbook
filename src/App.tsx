@@ -35,41 +35,59 @@ export default function App() {
       return;
     }
 
+    // Timeout di sicurezza per sbloccare l'app in max 5 secondi
+    const safetyTimeout = setTimeout(() => {
+      console.warn("[AUTH DEBUG] Safety timeout triggered! Rilascio forzato di isAuthChecking.");
+      setIsAuthChecking(false);
+    }, 5000);
+
     const checkUserProfile = async (user: any) => {
       if (user && !user.isAnonymous && user.uid !== "local-bypass-user") {
+        console.log("[AUTH DEBUG] Inizio checkUserProfile per:", user.uid);
         try {
           const profile = await syncService.getOrCreateUserProfile(user);
+          console.log("[AUTH DEBUG] checkUserProfile completato. Onboarding completato:", profile.onboardingCompleted);
           if (!profile.onboardingCompleted) {
             setNeedsOnboarding(true);
           }
         } catch (e) {
-          console.error("Errore verifica profilo utente:", e);
+          console.error("[AUTH DEBUG] Errore verifica profilo utente:", e);
         }
       }
     };
 
-    // Raccoglie l'esito del redirect auth
+    console.log("[AUTH DEBUG] Invocazione getRedirectResult...");
     getRedirectResult(auth)
       .then(async (result) => {
+        console.log("[AUTH DEBUG] getRedirectResult completato:", result ? (result.user ? result.user.uid : "no user") : "null");
         if (result && result.user) {
-          console.log("Login redirect completato per:", result.user.email);
           setCurrentUser(result.user);
           await checkUserProfile(result.user);
         }
       })
       .catch((err) => {
-        console.error("Errore redirect auth:", err);
+        console.error("[AUTH DEBUG] Errore getRedirectResult:", err);
       });
 
+    console.log("[AUTH DEBUG] Registrazione onAuthStateChanged...");
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      console.log("[AUTH DEBUG] onAuthStateChanged rilevato:", user ? user.uid : "nessun utente");
       setCurrentUser(user);
       if (user) {
-        await checkUserProfile(user);
+        checkUserProfile(user).finally(() => {
+          clearTimeout(safetyTimeout);
+          setIsAuthChecking(false);
+        });
+      } else {
+        clearTimeout(safetyTimeout);
+        setIsAuthChecking(false);
       }
-      setIsAuthChecking(false);
     });
 
-    return () => unsubscribe();
+    return () => {
+      clearTimeout(safetyTimeout);
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
