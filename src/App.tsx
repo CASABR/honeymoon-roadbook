@@ -111,6 +111,9 @@ export default function App() {
       return () => unsubscribeSync();
     }
   }, [currentUser]);
+
+  console.log("[AUTH DEBUG] App render. isAuthChecking:", isAuthChecking, "currentUser:", currentUser ? currentUser.uid : "null", "auth.currentUser:", auth?.currentUser ? auth.currentUser.uid : "null");
+
   if (isAuthChecking) {
     return (
       <div className="app-shell flex flex-col items-center justify-center bg-radial-gradient">

@@ -15,6 +15,8 @@ import {
   sendPasswordResetEmail,
   EmailAuthProvider,
   linkWithCredential,
+  setPersistence,
+  browserLocalPersistence,
   type User
 } from "firebase/auth";
 import { 
@@ -48,6 +50,9 @@ if (isConfigured) {
   try {
     app = initializeApp(firebaseConfig);
     auth = getAuth(app);
+    setPersistence(auth, browserLocalPersistence).catch((err) => {
+      console.error("Errore nell'impostare la persistenza auth:", err);
+    });
     googleProvider = new GoogleAuthProvider();
     googleProvider.setCustomParameters({ prompt: 'select_account' });
     db = initializeFirestore(app, {
