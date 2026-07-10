@@ -33,10 +33,11 @@ function EditActivitySheet({
   const [type, setType] = useState<Activity["type"]>(activity.type);
   const [title, setTitle] = useState(activity.title);
   const [subtitle, setSubtitle] = useState(activity.subtitle);
+  const [transitTime, setTransitTime] = useState(activity.transitTime || "");
 
   function handleSubmit() {
     if (!title.trim() || !time.trim()) return;
-    onSave({ ...activity, time: time.trim(), type, title: title.trim(), subtitle: subtitle.trim() });
+    onSave({ ...activity, time: time.trim(), type, title: title.trim(), subtitle: subtitle.trim(), transitTime: transitTime.trim() || undefined });
     onClose();
   }
 
@@ -129,6 +130,16 @@ function EditActivitySheet({
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
             />
           </div>
+          <div>
+            <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento (es. 1h 30m)</label>
+            <input
+              type="text"
+              value={transitTime}
+              placeholder="Tempo di trasferimento dal posto precedente"
+              onChange={(e) => setTransitTime(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
+            />
+          </div>
         </div>
 
         <div className="flex gap-2 mt-5">
@@ -155,6 +166,7 @@ function EditActivitySheet({
 // ── Timeline row con controlli modifica/elimina/riordino ──────────────────────
 function TripTimelineRow({
   activity,
+  nextActivity,
   isFirst,
   isLast,
   completed,
@@ -166,6 +178,7 @@ function TripTimelineRow({
   editMode,
 }: {
   activity: Activity;
+  nextActivity?: Activity;
   isFirst: boolean;
   isLast: boolean;
   completed: boolean;
@@ -194,116 +207,133 @@ function TripTimelineRow({
           style={{
             borderColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#2563eb" : "#d1d5db",
             backgroundColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#2563eb" : "#ffffff",
-          }}
-        />
-        {!isLast && (
-          <div className="flex-1 w-0.5 bg-gray-200 mt-1" style={{ minHeight: 36 }} />
-        )}
-      </div>
-
-      {/* Card */}
-      <div
-        className={`flex-1 min-w-0 mb-2 app-card p-3 ${editMode ? "" : "cursor-pointer"} ${isFirst ? "border-blue-200" : "bg-white/80"}`}
-        onClick={editMode ? undefined : onEdit}
-      >
-        {isTransport ? (
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold tracking-widest text-blue-500 uppercase mb-0.5">
-                Trasporto
-              </p>
-              <p className={`font-bold text-[14px] text-gray-900 leading-snug truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-              <p className={`text-[11px] text-gray-400 truncate mt-0.5 ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
-            </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              {editMode ? (
-                <div className="flex flex-col gap-1">
-                  <div className="flex gap-1">
-                    <button onClick={onEdit} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-lg">✏️</button>
-                    <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-1.5 py-0.5 rounded-lg">🗑️</button>
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={onMoveUp}
-                      disabled={isFirst}
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
-                    >↑</button>
-                    <button
-                      onClick={onMoveDown}
-                      disabled={isLast}
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
-                    >↓</button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggle();
-                  }}
-                  className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
-                  style={{
-                    borderColor: completed ? "#10b981" : "#d1d5db",
-                    backgroundColor: completed ? "#10b981" : "transparent"
-                  }}
-                >
-                  {completed && <span className="text-white text-[10px] font-bold">✓</span>}
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <ActivityIcon type={activity.type} size={15} />
+              {/* Card */}
+      <div className="flex-1">
+        <div
+          className={`min-w-0 mb-2 app-card p-3 ${editMode ? "" : "cursor-pointer"} ${isFirst ? "border-blue-200" : "bg-white/80"}`}
+          onClick={editMode ? undefined : onEdit}
+        >
+          {isTransport ? (
+            <div className="flex items-center justify-between gap-3">
               <div className="flex-1 min-w-0">
-                <p className={`font-semibold text-[13px] text-gray-800 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                <div className="flex items-center gap-0.5 mt-0.5">
-                  <IcMapPin size={10} className="text-gray-400" />
-                  <p className={`text-[11px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
-                </div>
+                <p className="text-[10px] font-bold tracking-widest text-blue-500 uppercase mb-0.5">
+                  Trasporto
+                </p>
+                <p className={`font-bold text-[14px] text-gray-900 leading-snug truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                <p className={`text-[11px] text-gray-400 truncate mt-0.5 ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {editMode ? (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex gap-1">
+                      <button onClick={onEdit} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-lg">✏️</button>
+                      <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-1.5 py-0.5 rounded-lg">🗑️</button>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={onMoveUp}
+                        disabled={isFirst}
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
+                      >↑</button>
+                      <button
+                        onClick={onMoveDown}
+                        disabled={isLast}
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
+                      >↓</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggle();
+                    }}
+                    className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
+                    style={{
+                      borderColor: completed ? "#10b981" : "#d1d5db",
+                      backgroundColor: completed ? "#10b981" : "transparent"
+                    }}
+                  >
+                    {completed && <span className="text-white text-[10px] font-bold">✓</span>}
+                  </button>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              {activity.imageUrl && !editMode && (
-                <img
-                  src={activity.imageUrl}
-                  alt={activity.title}
-                  className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                />
-              )}
-              {editMode ? (
-                <div className="flex flex-col gap-1">
-                  <div className="flex gap-1">
-                    <button onClick={onEdit} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-lg">✏️</button>
-                    <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-1.5 py-0.5 rounded-lg">🗑️</button>
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      onClick={onMoveUp}
-                      disabled={isFirst}
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
-                    >↑</button>
-                    <button
-                      onClick={onMoveDown}
-                      disabled={isLast}
-                      className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
-                    >↓</button>
+          ) : (
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <ActivityIcon type={activity.type} size={15} />
+                <div className="flex-1 min-w-0">
+                  <p className={`font-semibold text-[13px] text-gray-800 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                  <div className="flex items-center gap-0.5 mt-0.5">
+                    <IcMapPin size={10} className="text-gray-400" />
+                    <p className={`text-[11px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
                   </div>
                 </div>
-              ) : (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggle();
-                  }}
-                  className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
-                  style={{
-                    borderColor: completed ? "#10b981" : "#d1d5db",
-                    backgroundColor: completed ? "#10b981" : "transparent"
-                  }}
-                >
-                  {completed && <span className="text-white text-[10px] font-bold">✓</span>}
+              </div>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {activity.imageUrl && !editMode && (
+                  <img
+                    src={activity.imageUrl}
+                    alt={activity.title}
+                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
+                  />
+                )}
+                {editMode ? (
+                  <div className="flex flex-col gap-1">
+                    <div className="flex gap-1">
+                      <button onClick={onEdit} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-lg">✏️</button>
+                      <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-1.5 py-0.5 rounded-lg">🗑️</button>
+                    </div>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={onMoveUp}
+                        disabled={isFirst}
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
+                      >↑</button>
+                      <button
+                        onClick={onMoveDown}
+                        disabled={isLast}
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
+                      >↓</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggle();
+                    }}
+                    className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
+                    style={{
+                      borderColor: completed ? "#10b981" : "#d1d5db",
+                      backgroundColor: completed ? "#10b981" : "transparent"
+                    }}
+                  >
+                    {completed && <span className="text-white text-[10px] font-bold">✓</span>}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Transition to next activity */}
+        {nextActivity && !editMode && (
+          <div className="my-2 ml-4 flex items-center gap-2 text-[11px] text-gray-500 font-bold bg-white/40 border border-gray-100 rounded-xl px-2 py-1 w-fit shadow-xs">
+            <span>🚗 {nextActivity.transitTime || "Guida"}</span>
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${nextActivity.title}, ${nextActivity.subtitle}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-blue-600 hover:text-blue-700 flex items-center gap-0.5 border-l border-gray-200 pl-2 ml-1 animate-pulse"
+            >
+              🗺️ Mappe
+            </a>
+          </div>
+        )}
+      </div>{completed && <span className="text-white text-[10px] font-bold">✓</span>}
                 </button>
               )}
             </div>
@@ -331,6 +361,7 @@ function AddActivitySheet({
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [transitTime, setTransitTime] = useState("");
 
   function handleSubmit() {
     if (!title.trim() || !time.trim()) return;
@@ -341,6 +372,7 @@ function AddActivitySheet({
       title: title.trim(),
       subtitle: subtitle.trim() || "Attività del giorno",
       imageUrl: imageUrl.trim() || undefined,
+      transitTime: transitTime.trim() || undefined,
     };
     onSave(dayId, newAct);
     onClose();
@@ -429,6 +461,17 @@ function AddActivitySheet({
               value={imageUrl}
               placeholder="https://images.unsplash.com/..."
               onChange={(e) => setImageUrl(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
+            />
+          </div>
+
+          <div>
+            <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento dal posto precedente (es. 1h 30m)</label>
+            <input
+              type="text"
+              value={transitTime}
+              placeholder="Tempo di trasferimento dal posto precedente"
+              onChange={(e) => setTransitTime(e.target.value)}
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
             />
           </div>
@@ -779,21 +822,25 @@ export default function TripView() {
                     </p>
                   ) : (
                     <div className="space-y-0">
-                      {day.activities.map((act, actIdx) => (
-                        <TripTimelineRow
-                          key={act.id}
-                          activity={act}
-                          isFirst={actIdx === 0}
-                          isLast={actIdx === day.activities.length - 1}
-                          completed={completedActs.includes(act.id)}
-                          onToggle={() => toggleActivity(act.id)}
-                          onEdit={() => setEditingActivity({ dayId: day.id, activity: act, dayLabel: day.dateLabel })}
-                          onDelete={() => handleDeleteActivity(day.id, act.id)}
-                          onMoveUp={() => handleMoveActivity(day.id, actIdx, "up")}
-                          onMoveDown={() => handleMoveActivity(day.id, actIdx, "down")}
-                          editMode={isEditMode}
-                        />
-                      ))}
+                      {day.activities.map((act, actIdx) => {
+                        const nextAct = day.activities[actIdx + 1];
+                        return (
+                          <TripTimelineRow
+                            key={act.id}
+                            activity={act}
+                            nextActivity={nextAct}
+                            isFirst={actIdx === 0}
+                            isLast={actIdx === day.activities.length - 1}
+                            completed={completedActs.includes(act.id)}
+                            onToggle={() => toggleActivity(act.id)}
+                            onEdit={() => setEditingActivity({ dayId: day.id, activity: act, dayLabel: day.dateLabel })}
+                            onDelete={() => handleDeleteActivity(day.id, act.id)}
+                            onMoveUp={() => handleMoveActivity(day.id, actIdx, "up")}
+                            onMoveDown={() => handleMoveActivity(day.id, actIdx, "down")}
+                            editMode={isEditMode}
+                          />
+                        );
+                      })}
                     </div>
                   )}
 

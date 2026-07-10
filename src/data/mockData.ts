@@ -23,6 +23,7 @@ export interface Activity {
   hasQR?: boolean;
   imageUrl?: string;
   note?: string;
+  transitTime?: string;
 }
 
 export interface DayData {
@@ -241,11 +242,11 @@ export const DAYS: DayData[] = [
     location: "Waitomo, NZ",
     activities: [
       { id: "d5-1", time: "09:00", type: "sightseeing", title: "Ritiro auto a noleggio · Auckland", subtitle: "Auckland Airport" },
-      { id: "d5-2", time: "11:15", type: "sightseeing", title: "Hamilton Gardens", subtitle: "Hamilton, Nuova Zelanda (consigliato)" },
-      { id: "d5-3", time: "13:30", type: "sightseeing", title: "Otorohanga Kiwi House", subtitle: "20 Alex Telfer Drive, Otorohanga" },
-      { id: "d5-4", time: "16:00", type: "sightseeing", title: "Mangapohue Natural Bridge", subtitle: "Te Anga Road, Waitomo" },
-      { id: "d5-5", time: "17:30", type: "sightseeing", title: "Waitomo Glowworm Caves", subtitle: "39 Waitomo Village Road — grotte bioluminescenti" },
-      { id: "d5-6", time: "22:00", type: "hotel", title: "Waitomo Village Chalets", subtitle: "Hotel Access Road, Waitomo" },
+      { id: "d5-2", time: "11:15", type: "sightseeing", title: "Hamilton Gardens", subtitle: "Hamilton, Nuova Zelanda (consigliato)", transitTime: "1h 30m" },
+      { id: "d5-3", time: "13:30", type: "sightseeing", title: "Otorohanga Kiwi House", subtitle: "20 Alex Telfer Drive, Otorohanga", transitTime: "45m" },
+      { id: "d5-4", time: "16:00", type: "sightseeing", title: "Mangapohue Natural Bridge", subtitle: "Te Anga Road, Waitomo", transitTime: "40m" },
+      { id: "d5-5", time: "17:30", type: "sightseeing", title: "Waitomo Glowworm Caves", subtitle: "39 Waitomo Village Road — grotte bioluminescenti", transitTime: "15m" },
+      { id: "d5-6", time: "22:00", type: "hotel", title: "Waitomo Village Chalets", subtitle: "Hotel Access Road, Waitomo", transitTime: "5m" },
     ],
   },
   {
