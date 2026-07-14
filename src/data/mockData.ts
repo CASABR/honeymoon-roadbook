@@ -265,7 +265,7 @@ export const DAYS: DayData[] = [
       { id: "d6-2", time: "13:00", type: "food", title: "Big Dog and Sheep — Pranzo a Tirau", subtitle: "Tirau i-SITE Visitor Information Centre" },
       { id: "d6-3", time: "15:00", type: "sightseeing", title: "Te Waihou Blue Spring", subtitle: "Whites Road, Putaruru" },
       { id: "d6-4", time: "17:30", type: "sightseeing", title: "Mitai Maori Village", subtitle: "196 Fairy Springs Road, Rotorua — Spettacolo culturale e cena tipica" },
-      { id: "d6-5", time: "22:00", type: "hotel", title: "Wilie Court Motor Lodge", subtitle: "345 Fenton Street, Rotorua" },
+      { id: "d6-5", time: "22:00", type: "hotel", title: "Wylie Court Motor Lodge", subtitle: "345 Fenton Street, Rotorua" },
     ],
   },
   {
@@ -297,7 +297,7 @@ export const DAYS: DayData[] = [
     location: "Levin, NZ",
     activities: [
       { id: "d8-1", time: "08:00", type: "sightseeing", title: "Trekking Tongariro Alpine Crossing", subtitle: "Trekking tra i vulcani attivi (19.4 km)" },
-      { id: "d8-2", time: "17:00", type: "sightseeing", title: "Spostamento a Levin", subtitle: "Tempo guida: 2h 41m" },
+      { id: "d8-2", time: "17:00", type: "transport", title: "Spostamento a Levin", subtitle: "Trasferimento da Tongariro a Levin", transitTime: "2h 41m" },
       { id: "d8-3", time: "20:00", type: "hotel", title: "Totara Lodge Motel", subtitle: "15 Devon Street, Levin" },
     ],
   },
@@ -328,7 +328,7 @@ export const DAYS: DayData[] = [
     dayShort: "Lun",
     location: "Arthur Pass, NZ",
     activities: [
-      { id: "d10-1", time: "09:00", type: "sightseeing", title: "Kaikoura → Arthur Pass", subtitle: "Strada panoramica (tempo guida 4h 21m)" },
+      { id: "d10-1", time: "09:00", type: "transport", title: "Kaikoura → Arthur Pass", subtitle: "Strada panoramica sulla costa est", transitTime: "4h 21m" },
       { id: "d10-2", time: "18:00", type: "hotel", title: "Otira Stagecoach Hotel", subtitle: "6435 Otira Highway, Otira" },
     ],
   },
@@ -376,7 +376,7 @@ export const DAYS: DayData[] = [
     dayShort: "Gio",
     location: "Wanaka → Cardrona, NZ",
     activities: [
-      { id: "d13-0", time: "08:30", type: "sightseeing", title: "Partenza da Ivory Towers (Fox Glacier)", subtitle: "33/35 Sullivan Road, Franz Josef Glacier" },
+      { id: "d13-0", time: "08:30", type: "sightseeing", title: "Partenza da Ivory Towers (Fox Glacier)", subtitle: "33/35 Sullivans Road, Fox Glacier" },
       { id: "d13-1", time: "09:00", type: "sightseeing", title: "Lake Matheson", subtitle: "Lake Matheson Road — Specchio del Monte Cook" },
       { id: "d13-2", time: "12:00", type: "sightseeing", title: "Haast Pass", subtitle: "West Coast 9382 — Passo panoramico" },
       { id: "d13-3", time: "12:15", type: "sightseeing", title: "Fantail Falls", subtitle: "Cascata su Haast Pass (consigliato)" },
@@ -396,7 +396,7 @@ export const DAYS: DayData[] = [
     dayShort: "Ven",
     location: "Eglinton Valley, NZ",
     activities: [
-      { id: "d14-1", time: "09:00", type: "sightseeing", title: "Avvicinamento Milford Sound", subtitle: "Viaggio attraverso Eglinton Valley (guida 4h 28m)" },
+      { id: "d14-1", time: "09:00", type: "transport", title: "Avvicinamento Milford Sound", subtitle: "Viaggio attraverso Eglinton Valley", transitTime: "4h 28m" },
       { id: "d14-2", time: "18:00", type: "hotel", title: "Knobs Flat Accommodation", subtitle: "Eglinton Valley" },
     ],
   },
@@ -411,7 +411,7 @@ export const DAYS: DayData[] = [
     location: "Arrowtown, NZ",
     activities: [
       { id: "d15-1", time: "10:00", type: "sightseeing", title: "Milford Sound Cruise", subtitle: "Crociera panoramica sui fiordi (Fiordland)" },
-      { id: "d15-2", time: "15:00", type: "sightseeing", title: "Milford Sound → Queenstown → Arrowtown", subtitle: "Tempo guida: 3h 54m" },
+      { id: "d15-2", time: "15:00", type: "transport", title: "Milford Sound → Queenstown → Arrowtown", subtitle: "Rientro verso la regione di Queenstown", transitTime: "3h 54m" },
       { id: "d15-3", time: "19:00", type: "hotel", title: "Arrowtown Lodge", subtitle: "Arrowtown, Queenstown Area" },
     ],
   },
@@ -425,7 +425,7 @@ export const DAYS: DayData[] = [
     dayShort: "Dom",
     location: "Lake Tekapo, NZ",
     activities: [
-      { id: "d16-1", time: "10:00", type: "sightseeing", title: "Arrowtown → Lake Tekapo", subtitle: "Spostamento panoramico (tempo guida 3h 51m)" },
+      { id: "d16-1", time: "10:00", type: "transport", title: "Arrowtown → Lake Tekapo", subtitle: "Spostamento panoramico verso i laghi turchesi", transitTime: "3h 51m" },
       { id: "d16-2", time: "21:00", type: "sightseeing", title: "Stargazing Monte John Observatory", subtitle: "Cielo stellato UNESCO Lake Tekapo" },
       { id: "d16-3", time: "23:00", type: "hotel", title: "Fairlie Holiday Park / Lodge", subtitle: "Lake Tekapo Area" },
     ],
@@ -440,7 +440,7 @@ export const DAYS: DayData[] = [
     dayShort: "Lun",
     location: "Christchurch → Adelaide, AU",
     activities: [
-      { id: "d17-1", time: "10:00", type: "sightseeing", title: "Lake Tekapo → Christchurch Airport", subtitle: "Rilascio auto (tempo guida 2h 51m)" },
+      { id: "d17-1", time: "10:00", type: "transport", title: "Lake Tekapo → Christchurch Airport", subtitle: "Rilascio auto a noleggio in aeroporto", transitTime: "2h 51m" },
       { id: "d17-2", time: "18:20", type: "transport", title: "Volo Christchurch CHC → Adelaide ADL", subtitle: "Air New Zealand NZ261 · 2h 10m", hasQR: true },
       { id: "d17-3", time: "20:25", type: "transport", title: "Arrivo Adelaide", subtitle: "Ritiro auto e check-in alloggio" },
     ],
@@ -455,7 +455,7 @@ export const DAYS: DayData[] = [
     dayShort: "Mar",
     location: "Kangaroo Island, AU",
     activities: [
-      { id: "d18-1", time: "08:00", type: "sightseeing", title: "Adelaide → Cape Jervis Ferry → KI", subtitle: "Traghetto auto e viaggio (tempo guida 5h 09m)" },
+      { id: "d18-1", time: "08:00", type: "transport", title: "Adelaide → Cape Jervis Ferry → Kangaroo Island", subtitle: "Traghetto auto e viaggio fino all'isola", transitTime: "5h 09m" },
       { id: "d18-2", time: "13:00", type: "sightseeing", title: "Flinders Chase National Park", subtitle: "Remarkable Rocks, Admiral's Arch, Koala & Canguri" },
       { id: "d18-3", time: "19:00", type: "hotel", title: "Kangaroo Island Wilderness Retreat", subtitle: "Flinders Chase Area" },
     ],
@@ -486,7 +486,7 @@ export const DAYS: DayData[] = [
     location: "Great Ocean Road, AU",
     activities: [
       { id: "d20-1", time: "09:00", type: "sightseeing", title: "Melbourne → Geelong → Great Ocean Road", subtitle: "Partenza viaggio on-road" },
-      { id: "d20-2", time: "16:00", type: "sightseeing", title: "Dodici Apostoli (Twelve Apostles)", subtitle: "Tramonto panoramico (tempo guida 3h 39m)" },
+      { id: "d20-2", time: "16:00", type: "sightseeing", title: "Dodici Apostoli (Twelve Apostles)", subtitle: "Tramonto panoramico sulla Great Ocean Road", transitTime: "3h 39m" },
       { id: "d20-3", time: "19:00", type: "hotel", title: "12 Apostles Campground", subtitle: "Port Campbell area" },
     ],
   },
@@ -500,7 +500,7 @@ export const DAYS: DayData[] = [
     dayShort: "Ven",
     location: "Melbourne via Costa, AU",
     activities: [
-      { id: "d21-1", time: "09:00", type: "sightseeing", title: "12 Apostles → Melbourne via Costa", subtitle: "Strada panoramica Great Ocean Road (guida 4h 42m)" },
+      { id: "d21-1", time: "09:00", type: "transport", title: "12 Apostoli → Melbourne via Costa", subtitle: "Strada panoramica Great Ocean Road", transitTime: "4h 42m" },
       { id: "d21-2", time: "16:00", type: "sightseeing", title: "Melbourne City tour", subtitle: "Street art a Hosier Lane e lungofiume Yarra" },
       { id: "d21-3", time: "19:00", type: "hotel", title: "Melbourne Tourist Park", subtitle: "Melbourne Area" },
     ],
@@ -515,7 +515,7 @@ export const DAYS: DayData[] = [
     dayShort: "Sab",
     location: "Phillip Island, AU",
     activities: [
-      { id: "d22-1", time: "10:00", type: "sightseeing", title: "Melbourne → Phillip Island", subtitle: "Spostamento (tempo guida 4h 02m)" },
+      { id: "d22-1", time: "10:00", type: "transport", title: "Melbourne → Phillip Island", subtitle: "Trasferimento verso l'isola dei pinguini", transitTime: "4h 02m" },
       { id: "d22-2", time: "20:00", type: "sightseeing", title: "Penguin Parade", subtitle: "Parata dei pinguini nani al tramonto" },
       { id: "d22-3", time: "22:00", type: "hotel", title: "Tidal Campground", subtitle: "Phillip Island" },
     ],
@@ -530,7 +530,7 @@ export const DAYS: DayData[] = [
     dayShort: "Dom",
     location: "Wilson Promontory, AU",
     activities: [
-      { id: "d23-1", time: "08:00", type: "sightseeing", title: "Wilsons Promontory NP hikes", subtitle: "Spiagge e percorsi naturali (tempo guida 0h 32m)" },
+      { id: "d23-1", time: "08:00", type: "sightseeing", title: "Wilsons Promontory NP hikes", subtitle: "Spiagge e percorsi naturali", transitTime: "32m" },
       { id: "d23-2", time: "19:00", type: "hotel", title: "Wilson Promontory Campsite", subtitle: "Wilson Promontory" },
     ],
   },
@@ -544,7 +544,7 @@ export const DAYS: DayData[] = [
     dayShort: "Lun",
     location: "Metà strada Jervis Bay, AU",
     activities: [
-      { id: "d24-1", time: "09:00", type: "sightseeing", title: "Wilson Promontory → NSW Coast", subtitle: "Lungo trasferimento stradale (tempo guida 6h 15m)" },
+      { id: "d24-1", time: "09:00", type: "transport", title: "Wilson Promontory → NSW Coast", subtitle: "Lungo trasferimento lungo la costa", transitTime: "6h 15m" },
       { id: "d24-2", time: "18:00", type: "hotel", title: "Mid-way Coast Camping", subtitle: "NSW Coast" },
     ],
   },
@@ -558,7 +558,7 @@ export const DAYS: DayData[] = [
     dayShort: "Mar",
     location: "Jervis Bay, AU",
     activities: [
-      { id: "d25-1", time: "09:00", type: "sightseeing", title: "NSW Coast → Jervis Bay", subtitle: "Arrivo a Jervis Bay (tempo guida 5h 40m)" },
+      { id: "d25-1", time: "09:00", type: "transport", title: "NSW Coast → Jervis Bay", subtitle: "Arrivo alla baia di Jervis", transitTime: "5h 40m" },
       { id: "d25-2", time: "15:00", type: "sightseeing", title: "Hyams Beach", subtitle: "Spiaggia di sabbia finissima bianca" },
       { id: "d25-3", time: "19:00", type: "hotel", title: "Jervis Bay Holiday Park", subtitle: "Jervis Bay" },
     ],
@@ -573,7 +573,7 @@ export const DAYS: DayData[] = [
     dayShort: "Mer",
     location: "Jervis Bay Tour, AU",
     activities: [
-      { id: "d26-1", time: "10:00", type: "sightseeing", title: "Dolphin Watching Tour & Relax", subtitle: "Tour in barca per avvistamento fauna (guida 1h)" },
+      { id: "d26-1", time: "10:00", type: "sightseeing", title: "Dolphin Watching Tour & Relax", subtitle: "Tour in barca per avvistamento delfini e fauna marina" },
       { id: "d26-2", time: "19:00", type: "hotel", title: "Jervis Bay Cabin", subtitle: "Jervis Bay" },
     ],
   },
@@ -587,7 +587,7 @@ export const DAYS: DayData[] = [
     dayShort: "Gio",
     location: "Blue Mountains, AU",
     activities: [
-      { id: "d27-1", time: "09:00", type: "sightseeing", title: "Jervis Bay → Blue Mountains", subtitle: "Spostamento montano (tempo guida 3h)" },
+      { id: "d27-1", time: "09:00", type: "transport", title: "Jervis Bay → Blue Mountains", subtitle: "Spostamento verso le montagne blu", transitTime: "3h" },
       { id: "d27-2", time: "14:00", type: "sightseeing", title: "Tre Sorelle (Three Sisters) & Katoomba", subtitle: "Punti panoramici sulle Blue Mountains" },
       { id: "d27-3", time: "18:00", type: "hotel", title: "Katoomba Campsite", subtitle: "Blue Mountains" },
     ],
@@ -1306,8 +1306,8 @@ export const TRANSPORTS: Transport[] = [
   },
   {
     id: "tr-flight-syd-mnl",
-    date: "2026-12-28",
-    dateLabel: "Lun 28 dic",
+    date: "2026-12-27",
+    dateLabel: "Dom 27 dic",
     time: "12:15",
     from: "Sydney SYD",
     to: "Caticlan MPH",

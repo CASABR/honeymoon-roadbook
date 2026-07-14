@@ -333,9 +333,9 @@ function TripTimelineRow({
         </div>
 
         {/* Transition to next activity */}
-        {nextActivity && !editMode && (
+        {nextActivity && !editMode && transitTime && (
           <div className="my-1.5 ml-4 text-[11px] font-bold text-blue-600/95 flex items-center gap-1">
-            <span>🚗 {transitTime || "Guida"}</span>
+            <span>🚗 {transitTime}</span>
           </div>
         )}
       </div>

@@ -629,9 +629,9 @@ function TimelineRow({
         </div>
 
         {/* Transition to next activity */}
-        {nextActivity && (
+        {nextActivity && transitTime && (
           <div className="my-1.5 ml-4 text-[11px] font-bold text-blue-600/95 flex items-center gap-1">
-            <span>🚗 {transitTime || "Guida"}</span>
+            <span>🚗 {transitTime}</span>
           </div>
         )}
       </div>
@@ -1120,7 +1120,7 @@ export default function TodayView() {
                   <p className="text-[13px] font-semibold text-gray-900 leading-tight line-clamp-2">
                     {act.title}
                   </p>
-                  <p className="text-[10.5px] text-gray-400 mt-0.5 truncate">{act.subtitle}</p>
+                  <p className="text-[10.5px] text-gray-400 mt-0.5 truncate">{cleanSubtitle(act.subtitle)}</p>
                 </div>
               ))}
             </div>
