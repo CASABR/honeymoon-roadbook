@@ -389,6 +389,7 @@ export default function AccommodationsView() {
   const [showVerification, setShowVerification] = useState(false);
   const [activeIssues, setActiveIssues] = useState<any[]>([]);
   const [selectedAcco, setSelectedAcco] = useState<Accommodation | null>(null);
+  const [activeTab, setActiveTab] = useState<"tutti" | "nz" | "au_ph">("tutti");
 
   useEffect(() => {
     repository.getAccommodations(ACCOMMODATIONS)
@@ -456,10 +457,19 @@ export default function AccommodationsView() {
     );
   }
 
+  const totalCost = accos.reduce((sum, acc) => sum + (acc.price || 0), 0);
+  const totalNights = accos.length;
+
+  const filteredAccos = accos.filter((acc) => {
+    if (activeTab === "nz") return acc.area === "Europa & Nuova Zelanda";
+    if (activeTab === "au_ph") return acc.area === "Australia & Filippine";
+    return true;
+  });
+
   return (
     <>
       <div className="px-4 pt-5 pb-4">
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-2">
           <h1 className="text-[24px] font-extrabold text-gray-900">Alloggi</h1>
           <div className="flex gap-2">
             <button
@@ -478,7 +488,7 @@ export default function AccommodationsView() {
           </div>
         </div>
 
-        <p className="text-[13px] text-gray-400 mb-5">
+        <p className="text-[13px] text-gray-400 mb-4">
           {accos.length} strutture · tutto il viaggio ·{" "}
           <span
             className="text-blue-600 font-bold cursor-pointer"
@@ -487,6 +497,46 @@ export default function AccommodationsView() {
             Verifica coerenza
           </span>
         </p>
+
+        {/* Statistiche alloggi */}
+        <div className="grid grid-cols-2 gap-3 mb-4 bg-blue-50/50 border border-blue-100/50 p-3 rounded-2xl animate-fade-in">
+          <div className="text-center">
+            <span className="text-[10px] font-bold text-gray-400 uppercase block animate-pulse">Spesa Totale</span>
+            <span className="text-[15px] font-black text-blue-600">€ {totalCost.toFixed(2)}</span>
+          </div>
+          <div className="text-center border-l border-blue-100">
+            <span className="text-[10px] font-bold text-gray-400 uppercase block">Strutture</span>
+            <span className="text-[15px] font-black text-gray-705">{totalNights} alloggi</span>
+          </div>
+        </div>
+
+        {/* Tab Selector */}
+        <div className="flex bg-gray-100 p-1 rounded-xl mb-4 text-[12.5px] font-bold">
+          <button
+            onClick={() => setActiveTab("tutti")}
+            className={`flex-1 py-1.5 text-center rounded-lg transition-all ${
+              activeTab === "tutti" ? "bg-white text-gray-900 shadow-xs" : "text-gray-400 hover:text-gray-700"
+            }`}
+          >
+            Tutti
+          </button>
+          <button
+            onClick={() => setActiveTab("nz")}
+            className={`flex-1 py-1.5 text-center rounded-lg transition-all ${
+              activeTab === "nz" ? "bg-white text-gray-900 shadow-xs" : "text-gray-400 hover:text-gray-700"
+            }`}
+          >
+            Europa & NZ
+          </button>
+          <button
+            onClick={() => setActiveTab("au_ph")}
+            className={`flex-1 py-1.5 text-center rounded-lg transition-all ${
+              activeTab === "au_ph" ? "bg-white text-gray-900 shadow-xs" : "text-gray-400 hover:text-gray-700"
+            }`}
+          >
+            AU & Filippine
+          </button>
+        </div>
 
         {activeIssues.length > 0 && (
           <div
@@ -509,7 +559,7 @@ export default function AccommodationsView() {
         )}
 
         <div className="space-y-3">
-          {accos.map((acc) => (
+          {filteredAccos.map((acc) => (
             <AccoCard 
               key={acc.id} 
               acc={acc} 
