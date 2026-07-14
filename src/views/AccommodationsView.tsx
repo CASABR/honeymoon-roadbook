@@ -394,7 +394,12 @@ export default function AccommodationsView() {
   useEffect(() => {
     repository.getAccommodations(ACCOMMODATIONS)
       .then((data) => {
-        setAccos(data);
+        if (data.length < ACCOMMODATIONS.length) {
+          setAccos(ACCOMMODATIONS);
+          repository.saveAccommodations(ACCOMMODATIONS);
+        } else {
+          setAccos(data);
+        }
         isLoadedRef.current = true;
       })
       .catch((e) => console.error("Errore caricamento alloggi:", e))
