@@ -198,7 +198,7 @@ function AccoCard({ acc, onOpenDetail }: { acc: Accommodation; onOpenDetail: () 
   
   return (
     <div 
-      className="card overflow-hidden cursor-pointer hover:border-blue-300 transition-colors"
+      className="card overflow-hidden cursor-pointer hover:border-blue-300 transition-colors animate-fade-in"
       onClick={onOpenDetail}
     >
       <div className="flex relative">
@@ -228,17 +228,9 @@ function AccoCard({ acc, onOpenDetail }: { acc: Accommodation; onOpenDetail: () 
               {acc.area ? `${acc.area}, ${acc.city}` : acc.city}
             </p>
           </div>
-          <p className="text-[12px] font-semibold text-gray-500">{acc.dates}</p>
           
-          <div className="flex items-center justify-between mt-1 flex-wrap gap-2">
-            <div className="flex gap-1.5 flex-wrap">
-              <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
-                In: {acc.checkIn}
-              </span>
-              <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
-                Out: {acc.checkOut}
-              </span>
-            </div>
+          <div className="flex items-center justify-between mt-1.5 flex-wrap gap-2">
+            <p className="text-[12px] font-semibold text-gray-500">{acc.dates}</p>
             {acc.price !== undefined && (
               <span className="text-[13px] font-extrabold text-blue-600 shrink-0">
                 € {typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}
@@ -270,15 +262,17 @@ function AccoCard({ acc, onOpenDetail }: { acc: Accommodation; onOpenDetail: () 
 function DetailAccoSheet({
   acc,
   onClose,
+  onDelete,
 }: {
   acc: Accommodation;
   onClose: () => void;
+  onDelete: () => void;
 }) {
   const mapsUrl = acc.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${acc.name}, ${acc.city}`)}`;
   
   return (
-    <div className="bottom-sheet-backdrop" onClick={onClose}>
-      <div className="bottom-sheet-container" onClick={(e) => e.stopPropagation()}>
+    <div className="bottom-sheet-backdrop animate-fade-in" onClick={onClose}>
+      <div className="bottom-sheet-container animate-slide-up" onClick={(e) => e.stopPropagation()}>
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
         
         <div className="flex justify-between items-start gap-4 mb-3">
@@ -297,7 +291,7 @@ function DetailAccoSheet({
           )}
         </div>
 
-        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+        <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
           {acc.imageUrl && (
             <img 
               src={acc.imageUrl} 
@@ -367,12 +361,20 @@ function DetailAccoSheet({
           </a>
         </div>
 
-        <button
-          className="w-full mt-3 py-2.5 rounded-2xl bg-gray-100 text-gray-500 font-bold text-[13px] border border-gray-200/50"
-          onClick={onClose}
-        >
-          Chiudi
-        </button>
+        <div className="flex gap-2 mt-3 pt-1">
+          <button
+            className="flex-1 py-2.5 rounded-2xl bg-red-50 hover:bg-red-100 text-red-500 font-bold text-[13px] border border-red-200/40 active:scale-95 transition-all"
+            onClick={onDelete}
+          >
+            🗑️ Elimina
+          </button>
+          <button
+            className="flex-1 py-2.5 rounded-2xl bg-gray-100 text-gray-500 font-bold text-[13px] border border-gray-200/50"
+            onClick={onClose}
+          >
+            Chiudi
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -451,6 +453,14 @@ export default function AccommodationsView() {
 
   function handleSave(acc: Accommodation) {
     setAccos((prev) => [...prev, acc]);
+  }
+
+  function handleDeleteAcco(id: string) {
+    if (window.confirm("Sei sicuro di voler eliminare questa prenotazione?")) {
+      const updated = accos.filter((a) => a.id !== id);
+      setAccos(updated);
+      setSelectedAcco(null);
+    }
   }
 
   if (isLoading) {
@@ -575,7 +585,11 @@ export default function AccommodationsView() {
       </div>
 
       {selectedAcco && (
-        <DetailAccoSheet acc={selectedAcco} onClose={() => setSelectedAcco(null)} />
+        <DetailAccoSheet 
+          acc={selectedAcco} 
+          onClose={() => setSelectedAcco(null)} 
+          onDelete={() => handleDeleteAcco(selectedAcco.id)}
+        />
       )}
 
       {showForm && (

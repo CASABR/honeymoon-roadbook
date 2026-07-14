@@ -34,6 +34,41 @@ function getTodayAccommodation() {
   return ACCOMMODATIONS[0]; // primo alloggio del viaggio
 }
 
+export function parseTransitTimeToMinutes(timeStr?: string): number {
+  if (!timeStr) return 0;
+  const t = timeStr.toLowerCase().trim();
+  let total = 0;
+  
+  const hrMatch = t.match(/(\d+)\s*h/);
+  if (hrMatch) {
+    total += parseInt(hrMatch[1]) * 60;
+  }
+  
+  const minMatch = t.match(/(\d+)\s*m/);
+  if (minMatch) {
+    total += parseInt(minMatch[1]);
+  }
+  
+  if (total === 0 && /^\d+$/.test(t)) {
+    total = parseInt(t);
+  }
+  
+  return total;
+}
+
+export function formatMinutesToHoursAndMinutes(totalMinutes: number): string {
+  if (totalMinutes <= 0) return "";
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (hours > 0) {
+    if (minutes > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${hours}h`;
+  }
+  return `${minutes}m`;
+}
+
 // ── QR / Dettaglio trasporto Modal ────────────────────────────────────────────
 function QRModal({ activity, onClose }: { activity: Activity; onClose: () => void }) {
   const [qrImages, setQrImages] = useState<Record<string, string[]>>({});
@@ -303,11 +338,23 @@ function DayFullModal({
   );
 }
 
-// Helper functions for maps
-function isMapsEligible(title: string) {
-  const generic = ["relax", "tempo libero", "riposo", "colazione", "notte", "dormire", "volo", "scalo", "in viaggio"];
-  const t = title.toLowerCase();
-  return !generic.some(g => t.includes(g));
+// Helper function to check if an activity has a real address or POI
+function hasAddress(activity: Activity) {
+  const title = activity.title ? activity.title.toLowerCase() : "";
+  const subtitle = activity.subtitle ? activity.subtitle.toLowerCase() : "";
+  
+  const genericTitles = ["relax", "tempo libero", "riposo", "colazione", "notte", "dormire", "volo", "scalo", "in viaggio", "noleggio auto", "noleggio"];
+  if (genericTitles.some(g => title.includes(g))) return false;
+  
+  const genericSubtitles = ["attività del giorno", "scalo lungo", "volo", "volo di notte", "dogana e ritiro", "noleggio", "ritiro auto"];
+  if (genericSubtitles.some(g => subtitle.includes(g))) return false;
+
+  const hasNumbers = /\d+/.test(subtitle);
+  const streetIndicators = ["road", "street", "drive", "avenue", "way", "highway", "gardens", "park", "village", "caves", "nz", "filippine", "australia", "italia", "airport", "via", "piazza", "viale", "corso"];
+  const hasStreetIndicator = streetIndicators.some(indicator => subtitle.includes(indicator));
+  const hasComma = subtitle.includes(",");
+  
+  return hasNumbers || hasStreetIndicator || hasComma || activity.type === "hotel" || activity.type === "sightseeing";
 }
 
 function buildMapsUrl(activity: Activity, dayLocation?: string) {
@@ -327,6 +374,8 @@ const VISIBLE_COUNT = 4;
 
 function TimelineRow({
   activity,
+  nextActivity,
+  transitTime,
   isFirst,
   isLast,
   onQRTap,
@@ -336,6 +385,8 @@ function TimelineRow({
   dayLocation,
 }: {
   activity: Activity;
+  nextActivity?: Activity;
+  transitTime?: string;
   isFirst: boolean;
   isLast: boolean;
   onQRTap: (act: Activity) => void;
@@ -345,7 +396,7 @@ function TimelineRow({
   dayLocation?: string;
 }) {
   const isTransport = activity.type === "transport";
-  const showMaps = isMapsEligible(activity.title);
+  const showMaps = hasAddress(activity);
   const mapsUrl = buildMapsUrl(activity, dayLocation);
 
   return (
@@ -363,117 +414,135 @@ function TimelineRow({
         } ${completed ? "!border-emerald-500 !bg-emerald-500" : ""}`} />
         {!isLast && <div className="flex-1 w-0.5 bg-gray-200 mt-1" style={{ minHeight: 32 }} />}
       </div>
-      <div
-        className={`flex-1 min-w-0 mb-2 app-card p-3 cursor-pointer ${isFirst ? "border-blue-200" : "bg-white/80"}`}
-        onClick={onEdit}
-      >
-        {isFirst && isTransport ? (
-          <div className="flex items-start justify-between">
-            <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-0.5">Trasporto</p>
-              <p className={`font-bold text-[15px] text-gray-900 leading-snug ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-              {activity.status === "in_corso" && <span className="badge-in-corso mt-1">In corso</span>}
+      <div className="flex-1 min-w-0">
+        <div
+          className={`min-w-0 mb-2 app-card p-3 cursor-pointer ${isFirst ? "border-blue-200" : "bg-white/80"}`}
+          onClick={onEdit}
+        >
+          {isFirst && isTransport ? (
+            <div className="flex items-start justify-between">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-0.5">Trasporto</p>
+                <p className={`font-bold text-[15px] text-gray-900 leading-snug ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                {activity.status === "in_corso" && <span className="badge-in-corso mt-1">In corso</span>}
+              </div>
+              <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                {showMaps && (
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Apri posizione su Google Maps"
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:scale-90 transition-transform flex items-center justify-center shrink-0 border border-blue-100/50"
+                  >
+                    <IcMapPin size={13} className="text-blue-600" />
+                  </a>
+                )}
+                {activity.hasQR && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onQRTap(activity);
+                    }}
+                    className="bg-gray-100 hover:bg-gray-200 rounded-xl p-2 active:scale-90 transition-transform"
+                    title="Visualizza Biglietti"
+                  >
+                    <IcQR size={26} className="text-gray-700" />
+                  </button>
+                )}
+                <IcChevronRight size={16} className="text-gray-400" />
+              </div>
             </div>
-            <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
-              {showMaps && (
-                <a
-                  href={mapsUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Apri posizione su Google Maps"
-                  onClick={(e) => e.stopPropagation()}
-                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:scale-90 transition-transform flex items-center justify-center shrink-0 border border-blue-100/50"
-                >
-                  <IcMapPin size={13} className="text-blue-600" />
-                </a>
-              )}
-              {activity.hasQR && (
+          ) : isTransport ? (
+            <div className="flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <ActivityIcon type={activity.type} size={16} />
+                <div className="flex-1 min-w-0">
+                  <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                  <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                {showMaps && (
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Apri posizione su Google Maps"
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:scale-90 transition-transform flex items-center justify-center shrink-0 border border-blue-100/50"
+                  >
+                    <IcMapPin size={13} className="text-blue-600" />
+                  </a>
+                )}
+                {activity.hasQR && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onQRTap(activity);
+                    }}
+                    className="p-1.5 bg-gray-100 rounded-lg hover:bg-gray-200 active:scale-90 transition-transform flex items-center justify-center shrink-0"
+                    title="Visualizza Biglietti"
+                  >
+                    <IcQR size={18} className="text-gray-400" />
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                <ActivityIcon type={activity.type} size={16} />
+                <div className="flex-1 min-w-0">
+                  <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                  <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+                {showMaps && (
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Apri posizione su Google Maps"
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:scale-90 transition-transform flex items-center justify-center shrink-0 border border-blue-100/50"
+                  >
+                    <IcMapPin size={13} className="text-blue-600" />
+                  </a>
+                )}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onQRTap(activity);
+                    onToggle();
                   }}
-                  className="bg-gray-100 hover:bg-gray-200 rounded-xl p-2 active:scale-90 transition-transform"
-                  title="Visualizza Biglietti"
+                  className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
+                  style={{
+                    borderColor: completed ? "#10b981" : "#d1d5db",
+                    backgroundColor: completed ? "#10b981" : "transparent"
+                  }}
                 >
-                  <IcQR size={26} className="text-gray-700" />
+                  {completed && <span className="text-white text-[10px] font-bold">✓</span>}
                 </button>
-              )}
-              <IcChevronRight size={16} className="text-gray-400" />
-            </div>
-          </div>
-        ) : isTransport ? (
-          <div className="flex items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <ActivityIcon type={activity.type} size={16} />
-              <div className="flex-1 min-w-0">
-                <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
               </div>
             </div>
-            <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
-              {showMaps && (
-                <a
-                  href={mapsUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Apri posizione su Google Maps"
-                  onClick={(e) => e.stopPropagation()}
-                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:scale-90 transition-transform flex items-center justify-center shrink-0 border border-blue-100/50"
-                >
-                  <IcMapPin size={13} className="text-blue-600" />
-                </a>
-              )}
-              {activity.hasQR && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onQRTap(activity);
-                  }}
-                  className="p-1.5 bg-gray-100 rounded-lg hover:bg-gray-200 active:scale-90 transition-transform flex items-center justify-center shrink-0"
-                  title="Visualizza Biglietti"
-                >
-                  <IcQR size={18} className="text-gray-400" />
-                </button>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <ActivityIcon type={activity.type} size={16} />
-              <div className="flex-1 min-w-0">
-                <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
-              {showMaps && (
-                <a
-                  href={mapsUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Apri posizione su Google Maps"
-                  onClick={(e) => e.stopPropagation()}
-                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:scale-90 transition-transform flex items-center justify-center shrink-0 border border-blue-100/50"
-                >
-                  <IcMapPin size={13} className="text-blue-600" />
-                </a>
-              )}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggle();
-                }}
-                className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
-                style={{
-                  borderColor: completed ? "#10b981" : "#d1d5db",
-                  backgroundColor: completed ? "#10b981" : "transparent"
-                }}
-              >
-                {completed && <span className="text-white text-[10px] font-bold">✓</span>}
-              </button>
-            </div>
+          )}
+        </div>
+
+        {/* Transition to next activity */}
+        {nextActivity && (
+          <div className="my-2.5 ml-4 flex items-center gap-2 text-[11px] font-bold bg-blue-50/70 border border-blue-100/60 rounded-xl px-2.5 py-1.5 w-fit shadow-xs animate-fade-in text-blue-700">
+            <span className="flex items-center gap-1">🚗 Spostamento: <strong className="text-blue-800">{transitTime || "Guida"}</strong></span>
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${nextActivity.title}, ${nextActivity.subtitle}`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-blue-600 hover:text-blue-800 flex items-center gap-0.5 border-l border-blue-200/80 pl-2 ml-1"
+            >
+              🗺️ Naviga
+            </a>
           </div>
         )}
       </div>
@@ -531,6 +600,64 @@ function AccoBanner({ acc }: { acc: ReturnType<typeof getTodayAccommodation> }) 
   );
 }
 
+async function fetchDrivingDuration(fromQuery: string, toQuery: string): Promise<string | null> {
+  const cacheKey = `hrb_route_${encodeURIComponent(fromQuery)}_${encodeURIComponent(toQuery)}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) {
+    try {
+      const { duration, timestamp } = JSON.parse(cached);
+      if (Date.now() - timestamp < 7 * 24 * 60 * 60 * 1000) {
+        return duration;
+      }
+    } catch (_) {}
+  }
+
+  if (!navigator.onLine) return null;
+
+  try {
+    const fromRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fromQuery)}&limit=1`, {
+      headers: { "User-Agent": "HoneymoonRoadbookApp/1.0" }
+    });
+    const fromData = await fromRes.json();
+    if (!fromData || fromData.length === 0) return null;
+    const fromLon = fromData[0].lon;
+    const fromLat = fromData[0].lat;
+
+    const toRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(toQuery)}&limit=1`, {
+      headers: { "User-Agent": "HoneymoonRoadbookApp/1.0" }
+    });
+    const toData = await toRes.json();
+    if (!toData || toData.length === 0) return null;
+    const toLon = toData[0].lon;
+    const toLat = toData[0].lat;
+
+    const routeRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${fromLon},${fromLat};${toLon},${toLat}?overview=false`);
+    const routeData = await routeRes.json();
+    if (routeData.code === "Ok" && routeData.routes && routeData.routes.length > 0) {
+      const durationSeconds = routeData.routes[0].duration;
+      const minutes = Math.round(durationSeconds / 60);
+      let durationStr = "";
+      if (minutes >= 60) {
+        const hours = Math.floor(minutes / 60);
+        const remainingMinutes = minutes % 60;
+        durationStr = remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+      } else {
+        durationStr = `${minutes}m`;
+      }
+
+      localStorage.setItem(cacheKey, JSON.stringify({
+        duration: durationStr,
+        timestamp: Date.now()
+      }));
+
+      return durationStr;
+    }
+  } catch (e) {
+    console.error("Errore nel calcolo del percorso:", e);
+  }
+  return null;
+}
+
 // ── Main TodayView ────────────────────────────────────────────────────────────
 export default function TodayView() {
   const navigate = useNavigate();
@@ -540,6 +667,7 @@ export default function TodayView() {
   const [isLoading, setIsLoading] = useState(true);
   const isLoadedRef = useRef(false);
   const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string } | null>(null);
+  const [calculatedTransits, setCalculatedTransits] = useState<Record<string, string>>({});
 
   useEffect(() => {
     async function initData() {
@@ -557,6 +685,37 @@ export default function TodayView() {
     }
     initData();
   }, []);
+
+  useEffect(() => {
+    const today = tripDays.find((d) => d.id === selectedDayId);
+    if (!today || !today.activities) return;
+
+    const calculateTransits = async () => {
+      for (let i = 0; i < today.activities.length - 1; i++) {
+        const act = today.activities[i];
+        const nextAct = today.activities[i + 1];
+        if (nextAct.transitTime) continue;
+        if (!hasAddress(act) || !hasAddress(nextAct)) continue;
+
+        const fromQuery = `${act.title}, ${act.subtitle || ""}`;
+        const toQuery = `${nextAct.title}, ${nextAct.subtitle || ""}`;
+        const routeKey = `${act.id}_to_${nextAct.id}`;
+
+        if (calculatedTransits[routeKey]) continue;
+
+        fetchDrivingDuration(fromQuery, toQuery).then((duration) => {
+          if (duration) {
+            setCalculatedTransits((prev) => ({
+              ...prev,
+              [routeKey]: duration,
+            }));
+          }
+        });
+      }
+    };
+
+    calculateTransits();
+  }, [selectedDayId, tripDays]);
 
   useEffect(() => {
     if (isLoadedRef.current) {
@@ -643,10 +802,20 @@ export default function TodayView() {
   const daysLeft = getDaysToDeparture();
   const todayLabel = getTodayLabel();
 
+  const totalDriveMinutes = today ? today.activities.reduce((sum, act, idx) => {
+    const nextAct = today.activities[idx + 1];
+    let timeStr = nextAct?.transitTime;
+    if (!timeStr && nextAct) {
+      timeStr = calculatedTransits[`${act.id}_to_${nextAct.id}`];
+    }
+    return sum + parseTransitTimeToMinutes(timeStr);
+  }, 0) : 0;
+
+  const totalDriveTimeStr = formatMinutesToHoursAndMinutes(totalDriveMinutes);
+
   const visibleActivities = expanded ? today.activities : today.activities.slice(0, VISIBLE_COUNT);
   const hasMore = today.activities.length > VISIBLE_COUNT;
   const tomorrowActivities = tomorrow?.activities ?? [];
-
 
   return (
     <>
@@ -717,24 +886,37 @@ export default function TodayView() {
 
         {/* La tua giornata */}
         <section className="card p-4">
-          <div className="flex items-center justify-between mb-4">
-            <span className="section-label">La tua giornata</span>
-            <span className="text-[11px] text-gray-400">{today.dateLabel}</span>
+          <div className="flex items-center justify-between mb-4 pb-2 border-b border-gray-100">
+            <div>
+              <span className="section-label">La tua giornata</span>
+              <p className="text-[11px] text-gray-400 mt-0.5">{today.dateLabel}</p>
+            </div>
+            {totalDriveTimeStr && (
+              <span className="text-[11px] font-extrabold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100/50 flex items-center gap-1 shrink-0">
+                🚗 Guida: {totalDriveTimeStr}
+              </span>
+            )}
           </div>
           <div className="space-y-0">
-            {visibleActivities.map((act, idx) => (
-              <TimelineRow
-                key={act.id}
-                activity={act}
-                isFirst={idx === 0}
-                isLast={idx === visibleActivities.length - 1}
-                onQRTap={setQrActivity}
-                onEdit={() => setEditingActivity({ dayId: today.id, activity: act, dayLabel: today.dateLabel })}
-                completed={completedActs.includes(act.id)}
-                onToggle={() => toggleActivity(act.id)}
-                dayLocation={today.location}
-              />
-            ))}
+            {visibleActivities.map((act, idx) => {
+              const nextAct = today.activities[idx + 1];
+              const transitTime = nextAct?.transitTime || calculatedTransits[`${act.id}_to_${nextAct?.id}`];
+              return (
+                <TimelineRow
+                  key={act.id}
+                  activity={act}
+                  nextActivity={nextAct}
+                  transitTime={transitTime}
+                  isFirst={idx === 0}
+                  isLast={idx === visibleActivities.length - 1}
+                  onQRTap={setQrActivity}
+                  onEdit={() => setEditingActivity({ dayId: today.id, activity: act, dayLabel: today.dateLabel })}
+                  completed={completedActs.includes(act.id)}
+                  onToggle={() => toggleActivity(act.id)}
+                  dayLocation={today.location}
+                />
+              );
+            })}
           </div>
           {hasMore && (
             <button
