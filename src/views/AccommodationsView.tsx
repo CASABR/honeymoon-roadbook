@@ -193,10 +193,15 @@ function Field({
 }
 
 // ── Card alloggio ─────────────────────────────────────────────────────────────
-function AccoCard({ acc }: { acc: Accommodation }) {
+function AccoCard({ acc, onOpenDetail }: { acc: Accommodation; onOpenDetail: () => void }) {
+  const mapsUrl = acc.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${acc.name}, ${acc.city}`)}`;
+  
   return (
-    <div className="card overflow-hidden">
-      <div className="flex">
+    <div 
+      className="card overflow-hidden cursor-pointer hover:border-blue-300 transition-colors"
+      onClick={onOpenDetail}
+    >
+      <div className="flex relative">
         {acc.imageUrl && (
           <img
             src={acc.imageUrl}
@@ -204,44 +209,171 @@ function AccoCard({ acc }: { acc: Accommodation }) {
             className="w-[88px] h-[88px] object-cover flex-shrink-0"
           />
         )}
-        <div className="flex-1 p-3 min-w-0">
-          <p className="font-bold text-[14px] text-gray-900 leading-snug">{acc.name}</p>
+        <div className="flex-1 p-3 min-w-0 pr-12">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <p className="font-bold text-[14px] text-gray-900 leading-snug truncate">{acc.name}</p>
+            {acc.status && (
+              <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-extrabold uppercase shrink-0 ${
+                acc.status === "confermata" || acc.status === "confermato"
+                  ? "bg-green-50 text-green-600 border border-green-100"
+                  : "bg-amber-50 text-amber-600 border border-amber-100"
+              }`}>
+                {acc.status}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-0.5 mt-0.5 mb-1">
             <IcMapPin size={11} className="text-gray-400" />
-            <p className="text-[12px] text-gray-400">
+            <p className="text-[12px] text-gray-400 truncate">
               {acc.area ? `${acc.area}, ${acc.city}` : acc.city}
             </p>
           </div>
           <p className="text-[12px] font-semibold text-gray-500">{acc.dates}</p>
-          <div className="flex gap-2 mt-1 flex-wrap">
-            <span className="text-[10.5px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
-              In: {acc.checkIn}
-            </span>
-            <span className="text-[10.5px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
-              Out: {acc.checkOut}
-            </span>
+          
+          <div className="flex items-center justify-between mt-1 flex-wrap gap-2">
+            <div className="flex gap-1.5 flex-wrap">
+              <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
+                In: {acc.checkIn}
+              </span>
+              <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
+                Out: {acc.checkOut}
+              </span>
+            </div>
+            {acc.price !== undefined && (
+              <span className="text-[13px] font-extrabold text-blue-600 shrink-0">
+                € {typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}
+              </span>
+            )}
           </div>
-          {acc.note && (
-            <p className="text-[11px] text-blue-500 mt-1.5 font-medium">{acc.note}</p>
-          )}
         </div>
-        <div className="flex items-center pr-3">
-          <IcChevronRight size={15} className="text-gray-300" />
-        </div>
-      </div>
-      {acc.mapsUrl && (
-        <div className="border-t border-gray-100 px-3 py-2 flex items-center justify-center gap-1.5">
-          <IcMapPin size={13} className="text-blue-600" />
+
+        {/* Right side buttons container */}
+        <div className="absolute right-2 top-0 bottom-0 flex flex-col justify-center gap-2 items-center z-10">
           <a
-            href={acc.mapsUrl}
+            href={mapsUrl}
             target="_blank"
             rel="noreferrer"
-            className="text-[12px] font-semibold text-blue-600"
+            aria-label="Apri posizione su Google Maps"
+            onClick={(e) => e.stopPropagation()}
+            className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 active:scale-95 transition-all shadow-sm border border-blue-100"
           >
-            Apri su Maps
+            <IcMapPin size={14} className="text-blue-600" />
+          </a>
+          <IcChevronRight size={15} className="text-gray-300 pointer-events-none" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Bottom sheet per i dettagli dell'alloggio ────────────────────────────────
+function DetailAccoSheet({
+  acc,
+  onClose,
+}: {
+  acc: Accommodation;
+  onClose: () => void;
+}) {
+  const mapsUrl = acc.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${acc.name}, ${acc.city}`)}`;
+  
+  return (
+    <div className="bottom-sheet-backdrop" onClick={onClose}>
+      <div className="bottom-sheet-container" onClick={(e) => e.stopPropagation()}>
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
+        
+        <div className="flex justify-between items-start gap-4 mb-3">
+          <div className="min-w-0">
+            <span className="text-[9px] font-black uppercase tracking-wider text-blue-500">Prenotazione Alloggio</span>
+            <h2 className="text-[17px] font-extrabold text-gray-900 leading-snug truncate">{acc.name}</h2>
+          </div>
+          {acc.status && (
+            <span className={`text-[9px] px-2 py-0.5 rounded font-extrabold uppercase shrink-0 ${
+              acc.status === "confermata" || acc.status === "confermato"
+                ? "bg-green-50 text-green-600 border border-green-100"
+                : "bg-amber-50 text-amber-600 border border-amber-100"
+            }`}>
+              {acc.status}
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+          {acc.imageUrl && (
+            <img 
+              src={acc.imageUrl} 
+              alt={acc.name} 
+              className="w-full h-32 object-cover rounded-2xl border border-gray-100" 
+            />
+          )}
+
+          <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100 text-[12.5px]">
+            <div>
+              <p className="text-[9px] font-bold text-gray-400 uppercase">Check-in</p>
+              <p className="font-semibold text-gray-800">{acc.checkIn}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-bold text-gray-400 uppercase">Check-out</p>
+              <p className="font-semibold text-gray-800">{acc.checkOut}</p>
+            </div>
+            <div className="col-span-2 border-t border-gray-200/60 pt-2 mt-1">
+              <p className="text-[9px] font-bold text-gray-400 uppercase">Date Soggiorno</p>
+              <p className="font-semibold text-gray-800">{acc.dates}</p>
+            </div>
+          </div>
+
+          <div className="space-y-2.5">
+            {acc.price !== undefined && (
+              <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-[11px] text-gray-400 font-bold uppercase">Prezzo</span>
+                <span className="text-[14px] font-black text-blue-600">
+                  € {typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}
+                </span>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-[11px] text-gray-400 font-bold uppercase">Colazione</span>
+              <span className="text-[12px] font-semibold text-gray-700 text-right">
+                {acc.breakfast || "Non specificata"}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-[11px] text-gray-400 font-bold uppercase">Città / Località</span>
+              <span className="text-[12px] font-semibold text-gray-700">
+                {acc.city}
+              </span>
+            </div>
+
+            {acc.note && (
+              <div className="py-2">
+                <p className="text-[11px] text-gray-400 font-bold uppercase mb-1">Note aggiuntive</p>
+                <div className="bg-blue-50/40 border border-blue-100/50 rounded-xl p-3 text-[12px] text-gray-600 leading-relaxed font-semibold">
+                  {acc.note}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Action button for Google Maps */}
+          <a
+            href={mapsUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[13.5px] rounded-2xl shadow-lg shadow-blue-500/10 active:scale-98 transition-all"
+          >
+            <IcMapPin size={14} />
+            Apri posizione su Google Maps
           </a>
         </div>
-      )}
+
+        <button
+          className="w-full mt-3 py-2.5 rounded-2xl bg-gray-100 text-gray-500 font-bold text-[13px] border border-gray-200/50"
+          onClick={onClose}
+        >
+          Chiudi
+        </button>
+      </div>
     </div>
   );
 }
@@ -256,6 +388,7 @@ export default function AccommodationsView() {
   const [showImportSheet, setShowImportSheet] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
   const [activeIssues, setActiveIssues] = useState<any[]>([]);
+  const [selectedAcco, setSelectedAcco] = useState<Accommodation | null>(null);
 
   useEffect(() => {
     repository.getAccommodations(ACCOMMODATIONS)
@@ -377,10 +510,18 @@ export default function AccommodationsView() {
 
         <div className="space-y-3">
           {accos.map((acc) => (
-            <AccoCard key={acc.id} acc={acc} />
+            <AccoCard 
+              key={acc.id} 
+              acc={acc} 
+              onOpenDetail={() => setSelectedAcco(acc)} 
+            />
           ))}
         </div>
       </div>
+
+      {selectedAcco && (
+        <DetailAccoSheet acc={selectedAcco} onClose={() => setSelectedAcco(null)} />
+      )}
 
       {showForm && (
         <AddAccoSheet onSave={handleSave} onClose={() => setShowForm(false)} />

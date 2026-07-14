@@ -303,6 +303,25 @@ function DayFullModal({
   );
 }
 
+// Helper functions for maps
+function isMapsEligible(title: string) {
+  const generic = ["relax", "tempo libero", "riposo", "colazione", "notte", "dormire", "volo", "scalo", "in viaggio"];
+  const t = title.toLowerCase();
+  return !generic.some(g => t.includes(g));
+}
+
+function buildMapsUrl(activity: Activity, dayLocation?: string) {
+  const actAny = activity as any;
+  if (actAny.mapsUrl) return actAny.mapsUrl;
+  const queryParts = [activity.title];
+  if (activity.subtitle && activity.subtitle !== "Attività del giorno" && !activity.subtitle.includes("Dettagli") && !activity.subtitle.includes("noleggio")) {
+    queryParts.push(activity.subtitle);
+  } else if (dayLocation) {
+    queryParts.push(dayLocation);
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryParts.join(", ").trim())}`;
+}
+
 // ── Timeline row ──────────────────────────────────────────────────────────────
 const VISIBLE_COUNT = 4;
 
@@ -314,6 +333,7 @@ function TimelineRow({
   onEdit,
   completed,
   onToggle,
+  dayLocation,
 }: {
   activity: Activity;
   isFirst: boolean;
@@ -322,8 +342,11 @@ function TimelineRow({
   onEdit: () => void;
   completed: boolean;
   onToggle: () => void;
+  dayLocation?: string;
 }) {
   const isTransport = activity.type === "transport";
+  const showMaps = isMapsEligible(activity.title);
+  const mapsUrl = buildMapsUrl(activity, dayLocation);
 
   return (
     <div className={`flex gap-3 items-start transition-opacity ${completed ? "opacity-60" : ""}`}>
@@ -352,6 +375,18 @@ function TimelineRow({
               {activity.status === "in_corso" && <span className="badge-in-corso mt-1">In corso</span>}
             </div>
             <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+              {showMaps && (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Apri posizione su Google Maps"
+                  onClick={(e) => e.stopPropagation()}
+                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:scale-90 transition-transform flex items-center justify-center shrink-0 border border-blue-100/50"
+                >
+                  <IcMapPin size={13} className="text-blue-600" />
+                </a>
+              )}
               {activity.hasQR && (
                 <button
                   onClick={(e) => {
@@ -376,18 +411,32 @@ function TimelineRow({
                 <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
               </div>
             </div>
-            {activity.hasQR && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onQRTap(activity);
-                }}
-                className="p-1.5 bg-gray-100 rounded-lg hover:bg-gray-200 active:scale-90 transition-transform flex items-center justify-center shrink-0"
-                title="Visualizza Biglietti"
-              >
-                <IcQR size={18} className="text-gray-400" />
-              </button>
-            )}
+            <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+              {showMaps && (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Apri posizione su Google Maps"
+                  onClick={(e) => e.stopPropagation()}
+                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:scale-90 transition-transform flex items-center justify-center shrink-0 border border-blue-100/50"
+                >
+                  <IcMapPin size={13} className="text-blue-600" />
+                </a>
+              )}
+              {activity.hasQR && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onQRTap(activity);
+                  }}
+                  className="p-1.5 bg-gray-100 rounded-lg hover:bg-gray-200 active:scale-90 transition-transform flex items-center justify-center shrink-0"
+                  title="Visualizza Biglietti"
+                >
+                  <IcQR size={18} className="text-gray-400" />
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="flex items-center justify-between gap-2.5">
@@ -398,19 +447,33 @@ function TimelineRow({
                 <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
               </div>
             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggle();
-              }}
-              className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
-              style={{
-                borderColor: completed ? "#10b981" : "#d1d5db",
-                backgroundColor: completed ? "#10b981" : "transparent"
-              }}
-            >
-              {completed && <span className="text-white text-[10px] font-bold">✓</span>}
-            </button>
+            <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+              {showMaps && (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Apri posizione su Google Maps"
+                  onClick={(e) => e.stopPropagation()}
+                  className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:scale-90 transition-transform flex items-center justify-center shrink-0 border border-blue-100/50"
+                >
+                  <IcMapPin size={13} className="text-blue-600" />
+                </a>
+              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle();
+                }}
+                className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
+                style={{
+                  borderColor: completed ? "#10b981" : "#d1d5db",
+                  backgroundColor: completed ? "#10b981" : "transparent"
+                }}
+              >
+                {completed && <span className="text-white text-[10px] font-bold">✓</span>}
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -669,6 +732,7 @@ export default function TodayView() {
                 onEdit={() => setEditingActivity({ dayId: today.id, activity: act, dayLabel: today.dateLabel })}
                 completed={completedActs.includes(act.id)}
                 onToggle={() => toggleActivity(act.id)}
+                dayLocation={today.location}
               />
             ))}
           </div>
