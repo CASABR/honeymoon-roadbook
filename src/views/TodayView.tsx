@@ -34,6 +34,33 @@ function getTodayAccommodation() {
   return ACCOMMODATIONS[0]; // primo alloggio del viaggio
 }
 
+export function cleanQueryForGeocoding(str: string): string {
+  return str
+    .replace(/\([^)]*\)/g, "") // Rimuove parentesi tonde e contenuto
+    .replace(/\[[^\]]*\]/g, "") // Rimuove parentesi quadre e contenuto
+    .replace(/—.*/g, "") // Rimuove trattini e contenuto successivo
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function getCachedTransitTime(act: Activity, nextAct?: Activity): string | undefined {
+  if (!nextAct) return undefined;
+  if (act.transitTime) return act.transitTime;
+  
+  const fromQuery = cleanQueryForGeocoding(`${act.title}, ${act.subtitle || ""}`);
+  const toQuery = cleanQueryForGeocoding(`${nextAct.title}, ${nextAct.subtitle || ""}`);
+  
+  const cacheKey = `hrb_route_${encodeURIComponent(fromQuery)}_${encodeURIComponent(toQuery)}`;
+  const cached = localStorage.getItem(cacheKey);
+  if (cached) {
+    try {
+      const { duration } = JSON.parse(cached);
+      return duration;
+    } catch (_) {}
+  }
+  return undefined;
+}
+
 export function parseTransitTimeToMinutes(timeStr?: string): number {
   if (!timeStr) return 0;
   const t = timeStr.toLowerCase().trim();
@@ -601,7 +628,11 @@ function AccoBanner({ acc }: { acc: ReturnType<typeof getTodayAccommodation> }) 
 }
 
 async function fetchDrivingDuration(fromQuery: string, toQuery: string): Promise<string | null> {
-  const cacheKey = `hrb_route_${encodeURIComponent(fromQuery)}_${encodeURIComponent(toQuery)}`;
+  const cleanFrom = cleanQueryForGeocoding(fromQuery);
+  const cleanTo = cleanQueryForGeocoding(toQuery);
+  if (!cleanFrom || !cleanTo) return null;
+
+  const cacheKey = `hrb_route_${encodeURIComponent(cleanFrom)}_${encodeURIComponent(cleanTo)}`;
   const cached = localStorage.getItem(cacheKey);
   if (cached) {
     try {
@@ -615,7 +646,7 @@ async function fetchDrivingDuration(fromQuery: string, toQuery: string): Promise
   if (!navigator.onLine) return null;
 
   try {
-    const fromRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fromQuery)}&limit=1`, {
+    const fromRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanFrom)}&limit=1`, {
       headers: { "User-Agent": "HoneymoonRoadbookApp/1.0" }
     });
     const fromData = await fromRes.json();
@@ -623,7 +654,7 @@ async function fetchDrivingDuration(fromQuery: string, toQuery: string): Promise
     const fromLon = fromData[0].lon;
     const fromLat = fromData[0].lat;
 
-    const toRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(toQuery)}&limit=1`, {
+    const toRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanTo)}&limit=1`, {
       headers: { "User-Agent": "HoneymoonRoadbookApp/1.0" }
     });
     const toData = await toRes.json();
@@ -694,7 +725,7 @@ export default function TodayView() {
       for (let i = 0; i < today.activities.length - 1; i++) {
         const act = today.activities[i];
         const nextAct = today.activities[i + 1];
-        if (nextAct.transitTime) continue;
+        if (act.transitTime) continue;
         if (!hasAddress(act) || !hasAddress(nextAct)) continue;
 
         const fromQuery = `${act.title}, ${act.subtitle || ""}`;
@@ -804,10 +835,7 @@ export default function TodayView() {
 
   const totalDriveMinutes = today ? today.activities.reduce((sum, act, idx) => {
     const nextAct = today.activities[idx + 1];
-    let timeStr = nextAct?.transitTime;
-    if (!timeStr && nextAct) {
-      timeStr = calculatedTransits[`${act.id}_to_${nextAct.id}`];
-    }
+    const timeStr = getCachedTransitTime(act, nextAct);
     return sum + parseTransitTimeToMinutes(timeStr);
   }, 0) : 0;
 
@@ -900,7 +928,7 @@ export default function TodayView() {
           <div className="space-y-0">
             {visibleActivities.map((act, idx) => {
               const nextAct = today.activities[idx + 1];
-              const transitTime = nextAct?.transitTime || calculatedTransits[`${act.id}_to_${nextAct?.id}`];
+              const transitTime = getCachedTransitTime(act, nextAct);
               return (
                 <TimelineRow
                   key={act.id}
