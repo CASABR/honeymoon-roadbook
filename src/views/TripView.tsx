@@ -207,7 +207,19 @@ function TripTimelineRow({
           style={{
             borderColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#2563eb" : "#d1d5db",
             backgroundColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#2563eb" : "#ffffff",
-              {/* Card */}
+          }}
+        />
+        {!isLast && (
+          <div
+            className="w-0.5 bg-gray-200 flex-1 my-1"
+            style={{
+              backgroundColor: completed ? "#10b981" : "#e5e7eb",
+            }}
+          />
+        )}
+      </div>
+
+      {/* Card */}
       <div className="flex-1">
         <div
           className={`min-w-0 mb-2 app-card p-3 ${editMode ? "" : "cursor-pointer"} ${isFirst ? "border-blue-200" : "bg-white/80"}`}
@@ -318,7 +330,7 @@ function TripTimelineRow({
           )}
         </div>
 
-        {/* Transition to next activity */}
+      {/* Transition to next activity */}
         {nextActivity && !editMode && (
           <div className="my-2 ml-4 flex items-center gap-2 text-[11px] text-gray-500 font-bold bg-white/40 border border-gray-100 rounded-xl px-2 py-1 w-fit shadow-xs">
             <span>🚗 {nextActivity.transitTime || "Guida"}</span>
@@ -331,12 +343,6 @@ function TripTimelineRow({
             >
               🗺️ Mappe
             </a>
-          </div>
-        )}
-      </div>{completed && <span className="text-white text-[10px] font-bold">✓</span>}
-                </button>
-              )}
-            </div>
           </div>
         )}
       </div>

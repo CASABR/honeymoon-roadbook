@@ -7,7 +7,7 @@ import {
 } from "../components/Icons";
 import { repository } from "../services/repository";
 import type { Checklist, DocumentItem, AttachmentItem, ChecklistItem } from "../services/repository";
-import { auth, googleProvider, linkWithPopup, signOut } from "../services/firebase";
+import { auth, /* googleProvider, linkWithPopup, */ signOut } from "../services/firebase";
 import { syncService } from "../services/sync";
 
 // ── Categorie Documento ───────────────────────────────────────────────────────
@@ -431,31 +431,32 @@ export default function AltroView() {
   const notesTimeoutRef = useRef<any>(null);
 
   const user = auth?.currentUser || (localStorage.getItem("hrb_local_auth_bypass") ? JSON.parse(localStorage.getItem("hrb_local_auth_bypass")!) : null);
-  const [isLinking, setIsLinking] = useState(false);
-  const [linkError, setLinkError] = useState<string | null>(null);
-
-  async function handleLinkGoogle() {
-    if (!auth || !auth.currentUser) {
-      alert("Il collegamento richiede che le chiavi Firebase siano configurate ed attive (non in modalità bypass locale).");
-      return;
-    }
-    setIsLinking(true);
-    setLinkError(null);
-    try {
-      await linkWithPopup(auth.currentUser, googleProvider);
-      alert("Account Google collegato con successo! I vostri dati sono ora pronti per la sincronizzazione cloud.");
-      window.location.reload();
-    } catch (err: any) {
-      console.error("Errore linking Google:", err);
-      if (err.code === "auth/credential-already-in-use") {
-        setLinkError("Questo account Google è già associato a un altro utente del Roadbook.");
-      } else {
-        setLinkError(err.message || "Errore durante il collegamento dell'account.");
-      }
-    } finally {
-      setIsLinking(false);
-    }
-  }
+  // Temporarily commented out to avoid unused variable errors:
+  // const [isLinking, setIsLinking] = useState(false);
+  // const [linkError, setLinkError] = useState<string | null>(null);
+  // 
+  // async function handleLinkGoogle() {
+  //   if (!auth || !auth.currentUser) {
+  //     alert("Il collegamento richiede che le chiavi Firebase siano configurate ed attive (non in modalità bypass locale).");
+  //     return;
+  //   }
+  //   setIsLinking(true);
+  //   setLinkError(null);
+  //   try {
+  //     await linkWithPopup(auth.currentUser, googleProvider);
+  //     alert("Account Google collegato con successo! I vostri dati sono ora pronti per la sincronizzazione cloud.");
+  //     window.location.reload();
+  //   } catch (err: any) {
+  //     console.error("Errore linking Google:", err);
+  //     if (err.code === "auth/credential-already-in-use") {
+  //       setLinkError("Questo account Google è già associato a un altro utente del Roadbook.");
+  //     } else {
+  //       setLinkError(err.message || "Errore durante il collegamento dell'account.");
+  //     }
+  //   } finally {
+  //     setIsLinking(false);
+  //   }
+  // }
 
   async function handleLogout() {
     if (window.confirm("Disconnettersi dall'applicazione?")) {
@@ -790,7 +791,7 @@ export default function AltroView() {
                     <div className="flex justify-between items-center">
                       <span>Accesso:</span>
                       <span className={`font-bold ${user.isAnonymous ? "text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md" : "text-green-600 bg-green-50 px-2 py-0.5 rounded-md"}`}>
-                        {user.isAnonymous ? "Ospite Temporaneo" : "Autenticato Google"}
+                        {user.isAnonymous ? "Ospite Temporaneo" : "Autenticato (Cloud)"}
                       </span>
                     </div>
                     {user.displayName && (
@@ -806,21 +807,7 @@ export default function AltroView() {
                       </div>
                     )}
 
-                    {/* Bottone di collegamento se è Guest */}
-                    {user.isAnonymous && user.uid !== "local-bypass-user" && (
-                      <div className="pt-2 border-t border-gray-200/60">
-                        <button
-                          onClick={handleLinkGoogle}
-                          disabled={isLinking}
-                          className="w-full py-2 bg-blue-600 hover:bg-blue-700 text-white font-extrabold rounded-lg text-[11px] transition-colors disabled:opacity-50"
-                        >
-                          {isLinking ? "Collegamento..." : "🔗 Collega Account Google"}
-                        </button>
-                        {linkError && (
-                          <p className="text-[10px] text-red-500 font-semibold mt-1">{linkError}</p>
-                        )}
-                      </div>
-                    )}
+                    {/* Bottone di collegamento Google temporaneamente rimosso */}
                   </div>
                 ) : (
                   <p className="text-gray-400 font-medium">Nessun utente collegato.</p>
@@ -885,7 +872,7 @@ export default function AltroView() {
 
               {/* Informazione archiviazione */}
               <div className="p-2.5 bg-blue-50/40 border border-blue-100/50 rounded-xl text-[11px] text-slate-500 leading-normal">
-                💡 <strong>Nota:</strong> Le note testuali, le checklist e le spese sono salvate localmente. Se collegate Google Auth, in futuro le preferenze e il diario verranno sincronizzati automaticamente con il cloud di Firebase Firestore. Le foto e i file allegati molto grandi rimangono custoditi localmente per massimizzare la velocità offline.
+                💡 <strong>Nota:</strong> Le note testuali, le checklist e le spese sono salvate localmente. Con l'accesso Email, le preferenze e il diario vengono sincronizzati automaticamente con il cloud di Firebase Firestore. Le foto e i file allegati molto grandi rimangono custoditi localmente per massimizzare la velocità offline.
               </div>
 
               {/* Bottoni Logout e Reset */}
