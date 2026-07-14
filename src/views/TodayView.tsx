@@ -43,9 +43,80 @@ export function cleanQueryForGeocoding(str: string): string {
     .trim();
 }
 
+export function extractDurationFromText(text?: string): string | null {
+  if (!text) return null;
+  const clean = text.toLowerCase().trim();
+  
+  // Riconosce formati come: 1h 30m, 1h30m, 2h, 45m
+  const hourMinMatch = clean.match(/(\d+)\s*h\s*(\d+)\s*m/);
+  if (hourMinMatch) return `${hourMinMatch[1]}h ${hourMinMatch[2]}m`;
+  
+  const hourMatch = clean.match(/(\d+)\s*h/);
+  if (hourMatch) {
+    const minMatch = clean.match(/(\d+)\s*m(?!i)/);
+    const minutes = minMatch ? ` ${minMatch[1]}m` : "";
+    return `${hourMatch[1]}h${minutes}`;
+  }
+  
+  const minOnlyMatch = clean.match(/(\d+)\s*m(in|inuti)?\b/);
+  if (minOnlyMatch && !clean.includes("h")) {
+    return `${minOnlyMatch[1]}m`;
+  }
+  
+  // Riconosce formati come: 2 ore, 1 ora, 15 minuti
+  const oreMatch = clean.match(/(\d+)\s*or(a|e)/);
+  const minutiMatch = clean.match(/(\d+)\s*minut(o|i)/);
+  if (oreMatch) {
+    const mins = minutiMatch ? ` ${minutiMatch[1]}m` : "";
+    return `${oreMatch[1]}h${mins}`;
+  }
+  if (minutiMatch) {
+    return `${minutiMatch[1]}m`;
+  }
+
+  // Riconosce formato HH:MM (es. 1:30 o 01:30)
+  const hhmmMatch = clean.match(/\b(\d{1,2}):(\d{2})\b/);
+  if (hhmmMatch) {
+    const h = parseInt(hhmmMatch[1]);
+    const m = parseInt(hhmmMatch[2]);
+    if (h > 0) {
+      return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    }
+    return `${m}m`;
+  }
+
+  return null;
+}
+
+export function cleanSubtitle(subtitle?: string): string | undefined {
+  if (!subtitle) return undefined;
+  
+  // Se il sottotitolo è interamente una durata, nascondilo
+  const duration = extractDurationFromText(subtitle);
+  if (duration && subtitle.trim().length <= duration.length + 3) {
+    return undefined;
+  }
+  
+  if (duration) {
+    // Altrimenti rimuovilo dal testo
+    const clean = subtitle
+      .replace(new RegExp(duration, "i"), "")
+      .replace(/\(\s*\)/g, "") // Parentesi vuote rimaste
+      .replace(/—\s*$/g, "") // Trattini pendenti rimasti
+      .trim();
+    return clean || undefined;
+  }
+  return subtitle;
+}
+
 export function getCachedTransitTime(act: Activity, nextAct?: Activity): string | undefined {
-  if (!nextAct) return undefined;
   if (act.transitTime) return act.transitTime;
+  
+  // Estrae il tempo dal sottotitolo o dal titolo dell'attività corrente
+  const extractedFromCurrent = extractDurationFromText(act.subtitle) || extractDurationFromText(act.title);
+  if (extractedFromCurrent) return extractedFromCurrent;
+  
+  if (!nextAct) return undefined;
   
   const fromQuery = cleanQueryForGeocoding(`${act.title}, ${act.subtitle || ""}`);
   const toQuery = cleanQueryForGeocoding(`${nextAct.title}, ${nextAct.subtitle || ""}`);
@@ -487,7 +558,7 @@ function TimelineRow({
                 <ActivityIcon type={activity.type} size={16} />
                 <div className="flex-1 min-w-0">
                   <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                  <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
+                  <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
@@ -523,7 +594,7 @@ function TimelineRow({
                 <ActivityIcon type={activity.type} size={16} />
                 <div className="flex-1 min-w-0">
                   <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                  <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
+                  <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
@@ -709,35 +780,76 @@ export default function TodayView() {
   }, []);
 
   useEffect(() => {
-    const today = tripDays.find((d) => d.id === selectedDayId);
-    if (!today || !today.activities) return;
+    if (tripDays.length === 0) return;
 
-    const calculateTransits = async () => {
-      for (let i = 0; i < today.activities.length - 1; i++) {
-        const act = today.activities[i];
-        const nextAct = today.activities[i + 1];
-        if (act.transitTime) continue;
-        if (!hasAddress(act) || !hasAddress(nextAct)) continue;
+    let isCancelled = false;
 
-        const fromQuery = `${act.title}, ${act.subtitle || ""}`;
-        const toQuery = `${nextAct.title}, ${nextAct.subtitle || ""}`;
-        const routeKey = `${act.id}_to_${nextAct.id}`;
+    const calculateAllTransits = async () => {
+      // Scorriamo tutti i giorni del viaggio
+      for (const day of tripDays) {
+        if (!day.activities || day.activities.length < 2) continue;
 
-        if (calculatedTransits[routeKey]) continue;
+        for (let i = 0; i < day.activities.length - 1; i++) {
+          if (isCancelled) return;
 
-        fetchDrivingDuration(fromQuery, toQuery).then((duration) => {
-          if (duration) {
-            setCalculatedTransits((prev) => ({
-              ...prev,
-              [routeKey]: duration,
-            }));
+          const act = day.activities[i];
+          const nextAct = day.activities[i + 1];
+
+          // Se ha già un transitTime manuale o estratto dal testo, non c'è bisogno di calcolarlo
+          if (act.transitTime || extractDurationFromText(act.subtitle) || extractDurationFromText(act.title)) {
+            continue;
           }
-        });
+
+          if (!hasAddress(act) || !hasAddress(nextAct)) continue;
+
+          const fromQuery = `${act.title}, ${act.subtitle || ""}`;
+          const toQuery = `${nextAct.title}, ${nextAct.subtitle || ""}`;
+          const routeKey = `${act.id}_to_${nextAct.id}`;
+
+          // Controlliamo se è già calcolato nello stato locale o presente in cache localStorage
+          const cleanFrom = cleanQueryForGeocoding(fromQuery);
+          const cleanTo = cleanQueryForGeocoding(toQuery);
+          const cacheKey = `hrb_route_${encodeURIComponent(cleanFrom)}_${encodeURIComponent(cleanTo)}`;
+          
+          if (calculatedTransits[routeKey] || localStorage.getItem(cacheKey)) {
+            // Se è già in cache, lo carichiamo nello stato locale se non c'è
+            if (!calculatedTransits[routeKey]) {
+              const cached = localStorage.getItem(cacheKey);
+              if (cached) {
+                try {
+                  const { duration } = JSON.parse(cached);
+                  setCalculatedTransits((prev) => ({ ...prev, [routeKey]: duration }));
+                } catch (_) {}
+              }
+            }
+            continue;
+          }
+
+          // Attendi 1.2 secondi per non sovraccaricare Nominatim ed evitare il rate limit
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+          if (isCancelled) return;
+
+          try {
+            const duration = await fetchDrivingDuration(fromQuery, toQuery);
+            if (duration) {
+              setCalculatedTransits((prev) => ({
+                ...prev,
+                [routeKey]: duration,
+              }));
+            }
+          } catch (err) {
+            console.error("Errore durante il recupero del percorso in background:", err);
+          }
+        }
       }
     };
 
-    calculateTransits();
-  }, [selectedDayId, tripDays]);
+    calculateAllTransits();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [tripDays]);
 
   useEffect(() => {
     if (isLoadedRef.current) {
