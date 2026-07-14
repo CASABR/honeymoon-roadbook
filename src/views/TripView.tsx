@@ -14,7 +14,7 @@ import {
   ActivityIcon,
 } from "../components/Icons";
 import { repository } from "../services/repository";
-import { parseTransitTimeToMinutes, formatMinutesToHoursAndMinutes, getCachedTransitTime } from "./TodayView";
+import { parseTransitTimeToMinutes, formatMinutesToHoursAndMinutes, getCachedTransitTime, cleanSubtitle } from "./TodayView";
 
 // ── Sheet per modificare un'attività esistente ────────────────────────────────
 function EditActivitySheet({
@@ -234,7 +234,7 @@ function TripTimelineRow({
                   Trasporto
                 </p>
                 <p className={`font-bold text-[14px] text-gray-900 leading-snug truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                <p className={`text-[11px] text-gray-400 truncate mt-0.5 ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
+                <p className={`text-[11px] text-gray-400 truncate mt-0.5 ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
                 {editMode ? (
@@ -281,7 +281,7 @@ function TripTimelineRow({
                   <p className={`font-semibold text-[13px] text-gray-800 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
                   <div className="flex items-center gap-0.5 mt-0.5">
                     <IcMapPin size={10} className="text-gray-400" />
-                    <p className={`text-[11px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{activity.subtitle}</p>
+                    <p className={`text-[11px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
                   </div>
                 </div>
               </div>
