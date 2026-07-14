@@ -14,6 +14,7 @@ import {
   ActivityIcon,
 } from "../components/Icons";
 import { repository } from "../services/repository";
+import { parseTransitTimeToMinutes, formatMinutesToHoursAndMinutes } from "./TodayView";
 
 // ── Sheet per modificare un'attività esistente ────────────────────────────────
 function EditActivitySheet({
@@ -332,16 +333,16 @@ function TripTimelineRow({
 
       {/* Transition to next activity */}
         {nextActivity && !editMode && (
-          <div className="my-2 ml-4 flex items-center gap-2 text-[11px] text-gray-500 font-bold bg-white/40 border border-gray-100 rounded-xl px-2 py-1 w-fit shadow-xs">
-            <span>🚗 {nextActivity.transitTime || "Guida"}</span>
+          <div className="my-2.5 ml-4 flex items-center gap-2 text-[11px] font-bold bg-blue-50/70 border border-blue-100/60 rounded-xl px-2.5 py-1.5 w-fit shadow-xs animate-fade-in text-blue-700">
+            <span className="flex items-center gap-1">🚗 Spostamento: <strong className="text-blue-800">{nextActivity.transitTime || "Guida"}</strong></span>
             <a
               href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${nextActivity.title}, ${nextActivity.subtitle}`)}`}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="text-blue-600 hover:text-blue-700 flex items-center gap-0.5 border-l border-gray-200 pl-2 ml-1 animate-pulse"
+              className="text-blue-600 hover:text-blue-800 flex items-center gap-0.5 border-l border-blue-200/80 pl-2 ml-1"
             >
-              🗺️ Mappe
+              🗺️ Naviga
             </a>
           </div>
         )}
@@ -734,6 +735,9 @@ export default function TripView() {
           const transportCount = day.activities.filter((a) => a.type === "transport").length;
           const activityCount = day.activities.length - transportCount;
 
+          const totalDriveMin = day.activities.reduce((sum, act) => sum + parseTransitTimeToMinutes(act.transitTime), 0);
+          const totalDriveStr = formatMinutesToHoursAndMinutes(totalDriveMin);
+
           let highlight = "Nessuna attività pianificata";
           if (day.activities.length > 0) {
             highlight = day.activities[0].title;
@@ -767,7 +771,7 @@ export default function TripView() {
                     </span>
                   </div>
 
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <p className="text-[14px] font-bold text-gray-900">{day.dateLabel}</p>
                       {isToday && (
@@ -780,17 +784,22 @@ export default function TripView() {
                       <IcMapPin size={11} className="text-gray-400 shrink-0" />
                       <p className="text-[12px] truncate font-medium">{day.location}</p>
                     </div>
-                    <p className="text-[11px] text-gray-400 mt-1 font-semibold">
-                      {activityCount > 0 && `${activityCount} att.`}
-                      {activityCount > 0 && transportCount > 0 && " · "}
-                      {transportCount > 0 && `${transportCount} trasp.`}
-                      {day.activities.length === 0 && "Riposo / Libero"}
-                      {day.activities.length > 0 && (
-                        <span className="text-gray-500 font-normal italic">
-                          {" — "}Highlight: {highlight}
+                    <div className="text-[11px] text-gray-400 mt-1 font-semibold flex items-center gap-1.5 flex-wrap">
+                      {activityCount > 0 && <span>{activityCount} att.</span>}
+                      {activityCount > 0 && transportCount > 0 && <span className="opacity-40">·</span>}
+                      {transportCount > 0 && <span>{transportCount} trasp.</span>}
+                      {totalDriveStr && (
+                        <span className="text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded font-extrabold text-[9.5px]">
+                          🚗 Guida: {totalDriveStr}
                         </span>
                       )}
-                    </p>
+                      {day.activities.length === 0 && <span>Riposo / Libero</span>}
+                      {day.activities.length > 0 && (
+                        <span className="text-gray-400 font-normal italic truncate max-w-[150px] md:max-w-xs ml-1">
+                          (H: {highlight})
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
