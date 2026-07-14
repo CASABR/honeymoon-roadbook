@@ -14,7 +14,7 @@ import {
   ActivityIcon,
 } from "../components/Icons";
 import { repository } from "../services/repository";
-import { parseTransitTimeToMinutes, formatMinutesToHoursAndMinutes } from "./TodayView";
+import { parseTransitTimeToMinutes, formatMinutesToHoursAndMinutes, getCachedTransitTime } from "./TodayView";
 
 // ── Sheet per modificare un'attività esistente ────────────────────────────────
 function EditActivitySheet({
@@ -191,6 +191,7 @@ function TripTimelineRow({
   editMode: boolean;
 }) {
   const isTransport = activity.type === "transport";
+  const transitTime = getCachedTransitTime(activity, nextActivity);
 
   return (
     <div className={`flex gap-3 items-start select-none transition-opacity ${completed ? "opacity-60" : ""}`}>
@@ -206,7 +207,7 @@ function TripTimelineRow({
         <div
           className="rounded-full flex-shrink-0 bg-white border-2 border-gray-300 w-4 h-4"
           style={{
-            borderColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#2563eb" : "#d1d5db",
+            borderColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#2563eb" : "#ffffff",
             backgroundColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#2563eb" : "#ffffff",
           }}
         />
@@ -221,7 +222,7 @@ function TripTimelineRow({
       </div>
 
       {/* Card */}
-      <div className="flex-1">
+      <div className="flex-1 min-w-0">
         <div
           className={`min-w-0 mb-2 app-card p-3 ${editMode ? "" : "cursor-pointer"} ${isFirst ? "border-blue-200" : "bg-white/80"}`}
           onClick={editMode ? undefined : onEdit}
@@ -334,7 +335,7 @@ function TripTimelineRow({
       {/* Transition to next activity */}
         {nextActivity && !editMode && (
           <div className="my-2.5 ml-4 flex items-center gap-2 text-[11px] font-bold bg-blue-50/70 border border-blue-100/60 rounded-xl px-2.5 py-1.5 w-fit shadow-xs animate-fade-in text-blue-700">
-            <span className="flex items-center gap-1">🚗 Spostamento: <strong className="text-blue-800">{nextActivity.transitTime || "Guida"}</strong></span>
+            <span className="flex items-center gap-1">🚗 Spostamento: <strong className="text-blue-800">{transitTime || "Guida"}</strong></span>
             <a
               href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${nextActivity.title}, ${nextActivity.subtitle}`)}`}
               target="_blank"
@@ -735,7 +736,11 @@ export default function TripView() {
           const transportCount = day.activities.filter((a) => a.type === "transport").length;
           const activityCount = day.activities.length - transportCount;
 
-          const totalDriveMin = day.activities.reduce((sum, act) => sum + parseTransitTimeToMinutes(act.transitTime), 0);
+          const totalDriveMin = day.activities.reduce((sum, act, actIdx) => {
+            const nextAct = day.activities[actIdx + 1];
+            const timeStr = getCachedTransitTime(act, nextAct);
+            return sum + parseTransitTimeToMinutes(timeStr);
+          }, 0);
           const totalDriveStr = formatMinutesToHoursAndMinutes(totalDriveMin);
 
           let highlight = "Nessuna attività pianificata";
