@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
-import { auth, onAuthStateChanged, getRedirectResult } from "./services/firebase";
+import { auth, /* onAuthStateChanged, getRedirectResult, */ signInWithEmailAndPassword, createUserWithEmailAndPassword } from "./services/firebase";
 import { syncService } from "./services/sync";
 import BottomNav from "./components/BottomNav";
 import LoginView from "./views/LoginView";
@@ -10,109 +10,74 @@ import AccommodationsView from "./views/AccommodationsView";
 import TransportsView from "./views/TransportsView";
 import BudgetView from "./views/BudgetView";
 import AltroView from "./views/AltroView";
-import TripOnboarding from "./components/TripOnboarding";
+// import TripOnboarding from "./components/TripOnboarding";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
-  const [needsOnboarding, setNeedsOnboarding] = useState(false);
-  const [needsTripOnboarding, setNeedsTripOnboarding] = useState(false);
+  // const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  // const [needsTripOnboarding, setNeedsTripOnboarding] = useState(false);
 
   useEffect(() => {
-    // 1. Controlla se c'è un bypass locale attivo in localStorage
-    const localBypass = localStorage.getItem("hrb_local_auth_bypass");
-    if (localBypass) {
-      try {
-        const parsed = JSON.parse(localBypass);
-        setCurrentUser(parsed);
-        if (localStorage.getItem("hrb_trip_onboarding_done") !== "true") {
-          setNeedsTripOnboarding(true);
-        }
+    const handleSilentAuth = async () => {
+      // 1. If Firebase is not configured, fall back to local shared user immediately
+      if (!auth) {
+        console.warn("[AUTH] Firebase not configured. Using local fallback.");
+        setCurrentUser({
+          uid: "shared-roadbook-user",
+          isAnonymous: false,
+          displayName: "Sposi",
+          email: "sposi@local.roadbook"
+        });
         setIsAuthChecking(false);
         return;
-      } catch (e) {
-        localStorage.removeItem("hrb_local_auth_bypass");
       }
-    }
 
-    // 2. Altrimenti usa Firebase Auth
-    if (!auth) {
-      setIsAuthChecking(false);
-      return;
-    }
+      // 2. Try automatic login with fixed account to keep devices synced
+      const email = "sposi@viaggiodinozze.it";
+      const password = "viaggiodinozze2026";
 
-    let redirectResolved = false;
-    let authStateResolved = false;
-
-    // Timeout di sicurezza per sbloccare l'app come fallback finale (6 secondi)
-    const safetyTimeout = setTimeout(() => {
-      console.warn("[AUTH DEBUG] Safety timeout triggered! Sblocco forzato del gating.");
-      setIsAuthChecking(false);
-    }, 6000);
-
-    const resolveGating = () => {
-      if (redirectResolved && authStateResolved) {
-        clearTimeout(safetyTimeout);
+      try {
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        console.log("[AUTH] Silent login successful:", userCredential.user.uid);
+        setCurrentUser(userCredential.user);
+      } catch (err: any) {
+        console.warn("[AUTH] Silent login failed, attempting user registration...", err.code);
+        if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-disabled") {
+          try {
+            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+            console.log("[AUTH] Silent registration and login successful:", userCredential.user.uid);
+            setCurrentUser(userCredential.user);
+          } catch (regErr) {
+            console.error("[AUTH] Silent registration failed. Falling back to local user.", regErr);
+            setCurrentUser({
+              uid: "shared-roadbook-user",
+              isAnonymous: false,
+              displayName: "Sposi",
+              email: "sposi@local.roadbook"
+            });
+          }
+        } else {
+          // Other errors (e.g. network offline), check if we already have a cached user session:
+          if (auth.currentUser) {
+            console.log("[AUTH] Using existing Firebase session:", auth.currentUser.uid);
+            setCurrentUser(auth.currentUser);
+          } else {
+            console.warn("[AUTH] Offline/Error fallback to local shared user.");
+            setCurrentUser({
+              uid: "shared-roadbook-user",
+              isAnonymous: false,
+              displayName: "Sposi",
+              email: "sposi@local.roadbook"
+            });
+          }
+        }
+      } finally {
         setIsAuthChecking(false);
       }
     };
 
-    const checkUserProfile = async (user: any) => {
-      if (user && !user.isAnonymous && user.uid !== "local-bypass-user") {
-        console.log("[AUTH DEBUG] Inizio checkUserProfile per:", user.uid);
-        try {
-          const profile = await syncService.getOrCreateUserProfile(user);
-          console.log("[AUTH DEBUG] checkUserProfile completato. Onboarding completato:", profile.onboardingCompleted);
-          if (!profile.onboardingCompleted) {
-            setNeedsOnboarding(true);
-          }
-        } catch (e) {
-          console.error("[AUTH DEBUG] Errore verifica profilo utente:", e);
-        }
-      }
-
-      if (user && localStorage.getItem("hrb_trip_onboarding_done") !== "true") {
-        setNeedsTripOnboarding(true);
-      }
-    };
-
-    console.log("[AUTH DEBUG] Invocazione getRedirectResult...");
-    getRedirectResult(auth)
-      .then(async (result) => {
-        console.log("[AUTH DEBUG] getRedirectResult completato:", result ? (result.user ? result.user.uid : "no user") : "null");
-        if (result && result.user) {
-          setCurrentUser(result.user);
-          await checkUserProfile(result.user);
-        }
-      })
-      .catch((err) => {
-        console.error("[AUTH DEBUG] Errore getRedirectResult:", err);
-      })
-      .finally(() => {
-        redirectResolved = true;
-        resolveGating();
-      });
-
-    console.log("[AUTH DEBUG] Registrazione onAuthStateChanged...");
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      console.log("[AUTH DEBUG] onAuthStateChanged rilevato:", user ? user.uid : "nessun utente");
-      setCurrentUser(user);
-      if (user) {
-        checkUserProfile(user).finally(() => {
-          authStateResolved = true;
-          redirectResolved = true; // Sblocca immediatamente se loggato
-          resolveGating();
-        });
-      } else {
-        authStateResolved = true;
-        resolveGating();
-      }
-    });
-
-    return () => {
-      clearTimeout(safetyTimeout);
-      unsubscribe();
-    };
+    handleSilentAuth();
   }, []);
 
   useEffect(() => {
@@ -137,6 +102,8 @@ export default function App() {
     return <LoginView />;
   }
 
+  // Onboarding screens bypassed for direct access to "Oggi" view
+  /*
   if (needsOnboarding) {
     return (
       <OnboardingScreen 
@@ -149,6 +116,7 @@ export default function App() {
   if (needsTripOnboarding) {
     return <TripOnboarding />;
   }
+  */
 
   return (
     <div className="app-shell">
@@ -168,6 +136,8 @@ export default function App() {
   );
 }
 
+// OnboardingScreen commented out to avoid unused variable compiler errors
+/*
 function OnboardingScreen({ user, onComplete }: { user: any; onComplete: () => void }) {
   const [name, setName] = useState(user.displayName || "Viaggiatore");
   const [isSaving, setIsSaving] = useState(false);
@@ -222,3 +192,4 @@ function OnboardingScreen({ user, onComplete }: { user: any; onComplete: () => v
     </div>
   );
 }
+*/
