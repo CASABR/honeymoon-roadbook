@@ -332,19 +332,10 @@ function TripTimelineRow({
           )}
         </div>
 
-      {/* Transition to next activity */}
+        {/* Transition to next activity */}
         {nextActivity && !editMode && (
-          <div className="my-2.5 ml-4 flex items-center gap-2 text-[11px] font-bold bg-blue-50/70 border border-blue-100/60 rounded-xl px-2.5 py-1.5 w-fit shadow-xs animate-fade-in text-blue-700">
-            <span className="flex items-center gap-1">🚗 Spostamento: <strong className="text-blue-800">{transitTime || "Guida"}</strong></span>
-            <a
-              href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${nextActivity.title}, ${nextActivity.subtitle}`)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="text-blue-600 hover:text-blue-800 flex items-center gap-0.5 border-l border-blue-200/80 pl-2 ml-1"
-            >
-              🗺️ Naviga
-            </a>
+          <div className="my-1.5 ml-4 text-[11px] font-bold text-blue-600/95 flex items-center gap-1">
+            <span>🚗 {transitTime || "Guida"}</span>
           </div>
         )}
       </div>
