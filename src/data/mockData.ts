@@ -56,6 +56,7 @@ export interface Accommodation {
   // Campi pronti per import futuro Gmail/Google:
   source?: "manual" | "gmail" | "google_calendar" | "booking";
   confirmationCode?: string;
+  cancellationDeadline?: string; // Data ultima cancellazione
   updatedAt?: number;
   startDate?: string; // ISO YYYY-MM-DD
   endDate?: string; // ISO YYYY-MM-DD

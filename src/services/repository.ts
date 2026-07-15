@@ -85,6 +85,7 @@ export const repository = {
   },
   async saveTripDays(days: DayData[]): Promise<void> {
     await kvStorage.set("hrb_trip_days_v2", days);
+    window.dispatchEvent(new CustomEvent("hrb_tripdays_change", { detail: days }));
   },
 
   // Attività completate (spunte)
@@ -116,6 +117,7 @@ export const repository = {
   },
   async saveTransports(transports: Transport[]): Promise<void> {
     await kvStorage.set("hrb_transports_v3", transports);
+    window.dispatchEvent(new CustomEvent("hrb_transports_change", { detail: transports }));
   },
 
   // Alloggi
