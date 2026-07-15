@@ -777,6 +777,75 @@ export default function BudgetView() {
         })}
       </div>
 
+      {/* ── Checklist Attività ────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="section-label">Checklist Attività & Prenotazioni</h2>
+        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Spunta per Pagato</span>
+      </div>
+      <div className="card p-3 mb-5 space-y-2 max-h-[300px] overflow-y-auto shadow-sm border border-gray-100/80">
+        {tripDays.flatMap(day => day.activities.map(act => ({ day, act }))).length === 0 ? (
+          <p className="text-[12px] text-gray-400 italic text-center py-4 bg-white">
+            Nessuna attività programmata nell'itinerario.
+          </p>
+        ) : (
+          tripDays.flatMap(day => day.activities.map(act => ({ day, act }))).map(({ day, act }) => (
+            <div key={act.id} className="flex items-center justify-between gap-3 p-2 hover:bg-gray-50/50 rounded-xl transition-colors border-b border-gray-50/50 last:border-0">
+              <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                {/* Checkbox per prenotato/pagato */}
+                <button
+                  onClick={() => handleUpdateActivity(act)}
+                  className="mt-0.5 w-4.5 h-4.5 rounded border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95 bg-white"
+                  style={{
+                    borderColor: act.isPaid ? "#10b981" : "#d1d5db",
+                    backgroundColor: act.isPaid ? "#10b981" : "#ffffff"
+                  }}
+                >
+                  {act.isPaid && <span className="text-white text-[9.5px] font-bold">✓</span>}
+                </button>
+                <div className="min-w-0">
+                  <p className={`text-[12.5px] font-bold text-gray-800 leading-snug truncate ${act.isPaid ? "line-through text-gray-400" : ""}`}>
+                    {act.title}
+                  </p>
+                  <p className="text-[10.5px] text-gray-455">
+                    Giorno {day.dayNumber} ({day.dateShort} {day.monthShort}) {act.subtitle ? `· ${act.subtitle}` : ""}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Prezzo interattivo */}
+              <button
+                onClick={() => {
+                  const val = window.prompt(`Modifica prezzo per: ${act.title}`, act.price !== undefined ? String(act.price) : "");
+                  if (val !== null) {
+                    const parsed = parseFloat(val.replace(",", "."));
+                    const nextAct = { ...act, price: isNaN(parsed) || parsed <= 0 ? undefined : parsed };
+                    const nextDays = tripDays.map((d) => {
+                      const hasAct = d.activities.some((a) => a.id === act.id);
+                      if (hasAct) {
+                        const nextActs = d.activities.map((a) =>
+                          a.id === act.id ? nextAct : a
+                        );
+                        return { ...d, activities: nextActs };
+                      }
+                      return d;
+                    });
+                    setTripDays(nextDays);
+                    repository.saveTripDays(nextDays);
+                  }
+                }}
+                className={`text-[11px] px-2 py-1 rounded font-black shrink-0 transition-colors ${
+                  act.price !== undefined
+                    ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                }`}
+              >
+                {act.price !== undefined ? `€${act.price}` : "+ Prezzo"}
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
       {/* ── Movimenti recenti ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="section-label">Movimenti manuali & Extra</h2>
