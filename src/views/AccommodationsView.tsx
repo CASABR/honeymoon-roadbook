@@ -23,6 +23,7 @@ const EMPTY_FORM = {
   note: "",
   mapsUrl: "",
   price: "",
+  isPaid: false, // flag pagamento
 };
 
 // ── Bottom sheet per aggiungere alloggio ──────────────────────────────────────
@@ -35,7 +36,7 @@ function AddAccoSheet({
 }) {
   const [form, setForm] = useState(EMPTY_FORM);
 
-  function handleChange(field: keyof typeof EMPTY_FORM, value: string) {
+  function handleChange(field: keyof typeof EMPTY_FORM, value: any) {
     setForm((f) => ({ ...f, [field]: value }));
   }
 
@@ -53,6 +54,7 @@ function AddAccoSheet({
       note: form.note.trim() || undefined,
       mapsUrl: form.mapsUrl.trim() || undefined,
       price: isNaN(parsedPrice) ? undefined : parsedPrice,
+      isPaid: form.isPaid,
     };
     onSave(newAcc);
     onClose();
@@ -143,6 +145,25 @@ function AddAccoSheet({
             placeholder="https://maps.google.com/..."
             onChange={(v) => handleChange("mapsUrl", v)}
           />
+
+          {/* Toggle Pagato */}
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 mt-2">
+            <div>
+              <p className="text-[12.5px] font-bold text-gray-800">Stato pagamento</p>
+              <p className="text-[10px] text-gray-400">Questo alloggio è già stato bloccato/pagato?</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleChange("isPaid", !form.isPaid)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
+                form.isPaid
+                  ? "bg-green-150 text-green-700 border border-green-200"
+                  : "bg-red-50 text-red-500 border border-red-100"
+              }`}
+            >
+              {form.isPaid ? "✅ Pagato" : "⏳ Da pagare"}
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 mt-5">
@@ -231,11 +252,20 @@ function AccoCard({ acc, onOpenDetail }: { acc: Accommodation; onOpenDetail: () 
           
           <div className="flex items-center justify-between mt-1.5 flex-wrap gap-2">
             <p className="text-[12px] font-semibold text-gray-500">{acc.dates}</p>
-            {acc.price !== undefined && (
-              <span className="text-[13px] font-extrabold text-blue-600 shrink-0">
-                € {typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase ${
+                acc.isPaid
+                  ? "bg-green-50 text-green-600 border border-green-150"
+                  : "bg-red-50 text-red-500 border border-red-100"
+              }`}>
+                {acc.isPaid ? "Pagato" : "Da pagare"}
               </span>
-            )}
+              {acc.price !== undefined && (
+                <span className="text-[13px] font-extrabold text-blue-600">
+                  € {typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -263,10 +293,12 @@ function DetailAccoSheet({
   acc,
   onClose,
   onDelete,
+  onUpdate,
 }: {
   acc: Accommodation;
   onClose: () => void;
   onDelete: () => void;
+  onUpdate: (updated: Accommodation) => void;
 }) {
   const mapsUrl = acc.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${acc.name}, ${acc.city}`)}`;
   
@@ -313,6 +345,24 @@ function DetailAccoSheet({
               <p className="text-[9px] font-bold text-gray-400 uppercase">Date Soggiorno</p>
               <p className="font-semibold text-gray-800">{acc.dates}</p>
             </div>
+          </div>
+
+          {/* Toggle stato pagamento al volo */}
+          <div className="flex items-center justify-between p-3 bg-blue-50/30 border border-blue-100/50 rounded-xl">
+            <div>
+              <p className="text-[12.5px] font-bold text-gray-850">Stato Pagamento</p>
+              <p className="text-[10px] text-gray-400 font-medium">Tocca il badge per cambiare stato</p>
+            </div>
+            <button
+              onClick={() => onUpdate({ ...acc, isPaid: !acc.isPaid })}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors active:scale-95 ${
+                acc.isPaid
+                  ? "bg-green-100 text-green-700 border border-green-200"
+                  : "bg-red-50 text-red-500 border border-red-100"
+              }`}
+            >
+              {acc.isPaid ? "✅ Pagato" : "⏳ Da pagare"}
+            </button>
           </div>
 
           <div className="space-y-2.5">
@@ -589,6 +639,10 @@ export default function AccommodationsView() {
           acc={selectedAcco} 
           onClose={() => setSelectedAcco(null)} 
           onDelete={() => handleDeleteAcco(selectedAcco.id)}
+          onUpdate={(updated) => {
+            setAccos(prev => prev.map(a => a.id === updated.id ? updated : a));
+            setSelectedAcco(updated);
+          }}
         />
       )}
 

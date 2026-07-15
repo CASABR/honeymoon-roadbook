@@ -24,6 +24,8 @@ export interface Activity {
   imageUrl?: string;
   note?: string;
   transitTime?: string;
+  price?: number; // Prezzo dell'attività
+  isPaid?: boolean; // Stato di pagamento
 }
 
 export interface DayData {
@@ -50,6 +52,7 @@ export interface Accommodation {
   mapsUrl?: string;
   imageUrl?: string;
   price?: number; // Prezzo dell'alloggio
+  isPaid?: boolean; // Stato di pagamento
   // Campi pronti per import futuro Gmail/Google:
   source?: "manual" | "gmail" | "google_calendar" | "booking";
   confirmationCode?: string;
@@ -72,6 +75,7 @@ export interface Transport {
   detail?: string;
   status?: string;
   note?: string;
+  isPaid?: boolean; // Stato di pagamento
   // Campi dettaglio (da vecchio progetto)
   arrivalTime?: string;
   bookingRef?: string;

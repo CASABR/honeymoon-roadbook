@@ -35,10 +35,22 @@ function EditActivitySheet({
   const [title, setTitle] = useState(activity.title);
   const [subtitle, setSubtitle] = useState(activity.subtitle);
   const [transitTime, setTransitTime] = useState(activity.transitTime || "");
+  const [price, setPrice] = useState(activity.price ? String(activity.price) : "");
+  const [isPaid, setIsPaid] = useState(!!activity.isPaid);
 
   function handleSubmit() {
     if (!title.trim() || !time.trim()) return;
-    onSave({ ...activity, time: time.trim(), type, title: title.trim(), subtitle: subtitle.trim(), transitTime: transitTime.trim() || undefined });
+    const parsedPrice = parseFloat(price.replace(",", "."));
+    onSave({ 
+      ...activity, 
+      time: time.trim(), 
+      type, 
+      title: title.trim(), 
+      subtitle: subtitle.trim(), 
+      transitTime: transitTime.trim() || undefined,
+      price: isNaN(parsedPrice) ? undefined : parsedPrice,
+      isPaid
+    });
     onClose();
   }
 
@@ -122,14 +134,26 @@ function EditActivitySheet({
               />
             </div>
           </div>
-          <div>
-            <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
-            <input
-              type="text"
-              value={subtitle}
-              onChange={(e) => setSubtitle(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-            />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
+              <input
+                type="text"
+                value={subtitle}
+                onChange={(e) => setSubtitle(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+              />
+            </div>
+            <div className="w-1/3">
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
+              <input
+                type="text"
+                value={price}
+                placeholder="es. 50"
+                onChange={(e) => setPrice(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+              />
+            </div>
           </div>
           <div>
             <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento (es. 1h 30m)</label>
@@ -140,6 +164,25 @@ function EditActivitySheet({
               onChange={(e) => setTransitTime(e.target.value)}
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
             />
+          </div>
+
+          {/* Toggle Pagato */}
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 mt-2">
+            <div>
+              <p className="text-[12.5px] font-bold text-gray-800">Stato pagamento</p>
+              <p className="text-[10px] text-gray-400 font-medium">Questa attività è già stata bloccata/pagata?</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPaid(!isPaid)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
+                isPaid
+                  ? "bg-green-150 text-green-700 border border-green-200"
+                  : "bg-red-50 text-red-500 border border-red-100"
+              }`}
+            >
+              {isPaid ? "✅ Pagato" : "⏳ Da pagare"}
+            </button>
           </div>
         </div>
 
@@ -278,7 +321,18 @@ function TripTimelineRow({
               <div className="flex items-center gap-3 min-w-0 flex-1">
                 <ActivityIcon type={activity.type} size={15} />
                 <div className="flex-1 min-w-0">
-                  <p className={`font-semibold text-[13px] text-gray-800 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className={`font-semibold text-[13px] text-gray-850 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                    {activity.price !== undefined && (
+                      <span className={`text-[8px] font-extrabold px-1 py-0.2 rounded uppercase shrink-0 ${
+                        activity.isPaid
+                          ? "bg-green-55 text-green-600 border border-green-100"
+                          : "bg-red-50 text-red-500 border border-red-100"
+                      }`}>
+                        €{activity.price} · {activity.isPaid ? "Pagato" : "Da pagare"}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-0.5 mt-0.5">
                     <IcMapPin size={10} className="text-gray-400" />
                     <p className={`text-[11px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
