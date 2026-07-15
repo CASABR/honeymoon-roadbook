@@ -495,12 +495,6 @@ export default function AccommodationsView() {
     return () => window.removeEventListener("hrb_accommodations_change", handler as EventListener);
   }, []);
 
-  useEffect(() => {
-    if (isLoadedRef.current) {
-      repository.saveAccommodations(accos);
-    }
-  }, [accos]);
-
   // Rileva problemi per il banner
   useEffect(() => {
     async function checkIssues() {
@@ -526,13 +520,16 @@ export default function AccommodationsView() {
   }, [accos, transports, showVerification]);
 
   function handleSave(acc: Accommodation) {
-    setAccos((prev) => [...prev, acc]);
+    const next = [...accos, acc];
+    setAccos(next);
+    repository.saveAccommodations(next);
   }
 
   function handleDeleteAcco(id: string) {
     if (window.confirm("Sei sicuro di voler eliminare questa prenotazione?")) {
       const updated = accos.filter((a) => a.id !== id);
       setAccos(updated);
+      repository.saveAccommodations(updated);
       setSelectedAcco(null);
     }
   }

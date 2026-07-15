@@ -798,23 +798,26 @@ export default function TransportsView() {
   }, []);
 
   useEffect(() => {
-    if (isLoadedRef.current) {
-      repository.saveTransports(transports);
-    }
-  }, [transports]);
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setTransports(detail);
+    };
+    window.addEventListener("hrb_transports_change", handler as EventListener);
+    return () => window.removeEventListener("hrb_transports_change", handler as EventListener);
+  }, []);
 
   function handleSave(tr: Transport) {
-    setTransports((prev) => {
-      const exists = prev.some((item) => item.id === tr.id);
-      let next: Transport[];
-      if (exists) {
-        next = prev.map((item) => (item.id === tr.id ? tr : item));
-      } else {
-        next = [...prev, tr];
-      }
-      next.sort((a, b) => `${a.date}T${a.time || "00:00"}`.localeCompare(`${b.date}T${b.time || "00:00"}`));
-      return next;
-    });
+    let next: Transport[];
+    const exists = transports.some((item) => item.id === tr.id);
+    if (exists) {
+      next = transports.map((item) => (item.id === tr.id ? tr : item));
+    } else {
+      next = [...transports, tr];
+    }
+    next.sort((a, b) => `${a.date}T${a.time || "00:00"}`.localeCompare(`${b.date}T${b.time || "00:00"}`));
+    setTransports(next);
+    repository.saveTransports(next);
+
     // Se la scheda dettaglio è aperta, la aggiorniamo per riflettere le modifiche (QR compresi)
     if (selected && selected.id === tr.id) {
       setSelected(tr);
@@ -823,7 +826,9 @@ export default function TransportsView() {
   }
 
   function handleDelete(id: string) {
-    setTransports((prev) => prev.filter((item) => item.id !== id));
+    const next = transports.filter((item) => item.id !== id);
+    setTransports(next);
+    repository.saveTransports(next);
   }
 
   if (isLoading) {
