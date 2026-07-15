@@ -363,6 +363,7 @@ function AddExpenseSheet({
   const [label, setLabel] = useState("");
   const [amountStr, setAmountStr] = useState("");
   const [category, setCategory] = useState<BudgetEntry["category"]>("Cibo & Extra");
+  const [isPaid, setIsPaid] = useState(true); // default true per farla comparire nei saldati
 
   function handleSubmit() {
     const amt = parseFloat(amountStr.replace(",", "."));
@@ -379,6 +380,7 @@ function AddExpenseSheet({
       label: label.trim(),
       amount: amt,
       category,
+      isPaid: isPaid,
     };
     onSave(newEntry);
     onClose();
@@ -434,6 +436,24 @@ function AddExpenseSheet({
               ))}
             </div>
           </div>
+
+          {/* Toggle Stato Pagamento della nuova spesa */}
+          <div className="flex items-center justify-between p-3 bg-gray-50 border border-gray-100 rounded-xl">
+            <div>
+              <p className="text-[12.5px] font-bold text-gray-800">Spesa già pagata / saldata</p>
+              <p className="text-[10px] text-gray-400 font-medium">Contrassegna come già saldato</p>
+            </div>
+            <button
+              onClick={() => setIsPaid(!isPaid)}
+              className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold uppercase transition-colors active:scale-95 border ${
+                isPaid
+                  ? "bg-green-50 text-green-600 border-green-200"
+                  : "bg-red-50 text-red-500 border-red-150"
+              }`}
+            >
+              {isPaid ? "💳 Pagato" : "⏳ Da pagare"}
+            </button>
+          </div>
         </div>
 
         <div className="flex gap-2 mt-5">
@@ -471,6 +491,7 @@ export default function BudgetView() {
 
   const [selectedCat, setSelectedCat] = useState<string | null>(null);
   const [showAddExpense, setShowAddExpense] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     async function initData() {
@@ -924,9 +945,6 @@ export default function BudgetView() {
               </p>
             );
           }
-
-          // State per gestire quale spesa è espansa al tap
-          const [expandedId, setExpandedId] = useState<string | null>(null);
 
           return paidEntries.map((entry) => {
             const isExpanded = expandedId === entry.id;

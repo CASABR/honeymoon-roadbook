@@ -1345,6 +1345,7 @@ export const TRANSPORTS: Transport[] = [
     segments: [
       { from: "MPH", to: "ENI", departure: "2027-01-01 15:50", arrival: "2027-01-01 17:00", operator: "Cebu Pacific / Cebgo" },
     ],
+    price: 386.28,
   },
   {
     id: "tr-flight-usu-ceb",
@@ -1360,6 +1361,7 @@ export const TRANSPORTS: Transport[] = [
     confirmationCode: "PR2681",
     baggageNote: "1 bagaglio stiva fino a 15 kg · Posto 06C",
     importantNote: "Giusy Reale Mrs · posto 06C confermato con supplemento",
+    price: 107.16,
   },
   {
     id: "tr-flight-ceb-fco",
@@ -1380,6 +1382,7 @@ export const TRANSPORTS: Transport[] = [
       { from: "TPE", to: "FCO", departure: "2027-01-09 23:25", arrival: "2027-01-10 07:15", operator: "China Airlines", flightNumber: "CI0075" },
     ],
     layoverCity: "Taipei",
+    price: 1404.70,
   },
   {
     id: "tr-car-picanto",

@@ -216,11 +216,22 @@ function TransportDetailSheet({
           </div>
         )}
 
-        {/* Toggle stato pagamento al volo */}
-        <div className="flex items-center justify-between p-3 bg-blue-50/30 border border-blue-100/50 rounded-2xl mb-4">
+        {/* Toggle stato pagamento al volo e Prezzo */}
+        <div className="flex items-center justify-between p-3 bg-blue-50/30 border border-blue-100/50 rounded-2xl mb-4 gap-2">
           <div>
-            <p className="text-[12.5px] font-bold text-gray-850">Stato Pagamento</p>
-            <p className="text-[10px] text-gray-400 font-medium">Tocca il badge per cambiare stato</p>
+            <p className="text-[12.5px] font-bold text-gray-850">Prezzo & Pagamento</p>
+            <button
+              onClick={() => {
+                const val = window.prompt(`Modifica prezzo per questa tratta`, tr.price !== undefined ? String(tr.price) : "");
+                if (val !== null) {
+                  const parsed = parseFloat(val.replace(",", "."));
+                  onSave({ ...tr, price: isNaN(parsed) || parsed <= 0 ? undefined : parsed });
+                }
+              }}
+              className="text-[12px] font-black text-blue-600 underline mt-0.5 block text-left"
+            >
+              {tr.price !== undefined ? `Prezzo: €${tr.price}` : "+ Inserisci prezzo"}
+            </button>
           </div>
           <button
             onClick={() => onSave({ ...tr, isPaid: !tr.isPaid })}
