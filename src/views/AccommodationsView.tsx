@@ -4,6 +4,7 @@ import type { Accommodation, Transport } from "../data/mockData";
 import { IcMapPin, IcChevronRight, IcPlus } from "../components/Icons";
 import { repository } from "../services/repository";
 import BookingVerificationView from "../components/BookingVerificationView";
+import SwipeToDelete from "../components/SwipeToDelete";
 import {
   getUnifiedBookings,
   detectOverlaps,
@@ -239,42 +240,42 @@ function AccoCard({ acc, onOpenDetail }: { acc: Accommodation; onOpenDetail: () 
           />
         )}
         <div className="flex-1 p-3 min-w-0 pr-12">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <p className="font-bold text-[14px] text-gray-900 leading-snug truncate">{acc.name}</p>
-            {acc.status && (
-              <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-extrabold uppercase shrink-0 ${
-                acc.status === "confermata" || acc.status === "confermato"
-                  ? "bg-green-50 text-green-600 border border-green-100"
-                  : "bg-amber-50 text-amber-600 border border-amber-100"
-              }`}>
-                {acc.status}
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-0.5 mt-0.5 mb-1">
+          <p className="font-bold text-[14px] text-gray-900 leading-snug truncate">{acc.name}</p>
+          <div className="flex items-center gap-0.5 mt-0.5 mb-1.5">
             <IcMapPin size={11} className="text-gray-400" />
             <p className="text-[12px] text-gray-400 truncate">
               {acc.area ? `${acc.area}, ${acc.city}` : acc.city}
             </p>
           </div>
           
-          <div className="flex items-center justify-between mt-1.5 flex-wrap gap-2">
+          <div className="flex items-end justify-between gap-2 flex-wrap">
             <div className="min-w-0">
               <p className="text-[12px] font-semibold text-gray-500">{acc.dates}</p>
               {acc.cancellationDeadline && (
                 <p className="text-[9.5px] font-black text-red-500 mt-0.5 uppercase tracking-wide">
-                  ⌛ Canc. entro: {acc.cancellationDeadline}
+                  ⏳ Canc. entro: {acc.cancellationDeadline}
                 </p>
               )}
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <span className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase ${
+            <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+              {/* Badge pagamento: verde=Pagato, rosso=Da pagare */}
+              <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-extrabold uppercase ${
                 acc.isPaid
-                  ? "bg-green-50 text-green-600 border border-green-150"
+                  ? "bg-green-50 text-green-600 border border-green-200"
                   : "bg-red-50 text-red-500 border border-red-100"
               }`}>
                 {acc.isPaid ? "Pagato" : "Da pagare"}
               </span>
+              {/* Badge stato operativo: ambra=da verificare, verde=confermata. Solo se presente. */}
+              {acc.status && (
+                <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-extrabold uppercase ${
+                  acc.status === "confermata" || acc.status === "confermato"
+                    ? "bg-green-50 text-green-700 border border-green-200"
+                    : "bg-amber-50 text-amber-600 border border-amber-200"
+                }`}>
+                  {acc.status}
+                </span>
+              )}
               {acc.price !== undefined && (
                 <span className="text-[13px] font-extrabold text-blue-600">
                   € {typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}
@@ -465,7 +466,36 @@ export default function AccommodationsView() {
   const [showVerification, setShowVerification] = useState(false);
   const [activeIssues, setActiveIssues] = useState<any[]>([]);
   const [selectedAcco, setSelectedAcco] = useState<Accommodation | null>(null);
-  const [activeTab, setActiveTab] = useState<"tutti" | "nz" | "au_ph">("tutti");
+  const [activeTab, setActiveTab] = useState<"tutti" | "nz" | "au" | "ph">(() => {
+    // Pre-selezione automatica: trova la categoria dell'alloggio
+    // con startDate più vicino a oggi (non nel futuro o il più prossimo futuro)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split("T")[0];
+
+    // Cerca l'alloggio "corrente" = startDate <= oggi <= endDate
+    const current = ACCOMMODATIONS.find((a) => {
+      if (!a.startDate) return false;
+      const start = a.startDate;
+      const end = a.endDate || a.startDate;
+      return start <= todayStr && todayStr <= end;
+    });
+
+    // Se nessuno corrente, cerca il prossimo futuro
+    const upcoming = !current
+      ? ACCOMMODATIONS.filter((a) => a.startDate && a.startDate > todayStr)
+          .sort((a, b) => (a.startDate! > b.startDate! ? 1 : -1))[0]
+      : null;
+
+    const target = current || upcoming;
+    if (!target) return "tutti";
+
+    // Regole geografiche
+    if (target.city === "Boracay") return "ph";
+    if (target.area === "Australia & Filippine") return "au";
+    if (target.area === "Europa & Nuova Zelanda" && target.city !== "Milano") return "nz";
+    return "tutti";
+  });
 
   useEffect(() => {
     repository.getAccommodations(ACCOMMODATIONS)
@@ -546,10 +576,19 @@ export default function AccommodationsView() {
   const totalCost = accos.reduce((sum, acc) => sum + (acc.price || 0), 0);
   const totalNights = accos.length;
 
+  // Helper di categoria geografica
+  function getCategory(acc: Accommodation): "nz" | "au" | "ph" | "altri" {
+    if (acc.city === "Boracay") return "ph";
+    if (acc.area === "Australia & Filippine") return "au";
+    if (acc.area === "Europa & Nuova Zelanda" && acc.city !== "Milano") return "nz";
+    return "altri"; // Milano e alloggi aggiunti manualmente senza area
+  }
+
   const filteredAccos = accos.filter((acc) => {
-    if (activeTab === "nz") return acc.area === "Europa & Nuova Zelanda";
-    if (activeTab === "au_ph") return acc.area === "Australia & Filippine";
-    return true;
+    if (activeTab === "nz") return getCategory(acc) === "nz";
+    if (activeTab === "au") return getCategory(acc) === "au";
+    if (activeTab === "ph") return getCategory(acc) === "ph";
+    return true; // "tutti"
   });
 
   return (
@@ -597,31 +636,23 @@ export default function AccommodationsView() {
         </div>
 
         {/* Tab Selector */}
-        <div className="flex bg-gray-100 p-1 rounded-xl mb-4 text-[12.5px] font-bold">
-          <button
-            onClick={() => setActiveTab("tutti")}
-            className={`flex-1 py-1.5 text-center rounded-lg transition-all ${
-              activeTab === "tutti" ? "bg-white text-gray-900 shadow-xs" : "text-gray-400 hover:text-gray-700"
-            }`}
-          >
-            Tutti
-          </button>
-          <button
-            onClick={() => setActiveTab("nz")}
-            className={`flex-1 py-1.5 text-center rounded-lg transition-all ${
-              activeTab === "nz" ? "bg-white text-gray-900 shadow-xs" : "text-gray-400 hover:text-gray-700"
-            }`}
-          >
-            Europa & NZ
-          </button>
-          <button
-            onClick={() => setActiveTab("au_ph")}
-            className={`flex-1 py-1.5 text-center rounded-lg transition-all ${
-              activeTab === "au_ph" ? "bg-white text-gray-900 shadow-xs" : "text-gray-400 hover:text-gray-700"
-            }`}
-          >
-            AU & Filippine
-          </button>
+        <div className="flex bg-gray-100 p-1 rounded-xl mb-4 text-[11.5px] font-bold gap-0.5">
+          {([
+            { key: "tutti", label: "Tutte" },
+            { key: "nz",    label: "Nuova Zelanda" },
+            { key: "au",    label: "Australia" },
+            { key: "ph",    label: "Filippine" },
+          ] as { key: "tutti" | "nz" | "au" | "ph"; label: string }[]).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex-1 py-1.5 text-center rounded-lg transition-all truncate ${
+                activeTab === key ? "bg-white text-gray-900 shadow-xs" : "text-gray-400 hover:text-gray-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {activeIssues.length > 0 && (
@@ -646,11 +677,20 @@ export default function AccommodationsView() {
 
         <div className="space-y-3">
           {filteredAccos.map((acc) => (
-            <AccoCard 
-              key={acc.id} 
-              acc={acc} 
-              onOpenDetail={() => setSelectedAcco(acc)} 
-            />
+            <SwipeToDelete
+              key={acc.id}
+              label="Elimina"
+              onDelete={() => {
+                const updated = accos.filter((a) => a.id !== acc.id);
+                setAccos(updated);
+                repository.saveAccommodations(updated);
+              }}
+            >
+              <AccoCard
+                acc={acc}
+                onOpenDetail={() => setSelectedAcco(acc)}
+              />
+            </SwipeToDelete>
           ))}
         </div>
       </div>

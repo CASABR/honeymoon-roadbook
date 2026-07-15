@@ -3,6 +3,7 @@ import { TRANSPORTS } from "../data/mockData";
 import type { Transport } from "../data/mockData";
 import { IcPlane, IcTrain, IcFerry, IcCar, IcChevronRight, IcPlus, IcQR } from "../components/Icons";
 import { repository } from "../services/repository";
+import SwipeToDelete from "../components/SwipeToDelete";
 
 // ── Calcolo dettagli scalo (layover) ──────────────────────────────────────────
 function getLayoverDetails(tr: Transport) {
@@ -856,7 +857,13 @@ export default function TransportsView() {
         <p className="text-[13px] text-gray-400 mb-5 font-medium">{transports.length} tratte · ordine cronologico</p>
         <div className="space-y-3">
           {transports.map((tr) => (
-            <TransportCard key={tr.id} tr={tr} onSelect={setSelected} />
+            <SwipeToDelete
+              key={tr.id}
+              label="Elimina"
+              onDelete={() => handleDelete(tr.id)}
+            >
+              <TransportCard tr={tr} onSelect={setSelected} />
+            </SwipeToDelete>
           ))}
         </div>
       </div>

@@ -703,7 +703,7 @@ export default function BudgetView() {
       const hasAct = day.activities.some((a) => a.id === updatedAct.id);
       if (hasAct) {
         const nextActs = day.activities.map((a) =>
-          a.id === updatedAct.id ? { ...a, isPaid: !a.isPaid } : a
+          a.id === updatedAct.id ? updatedAct : a
         );
         return { ...day, activities: nextActs };
       }
@@ -839,115 +839,134 @@ export default function BudgetView() {
       {/* ── Checklist Attività ────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="section-label">Checklist Attività & Prenotazioni</h2>
-        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Spunta per Pagato</span>
+        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Gestione Stati</span>
       </div>
-      <div className="card p-3 mb-5 space-y-2 max-h-[300px] overflow-y-auto shadow-sm border border-gray-100/80">
-        {finalTripDays.flatMap(day => day.activities.filter(act => act.price !== undefined && act.price > 0).map(act => ({ day, act }))).length === 0 ? (
-          <p className="text-[12px] text-gray-400 italic text-center py-4 bg-white">
-            Nessuna attività con prezzo registrata nell'itinerario.
-          </p>
-        ) : (
-          finalTripDays.flatMap(day => day.activities.filter(act => act.price !== undefined && act.price > 0).map(act => ({ day, act }))).map(({ day, act }) => (
-            <div key={act.id} className="flex items-center justify-between gap-3 p-2 hover:bg-gray-50/50 rounded-xl transition-colors border-b border-gray-50/50 last:border-0">
-              <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                {/* Checkbox per prenotato/pagato */}
-                <button
-                  onClick={() => handleUpdateActivity(act)}
-                  className="mt-0.5 w-4.5 h-4.5 rounded border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95 bg-white"
-                  style={{
-                    borderColor: act.isPaid ? "#10b981" : "#d1d5db",
-                    backgroundColor: act.isPaid ? "#10b981" : "#ffffff"
-                  }}
-                >
-                  {act.isPaid && <span className="text-white text-[9.5px] font-bold">✓</span>}
-                </button>
-                <div className="min-w-0">
-                  <p className={`text-[12.5px] font-bold text-gray-800 leading-snug truncate ${act.isPaid ? "line-through text-gray-400" : ""}`}>
+      <div className="card p-3 mb-5 space-y-2 max-h-[350px] overflow-y-auto shadow-sm border border-gray-100/80">
+        {(() => {
+          const items = finalTripDays.flatMap(day =>
+            day.activities
+              .filter(act => act.price !== undefined && act.price > 0)
+              .map(act => ({ day, act }))
+          );
+          if (items.length === 0) {
+            return (
+              <p className="text-[12px] text-gray-400 italic text-center py-4 bg-white">
+                Nessuna attività con prezzo registrata nell'itinerario.
+              </p>
+            );
+          }
+          return items.map(({ day, act }) => {
+            // Helper per aggiornare sia isPaid che isBooked
+            const toggleState = (field: "isPaid" | "isBooked") => {
+              const updatedAct = { ...act, [field]: !act[field] };
+              handleUpdateActivity(updatedAct);
+            };
+
+            return (
+              <div key={act.id} className="flex items-center justify-between gap-3 p-2 hover:bg-gray-50/50 rounded-xl transition-colors border-b border-gray-50/50 last:border-0">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12.5px] font-bold text-gray-800 leading-snug truncate">
                     {act.title}
                   </p>
-                  <p className="text-[10.5px] text-gray-455">
-                    Giorno {day.dayNumber} ({day.dateShort} {day.monthShort}) {act.subtitle ? `· ${act.subtitle}` : ""}
+                  <p className="text-[10.5px] text-gray-400">
+                    Giorno {day.dayNumber} · {day.dateShort} {day.monthShort} {act.subtitle ? `· ${act.subtitle}` : ""}
                   </p>
                 </div>
+                
+                {/* Controlli compatti di stato */}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {/* Tasto Prenotato */}
+                  <button
+                    onClick={() => toggleState("isBooked")}
+                    className={`text-[9px] px-1.5 py-0.5 rounded font-black border transition-all active:scale-95 ${
+                      act.isBooked
+                        ? "bg-blue-50 text-blue-600 border-blue-200"
+                        : "bg-gray-50 text-gray-400 border-gray-200"
+                    }`}
+                  >
+                    {act.isBooked ? "🎫 Prenotato" : "🎫 No Pren."}
+                  </button>
+
+                  {/* Tasto Pagato */}
+                  <button
+                    onClick={() => toggleState("isPaid")}
+                    className={`text-[9px] px-1.5 py-0.5 rounded font-black border transition-all active:scale-95 ${
+                      act.isPaid
+                        ? "bg-green-50 text-green-600 border-green-200"
+                        : "bg-red-50 text-red-500 border-red-100"
+                    }`}
+                  >
+                    {act.isPaid ? "💳 Pagato" : "💳 Da pagare"}
+                  </button>
+
+                  <span className="text-[12px] font-black text-gray-700 ml-1">
+                    €{act.price}
+                  </span>
+                </div>
               </div>
-              
-              {/* Prezzo interattivo */}
-              <button
-                onClick={() => {
-                  const val = window.prompt(`Modifica prezzo per: ${act.title}`, act.price !== undefined ? String(act.price) : "");
-                  if (val !== null) {
-                    const parsed = parseFloat(val.replace(",", "."));
-                    const nextAct = { ...act, price: isNaN(parsed) || parsed <= 0 ? undefined : parsed };
-                    const nextDays = tripDays.map((d) => {
-                      const hasAct = d.activities.some((a) => a.id === act.id);
-                      if (hasAct) {
-                        const nextActs = d.activities.map((a) =>
-                          a.id === act.id ? nextAct : a
-                        );
-                        return { ...d, activities: nextActs };
-                      }
-                      return d;
-                    });
-                    setTripDays(nextDays);
-                    repository.saveTripDays(nextDays);
-                  }
-                }}
-                className={`text-[11px] px-2 py-1 rounded font-black shrink-0 transition-colors ${
-                  act.price !== undefined
-                    ? "bg-blue-50 text-blue-700 hover:bg-blue-100"
-                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                }`}
-              >
-                {act.price !== undefined ? `€${act.price}` : "+ Prezzo"}
-              </button>
-            </div>
-          ))
-        )}
+            );
+          });
+        })()}
       </div>
 
       {/* ── Movimenti recenti ──────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-3">
         <h2 className="section-label">Movimenti manuali & Extra</h2>
       </div>
-      <div className="card divide-y divide-gray-50 mb-5 overflow-hidden">
-        {entries.length === 0 ? (
-          <p className="text-[12px] text-gray-400 italic text-center py-4 bg-white">
-            Nessun movimento manuale inserito.
-          </p>
-        ) : (
-          entries.map((entry) => (
-            <div key={entry.id} className="px-3 py-2.5 flex items-center justify-between transition-colors hover:bg-gray-50/20">
-              <div className="min-w-0">
-                <p className="text-[13px] font-bold text-gray-800 truncate leading-snug">{entry.label}</p>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-extrabold uppercase shrink-0 ${
-                    entry.isPaid
-                      ? "bg-green-50 text-green-600 border border-green-150"
-                      : "bg-red-50 text-red-500 border border-red-100"
-                  }`}>
-                    {entry.isPaid ? "Pagato" : "Da pagare"}
-                  </span>
-                  <p className="text-[11px] text-gray-400">{entry.date} · {entry.category}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2.5 ml-3 flex-shrink-0">
-                <span className="text-[14px] font-black text-gray-900">
-                  −€{entry.amount.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
-                </span>
-                <button
-                  onClick={() => {
-                    if (window.confirm(`Eliminare il movimento: ${entry.label}?`)) {
-                      handleDeleteEntry(entry.id);
-                    }
-                  }}
-                  className="text-red-400 hover:text-red-600 text-[11px] font-bold px-1"
+      <div className="card divide-y divide-gray-100 mb-5 overflow-hidden">
+        {(() => {
+          // Filtra solo quelli pagati
+          const paidEntries = entries.filter(e => e.isPaid);
+          if (paidEntries.length === 0) {
+            return (
+              <p className="text-[12px] text-gray-400 italic text-center py-4 bg-white">
+                Nessun movimento pagato registrato.
+              </p>
+            );
+          }
+
+          // State per gestire quale spesa è espansa al tap
+          const [expandedId, setExpandedId] = useState<string | null>(null);
+
+          return paidEntries.map((entry) => {
+            const isExpanded = expandedId === entry.id;
+            return (
+              <div key={entry.id} className="transition-colors hover:bg-gray-50/30">
+                {/* Riga compatta principale */}
+                <div 
+                  onClick={() => setExpandedId(isExpanded ? null : entry.id)}
+                  className="px-3 py-2 flex items-center justify-between cursor-pointer"
                 >
-                  🗑️
-                </button>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-[11px] text-gray-400 font-bold shrink-0">{entry.date}</span>
+                    <p className="text-[12px] font-bold text-gray-800 truncate">{entry.label}</p>
+                    <span className="text-[9px] px-1.5 bg-gray-100 text-gray-500 rounded shrink-0 font-medium">{entry.category}</span>
+                  </div>
+                  <span className="text-[12.5px] font-black text-gray-900 shrink-0 ml-2">
+                    −€{entry.amount.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                {/* Dettaglio espanso (Eliminazione) */}
+                {isExpanded && (
+                  <div className="px-3 pb-2 pt-0.5 flex justify-end items-center gap-2 bg-gray-50/50 animate-fade-in">
+                    <span className="text-[10px] text-gray-400 mr-auto">Tocca di nuovo per chiudere</span>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(`Eliminare il movimento: ${entry.label}?`)) {
+                          handleDeleteEntry(entry.id);
+                        }
+                      }}
+                      className="bg-red-50 hover:bg-red-100 text-red-600 text-[10px] font-bold px-2.5 py-1 rounded-lg border border-red-200"
+                    >
+                      🗑️ Elimina Spesa
+                    </button>
+                  </div>
+                )}
               </div>
-            </div>
-          ))
-        )}
+            );
+          });
+        })()}
       </div>
 
       {/* ── Aggiungi spesa ─────────────────────────────────────────────────── */}
