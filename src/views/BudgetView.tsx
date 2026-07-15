@@ -583,6 +583,7 @@ export default function BudgetView() {
       if (def && def.price !== undefined) {
         return { ...a, price: def.price };
       }
+    }
     return a;
   });
 
@@ -647,6 +648,7 @@ export default function BudgetView() {
       if (act.price && act.price > 0 && act.isPaid) {
         totalPaid += act.price;
       }
+    });
   });
   entries.filter((e) => e.category === "Attività" && e.isPaid).forEach((e) => totalPaid += e.amount);
   entries.filter((e) => e.category === "Cibo & Extra" && e.isPaid).forEach((e) => totalPaid += e.amount);
