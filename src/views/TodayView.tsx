@@ -902,12 +902,6 @@ export default function TodayView() {
     };
   }, [tripDays]);
 
-  useEffect(() => {
-    if (isLoadedRef.current) {
-      repository.saveTripDays(tripDays);
-    }
-  }, [tripDays]);
-
   const [expanded, setExpanded] = useState(false);
   const [qrActivity, setQrActivity] = useState<Activity | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -919,7 +913,17 @@ export default function TodayView() {
       if (detail) setCompletedActs(detail);
     };
     window.addEventListener("hrb_completed_activities_change", handler as EventListener);
-    return () => window.removeEventListener("hrb_completed_activities_change", handler as EventListener);
+
+    const tripDaysHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setTripDays(detail);
+    };
+    window.addEventListener("hrb_tripdays_change", tripDaysHandler as EventListener);
+
+    return () => {
+      window.removeEventListener("hrb_completed_activities_change", handler as EventListener);
+      window.removeEventListener("hrb_tripdays_change", tripDaysHandler as EventListener);
+    };
   }, []);
 
   async function toggleActivity(id: string) {
@@ -958,30 +962,30 @@ export default function TodayView() {
   }
 
   function handleEditActivity(dayId: string, updated: Activity) {
-    setTripDays((prevDays) =>
-      prevDays.map((day) => {
-        if (day.id === dayId) {
-          const oldAct = day.activities.find((a) => a.id === updated.id);
-          const nextActs = day.activities.map((a) => (a.id === updated.id ? updated : a));
-          if (oldAct && oldAct.time !== updated.time) {
-            nextActs.sort((a, b) => a.time.localeCompare(b.time));
-          }
-          return { ...day, activities: nextActs };
+    const nextDays = tripDays.map((day) => {
+      if (day.id === dayId) {
+        const oldAct = day.activities.find((a) => a.id === updated.id);
+        const nextActs = day.activities.map((a) => (a.id === updated.id ? updated : a));
+        if (oldAct && oldAct.time !== updated.time) {
+          nextActs.sort((a, b) => a.time.localeCompare(b.time));
         }
-        return day;
-      })
-    );
+        return { ...day, activities: nextActs };
+      }
+      return day;
+    });
+    setTripDays(nextDays);
+    repository.saveTripDays(nextDays);
   }
 
   function handleDeleteActivity(dayId: string, actId: string) {
-    setTripDays((prevDays) =>
-      prevDays.map((day) => {
-        if (day.id === dayId) {
-          return { ...day, activities: day.activities.filter((a) => a.id !== actId) };
-        }
-        return day;
-      })
-    );
+    const nextDays = tripDays.map((day) => {
+      if (day.id === dayId) {
+        return { ...day, activities: day.activities.filter((a) => a.id !== actId) };
+      }
+      return day;
+    });
+    setTripDays(nextDays);
+    repository.saveTripDays(nextDays);
   }
 
   const daysLeft = getDaysToDeparture();
