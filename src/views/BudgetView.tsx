@@ -500,25 +500,45 @@ export default function BudgetView() {
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail) setEntries(detail);
+      if (detail) {
+        setEntries((current) => {
+          if (JSON.stringify(current) === JSON.stringify(detail)) return current;
+          return detail;
+        });
+      }
     };
     window.addEventListener("hrb_budget_change", handler as EventListener);
 
     const tripDaysHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail) setTripDays(detail);
+      if (detail) {
+        setTripDays((current) => {
+          if (JSON.stringify(current) === JSON.stringify(detail)) return current;
+          return detail;
+        });
+      }
     };
     window.addEventListener("hrb_tripdays_change", tripDaysHandler as EventListener);
 
     const transportsHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail) setTransports(detail);
+      if (detail) {
+        setTransports((current) => {
+          if (JSON.stringify(current) === JSON.stringify(detail)) return current;
+          return detail;
+        });
+      }
     };
     window.addEventListener("hrb_transports_change", transportsHandler as EventListener);
 
     const accommodationsHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail) setAccommodations(detail);
+      if (detail) {
+        setAccommodations((current) => {
+          if (JSON.stringify(current) === JSON.stringify(detail)) return current;
+          return detail;
+        });
+      }
     };
     window.addEventListener("hrb_accommodations_change", accommodationsHandler as EventListener);
 
@@ -563,8 +583,21 @@ export default function BudgetView() {
       if (def && def.price !== undefined) {
         return { ...a, price: def.price };
       }
-    }
     return a;
+  });
+
+  const finalTripDays = tripDays.map((d) => {
+    const defDay = DAYS.find((day) => day.id === d.id);
+    const nextActivities = d.activities.map((act) => {
+      if (act.price === undefined && defDay) {
+        const defAct = defDay.activities.find((a) => a.id === act.id);
+        if (defAct && defAct.price !== undefined) {
+          return { ...act, price: defAct.price, isPaid: act.isPaid ?? defAct.isPaid };
+        }
+      }
+      return act;
+    });
+    return { ...d, activities: nextActivities };
   });
 
   // Ricalcolo dinamico delle spese per categoria
@@ -577,7 +610,7 @@ export default function BudgetView() {
   entries.filter((e) => e.category === "Alloggi").forEach((e) => spentAccommodations += e.amount);
 
   let spentActivities = 0;
-  tripDays.forEach((d) => {
+  finalTripDays.forEach((d) => {
     d.activities.forEach((act) => {
       if (act.price && act.price > 0) {
         spentActivities += act.price;
@@ -609,12 +642,11 @@ export default function BudgetView() {
   entries.filter((e) => e.category === "Alloggi" && e.isPaid).forEach((e) => totalPaid += e.amount);
 
   // Spese attività pagate
-  tripDays.forEach((d) => {
+  finalTripDays.forEach((d) => {
     d.activities.forEach((act) => {
       if (act.price && act.price > 0 && act.isPaid) {
         totalPaid += act.price;
       }
-    });
   });
   entries.filter((e) => e.category === "Attività" && e.isPaid).forEach((e) => totalPaid += e.amount);
   entries.filter((e) => e.category === "Cibo & Extra" && e.isPaid).forEach((e) => totalPaid += e.amount);
@@ -808,12 +840,12 @@ export default function BudgetView() {
         <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Spunta per Pagato</span>
       </div>
       <div className="card p-3 mb-5 space-y-2 max-h-[300px] overflow-y-auto shadow-sm border border-gray-100/80">
-        {tripDays.flatMap(day => day.activities.filter(act => act.price !== undefined && act.price > 0).map(act => ({ day, act }))).length === 0 ? (
+        {finalTripDays.flatMap(day => day.activities.filter(act => act.price !== undefined && act.price > 0).map(act => ({ day, act }))).length === 0 ? (
           <p className="text-[12px] text-gray-400 italic text-center py-4 bg-white">
             Nessuna attività con prezzo registrata nell'itinerario.
           </p>
         ) : (
-          tripDays.flatMap(day => day.activities.filter(act => act.price !== undefined && act.price > 0).map(act => ({ day, act }))).map(({ day, act }) => (
+          finalTripDays.flatMap(day => day.activities.filter(act => act.price !== undefined && act.price > 0).map(act => ({ day, act }))).map(({ day, act }) => (
             <div key={act.id} className="flex items-center justify-between gap-3 p-2 hover:bg-gray-50/50 rounded-xl transition-colors border-b border-gray-50/50 last:border-0">
               <div className="flex items-start gap-2.5 min-w-0 flex-1">
                 {/* Checkbox per prenotato/pagato */}

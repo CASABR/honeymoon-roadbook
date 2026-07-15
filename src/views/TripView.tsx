@@ -648,13 +648,23 @@ export default function TripView() {
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail) setCompletedActs(detail);
+      if (detail) {
+        setCompletedActs((current) => {
+          if (JSON.stringify(current) === JSON.stringify(detail)) return current;
+          return detail;
+        });
+      }
     };
     window.addEventListener("hrb_completed_activities_change", handler as EventListener);
 
     const tripDaysHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
-      if (detail) setTripDays(detail);
+      if (detail) {
+        setTripDays((current) => {
+          if (JSON.stringify(current) === JSON.stringify(detail)) return current;
+          return detail;
+        });
+      }
     };
     window.addEventListener("hrb_tripdays_change", tripDaysHandler as EventListener);
 
