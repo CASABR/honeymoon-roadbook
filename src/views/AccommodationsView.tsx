@@ -382,14 +382,21 @@ function DetailAccoSheet({
           </div>
 
           <div className="space-y-2.5">
-            {acc.price !== undefined && (
-              <div className="flex justify-between items-center py-2 border-b border-gray-100">
-                <span className="text-[11px] text-gray-400 font-bold uppercase">Prezzo</span>
-                <span className="text-[14px] font-black text-blue-600">
-                  € {typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}
-                </span>
-              </div>
-            )}
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-[11px] text-gray-400 font-bold uppercase">Prezzo</span>
+              <button
+                onClick={() => {
+                  const val = window.prompt(`Modifica prezzo per: ${acc.name}`, acc.price !== undefined ? String(acc.price) : "");
+                  if (val !== null) {
+                    const parsed = parseFloat(val.replace(",", "."));
+                    onUpdate({ ...acc, price: isNaN(parsed) || parsed <= 0 ? undefined : parsed });
+                  }
+                }}
+                className="text-[13px] font-black text-blue-600 px-2 py-1 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+              >
+                {acc.price !== undefined ? `€ ${typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}` : "+ Inserisci prezzo"}
+              </button>
+            </div>
 
             {acc.cancellationDeadline && (
               <div className="flex justify-between items-center py-2 border-b border-gray-100 bg-red-50/30 px-2.5 rounded-xl">
