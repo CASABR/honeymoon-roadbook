@@ -507,12 +507,22 @@ export default function AccommodationsView() {
   useEffect(() => {
     repository.getAccommodations(ACCOMMODATIONS)
       .then((data) => {
+        let loaded = data;
         if (data.length < ACCOMMODATIONS.length) {
-          setAccos(ACCOMMODATIONS);
-          repository.saveAccommodations(ACCOMMODATIONS);
-        } else {
-          setAccos(data);
+          loaded = ACCOMMODATIONS;
         }
+        // Assicurati che i prezzi di default vengano ripristinati se undefined
+        const merged = loaded.map((a) => {
+          if (a.price === undefined || a.price === null) {
+            const fallbackItem = ACCOMMODATIONS.find((f) => f.id === a.id);
+            if (fallbackItem && fallbackItem.price !== undefined) {
+              return { ...a, price: fallbackItem.price };
+            }
+          }
+          return a;
+        });
+        setAccos(merged);
+        repository.saveAccommodations(merged);
         isLoadedRef.current = true;
       })
       .catch((e) => console.error("Errore caricamento alloggi:", e))
@@ -557,9 +567,16 @@ export default function AccommodationsView() {
   }, [accos, transports, showVerification]);
 
   function handleSave(acc: Accommodation) {
-    const next = [...accos, acc];
+    let next: Accommodation[];
+    const exists = accos.some((item) => item.id === acc.id);
+    if (exists) {
+      next = accos.map((item) => (item.id === acc.id ? acc : item));
+    } else {
+      next = [...accos, acc];
+    }
     setAccos(next);
     repository.saveAccommodations(next);
+    window.dispatchEvent(new CustomEvent("hrb_accommodations_change", { detail: next }));
   }
 
   function handleDeleteAcco(id: string) {
@@ -708,7 +725,7 @@ export default function AccommodationsView() {
           onClose={() => setSelectedAcco(null)} 
           onDelete={() => handleDeleteAcco(selectedAcco.id)}
           onUpdate={(updated) => {
-            setAccos(prev => prev.map(a => a.id === updated.id ? updated : a));
+            handleSave(updated);
             setSelectedAcco(updated);
           }}
         />

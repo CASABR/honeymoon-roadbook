@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { INSURANCE, EMERGENCY_CONTACTS } from "../data/mockData";
+import { INSURANCE, EMERGENCY_CONTACTS, DAYS } from "../data/mockData";
+import type { DayData, Activity } from "../data/mockData";
 import {
   IcNote, IcSettings, IcWallet,
   IcChevronRight, IcChevronDown, IcPlus,
@@ -9,6 +10,7 @@ import { repository } from "../services/repository";
 import type { Checklist, DocumentItem, AttachmentItem, ChecklistItem } from "../services/repository";
 import { auth, /* googleProvider, linkWithPopup, */ signOut } from "../services/firebase";
 import { syncService } from "../services/sync";
+import { EditActivitySheet, AddActivitySheet } from "./TripView";
 
 // ── Categorie Documento ───────────────────────────────────────────────────────
 type DocumentCategory = "Passaporti" | "Visto Australia" | "Visto / eTravel Filippine" | "Patente internazionale" | "Assicurazione" | "Altri documenti";
@@ -422,6 +424,9 @@ export default function AltroView() {
 
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [checklists, setChecklists] = useState<Checklist[]>([]);
+  const [tripDays, setTripDays] = useState<DayData[]>([]);
+  const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string } | null>(null);
+  const [addingToDay, setAddingToDay] = useState<{ id: string; label: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const isLoadedRef = useRef(false);
   const [selectedCategory, setSelectedCategory] = useState<DocumentCategory | null>(null);
@@ -547,9 +552,11 @@ export default function AltroView() {
         const docs = await repository.getDocuments(DEFAULT_DOCUMENTS);
         const chks = await repository.getChecklists(DEFAULT_CHECKLISTS);
         const notesVal = await repository.getNotes();
+        const days = await repository.getTripDays(DAYS);
         setDocuments(docs);
         setChecklists(chks);
         setPersonalNotes(notesVal);
+        setTripDays(days);
         isLoadedRef.current = true;
       } catch (e) {
         console.error("Errore caricamento dati in AltroView:", e);
@@ -558,6 +565,22 @@ export default function AltroView() {
       }
     }
     initData();
+  }, []);
+
+  useEffect(() => {
+    const tripDaysHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) {
+        setTripDays((current) => {
+          if (JSON.stringify(current) === JSON.stringify(detail)) return current;
+          return detail;
+        });
+      }
+    };
+    window.addEventListener("hrb_tripdays_change", tripDaysHandler as EventListener);
+    return () => {
+      window.removeEventListener("hrb_tripdays_change", tripDaysHandler as EventListener);
+    };
   }, []);
 
   useEffect(() => {
@@ -575,6 +598,7 @@ export default function AltroView() {
   // Accordion a singola apertura: id dell'accordion aperto (null = tutti chiusi)
   const [openAccordion, setOpenAccordion] = useState<string | null>(() => {
     // Se c'è un openSection da URL, apri quell'accordion; altrimenti tutto chiuso
+    if (openSection === "activities") return "activities";
     if (openSection === "checklist") return "checklist";
     if (openSection === "insurance") return "insurance";
     if (openSection === "emergencies") return "emergencies";
@@ -733,6 +757,26 @@ export default function AltroView() {
           <div className="flex-1 min-w-0">
             <p className="text-[14px] font-bold text-gray-900">Budgeter</p>
             <p className="text-[12px] text-gray-400">Riepilogo spese viaggio</p>
+          </div>
+          <IcChevronRight size={15} className="text-gray-300 flex-shrink-0" />
+        </button>
+
+        <button
+          className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50"
+          onClick={() => {
+            setOpenAccordion("activities");
+            setTimeout(() => {
+              const el = document.getElementById("altro-sec-activities");
+              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+            }, 100);
+          }}
+        >
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-50 border border-blue-100">
+            <span className="text-blue-600">🎫</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[14px] font-bold text-gray-900">Gestione Attività</p>
+            <p className="text-[12px] text-gray-400">Gestisci prenotazioni, pagamenti e costi attività</p>
           </div>
           <IcChevronRight size={15} className="text-gray-300 flex-shrink-0" />
         </button>
@@ -963,6 +1007,86 @@ export default function AltroView() {
         </Accordion>
       </div>
 
+      {/* Accordion 0: 🎫 Gestione Attività */}
+      <div id="altro-sec-activities">
+        <Accordion
+          title="🎫 Gestione Attività"
+          isOpen={openAccordion === "activities"}
+          onToggle={() => toggleAccordion("activities")}
+        >
+          <div className="space-y-3">
+            {/* Pulsante aggiunta attività rapida */}
+            <div className="flex gap-2">
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const selDay = DAYS.find(d => d.id === e.target.value);
+                    if (selDay) {
+                      setAddingToDay({ id: selDay.id, label: selDay.dateLabel });
+                    }
+                    e.target.value = "";
+                  }
+                }}
+                className="flex-1 bg-blue-600 text-white font-extrabold text-[12px] px-3 py-2.5 rounded-xl outline-none"
+              >
+                <option value="">➕ Aggiungi attività ad un Giorno...</option>
+                {DAYS.map((d, idx) => (
+                  <option key={d.id} value={d.id}>Giorno {idx + 1} - {d.dateLabel}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Lista delle attività attuali aggregate per giorno */}
+            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+              {tripDays.flatMap(day => 
+                day.activities.map(act => ({ day, act }))
+              ).length === 0 ? (
+                <p className="text-[12px] text-gray-400 italic text-center py-4 bg-white">
+                  Nessuna attività registrata.
+                </p>
+              ) : (
+                tripDays.flatMap(day => 
+                  day.activities.map(act => ({ day, act }))
+                ).map(({ day, act }) => (
+                  <div 
+                    key={act.id} 
+                    onClick={() => setEditingActivity({ dayId: day.id, activity: act, dayLabel: day.dateLabel })}
+                    className="p-2.5 border border-gray-100 hover:border-blue-200 bg-gray-50/30 rounded-xl transition-all cursor-pointer flex flex-col gap-1.5"
+                  >
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[12px] font-extrabold text-gray-800 leading-snug truncate">{act.title}</p>
+                        <p className="text-[10px] text-gray-400 mt-0.5 font-medium">Giorno {day.dayNumber} · {day.dateLabel}</p>
+                      </div>
+                      <span className="text-[12px] font-black text-blue-600 shrink-0">
+                        {act.price !== undefined ? `€${act.price}` : "N/D"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider ${
+                        act.isBooked
+                          ? "bg-blue-50 text-blue-600 border-blue-200"
+                          : "bg-gray-50 text-gray-400 border-gray-200"
+                      }`}>
+                        {act.isBooked ? "Prenotata" : "Non pren."}
+                      </span>
+                      <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider ${
+                        act.isPaid
+                          ? "bg-green-50 text-green-600 border-green-200"
+                          : "bg-red-50 text-red-500 border-red-150"
+                      }`}>
+                        {act.isPaid ? "Pagata" : "Da pagare"}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </Accordion>
+      </div>
+
       {/* Accordion 1: 📁 Documenti di viaggio (raggruppati per COSA) */}
       <div id="altro-sec-documents">
         <Accordion
@@ -1151,6 +1275,67 @@ export default function AltroView() {
           category={showAddDocCategory}
           onSave={handleSaveDoc}
           onClose={() => setShowAddDocCategory(null)}
+        />
+      )}
+
+      {/* Gestione Attività Modali */}
+      {editingActivity && (
+        <EditActivitySheet
+          activity={editingActivity.activity}
+          dayLabel={editingActivity.dayLabel}
+          onSave={(updated) => {
+            const nextDays = tripDays.map((day) => {
+              if (day.id === editingActivity.dayId) {
+                const oldAct = day.activities.find((a) => a.id === updated.id);
+                const nextActs = day.activities.map((a) => (a.id === updated.id ? updated : a));
+                if (oldAct && oldAct.time !== updated.time) {
+                  nextActs.sort((a, b) => a.time.localeCompare(b.time));
+                }
+                return { ...day, activities: nextActs };
+              }
+              return day;
+            });
+            setTripDays(nextDays);
+            repository.saveTripDays(nextDays);
+            // Forza emissione evento per riallineare le altre schede
+            window.dispatchEvent(new CustomEvent("hrb_tripdays_change", { detail: nextDays }));
+            setEditingActivity(null);
+          }}
+          onDelete={() => {
+            const nextDays = tripDays.map((day) => {
+              if (day.id === editingActivity.dayId) {
+                return { ...day, activities: day.activities.filter((a) => a.id !== editingActivity.activity.id) };
+              }
+              return day;
+            });
+            setTripDays(nextDays);
+            repository.saveTripDays(nextDays);
+            window.dispatchEvent(new CustomEvent("hrb_tripdays_change", { detail: nextDays }));
+            setEditingActivity(null);
+          }}
+          onClose={() => setEditingActivity(null)}
+        />
+      )}
+
+      {addingToDay && (
+        <AddActivitySheet
+          dayId={addingToDay.id}
+          dayLabel={addingToDay.label}
+          onSave={(dayId, act) => {
+            const nextDays = tripDays.map((day) => {
+              if (day.id === dayId) {
+                const nextActs = [...day.activities, act];
+                nextActs.sort((a, b) => a.time.localeCompare(b.time));
+                return { ...day, activities: nextActs };
+              }
+              return day;
+            });
+            setTripDays(nextDays);
+            repository.saveTripDays(nextDays);
+            window.dispatchEvent(new CustomEvent("hrb_tripdays_change", { detail: nextDays }));
+            setAddingToDay(null);
+          }}
+          onClose={() => setAddingToDay(null)}
         />
       )}
 

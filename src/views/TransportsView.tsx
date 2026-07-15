@@ -802,7 +802,18 @@ export default function TransportsView() {
   useEffect(() => {
     repository.getTransports(TRANSPORTS)
       .then((data) => {
-        setTransports(data);
+        // Se nel database locale ci sono elementi senza prezzo ma con un valore predefinito in TRANSPORTS, unisci
+        const merged = data.map((t) => {
+          if (t.price === undefined || t.price === null) {
+            const fallbackItem = TRANSPORTS.find((f) => f.id === t.id);
+            if (fallbackItem && fallbackItem.price !== undefined) {
+              return { ...t, price: fallbackItem.price };
+            }
+          }
+          return t;
+        });
+        setTransports(merged);
+        repository.saveTransports(merged);
         isLoadedRef.current = true;
       })
       .catch((e) => console.error("Errore caricamento trasporti:", e))
@@ -829,6 +840,7 @@ export default function TransportsView() {
     next.sort((a, b) => `${a.date}T${a.time || "00:00"}`.localeCompare(`${b.date}T${b.time || "00:00"}`));
     setTransports(next);
     repository.saveTransports(next);
+    window.dispatchEvent(new CustomEvent("hrb_transports_change", { detail: next }));
 
     // Se la scheda dettaglio è aperta, la aggiorniamo per riflettere le modifiche (QR compresi)
     if (selected && selected.id === tr.id) {
