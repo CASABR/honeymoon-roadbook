@@ -24,6 +24,7 @@ const EMPTY_FORM = {
   mapsUrl: "",
   price: "",
   isPaid: false, // flag pagamento
+  cancellationDeadline: "", // Data ultima cancellazione
 };
 
 // ── Bottom sheet per aggiungere alloggio ──────────────────────────────────────
@@ -55,6 +56,7 @@ function AddAccoSheet({
       mapsUrl: form.mapsUrl.trim() || undefined,
       price: isNaN(parsedPrice) ? undefined : parsedPrice,
       isPaid: form.isPaid,
+      cancellationDeadline: form.cancellationDeadline.trim() || undefined,
     };
     onSave(newAcc);
     onClose();
@@ -124,21 +126,27 @@ function AddAccoSheet({
           <div className="flex gap-2">
             <div className="flex-1">
               <Field
-                label="Nota"
-                value={form.note}
-                placeholder="es. Colazione inclusa"
-                onChange={(v) => handleChange("note", v)}
-              />
-            </div>
-            <div className="flex-1">
-              <Field
                 label="Prezzo (€)"
                 value={form.price}
                 placeholder="es. 69.00"
                 onChange={(v) => handleChange("price", v)}
               />
             </div>
+            <div className="flex-1">
+              <Field
+                label="Scadenza Cancellazione (es. 24 nov)"
+                value={form.cancellationDeadline}
+                placeholder="Data ultima cancellazione"
+                onChange={(v) => handleChange("cancellationDeadline", v)}
+              />
+            </div>
           </div>
+          <Field
+            label="Nota"
+            value={form.note}
+            placeholder="es. Colazione inclusa"
+            onChange={(v) => handleChange("note", v)}
+          />
           <Field
             label="Link Maps"
             value={form.mapsUrl}
@@ -251,7 +259,14 @@ function AccoCard({ acc, onOpenDetail }: { acc: Accommodation; onOpenDetail: () 
           </div>
           
           <div className="flex items-center justify-between mt-1.5 flex-wrap gap-2">
-            <p className="text-[12px] font-semibold text-gray-500">{acc.dates}</p>
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-gray-500">{acc.dates}</p>
+              {acc.cancellationDeadline && (
+                <p className="text-[9.5px] font-black text-red-500 mt-0.5 uppercase tracking-wide">
+                  ⌛ Canc. entro: {acc.cancellationDeadline}
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-2 shrink-0">
               <span className={`text-[9px] px-1.5 py-0.2 rounded font-extrabold uppercase ${
                 acc.isPaid
@@ -371,6 +386,15 @@ function DetailAccoSheet({
                 <span className="text-[11px] text-gray-400 font-bold uppercase">Prezzo</span>
                 <span className="text-[14px] font-black text-blue-600">
                   € {typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}
+                </span>
+              </div>
+            )}
+
+            {acc.cancellationDeadline && (
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 bg-red-50/30 px-2.5 rounded-xl">
+                <span className="text-[10.5px] text-red-500 font-black uppercase">Termine Cancellazione</span>
+                <span className="text-[12px] font-black text-red-650">
+                  {acc.cancellationDeadline}
                 </span>
               </div>
             )}

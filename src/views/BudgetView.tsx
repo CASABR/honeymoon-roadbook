@@ -504,6 +504,24 @@ export default function BudgetView() {
     };
     window.addEventListener("hrb_budget_change", handler as EventListener);
 
+    const tripDaysHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setTripDays(detail);
+    };
+    window.addEventListener("hrb_tripdays_change", tripDaysHandler as EventListener);
+
+    const transportsHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setTransports(detail);
+    };
+    window.addEventListener("hrb_transports_change", transportsHandler as EventListener);
+
+    const accommodationsHandler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setAccommodations(detail);
+    };
+    window.addEventListener("hrb_accommodations_change", accommodationsHandler as EventListener);
+
     const statusHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       setSyncStatus(detail);
@@ -512,16 +530,12 @@ export default function BudgetView() {
 
     return () => {
       window.removeEventListener("hrb_budget_change", handler as EventListener);
+      window.removeEventListener("hrb_tripdays_change", tripDaysHandler as EventListener);
+      window.removeEventListener("hrb_transports_change", transportsHandler as EventListener);
+      window.removeEventListener("hrb_accommodations_change", accommodationsHandler as EventListener);
       window.removeEventListener("hrb_budget_sync_status_change", statusHandler as EventListener);
     };
   }, []);
-
-  useEffect(() => {
-    if (isLoadedRef.current) {
-      repository.saveBudgetEntries(entries);
-      syncService.pushBudget().catch(e => console.error("Errore autosync budget:", e));
-    }
-  }, [entries]);
 
   if (isLoading) {
     return (
@@ -618,25 +632,36 @@ export default function BudgetView() {
   ];
 
   function handleSaveExpense(newEntry: BudgetEntry) {
-    setEntries((prev) => [newEntry, ...prev]);
+    const next = [newEntry, ...entries];
+    setEntries(next);
+    repository.saveBudgetEntries(next);
+    syncService.pushBudget().catch(e => console.error("Errore autosync budget:", e));
   }
 
   function handleDeleteEntry(id: string) {
-    setEntries((prev) => prev.filter((e) => e.id !== id));
+    const next = entries.filter((e) => e.id !== id);
+    setEntries(next);
+    repository.saveBudgetEntries(next);
+    syncService.pushBudget().catch(e => console.error("Errore autosync budget:", e));
   }
 
   function handleUpdateTransport(updated: Transport) {
-    setTransports((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-    repository.saveTransports(transports.map((t) => (t.id === updated.id ? updated : t)));
+    const next = transports.map((t) => (t.id === updated.id ? updated : t));
+    setTransports(next);
+    repository.saveTransports(next);
   }
 
   function handleUpdateAccommodation(updated: Accommodation) {
-    setAccommodations((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-    repository.saveAccommodations(accommodations.map((a) => (a.id === updated.id ? updated : a)));
+    const next = accommodations.map((a) => (a.id === updated.id ? updated : a));
+    setAccommodations(next);
+    repository.saveAccommodations(next);
   }
 
   function handleUpdateEntry(updated: BudgetEntry) {
-    setEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+    const next = entries.map((e) => (e.id === updated.id ? updated : e));
+    setEntries(next);
+    repository.saveBudgetEntries(next);
+    syncService.pushBudget().catch(e => console.error("Errore autosync budget:", e));
   }
 
   function handleUpdateActivity(updatedAct: Activity) {
