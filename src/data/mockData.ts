@@ -26,6 +26,7 @@ export interface Activity {
   transitTime?: string;
   price?: number; // Prezzo dell'attività
   isPaid?: boolean; // Stato di pagamento
+  isBooked?: boolean; // Stato di prenotazione
 }
 
 export interface DayData {
