@@ -215,6 +215,24 @@ function TransportDetailSheet({
           </div>
         )}
 
+        {/* Toggle stato pagamento al volo */}
+        <div className="flex items-center justify-between p-3 bg-blue-50/30 border border-blue-100/50 rounded-2xl mb-4">
+          <div>
+            <p className="text-[12.5px] font-bold text-gray-850">Stato Pagamento</p>
+            <p className="text-[10px] text-gray-400 font-medium">Tocca il badge per cambiare stato</p>
+          </div>
+          <button
+            onClick={() => onSave({ ...tr, isPaid: !tr.isPaid })}
+            className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors active:scale-95 ${
+              tr.isPaid
+                ? "bg-green-100 text-green-700 border border-green-200"
+                : "bg-red-50 text-red-500 border border-red-100"
+            }`}
+          >
+            {tr.isPaid ? "✅ Pagato" : "⏳ Da pagare"}
+          </button>
+        </div>
+
         {/* Note e Dettagli */}
         {(tr.detail || tr.note || tr.importantNote) && (
           <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-4 space-y-2.5 mb-4">
@@ -495,6 +513,7 @@ function TransportFormSheet({
   const [baggageCabin, setBaggageCabin] = useState(tr?.baggageCabin || "");
   const [baggageExtra, setBaggageExtra] = useState(tr?.baggageExtra || "");
   const [price, setPrice] = useState(tr?.price ? String(tr.price) : "");
+  const [isPaid, setIsPaid] = useState(tr?.isPaid || false);
   
   // Per più QR separati da virgole
   const initialQrText = tr?.qrCodes && tr.qrCodes.length > 0
@@ -540,6 +559,7 @@ function TransportFormSheet({
       qrCodeData: qrCodesArray.length > 0 ? qrCodesArray[0] : undefined,
       qrCodes: qrCodesArray.length > 0 ? qrCodesArray : undefined,
       price: isNaN(parsedPrice) ? undefined : parsedPrice,
+      isPaid,
       status: status.trim() || undefined,
       segments: tr?.segments, 
       layoverCity: tr?.layoverCity,
@@ -656,6 +676,25 @@ function TransportFormSheet({
             <Field label="Bagaglio extra" value={baggageExtra} placeholder="es. Attrezzatura sportiva" onChange={setBaggageExtra} />
           </div>
 
+          {/* Stato Pagamento */}
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
+            <div>
+              <p className="text-[12.5px] font-bold text-gray-805">Stato pagamento</p>
+              <p className="text-[10px] text-gray-400">Questo trasporto è già stato bloccato/pagato?</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPaid(!isPaid)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
+                isPaid
+                  ? "bg-green-150 text-green-700 border border-green-200"
+                  : "bg-red-50 text-red-500 border border-red-100"
+              }`}
+            >
+              {isPaid ? "✅ Pagato" : "⏳ Da pagare"}
+            </button>
+          </div>
+
           {/* Sezione 5: Note e QR */}
           <div className="bg-gray-50/70 border border-gray-100 p-3 rounded-2xl space-y-3">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Note e Documenti</p>
@@ -690,11 +729,25 @@ function TransportCard({ tr, onSelect }: { tr: Transport; onSelect: (t: Transpor
             <span className="text-[10px] font-bold tracking-widest text-blue-600 uppercase">{TYPE_LABEL[tr.type]}</span>
             <span className="text-[10px] text-gray-300">·</span>
             <span className="text-[11px] text-gray-400 font-medium">{tr.dateLabel}</span>
-            {tr.status && (
-              <span className="badge-in-corso ml-auto bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded-full text-[9px] border border-emerald-100">
-                {tr.status}
+            <div className="ml-auto flex items-center gap-1.5">
+              <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-extrabold uppercase shrink-0 ${
+                tr.isPaid
+                  ? "bg-green-50 text-green-600 border border-green-150"
+                  : "bg-red-50 text-red-500 border border-red-100"
+              }`}>
+                {tr.isPaid ? "Pagato" : "Da pagare"}
               </span>
-            )}
+              {tr.price !== undefined && tr.price > 0 && (
+                <span className="text-[10px] font-black text-blue-600 shrink-0">
+                  €{tr.price.toFixed(0)}
+                </span>
+              )}
+              {tr.status && (
+                <span className="badge-in-corso bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded-full text-[9px] border border-emerald-100">
+                  {tr.status}
+                </span>
+              )}
+            </div>
           </div>
           <p className="font-black text-[15px] text-gray-900 leading-snug">
             {tr.from}<span className="text-gray-300 font-normal mx-1">→</span>{tr.to}

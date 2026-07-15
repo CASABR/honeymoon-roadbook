@@ -35,6 +35,7 @@ export interface BudgetEntry {
   amount: number;
   category: "Trasporti" | "Alloggi" | "Attività" | "Cibo & Extra" | "Altro";
   updatedAt?: number;
+  isPaid?: boolean;
 }
 
 const MIGRATED_FLAG = "hrb_indexeddb_migrated";

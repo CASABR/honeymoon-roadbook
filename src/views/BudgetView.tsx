@@ -23,65 +23,207 @@ function pct(spent: number, budget: number) {
 }
 
 // ── Detail Category Sheet (Popup Dettaglio Spese Categoria) ─────────────────────
+interface DetailItem {
+  id: string;
+  label: string;
+  date: string;
+  amount: number;
+  isPaid: boolean;
+  type: "transport" | "accommodation" | "entry" | "activity";
+  rawObject: any; // Riferimento all'oggetto originale per l'update
+}
+
 function CategoryDetailSheet({
   category,
   transports,
   accommodations,
   entries,
+  tripDays,
   onDeleteEntry,
+  onUpdateTransport,
+  onUpdateAccommodation,
+  onUpdateEntry,
+  onUpdateActivity,
   onClose,
 }: {
   category: string;
   transports: Transport[];
   accommodations: Accommodation[];
   entries: BudgetEntry[];
+  tripDays: DayData[];
   onDeleteEntry: (id: string) => void;
+  onUpdateTransport: (tr: Transport) => void;
+  onUpdateAccommodation: (acc: Accommodation) => void;
+  onUpdateEntry: (entry: BudgetEntry) => void;
+  onUpdateActivity: (act: Activity) => void;
   onClose: () => void;
 }) {
-  let listItems: { label: string; date: string; amount: number; isManual?: boolean; id?: string }[] = [];
+  const [selectedSubCat, setSelectedSubCat] = useState<string | null>(null);
+
+  // Mappatura e raggruppamento
+  let listItems: DetailItem[] = [];
   let total = 0;
 
   if (category === "Trasporti") {
-    // 1. Spese reali da trasporti
+    // Carichiamo tutti i trasporti reali
     transports.forEach((tr) => {
-      if (tr.price && tr.price > 0) {
+      const amt = tr.price || 0;
+      if (amt > 0) {
         listItems.push({
+          id: tr.id,
           label: `${tr.from} → ${tr.to} (${tr.airline || tr.detail || "Tratta"})`,
           date: tr.dateLabel,
-          amount: tr.price,
+          amount: amt,
+          isPaid: !!tr.isPaid,
+          type: "transport",
+          rawObject: tr,
         });
-        total += tr.price;
       }
     });
-    // 2. Eventuali spese manuali assegnate a Trasporti
+    // Aggiungiamo le spese manuali assegnate a Trasporti
     entries.filter((e) => e.category === "Trasporti").forEach((e) => {
-      listItems.push({ label: e.label, date: e.date, amount: e.amount, isManual: true, id: e.id });
-      total += e.amount;
+      listItems.push({
+        id: e.id,
+        label: e.label,
+        date: e.date,
+        amount: e.amount,
+        isPaid: !!e.isPaid,
+        type: "entry",
+        rawObject: e,
+      });
     });
   } else if (category === "Alloggi") {
-    // 1. Spese reali da alloggi
+    // Carichiamo tutti gli alloggi reali
     accommodations.forEach((acc) => {
-      if (acc.price && acc.price > 0) {
+      const amt = acc.price || 0;
+      if (amt > 0) {
         listItems.push({
+          id: acc.id,
           label: `${acc.name} (${acc.city})`,
           date: acc.dates.split(" 2026")[0],
-          amount: acc.price,
+          amount: amt,
+          isPaid: !!acc.isPaid,
+          type: "accommodation",
+          rawObject: acc,
         });
-        total += acc.price;
       }
     });
-    // 2. Eventuali spese manuali assegnate ad Alloggi
+    // Aggiungiamo le spese manuali alloggi
     entries.filter((e) => e.category === "Alloggi").forEach((e) => {
-      listItems.push({ label: e.label, date: e.date, amount: e.amount, isManual: true, id: e.id });
-      total += e.amount;
+      listItems.push({
+        id: e.id,
+        label: e.label,
+        date: e.date,
+        amount: e.amount,
+        isPaid: !!e.isPaid,
+        type: "entry",
+        rawObject: e,
+      });
+    });
+  } else if (category === "Attività") {
+    // Carichiamo le attività pianificate con prezzo dal calendario/itinerario
+    tripDays.forEach((d) => {
+      d.activities.forEach((act) => {
+        if (act.price && act.price > 0) {
+          listItems.push({
+            id: act.id,
+            label: `${act.title} (Itinerario ${d.dateShort} ${d.monthShort})`,
+            date: `${d.dateShort} ${d.monthShort}`,
+            amount: act.price,
+            isPaid: !!act.isPaid,
+            type: "activity",
+            rawObject: act,
+          });
+        }
+      });
+    });
+    // Aggiungiamo le attività inserite a mano nel budgeter
+    entries.filter((e) => e.category === "Attività").forEach((e) => {
+      listItems.push({
+        id: e.id,
+        label: e.label,
+        date: e.date,
+        amount: e.amount,
+        isPaid: !!e.isPaid,
+        type: "entry",
+        rawObject: e,
+      });
     });
   } else {
-    // Attività, Cibo & Extra, Altro derivano interamente da entries
+    // Altre categorie (Cibo, Altro)
     entries.filter((e) => e.category === category).forEach((e) => {
-      listItems.push({ label: e.label, date: e.date, amount: e.amount, isManual: true, id: e.id });
-      total += e.amount;
+      listItems.push({
+        id: e.id,
+        label: e.label,
+        date: e.date,
+        amount: e.amount,
+        isPaid: !!e.isPaid,
+        type: "entry",
+        rawObject: e,
+      });
     });
   }
+
+  // Calcolo totale
+  total = listItems.reduce((sum, item) => sum + item.amount, 0);
+
+  // Definizione sottocategorie per i trasporti
+  const subCategories = [
+    { key: "plane", label: "Voli & Aerei", icon: "✈️" },
+    { key: "ferry", label: "Traghetti & Navi", icon: "🚢" },
+    { key: "train", label: "Treni", icon: "🚆" },
+    { key: "car", label: "Auto & Noleggi", icon: "🚗" },
+    { key: "other", label: "Altro / Extra", icon: "🚌" },
+  ];
+
+  // Filtra per sottocategoria di trasporti se selezionata
+  let displayedItems = listItems;
+  if (category === "Trasporti" && selectedSubCat) {
+    displayedItems = listItems.filter((item) => {
+      if (item.type === "transport") {
+        const t = item.rawObject.type;
+        if (selectedSubCat === "plane") return t === "plane";
+        if (selectedSubCat === "ferry") return t === "ferry";
+        if (selectedSubCat === "train") return t === "train";
+        if (selectedSubCat === "car") return t === "car" || t === "transfer";
+        return t !== "plane" && t !== "ferry" && t !== "train" && t !== "car" && t !== "transfer";
+      } else {
+        // Le entrate manuali dei trasporti vanno in "other"
+        return selectedSubCat === "other";
+      }
+    });
+  }
+
+  // Calcola totali parziali per ciascuna sottocategoria di Trasporti
+  function getSubCatTotal(key: string) {
+    return listItems
+      .filter((item) => {
+        if (item.type === "transport") {
+          const t = item.rawObject.type;
+          if (key === "plane") return t === "plane";
+          if (key === "ferry") return t === "ferry";
+          if (key === "train") return t === "train";
+          if (key === "car") return t === "car" || t === "transfer";
+          return t !== "plane" && t !== "ferry" && t !== "train" && t !== "car" && t !== "transfer";
+        }
+        return key === "other";
+      })
+      .reduce((sum, i) => sum + i.amount, 0);
+  }
+
+  function handleTogglePaid(item: DetailItem) {
+    if (item.type === "transport") {
+      onUpdateTransport({ ...item.rawObject, isPaid: !item.isPaid });
+    } else if (item.type === "accommodation") {
+      onUpdateAccommodation({ ...item.rawObject, isPaid: !item.isPaid });
+    } else if (item.type === "activity") {
+      onUpdateActivity(item.rawObject);
+    } else {
+      onUpdateEntry({ ...item.rawObject, isPaid: !item.isPaid });
+    }
+  }
+
+  const isTransportMainView = category === "Trasporti" && !selectedSubCat;
 
   return (
     <div
@@ -93,36 +235,104 @@ function CategoryDetailSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+        
+        {/* Header */}
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-[17px] font-black text-gray-900">Dettaglio: {category}</h2>
-          <span className="text-[16px] font-extrabold text-blue-600">Total: €{total.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <div className="flex items-center gap-2">
+            {category === "Trasporti" && selectedSubCat && (
+              <button
+                onClick={() => setSelectedSubCat(null)}
+                className="text-[12px] bg-gray-100 hover:bg-gray-200 text-gray-700 font-extrabold px-2.5 py-1 rounded-lg shrink-0"
+              >
+                ← Indietro
+              </button>
+            )}
+            <h2 className="text-[17px] font-black text-gray-900">
+              {category === "Trasporti" && selectedSubCat
+                ? subCategories.find((s) => s.key === selectedSubCat)?.label
+                : `Dettaglio: ${category}`}
+            </h2>
+          </div>
+          <span className="text-[15px] font-black text-blue-600">
+            €{
+              (category === "Trasporti" && selectedSubCat
+                ? getSubCatTotal(selectedSubCat)
+                : total
+              ).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+            }
+          </span>
         </div>
-        <p className="text-[12px] text-gray-400 mb-4">Composizione analitica dei costi reali registrati</p>
+        <p className="text-[12px] text-gray-400 mb-4">
+          {category === "Trasporti" && selectedSubCat
+            ? "Voci incluse in questa tipologia di viaggio"
+            : "Composizione analitica dei costi reali registrati"}
+        </p>
 
+        {/* Corpo principale */}
         <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
-          {listItems.length === 0 ? (
+          {isTransportMainView ? (
+            // Vista delle Sottocategorie per i Trasporti
+            <div className="space-y-2">
+              {subCategories.map((sub) => {
+                const subTotal = getSubCatTotal(sub.key);
+                if (subTotal === 0) return null; // Mostra solo sottocategorie con costi
+                return (
+                  <button
+                    key={sub.key}
+                    onClick={() => setSelectedSubCat(sub.key)}
+                    className="w-full bg-gray-50/70 border border-gray-100 p-3.5 rounded-xl flex items-center justify-between hover:bg-gray-100/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{sub.icon}</span>
+                      <span className="text-[13px] font-bold text-gray-800">{sub.label}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[13px] font-black text-gray-900">
+                        €{subTotal.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      <IcChevronRight size={13} className="text-gray-300" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : displayedItems.length === 0 ? (
             <p className="text-[12px] text-gray-400 italic text-center py-6 bg-gray-50 rounded-xl">
               Nessuna spesa inserita per questa categoria.
             </p>
           ) : (
-            listItems.map((item, idx) => (
+            // Lista dei singoli elementi di spesa
+            displayedItems.map((item, idx) => (
               <div key={idx} className="bg-gray-50/70 border border-gray-100 p-3 rounded-xl flex items-center justify-between gap-3">
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-[13px] font-bold text-gray-800 leading-snug truncate">{item.label}</p>
                   <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{item.date}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className="text-[13px] font-black text-gray-900">€{item.amount.toLocaleString("it-IT", { minimumFractionDigits: 2 })}</span>
-                  {item.isManual && item.id && (
+                  {/* Toggle di pagamento */}
+                  <button
+                    onClick={() => handleTogglePaid(item)}
+                    className={`text-[9px] px-2 py-1 rounded font-extrabold uppercase shrink-0 active:scale-95 transition-all ${
+                      item.isPaid
+                        ? "bg-green-100 text-green-700 border border-green-200"
+                        : "bg-red-50 text-red-500 border border-red-100"
+                    }`}
+                  >
+                    {item.isPaid ? "Pagato" : "Da pagare"}
+                  </button>
+                  <span className="text-[13px] font-black text-gray-900">
+                    €{item.amount.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                  </span>
+                  {item.type === "entry" && (
                     <button
                       onClick={() => {
                         if (window.confirm(`Rimuovere la spesa: ${item.label}?`)) {
-                          onDeleteEntry(item.id!);
+                          onDeleteEntry(item.id);
                         }
                       }}
-                      className="text-red-500 text-[10px] font-bold ml-1 hover:underline"
+                      className="text-red-400 hover:text-red-600 text-[12px] font-bold ml-1"
                     >
-                      Elimina
+                      🗑️
                     </button>
                   )}
                 </div>
@@ -248,10 +458,14 @@ function AddExpenseSheet({
 }
 
 // ── Main BudgetView ───────────────────────────────────────────────────────────
+import type { DayData, Activity } from "../data/mockData";
+import { DAYS } from "../data/mockData";
+
 export default function BudgetView() {
   const [transports, setTransports] = useState<Transport[]>([]);
   const [accommodations, setAccommodations] = useState<Accommodation[]>([]);
   const [entries, setEntries] = useState<BudgetEntry[]>([]);
+  const [tripDays, setTripDays] = useState<DayData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const isLoadedRef = useRef(false);
 
@@ -264,9 +478,11 @@ export default function BudgetView() {
         const tr = await repository.getTransports(TRANSPORTS);
         const acc = await repository.getAccommodations(ACCOMMODATIONS);
         const ent = await repository.getBudgetEntries(INITIAL_ENTRIES);
+        const days = await repository.getTripDays(DAYS);
         setTransports(tr);
         setAccommodations(acc);
         setEntries(ent);
+        setTripDays(days);
         isLoadedRef.current = true;
       } catch (e) {
         console.error("Errore caricamento dati budgeter:", e);
@@ -347,6 +563,13 @@ export default function BudgetView() {
   entries.filter((e) => e.category === "Alloggi").forEach((e) => spentAccommodations += e.amount);
 
   let spentActivities = 0;
+  tripDays.forEach((d) => {
+    d.activities.forEach((act) => {
+      if (act.price && act.price > 0) {
+        spentActivities += act.price;
+      }
+    });
+  });
   entries.filter((e) => e.category === "Attività").forEach((e) => spentActivities += e.amount);
 
   let spentFoodExtra = 0;
@@ -358,6 +581,32 @@ export default function BudgetView() {
   const totalSpent = spentTransports + spentAccommodations + spentActivities + spentFoodExtra + spentAltro;
   const residuo = BUDGET_TOTAL - totalSpent;
   const totalPct = pct(totalSpent, BUDGET_TOTAL);
+
+  // Calcolo del Pagato e Da Pagare
+  let totalPaid = 0;
+  finalTransports.forEach((t) => {
+    if (t.price && t.price > 0 && t.isPaid) totalPaid += t.price;
+  });
+  entries.filter((e) => e.category === "Trasporti" && e.isPaid).forEach((e) => totalPaid += e.amount);
+
+  finalAccommodations.forEach((a) => {
+    if (a.price && a.price > 0 && a.isPaid) totalPaid += a.price;
+  });
+  entries.filter((e) => e.category === "Alloggi" && e.isPaid).forEach((e) => totalPaid += e.amount);
+
+  // Spese attività pagate
+  tripDays.forEach((d) => {
+    d.activities.forEach((act) => {
+      if (act.price && act.price > 0 && act.isPaid) {
+        totalPaid += act.price;
+      }
+    });
+  });
+  entries.filter((e) => e.category === "Attività" && e.isPaid).forEach((e) => totalPaid += e.amount);
+  entries.filter((e) => e.category === "Cibo & Extra" && e.isPaid).forEach((e) => totalPaid += e.amount);
+  entries.filter((e) => e.category === "Altro" && e.isPaid).forEach((e) => totalPaid += e.amount);
+
+  const totalUnpaid = totalSpent - totalPaid;
 
   // Mappatura delle categorie per il rendering
   const categoriesRender = [
@@ -374,6 +623,35 @@ export default function BudgetView() {
 
   function handleDeleteEntry(id: string) {
     setEntries((prev) => prev.filter((e) => e.id !== id));
+  }
+
+  function handleUpdateTransport(updated: Transport) {
+    setTransports((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+    repository.saveTransports(transports.map((t) => (t.id === updated.id ? updated : t)));
+  }
+
+  function handleUpdateAccommodation(updated: Accommodation) {
+    setAccommodations((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+    repository.saveAccommodations(accommodations.map((a) => (a.id === updated.id ? updated : a)));
+  }
+
+  function handleUpdateEntry(updated: BudgetEntry) {
+    setEntries((prev) => prev.map((e) => (e.id === updated.id ? updated : e)));
+  }
+
+  function handleUpdateActivity(updatedAct: Activity) {
+    const nextDays = tripDays.map((day) => {
+      const hasAct = day.activities.some((a) => a.id === updatedAct.id);
+      if (hasAct) {
+        const nextActs = day.activities.map((a) =>
+          a.id === updatedAct.id ? { ...a, isPaid: !a.isPaid } : a
+        );
+        return { ...day, activities: nextActs };
+      }
+      return day;
+    });
+    setTripDays(nextDays);
+    repository.saveTripDays(nextDays);
   }
 
   return (
@@ -409,17 +687,34 @@ export default function BudgetView() {
         <div className="flex justify-between items-end mb-3">
           <div>
             <p className="text-[12px] text-gray-400 font-medium mb-0.5">Totale speso</p>
-            <p className="text-[32px] font-extrabold text-gray-900">
+            <p className="text-[32px] font-extrabold text-gray-900 leading-none">
               €{totalSpent.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
           <div className="text-right">
             <p className="text-[12px] text-gray-400 font-medium mb-0.5">Residuo</p>
-            <p className={`text-[22px] font-bold ${residuo >= 0 ? "text-green-600" : "text-red-500"}`}>
+            <p className={`text-[22px] font-bold ${residuo >= 0 ? "text-green-600" : "text-red-500"} leading-none`}>
               €{residuo.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
         </div>
+
+        {/* Breakdown Pagato / Da pagare */}
+        <div className="grid grid-cols-2 gap-2 bg-gray-50/50 p-2.5 rounded-xl mb-3 border border-gray-100/50 text-[11px] font-semibold">
+          <div className="text-center">
+            <span className="text-gray-400 block mb-0.5 uppercase tracking-wider text-[9px]">Già Pagato / Bloccato</span>
+            <span className="text-emerald-600 text-[12.5px] font-extrabold">
+              €{totalPaid.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+          <div className="text-center border-l border-gray-200/60">
+            <span className="text-gray-400 block mb-0.5 uppercase tracking-wider text-[9px]">Da pagare in loco</span>
+            <span className="text-amber-600 text-[12.5px] font-extrabold">
+              €{totalUnpaid.toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+        </div>
+
         <div className="budget-bar-track">
           <div
             className="budget-bar-fill"
@@ -496,7 +791,16 @@ export default function BudgetView() {
             <div key={entry.id} className="px-3 py-2.5 flex items-center justify-between transition-colors hover:bg-gray-50/20">
               <div className="min-w-0">
                 <p className="text-[13px] font-bold text-gray-800 truncate leading-snug">{entry.label}</p>
-                <p className="text-[11px] text-gray-400 mt-0.5">{entry.date} · {entry.category}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-extrabold uppercase shrink-0 ${
+                    entry.isPaid
+                      ? "bg-green-50 text-green-600 border border-green-150"
+                      : "bg-red-50 text-red-500 border border-red-100"
+                  }`}>
+                    {entry.isPaid ? "Pagato" : "Da pagare"}
+                  </span>
+                  <p className="text-[11px] text-gray-400">{entry.date} · {entry.category}</p>
+                </div>
               </div>
               <div className="flex items-center gap-2.5 ml-3 flex-shrink-0">
                 <span className="text-[14px] font-black text-gray-900">
@@ -533,7 +837,12 @@ export default function BudgetView() {
           transports={finalTransports}
           accommodations={finalAccommodations}
           entries={entries}
+          tripDays={tripDays}
           onDeleteEntry={handleDeleteEntry}
+          onUpdateTransport={handleUpdateTransport}
+          onUpdateAccommodation={handleUpdateAccommodation}
+          onUpdateEntry={handleUpdateEntry}
+          onUpdateActivity={handleUpdateActivity}
           onClose={() => setSelectedCat(null)}
         />
       )}

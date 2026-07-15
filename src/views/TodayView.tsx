@@ -455,6 +455,35 @@ function hasAddress(activity: Activity) {
   return hasNumbers || hasStreetIndicator || hasComma || activity.type === "hotel" || activity.type === "sightseeing";
 }
 
+export function shouldCalculateDriving(act: Activity, nextAct: Activity): boolean {
+  if (!hasAddress(act) || !hasAddress(nextAct)) return false;
+  
+  const combined = `${act.title} ${act.subtitle} ${nextAct.title} ${nextAct.subtitle}`.toLowerCase();
+  
+  // Escludi voli, aerei, traghetti ed aeroporti (non ha senso calcolare routing stradale)
+  const excludeWords = [
+    "volo", "flight", "scalo", "air china", "cebu pacific", "virgin", "philippine", 
+    "traghetto", "ferry", "bluebridge", "airport", "aeroporto", "transit", "layover",
+    "chc →", "adl →", "mel →", "syd →", "mnl →", "mph →", "eni →", "usu →", "ceb →", "fco",
+    "china airlines", "air new zealand"
+  ];
+  if (excludeWords.some(w => combined.includes(w))) return false;
+  
+  // Escludi passaggi tra nazioni o isole non collegate via terra
+  const isNZ = combined.includes("nz") || combined.includes("auckland") || combined.includes("waitomo") || combined.includes("rotorua") || combined.includes("tongariro") || combined.includes("levin") || combined.includes("wellington") || combined.includes("picton") || combined.includes("kaikoura") || combined.includes("arthur pass") || combined.includes("hokitika") || combined.includes("franz josef") || combined.includes("fox glacier") || combined.includes("wanaka") || combined.includes("cardrona") || combined.includes("milford") || combined.includes("queenstown") || combined.includes("arrowtown") || combined.includes("tekapo") || combined.includes("christchurch");
+  const isAU = combined.includes("adelaide") || combined.includes("kangaroo") || combined.includes("melbourne") || combined.includes("great ocean") || combined.includes("apostles") || combined.includes("phillip island") || combined.includes("wilsons prom") || combined.includes("jervis") || combined.includes("blue mountains") || combined.includes("sydney") || combined.includes("jervis bay") || combined.includes("katoomba");
+  const isPH = combined.includes("manila") || combined.includes("boracay") || combined.includes("caticlan") || combined.includes("el nido") || combined.includes("coron") || combined.includes("cebu") || combined.includes("busuanga") || combined.includes("linapacan");
+  
+  let regions = 0;
+  if (isNZ) regions++;
+  if (isAU) regions++;
+  if (isPH) regions++;
+  
+  if (regions > 1) return false;
+  
+  return true;
+}
+
 function buildMapsUrl(activity: Activity, dayLocation?: string) {
   const actAny = activity as any;
   if (actAny.mapsUrl) return actAny.mapsUrl;
@@ -557,7 +586,18 @@ function TimelineRow({
               <div className="flex items-center gap-2.5 min-w-0 flex-1">
                 <ActivityIcon type={activity.type} size={16} />
                 <div className="flex-1 min-w-0">
-                  <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                    {activity.price !== undefined && (
+                      <span className={`text-[8.5px] font-extrabold px-1 py-0.2 rounded uppercase shrink-0 ${
+                        activity.isPaid
+                          ? "bg-green-55 text-green-600 border border-green-100"
+                          : "bg-red-50 text-red-500 border border-red-100"
+                      }`}>
+                        €{activity.price} · {activity.isPaid ? "Pagato" : "Da pagare"}
+                      </span>
+                    )}
+                  </div>
                   <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
                 </div>
               </div>
@@ -593,7 +633,18 @@ function TimelineRow({
               <div className="flex items-center gap-2.5 min-w-0 flex-1">
                 <ActivityIcon type={activity.type} size={16} />
                 <div className="flex-1 min-w-0">
-                  <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                    {activity.price !== undefined && (
+                      <span className={`text-[8.5px] font-extrabold px-1 py-0.2 rounded uppercase shrink-0 ${
+                        activity.isPaid
+                          ? "bg-green-55 text-green-600 border border-green-100"
+                          : "bg-red-50 text-red-500 border border-red-100"
+                      }`}>
+                        €{activity.price} · {activity.isPaid ? "Pagato" : "Da pagare"}
+                      </span>
+                    )}
+                  </div>
                   <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
                 </div>
               </div>
@@ -800,7 +851,7 @@ export default function TodayView() {
             continue;
           }
 
-          if (!hasAddress(act) || !hasAddress(nextAct)) continue;
+          if (!shouldCalculateDriving(act, nextAct)) continue;
 
           const fromQuery = `${act.title}, ${act.subtitle || ""}`;
           const toQuery = `${nextAct.title}, ${nextAct.subtitle || ""}`;
@@ -1176,10 +1227,21 @@ function EditActivitySheet({
   const [type, setType] = useState<Activity["type"]>(activity.type);
   const [title, setTitle] = useState(activity.title);
   const [subtitle, setSubtitle] = useState(activity.subtitle);
+  const [price, setPrice] = useState(activity.price ? String(activity.price) : "");
+  const [isPaid, setIsPaid] = useState(!!activity.isPaid);
 
   function handleSubmit() {
     if (!title.trim() || !time.trim()) return;
-    onSave({ ...activity, time: time.trim(), type, title: title.trim(), subtitle: subtitle.trim() });
+    const parsedPrice = parseFloat(price.replace(",", "."));
+    onSave({ 
+      ...activity, 
+      time: time.trim(), 
+      type, 
+      title: title.trim(), 
+      subtitle: subtitle.trim(),
+      price: isNaN(parsedPrice) ? undefined : parsedPrice,
+      isPaid
+    });
     onClose();
   }
 
@@ -1263,14 +1325,45 @@ function EditActivitySheet({
               />
             </div>
           </div>
-          <div>
-            <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
-            <input
-              type="text"
-              value={subtitle}
-              onChange={(e) => setSubtitle(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-            />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
+              <input
+                type="text"
+                value={subtitle}
+                onChange={(e) => setSubtitle(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+              />
+            </div>
+            <div className="w-1/3">
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
+              <input
+                type="text"
+                value={price}
+                placeholder="es. 40"
+                onChange={(e) => setPrice(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+              />
+            </div>
+          </div>
+
+          {/* Toggle Pagato */}
+          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 mt-2">
+            <div>
+              <p className="text-[12.5px] font-bold text-gray-800">Stato pagamento</p>
+              <p className="text-[10px] text-gray-400 font-medium">Questa attività è già stata bloccata/pagata?</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPaid(!isPaid)}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
+                isPaid
+                  ? "bg-green-150 text-green-700 border border-green-200"
+                  : "bg-red-50 text-red-500 border border-red-100"
+              }`}
+            >
+              {isPaid ? "✅ Pagato" : "⏳ Da pagare"}
+            </button>
           </div>
         </div>
 
