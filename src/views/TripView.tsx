@@ -17,7 +17,7 @@ import { repository } from "../services/repository";
 import { parseTransitTimeToMinutes, formatMinutesToHoursAndMinutes, getCachedTransitTime, cleanSubtitle } from "./TodayView";
 
 // ── Sheet per modificare un'attività esistente ────────────────────────────────
-function EditActivitySheet({
+export function EditActivitySheet({
   activity,
   dayLabel,
   onSave,
@@ -37,6 +37,7 @@ function EditActivitySheet({
   const [transitTime, setTransitTime] = useState(activity.transitTime || "");
   const [price, setPrice] = useState(activity.price ? String(activity.price) : "");
   const [isPaid, setIsPaid] = useState(!!activity.isPaid);
+  const [isBooked, setIsBooked] = useState(!!activity.isBooked);
 
   function handleSubmit() {
     if (!title.trim() || !time.trim()) return;
@@ -49,7 +50,8 @@ function EditActivitySheet({
       subtitle: subtitle.trim(), 
       transitTime: transitTime.trim() || undefined,
       price: isNaN(parsedPrice) ? undefined : parsedPrice,
-      isPaid
+      isPaid,
+      isBooked
     });
     onClose();
   }
@@ -166,23 +168,37 @@ function EditActivitySheet({
             />
           </div>
 
-          {/* Toggle Pagato */}
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 mt-2">
-            <div>
-              <p className="text-[12.5px] font-bold text-gray-800">Stato pagamento</p>
-              <p className="text-[10px] text-gray-400 font-medium">Questa attività è già stata bloccata/pagata?</p>
+          {/* Toggle Prenotato & Pagato */}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+              <span className="text-[11px] font-bold text-gray-700">Prenotato</span>
+              <button
+                type="button"
+                onClick={() => setIsBooked(!isBooked)}
+                className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
+                  isBooked
+                    ? "bg-blue-50 text-blue-600 border border-blue-200"
+                    : "bg-gray-100 text-gray-400 border border-gray-200"
+                }`}
+              >
+                {isBooked ? "✅ Sì" : "❌ No"}
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsPaid(!isPaid)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
-                isPaid
-                  ? "bg-green-150 text-green-700 border border-green-200"
-                  : "bg-red-50 text-red-500 border border-red-100"
-              }`}
-            >
-              {isPaid ? "✅ Pagato" : "⏳ Da pagare"}
-            </button>
+
+            <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+              <span className="text-[11px] font-bold text-gray-700">Pagato</span>
+              <button
+                type="button"
+                onClick={() => setIsPaid(!isPaid)}
+                className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
+                  isPaid
+                    ? "bg-green-50 text-green-600 border border-green-200"
+                    : "bg-red-50 text-red-500 border border-red-100"
+                }`}
+              >
+                {isPaid ? "✅ Sì" : "⏳ No"}
+              </button>
+            </div>
           </div>
         </div>
 
@@ -398,7 +414,7 @@ function TripTimelineRow({
 }
 
 // ── Form per aggiungere attività ad un giorno ─────────────────────────────────
-function AddActivitySheet({
+export function AddActivitySheet({
   dayId,
   dayLabel,
   onSave,
@@ -415,9 +431,13 @@ function AddActivitySheet({
   const [subtitle, setSubtitle] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [transitTime, setTransitTime] = useState("");
+  const [price, setPrice] = useState("");
+  const [isPaid, setIsPaid] = useState(false);
+  const [isBooked, setIsBooked] = useState(false);
 
   function handleSubmit() {
     if (!title.trim() || !time.trim()) return;
+    const parsedPrice = parseFloat(price.replace(",", "."));
     const newAct: Activity = {
       id: `act-${Date.now()}`,
       time: time.trim(),
@@ -426,6 +446,9 @@ function AddActivitySheet({
       subtitle: subtitle.trim() || "Attività del giorno",
       imageUrl: imageUrl.trim() || undefined,
       transitTime: transitTime.trim() || undefined,
+      price: isNaN(parsedPrice) ? undefined : parsedPrice,
+      isPaid,
+      isBooked,
     };
     onSave(dayId, newAct);
     onClose();
@@ -518,15 +541,60 @@ function AddActivitySheet({
             />
           </div>
 
-          <div>
-            <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento dal posto precedente (es. 1h 30m)</label>
-            <input
-              type="text"
-              value={transitTime}
-              placeholder="Tempo di trasferimento dal posto precedente"
-              onChange={(e) => setTransitTime(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
-            />
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento dal posto precedente (es. 1h 30m)</label>
+              <input
+                type="text"
+                value={transitTime}
+                placeholder="Tempo di trasferimento dal posto precedente"
+                onChange={(e) => setTransitTime(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
+              />
+            </div>
+            <div className="w-1/3">
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
+              <input
+                type="text"
+                value={price}
+                placeholder="es. 45"
+                onChange={(e) => setPrice(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+              />
+            </div>
+          </div>
+
+          {/* Toggle Prenotato & Pagato */}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+              <span className="text-[11px] font-bold text-gray-700">Prenotato</span>
+              <button
+                type="button"
+                onClick={() => setIsBooked(!isBooked)}
+                className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
+                  isBooked
+                    ? "bg-blue-50 text-blue-600 border border-blue-200"
+                    : "bg-gray-100 text-gray-400 border border-gray-200"
+                }`}
+              >
+                {isBooked ? "✅ Sì" : "❌ No"}
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+              <span className="text-[11px] font-bold text-gray-700">Pagato</span>
+              <button
+                type="button"
+                onClick={() => setIsPaid(!isPaid)}
+                className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
+                  isPaid
+                    ? "bg-green-50 text-green-600 border border-green-200"
+                    : "bg-red-50 text-red-500 border border-red-100"
+                }`}
+              >
+                {isPaid ? "✅ Sì" : "⏳ No"}
+              </button>
+            </div>
           </div>
         </div>
 
