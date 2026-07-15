@@ -808,12 +808,12 @@ export default function BudgetView() {
         <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Spunta per Pagato</span>
       </div>
       <div className="card p-3 mb-5 space-y-2 max-h-[300px] overflow-y-auto shadow-sm border border-gray-100/80">
-        {tripDays.flatMap(day => day.activities.map(act => ({ day, act }))).length === 0 ? (
+        {tripDays.flatMap(day => day.activities.filter(act => act.price !== undefined && act.price > 0).map(act => ({ day, act }))).length === 0 ? (
           <p className="text-[12px] text-gray-400 italic text-center py-4 bg-white">
-            Nessuna attività programmata nell'itinerario.
+            Nessuna attività con prezzo registrata nell'itinerario.
           </p>
         ) : (
-          tripDays.flatMap(day => day.activities.map(act => ({ day, act }))).map(({ day, act }) => (
+          tripDays.flatMap(day => day.activities.filter(act => act.price !== undefined && act.price > 0).map(act => ({ day, act }))).map(({ day, act }) => (
             <div key={act.id} className="flex items-center justify-between gap-3 p-2 hover:bg-gray-50/50 rounded-xl transition-colors border-b border-gray-50/50 last:border-0">
               <div className="flex items-start gap-2.5 min-w-0 flex-1">
                 {/* Checkbox per prenotato/pagato */}
