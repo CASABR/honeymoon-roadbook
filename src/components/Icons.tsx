@@ -84,6 +84,16 @@ export const IcCar = ({ size = 22, className = "" }: IconProps) => (
   </svg>
 );
 
+export const IcVan = ({ size = 22, className = "" }: IconProps) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M2 16V8a2 2 0 0 1 2-2h11.5a1.5 1.5 0 0 1 1.2.6l3.6 4.8A1 1 0 0 1 21 12v4a2 2 0 0 1-2 2H3a1 1 0 0 1-1-1z" />
+    <path d="M6 10h4v3H6z" />
+    <path d="M13 10h3v3h-3z" />
+    <circle cx="6.5" cy="18" r="2" />
+    <circle cx="16.5" cy="18" r="2" />
+  </svg>
+);
+
 export const IcCalendar = ({ size = 22, className = "" }: IconProps) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className}>
     <rect x="3" y="4" width="18" height="18" rx="2" />

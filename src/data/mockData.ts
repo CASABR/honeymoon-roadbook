@@ -32,6 +32,8 @@ export interface Activity {
   duration?: string; // Durata
   bookingRef?: string; // Codice/Riferimento prenotazione
   ticketUrl?: string; // Link per biglietti / info
+  isManaged?: boolean; // Se è un'attività gestita
+  mapsUrl?: string; // Posizione su Google Maps
 }
 
 export interface DayData {
@@ -106,6 +108,18 @@ export interface Transport {
   qrCodes?: string[]; // Lista di QR code o riferimenti a documenti associati
   price?: number; // Prezzo della tratta
   source?: "manual" | "imported" | "gmail" | "google_calendar" | "booking";
+  
+  // Campi noleggio auto/van:
+  rentalProvider?: string;
+  rentalVehicle?: string;
+  pickupTime?: string;
+  pickupLocation?: string;
+  returnTime?: string;
+  returnLocation?: string;
+  pricePaid?: number;
+  priceToPay?: string;
+  insurancePolicy?: string;
+  flightNumber?: string;
 }
 
 export interface BudgetCategory {
@@ -258,7 +272,7 @@ export const DAYS: DayData[] = [
       { id: "d5-2", time: "11:15", type: "sightseeing", title: "Hamilton Gardens", subtitle: "Hamilton, Nuova Zelanda (consigliato)", transitTime: "1h 30m" },
       { id: "d5-3", time: "13:30", type: "sightseeing", title: "Otorohanga Kiwi House", subtitle: "20 Alex Telfer Drive, Otorohanga", transitTime: "45m" },
       { id: "d5-4", time: "16:00", type: "sightseeing", title: "Mangapohue Natural Bridge", subtitle: "Te Anga Road, Waitomo", transitTime: "40m" },
-      { id: "d5-5", time: "17:30", type: "sightseeing", title: "Waitomo Glowworm Caves", subtitle: "39 Waitomo Village Road — grotte bioluminescenti", transitTime: "15m", price: 75, isPaid: false, isBooked: true, howToGetThere: "Impostare navigatore su 39 Waitomo Village Road, Waitomo Caves. Ampio parcheggio gratuito all'ingresso principale del Visitor Centre.", timeBeforehand: "Arrivare 15 minuti prima dell'inizio del tour", duration: "45m", bookingRef: "BK-WAITOMO-890", ticketUrl: "https://www.waitomo.com/experiences/waitomo-glowworm-caves", note: "Il tour include una camminata guidata e un giro in barca silenzioso sotto migliaia di lucciole luminose. Temperatura interna di circa 12°C costante: si raccomanda una giacca e scarpe comode." },
+      { id: "d5-5", time: "17:30", type: "sightseeing", title: "Waitomo Glowworm Caves", subtitle: "39 Waitomo Village Road — grotte bioluminescenti", transitTime: "15m", price: 75, isPaid: false, isBooked: true, howToGetThere: "Impostare navigatore su 39 Waitomo Village Road, Waitomo Caves. Ampio parcheggio gratuito all'ingresso principale del Visitor Centre.", timeBeforehand: "Arrivare 15 minuti prima dell'inizio del tour", duration: "45m", bookingRef: "BK-WAITOMO-890", ticketUrl: "https://www.waitomo.com/experiences/waitomo-glowworm-caves", note: "Il tour include una camminata guidata e un giro in barca silenzioso sotto migliaia di lucciole luminose. Temperatura interna di circa 12°C costante: si raccomanda una giacca e scarpe comode.", isManaged: true },
       { id: "d5-6", time: "22:00", type: "hotel", title: "Waitomo Village Chalets", subtitle: "Hotel Access Road, Waitomo", transitTime: "5m" },
     ],
   },
@@ -272,10 +286,10 @@ export const DAYS: DayData[] = [
     dayShort: "Gio",
     location: "Rotorua, NZ",
     activities: [
-      { id: "d6-1", time: "09:00", type: "sightseeing", title: "Hobbiton Movie Set", subtitle: "501 Buckland Road, Matamata", price: 89, isPaid: false, isBooked: true, howToGetThere: "501 Buckland Road, Hinuera, Matamata. Il tour guidato parte in bus dal parcheggio principale di The Shire's Rest.", timeBeforehand: "Arrivare 15 minuti prima", duration: "2h 30m", bookingRef: "BK-HOBBITON-112", ticketUrl: "https://www.hobbitontours.com/", note: "Visita guidata del set cinematografico dei film Lo Hobbit e Il Signore degli Anelli, e una bevanda inclusa al pub Green Dragon Inn." },
+      { id: "d6-1", time: "09:00", type: "sightseeing", title: "Hobbiton Movie Set", subtitle: "501 Buckland Road, Matamata", price: 89, isPaid: false, isBooked: true, howToGetThere: "501 Buckland Road, Hinuera, Matamata. Il tour guidato parte in bus dal parcheggio principale di The Shire's Rest.", timeBeforehand: "Arrivare 15 minuti prima", duration: "2h 30m", bookingRef: "BK-HOBBITON-112", ticketUrl: "https://www.hobbitontours.com/", note: "Visita guidata del set cinematografico dei film Lo Hobbit e Il Signore degli Anelli, e una bevanda inclusa al pub Green Dragon Inn.", isManaged: true },
       { id: "d6-2", time: "13:00", type: "food", title: "Big Dog and Sheep — Pranzo a Tirau", subtitle: "Tirau i-SITE Visitor Information Centre" },
       { id: "d6-3", time: "15:00", type: "sightseeing", title: "Te Waihou Blue Spring", subtitle: "Whites Road, Putaruru" },
-      { id: "d6-4", time: "17:30", type: "sightseeing", title: "Mitai Maori Village", subtitle: "196 Fairy Springs Road, Rotorua — Spettacolo culturale e cena tipica", transitTime: "15m", price: 130, isPaid: false, isBooked: true, howToGetThere: "196 Fairy Springs Road, Rotorua. Parcheggio all'ingresso principale del villaggio.", timeBeforehand: "Check-in a partire dalle 17:15, inizio ore 17:30", duration: "3h", bookingRef: "BK-MAORI-304", ticketUrl: "https://www.mitai.co.nz/", note: "Spettacolo culturale tradizionale, visita della sorgente d'acqua sacra e cena Hangi tipica inclusa. Portare abbigliamento comodo e scarpe per la camminata notturna." },
+      { id: "d6-4", time: "17:30", type: "sightseeing", title: "Mitai Maori Village", subtitle: "196 Fairy Springs Road, Rotorua — Spettacolo culturale e cena tipica", transitTime: "15m", price: 130, isPaid: false, isBooked: true, howToGetThere: "196 Fairy Springs Road, Rotorua. Parcheggio all'ingresso principale del villaggio.", timeBeforehand: "Check-in a partire dalle 17:15, inizio ore 17:30", duration: "3h", bookingRef: "BK-MAORI-304", ticketUrl: "https://www.mitai.co.nz/", note: "Spettacolo culturale tradicional, visita della sorgente d'acqua sacra e cena Hangi tipica inclusa. Portare abbigliamento comodo e scarpe per la camminata notturna.", isManaged: true },
       { id: "d6-5", time: "22:00", type: "hotel", title: "Wylie Court Motor Lodge", subtitle: "345 Fenton Street, Rotorua" },
     ],
   },
@@ -289,8 +303,8 @@ export const DAYS: DayData[] = [
     dayShort: "Ven",
     location: "Tongariro NP, NZ",
     activities: [
-      { id: "d7-1", time: "09:00", type: "sightseeing", title: "Redwoods Treewalk", subtitle: "1 Long Mile Road, Rotorua" },
-      { id: "d7-2", time: "11:00", type: "sightseeing", title: "Polynesian Spa", subtitle: "1000 Hinemoa Street, Rotorua" },
+      { id: "d7-1", time: "09:00", type: "sightseeing", title: "Redwoods Treewalk", subtitle: "1 Long Mile Road, Rotorua", price: 25, isPaid: false, isBooked: true, howToGetThere: "1 Long Mile Road, Rotorua. Biglietteria all'ingresso del parco.", timeBeforehand: "Arrivare all'orario prenotato", duration: "40m", bookingRef: "BK-REDWOODS-441", ticketUrl: "https://www.redwoods.co.nz/", note: "Passeggiata notturna sospesa tra le sequoie illuminate.", isManaged: true },
+      { id: "d7-2", time: "11:00", type: "sightseeing", title: "Polynesian Spa", subtitle: "1000 Hinemoa Street, Rotorua", price: 40, isPaid: false, isBooked: true, howToGetThere: "1000 Hinemoa Street, Rotorua. Parcheggio gratuito in loco.", timeBeforehand: "Arrivare 15 minuti prima", duration: "2h", bookingRef: "BK-POLY-211", ticketUrl: "https://www.polynesianspa.co.nz/", note: "Bagno termale rilassante nelle acque minerali calde.", isManaged: true },
       { id: "d7-3", time: "13:30", type: "sightseeing", title: "Waiotapu Thermal Wonderland", subtitle: "201 Waiotapu Loop Road" },
       { id: "d7-4", time: "15:30", type: "sightseeing", title: "Wairakei Terraces e Thermal Health Spa", subtitle: "Wairakei" },
       { id: "d7-5", time: "16:30", type: "sightseeing", title: "Cascate Huka", subtitle: "Wairakei, Taupo" },
@@ -339,7 +353,7 @@ export const DAYS: DayData[] = [
     dayShort: "Lun",
     location: "Arthur Pass, NZ",
     activities: [
-      { id: "d10-whale", time: "09:00", type: "sightseeing", title: "Whale Watch Kaikoura", subtitle: "Whale Way Station, Kaikoura", price: 160, isPaid: false, isBooked: true, howToGetThere: "Whale Way Station, 224 Esplanade, Kaikoura. Situato proprio di fronte alla stazione ferroviaria di Kaikoura.", timeBeforehand: "Arrivare 30 minuti prima (ore 08:30) per il check-in e briefing", duration: "3h 15m", bookingRef: "BK-WHALE-902", ticketUrl: "https://www.whalewatch.co.nz/", note: "Esperienza di avvistamento capodogli in catamarano. In caso di mare mosso il tour viene cancellato con rimborso totale. Si consiglia vivamente una giacca calda/antivento e di assumere una pillola contro il mal di mare prima dell'imbarco." },
+      { id: "d10-whale", time: "09:00", type: "sightseeing", title: "Whale Watch Kaikoura", subtitle: "Whale Way Station, Kaikoura", price: 160, isPaid: false, isBooked: true, howToGetThere: "Whale Way Station, 224 Esplanade, Kaikoura. Situato proprio di fronte alla stazione ferroviaria di Kaikoura.", timeBeforehand: "Arrivare 30 minuti prima (ore 08:30) per il check-in e briefing", duration: "3h 15m", bookingRef: "BK-WHALE-902", ticketUrl: "https://www.whalewatch.co.nz/", note: "Esperienza di avvistamento capodogli in catamarano. In caso di mare mosso il tour viene cancellato con rimborso totale. Si consiglia vivamente una giacca calda/antivento e di assumere una pillola contro il mal di mare prima dell'imbarco.", isManaged: true },
       { id: "d10-1", time: "13:30", type: "transport", title: "Kaikoura → Arthur Pass", subtitle: "Strada panoramica sulla costa est", transitTime: "4h 21m" },
       { id: "d10-2", time: "18:00", type: "hotel", title: "Otira Stagecoach Hotel", subtitle: "6435 Otira Highway, Otira" },
     ],
@@ -373,7 +387,7 @@ export const DAYS: DayData[] = [
     dayShort: "Mer",
     location: "Fox Glacier, NZ",
     activities: [
-      { id: "d12-1", time: "08:30", type: "sightseeing", title: "Fox Glacier Helihike", subtitle: "Salita in elicottero e trekking sul ghiacciaio", price: 599, isPaid: false, isBooked: true, howToGetThere: "Fox Glacier Guiding Base, 44 Main Road (State Highway 6), Fox Glacier Village. Check-in all'ufficio ed equipaggiamento prima del volo.", timeBeforehand: "Arrivare 30 minuti prima dell'orario del volo (ore 08:00)", duration: "4h", bookingRef: "BK-HELI-884", ticketUrl: "https://www.foxguides.co.nz/our-trips/fox-glacier-flying-fox-heli-hike/", note: "Volo panoramico in elicottero e camminata guidata sui ghiacci. Forniscono stivali, calzini impermeabili, giacca da trekking e ramponi. Portare occhiali da sole, abbigliamento a strati caldi e crema solare. Condizioni dipendenti al 100% dal meteo." },
+      { id: "d12-1", time: "08:30", type: "sightseeing", title: "Fox Glacier Helihike", subtitle: "Salita in elicottero e trekking sul ghiacciaio", price: 599, isPaid: false, isBooked: true, howToGetThere: "Fox Glacier Guiding Base, 44 Main Road (State Highway 6), Fox Glacier Village. Check-in all'ufficio ed equipaggiamento prima del volo.", timeBeforehand: "Arrivare 30 minuti prima dell'orario del volo (ore 08:00)", duration: "4h", bookingRef: "BK-HELI-884", ticketUrl: "https://www.foxguides.co.nz/our-trips/fox-glacier-flying-fox-heli-hike/", note: "Volo panoramico in elicottero e camminata guidata sui ghiacci. Forniscono stivali, calzini impermeabili, giacca da trekking e ramponi. Portare occhiali da sole, abbigliamento a strati caldi e crema solare. Condizioni dipendenti al 100% dal meteo.", isManaged: true },
       { id: "d12-2", time: "15:00", type: "sightseeing", title: "Lake Matheson Walk", subtitle: "Specchio riflesso del Monte Cook" },
       { id: "d12-3", time: "18:00", type: "hotel", title: "Ivorytowers Accommodation", subtitle: "33/35 Sullivans Road, Fox Glacier" },
     ],
@@ -422,7 +436,7 @@ export const DAYS: DayData[] = [
     dayShort: "Sab",
     location: "Arrowtown, NZ",
     activities: [
-      { id: "d15-1", time: "10:00", type: "sightseeing", title: "Milford Sound Cruise", subtitle: "Crociera panoramica sui fiordi (Fiordland)" },
+      { id: "d15-1", time: "10:00", type: "sightseeing", title: "Milford Sound Cruise", subtitle: "Crociera panoramica sui fiordi (Fiordland)", price: 70, isPaid: false, isBooked: true, howToGetThere: "Milford Sound Visitor Terminal, Milford Sound. Si consiglia di arrivare in auto percorrendo la Milford Road per tempo.", timeBeforehand: "Arrivare 20 minuti prima", duration: "2h", bookingRef: "BK-MILFORD-778", ticketUrl: "https://www.realnz.com/en/experiences/cruises/milford-sound-cruises/", note: "Crociera spettacolare tra cascate e fauna marina nei fiordi.", isManaged: true },
       { id: "d15-2", time: "15:00", type: "transport", title: "Milford Sound → Queenstown → Arrowtown", subtitle: "Rientro verso la regione di Queenstown", transitTime: "3h 54m" },
       { id: "d15-3", time: "19:00", type: "hotel", title: "Arrowtown Lodge", subtitle: "Arrowtown, Queenstown Area" },
     ],
@@ -438,7 +452,7 @@ export const DAYS: DayData[] = [
     location: "Lake Tekapo, NZ",
     activities: [
       { id: "d16-1", time: "10:00", type: "transport", title: "Arrowtown → Lake Tekapo", subtitle: "Spostamento panoramico verso i laghi turchesi", transitTime: "3h 51m" },
-      { id: "d16-2", time: "21:00", type: "sightseeing", title: "Stargazing Monte John Observatory", subtitle: "Cielo stellato UNESCO Lake Tekapo" },
+      { id: "d16-2", time: "21:00", type: "sightseeing", title: "Stargazing Monte John Observatory", subtitle: "Cielo stellato UNESCO Lake Tekapo", price: 95, isPaid: false, isBooked: true, howToGetThere: "Ufficio Dark Sky Project, Lake Tekapo Lakefront. Trasferimento in bus all'osservatorio incluso.", timeBeforehand: "Arrivare 15 minuti prima", duration: "2h", bookingRef: "BK-STAR-391", ticketUrl: "https://www.darkskyproject.co.nz/", note: "Esperienza di osservazione astronomica guidata nel cielo della riserva Dark Sky.", isManaged: true },
       { id: "d16-3", time: "23:00", type: "hotel", title: "Fairlie Holiday Park / Lodge", subtitle: "Lake Tekapo Area" },
     ],
   },
@@ -585,7 +599,7 @@ export const DAYS: DayData[] = [
     dayShort: "Mer",
     location: "Jervis Bay Tour, AU",
     activities: [
-      { id: "d26-1", time: "10:00", type: "sightseeing", title: "Dolphin Watching Tour & Relax", subtitle: "Tour in barca per avvistamento delfini e fauna marina", price: 90, isPaid: false, isBooked: true, howToGetThere: "Jervis Bay Wild Office, 58 Owen Street, Huskisson, NSW. Parcheggio pubblico gratuito disponibile vicino al molo.", timeBeforehand: "Arrivare 15 minuti prima dell'imbarco", duration: "2h", bookingRef: "BK-DOLPHIN-889", ticketUrl: "https://www.jervisbaywild.com.au/", note: "Navigazione nella baia per avvistare la popolazione residente di tursiopi. Portare cappello, occhiali da sole e crema solare. La barca ha coperture ma può fare vento." },
+      { id: "d26-1", time: "10:00", type: "sightseeing", title: "Dolphin Watching Tour & Relax", subtitle: "Tour in barca per avvistamento delfini e fauna marina", price: 90, isPaid: false, isBooked: true, howToGetThere: "Jervis Bay Wild Office, 58 Owen Street, Huskisson, NSW. Parcheggio pubblico gratuito disponibile vicino al molo.", timeBeforehand: "Arrivare 15 minuti prima dell'imbarco", duration: "2h", bookingRef: "BK-DOLPHIN-889", ticketUrl: "https://www.jervisbaywild.com.au/", note: "Navigazione nella baia per avvistare la popolazione residente di tursiopi. Portare cappello, occhiali da sole e crema solare. La barca ha coperture ma può fare vento.", isManaged: true },
       { id: "d26-2", time: "19:00", type: "hotel", title: "Jervis Bay Cabin", subtitle: "Jervis Bay" },
     ],
   },
@@ -717,7 +731,7 @@ export const DAYS: DayData[] = [
     dayShort: "Ven",
     location: "Boracay → El Nido, PH",
     activities: [
-      { id: "d35-1", time: "15:50", type: "transport", title: "Volo Caticlan MPH → El Nido ENI", subtitle: "Cebu Pacific DG5411 · 1h 10m", hasQR: true },
+      { id: "d35-1", time: "15:50", type: "transport", title: "Volo Caticlan MPH → El Nido ENI", subtitle: "Cebu Pacific DG5411 · 1h 10m", hasQR: true, isManaged: true },
       { id: "d35-2", time: "17:00", type: "transport", title: "Arrivo El Nido & Transfer", subtitle: "Hotel check-in" },
       { id: "d35-3", time: "19:00", type: "hotel", title: "El Nido Beach Hotel", subtitle: "El Nido, Palawan" },
     ],
@@ -732,7 +746,7 @@ export const DAYS: DayData[] = [
     dayShort: "Sab",
     location: "Tao Expedition, PH",
     activities: [
-      { id: "d36-1", time: "08:30", type: "sightseeing", title: "Tao Experience Expedition (Giorno 1)", subtitle: "El Nido → Coron (imbarco e inizio navigazione)", price: 650, isPaid: true, isBooked: true, howToGetThere: "Tao Office / Boat Dock, El Nido Town. Presentarsi all'ufficio per il briefing iniziale e il controllo bagagli.", timeBeforehand: "Presentarsi all'ufficio Tao il giorno precedente per registrazione; ritrovo ore 08:00 il giorno dell'imbarco.", duration: "4d 3n", bookingRef: "BK-TAO-EXP-772", ticketUrl: "https://taophilippines.com/", note: "Spedizione in barca tradizionale attraverso gli arcipelaghi remoti di Palawan. Alloggiamenti semplici in capanne tradizionali. Portare sacche stagne e powerbank (no elettricità fissa nelle isole)." },
+      { id: "d36-1", time: "08:30", type: "sightseeing", title: "Tao Experience Expedition (Giorno 1)", subtitle: "El Nido → Coron (imbarco e inizio navigazione)", price: 650, isPaid: true, isBooked: true, howToGetThere: "Tao Office / Boat Dock, El Nido Town. Presentarsi all'ufficio per il briefing iniziale e il controllo bagagli.", timeBeforehand: "Presentarsi all'ufficio Tao il giorno precedente per registrazione; ritrovo ore 08:00 il giorno dell'imbarco.", duration: "4d 3n", bookingRef: "BK-TAO-EXP-772", ticketUrl: "https://taophilippines.com/", note: "Spedizione in barca tradizionale attraverso gli arcipelaghi remoti di Palawan. Alloggiamenti semplici in capanne tradizionali. Portare sacche stagne e powerbank (no elettricità fissa nelle isole).", isManaged: true },
       { id: "d36-2", time: "17:00", type: "hotel", title: "Tao Island Campsite 1", subtitle: "Isola deserta arcipelago Linapacan" },
     ],
   },
@@ -788,7 +802,7 @@ export const DAYS: DayData[] = [
     dayShort: "Mer",
     location: "Coron Dugonghi, PH",
     activities: [
-      { id: "d40-1", time: "07:00", type: "sightseeing", title: "Dugong Watching Quest", subtitle: "Escursione avvistamento dugonghi Coron", price: 120, isPaid: false, isBooked: true, howToGetThere: "Molo di Coron Town. Prelievo in hotel alle ore 06:45 organizzato dall'operatore.", timeBeforehand: "Essere pronti in lobby hotel alle 06:40", duration: "8h", bookingRef: "BK-DUGONG-501", ticketUrl: "https://www.corondugongs.com", note: "Tour giornaliero in barca per avvistare la popolazione protetta di dugonghi nel nord di Busuanga. Include pranzo, tasse ecologiche e attrezzatura snorkeling." },
+      { id: "d40-1", time: "07:00", type: "sightseeing", title: "Dugong Watching Quest", subtitle: "Escursione avvistamento dugonghi Coron", price: 120, isPaid: false, isBooked: true, howToGetThere: "Molo di Coron Town. Prelievo in hotel alle ore 06:45 organizzato dall'operatore.", timeBeforehand: "Essere pronti in lobby hotel alle 06:40", duration: "8h", bookingRef: "BK-DUGONG-501", ticketUrl: "https://www.corondugongs.com", note: "Tour giornaliero in barca per avvistare la popolazione protetta di dugonghi nel nord di Busuanga. Include pranzo, tasse ecologiche e attrezzatura snorkeling.", isManaged: true },
       { id: "d40-2", time: "19:00", type: "hotel", title: "Coron Bay Hotel", subtitle: "Coron" },
     ],
   },
@@ -1391,30 +1405,78 @@ export const TRANSPORTS: Transport[] = [
     price: 1404.70,
   },
   {
-    id: "tr-car-picanto",
-    date: "2026-12-14",
-    dateLabel: "Lun 14 dic",
-    time: "09:00",
-    from: "Adelaide Airport, Australia",
-    to: "Adelaide Airport, Australia",
+    id: "tr-rent-nz-snap",
+    date: "2026-12-01",
+    dateLabel: "Mar 1 dic",
+    time: "12:00",
+    from: "Auckland - Parnell",
+    to: "Christchurch Airport",
     type: "car",
-    detail: "Kia Picanto (East Coast Rentals)",
-    price: 134.61,
-    importantNote: "Ritiro e riconsegna ad Adelaide Aeroporto · Noleggio auto",
-    note: "Ritiro e riconsegna ad Adelaide Aeroporto",
+    detail: "Snap Rentals · Mitsubishi ASX o simile",
+    price: 572.34,
+    pricePaid: 319.29,
+    priceToPay: "NZD 499 / circa 253,05€",
+    bookingRef: "742210189",
+    rentalProvider: "Snap Rentals",
+    rentalVehicle: "Mitsubishi ASX o simile",
+    pickupTime: "1 dicembre 2026 ore 12:00",
+    pickupLocation: "Auckland - Parnell",
+    returnTime: "14 dicembre 2026 ore 12:00",
+    returnLocation: "Christchurch Airport",
+    insurancePolicy: "Copertura completa con rimborso franchigia per furto o danni, riparazioni, spese amministrative e guasti",
+    note: "Confermare nel riepilogo finale la copertura completa indicata nel voucher",
+    importantNote: "Noleggio auto in Nuova Zelanda · Snap Rentals",
+    isPaid: false,
   },
   {
-    id: "tr-car-mgzs",
+    id: "tr-rent-au-eastcoast",
     date: "2026-12-14",
     dateLabel: "Lun 14 dic",
-    time: "09:00",
-    from: "Adelaide Airport, Australia",
-    to: "Adelaide Airport, Australia",
+    time: "18:00",
+    from: "Adelaide Airport",
+    to: "Adelaide Airport",
     type: "car",
-    detail: "MG ZS (East Coast Rentals)",
+    detail: "East Coast Rentals · MG ZS o simile",
     price: 89.30,
-    importantNote: "Ritiro e riconsegna ad Adelaide Aeroporto · Noleggio auto",
-    note: "Ritiro e riconsegna ad Adelaide Aeroporto",
+    pricePaid: 89.30,
+    priceToPay: "AUD 22,00 per additional driver",
+    bookingRef: "785610641",
+    flightNumber: "XLY76H",
+    rentalProvider: "East Coast Rentals",
+    rentalVehicle: "MG ZS o simile",
+    pickupTime: "14 dicembre 2026 ore 18:00",
+    pickupLocation: "Adelaide Airport",
+    returnTime: "16 dicembre 2026 ore 18:00",
+    returnLocation: "Adelaide Airport",
+    insurancePolicy: "Zurich Full Insurance EEA / protezione garantita inclusa",
+    note: "Copertura completa con rimborso franchigia per furto o danni, riparazioni, spese amministrative e guasti",
+    importantNote: "Noleggio auto ad Adelaide · East Coast Rentals",
+    isPaid: true,
+  },
+  {
+    id: "tr-rent-au-van",
+    date: "2026-12-17",
+    dateLabel: "Gio 17 dic",
+    time: "10:00",
+    from: "Melbourne Tullamarine",
+    to: "Sydney, 1C McPherson St, Banksmeadow",
+    type: "car",
+    detail: "Travellers Autobarn · Budgie Van (2 berth)",
+    price: 1520.00,
+    pricePaid: 315.00,
+    priceToPay: "AUD 1.957,13",
+    bookingRef: "U-152128",
+    status: "prenotazione confermata",
+    rentalProvider: "Travellers Autobarn",
+    rentalVehicle: "Budgie Van (2 berth)",
+    pickupTime: "17 dicembre 2026 ore 10:00",
+    pickupLocation: "Melbourne Tullamarine",
+    returnTime: "29 dicembre 2026 ore 15:00",
+    returnLocation: "Sydney, 1C McPherson St, Banksmeadow",
+    insurancePolicy: "Protection Plus Value Pack",
+    note: "Considera valido solo il pickup aggiornato del 17 dicembre 2026, non la vecchia ipotesi del 16 dicembre after-hours",
+    importantNote: "Noleggio Van in Australia · Travellers Autobarn",
+    isPaid: false,
   },
 ];
 
