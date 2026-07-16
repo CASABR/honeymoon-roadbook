@@ -433,6 +433,7 @@ export default function AltroView() {
   const [showAddDocCategory, setShowAddDocCategory] = useState<DocumentCategory | null>(null);
   const [activeInfoLabel, setActiveInfoLabel] = useState<string | null>(null);
   const [personalNotes, setPersonalNotes] = useState("");
+  const [filterMode, setFilterMode] = useState<"todo" | "all">("todo");
   const notesTimeoutRef = useRef<any>(null);
 
   const user = auth?.currentUser || (localStorage.getItem("hrb_local_auth_bypass") ? JSON.parse(localStorage.getItem("hrb_local_auth_bypass")!) : null);
@@ -742,83 +743,90 @@ export default function AltroView() {
   }
 
   return (
-    <div className="px-4 pt-5 pb-4 space-y-4">
-      <h1 className="text-[24px] font-extrabold text-gray-900">Altro</h1>
+    <div className="px-4 pt-6 pb-6 space-y-6">
+      <div className="flex flex-col gap-1">
+        <h1 className="text-[26px] font-black text-gray-900 tracking-tight leading-none">Altro</h1>
+        <p className="text-[12.5px] text-gray-500 font-medium">Gestisci i documenti, le note personali, i ticket e i dettagli logistici del viaggio.</p>
+      </div>
 
-      {/* Navigazione rapida */}
-      <div className="card divide-y divide-gray-50">
-        <button
-          className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50"
-          onClick={() => navigate("/budgeter")}
-        >
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-purple-50 border border-purple-100">
-            <span className="text-purple-600"><IcWallet size={22} /></span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[14px] font-bold text-gray-900">Budgeter</p>
-            <p className="text-[12px] text-gray-400">Riepilogo spese viaggio</p>
-          </div>
-          <IcChevronRight size={15} className="text-gray-300 flex-shrink-0" />
-        </button>
+      {/* ── GRUPPO 1: STRUMENTI PRINCIPALI ── */}
+      <div className="space-y-3">
+        <span className="section-label block mb-1">Strumenti Principali</span>
 
-        <button
-          className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50"
-          onClick={() => {
-            setOpenAccordion("activities");
-            setTimeout(() => {
-              const el = document.getElementById("altro-sec-activities");
-              if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-            }, 100);
-          }}
-        >
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-50 border border-blue-100">
-            <span className="text-blue-600">🎫</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[14px] font-bold text-gray-900">Gestione Attività</p>
-            <p className="text-[12px] text-gray-400">Gestisci prenotazioni, pagamenti e costi attività</p>
-          </div>
-          <IcChevronRight size={15} className="text-gray-300 flex-shrink-0" />
-        </button>
-
-        {/* Note Personali Reali */}
-        <div className="w-full">
+        {/* Navigazione rapida */}
+        <div className="card divide-y divide-gray-100 shadow-sm overflow-hidden border border-gray-100 bg-white">
           <button
             className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50"
-            onClick={() => setActiveInfoLabel(activeInfoLabel === "Note" ? null : "Note")}
+            onClick={() => navigate("/budgeter")}
           >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-50 border border-blue-100">
-              <span className="text-blue-600"><IcNote size={20} /></span>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-purple-50 border border-purple-100">
+              <span className="text-purple-600"><IcWallet size={22} /></span>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-[14px] font-bold text-gray-900">Note</p>
-              <p className="text-[12px] text-gray-400">Appunti e promemoria rapidi</p>
+              <p className="text-[14px] font-bold text-gray-900">Budgeter</p>
+              <p className="text-[12px] text-gray-400">Riepilogo spese viaggio</p>
             </div>
-            <IcChevronDown size={14} className={`text-gray-300 flex-shrink-0 transition-transform duration-200 ${activeInfoLabel === "Note" ? "rotate-180 text-blue-500" : ""}`} />
+            <IcChevronRight size={15} className="text-gray-300 flex-shrink-0" />
           </button>
-          {activeInfoLabel === "Note" && (
-            <div className="px-4 pb-4 pt-1 bg-white border-t border-gray-50">
-              <label className="text-[11px] font-semibold text-gray-400 block mb-1.5 uppercase tracking-wider">Appunti di viaggio (Salvataggio automatico)</label>
-              <textarea
-                value={personalNotes}
-                onChange={(e) => handleNotesChange(e.target.value)}
-                onBlur={handleNotesBlur}
-                placeholder="Scrivi qui i tuoi appunti, liste bagaglio speciali, idee o annotazioni... Vengono salvati localmente con debounce."
-                className="w-full min-h-[140px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-[13px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:bg-white resize-none"
-              />
-            </div>
-          )}
-        </div>
 
-        {/* Impostazioni Reali */}
-        <div className="w-full">
           <button
             className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50"
-            onClick={() => setActiveInfoLabel(activeInfoLabel === "Impostazioni" ? null : "Impostazioni")}
+            onClick={() => {
+              setOpenAccordion("activities");
+              setTimeout(() => {
+                const el = document.getElementById("altro-sec-activities");
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+              }, 100);
+            }}
           >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-gray-50 border border-gray-100">
-              <span className="text-gray-500"><IcSettings size={20} /></span>
+            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-50 border border-blue-100">
+              <span className="text-blue-600">🎫</span>
             </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[14px] font-bold text-gray-900">Gestione Attività</p>
+              <p className="text-[12px] text-gray-400">Gestisci prenotazioni, pagamenti e costi attività</p>
+            </div>
+            <IcChevronRight size={15} className="text-gray-300 flex-shrink-0" />
+          </button>
+
+          {/* Note Personali Reali */}
+          <div className="w-full">
+            <button
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50"
+              onClick={() => setActiveInfoLabel(activeInfoLabel === "Note" ? null : "Note")}
+            >
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-amber-50 border border-amber-100">
+                <span className="text-amber-600"><IcNote size={20} /></span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[14px] font-bold text-gray-900">Note</p>
+                <p className="text-[12px] text-gray-400">Appunti e promemoria rapidi</p>
+              </div>
+              <IcChevronDown size={14} className={`text-gray-300 flex-shrink-0 transition-transform duration-200 ${activeInfoLabel === "Note" ? "rotate-180 text-blue-500" : ""}`} />
+            </button>
+            {activeInfoLabel === "Note" && (
+              <div className="px-4 pb-4 pt-1 bg-white border-t border-gray-50">
+                <label className="text-[11px] font-semibold text-gray-400 block mb-1.5 uppercase tracking-wider">Appunti di viaggio (Salvataggio automatico)</label>
+                <textarea
+                  value={personalNotes}
+                  onChange={(e) => handleNotesChange(e.target.value)}
+                  onBlur={handleNotesBlur}
+                  placeholder="Scrivi qui i tuoi appunti, liste bagaglio speciali, idee o annotazioni... Vengono salvati localmente con debounce."
+                  className="w-full min-h-[140px] bg-gray-50 border border-gray-200 rounded-xl p-3 text-[13px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:bg-white resize-none"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Impostazioni Reali */}
+          <div className="w-full">
+            <button
+              className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50"
+              onClick={() => setActiveInfoLabel(activeInfoLabel === "Impostazioni" ? null : "Impostazioni")}
+            >
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-slate-100 border border-slate-200">
+                <span className="text-slate-600"><IcSettings size={20} /></span>
+              </div>
             <div className="flex-1 min-w-0">
               <p className="text-[14px] font-bold text-gray-900">Impostazioni</p>
               <p className="text-[12px] text-gray-400">Account, statistiche e cache</p>
@@ -947,309 +955,413 @@ export default function AltroView() {
         </div>
       </div>
 
-      {/* Accordion delle Checklist */}
-      <div id="altro-sec-checklist">
-        <Accordion
-          title="📋 Le mie Checklist"
-          isOpen={openAccordion === "checklist"}
-          onToggle={() => toggleAccordion("checklist")}
-        >
-          <div className="space-y-4">
-            {checklists.map((chk) => (
-              <div key={chk.id} className="bg-gray-50/50 border border-gray-100 rounded-xl p-3">
-                <div className="flex items-center justify-between border-b border-gray-100 pb-2 mb-2">
-                  <h3 className="text-[13px] font-black text-gray-800">{chk.title}</h3>
-                  <button
-                    onClick={() => removeChecklist(chk.id)}
-                    className="text-[11px] text-red-500 font-bold hover:underline"
-                  >
-                    Elimina
-                  </button>
-                </div>
-
-                {/* Items */}
-                <div className="space-y-1.5 mb-3">
-                  {chk.items.length === 0 ? (
-                    <p className="text-[11px] text-gray-400 italic">Nessun elemento in questa lista.</p>
-                  ) : (
-                    chk.items.map((it) => (
-                      <div key={it.id} className="flex items-center justify-between gap-2">
-                        <label className="flex items-center gap-2 min-w-0 cursor-pointer select-none flex-1">
-                          <input
-                            type="checkbox"
-                            checked={it.checked}
-                            onChange={() => toggleChecklistItem(chk.id, it.id)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
-                          />
-                          <span className={`text-[12px] truncate ${it.checked ? "line-through text-gray-400" : "text-gray-700"}`}>
-                            {it.text}
-                          </span>
-                        </label>
-                        <button
-                          onClick={() => removeChecklistItem(chk.id, it.id)}
-                          className="text-gray-300 hover:text-red-500 text-[10px] p-0.5"
-                        >
-                          🗑️
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-
-                {/* Nuovo Item form */}
-                <NewItemForm onAdd={(text) => addChecklistItem(chk.id, text)} />
-              </div>
-            ))}
-
-            {/* Nuova Checklist form */}
-            <NewChecklistForm onAdd={addChecklist} />
-          </div>
-        </Accordion>
-      </div>
-
-      {/* Accordion 0: 🎫 Gestione Attività */}
-      <div id="altro-sec-activities">
-        <Accordion
-          title="🎫 Gestione Attività"
-          isOpen={openAccordion === "activities"}
-          onToggle={() => toggleAccordion("activities")}
-        >
-          <div className="space-y-3">
-            {/* Pulsante aggiunta attività rapida */}
-            <div className="flex gap-2">
-              <select
-                onChange={(e) => {
-                  if (e.target.value) {
-                    const selDay = DAYS.find(d => d.id === e.target.value);
-                    if (selDay) {
-                      setAddingToDay({ id: selDay.id, label: selDay.dateLabel });
+        {/* Accordion 0: 🎫 Gestione Attività */}
+        <div id="altro-sec-activities">
+          <Accordion
+            title="🎫 Gestione Attività"
+            isOpen={openAccordion === "activities"}
+            onToggle={() => toggleAccordion("activities")}
+          >
+            <div className="space-y-3">
+              {/* Pulsante aggiunta attività rapida */}
+              <div className="flex gap-2">
+                <select
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      const selDay = DAYS.find(d => d.id === e.target.value);
+                      if (selDay) {
+                        setAddingToDay({ id: selDay.id, label: selDay.dateLabel });
+                      }
+                      e.target.value = "";
                     }
-                    e.target.value = "";
-                  }
-                }}
-                className="flex-1 bg-blue-600 text-white font-extrabold text-[12px] px-3 py-2.5 rounded-xl outline-none"
-              >
-                <option value="">➕ Aggiungi attività ad un Giorno...</option>
-                {DAYS.map((d, idx) => (
-                  <option key={d.id} value={d.id}>Giorno {idx + 1} - {d.dateLabel}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Lista delle attività attuali aggregate per giorno */}
-            <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-              {tripDays.flatMap(day => 
-                day.activities.map(act => ({ day, act }))
-              ).length === 0 ? (
-                <p className="text-[12px] text-gray-400 italic text-center py-4 bg-white">
-                  Nessuna attività registrata.
-                </p>
-              ) : (
-                tripDays.flatMap(day => 
-                  day.activities.map(act => ({ day, act }))
-                ).map(({ day, act }) => (
-                  <div 
-                    key={act.id} 
-                    onClick={() => setEditingActivity({ dayId: day.id, activity: act, dayLabel: day.dateLabel })}
-                    className="p-2.5 border border-gray-100 hover:border-blue-200 bg-gray-50/30 rounded-xl transition-all cursor-pointer flex flex-col gap-1.5"
-                  >
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="min-w-0">
-                        <p className="text-[12px] font-extrabold text-gray-800 leading-snug truncate">{act.title}</p>
-                        <p className="text-[10px] text-gray-400 mt-0.5 font-medium">Giorno {day.dayNumber} · {day.dateLabel}</p>
-                      </div>
-                      <span className="text-[12px] font-black text-blue-600 shrink-0">
-                        {act.price !== undefined ? `€${act.price}` : "N/D"}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider ${
-                        act.isBooked
-                          ? "bg-blue-50 text-blue-600 border-blue-200"
-                          : "bg-gray-50 text-gray-400 border-gray-200"
-                      }`}>
-                        {act.isBooked ? "Prenotata" : "Non pren."}
-                      </span>
-                      <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider ${
-                        act.isPaid
-                          ? "bg-green-50 text-green-600 border-green-200"
-                          : "bg-red-50 text-red-500 border-red-150"
-                      }`}>
-                        {act.isPaid ? "Pagata" : "Da pagare"}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </Accordion>
-      </div>
-
-      {/* Accordion 1: 📁 Documenti di viaggio (raggruppati per COSA) */}
-      <div id="altro-sec-documents">
-        <Accordion
-          title="📁 Documenti di viaggio"
-          isOpen={openAccordion === "documents"}
-          onToggle={() => toggleAccordion("documents")}
-        >
-          <div className="divide-y divide-gray-100">
-            {CATEGORIES.map((cat) => {
-              const count = documents.filter((d) => d.category === cat.name).length;
-              return (
-                <button
-                  key={cat.name}
-                  className="w-full flex items-center justify-between py-3 transition-colors hover:bg-gray-50/30 text-left"
-                  onClick={() => setSelectedCategory(cat.name)}
+                  }}
+                  className="flex-1 bg-blue-600 text-white font-extrabold text-[12px] px-3 py-2.5 rounded-xl outline-none"
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-[18px]">{cat.icon}</span>
-                    <span className="text-[13px] font-bold text-gray-800">{cat.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[11px] font-semibold text-gray-400">
-                      {count} {count === 1 ? "documento" : "documenti"}
-                    </span>
-                    <IcChevronRight size={14} className="text-gray-300" />
-                  </div>
+                  <option value="">➕ Aggiungi attività ad un Giorno...</option>
+                  {DAYS.map((d, idx) => (
+                    <option key={d.id} value={d.id}>Giorno {idx + 1} - {d.dateLabel}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Selettore Filtro Attività */}
+              <div className="flex gap-1 bg-gray-100 p-1 rounded-xl mb-3">
+                <button
+                  type="button"
+                  onClick={() => setFilterMode("todo")}
+                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-extrabold transition-all ${
+                    filterMode === "todo" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  ⏳ Da fare / da gestire
                 </button>
-              );
-            })}
-          </div>
-        </Accordion>
+                <button
+                  type="button"
+                  onClick={() => setFilterMode("all")}
+                  className={`flex-1 py-1.5 rounded-lg text-[11px] font-extrabold transition-all ${
+                    filterMode === "all" ? "bg-white text-blue-600 shadow-sm" : "text-gray-500 hover:text-gray-900"
+                  }`}
+                >
+                  📋 Tutte le attività
+                </button>
+              </div>
+
+              {/* Riepilogo Costi e Prenotazioni delle attività */}
+              {(() => {
+                const excludeWords = [
+                  "ritiro auto", "rilascio auto", "ritiro camper", "rilascio camper", 
+                  "noleggio auto", "noleggio camper", "volo", "traghetto", "volo da",
+                  "partenza da", "arrivo a", "check-in", "check in", "check-out", "check out", 
+                  "spostamento", "viaggio in", "relax in hotel", "relax a", "relax"
+                ];
+
+                const realActivities = tripDays.flatMap(day => 
+                  day.activities
+                    .filter(act => {
+                      if (act.type === "transport" || act.type === "hotel" || act.type === "food") return false;
+                      
+                      const titleLower = act.title.toLowerCase();
+                      const subtitleLower = act.subtitle ? act.subtitle.toLowerCase() : "";
+                      if (excludeWords.some(word => titleLower.includes(word) || subtitleLower.includes(word))) return false;
+
+                      const isTypeMatch = act.type === "sightseeing" || act.type === "shopping" || act.type === "other";
+                      if (!isTypeMatch) return false;
+
+                      if (filterMode === "todo") {
+                        return !act.isPaid || !act.isBooked;
+                      }
+                      return true;
+                    })
+                    .map(act => ({ day, act }))
+                );
+
+                const totalCost = realActivities.reduce((sum, { act }) => sum + (act.price || 0), 0);
+                const paidCost = realActivities.reduce((sum, { act }) => sum + (act.isPaid ? (act.price || 0) : 0), 0);
+                const toPayCost = totalCost - paidCost;
+                const bookedCount = realActivities.filter(({ act }) => act.isBooked).length;
+                const totalCount = realActivities.length;
+
+                return (
+                  <>
+                    {realActivities.length > 0 && (
+                      <div className="grid grid-cols-2 gap-2 bg-gray-50/80 p-3 rounded-xl border border-gray-100 mb-3">
+                        <div className="space-y-1">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                            {filterMode === "todo" ? "Costo Da Gestire" : "Costo Totale"}
+                          </p>
+                          <p className="text-[15px] font-black text-gray-900">€{totalCost.toFixed(2)}</p>
+                          <div className="flex flex-col gap-0.5 text-[10px] font-semibold">
+                            <span className="text-emerald-600">Pagati: €{paidCost.toFixed(2)}</span>
+                            <span className="text-rose-500">Da Pagare: €{toPayCost.toFixed(2)}</span>
+                          </div>
+                        </div>
+                        <div className="space-y-1 border-l border-gray-200 pl-3">
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Stato Sezione</p>
+                          <p className="text-[15px] font-black text-blue-600">{bookedCount} / {totalCount}</p>
+                          <p className="text-[10px] text-gray-400 font-medium leading-tight">Prenotate o confermate</p>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                      {realActivities.length === 0 ? (
+                        <p className="text-[12px] text-gray-400 italic text-center py-4 bg-white">
+                          {filterMode === "todo" ? "Tutte le attività sono completate/pagate! 🎉" : "Nessuna attività registrata."}
+                        </p>
+                      ) : (
+                        realActivities.map(({ day, act }) => (
+                          <div 
+                            key={act.id} 
+                            onClick={() => setEditingActivity({ dayId: day.id, activity: act, dayLabel: day.dateLabel })}
+                            className="p-3 border border-gray-100 hover:border-blue-200 bg-white hover:bg-gray-50/30 rounded-xl transition-all cursor-pointer flex flex-col gap-2 shadow-sm"
+                          >
+                            <div className="flex justify-between items-start gap-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="text-[13px] font-black text-gray-800 leading-snug truncate">{act.title}</p>
+                                <p className="text-[10.5px] text-gray-400 mt-0.5 font-medium">Giorno {day.dayNumber} &middot; {day.dateLabel} alle {act.time}</p>
+                              </div>
+                              <span className="text-[13px] font-black text-blue-600 shrink-0">
+                                {act.price !== undefined ? `€${act.price}` : "€0.00"}
+                              </span>
+                            </div>
+
+                            {(act.duration || act.timeBeforehand) && (
+                              <div className="flex gap-2 text-[10.5px] text-gray-500 font-semibold bg-gray-50 px-2 py-1 rounded-lg w-fit">
+                                {act.duration && <span>⏱️ {act.duration}</span>}
+                                {act.duration && act.timeBeforehand && <span>·</span>}
+                                {act.timeBeforehand && <span>⏰ Presentarsi: {act.timeBeforehand}</span>}
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-between mt-0.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider ${
+                                  act.isBooked
+                                    ? "bg-blue-50 text-blue-600 border-blue-200"
+                                    : "bg-gray-50 text-gray-400 border-gray-200"
+                                }`}>
+                                  {act.isBooked ? "Prenotata" : "Non pren."}
+                                </span>
+                                <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider ${
+                                  act.isPaid
+                                    ? "bg-emerald-50 text-emerald-600 border-emerald-250"
+                                    : "bg-rose-50 text-rose-500 border-rose-200"
+                                }`}>
+                                  {act.isPaid ? "Pagata" : "Da pagare"}
+                                </span>
+                              </div>
+
+                              {act.howToGetThere && (
+                                <span className="text-[9.5px] text-blue-600 font-bold flex items-center gap-0.5">
+                                  📍 Info logistica presente
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </Accordion>
+        </div>
       </div>
 
-      {/* Accordion 2: Assicurazione — dati reali Heymondo */}
-      <div id="altro-sec-insurance">
-        <Accordion
-          title="🛡️ Assicurazione Heymondo"
-          isOpen={openAccordion === "insurance"}
-          onToggle={() => toggleAccordion("insurance")}
-        >
-          <div className="space-y-0">
-            <InfoRow label="Polizza" value={`${INSURANCE.brand} · ${INSURANCE.policyNumber}`} />
-            <InfoRow label="Piano" value={INSURANCE.plan} />
-            <InfoRow label="Assicurati" value={INSURANCE.insured} />
-            <InfoRow label="Periodo" value={`${INSURANCE.startDate} – ${INSURANCE.endDate}`} />
-            <InfoRow label="Copertura" value={INSURANCE.coverage} />
-            <InfoRow label="Costo" value={INSURANCE.cost} />
-          </div>
-          <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
-            <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider">Coperture principali</p>
-            <InfoRow label="Mediche" value={INSURANCE.medicalExpenses} />
-            <InfoRow label="Bagagli" value={INSURANCE.luggage} />
-            <InfoRow label="Ritardo volo" value={INSURANCE.flightDelay} />
-            <InfoRow label="Resp. civile" value={INSURANCE.personalLiability} />
-          </div>
-          <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
-            <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider">Contatti rapidi</p>
-            <div className="flex gap-2 flex-wrap">
+      {/* ── GRUPPO 2: STRUMENTI DI SUPPORTO ── */}
+      <div className="space-y-3">
+        <span className="section-label block mb-1">Strumenti di Supporto</span>
+
+        {/* Accordion delle Checklist */}
+        <div id="altro-sec-checklist">
+          <Accordion
+            title="📋 Le mie Checklist"
+            isOpen={openAccordion === "checklist"}
+            onToggle={() => toggleAccordion("checklist")}
+          >
+            <div className="space-y-4">
+              {checklists.map((chk) => (
+                <div key={chk.id} className="bg-gray-50/50 border border-gray-100 rounded-xl p-3">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-2 mb-2">
+                    <h3 className="text-[13px] font-black text-gray-800">{chk.title}</h3>
+                    <button
+                      onClick={() => removeChecklist(chk.id)}
+                      className="text-[11px] text-red-500 font-bold hover:underline"
+                    >
+                      Elimina
+                    </button>
+                  </div>
+
+                  {/* Items */}
+                  <div className="space-y-1.5 mb-3">
+                    {chk.items.length === 0 ? (
+                      <p className="text-[11px] text-gray-400 italic">Nessun elemento in questa lista.</p>
+                    ) : (
+                      chk.items.map((it) => (
+                        <div key={it.id} className="flex items-center justify-between gap-2">
+                          <label className="flex items-center gap-2 min-w-0 cursor-pointer select-none flex-1">
+                            <input
+                              type="checkbox"
+                              checked={it.checked}
+                              onChange={() => toggleChecklistItem(chk.id, it.id)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
+                            />
+                            <span className={`text-[12px] truncate ${it.checked ? "line-through text-gray-400" : "text-gray-700"}`}>
+                              {it.text}
+                            </span>
+                          </label>
+                          <button
+                            onClick={() => removeChecklistItem(chk.id, it.id)}
+                            className="text-gray-300 hover:text-red-500 text-[10px] p-0.5"
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Nuovo Item form */}
+                  <NewItemForm onAdd={(text) => addChecklistItem(chk.id, text)} />
+                </div>
+              ))}
+
+              {/* Nuova Checklist form */}
+              <NewChecklistForm onAdd={addChecklist} />
+            </div>
+          </Accordion>
+        </div>
+
+        {/* Accordion 4: Bagagli e note operative */}
+        <div id="altro-sec-baggage">
+          <Accordion
+            title="🧳 Bagagli e franchigie"
+            isOpen={openAccordion === "baggage"}
+            onToggle={() => toggleAccordion("baggage")}
+          >
+            <div className="space-y-2">
+              <InfoRow label="Bluebridge (traghetto)" value="A mano: borsa piccola 7 kg + effetti personali · Principali in auto" />
+              <InfoRow label="Cebu Pacific (Go Easy)" value="20 kg stiva a testa confermati" />
+              <InfoRow label="PAL Express USU→CEB" value="15 kg stiva · Giusy: posto 06C" />
+              <InfoRow label="China Airlines ritorno" value="Franchigia da verificare" />
+            </div>
+            <div className="mt-3 bg-amber-50/60 border border-amber-100/60 rounded-xl px-3 py-2.5">
+              <p className="text-[11.5px] text-amber-700 font-semibold leading-relaxed">
+                ⚠️ Segnala sempre peso e numero pezzi. Check-in Bluebridge: tassativo 1 ora prima (ore 11:30).
+              </p>
+            </div>
+          </Accordion>
+        </div>
+
+        {/* Accordion 5: Scadenze assicurazione */}
+        <div id="altro-sec-deadlines">
+          <Accordion
+            title="⏱ Scadenze e segnalazioni"
+            isOpen={openAccordion === "deadlines"}
+            onToggle={() => toggleAccordion("deadlines")}
+          >
+            <div className="space-y-3">
+              {[
+                { label: "Sinistri medici / viaggio", note: "Di norma entro 15 giorni dall'evento" },
+                { label: "Bagagli", note: "Entro 15 giorni dal rientro" },
+                { label: "Ritardo volo", note: "Entro 15 giorni dal rientro" },
+                { label: "Annullamento", note: "Entro 5 giorni dall'evento, non oltre 24h dalla partenza" },
+                { label: "Da conservare sempre", note: "Ricevute, rapporti PIR, certificati medici, n° polizza" },
+              ].map((item) => (
+                <div key={item.label} className="flex gap-2.5">
+                  <div className="w-2 h-2 rounded-full bg-orange-400 mt-1.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-[13px] font-bold text-gray-900 leading-snug">{item.label}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{item.note}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Accordion>
+        </div>
+      </div>
+
+      {/* ── GRUPPO 3: ARCHIVIO & SICUREZZA ── */}
+      <div className="space-y-3">
+        <span className="section-label block mb-1">Archivio &amp; Sicurezza</span>
+
+        {/* Accordion 1: 📁 Documenti di viaggio (raggruppati per COSA) */}
+        <div id="altro-sec-documents">
+          <Accordion
+            title="📁 Documenti di viaggio"
+            isOpen={openAccordion === "documents"}
+            onToggle={() => toggleAccordion("documents")}
+          >
+            <div className="divide-y divide-gray-100">
+              {CATEGORIES.map((cat) => {
+                const count = documents.filter((d) => d.category === cat.name).length;
+                return (
+                  <button
+                    key={cat.name}
+                    className="w-full flex items-center justify-between py-3 transition-colors hover:bg-gray-50/30 text-left"
+                    onClick={() => setSelectedCategory(cat.name)}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-[18px]">{cat.icon}</span>
+                      <span className="text-[13px] font-bold text-gray-800">{cat.name}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[11px] font-semibold text-gray-400">
+                        {count} {count === 1 ? "documento" : "documenti"}
+                      </span>
+                      <IcChevronRight size={14} className="text-gray-300" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </Accordion>
+        </div>
+
+        {/* Accordion 2: Assicurazione — dati reali Heymondo */}
+        <div id="altro-sec-insurance">
+          <Accordion
+            title="🛡️ Assicurazione Heymondo"
+            isOpen={openAccordion === "insurance"}
+            onToggle={() => toggleAccordion("insurance")}
+          >
+            <div className="space-y-0">
+              <InfoRow label="Polizza" value={`${INSURANCE.brand} · ${INSURANCE.policyNumber}`} />
+              <InfoRow label="Piano" value={INSURANCE.plan} />
+              <InfoRow label="Assicurati" value={INSURANCE.insured} />
+              <InfoRow label="Periodo" value={`${INSURANCE.startDate} – ${INSURANCE.endDate}`} />
+              <InfoRow label="Copertura" value={INSURANCE.coverage} />
+              <InfoRow label="Costo" value={INSURANCE.cost} />
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+              <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider">Coperture principali</p>
+              <InfoRow label="Mediche" value={INSURANCE.medicalExpenses} />
+              <InfoRow label="Bagagli" value={INSURANCE.luggage} />
+              <InfoRow label="Ritardo volo" value={INSURANCE.flightDelay} />
+              <InfoRow label="Resp. civile" value={INSURANCE.personalLiability} />
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
+              <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider">Contatti rapidi</p>
+              <div className="flex gap-2 flex-wrap">
+                <a
+                  href={`tel:${INSURANCE.phone24h}`}
+                  className="flex-1 min-w-[120px] bg-blue-600 text-white text-[12px] font-semibold py-2.5 px-3 rounded-xl text-center shadow-md shadow-blue-200"
+                >
+                  📞 Assistenza 24/7
+                </a>
+                <a
+                  href={`tel:${INSURANCE.phoneClaims}`}
+                  className="flex-1 min-w-[120px] bg-gray-100 text-gray-700 text-[12px] font-semibold py-2.5 px-3 rounded-xl text-center"
+                >
+                  📋 Sinistri
+                </a>
+              </div>
               <a
-                href={`tel:${INSURANCE.phone24h}`}
-                className="flex-1 min-w-[120px] bg-blue-600 text-white text-[12px] font-semibold py-2.5 px-3 rounded-xl text-center shadow-md shadow-blue-200"
+                href={INSURANCE.claimsPortal}
+                target="_blank"
+                rel="noreferrer"
+                className="block w-full text-center text-[12px] font-semibold text-blue-600 py-2 hover:underline"
               >
-                📞 Assistenza 24/7
-              </a>
-              <a
-                href={`tel:${INSURANCE.phoneClaims}`}
-                className="flex-1 min-w-[120px] bg-gray-100 text-gray-700 text-[12px] font-semibold py-2.5 px-3 rounded-xl text-center"
-              >
-                📋 Sinistri
+                Portale sinistri online →
               </a>
             </div>
-            <a
-              href={INSURANCE.claimsPortal}
-              target="_blank"
-              rel="noreferrer"
-              className="block w-full text-center text-[12px] font-semibold text-blue-600 py-2 hover:underline"
-            >
-              Portale sinistri online →
-            </a>
-          </div>
-        </Accordion>
-      </div>
+          </Accordion>
+        </div>
 
-      {/* Accordion 3: Emergenze per paese — dati reali */}
-      <div id="altro-sec-emergencies">
-        <Accordion
-          title="🚨 Numeri di emergenza"
-          isOpen={openAccordion === "emergencies"}
-          onToggle={() => toggleAccordion("emergencies")}
-        >
-          <div className="space-y-3">
-            {EMERGENCY_CONTACTS.map((ec) => (
-              <div key={ec.country} className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
-                <div className="flex items-center justify-between">
-                  <p className="text-[13px] font-bold text-gray-900">{ec.country}</p>
-                  <a
-                    href={`tel:${ec.number}`}
-                    className="bg-red-500 text-white text-[12px] font-extrabold px-3 py-1 rounded-lg shadow-sm shadow-red-200"
-                  >
-                    {ec.number}
-                  </a>
+        {/* Accordion 3: Emergenze per paese — dati reali */}
+        <div id="altro-sec-emergencies">
+          <Accordion
+            title="🚨 Numeri di emergenza"
+            isOpen={openAccordion === "emergencies"}
+            onToggle={() => toggleAccordion("emergencies")}
+          >
+            <div className="space-y-3">
+              {EMERGENCY_CONTACTS.map((ec) => (
+                <div key={ec.country} className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[13px] font-bold text-gray-900">{ec.country}</p>
+                    <a
+                      href={`tel:${ec.number}`}
+                      className="bg-red-500 text-white text-[12px] font-extrabold px-3 py-1 rounded-lg shadow-sm shadow-red-200"
+                    >
+                      {ec.number}
+                    </a>
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{ec.note}</p>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{ec.note}</p>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <p className="text-[11px] text-gray-500 leading-relaxed font-medium">
-              <strong className="text-gray-700">Cosa fare se hai bisogno di assistenza medica:</strong><br />
-              1. Chiama subito l'assistenza Heymondo: <span className="font-mono font-bold text-blue-600">{INSURANCE.phone24h}</span><br />
-              2. Contatta la struttura prima di sostenere spese<br />
-              3. Conserva tutti i documenti e le ricevute
-            </p>
-          </div>
-        </Accordion>
-      </div>
-
-      {/* Accordion 4: Bagagli e note operative */}
-      <div id="altro-sec-baggage">
-        <Accordion
-          title="🧳 Bagagli e franchigie"
-          isOpen={openAccordion === "baggage"}
-          onToggle={() => toggleAccordion("baggage")}
-        >
-          <div className="space-y-2">
-            <InfoRow label="Bluebridge (traghetto)" value="A mano: borsa piccola 7 kg + effetti personali · Principali in auto" />
-            <InfoRow label="Cebu Pacific (Go Easy)" value="20 kg stiva a testa confermati" />
-            <InfoRow label="PAL Express USU→CEB" value="15 kg stiva · Giusy: posto 06C" />
-            <InfoRow label="China Airlines ritorno" value="Franchigia da verificare" />
-          </div>
-          <div className="mt-3 bg-amber-50/60 border border-amber-100/60 rounded-xl px-3 py-2.5">
-            <p className="text-[11.5px] text-amber-700 font-semibold leading-relaxed">
-              ⚠️ Segnala sempre peso e numero pezzi. Check-in Bluebridge: tassativo 1 ora prima (ore 11:30).
-            </p>
-          </div>
-        </Accordion>
-      </div>
-
-      {/* Accordion 5: Scadenze assicurazione */}
-      <div id="altro-sec-deadlines">
-        <Accordion
-          title="⏱ Scadenze e segnalazioni"
-          isOpen={openAccordion === "deadlines"}
-          onToggle={() => toggleAccordion("deadlines")}
-        >
-          <div className="space-y-3">
-            {[
-              { label: "Sinistri medici / viaggio", note: "Di norma entro 15 giorni dall'evento" },
-              { label: "Bagagli", note: "Entro 15 giorni dal rientro" },
-              { label: "Ritardo volo", note: "Entro 15 giorni dal rientro" },
-              { label: "Annullamento", note: "Entro 5 giorni dall'evento, non oltre 24h dalla partenza" },
-              { label: "Da conservare sempre", note: "Ricevute, rapporti PIR, certificati medici, n° polizza" },
-            ].map((item) => (
-              <div key={item.label} className="flex gap-2.5">
-                <div className="w-2 h-2 rounded-full bg-orange-400 mt-1.5 flex-shrink-0" />
-                <div>
-                  <p className="text-[13px] font-bold text-gray-900 leading-snug">{item.label}</p>
-                  <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{item.note}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Accordion>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-100">
+              <p className="text-[11px] text-gray-500 leading-relaxed font-medium">
+                <strong className="text-gray-700">Cosa fare se hai bisogno di assistenza medica:</strong><br />
+                1. Chiama subito l'assistenza Heymondo: <span className="font-mono font-bold text-blue-600">{INSURANCE.phone24h}</span><br />
+                2. Contatta la struttura prima di sostenere spese<br />
+                3. Conserva tutti i documenti e le ricevute
+              </p>
+            </div>
+          </Accordion>
+        </div>
       </div>
 
       {/* Sheet Dettaglio Categoria */}
