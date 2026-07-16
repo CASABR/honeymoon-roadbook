@@ -18,6 +18,7 @@ import {
   ActivityIcon,
 } from "../components/Icons";
 import { repository } from "../services/repository";
+import { EditActivitySheet } from "./TripView";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 function getToday(days: DayData[], dayId: string) {
@@ -1125,9 +1126,28 @@ export default function TodayView() {
           )}
         </section>
 
-        {/* In evidenza — solo card utili, senza ridondanze */}
-        <section>
-          <span className="section-label block mb-3">In evidenza</span>
+        {/* In evidenza */}
+        <section className="space-y-3">
+          <span className="section-label block">In evidenza</span>
+          
+          <button 
+            onClick={() => navigate("/altro?open=activities")}
+            className="w-full text-left p-3.5 bg-blue-50/60 hover:bg-blue-50 border border-blue-100/50 rounded-2xl flex items-center justify-between gap-3 transition-all active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center flex-shrink-0 text-xl font-bold">
+                🎫
+              </div>
+              <div className="min-w-0">
+                <p className="text-[14px] font-black text-gray-900 leading-tight">Ticket &amp; Attività di oggi</p>
+                <p className="text-[11.5px] text-gray-500 mt-0.5 font-medium leading-tight">
+                  Controlla orari, costi, indicazioni stradali e note operative.
+                </p>
+              </div>
+            </div>
+            <IcChevronRight size={18} className="text-blue-500 flex-shrink-0" />
+          </button>
+
           <div className="grid grid-cols-3 gap-2">
             <QuickCard
               icon="€"
@@ -1220,184 +1240,5 @@ export default function TodayView() {
         />
       )}
     </>
-  );
-}
-
-// ── Sheet per modificare un'attività esistente ────────────────────────────────
-function EditActivitySheet({
-  activity,
-  dayLabel,
-  onSave,
-  onDelete,
-  onClose,
-}: {
-  activity: Activity;
-  dayLabel: string;
-  onSave: (updated: Activity) => void;
-  onDelete?: () => void;
-  onClose: () => void;
-}) {
-  const [time, setTime] = useState(activity.time);
-  const [type, setType] = useState<Activity["type"]>(activity.type);
-  const [title, setTitle] = useState(activity.title);
-  const [subtitle, setSubtitle] = useState(activity.subtitle);
-  const [price, setPrice] = useState(activity.price ? String(activity.price) : "");
-  const [isPaid, setIsPaid] = useState(!!activity.isPaid);
-
-  function handleSubmit() {
-    if (!title.trim() || !time.trim()) return;
-    const parsedPrice = parseFloat(price.replace(",", "."));
-    onSave({ 
-      ...activity, 
-      time: time.trim(), 
-      type, 
-      title: title.trim(), 
-      subtitle: subtitle.trim(),
-      price: isNaN(parsedPrice) ? undefined : parsedPrice,
-      isPaid
-    });
-    onClose();
-  }
-
-  const TYPES: { type: Activity["type"]; label: string; icon: string }[] = [
-    { type: "sightseeing", label: "Visita", icon: "📸" },
-    { type: "transport", label: "Trasporto", icon: "✈️" },
-    { type: "food", label: "Cibo", icon: "🍽️" },
-    { type: "shopping", label: "Shopping", icon: "🛍️" },
-    { type: "hotel", label: "Hotel", icon: "🏨" },
-    { type: "other", label: "Altro", icon: "📍" },
-  ];
-
-  return (
-    <div
-      className="bottom-sheet-backdrop"
-      onClick={onClose}
-    >
-      <div
-        className="bottom-sheet-container"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h2 className="text-[17px] font-extrabold text-gray-900">Modifica attività</h2>
-            <p className="text-[12px] text-gray-400">{dayLabel}</p>
-          </div>
-          {onDelete && (
-            <button
-              onClick={() => {
-                if (window.confirm("Eliminare questa attività?")) {
-                  onDelete();
-                  onClose();
-                }
-              }}
-              className="text-[12px] text-red-500 font-extrabold px-3 py-1.5 bg-red-50 rounded-xl hover:bg-red-100 transition-colors active:scale-95"
-            >
-              🗑️ Elimina
-            </button>
-          )}
-        </div>
-
-        {/* Tipo */}
-        <div className="mb-4">
-          <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
-          <div className="flex gap-2 flex-wrap">
-            {TYPES.map((t) => (
-              <button
-                key={t.type}
-                onClick={() => setType(t.type)}
-                className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-colors flex items-center gap-1 ${
-                  type === t.type ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
-                }`}
-              >
-                <span>{t.icon}</span>
-                <span>{t.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex gap-2">
-            <div className="w-1/3">
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Orario *</label>
-              <input
-                type="text"
-                value={time}
-                placeholder="es. 10:30"
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-              />
-            </div>
-            <div className="w-2/3">
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Titolo *</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
-              <input
-                type="text"
-                value={subtitle}
-                onChange={(e) => setSubtitle(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-              />
-            </div>
-            <div className="w-1/3">
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
-              <input
-                type="text"
-                value={price}
-                placeholder="es. 40"
-                onChange={(e) => setPrice(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-              />
-            </div>
-          </div>
-
-          {/* Toggle Pagato */}
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 mt-2">
-            <div>
-              <p className="text-[12.5px] font-bold text-gray-800">Stato pagamento</p>
-              <p className="text-[10px] text-gray-400 font-medium">Questa attività è già stata bloccata/pagata?</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsPaid(!isPaid)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
-                isPaid
-                  ? "bg-green-150 text-green-700 border border-green-200"
-                  : "bg-red-50 text-red-500 border border-red-100"
-              }`}
-            >
-              {isPaid ? "✅ Pagato" : "⏳ Da pagare"}
-            </button>
-          </div>
-        </div>
-
-        <div className="flex gap-2 mt-5">
-          <button
-            className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-semibold text-[14px]"
-            onClick={onClose}
-          >
-            Annulla
-          </button>
-          <button
-            className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-semibold text-[14px]"
-            onClick={handleSubmit}
-            disabled={!title.trim() || !time.trim()}
-            style={{ opacity: !title.trim() || !time.trim() ? 0.5 : 1 }}
-          >
-            Salva
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

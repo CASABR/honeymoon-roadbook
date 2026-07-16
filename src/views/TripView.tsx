@@ -38,6 +38,12 @@ export function EditActivitySheet({
   const [price, setPrice] = useState(activity.price ? String(activity.price) : "");
   const [isPaid, setIsPaid] = useState(!!activity.isPaid);
   const [isBooked, setIsBooked] = useState(!!activity.isBooked);
+  const [howToGetThere, setHowToGetThere] = useState(activity.howToGetThere || "");
+  const [timeBeforehand, setTimeBeforehand] = useState(activity.timeBeforehand || "");
+  const [duration, setDuration] = useState(activity.duration || "");
+  const [bookingRef, setBookingRef] = useState(activity.bookingRef || "");
+  const [ticketUrl, setTicketUrl] = useState(activity.ticketUrl || "");
+  const [note, setNote] = useState(activity.note || "");
 
   function handleSubmit() {
     if (!title.trim() || !time.trim()) return;
@@ -51,7 +57,13 @@ export function EditActivitySheet({
       transitTime: transitTime.trim() || undefined,
       price: isNaN(parsedPrice) ? undefined : parsedPrice,
       isPaid,
-      isBooked
+      isBooked,
+      howToGetThere: howToGetThere.trim() || undefined,
+      timeBeforehand: timeBeforehand.trim() || undefined,
+      duration: duration.trim() || undefined,
+      bookingRef: bookingRef.trim() || undefined,
+      ticketUrl: ticketUrl.trim() || undefined,
+      note: note.trim() || undefined,
     });
     onClose();
   }
@@ -77,7 +89,7 @@ export function EditActivitySheet({
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-[17px] font-extrabold text-gray-900">Modifica attività</h2>
+            <h2 className="text-[17px] font-extrabold text-gray-900">Dettaglio attività</h2>
             <p className="text-[12px] text-gray-400">{dayLabel}</p>
           </div>
           {onDelete && (
@@ -95,127 +107,216 @@ export function EditActivitySheet({
           )}
         </div>
 
-        {/* Tipo */}
-        <div className="mb-4">
-          <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
-          <div className="flex gap-2 flex-wrap">
-            {TYPES.map((t) => (
-              <button
-                key={t.type}
-                onClick={() => setType(t.type)}
-                className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-colors flex items-center gap-1 ${
-                  type === t.type ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
-                }`}
-              >
-                <span>{t.icon}</span>
-                <span>{t.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex gap-2">
-            <div className="w-1/3">
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Orario *</label>
-              <input
-                type="text"
-                value={time}
-                placeholder="es. 10:30"
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-              />
-            </div>
-            <div className="w-2/3">
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Titolo *</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-              />
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
-              <input
-                type="text"
-                value={subtitle}
-                onChange={(e) => setSubtitle(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-              />
-            </div>
-            <div className="w-1/3">
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
-              <input
-                type="text"
-                value={price}
-                placeholder="es. 50"
-                onChange={(e) => setPrice(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-              />
-            </div>
-          </div>
+        <div className="space-y-4 max-h-[62dvh] overflow-y-auto pr-1">
+          {/* Tipo */}
           <div>
-            <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento (es. 1h 30m)</label>
-            <input
-              type="text"
-              value={transitTime}
-              placeholder="Tempo di trasferimento dal posto precedente"
-              onChange={(e) => setTransitTime(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
-            />
+            <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
+            <div className="flex gap-2 flex-wrap">
+              {TYPES.map((t) => (
+                <button
+                  key={t.type}
+                  type="button"
+                  onClick={() => setType(t.type)}
+                  className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-colors flex items-center gap-1 ${
+                    type === t.type ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  <span>{t.icon}</span>
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
-          {/* Toggle Prenotato & Pagato */}
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-              <span className="text-[11px] font-bold text-gray-700">Prenotato</span>
-              <button
-                type="button"
-                onClick={() => setIsBooked(!isBooked)}
-                className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
-                  isBooked
-                    ? "bg-blue-50 text-blue-600 border border-blue-200"
-                    : "bg-gray-100 text-gray-400 border border-gray-200"
-                }`}
-              >
-                {isBooked ? "✅ Sì" : "❌ No"}
-              </button>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <div className="w-1/3">
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Orario *</label>
+                <input
+                  type="text"
+                  value={time}
+                  placeholder="es. 10:30"
+                  onChange={(e) => setTime(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                />
+              </div>
+              <div className="w-2/3">
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Titolo *</label>
+                <input
+                  type="text"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
+                <input
+                  type="text"
+                  value={subtitle}
+                  onChange={(e) => setSubtitle(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                />
+              </div>
+              <div className="w-1/3">
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
+                <input
+                  type="text"
+                  value={price}
+                  placeholder="es. 50"
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento (es. 1h 30m)</label>
+              <input
+                type="text"
+                value={transitTime}
+                placeholder="Tempo di trasferimento dal posto precedente"
+                onChange={(e) => setTransitTime(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
+              />
             </div>
 
-            <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-              <span className="text-[11px] font-bold text-gray-700">Pagato</span>
-              <button
-                type="button"
-                onClick={() => setIsPaid(!isPaid)}
-                className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
-                  isPaid
-                    ? "bg-green-50 text-green-600 border border-green-200"
-                    : "bg-red-50 text-red-500 border border-red-100"
-                }`}
-              >
-                {isPaid ? "✅ Sì" : "⏳ No"}
-              </button>
+            {/* Toggle Prenotato & Pagato */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                <span className="text-[11px] font-bold text-gray-700">Prenotazione Richiesta</span>
+                <button
+                  type="button"
+                  onClick={() => setIsBooked(!isBooked)}
+                  className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
+                    isBooked
+                      ? "bg-blue-50 text-blue-600 border border-blue-200"
+                      : "bg-gray-100 text-gray-400 border border-gray-200"
+                  }`}
+                >
+                  {isBooked ? "✅ Sì" : "❌ No"}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                <span className="text-[11px] font-bold text-gray-700">Pagato</span>
+                <button
+                  type="button"
+                  onClick={() => setIsPaid(!isPaid)}
+                  className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
+                    isPaid
+                      ? "bg-green-50 text-green-600 border border-green-200"
+                      : "bg-red-50 text-red-500 border border-red-100"
+                  }`}
+                >
+                  {isPaid ? "✅ Sì" : "⏳ No"}
+                </button>
+              </div>
             </div>
+
+            {/* Sezione Logistica / Informazioni aggiuntive per attività */}
+            {type !== "transport" && type !== "hotel" && (
+              <div className="border-t border-gray-100 pt-3.5 space-y-3">
+                <div className="bg-blue-50/50 border border-blue-100/50 rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-blue-800 font-extrabold uppercase tracking-wider">Logistica & Info Biglietti</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">Quanto prima presentarsi</label>
+                    <input
+                      type="text"
+                      value={timeBeforehand}
+                      placeholder="es. 30 minuti prima"
+                      onChange={(e) => setTimeBeforehand(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">Durata</label>
+                    <input
+                      type="text"
+                      value={duration}
+                      placeholder="es. 2 ore"
+                      onChange={(e) => setDuration(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">Codice Prenotazione</label>
+                    <input
+                      type="text"
+                      value={bookingRef}
+                      placeholder="es. BK-987"
+                      onChange={(e) => setBookingRef(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400 font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">Link Biglietto / Sito</label>
+                    <input
+                      type="text"
+                      value={ticketUrl}
+                      placeholder="https://..."
+                      onChange={(e) => setTicketUrl(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+
+                {ticketUrl && ticketUrl.startsWith("http") && (
+                  <a
+                    href={ticketUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block text-center text-[12px] font-black text-blue-600 bg-blue-50 py-2 rounded-xl hover:underline"
+                  >
+                    🔗 Apri link prenotazione / biglietti
+                  </a>
+                )}
+
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Come arrivare</label>
+                  <textarea
+                    value={howToGetThere}
+                    placeholder="Parcheggio, fermata bus consigliata, indirizzo o note sul percorso..."
+                    onChange={(e) => setHowToGetThere(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-[12.5px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:bg-white resize-none min-h-[70px]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Note Pratiche</label>
+                  <textarea
+                    value={note}
+                    placeholder="Abbigliamento consigliato, cibo incluso, meteo-sensibilità..."
+                    onChange={(e) => setNote(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-[12.5px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:bg-white resize-none min-h-[70px]"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="flex gap-2 mt-5">
           <button
-            className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-semibold text-[14px]"
+            className="flex-1 py-3.5 rounded-2xl bg-gray-100 text-gray-600 font-semibold text-[14px]"
             onClick={onClose}
           >
             Annulla
           </button>
           <button
-            className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-semibold text-[14px]"
+            className="flex-1 py-3.5 rounded-2xl bg-blue-600 text-white font-semibold text-[14px]"
             onClick={handleSubmit}
             disabled={!title.trim() || !time.trim()}
             style={{ opacity: !title.trim() || !time.trim() ? 0.5 : 1 }}
           >
-            Salva
+            Salva modifiche
           </button>
         </div>
       </div>
@@ -434,6 +535,12 @@ export function AddActivitySheet({
   const [price, setPrice] = useState("");
   const [isPaid, setIsPaid] = useState(false);
   const [isBooked, setIsBooked] = useState(false);
+  const [howToGetThere, setHowToGetThere] = useState("");
+  const [timeBeforehand, setTimeBeforehand] = useState("");
+  const [duration, setDuration] = useState("");
+  const [bookingRef, setBookingRef] = useState("");
+  const [ticketUrl, setTicketUrl] = useState("");
+  const [note, setNote] = useState("");
 
   function handleSubmit() {
     if (!title.trim() || !time.trim()) return;
@@ -449,6 +556,12 @@ export function AddActivitySheet({
       price: isNaN(parsedPrice) ? undefined : parsedPrice,
       isPaid,
       isBooked,
+      howToGetThere: howToGetThere.trim() || undefined,
+      timeBeforehand: timeBeforehand.trim() || undefined,
+      duration: duration.trim() || undefined,
+      bookingRef: bookingRef.trim() || undefined,
+      ticketUrl: ticketUrl.trim() || undefined,
+      note: note.trim() || undefined,
     };
     onSave(dayId, newAct);
     onClose();
@@ -476,142 +589,220 @@ export function AddActivitySheet({
         <h2 className="text-[17px] font-extrabold text-gray-900">Nuova attività</h2>
         <p className="text-[12px] text-gray-400 mb-4">{dayLabel}</p>
 
-        {/* Tipo */}
-        <div className="mb-4">
-          <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
-          <div className="flex gap-2 flex-wrap">
-            {TYPES.map((t) => (
-              <button
-                key={t.type}
-                onClick={() => setType(t.type)}
-                className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-colors flex items-center gap-1 ${
-                  type === t.type ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
-                }`}
-              >
-                <span>{t.icon}</span>
-                <span>{t.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div className="flex gap-2">
-            <div className="w-1/3">
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Orario *</label>
-              <input
-                type="text"
-                value={time}
-                placeholder="es. 10:30"
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
-              />
-            </div>
-            <div className="w-2/3">
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Titolo attività *</label>
-              <input
-                type="text"
-                value={title}
-                placeholder="es. Visita al vulcano"
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
-              />
-            </div>
-          </div>
-
+        <div className="space-y-4 max-h-[62dvh] overflow-y-auto pr-1">
+          {/* Tipo */}
           <div>
-            <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
-            <input
-              type="text"
-              value={subtitle}
-              placeholder="es. Rotorua Geothermal Park"
-              onChange={(e) => setSubtitle(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
-            />
+            <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
+            <div className="flex gap-2 flex-wrap">
+              {TYPES.map((t) => (
+                <button
+                  key={t.type}
+                  type="button"
+                  onClick={() => setType(t.type)}
+                  className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-colors flex items-center gap-1 ${
+                    type === t.type ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
+                  }`}
+                >
+                  <span>{t.icon}</span>
+                  <span>{t.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div>
-            <label className="text-[11px] font-semibold text-gray-500 block mb-1">Immagine URL (opzionale)</label>
-            <input
-              type="text"
-              value={imageUrl}
-              placeholder="https://images.unsplash.com/..."
-              onChange={(e) => setImageUrl(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
-            />
-          </div>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <div className="w-1/3">
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Orario *</label>
+                <input
+                  type="text"
+                  value={time}
+                  placeholder="es. 10:30"
+                  onChange={(e) => setTime(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
+                />
+              </div>
+              <div className="w-2/3">
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Titolo attività *</label>
+                <input
+                  type="text"
+                  value={title}
+                  placeholder="es. Visita al vulcano"
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
+                />
+              </div>
+            </div>
 
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento dal posto precedente (es. 1h 30m)</label>
+            <div>
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
               <input
                 type="text"
-                value={transitTime}
-                placeholder="Tempo di trasferimento dal posto precedente"
-                onChange={(e) => setTransitTime(e.target.value)}
+                value={subtitle}
+                placeholder="es. Rotorua Geothermal Park"
+                onChange={(e) => setSubtitle(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
               />
             </div>
-            <div className="w-1/3">
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
+
+            <div>
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Immagine URL (opzionale)</label>
               <input
                 type="text"
-                value={price}
-                placeholder="es. 45"
-                onChange={(e) => setPrice(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                value={imageUrl}
+                placeholder="https://images.unsplash.com/..."
+                onChange={(e) => setImageUrl(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
               />
             </div>
-          </div>
 
-          {/* Toggle Prenotato & Pagato */}
-          <div className="grid grid-cols-2 gap-2 mt-2">
-            <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-              <span className="text-[11px] font-bold text-gray-700">Prenotato</span>
-              <button
-                type="button"
-                onClick={() => setIsBooked(!isBooked)}
-                className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
-                  isBooked
-                    ? "bg-blue-50 text-blue-600 border border-blue-200"
-                    : "bg-gray-100 text-gray-400 border border-gray-200"
-                }`}
-              >
-                {isBooked ? "✅ Sì" : "❌ No"}
-              </button>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento (es. 1h 30m)</label>
+                <input
+                  type="text"
+                  value={transitTime}
+                  placeholder="Tempo di trasferimento dal posto precedente"
+                  onChange={(e) => setTransitTime(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
+                />
+              </div>
+              <div className="w-1/3">
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
+                <input
+                  type="text"
+                  value={price}
+                  placeholder="es. 45"
+                  onChange={(e) => setPrice(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                />
+              </div>
             </div>
 
-            <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-              <span className="text-[11px] font-bold text-gray-700">Pagato</span>
-              <button
-                type="button"
-                onClick={() => setIsPaid(!isPaid)}
-                className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
-                  isPaid
-                    ? "bg-green-50 text-green-600 border border-green-200"
-                    : "bg-red-50 text-red-500 border border-red-100"
-                }`}
-              >
-                {isPaid ? "✅ Sì" : "⏳ No"}
-              </button>
+            {/* Toggle Prenotato & Pagato */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                <span className="text-[11px] font-bold text-gray-700">Prenotazione Richiesta</span>
+                <button
+                  type="button"
+                  onClick={() => setIsBooked(!isBooked)}
+                  className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
+                    isBooked
+                      ? "bg-blue-50 text-blue-600 border border-blue-200"
+                      : "bg-gray-100 text-gray-400 border border-gray-200"
+                  }`}
+                >
+                  {isBooked ? "✅ Sì" : "❌ No"}
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                <span className="text-[11px] font-bold text-gray-700">Pagato</span>
+                <button
+                  type="button"
+                  onClick={() => setIsPaid(!isPaid)}
+                  className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
+                    isPaid
+                      ? "bg-green-50 text-green-600 border border-green-200"
+                      : "bg-red-50 text-red-500 border border-red-100"
+                  }`}
+                >
+                  {isPaid ? "✅ Sì" : "⏳ No"}
+                </button>
+              </div>
             </div>
+
+            {/* Sezione Logistica / Informazioni aggiuntive per attività */}
+            {type !== "transport" && type !== "hotel" && (
+              <div className="border-t border-gray-100 pt-3.5 space-y-3">
+                <div className="bg-blue-50/50 border border-blue-100/50 rounded-xl px-3 py-2">
+                  <p className="text-[10px] text-blue-800 font-extrabold uppercase tracking-wider">Logistica & Info Biglietti</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">Quanto prima presentarsi</label>
+                    <input
+                      type="text"
+                      value={timeBeforehand}
+                      placeholder="es. 30 minuti prima"
+                      onChange={(e) => setTimeBeforehand(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">Durata</label>
+                    <input
+                      type="text"
+                      value={duration}
+                      placeholder="es. 2 ore"
+                      onChange={(e) => setDuration(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">Codice Prenotazione</label>
+                    <input
+                      type="text"
+                      value={bookingRef}
+                      placeholder="es. BK-987"
+                      onChange={(e) => setBookingRef(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400 font-mono font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">Link Biglietto / Sito</label>
+                    <input
+                      type="text"
+                      value={ticketUrl}
+                      placeholder="https://..."
+                      onChange={(e) => setTicketUrl(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Come arrivare</label>
+                  <textarea
+                    value={howToGetThere}
+                    placeholder="Parcheggio, fermata bus consigliata, indirizzo o note sul percorso..."
+                    onChange={(e) => setHowToGetThere(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-[12.5px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:bg-white resize-none min-h-[70px]"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Note Pratiche</label>
+                  <textarea
+                    value={note}
+                    placeholder="Abbigliamento consigliato, cibo incluso, meteo-sensibilità..."
+                    onChange={(e) => setNote(e.target.value)}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-[12.5px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:bg-white resize-none min-h-[70px]"
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="flex gap-2 mt-5">
           <button
-            className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-semibold text-[14px]"
+            className="flex-1 py-3.5 rounded-2xl bg-gray-100 text-gray-600 font-semibold text-[14px]"
             onClick={onClose}
           >
             Annulla
           </button>
           <button
-            className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-semibold text-[14px]"
+            className="flex-1 py-3.5 rounded-2xl bg-blue-600 text-white font-semibold text-[14px]"
             onClick={handleSubmit}
             disabled={!title.trim() || !time.trim()}
             style={{ opacity: !title.trim() || !time.trim() ? 0.5 : 1 }}
           >
-            Salva
+            Salva attività
           </button>
         </div>
       </div>
