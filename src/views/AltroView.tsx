@@ -415,7 +415,19 @@ const DEFAULT_CHECKLISTS: Checklist[] = [
   },
 ];
 
-// (useSearchParams già importato in cima)
+function getLocalCurrency(act: Activity, dayLocation: string) {
+  if (act.price === undefined || act.price === 0) return null;
+  const loc = dayLocation.toLowerCase();
+  const title = act.title.toLowerCase();
+  
+  if (loc.includes("ph") || loc.includes("manila") || loc.includes("boracay") || loc.includes("el nido") || loc.includes("coron") || title.includes("tao") || title.includes("dugong")) {
+    return { label: "PHP", amount: Math.round(act.price * 62.0) };
+  }
+  if (loc.includes("au") || loc.includes("adelaide") || loc.includes("melbourne") || loc.includes("sydney") || loc.includes("jervis") || title.includes("dolphin")) {
+    return { label: "AUD", amount: Math.round(act.price * 1.62) };
+  }
+  return { label: "NZD", amount: Math.round(act.price * 1.76) };
+}
 
 export default function AltroView() {
   const navigate = useNavigate();
@@ -1007,33 +1019,47 @@ export default function AltroView() {
               </div>
 
               {/* Riepilogo Costi e Prenotazioni delle attività */}
-              {(() => {
-                const excludeWords = [
-                  "ritiro auto", "rilascio auto", "ritiro camper", "rilascio camper", 
-                  "noleggio auto", "noleggio camper", "volo", "traghetto", "volo da",
-                  "partenza da", "arrivo a", "check-in", "check in", "check-out", "check out", 
-                  "spostamento", "viaggio in", "relax in hotel", "relax a", "relax"
-                ];
-
-                const realActivities = tripDays.flatMap(day => 
+               {(() => {
+                const allManagedActivities = tripDays.flatMap(day => 
                   day.activities
                     .filter(act => {
                       if (act.type === "transport" || act.type === "hotel" || act.type === "food") return false;
                       
                       const titleLower = act.title.toLowerCase();
                       const subtitleLower = act.subtitle ? act.subtitle.toLowerCase() : "";
-                      if (excludeWords.some(word => titleLower.includes(word) || subtitleLower.includes(word))) return false;
-
-                      const isTypeMatch = act.type === "sightseeing" || act.type === "shopping" || act.type === "other";
-                      if (!isTypeMatch) return false;
-
-                      if (filterMode === "todo") {
-                        return !act.isPaid || !act.isBooked;
+                      if (titleLower.includes("spostamento") || subtitleLower.includes("spostamento") || titleLower.includes("trasferimento") || subtitleLower.includes("trasferimento")) {
+                        return false;
                       }
-                      return true;
+
+                      const managedIds = new Set([
+                        "d5-5", "d6-1", "d6-4", "d7-1", "d7-2", 
+                        "d10-whale", "d12-1", "d15-1", "d16-2", 
+                        "d26-1", "d36-1", "d40-1"
+                      ]);
+
+                      return !!(
+                        act.isManaged ||
+                        managedIds.has(act.id) ||
+                        act.price !== undefined || 
+                        act.isBooked || 
+                        act.howToGetThere || 
+                        act.bookingRef || 
+                        act.ticketUrl || 
+                        act.timeBeforehand || 
+                        act.duration
+                      );
                     })
                     .map(act => ({ day, act }))
                 );
+
+                const totalActivitiesCount = allManagedActivities.length;
+
+                const realActivities = allManagedActivities.filter(({ act }) => {
+                  if (filterMode === "todo") {
+                    return !act.isPaid || !act.isBooked;
+                  }
+                  return true;
+                });
 
                 const totalCost = realActivities.reduce((sum, { act }) => sum + (act.price || 0), 0);
                 const paidCost = realActivities.reduce((sum, { act }) => sum + (act.isPaid ? (act.price || 0) : 0), 0);
@@ -1065,9 +1091,25 @@ export default function AltroView() {
 
                     <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
                       {realActivities.length === 0 ? (
-                        <p className="text-[12px] text-gray-400 italic text-center py-4 bg-white">
-                          {filterMode === "todo" ? "Tutte le attività sono completate/pagate! 🎉" : "Nessuna attività registrata."}
-                        </p>
+                        <div className="flex flex-col items-center justify-center py-6 px-4 bg-gray-50/50 border border-dashed border-gray-200 rounded-xl text-center">
+                          <span className="text-[28px] mb-1">🎉</span>
+                          <p className="text-[13px] font-bold text-gray-800">Tutto sotto controllo!</p>
+                          <p className="text-[11.5px] text-gray-500 mt-0.5 max-w-[220px] leading-snug">
+                            {totalActivitiesCount > 0 
+                              ? `Tutte le ${totalActivitiesCount} attività principali sono già prenotate e pagate.`
+                              : "Non ci sono ancora attività pianificate in questo viaggio."
+                            }
+                          </p>
+                          {totalActivitiesCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setFilterMode("all")}
+                              className="mt-3 px-4 py-1.5 bg-white border border-gray-200 text-blue-600 font-extrabold text-[11px] rounded-xl hover:bg-gray-50 active:scale-95 transition-all shadow-sm"
+                            >
+                              Visualizza tutte ({totalActivitiesCount}) →
+                            </button>
+                          )}
+                        </div>
                       ) : (
                         realActivities.map(({ day, act }) => (
                           <div 
@@ -1077,12 +1119,40 @@ export default function AltroView() {
                           >
                             <div className="flex justify-between items-start gap-2">
                               <div className="min-w-0 flex-1">
-                                <p className="text-[13px] font-black text-gray-800 leading-snug truncate">{act.title}</p>
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  <p className="text-[13px] font-black text-gray-800 leading-snug truncate">{act.title}</p>
+                                  {(act.mapsUrl || act.howToGetThere) && (
+                                    <a
+                                      href={
+                                        act.mapsUrl || 
+                                        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${act.title}, ${act.howToGetThere}`)}`
+                                      }
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center justify-center w-5 h-5 rounded-lg bg-blue-50 border border-blue-100 text-blue-650 hover:bg-blue-100 transition-colors shrink-0"
+                                      title="Apri posizione in Google Maps"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <span className="text-[10px]">📍</span>
+                                    </a>
+                                  )}
+                                </div>
                                 <p className="text-[10.5px] text-gray-400 mt-0.5 font-medium">Giorno {day.dayNumber} &middot; {day.dateLabel} alle {act.time}</p>
                               </div>
-                              <span className="text-[13px] font-black text-blue-600 shrink-0">
-                                {act.price !== undefined ? `€${act.price}` : "€0.00"}
-                              </span>
+                              <div className="text-right shrink-0">
+                                <span className="text-[13px] font-black text-blue-600 block">
+                                  {act.price !== undefined ? `€${act.price}` : "€0.00"}
+                                </span>
+                                {(() => {
+                                  const localVal = getLocalCurrency(act, day.location);
+                                  if (!localVal) return null;
+                                  return (
+                                    <span className="text-[10px] text-gray-400 font-semibold block mt-0.5">
+                                      ({localVal.amount} {localVal.label})
+                                    </span>
+                                  );
+                                })()}
+                              </div>
                             </div>
 
                             {(act.duration || act.timeBeforehand) && (

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { TRANSPORTS } from "../data/mockData";
 import type { Transport } from "../data/mockData";
-import { IcPlane, IcTrain, IcFerry, IcCar, IcChevronRight, IcPlus, IcQR } from "../components/Icons";
+import { IcPlane, IcTrain, IcFerry, IcCar, IcVan, IcPlus, IcQR } from "../components/Icons";
 import { repository } from "../services/repository";
 import SwipeToDelete from "../components/SwipeToDelete";
 
@@ -93,6 +93,7 @@ function TransportDetailSheet({
   const [activeQrIdx, setActiveQrIdx] = useState(0);
   const [newQrText, setNewQrText] = useState("");
   const [showAddInput, setShowAddInput] = useState(false);
+  const isVan = tr.rentalVehicle?.toLowerCase().includes("van") || tr.detail?.toLowerCase().includes("van");
 
   function handleAddQRDirect() {
     if (!newQrText.trim()) return;
@@ -163,13 +164,25 @@ function TransportDetailSheet({
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex items-start gap-3">
-            <TransportIcon type={tr.type} />
+            {tr.rentalProvider ? (
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-emerald-50 border border-emerald-100 shadow-sm">
+                {isVan ? (
+                  <IcVan size={20} className="text-emerald-600" />
+                ) : (
+                  <IcCar size={20} className="text-emerald-600" />
+                )}
+              </div>
+            ) : (
+              <TransportIcon type={tr.type} />
+            )}
             <div className="min-w-0">
-              <p className="text-[10px] font-extrabold tracking-widest text-blue-600/80 uppercase mb-0.5">
-                {TYPE_LABEL[tr.type]} · {tr.dateLabel}
+              <p className={`text-[10px] font-extrabold tracking-widest uppercase mb-0.5 ${
+                tr.rentalProvider ? "text-emerald-600" : "text-blue-600/80"
+              }`}>
+                {tr.rentalProvider ? (isVan ? "Van a noleggio" : "Auto a noleggio") : `${TYPE_LABEL[tr.type]}`} · {tr.dateLabel}
               </p>
               <h2 className="text-[17px] font-black text-gray-900 leading-snug">
-                {tr.from} → {tr.to}
+                {tr.rentalProvider ? `Prenotazione Noleggio · ${tr.rentalProvider}` : `${tr.from} → ${tr.to}`}
               </h2>
               {tr.status && (
                 <span className="badge-in-corso mt-1 inline-block bg-emerald-50 text-emerald-700 border border-emerald-100 font-bold px-2 py-0.5 rounded-full text-[10px]">
@@ -180,29 +193,74 @@ function TransportDetailSheet({
           </div>
         </div>
 
-        {/* Informazioni principali */}
-        <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-4 space-y-3 mb-4">
-          <div className="grid grid-cols-2 gap-2.5">
-            <DetailRow label="Data" value={tr.date} />
-            <DetailRow label="Orario" value={`${tr.time}${tr.arrivalTime ? ` → ${tr.arrivalTime}` : ""}`} />
-          </div>
-
-          {tr.carrierCode && <DetailRow label="N° Volo / Tratta" value={tr.carrierCode} mono />}
-          {tr.airline && <DetailRow label="Compagnia / Operatore" value={tr.airline} />}
-          {tr.bookingRef && <DetailRow label="Codice Prenotazione (PIR / Ref)" value={tr.bookingRef} mono />}
-          {tr.confirmationCode && <DetailRow label="Codice Biglietto" value={tr.confirmationCode} mono />}
-          {tr.duration && <DetailRow label="Durata" value={tr.duration} />}
-        </div>
-
-        {/* Terminal / Gate / Posto */}
-        {(tr.terminal || tr.gate || tr.seat) && (
+        {/* Informazioni noleggio */}
+        {tr.rentalProvider ? (
           <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-4 space-y-3 mb-4">
-            <div className="grid grid-cols-3 gap-2.5">
-              {tr.terminal && <DetailRow label="Terminal" value={tr.terminal} />}
-              {tr.gate && <DetailRow label="Gate" value={tr.gate} />}
-              {tr.seat && <DetailRow label="Posto" value={tr.seat} mono />}
+            <div className="grid grid-cols-2 gap-2.5">
+              <DetailRow label="Fornitore" value={tr.rentalProvider} />
+              <DetailRow label="Veicolo" value={tr.rentalVehicle || "N/D"} />
             </div>
+            <DetailRow label="Codice Prenotazione" value={tr.bookingRef || "N/D"} mono />
+            {tr.flightNumber && <DetailRow label="Volo di riferimento" value={tr.flightNumber} mono />}
+            <div className="pt-2.5 border-t border-gray-100 space-y-2">
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Ritiro (Pick-up)</p>
+                <p className="text-[13px] text-gray-800 font-semibold">{tr.pickupTime}</p>
+                <p className="text-[11.5px] text-gray-500">{tr.pickupLocation}</p>
+              </div>
+              <div className="pt-2 border-t border-gray-50">
+                <p className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">Riconsegna (Drop-off)</p>
+                <p className="text-[13px] text-gray-800 font-semibold">{tr.returnTime}</p>
+                <p className="text-[11.5px] text-gray-500">{tr.returnLocation}</p>
+              </div>
+            </div>
+            <div className="pt-2.5 border-t border-gray-100 space-y-1">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dettaglio Pagamento</p>
+              <div className="grid grid-cols-2 gap-2.5 text-[12px] text-gray-700 font-medium">
+                <div>Già pagato: <strong className="text-emerald-600">€{tr.pricePaid?.toFixed(2)}</strong></div>
+                <div>Al ritiro: <strong className="text-red-500">{tr.priceToPay}</strong></div>
+              </div>
+            </div>
+            {tr.insurancePolicy && (
+              <div className="pt-2.5 border-t border-gray-100">
+                <p className="text-[10px] font-bold text-blue-600 uppercase mb-0.5">Assicurazione</p>
+                <p className="text-[12.5px] text-gray-850 font-semibold leading-normal">{tr.insurancePolicy}</p>
+              </div>
+            )}
+            {tr.note && (
+              <div className="pt-2.5 border-t border-gray-100">
+                <p className="text-[10px] font-bold text-amber-600 uppercase mb-0.5">Note Utili</p>
+                <p className="text-[12.5px] text-gray-750 leading-normal">{tr.note}</p>
+              </div>
+            )}
           </div>
+        ) : (
+          <>
+            {/* Informazioni principali */}
+            <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-4 space-y-3 mb-4">
+              <div className="grid grid-cols-2 gap-2.5">
+                <DetailRow label="Data" value={tr.date} />
+                <DetailRow label="Orario" value={`${tr.time}${tr.arrivalTime ? ` → ${tr.arrivalTime}` : ""}`} />
+              </div>
+
+              {tr.carrierCode && <DetailRow label="N° Volo / Tratta" value={tr.carrierCode} mono />}
+              {tr.airline && <DetailRow label="Compagnia / Operatore" value={tr.airline} />}
+              {tr.bookingRef && <DetailRow label="Codice Prenotazione (PIR / Ref)" value={tr.bookingRef} mono />}
+              {tr.confirmationCode && <DetailRow label="Codice Biglietto" value={tr.confirmationCode} mono />}
+              {tr.duration && <DetailRow label="Durata" value={tr.duration} />}
+            </div>
+
+            {/* Terminal / Gate / Posto */}
+            {(tr.terminal || tr.gate || tr.seat) && (
+              <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-4 space-y-3 mb-4">
+                <div className="grid grid-cols-3 gap-2.5">
+                  {tr.terminal && <DetailRow label="Terminal" value={tr.terminal} />}
+                  {tr.gate && <DetailRow label="Gate" value={tr.gate} />}
+                  {tr.seat && <DetailRow label="Posto" value={tr.seat} mono />}
+                </div>
+              </div>
+            )}
+          </>
         )}
 
         {/* Info Bagaglio */}
@@ -246,7 +304,7 @@ function TransportDetailSheet({
         </div>
 
         {/* Note e Dettagli */}
-        {(tr.detail || tr.note || tr.importantNote) && (
+        {!tr.rentalProvider && (tr.detail || tr.note || tr.importantNote) && (
           <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-4 space-y-2.5 mb-4">
             {tr.detail && <DetailRow label="Info Tratta" value={tr.detail} />}
             {tr.note && <DetailRow label="Note" value={tr.note} />}
@@ -731,62 +789,135 @@ function TransportFormSheet({
 // ── Card trasporto ────────────────────────────────────────────────────────────
 function TransportCard({ tr, onSelect }: { tr: Transport; onSelect: (t: Transport) => void }) {
   const layover = getLayoverDetails(tr);
+  const isRental = !!tr.rentalProvider;
+  const isVan = tr.rentalVehicle?.toLowerCase().includes("van") || tr.detail?.toLowerCase().includes("van");
 
-  return (
-    <button className="card p-3.5 w-full text-left transition-all hover:scale-[1.01] active:scale-[0.99] border border-gray-100 shadow-sm" onClick={() => onSelect(tr)}>
-      <div className="flex items-start gap-3">
-        <TransportIcon type={tr.type} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5">
-            <span className="text-[10px] font-bold tracking-widest text-blue-600 uppercase">{TYPE_LABEL[tr.type]}</span>
-            <span className="text-[10px] text-gray-300">·</span>
-            <span className="text-[11px] text-gray-400 font-medium">{tr.dateLabel}</span>
-            <div className="ml-auto flex items-center gap-1.5">
-              <span className={`text-[8.5px] px-1.5 py-0.2 rounded font-extrabold uppercase shrink-0 ${
-                tr.isPaid
-                  ? "bg-green-50 text-green-600 border border-green-150"
-                  : "bg-red-50 text-red-500 border border-red-100"
-              }`}>
-                {tr.isPaid ? "Pagato" : "Da pagare"}
+  if (isRental) {
+    return (
+      <button 
+        className="w-full text-left transition-all hover:scale-[1.005] active:scale-[0.995] border border-emerald-100 bg-white hover:border-emerald-200 hover:shadow-sm rounded-2xl p-4 flex flex-col gap-3" 
+        onClick={() => onSelect(tr)}
+      >
+        {/* Top bar */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-emerald-50/50 flex items-center justify-center border border-emerald-100 shrink-0">
+              <span className="text-emerald-600">
+                {isVan ? <IcVan size={16} /> : <IcCar size={16} />}
               </span>
-              {tr.price !== undefined && tr.price > 0 && (
-                <span className="text-[10px] font-black text-blue-600 shrink-0">
-                  €{tr.price.toFixed(0)}
-                </span>
-              )}
-              {tr.status && (
-                <span className="badge-in-corso bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 rounded-full text-[9px] border border-emerald-100">
-                  {tr.status}
-                </span>
-              )}
+            </div>
+            <div>
+              <span className="text-[9.5px] font-extrabold tracking-wider text-emerald-600 uppercase block leading-none">
+                {isVan ? "Van a noleggio" : "Auto a noleggio"}
+              </span>
+              <span className="text-[11px] text-gray-400 font-medium block mt-0.5 leading-none">{tr.dateLabel}</span>
             </div>
           </div>
-          <p className="font-black text-[15px] text-gray-900 leading-snug">
-            {tr.from}<span className="text-gray-300 font-normal mx-1">→</span>{tr.to}
-          </p>
-          <p className="text-[12px] text-gray-500 mt-0.5 font-medium">
-            {tr.time && `${tr.time} · `}{tr.detail || (tr.airline ? `${tr.airline} ${tr.carrierCode || ""}` : "")}
-          </p>
-          {tr.importantNote && (
-            <p className="text-[11px] text-amber-600 mt-1 truncate font-semibold">⚠️ {tr.importantNote}</p>
-          )}
+          <span className={`text-[9px] px-2 py-0.5 rounded-lg font-extrabold uppercase shrink-0 border ${
+            tr.isPaid
+              ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+              : "bg-rose-50/50 text-rose-600 border border-rose-100"
+          }`}>
+            {tr.isPaid ? "Pagato" : "Da pagare"}
+          </span>
+        </div>
 
-          {layover && (
-            <div className={`mt-2 px-2 py-1.5 rounded-xl border text-[11px] font-semibold flex items-center gap-1.5 ${
-              layover.isLong
-                ? "bg-amber-50 border-amber-200 text-amber-800"
-                : "bg-gray-50 border-gray-200 text-gray-650"
-            }`}>
-              <span>✈️</span>
-              <span>
-                Scalo a <strong className="font-bold">{layover.city}</strong> ({layover.duration})
-                {layover.isLong && " · 🚶‍♂️ Consigliato per uscire!"}
-              </span>
-            </div>
+        {/* Vehicle Info */}
+        <div className="space-y-1 pl-0.5">
+          <h3 className="font-black text-[15.5px] text-gray-900 leading-snug">
+            {tr.rentalProvider} &middot; <span className="font-bold text-gray-500">{tr.rentalVehicle}</span>
+          </h3>
+        </div>
+
+        {/* Pickup / Dropoff details grid */}
+        <div className="grid grid-cols-2 gap-3 pt-3 border-t border-gray-100 mt-0.5">
+          <div>
+            <span className="text-[9px] font-bold text-gray-400 uppercase block tracking-wider">Ritiro</span>
+            <p className="font-extrabold text-[12.5px] text-gray-800 leading-tight mt-1">{tr.pickupTime}</p>
+            <p className="text-[11px] text-gray-400 truncate mt-0.5 font-medium">{tr.pickupLocation}</p>
+          </div>
+          <div className="border-l border-gray-150 pl-3">
+            <span className="text-[9px] font-bold text-gray-400 uppercase block tracking-wider">Riconsegna</span>
+            <p className="font-extrabold text-[12.5px] text-gray-800 leading-tight mt-1">{tr.returnTime}</p>
+            <p className="text-[11px] text-gray-400 truncate mt-0.5 font-medium">{tr.returnLocation}</p>
+          </div>
+        </div>
+
+        {/* Bottom bar */}
+        <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-[11px] text-gray-400 font-semibold mt-0.5">
+          <div>
+            <span>Pagato: <strong className="font-bold text-emerald-600">€{tr.pricePaid?.toFixed(2)}</strong></span>
+            <span className="mx-2 text-gray-200">|</span>
+            <span>Al ritiro: <strong className="font-bold text-rose-600">{tr.priceToPay}</strong></span>
+          </div>
+          <span className="text-[13px] font-black text-blue-600">€{tr.price?.toFixed(2)}</span>
+        </div>
+      </button>
+    );
+  }
+
+  // Standard Card
+  return (
+    <button 
+      className="w-full text-left transition-all hover:scale-[1.005] active:scale-[0.995] border border-gray-150 bg-white hover:border-gray-250 hover:shadow-sm rounded-2xl p-4 flex flex-col gap-3" 
+      onClick={() => onSelect(tr)}
+    >
+      {/* Top bar */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <TransportIcon type={tr.type} />
+          <div>
+            <span className="text-[9.5px] font-extrabold tracking-wider text-blue-600 uppercase block leading-none">{TYPE_LABEL[tr.type]}</span>
+            <span className="text-[11px] text-gray-400 font-medium block mt-0.5 leading-none">{tr.dateLabel}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className={`text-[9px] px-2 py-0.5 rounded-lg font-extrabold uppercase shrink-0 border ${
+            tr.isPaid
+              ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
+              : "bg-rose-50/50 text-rose-600 border border-rose-100"
+          }`}>
+            {tr.isPaid ? "Pagato" : "Da pagare"}
+          </span>
+          {tr.price !== undefined && tr.price > 0 && (
+            <span className="text-[13px] font-black text-blue-600 shrink-0">
+              €{tr.price.toFixed(0)}
+            </span>
           )}
         </div>
-        <IcChevronRight size={16} className="text-gray-300 mt-1 flex-shrink-0" />
       </div>
+
+      {/* Connection Info */}
+      <div className="space-y-1 pl-0.5">
+        <h3 className="font-black text-[15.5px] text-gray-900 leading-snug">
+          {tr.from}<span className="text-gray-300 font-normal mx-1.5">→</span>{tr.to}
+        </h3>
+        <p className="text-[12.5px] text-gray-500 font-medium">
+          {tr.time && `${tr.time} · `}{tr.detail || (tr.airline ? `${tr.airline} ${tr.carrierCode || ""}` : "")}
+        </p>
+      </div>
+
+      {/* Note / Warnings */}
+      {tr.importantNote && (
+        <div className="px-3 py-2 bg-amber-50/50 border border-amber-100/50 rounded-xl text-[11.5px] text-amber-800 font-semibold">
+          ⚠️ {tr.importantNote}
+        </div>
+      )}
+
+      {/* Layovers */}
+      {layover && (
+        <div className={`px-3 py-2 rounded-xl border text-[11.5px] font-semibold flex items-center gap-2 ${
+          layover.isLong
+            ? "bg-amber-50/50 border-amber-100 text-amber-850"
+            : "bg-gray-50/50 border-gray-150 text-gray-600"
+        }`}>
+          <span>✈️</span>
+          <span>
+            Scalo a <strong className="font-bold">{layover.city}</strong> ({layover.duration})
+            {layover.isLong && " · 🚶‍♂️ Consigliato per uscire!"}
+          </span>
+        </div>
+      )}
     </button>
   );
 }
@@ -798,6 +929,33 @@ export default function TransportsView() {
   const isLoadedRef = useRef(false);
   const [formState, setFormState] = useState<{ show: boolean; tr: Transport | null }>({ show: false, tr: null });
   const [selected, setSelected] = useState<Transport | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<string>("Tutti");
+
+  const getTransportCategory = (tr: Transport) => {
+    if (tr.rentalProvider || tr.type === "car") {
+      return "Auto e van a noleggio";
+    }
+    if (tr.type === "plane" || tr.type === "train" || tr.type === "ferry") {
+      return "Voli / treni / traghetti";
+    }
+    return "Altri trasporti";
+  };
+
+  const categoriesList = ["Voli / treni / traghetti", "Auto e van a noleggio", "Altri trasporti"] as const;
+  const activeCategories = [
+    "Tutti",
+    ...categoriesList.filter(cat => transports.some(tr => getTransportCategory(tr) === cat))
+  ];
+
+  const filteredTransports = transports.filter(tr => 
+    selectedCategory === "Tutti" || getTransportCategory(tr) === selectedCategory
+  );
+
+  useEffect(() => {
+    if (!activeCategories.includes(selectedCategory)) {
+      setSelectedCategory("Tutti");
+    }
+  }, [transports]);
 
   useEffect(() => {
     repository.getTransports(TRANSPORTS)
@@ -812,8 +970,34 @@ export default function TransportsView() {
           }
           return t;
         });
-        setTransports(merged);
-        repository.saveTransports(merged);
+
+        // Assicuriamoci che i 3 noleggi statici esistano nel database locale
+        const newRentalIds = ["tr-rent-nz-snap", "tr-rent-au-eastcoast", "tr-rent-au-van"];
+        let needsSave = false;
+        const finalTransports = [...merged];
+        newRentalIds.forEach((id) => {
+          if (!finalTransports.some(t => t.id === id)) {
+            const staticItem = TRANSPORTS.find(t => t.id === id);
+            if (staticItem) {
+              finalTransports.push(staticItem);
+              needsSave = true;
+            }
+          }
+        });
+
+        // Rimuoviamo eventuali vecchi noleggi picanto o mgzs se presenti
+        const cleanedTransports = finalTransports.filter(t => t.id !== "tr-car-picanto" && t.id !== "tr-car-mgzs");
+        if (cleanedTransports.length !== finalTransports.length) {
+          needsSave = true;
+        }
+
+        // Ordina cronologicamente
+        cleanedTransports.sort((a, b) => `${a.date}T${a.time || "00:00"}`.localeCompare(`${b.date}T${b.time || "00:00"}`));
+
+        setTransports(cleanedTransports);
+        if (needsSave) {
+          repository.saveTransports(cleanedTransports);
+        }
         isLoadedRef.current = true;
       })
       .catch((e) => console.error("Errore caricamento trasporti:", e))
@@ -877,9 +1061,34 @@ export default function TransportsView() {
             Aggiungi
           </button>
         </div>
-        <p className="text-[13px] text-gray-400 mb-5 font-medium">{transports.length} tratte · ordine cronologico</p>
+        {/* Dynamic Category Filter pills */}
+        {activeCategories.length > 2 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-3.5 mb-2 -mx-4 px-4 scrollbar-none">
+            {activeCategories.map((cat) => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => setSelectedCategory(cat)}
+                className={`px-3 py-1.5 rounded-xl text-[11.5px] font-extrabold transition-all whitespace-nowrap shrink-0 border ${
+                  selectedCategory === cat
+                    ? "bg-blue-600 border-blue-600 text-white shadow-sm"
+                    : "bg-gray-50 border-gray-150 text-gray-500 hover:text-gray-900"
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <p className="text-[13px] text-gray-400 mb-5 font-medium">
+          {filteredTransports.length} {filteredTransports.length === 1 ? "tratta" : "tratte"}
+          {selectedCategory !== "Tutti" && ` in ${selectedCategory.toLowerCase()}`}
+          &middot; ordine cronologico
+        </p>
+
         <div className="space-y-3">
-          {transports.map((tr) => (
+          {filteredTransports.map((tr) => (
             <SwipeToDelete
               key={tr.id}
               label="Elimina"

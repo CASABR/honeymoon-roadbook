@@ -5,7 +5,7 @@ import {
   TRANSPORTS,
   ACCOMMODATIONS,
 } from "../data/mockData";
-import type { Transport, Accommodation } from "../data/mockData";
+import type { Transport, Accommodation, DayData, Activity } from "../data/mockData";
 import { repository } from "../services/repository";
 import type { BudgetEntry } from "../services/repository";
 import { syncService } from "../services/sync";
@@ -305,7 +305,24 @@ function CategoryDetailSheet({
             displayedItems.map((item, idx) => (
               <div key={idx} className="bg-gray-50/70 border border-gray-100 p-3 rounded-xl flex items-center justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-bold text-gray-800 leading-snug truncate">{item.label}</p>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <p className="text-[13px] font-bold text-gray-800 leading-snug truncate">{item.label}</p>
+                    {item.type === "activity" && (item.rawObject.mapsUrl || item.rawObject.howToGetThere) && (
+                      <a 
+                        href={
+                          item.rawObject.mapsUrl || 
+                          `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${item.rawObject.title}, ${item.rawObject.howToGetThere}`)}`
+                        } 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="inline-flex items-center justify-center w-5 h-5 rounded-lg bg-blue-50 border border-blue-100 text-blue-650 hover:bg-blue-100 transition-colors shrink-0"
+                        title="Apri posizione in Google Maps"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="text-[10px]">📍</span>
+                      </a>
+                    )}
+                  </div>
                   <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{item.date}</p>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
@@ -478,7 +495,6 @@ function AddExpenseSheet({
 }
 
 // ── Main BudgetView ───────────────────────────────────────────────────────────
-import type { DayData, Activity } from "../data/mockData";
 import { DAYS } from "../data/mockData";
 
 export default function BudgetView() {
