@@ -1479,45 +1479,69 @@ export default function AltroView() {
             isOpen={openAccordion === "insurance"}
             onToggle={() => toggleAccordion("insurance")}
           >
-            <div className="space-y-0">
-              <InfoRow label="Polizza" value={`${INSURANCE.brand} · ${INSURANCE.policyNumber}`} />
-              <InfoRow label="Piano" value={INSURANCE.plan} />
-              <InfoRow label="Assicurati" value={INSURANCE.insured} />
-              <InfoRow label="Periodo" value={`${INSURANCE.startDate} – ${INSURANCE.endDate}`} />
-              <InfoRow label="Copertura" value={INSURANCE.coverage} />
-              <InfoRow label="Costo" value={INSURANCE.cost} />
-            </div>
-            <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
-              <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider">Coperture principali</p>
-              <InfoRow label="Mediche" value={INSURANCE.medicalExpenses} />
-              <InfoRow label="Bagagli" value={INSURANCE.luggage} />
-              <InfoRow label="Ritardo volo" value={INSURANCE.flightDelay} />
-              <InfoRow label="Resp. civile" value={INSURANCE.personalLiability} />
-            </div>
-            <div className="mt-3 pt-3 border-t border-gray-100 space-y-2">
-              <p className="text-[10px] font-bold text-gray-400 uppercase mb-2 tracking-wider">Contatti rapidi</p>
-              <div className="flex gap-2 flex-wrap">
+            <div className="space-y-3.5">
+              {/* Dettagli Polizza */}
+              <div className="bg-white border border-slate-100 rounded-xl p-3 shadow-sm shadow-slate-100/35">
+                <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest mb-1.5">Dati Polizza</p>
+                <div className="space-y-0.5">
+                  <InfoRow label="Polizza" value={`${INSURANCE.brand} · ${INSURANCE.policyNumber}`} />
+                  <InfoRow label="Piano" value={INSURANCE.plan} />
+                  <InfoRow label="Assicurati" value={INSURANCE.insured} />
+                  <InfoRow label="Periodo" value={`${INSURANCE.startDate} – ${INSURANCE.endDate}`} />
+                </div>
+              </div>
+
+              {/* Massimali di Copertura */}
+              <div className="bg-white border border-slate-100 rounded-xl p-3 shadow-sm shadow-slate-100/35">
+                <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-1.5">Massimali &amp; Coperture</p>
+                <div className="space-y-0.5">
+                  <InfoRow label="Mediche" value={INSURANCE.medicalExpenses} />
+                  <InfoRow label="Bagagli" value={INSURANCE.luggage} />
+                  <InfoRow label="Ritardo volo" value={INSURANCE.flightDelay} />
+                  <InfoRow label="Resp. civile" value={INSURANCE.personalLiability} />
+                </div>
+              </div>
+
+              {/* Azioni Rapide */}
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <a
+                    href={`tel:${INSURANCE.phone24h}`}
+                    className="flex-1 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-150 text-[11.5px] font-black py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                    </svg>
+                    <span>Assistenza 24/7</span>
+                  </a>
+                  <a
+                    href={`tel:${INSURANCE.phoneClaims}`}
+                    className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-650 border border-slate-150 text-[11.5px] font-black py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all active:scale-95 shrink-0"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <line x1="16" y1="13" x2="8" y2="13" />
+                      <line x1="16" y1="17" x2="8" y2="17" />
+                      <polyline points="10 9 9 9 8 9" />
+                    </svg>
+                    <span>Ufficio Sinistri</span>
+                  </a>
+                </div>
                 <a
-                  href={`tel:${INSURANCE.phone24h}`}
-                  className="flex-1 min-w-[120px] bg-blue-600 text-white text-[12px] font-semibold py-2.5 px-3 rounded-xl text-center shadow-md shadow-blue-200"
+                  href={INSURANCE.claimsPortal}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="w-full bg-white border border-slate-200 text-slate-600 text-[11.5px] font-extrabold py-2.5 rounded-xl text-center hover:bg-slate-50 active:scale-95 transition-all flex items-center justify-center gap-1.5 shadow-sm shadow-slate-100/30"
                 >
-                  📞 Assistenza 24/7
-                </a>
-                <a
-                  href={`tel:${INSURANCE.phoneClaims}`}
-                  className="flex-1 min-w-[120px] bg-gray-100 text-gray-700 text-[12px] font-semibold py-2.5 px-3 rounded-xl text-center"
-                >
-                  📋 Sinistri
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                    <polyline points="15 3 21 3 21 9" />
+                    <line x1="10" y1="14" x2="21" y2="3" />
+                  </svg>
+                  <span>Portale Sinistri Online</span>
                 </a>
               </div>
-              <a
-                href={INSURANCE.claimsPortal}
-                target="_blank"
-                rel="noreferrer"
-                className="block w-full text-center text-[12px] font-semibold text-blue-600 py-2 hover:underline"
-              >
-                Portale sinistri online →
-              </a>
             </div>
           </Accordion>
         </div>
