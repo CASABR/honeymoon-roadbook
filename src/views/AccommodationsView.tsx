@@ -318,6 +318,22 @@ function DetailAccoSheet({
 }) {
   const mapsUrl = acc.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${acc.name}, ${acc.city}`)}`;
   
+  const [copiedCode, setCopiedCode] = useState(false);
+  const copiedTimeoutRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+    };
+  }, []);
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(true);
+    if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+    copiedTimeoutRef.current = setTimeout(() => setCopiedCode(false), 2000);
+  };
+
   return (
     <div className="bottom-sheet-backdrop animate-fade-in" onClick={onClose}>
       <div className="bottom-sheet-container animate-slide-up" onClick={(e) => e.stopPropagation()}>
@@ -382,6 +398,43 @@ function DetailAccoSheet({
           </div>
 
           <div className="space-y-2.5">
+            {acc.confirmationCode && (
+              <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-[11px] text-gray-400 font-bold uppercase">Codice Prenotazione</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[12px] font-mono font-bold text-gray-800">
+                    {acc.confirmationCode}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyCode(acc.confirmationCode!)}
+                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-extrabold transition-all active:scale-95 shrink-0 ${
+                      copiedCode
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : "bg-slate-50 text-slate-500 border-slate-100 hover:text-blue-650 hover:bg-blue-50 hover:border-blue-100"
+                    }`}
+                    title="Copia negli appunti"
+                  >
+                    {copiedCode ? (
+                      <>
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        <span>Copiato</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                        <span>Copia</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
               <span className="text-[11px] text-gray-400 font-bold uppercase">Prezzo</span>
               <button
