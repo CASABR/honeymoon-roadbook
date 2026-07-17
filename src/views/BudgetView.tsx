@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { IcChevronRight, IcPlus } from "../components/Icons";
+import { IcChevronRight, IcPlus, IcMapPin } from "../components/Icons";
 import {
   BUDGET_TOTAL,
   TRANSPORTS,
@@ -307,19 +307,16 @@ function CategoryDetailSheet({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <p className="text-[13px] font-bold text-gray-800 leading-snug truncate">{item.label}</p>
-                    {item.type === "activity" && (item.rawObject.mapsUrl || item.rawObject.howToGetThere) && (
+                    {item.type === "activity" && item.rawObject.mapsUrl && (
                       <a 
-                        href={
-                          item.rawObject.mapsUrl || 
-                          `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${item.rawObject.title}, ${item.rawObject.howToGetThere}`)}`
-                        } 
+                        href={item.rawObject.mapsUrl} 
                         target="_blank" 
                         rel="noreferrer"
-                        className="inline-flex items-center justify-center w-5 h-5 rounded-lg bg-blue-50 border border-blue-100 text-blue-650 hover:bg-blue-100 transition-colors shrink-0"
+                        className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-slate-50 border border-slate-100 text-slate-500 hover:text-blue-650 hover:bg-blue-50 hover:border-blue-100 transition-colors shrink-0"
                         title="Apri posizione in Google Maps"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <span className="text-[10px]">📍</span>
+                        <IcMapPin size={13} />
                       </a>
                     )}
                   </div>
@@ -509,6 +506,21 @@ export default function BudgetView() {
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  const enrichTripDays = (days: DayData[]): DayData[] => {
+    return days.map(d => ({
+      ...d,
+      activities: d.activities.map(act => {
+        if (act.howToGetThere && !act.mapsUrl) {
+          return {
+            ...act,
+            mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${act.title}, ${act.howToGetThere}`)}`
+          };
+        }
+        return act;
+      })
+    }));
+  };
+
   useEffect(() => {
     async function initData() {
       try {
@@ -519,7 +531,7 @@ export default function BudgetView() {
         setTransports(tr);
         setAccommodations(acc);
         setEntries(ent);
-        setTripDays(days);
+        setTripDays(enrichTripDays(days));
         isLoadedRef.current = true;
       } catch (e) {
         console.error("Errore caricamento dati budgeter:", e);
@@ -549,9 +561,10 @@ export default function BudgetView() {
     const tripDaysHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail) {
+        const enriched = enrichTripDays(detail);
         setTripDays((current) => {
-          if (JSON.stringify(current) === JSON.stringify(detail)) return current;
-          return detail;
+          if (JSON.stringify(current) === JSON.stringify(enriched)) return current;
+          return enriched;
         });
       }
     };
