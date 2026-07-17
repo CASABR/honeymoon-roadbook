@@ -344,8 +344,9 @@ body,
   border-top-left-radius: var(--radius-sheet);
   border-top-right-radius: var(--radius-sheet);
   padding: 20px 20px 24px;
-  max-height: 78dvh !important;
-  overflow-y: auto;
+  max-height: 82dvh !important;
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 -8px 24px -4px rgba(0, 0, 0, 0.08), 0 -2px 6px rgba(0, 0, 0, 0.04);
 }
 
