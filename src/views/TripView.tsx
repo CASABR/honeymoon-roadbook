@@ -4,6 +4,8 @@ import {
   TRIP_NAME,
   TRIP_DURATION,
   TODAY_DAY_ID,
+  TRANSPORTS,
+  ACCOMMODATIONS,
 } from "../data/mockData";
 import type { Activity, DayData } from "../data/mockData";
 import {
@@ -14,7 +16,7 @@ import {
   ActivityIcon,
 } from "../components/Icons";
 import { repository } from "../services/repository";
-import { parseTransitTimeToMinutes, formatMinutesToHoursAndMinutes, getCachedTransitTime, cleanSubtitle } from "./TodayView";
+import { parseTransitTimeToMinutes, formatMinutesToHoursAndMinutes, getCachedTransitTime, cleanSubtitle, isDrivingTransit } from "./TodayView";
 
 // ── Sheet per modificare un'attività esistente ────────────────────────────────
 export function EditActivitySheet({
@@ -46,6 +48,49 @@ export function EditActivitySheet({
   const [note, setNote] = useState(activity.note || "");
   const [copied, setCopied] = useState(false);
   const copiedTimeoutRef = useRef<any>(null);
+
+  const [transportsList, setTransportsList] = useState<any[]>([]);
+  const [accommodationsList, setAccommodationsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadDetails() {
+      try {
+        const trs = await repository.getTransports(TRANSPORTS);
+        const accs = await repository.getAccommodations(ACCOMMODATIONS);
+        setTransportsList(trs);
+        setAccommodationsList(accs);
+      } catch (e) {
+        console.error("Errore durante il caricamento dati nel foglio dettaglio:", e);
+      }
+    }
+    loadDetails();
+  }, []);
+
+  const matchedDay = DAYS.find(day => day.activities.some(a => a.id === activity.id));
+  const dayDate = matchedDay?.date;
+
+  const matchedTr = transportsList && dayDate && type === "transport"
+    ? transportsList.find(tr => {
+        if (tr.date !== dayDate) return false;
+        const actTitleLower = activity.title.toLowerCase();
+        const actSubLower = activity.subtitle.toLowerCase();
+        const trFromLower = tr.from.toLowerCase();
+        const trToLower = tr.to.toLowerCase();
+        const cityMatch = actTitleLower.includes(trFromLower) || actTitleLower.includes(trToLower);
+        const codeMatch = tr.carrierCode && (actTitleLower.includes(tr.carrierCode.toLowerCase()) || actSubLower.includes(tr.carrierCode.toLowerCase()));
+        return cityMatch || codeMatch;
+      })
+    : undefined;
+
+  const matchedAcc = accommodationsList && dayDate && type === "hotel"
+    ? accommodationsList.find(acc => {
+        const dateMatch = acc.startDate === dayDate || acc.endDate === dayDate;
+        if (!dateMatch) return false;
+        const actTitleLower = activity.title.toLowerCase();
+        const accNameLower = acc.name.toLowerCase();
+        return actTitleLower.includes(accNameLower) || accNameLower.includes(actTitleLower) || actTitleLower.includes("hotel") || actTitleLower.includes("alloggio");
+      })
+    : undefined;
 
   useEffect(() => {
     return () => {
@@ -117,7 +162,135 @@ export function EditActivitySheet({
           )}
         </div>
 
-        <div className="space-y-4 max-h-[62dvh] overflow-y-auto pr-1">
+        <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
+           {/* Dati di secondo livello copilota (Trasporti/Alloggi correlati) */}
+          {(matchedTr || matchedAcc) && (
+            <div className="space-y-2.5 mb-3 text-left">
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[11.5px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-1">
+                  {matchedTr ? "✈️ Logistica Trasporto" : "🏨 Dettagli Alloggio"}
+                </span>
+                <span className="text-[9px] font-black text-blue-600 bg-blue-50/80 px-1.5 py-0.5 rounded border border-blue-100/50 uppercase tracking-wider">
+                  Sincronizzato
+                </span>
+              </div>
+
+              <div className="bg-white border border-slate-150 rounded-xl p-3 space-y-2.5 shadow-sm">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-[12px]">
+                  {matchedTr?.carrierCode && (
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 block uppercase tracking-wider">Volo / Tratta</span>
+                      <span className="font-extrabold text-blue-600 bg-blue-50/50 px-1.5 py-0.2 rounded border border-blue-100/50 inline-block text-[11px] mt-0.5">
+                        ✈️ {matchedTr.carrierCode}
+                      </span>
+                    </div>
+                  )}
+
+                  {matchedTr?.seat && (
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 block uppercase tracking-wider">Posti Assegnati</span>
+                      <span className="font-extrabold text-slate-700 bg-slate-100/80 px-1.5 py-0.2 rounded border border-slate-200/50 inline-block text-[11px] mt-0.5">
+                        💺 {matchedTr.seat}
+                      </span>
+                    </div>
+                  )}
+
+                  {matchedTr?.gate && (
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 block uppercase tracking-wider">Gate / Terminal</span>
+                      <span className="font-bold text-amber-800 bg-amber-50/50 px-1.5 py-0.2 rounded border border-amber-100/50 inline-block text-[11px] mt-0.5">
+                        🚪 {matchedTr.gate} {matchedTr.terminal ? `(T${matchedTr.terminal})` : ""}
+                      </span>
+                    </div>
+                  )}
+
+                  {matchedAcc?.phone && (
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 block uppercase tracking-wider">Telefono</span>
+                      <a href={`tel:${matchedAcc.phone}`} className="font-bold text-blue-600 hover:underline inline-block mt-0.5 text-[11.5px]">
+                        📞 {matchedAcc.phone}
+                      </a>
+                    </div>
+                  )}
+
+                  {matchedAcc?.startDate && (
+                    <div className="col-span-2">
+                      <span className="text-[9px] font-bold text-gray-400 block uppercase tracking-wider">Periodo Soggiorno</span>
+                      <span className="font-semibold text-gray-700 text-[11.5px] mt-0.5 block">
+                        📅 Dal {matchedAcc.startDate} al {matchedAcc.endDate}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Codice Prenotazione PNR integrato in riga compatta */}
+                {(matchedTr?.bookingRef || matchedTr?.confirmationCode || matchedAcc?.bookingRef || matchedAcc?.confirmationCode) && (
+                  <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-lg p-2 mt-1">
+                    <div className="min-w-0">
+                      <span className="text-[9px] font-bold text-gray-400 block uppercase tracking-wider">Codice Prenotazione (PNR)</span>
+                      <span className="font-mono font-black text-gray-800 text-[12px] truncate block mt-0.5">
+                        {matchedTr?.bookingRef || matchedTr?.confirmationCode || matchedAcc?.bookingRef || matchedAcc?.confirmationCode}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const refVal = matchedTr?.bookingRef || matchedTr?.confirmationCode || matchedAcc?.bookingRef || matchedAcc?.confirmationCode;
+                        if (refVal) {
+                          navigator.clipboard.writeText(refVal);
+                          setCopied(true);
+                          setTimeout(() => setCopied(false), 2000);
+                        }
+                      }}
+                      className={`px-2.5 py-1 rounded-md border text-[10.5px] font-black transition-all active:scale-95 flex items-center gap-1 shrink-0 ${
+                        copied
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : "bg-white text-gray-500 border-slate-200 hover:bg-slate-55"
+                      }`}
+                    >
+                      {copied ? (
+                        <>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          <span>Copiato</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                          <span>Copia PNR</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Note e Avvisi Operativi in box ad hoc soft amber */}
+              {(matchedTr?.baggageNote || matchedTr?.importantNote || matchedAcc?.checkinNote || matchedAcc?.notes) && (
+                <div className="bg-amber-50/50 border border-amber-100/50 rounded-xl p-3 text-[11px] space-y-2 text-slate-700 leading-relaxed shadow-sm">
+                  {matchedTr?.baggageNote && (
+                    <div>
+                      <span className="text-[8.5px] font-black text-amber-800 block uppercase tracking-wider">Regole Bagagli</span>
+                      <p className="font-semibold text-slate-600 mt-0.5">🧳 {matchedTr.baggageNote}</p>
+                    </div>
+                  )}
+                  {(matchedTr?.importantNote || matchedAcc?.checkinNote || matchedAcc?.notes) && (
+                    <div>
+                      <span className="text-[8.5px] font-black text-amber-850 block uppercase tracking-wider">Note Operative importanti</span>
+                      <p className="font-bold text-amber-900 mt-0.5">
+                        ⚠️ {matchedTr?.importantNote || matchedAcc?.checkinNote || matchedAcc?.notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Tipo */}
           <div>
             <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
@@ -139,8 +312,8 @@ export function EditActivitySheet({
           </div>
 
           <div className="space-y-3">
-            <div className="flex gap-2">
-              <div className="w-1/3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="w-full sm:w-1/3">
                 <label className="text-[11px] font-semibold text-gray-500 block mb-1">Orario *</label>
                 <input
                   type="text"
@@ -150,7 +323,7 @@ export function EditActivitySheet({
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                 />
               </div>
-              <div className="w-2/3">
+              <div className="w-full sm:w-2/3">
                 <label className="text-[11px] font-semibold text-gray-500 block mb-1">Titolo *</label>
                 <input
                   type="text"
@@ -160,8 +333,8 @@ export function EditActivitySheet({
                 />
               </div>
             </div>
-            <div className="flex gap-2">
-              <div className="flex-1">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="w-full sm:flex-1">
                 <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
                 <input
                   type="text"
@@ -170,7 +343,7 @@ export function EditActivitySheet({
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                 />
               </div>
-              <div className="w-1/3">
+              <div className="w-full sm:w-1/3">
                 <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
                 <input
                   type="text"
@@ -554,11 +727,49 @@ function TripTimelineRow({
         </div>
 
         {/* Transition to next activity */}
-        {nextActivity && !editMode && transitTime && (
-          <div className="my-1.5 ml-4 text-[11px] font-bold text-blue-600/95 flex items-center gap-1">
-            <span>🚗 {transitTime}</span>
-          </div>
-        )}
+        {nextActivity && !editMode && transitTime && (() => {
+          const combinedText = `${activity.title} ${activity.subtitle || ""} ${nextActivity.title} ${nextActivity.subtitle || ""}`.toLowerCase();
+          let transportEmoji = "🚗";
+          let transportLabel = "Guida";
+          
+          if (combinedText.includes("volo") || combinedText.includes("flight") || combinedText.includes("air china") || combinedText.includes("cebu") || combinedText.includes("virgin") || combinedText.includes("philippine") || combinedText.includes("air new zealand")) {
+            transportEmoji = "✈️";
+            transportLabel = "Volo";
+          } else if (combinedText.includes("treno") || combinedText.includes("frecciarossa") || combinedText.includes("train") || combinedText.includes("ferrovia")) {
+            transportEmoji = "🚆";
+            transportLabel = "Treno";
+          } else if (combinedText.includes("traghetto") || combinedText.includes("ferry") || combinedText.includes("nave") || combinedText.includes("boat")) {
+            transportEmoji = "🚢";
+            transportLabel = "Traghetto";
+          } else if (combinedText.includes("scalo") || combinedText.includes("layover") || combinedText.includes("transito")) {
+            transportEmoji = "⏳";
+            transportLabel = "Scalo";
+          } else if (combinedText.includes("cammino") || combinedText.includes("piedi") || combinedText.includes("walk") || combinedText.includes("trekking")) {
+            transportEmoji = "🚶";
+            transportLabel = "A piedi";
+          }
+          
+          const isDrive = transportLabel === "Guida";
+
+          return (
+            <div className="my-2.5 flex items-center gap-2 text-[10px] font-extrabold tracking-wider uppercase pl-1">
+              <span className={`flex-shrink-0 ${isDrive ? "text-blue-600/90" : "text-slate-650"}`}>
+                {transportEmoji} {transportLabel}:
+              </span>
+              <span className={`px-2 py-0.5 rounded-full font-black text-[10.5px] border ${
+                isDrive 
+                  ? "bg-blue-50 border-blue-100/60 text-blue-600" 
+                  : "bg-slate-50 border-slate-200 text-slate-700"
+              }`}>
+                {transitTime}
+              </span>
+              <div className={`flex-1 border-t border-dashed ${isDrive ? "border-blue-200/60" : "border-slate-200"}`} />
+              <span className="text-[9.5px] text-gray-400 font-bold normal-case">
+                Fino alle {nextActivity.time}
+              </span>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -636,10 +847,14 @@ export function AddActivitySheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
-        <h2 className="text-[17px] font-extrabold text-gray-900">Nuova attività</h2>
-        <p className="text-[12px] text-gray-400 mb-4">{dayLabel}</p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-[17px] font-extrabold text-gray-900">Nuova attività</h2>
+            <p className="text-[12px] text-gray-400">{dayLabel}</p>
+          </div>
+        </div>
 
-        <div className="space-y-4 max-h-[62dvh] overflow-y-auto pr-1">
+        <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
           {/* Tipo */}
           <div>
             <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
@@ -661,8 +876,8 @@ export function AddActivitySheet({
           </div>
 
           <div className="space-y-3">
-            <div className="flex gap-2">
-              <div className="w-1/3">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="w-full sm:w-1/3">
                 <label className="text-[11px] font-semibold text-gray-500 block mb-1">Orario *</label>
                 <input
                   type="text"
@@ -672,7 +887,7 @@ export function AddActivitySheet({
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
                 />
               </div>
-              <div className="w-2/3">
+              <div className="w-full sm:w-2/3">
                 <label className="text-[11px] font-semibold text-gray-500 block mb-1">Titolo attività *</label>
                 <input
                   type="text"
@@ -706,8 +921,8 @@ export function AddActivitySheet({
               />
             </div>
 
-            <div className="flex gap-2">
-              <div className="flex-1">
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="w-full sm:flex-1">
                 <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento (es. 1h 30m)</label>
                 <input
                   type="text"
@@ -717,7 +932,7 @@ export function AddActivitySheet({
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
                 />
               </div>
-              <div className="w-1/3">
+              <div className="w-full sm:w-1/3">
                 <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
                 <input
                   type="text"
@@ -925,6 +1140,7 @@ function TripDatePickerSheet({
 // ── Main TripView ─────────────────────────────────────────────────────────────
 export default function TripView() {
   const [tripDays, setTripDays] = useState<DayData[]>([]);
+  const [transportsList, setTransportsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const isLoadedRef = useRef(false);
 
@@ -962,8 +1178,10 @@ export default function TripView() {
       try {
         const days = await repository.getTripDays(DAYS);
         const completed = await repository.getCompletedActivities();
+        const trs = await repository.getTransports(TRANSPORTS);
         setTripDays(days);
         setCompletedActs(completed);
+        setTransportsList(trs);
         isLoadedRef.current = true;
       } catch (e) {
         console.error("Errore nel caricamento dei dati in TripView:", e);
@@ -1191,6 +1409,7 @@ export default function TripView() {
 
           const totalDriveMin = day.activities.reduce((sum, act, actIdx) => {
             const nextAct = day.activities[actIdx + 1];
+            if (!nextAct || !isDrivingTransit(act, nextAct, transportsList, day.date)) return sum;
             const timeStr = getCachedTransitTime(act, nextAct);
             return sum + parseTransitTimeToMinutes(timeStr);
           }, 0);

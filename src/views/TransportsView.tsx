@@ -193,8 +193,9 @@ function TransportDetailSheet({
           </div>
         </div>
 
-        {/* Informazioni noleggio */}
-        {tr.rentalProvider ? (
+        <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
+          {/* Informazioni noleggio */}
+          {tr.rentalProvider ? (
           <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-4 space-y-3 mb-4">
             <div className="grid grid-cols-2 gap-2.5">
               <DetailRow label="Fornitore" value={tr.rentalProvider} />
@@ -489,6 +490,7 @@ function TransportDetailSheet({
         <p className="text-[10px] text-gray-400 text-center mb-5 italic">
           Fonte dati: {tr.source === "gmail" ? "Gmail (Importazione)" : tr.source === "google_calendar" ? "Google Calendar" : tr.source === "imported" ? "Vecchio roadbook" : "Inserimento manuale"}
         </p>
+        </div>
 
         {/* Azioni */}
         <div className="flex gap-2">
@@ -694,30 +696,32 @@ function TransportFormSheet({
       <div className="bottom-sheet-container"
         onClick={(e) => e.stopPropagation()}>
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
-        <h2 className="text-[17px] font-black text-gray-900 mb-4">
-          {tr ? "Modifica trasporto" : "Nuovo trasporto"}
-        </h2>
-
-        {/* Tipo mezzo */}
-        <div className="mb-3">
-          <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo mezzo</label>
-          <div className="flex gap-2 flex-wrap">
-            {TYPE_OPTIONS.map((t) => (
-              <button key={t} onClick={() => setType(t)}
-                className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-colors ${
-                  type === t ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
-                }`}>
-                {TYPE_LABEL[t]}
-              </button>
-            ))}
-          </div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[17px] font-black text-gray-900">
+            {tr ? "Modifica trasporto" : "Nuovo trasporto"}
+          </h2>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
+          {/* Tipo mezzo */}
+          <div className="mb-3">
+            <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo mezzo</label>
+            <div className="flex gap-2 flex-wrap">
+              {TYPE_OPTIONS.map((t) => (
+                <button key={t} onClick={() => setType(t)}
+                  className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-colors ${
+                    type === t ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
+                  }`}>
+                  {TYPE_LABEL[t]}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Sezione 1: Principali */}
           <div className="bg-gray-50/70 border border-gray-100 p-3 rounded-2xl space-y-3">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dati principali</p>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <Field label="Data (YYYY-MM-DD) *" value={date} placeholder="2026-11-28" onChange={setDate} />
               </div>
@@ -725,7 +729,7 @@ function TransportFormSheet({
                 <Field label="Orario partenza" value={time} placeholder="11:05" onChange={setTime} />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <Field label="Etichetta data" value={dateLabel} placeholder="es. Sab 28 nov" onChange={setDateLabel} />
               </div>
@@ -733,7 +737,7 @@ function TransportFormSheet({
                 <Field label="Orario arrivo" value={arrivalTime} placeholder="14:15" onChange={setArrivalTime} />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <Field label="Da *" value={from} placeholder="es. Roma Termini" onChange={setFrom} />
               </div>
@@ -747,7 +751,7 @@ function TransportFormSheet({
           {/* Sezione 2: Info Volo / Compagnia */}
           <div className="bg-gray-50/70 border border-gray-100 p-3 rounded-2xl space-y-3">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Compagnia e codici</p>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <Field label="Compagnia / Airline" value={airline} placeholder="es. Air China" onChange={setAirline} />
               </div>
@@ -755,7 +759,7 @@ function TransportFormSheet({
                 <Field label="N° Volo / Tratta" value={carrierCode} placeholder="es. CA950" onChange={setCarrierCode} />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <Field label="Cod. Prenotazione" value={bookingRef} placeholder="es. HEY2101" onChange={setBookingRef} />
               </div>
@@ -763,7 +767,7 @@ function TransportFormSheet({
                 <Field label="Codice Biglietto" value={confirmationCode} placeholder="es. 16888..." onChange={setConfirmationCode} />
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <Field label="Durata" value={duration} placeholder="es. 1h 55m" onChange={setDuration} />
               </div>
@@ -779,7 +783,7 @@ function TransportFormSheet({
           {/* Sezione 3: Terminal / Gate / Posto */}
           <div className="bg-gray-50/70 border border-gray-100 p-3 rounded-2xl space-y-3">
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Terminal & Posto</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Field label="Terminal" value={terminal} placeholder="es. T1" onChange={setTerminal} />
               <Field label="Gate" value={gate} placeholder="es. A12" onChange={setGate} />
               <Field label="Posto" value={seat} placeholder="es. 06C" onChange={setSeat} />

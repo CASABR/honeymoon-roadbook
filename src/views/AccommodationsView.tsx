@@ -73,16 +73,18 @@ function AddAccoSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
-        <h2 className="text-[17px] font-extrabold text-gray-900 mb-4">Nuovo alloggio</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[17px] font-extrabold text-gray-900">Nuovo alloggio</h2>
+        </div>
 
-        <div className="space-y-3">
+        <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-0">
           <Field
             label="Nome struttura *"
             value={form.name}
             placeholder="es. Hotel Romolo"
             onChange={(v) => handleChange("name", v)}
           />
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
               <Field
                 label="Città *"
@@ -100,7 +102,7 @@ function AddAccoSheet({
               />
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
               <Field
                 label="Check-in"
@@ -124,7 +126,7 @@ function AddAccoSheet({
             placeholder="es. 25 – 27 novembre"
             onChange={(v) => handleChange("dates", v)}
           />
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
               <Field
                 label="Prezzo (€)"
@@ -355,7 +357,7 @@ function DetailAccoSheet({
           )}
         </div>
 
-        <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
+        <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
           {acc.imageUrl && (
             <img 
               src={acc.imageUrl} 
@@ -897,7 +899,7 @@ function ImportBookingSheet({
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
         <h2 className="text-[17px] font-extrabold text-gray-900 mb-3">Importa da Booking.com</h2>
 
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+        <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
           <div>
             <label className="text-[11px] font-semibold text-gray-500 block mb-1">
               Incolla il testo della mail o della conferma

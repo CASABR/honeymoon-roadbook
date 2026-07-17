@@ -269,7 +269,7 @@ function CategoryDetailSheet({
         </p>
 
         {/* Corpo principale */}
-        <div className="space-y-2.5 max-h-[45vh] overflow-y-auto pr-1">
+        <div className="space-y-2.5 overflow-y-auto pr-1 flex-1 min-h-0">
           {isTransportMainView ? (
             // Vista delle Sottocategorie per i Trasporti
             <div className="space-y-2">
@@ -412,7 +412,7 @@ function AddExpenseSheet({
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
         <h2 className="text-[17px] font-black text-gray-900 mb-4">Aggiungi spesa</h2>
 
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
           <div>
             <label className="text-[11px] font-semibold text-gray-500 block mb-1">Descrizione *</label>
             <input

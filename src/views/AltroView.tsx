@@ -120,7 +120,7 @@ function AddDocumentSheet({
         <h2 className="text-[17px] font-black text-gray-900 mb-1">Aggiungi documento</h2>
         <p className="text-[12px] text-gray-400 mb-4">Categoria: {category}</p>
 
-        <div className="space-y-4">
+        <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
           <div>
             <label className="text-[11px] font-semibold text-gray-500 block mb-1">Nome Documento *</label>
             <input
@@ -248,15 +248,14 @@ function CategoryDocumentsSheet({
         <h2 className="text-[17px] font-black text-gray-900 mb-1">Dettaglio Categoria</h2>
         <p className="text-[12px] text-gray-400 mb-4">{category}</p>
 
-        {/* Nota tecnica allegati */}
-        <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-4">
-          <p className="text-[10px] text-amber-700 font-semibold leading-relaxed">
-            ⚠️ Gli allegati sono salvati <strong>solo nel browser locale</strong> (localStorage base64).
-            Max 10 MB per file. Si perdono se si pulisce la cache del browser.
-          </p>
-        </div>
-
-        <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
+        <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
+          {/* Nota tecnica allegati */}
+          <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-4">
+            <p className="text-[10px] text-amber-700 font-semibold leading-relaxed">
+              ⚠️ Gli allegati sono salvati <strong>solo nel browser locale</strong> (localStorage base64).
+              Max 10 MB per file. Si perdono se si pulisce la cache del browser.
+            </p>
+          </div>
           {filtered.length === 0 ? (
             <p className="text-[12px] text-gray-400 italic text-center py-6 bg-gray-50 rounded-xl">
               Nessun documento inserito in questa categoria.
@@ -448,6 +447,7 @@ export default function AltroView() {
   const [activeInfoLabel, setActiveInfoLabel] = useState<string | null>(null);
   const [personalNotes, setPersonalNotes] = useState("");
   const [filterMode, setFilterMode] = useState<"todo" | "all">("todo");
+  const [copiedNotes, setCopiedNotes] = useState(false);
   const notesTimeoutRef = useRef<any>(null);
 
   const user = auth?.currentUser || (localStorage.getItem("hrb_local_auth_bypass") ? JSON.parse(localStorage.getItem("hrb_local_auth_bypass")!) : null);
@@ -802,25 +802,7 @@ export default function AltroView() {
             <IcChevronRight size={15} className="text-gray-300 flex-shrink-0" />
           </button>
 
-          <button
-            className="w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors hover:bg-gray-50/50"
-            onClick={() => {
-              setOpenAccordion("activities");
-              setTimeout(() => {
-                const el = document.getElementById("altro-sec-activities");
-                if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-              }, 100);
-            }}
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-50 border border-blue-100">
-              <span className="text-blue-600">🎫</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-[14px] font-bold text-gray-900">Gestione Attività</p>
-              <p className="text-[12px] text-gray-400">Gestisci prenotazioni, pagamenti e costi attività</p>
-            </div>
-            <IcChevronRight size={15} className="text-gray-300 flex-shrink-0" />
-          </button>
+
 
           {/* Note Personali Reali */}
           <div className="w-full">
@@ -838,8 +820,48 @@ export default function AltroView() {
               <IcChevronDown size={14} className={`text-gray-300 flex-shrink-0 transition-transform duration-200 ${activeInfoLabel === "Note" ? "rotate-180 text-blue-500" : ""}`} />
             </button>
             {activeInfoLabel === "Note" && (
-              <div className="px-4 pb-4 pt-1 bg-white border-t border-gray-50">
-                <label className="text-[11px] font-semibold text-gray-400 block mb-1.5 uppercase tracking-wider">Appunti di viaggio (Salvataggio automatico)</label>
+              <div className="px-4 pb-4 pt-1.5 bg-white border-t border-gray-50">
+                <div className="flex justify-between items-center mb-1.5">
+                  <label className="text-[11px] font-semibold text-gray-400 block uppercase tracking-wider">Appunti di viaggio (Salvataggio auto)</label>
+                  {personalNotes.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(personalNotes);
+                        if (copiedTimeoutRef.current) {
+                          clearTimeout(copiedTimeoutRef.current);
+                        }
+                        setCopiedNotes(true);
+                        copiedTimeoutRef.current = setTimeout(() => {
+                          setCopiedNotes(false);
+                        }, 2000);
+                      }}
+                      className={`text-[9.5px] font-extrabold flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all active:scale-95 ${
+                        copiedNotes
+                          ? "bg-green-50 text-green-700 border-green-200"
+                          : "bg-slate-50 text-slate-600 border-slate-100 hover:text-blue-650 hover:bg-blue-50 hover:border-blue-100"
+                      }`}
+                      title="Copia appunti"
+                    >
+                      {copiedNotes ? (
+                        <>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          <span>Copiato</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                          </svg>
+                          <span>Copia</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
                 <textarea
                   value={personalNotes}
                   onChange={(e) => handleNotesChange(e.target.value)}
