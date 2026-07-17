@@ -4,7 +4,7 @@ import { INSURANCE, EMERGENCY_CONTACTS, DAYS } from "../data/mockData";
 import type { DayData, Activity } from "../data/mockData";
 import {
   IcNote, IcSettings, IcWallet,
-  IcChevronRight, IcChevronDown, IcPlus,
+  IcChevronRight, IcChevronDown, IcPlus, IcMapPin,
 } from "../components/Icons";
 import { repository } from "../services/repository";
 import type { Checklist, DocumentItem, AttachmentItem, ChecklistItem } from "../services/repository";
@@ -559,6 +559,21 @@ export default function AltroView() {
     repository.saveNotes(personalNotes);
   }
 
+  const enrichTripDays = (days: DayData[]): DayData[] => {
+    return days.map(d => ({
+      ...d,
+      activities: d.activities.map(act => {
+        if (act.howToGetThere && !act.mapsUrl) {
+          return {
+            ...act,
+            mapsUrl: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${act.title}, ${act.howToGetThere}`)}`
+          };
+        }
+        return act;
+      })
+    }));
+  };
+
   useEffect(() => {
     async function initData() {
       try {
@@ -569,7 +584,7 @@ export default function AltroView() {
         setDocuments(docs);
         setChecklists(chks);
         setPersonalNotes(notesVal);
-        setTripDays(days);
+        setTripDays(enrichTripDays(days));
         isLoadedRef.current = true;
       } catch (e) {
         console.error("Errore caricamento dati in AltroView:", e);
@@ -584,9 +599,10 @@ export default function AltroView() {
     const tripDaysHandler = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (detail) {
+        const enriched = enrichTripDays(detail);
         setTripDays((current) => {
-          if (JSON.stringify(current) === JSON.stringify(detail)) return current;
-          return detail;
+          if (JSON.stringify(current) === JSON.stringify(enriched)) return current;
+          return enriched;
         });
       }
     };
@@ -1121,19 +1137,16 @@ export default function AltroView() {
                               <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <p className="text-[13px] font-black text-gray-800 leading-snug truncate">{act.title}</p>
-                                  {(act.mapsUrl || act.howToGetThere) && (
+                                  {act.mapsUrl && (
                                     <a
-                                      href={
-                                        act.mapsUrl || 
-                                        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${act.title}, ${act.howToGetThere}`)}`
-                                      }
+                                      href={act.mapsUrl}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="inline-flex items-center justify-center w-5 h-5 rounded-lg bg-blue-50 border border-blue-100 text-blue-650 hover:bg-blue-100 transition-colors shrink-0"
+                                      className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-slate-50 border border-slate-100 text-slate-500 hover:text-blue-650 hover:bg-blue-50 hover:border-blue-100 transition-colors shrink-0"
                                       title="Apri posizione in Google Maps"
                                       onClick={(e) => e.stopPropagation()}
                                     >
-                                      <span className="text-[10px]">📍</span>
+                                      <IcMapPin size={13} />
                                     </a>
                                   )}
                                 </div>
