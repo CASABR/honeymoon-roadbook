@@ -200,7 +200,7 @@ function TransportDetailSheet({
               <DetailRow label="Fornitore" value={tr.rentalProvider} />
               <DetailRow label="Veicolo" value={tr.rentalVehicle || "N/D"} />
             </div>
-            <DetailRow label="Codice Prenotazione" value={tr.bookingRef || "N/D"} mono />
+            <DetailRow label="Codice Prenotazione" value={tr.bookingRef || "N/D"} mono copyable />
             {tr.flightNumber && <DetailRow label="Volo di riferimento" value={tr.flightNumber} mono />}
             <div className="pt-2.5 border-t border-gray-100 space-y-2">
               <div>
@@ -243,10 +243,10 @@ function TransportDetailSheet({
                 <DetailRow label="Orario" value={`${tr.time}${tr.arrivalTime ? ` → ${tr.arrivalTime}` : ""}`} />
               </div>
 
-              {tr.carrierCode && <DetailRow label="N° Volo / Tratta" value={tr.carrierCode} mono />}
+              {tr.carrierCode && <DetailRow label="N° Volo / Tratta" value={tr.carrierCode} mono copyable />}
               {tr.airline && <DetailRow label="Compagnia / Operatore" value={tr.airline} />}
-              {tr.bookingRef && <DetailRow label="Codice Prenotazione (PIR / Ref)" value={tr.bookingRef} mono />}
-              {tr.confirmationCode && <DetailRow label="Codice Biglietto" value={tr.confirmationCode} mono />}
+              {tr.bookingRef && <DetailRow label="Codice Prenotazione (PIR / Ref)" value={tr.bookingRef} mono copyable />}
+              {tr.confirmationCode && <DetailRow label="Codice Biglietto" value={tr.confirmationCode} mono copyable />}
               {tr.duration && <DetailRow label="Durata" value={tr.duration} />}
             </div>
 
@@ -256,7 +256,7 @@ function TransportDetailSheet({
                 <div className="grid grid-cols-3 gap-2.5">
                   {tr.terminal && <DetailRow label="Terminal" value={tr.terminal} />}
                   {tr.gate && <DetailRow label="Gate" value={tr.gate} />}
-                  {tr.seat && <DetailRow label="Posto" value={tr.seat} mono />}
+                  {tr.seat && <DetailRow label="Posto" value={tr.seat} mono copyable />}
                 </div>
               </div>
             )}
@@ -524,11 +524,59 @@ function TransportDetailSheet({
   );
 }
 
-function DetailRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+function DetailRow({ label, value, mono, copyable }: { label: string; value: string; mono?: boolean; copyable?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef<any>(null);
+
+  const handleCopy = () => {
+    if (!value || value === "N/D") return;
+    navigator.clipboard.writeText(value);
+    setCopied(true);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setCopied(false), 2000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
   return (
     <div>
       <p className="text-[10px] font-bold text-gray-400 uppercase mb-0.5">{label}</p>
-      <p className={`text-[13px] text-gray-800 ${mono ? "font-mono" : ""}`}>{value}</p>
+      <div className="flex items-center gap-1.5">
+        <p className={`text-[13px] text-gray-800 ${mono ? "font-mono font-bold" : "font-semibold"}`}>{value}</p>
+        {copyable && value && value !== "N/D" && (
+          <button
+            type="button"
+            onClick={handleCopy}
+            className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-extrabold transition-all active:scale-95 shrink-0 ${
+              copied
+                ? "bg-green-50 text-green-700 border-green-200"
+                : "bg-slate-50 text-slate-500 border-slate-100 hover:text-blue-650 hover:bg-blue-50 hover:border-blue-100"
+            }`}
+            title="Copia negli appunti"
+          >
+            {copied ? (
+              <>
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                <span>Copiato</span>
+              </>
+            ) : (
+              <>
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                  <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                </svg>
+                <span>Copia</span>
+              </>
+            )}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

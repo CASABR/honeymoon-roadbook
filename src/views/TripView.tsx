@@ -44,6 +44,16 @@ export function EditActivitySheet({
   const [bookingRef, setBookingRef] = useState(activity.bookingRef || "");
   const [ticketUrl, setTicketUrl] = useState(activity.ticketUrl || "");
   const [note, setNote] = useState(activity.note || "");
+  const [copied, setCopied] = useState(false);
+  const copiedTimeoutRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+    };
+  }, []);
 
   function handleSubmit() {
     if (!title.trim() || !time.trim()) return;
@@ -280,7 +290,47 @@ export function EditActivitySheet({
                 )}
 
                 <div>
-                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Come arrivare</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="text-[11px] font-semibold text-gray-500 block">Come arrivare</label>
+                    {howToGetThere.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(howToGetThere);
+                          if (copiedTimeoutRef.current) {
+                            clearTimeout(copiedTimeoutRef.current);
+                          }
+                          setCopied(true);
+                          copiedTimeoutRef.current = setTimeout(() => {
+                            setCopied(false);
+                          }, 2000);
+                        }}
+                        className={`text-[9.5px] font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-lg border transition-all active:scale-95 shrink-0 ${
+                          copied
+                            ? "bg-green-50 text-green-700 border-green-200"
+                            : "bg-slate-50 text-slate-600 border-slate-100 hover:text-blue-650 hover:bg-blue-50 hover:border-blue-100"
+                        }`}
+                        title="Copia negli appunti"
+                      >
+                        {copied ? (
+                          <>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                            <span>Copiato</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                            </svg>
+                            <span>Copia</span>
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
                   <textarea
                     value={howToGetThere}
                     placeholder="Parcheggio, fermata bus consigliata, indirizzo o note sul percorso..."
@@ -886,6 +936,26 @@ export default function TripView() {
   const [editModeDayId, setEditModeDayId] = useState<string | null>(null);
 
   const [completedActs, setCompletedActs] = useState<string[]>([]);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimeoutRef = useRef<any>(null);
+
+  const showToast = (msg: string) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    setToast(msg);
+    toastTimeoutRef.current = setTimeout(() => {
+      setToast(null);
+    }, 2800);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimeoutRef.current) {
+        clearTimeout(toastTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     async function initData() {
@@ -1020,26 +1090,92 @@ export default function TripView() {
     repository.saveTripDays(nextDays);
   }
 
+  const getRealTodayDayId = (): string | null => {
+    if (tripDays.length === 0) return null;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const date = String(now.getDate()).padStart(2, "0");
+    const localTodayStr = `${year}-${month}-${date}`;
+    
+    const found = tripDays.find((d) => d.date === localTodayStr);
+    return found ? found.id : null;
+  };
+
+  const realTodayId = getRealTodayDayId();
+
+  const handleJumpToToday = () => {
+    if (tripDays.length === 0) return;
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const date = String(now.getDate()).padStart(2, "0");
+    const localTodayStr = `${year}-${month}-${date}`;
+    
+    const found = tripDays.find((d) => d.date === localTodayStr);
+    
+    let targetDayId = "";
+    let isOutOfRange = false;
+    let message = "";
+
+    if (found) {
+      targetDayId = found.id;
+      if (expandedDayId === found.id) {
+        // Se siamo già sul giorno corrente ed è già espanso, effettua solo lo scorrimento
+        const el = document.getElementById(`trip-day-${found.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+        return;
+      }
+    } else {
+      isOutOfRange = true;
+      const firstDayDate = new Date(tripDays[0].date);
+      if (now < firstDayDate) {
+        message = `Il viaggio non è ancora iniziato (Inizio: ${tripDays[0].dateLabel.toLowerCase()})`;
+        targetDayId = tripDays[0].id;
+      } else {
+        message = `Il viaggio è terminato (Termine: ${tripDays[tripDays.length - 1].dateLabel.toLowerCase()})`;
+        targetDayId = tripDays[tripDays.length - 1].id;
+      }
+    }
+    
+    if (targetDayId) {
+      if (isOutOfRange) {
+        showToast(message);
+      }
+      handleSelectDay(targetDayId);
+    }
+  };
+
   return (
     <div className="pb-4">
       {/* Header */}
       <div className="px-4 pt-5 pb-3">
-        <div className="flex items-start justify-between">
-          <div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1">
             <h1 className="text-[28px] font-extrabold text-gray-900 leading-tight">Itinerario</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="text-[13px] text-gray-500 font-medium">{TRIP_NAME}</span>
-              <span className="text-[12px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+            <div className="flex items-center gap-2 mt-1 min-w-0">
+              <span className="text-[13px] text-gray-500 font-medium truncate">{TRIP_NAME}</span>
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 shrink-0">
                 {TRIP_DURATION}
               </span>
             </div>
           </div>
-          <button
-            className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center border border-gray-100"
-            onClick={() => setShowDatePicker(true)}
-          >
-            <IcCalendar size={18} className="text-gray-600" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              className="px-3.5 h-10 rounded-xl bg-white border border-gray-100 shadow-sm text-[12px] font-extrabold text-gray-600 hover:text-blue-650 active:scale-95 active:bg-gray-50 transition-all shrink-0"
+              onClick={handleJumpToToday}
+            >
+              Oggi
+            </button>
+            <button
+              className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center border border-gray-100 active:scale-95 active:bg-gray-50 transition-all shrink-0"
+              onClick={() => setShowDatePicker(true)}
+            >
+              <IcCalendar size={18} className="text-gray-600" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1047,7 +1183,7 @@ export default function TripView() {
       <div className="px-4 space-y-3">
         {tripDays.map((day, idx) => {
           const isExpanded = expandedDayId === day.id;
-          const isToday = day.id === TODAY_DAY_ID;
+          const isToday = day.id === realTodayId || (realTodayId === null && day.id === TODAY_DAY_ID);
           const isEditMode = editModeDayId === day.id;
 
           const transportCount = day.activities.filter((a) => a.type === "transport").length;
@@ -1223,6 +1359,12 @@ export default function TripView() {
           onSelect={handleSelectDay}
           onClose={() => setShowDatePicker(false)}
         />
+      )}
+
+      {toast && (
+        <div className="fixed bottom-[84px] left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white text-[12px] font-bold px-4 py-2.5 rounded-full shadow-lg backdrop-blur-md transition-all duration-300 text-center whitespace-nowrap border border-white/10 animate-fade-in">
+          {toast}
+        </div>
       )}
     </div>
   );

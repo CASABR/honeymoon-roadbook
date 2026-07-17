@@ -438,6 +438,8 @@ export default function AltroView() {
   const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [tripDays, setTripDays] = useState<DayData[]>([]);
   const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string } | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copiedTimeoutRef = useRef<any>(null);
   const [addingToDay, setAddingToDay] = useState<{ id: string; label: string } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const isLoadedRef = useRef(false);
@@ -533,11 +535,14 @@ export default function AltroView() {
     }
   }
 
-  // Pulisce il timeout del debounce all'unmount
+  // Pulisce i timeout all'unmount
   useEffect(() => {
     return () => {
       if (notesTimeoutRef.current) {
         clearTimeout(notesTimeoutRef.current);
+      }
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
       }
     };
   }, []);
@@ -1195,9 +1200,43 @@ export default function AltroView() {
                               </div>
 
                               {act.howToGetThere && (
-                                <span className="text-[9.5px] text-blue-600 font-bold flex items-center gap-0.5">
-                                  📍 Info logistica presente
-                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    navigator.clipboard.writeText(act.howToGetThere!);
+                                    if (copiedTimeoutRef.current) {
+                                      clearTimeout(copiedTimeoutRef.current);
+                                    }
+                                    setCopiedId(act.id);
+                                    copiedTimeoutRef.current = setTimeout(() => {
+                                      setCopiedId(null);
+                                    }, 2000);
+                                  }}
+                                  className={`text-[9.5px] font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-lg border transition-all active:scale-95 shrink-0 ${
+                                    copiedId === act.id
+                                      ? "bg-green-50 text-green-700 border-green-200"
+                                      : "bg-slate-50 text-slate-600 border-slate-100 hover:text-blue-650 hover:bg-blue-50 hover:border-blue-100"
+                                  }`}
+                                  title="Copia indicazioni logistiche"
+                                >
+                                  {copiedId === act.id ? (
+                                    <>
+                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                                        <polyline points="20 6 9 17 4 12" />
+                                      </svg>
+                                      <span>Copiato</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                      </svg>
+                                      <span>Copia logistica</span>
+                                    </>
+                                  )}
+                                </button>
                               )}
                             </div>
                           </div>
@@ -1224,51 +1263,66 @@ export default function AltroView() {
             onToggle={() => toggleAccordion("checklist")}
           >
             <div className="space-y-4">
-              {checklists.map((chk) => (
-                <div key={chk.id} className="bg-gray-50/50 border border-gray-100 rounded-xl p-3">
-                  <div className="flex items-center justify-between border-b border-gray-100 pb-2 mb-2">
-                    <h3 className="text-[13px] font-black text-gray-800">{chk.title}</h3>
-                    <button
-                      onClick={() => removeChecklist(chk.id)}
-                      className="text-[11px] text-red-500 font-bold hover:underline"
-                    >
-                      Elimina
-                    </button>
-                  </div>
+              {checklists.map((chk) => {
+                const total = chk.items.length;
+                const completed = chk.items.filter((it) => it.checked).length;
+                return (
+                  <div key={chk.id} className="bg-white border border-slate-100 rounded-xl p-3 shadow-sm shadow-slate-100/50">
+                    <div className="flex items-center justify-between border-b border-slate-100/70 pb-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-[13px] font-black text-gray-800">{chk.title}</h3>
+                        {total > 0 && (
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100">
+                            {completed}/{total}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => removeChecklist(chk.id)}
+                        className="text-[10px] text-red-500 font-bold hover:underline"
+                      >
+                        Elimina
+                      </button>
+                    </div>
 
-                  {/* Items */}
-                  <div className="space-y-1.5 mb-3">
-                    {chk.items.length === 0 ? (
-                      <p className="text-[11px] text-gray-400 italic">Nessun elemento in questa lista.</p>
-                    ) : (
-                      chk.items.map((it) => (
-                        <div key={it.id} className="flex items-center justify-between gap-2">
-                          <label className="flex items-center gap-2 min-w-0 cursor-pointer select-none flex-1">
-                            <input
-                              type="checkbox"
-                              checked={it.checked}
-                              onChange={() => toggleChecklistItem(chk.id, it.id)}
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-3.5 w-3.5"
-                            />
-                            <span className={`text-[12px] truncate ${it.checked ? "line-through text-gray-400" : "text-gray-700"}`}>
-                              {it.text}
-                            </span>
-                          </label>
-                          <button
-                            onClick={() => removeChecklistItem(chk.id, it.id)}
-                            className="text-gray-300 hover:text-red-500 text-[10px] p-0.5"
-                          >
-                            🗑️
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </div>
+                    {/* Items */}
+                    <div className="space-y-2 mb-3">
+                      {chk.items.length === 0 ? (
+                        <p className="text-[11px] text-gray-400 italic py-0.5">Nessun elemento in questa lista.</p>
+                      ) : (
+                        chk.items.map((it) => (
+                          <div key={it.id} className="flex items-center justify-between gap-2.5 py-0.5">
+                            <label className="flex items-center gap-2.5 min-w-0 cursor-pointer select-none flex-1">
+                              <input
+                                type="checkbox"
+                                checked={it.checked}
+                                onChange={() => toggleChecklistItem(chk.id, it.id)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 shrink-0"
+                              />
+                              <span className={`text-[12px] truncate ${it.checked ? "line-through text-gray-400 font-medium" : "text-gray-700 font-semibold"}`}>
+                                {it.text}
+                              </span>
+                            </label>
+                            <button
+                              onClick={() => removeChecklistItem(chk.id, it.id)}
+                              className="text-gray-355 hover:text-red-500 transition-colors p-1"
+                              title="Rimuovi elemento"
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              </svg>
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
 
-                  {/* Nuovo Item form */}
-                  <NewItemForm onAdd={(text) => addChecklistItem(chk.id, text)} />
-                </div>
-              ))}
+                    {/* Nuovo Item form */}
+                    <NewItemForm onAdd={(text) => addChecklistItem(chk.id, text)} />
+                  </div>
+                );
+              })}
 
               {/* Nuova Checklist form */}
               <NewChecklistForm onAdd={addChecklist} />
@@ -1304,22 +1358,78 @@ export default function AltroView() {
             isOpen={openAccordion === "deadlines"}
             onToggle={() => toggleAccordion("deadlines")}
           >
-            <div className="space-y-3">
+            <div className="space-y-2.5">
               {[
-                { label: "Sinistri medici / viaggio", note: "Di norma entro 15 giorni dall'evento" },
-                { label: "Bagagli", note: "Entro 15 giorni dal rientro" },
-                { label: "Ritardo volo", note: "Entro 15 giorni dal rientro" },
-                { label: "Annullamento", note: "Entro 5 giorni dall'evento, non oltre 24h dalla partenza" },
-                { label: "Da conservare sempre", note: "Ricevute, rapporti PIR, certificati medici, n° polizza" },
-              ].map((item) => (
-                <div key={item.label} className="flex gap-2.5">
-                  <div className="w-2 h-2 rounded-full bg-orange-400 mt-1.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-[13px] font-bold text-gray-900 leading-snug">{item.label}</p>
-                    <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{item.note}</p>
+                {
+                  category: "Urgente",
+                  label: "eTravel Filippine",
+                  note: "Compilare online entro 72 ore prima dell'arrivo.",
+                  severity: "urgent"
+                },
+                {
+                  category: "Urgente",
+                  label: "Patente Internazionale",
+                  note: "Modello Ginevra 1949 necessario per ritiri auto in Nuova Zelanda e Australia.",
+                  severity: "urgent"
+                },
+                {
+                  category: "Imminente",
+                  label: "Briefing Spedizione Tao",
+                  note: "Registrazione obbligatoria all'ufficio Tao il giorno precedente alla partenza del tour.",
+                  severity: "imminent"
+                },
+                {
+                  category: "Imminente",
+                  label: "Check-in Voli",
+                  note: "Disponibile online 24-48 ore prima della partenza.",
+                  severity: "imminent"
+                },
+                {
+                  category: "Informativo",
+                  label: "Sinistri e Assistenza Medica",
+                  note: "Emergenze entro 24 ore. Invio documenti entro 15 giorni dall'evento.",
+                  severity: "info"
+                },
+                {
+                  category: "Informativo",
+                  label: "Disguidi Volo e Bagaglio",
+                  note: "Richiedere rapporto PIR in aeroporto; denuncia entro 15 giorni dal rientro.",
+                  severity: "info"
+                }
+              ].map((item, idx) => {
+                const colors = {
+                  urgent: {
+                    dot: "bg-rose-500",
+                    badge: "bg-rose-50 text-rose-700 border-rose-100",
+                    border: "border-rose-100/70 bg-rose-50/10"
+                  },
+                  imminent: {
+                    dot: "bg-amber-500",
+                    badge: "bg-amber-50 text-amber-700 border-amber-100",
+                    border: "border-amber-100/50 bg-amber-50/5"
+                  },
+                  info: {
+                    dot: "bg-slate-400",
+                    badge: "bg-slate-50 text-slate-600 border-slate-100",
+                    border: "border-slate-100 bg-slate-50/30"
+                  }
+                }[item.severity as "urgent" | "imminent" | "info"];
+
+                return (
+                  <div key={idx} className={`p-2.5 rounded-xl border flex gap-2.5 items-start ${colors.border}`}>
+                    <span className={`w-2 h-2 mt-1.5 rounded-full ${colors.dot} shrink-0`} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className={`text-[8.5px] px-1 py-0.5 rounded font-black border uppercase tracking-wider ${colors.badge}`}>
+                          {item.category}
+                        </span>
+                        <p className="text-[12.5px] font-black text-gray-900 leading-tight">{item.label}</p>
+                      </div>
+                      <p className="text-[10.5px] text-gray-500 font-semibold leading-relaxed">{item.note}</p>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </Accordion>
         </div>
@@ -1420,28 +1530,67 @@ export default function AltroView() {
             onToggle={() => toggleAccordion("emergencies")}
           >
             <div className="space-y-3">
-              {EMERGENCY_CONTACTS.map((ec) => (
-                <div key={ec.country} className="bg-gray-50 border border-gray-100 rounded-xl px-3 py-2.5">
-                  <div className="flex items-center justify-between">
-                    <p className="text-[13px] font-bold text-gray-900">{ec.country}</p>
+              {/* Box Assicurazione Heymondo in evidenza */}
+              <div className="bg-white border border-blue-100 rounded-xl p-3.5 shadow-sm shadow-blue-50/50">
+                <div className="flex justify-between items-center gap-3">
+                  <div className="min-w-0">
+                    <span className="text-[8px] px-1.5 py-0.5 rounded font-black border uppercase tracking-wider bg-blue-50 text-blue-600 border-blue-100">
+                      Assicurazione Viaggio
+                    </span>
+                    <h3 className="text-[13px] font-black text-gray-900 mt-1.5">Heymondo Assistenza 24/7</h3>
+                    <p className="text-[11px] font-bold text-gray-550 mt-1">Polizza: <span className="font-mono bg-slate-50 border border-slate-100 px-1 rounded text-gray-800">{INSURANCE.policyNumber}</span></p>
+                  </div>
+                  <a
+                    href={`tel:${INSURANCE.phone24h}`}
+                    className="bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-150 text-[11.5px] font-black px-3.5 py-1.5 rounded-lg flex items-center gap-1.5 transition-all active:scale-95 shrink-0"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                    </svg>
+                    <span>Chiama</span>
+                  </a>
+                </div>
+              </div>
+
+              {/* Lista Contatti Emergenza Locali */}
+              <div className="grid grid-cols-1 gap-2">
+                {EMERGENCY_CONTACTS.filter(ec => ec.number !== INSURANCE.phone24h).map((ec) => (
+                  <div key={ec.country} className="bg-white border border-slate-100 rounded-xl p-3 flex justify-between items-center shadow-sm shadow-slate-100/30">
+                    <div className="min-w-0 pr-2">
+                      <p className="text-[12px] font-black text-gray-900 leading-tight">{ec.country}</p>
+                      <p className="text-[10.5px] text-gray-450 mt-0.5 leading-normal font-semibold">{ec.note}</p>
+                    </div>
                     <a
                       href={`tel:${ec.number}`}
-                      className="bg-red-500 text-white text-[12px] font-extrabold px-3 py-1 rounded-lg shadow-sm shadow-red-200"
+                      className="bg-rose-50/70 text-rose-700 border border-rose-100 hover:bg-rose-100 text-[11.5px] font-black px-3.5 py-1.5 rounded-lg flex items-center gap-1 transition-all active:scale-95 shrink-0"
                     >
-                      {ec.number}
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                      </svg>
+                      <span className="font-mono font-extrabold">{ec.number}</span>
                     </a>
                   </div>
-                  <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{ec.note}</p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <p className="text-[11px] text-gray-500 leading-relaxed font-medium">
-                <strong className="text-gray-700">Cosa fare se hai bisogno di assistenza medica:</strong><br />
-                1. Chiama subito l'assistenza Heymondo: <span className="font-mono font-bold text-blue-600">{INSURANCE.phone24h}</span><br />
-                2. Contatta la struttura prima di sostenere spese<br />
-                3. Conserva tutti i documenti e le ricevute
-              </p>
+
+            {/* Linee Guida emergenza */}
+            <div className="mt-3.5 pt-3 border-t border-slate-100">
+              <h4 className="text-[11px] font-black text-gray-500 uppercase tracking-wider mb-2">Procedura Assistenza Medica:</h4>
+              <div className="space-y-2 text-[10.5px] text-gray-500 font-semibold leading-relaxed">
+                <div className="flex gap-2">
+                  <span className="flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-slate-650 text-[9px] font-black shrink-0 mt-0.5">1</span>
+                  <p>Chiama Heymondo al <span className="font-mono font-bold text-gray-800">{INSURANCE.phone24h}</span> indicando la polizza.</p>
+                </div>
+                <div className="flex gap-2">
+                  <span className="flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-slate-650 text-[9px] font-black shrink-0 mt-0.5">2</span>
+                  <p>Attendi indicazioni per evitare di anticipare spese mediche in loco.</p>
+                </div>
+                <div className="flex gap-2">
+                  <span className="flex items-center justify-center w-4 h-4 rounded-full bg-slate-100 text-slate-650 text-[9px] font-black shrink-0 mt-0.5">3</span>
+                  <p>In emergenza grave, vai in ospedale e contatta Heymondo entro 24 ore.</p>
+                </div>
+              </div>
             </div>
           </Accordion>
         </div>
