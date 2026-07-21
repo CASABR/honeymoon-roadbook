@@ -547,6 +547,51 @@ export function EditActivitySheet({
   );
 }
 
+// ── Helper: Google Maps navigation URL for a single place ────────────────────
+function buildSingleMapsUrl(activity: Activity, dayLocation?: string): string {
+  // Use the activity's explicit mapsUrl if defined (e.g., taxi directions)
+  if (activity.mapsUrl) return activity.mapsUrl;
+  const query = activity.subtitle && activity.subtitle !== "Attività del giorno"
+    ? `${activity.title}, ${activity.subtitle}`
+    : activity.title;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query.trim())}`;
+}
+
+// ── Helper: Google Maps itinerary URL (filter: 'all'|'morning'|'afternoon') ───
+function buildDayItineraryUrl(activities: Activity[], filter: "all" | "morning" | "afternoon" = "all"): string {
+  const filtered = activities.filter(a => {
+    if (filter === "morning") {
+      const h = parseInt(a.time.split(":")[0] || "0");
+      return h < 13;
+    }
+    if (filter === "afternoon") {
+      const h = parseInt(a.time.split(":")[0] || "0");
+      return h >= 13;
+    }
+    return true;
+  });
+  const withLocation = filtered.filter(a => {
+    const q = a.subtitle && a.subtitle !== "Attività del giorno" ? a.subtitle : a.title;
+    return q && q.trim().length > 2;
+  });
+  if (withLocation.length === 0) return "https://www.google.com/maps";
+  const makeQ = (a: Activity) =>
+    a.subtitle && a.subtitle !== "Attività del giorno"
+      ? `${a.title}, ${a.subtitle}`
+      : a.title;
+  const origin = encodeURIComponent(makeQ(withLocation[0]));
+  const destination = encodeURIComponent(makeQ(withLocation[withLocation.length - 1]));
+  const waypoints = withLocation
+    .slice(1, -1)
+    .map(a => encodeURIComponent(makeQ(a)))
+    .join("|");
+  let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+  if (waypoints) url += `&waypoints=${waypoints}`;
+  return url;
+}
+
+
+
 // ── Timeline row con controlli modifica/elimina/riordino ──────────────────────
 function TripTimelineRow({
   activity,
@@ -560,6 +605,8 @@ function TripTimelineRow({
   onMoveUp,
   onMoveDown,
   editMode,
+  transitTimeFromPrev,
+  dayLocation,
 }: {
   activity: Activity;
   nextActivity?: Activity;
@@ -572,9 +619,12 @@ function TripTimelineRow({
   onMoveUp: () => void;
   onMoveDown: () => void;
   editMode: boolean;
+  transitTimeFromPrev?: string;
+  dayLocation?: string;
 }) {
   const isTransport = activity.type === "transport";
   const transitTime = getCachedTransitTime(activity, nextActivity);
+  const mapsUrl = buildSingleMapsUrl(activity, dayLocation);
 
   return (
     <div className={`flex gap-3 items-start select-none transition-opacity ${completed ? "opacity-60" : ""}`}>
@@ -586,40 +636,97 @@ function TripTimelineRow({
       </div>
 
       {/* Dot + line */}
-      <div className="flex flex-col items-center flex-shrink-0" style={{ width: 24, marginTop: 4 }}>
+      <div className="flex flex-col items-center flex-shrink-0" style={{ width: 20, marginTop: 6 }}>
         <div
-          className="rounded-full flex-shrink-0 bg-white border-2 border-gray-300 w-4 h-4"
+          className="rounded-full flex-shrink-0 w-3.5 h-3.5 border-2"
           style={{
-            borderColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#2563eb" : "#ffffff",
-            backgroundColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#2563eb" : "#ffffff",
+            borderColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#6366f1" : "#d1d5db",
+            backgroundColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#6366f1" : "#ffffff",
           }}
         />
         {!isLast && (
           <div
-            className="w-0.5 bg-gray-200 flex-1 my-1"
-            style={{
-              backgroundColor: completed ? "#10b981" : "#e5e7eb",
-            }}
+            className="w-px flex-1 my-1"
+            style={{ backgroundColor: completed ? "#10b981" : "#e5e7eb" }}
           />
         )}
       </div>
 
-      {/* Card */}
-      <div className="flex-1 min-w-0">
+      {/* Card + connector strip */}
+      <div className="flex-1 min-w-0 pb-1">
+
+        {/* ── Connector strip: transit from previous stop ───────────────────
+             Always shown above the card (except first stop).
+             Shows mode emoji + time, or N/D fallback. */}
+        {!isFirst && !editMode && (() => {
+          const prevMode = nextActivity
+            ? undefined
+            : undefined; // not used here; mode is inferred from the *previous* context
+          // We infer from the transitTimeFromPrev and activity data
+          const time = transitTimeFromPrev || "N/D";
+          const hasTime = !!transitTimeFromPrev;
+          // Determine mode from activity type hints
+          const text = `${activity.title} ${activity.subtitle || ""}`.toLowerCase();
+          let modeEmoji = "🚗";
+          let modeLabel = "Guida";
+          let modeColor = "text-blue-500";
+          let modeBg = "bg-blue-50 border-blue-100";
+          if (text.includes("volo") || text.includes("flight") || text.includes("air") || text.includes("cebu") || text.includes("virgin")) {
+            modeEmoji = "✈️"; modeLabel = "Volo"; modeColor = "text-indigo-500"; modeBg = "bg-indigo-50 border-indigo-100";
+          } else if (text.includes("treno") || text.includes("frecciarossa") || text.includes("train")) {
+            modeEmoji = "🚆"; modeLabel = "Treno"; modeColor = "text-orange-500"; modeBg = "bg-orange-50 border-orange-100";
+          } else if (text.includes("traghetto") || text.includes("ferry") || text.includes("nave")) {
+            modeEmoji = "🚢"; modeLabel = "Traghetto"; modeColor = "text-cyan-500"; modeBg = "bg-cyan-50 border-cyan-100";
+          } else if (text.includes("scalo") || text.includes("transito") || text.includes("layover")) {
+            modeEmoji = "⏳"; modeLabel = "Scalo"; modeColor = "text-amber-500"; modeBg = "bg-amber-50 border-amber-100";
+          } else if (isTransport) {
+            modeEmoji = "🚌"; modeLabel = "Transfer"; modeColor = "text-violet-500"; modeBg = "bg-violet-50 border-violet-100";
+          }
+          return (
+            <div className="flex items-center gap-1.5 mb-2">
+              <div className="flex-1 h-px bg-gray-200" />
+              <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9.5px] font-bold ${modeBg} ${modeColor}`}>
+                <span>{modeEmoji}</span>
+                <span className={hasTime ? modeColor : "text-gray-400"}>{time}</span>
+                <span className="text-gray-400 font-normal normal-case">dal prec.</span>
+              </div>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+          );
+        })()}
+
         <div
-          className={`min-w-0 mb-2 app-card p-3 ${editMode ? "" : "cursor-pointer"} ${isFirst ? "border-blue-200" : "bg-white/80"}`}
+          className={`min-w-0 app-card rounded-xl p-3 ${editMode ? "" : "cursor-pointer"} ${isFirst ? "border-blue-200 bg-blue-50/20" : "bg-white"}`}
           onClick={editMode ? undefined : onEdit}
         >
           {isTransport ? (
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-start gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold tracking-widest text-blue-500 uppercase mb-0.5">
+                <p className="text-[9.5px] font-black tracking-widest text-indigo-500 uppercase mb-0.5 leading-none">
                   Trasporto
                 </p>
-                <p className={`font-bold text-[14px] text-gray-900 leading-snug truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                <p className={`text-[11px] text-gray-400 truncate mt-0.5 ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
+                <p className={`font-bold text-[13.5px] text-gray-900 leading-snug [overflow-wrap:anywhere] ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                {cleanSubtitle(activity.subtitle) && (
+                  <p className={`text-[11px] text-gray-500 mt-0.5 leading-snug [overflow-wrap:anywhere] ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
+                )}
               </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Right controls: Maps icon + toggle stacked */}
+              <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
+                {!editMode && (
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Apri in Google Maps"
+                    className="w-6 h-6 rounded-md bg-blue-50 border border-blue-200 flex items-center justify-center hover:bg-blue-100 active:scale-95 transition-all"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
+                      <circle cx="12" cy="10" r="3"/>
+                    </svg>
+                  </a>
+                )}
                 {editMode ? (
                   <div className="flex flex-col gap-1">
                     <div className="flex gap-1">
@@ -627,65 +734,67 @@ function TripTimelineRow({
                       <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-1.5 py-0.5 rounded-lg">🗑️</button>
                     </div>
                     <div className="flex gap-1">
-                      <button
-                        onClick={onMoveUp}
-                        disabled={isFirst}
-                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
-                      >↑</button>
-                      <button
-                        onClick={onMoveDown}
-                        disabled={isLast}
-                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
-                      >↓</button>
+                      <button onClick={onMoveUp} disabled={isFirst} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}>↑</button>
+                      <button onClick={onMoveDown} disabled={isLast} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}>↓</button>
                     </div>
                   </div>
                 ) : (
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggle();
-                    }}
-                    className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
-                    style={{
-                      borderColor: completed ? "#10b981" : "#d1d5db",
-                      backgroundColor: completed ? "#10b981" : "transparent"
-                    }}
+                    onClick={(e) => { e.stopPropagation(); onToggle(); }}
+                    className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all hover:scale-110 active:scale-95"
+                    style={{ borderColor: completed ? "#10b981" : "#d1d5db", backgroundColor: completed ? "#10b981" : "transparent" }}
                   >
-                    {completed && <span className="text-white text-[10px] font-bold">✓</span>}
+                    {completed && <span className="text-white text-[10px] font-black">✓</span>}
                   </button>
                 )}
               </div>
             </div>
           ) : (
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3 min-w-0 flex-1">
-                <ActivityIcon type={activity.type} size={15} />
+            <div className="flex items-start gap-2">
+              <div className="flex items-start gap-2 min-w-0 flex-1">
+                <div className="shrink-0 mt-0.5">
+                  <ActivityIcon type={activity.type} size={15} />
+                </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className={`font-semibold text-[13px] text-gray-850 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                  <div className="flex items-start gap-1.5 flex-wrap">
+                    <p className={`font-semibold text-[13px] text-gray-900 leading-snug [overflow-wrap:anywhere] ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
                     {activity.price !== undefined && (
-                      <span className={`text-[8px] font-extrabold px-1 py-0.2 rounded uppercase shrink-0 ${
+                      <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase shrink-0 leading-none mt-0.5 ${
                         activity.isPaid
-                          ? "bg-green-55 text-green-600 border border-green-100"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
                           : "bg-red-50 text-red-500 border border-red-100"
                       }`}>
-                        €{activity.price} · {activity.isPaid ? "Pagato" : "Da pagare"}
+                        €{activity.price} {activity.isPaid ? "✓" : "–"}
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-0.5 mt-0.5">
-                    <IcMapPin size={10} className="text-gray-400" />
-                    <p className={`text-[11px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
-                  </div>
+                  {cleanSubtitle(activity.subtitle) && (
+                    <div className="flex items-start gap-0.5 mt-0.5">
+                      <IcMapPin size={9} className="text-gray-400 mt-0.5 shrink-0" />
+                      <p className={`text-[11px] text-gray-500 leading-snug [overflow-wrap:anywhere] ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              {/* Right controls */}
+              <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
                 {activity.imageUrl && !editMode && (
-                  <img
-                    src={activity.imageUrl}
-                    alt={activity.title}
-                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0"
-                  />
+                  <img src={activity.imageUrl} alt={activity.title} className="w-8 h-8 rounded-lg object-cover" />
+                )}
+                {!editMode && (
+                  <a
+                    href={mapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    title="Apri in Google Maps"
+                    className="w-6 h-6 rounded-md bg-blue-50 border border-blue-200 flex items-center justify-center hover:bg-blue-100 active:scale-95 transition-all"
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
+                      <circle cx="12" cy="10" r="3"/>
+                    </svg>
+                  </a>
                 )}
                 {editMode ? (
                   <div className="flex flex-col gap-1">
@@ -694,82 +803,23 @@ function TripTimelineRow({
                       <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-1.5 py-0.5 rounded-lg">🗑️</button>
                     </div>
                     <div className="flex gap-1">
-                      <button
-                        onClick={onMoveUp}
-                        disabled={isFirst}
-                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
-                      >↑</button>
-                      <button
-                        onClick={onMoveDown}
-                        disabled={isLast}
-                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}
-                      >↓</button>
+                      <button onClick={onMoveUp} disabled={isFirst} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}>↑</button>
+                      <button onClick={onMoveDown} disabled={isLast} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}>↓</button>
                     </div>
                   </div>
                 ) : (
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onToggle();
-                    }}
-                    className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
-                    style={{
-                      borderColor: completed ? "#10b981" : "#d1d5db",
-                      backgroundColor: completed ? "#10b981" : "transparent"
-                    }}
+                    onClick={(e) => { e.stopPropagation(); onToggle(); }}
+                    className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all hover:scale-110 active:scale-95"
+                    style={{ borderColor: completed ? "#10b981" : "#d1d5db", backgroundColor: completed ? "#10b981" : "transparent" }}
                   >
-                    {completed && <span className="text-white text-[10px] font-bold">✓</span>}
+                    {completed && <span className="text-white text-[10px] font-black">✓</span>}
                   </button>
                 )}
               </div>
             </div>
           )}
         </div>
-
-        {/* Transition to next activity */}
-        {nextActivity && !editMode && transitTime && (() => {
-          const combinedText = `${activity.title} ${activity.subtitle || ""} ${nextActivity.title} ${nextActivity.subtitle || ""}`.toLowerCase();
-          let transportEmoji = "🚗";
-          let transportLabel = "Guida";
-          
-          if (combinedText.includes("volo") || combinedText.includes("flight") || combinedText.includes("air china") || combinedText.includes("cebu") || combinedText.includes("virgin") || combinedText.includes("philippine") || combinedText.includes("air new zealand")) {
-            transportEmoji = "✈️";
-            transportLabel = "Volo";
-          } else if (combinedText.includes("treno") || combinedText.includes("frecciarossa") || combinedText.includes("train") || combinedText.includes("ferrovia")) {
-            transportEmoji = "🚆";
-            transportLabel = "Treno";
-          } else if (combinedText.includes("traghetto") || combinedText.includes("ferry") || combinedText.includes("nave") || combinedText.includes("boat")) {
-            transportEmoji = "🚢";
-            transportLabel = "Traghetto";
-          } else if (combinedText.includes("scalo") || combinedText.includes("layover") || combinedText.includes("transito")) {
-            transportEmoji = "⏳";
-            transportLabel = "Scalo";
-          } else if (combinedText.includes("cammino") || combinedText.includes("piedi") || combinedText.includes("walk") || combinedText.includes("trekking")) {
-            transportEmoji = "🚶";
-            transportLabel = "A piedi";
-          }
-          
-          const isDrive = transportLabel === "Guida";
-
-          return (
-            <div className="my-2.5 flex items-center gap-2 text-[10px] font-extrabold tracking-wider uppercase pl-1">
-              <span className={`flex-shrink-0 ${isDrive ? "text-blue-600/90" : "text-slate-650"}`}>
-                {transportEmoji} {transportLabel}:
-              </span>
-              <span className={`px-2 py-0.5 rounded-full font-black text-[10.5px] border ${
-                isDrive 
-                  ? "bg-blue-50 border-blue-100/60 text-blue-600" 
-                  : "bg-slate-50 border-slate-200 text-slate-700"
-              }`}>
-                {transitTime}
-              </span>
-              <div className={`flex-1 border-t border-dashed ${isDrive ? "border-blue-200/60" : "border-slate-200"}`} />
-              <span className="text-[9.5px] text-gray-400 font-bold normal-case">
-                Fino alle {nextActivity.time}
-              </span>
-            </div>
-          );
-        })()}
       </div>
     </div>
   );
@@ -1154,6 +1204,8 @@ export default function TripView() {
   const [completedActs, setCompletedActs] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimeoutRef = useRef<any>(null);
+  // Per ogni giorno espanso: filtro itinerario ("all" | "morning" | "afternoon")
+  const [itineraryFilter, setItineraryFilter] = useState<Record<string, "all" | "morning" | "afternoon">>({});
 
   const showToast = (msg: string) => {
     if (toastTimeoutRef.current) {
@@ -1403,10 +1455,12 @@ export default function TripView() {
           const isExpanded = expandedDayId === day.id;
           const isToday = day.id === realTodayId || (realTodayId === null && day.id === TODAY_DAY_ID);
           const isEditMode = editModeDayId === day.id;
+          const dayFilter = itineraryFilter[day.id] || "all";
 
           const transportCount = day.activities.filter((a) => a.type === "transport").length;
           const activityCount = day.activities.length - transportCount;
 
+          // Totale guida (solo auto/car)
           const totalDriveMin = day.activities.reduce((sum, act, actIdx) => {
             const nextAct = day.activities[actIdx + 1];
             if (!nextAct || !isDrivingTransit(act, nextAct, transportsList, day.date)) return sum;
@@ -1414,6 +1468,16 @@ export default function TripView() {
             return sum + parseTransitTimeToMinutes(timeStr);
           }, 0);
           const totalDriveStr = formatMinutesToHoursAndMinutes(totalDriveMin);
+
+          // Totale non-guida (voli, traghetti, treni)
+          const totalNonDriveMin = day.activities.reduce((sum, act, actIdx) => {
+            const nextAct = day.activities[actIdx + 1];
+            if (!nextAct || isDrivingTransit(act, nextAct, transportsList, day.date)) return sum;
+            const timeStr = getCachedTransitTime(act, nextAct);
+            const mins = parseTransitTimeToMinutes(timeStr);
+            return sum + mins;
+          }, 0);
+          const totalNonDriveStr = formatMinutesToHoursAndMinutes(totalNonDriveMin);
 
           let highlight = "Nessuna attività pianificata";
           if (day.activities.length > 0) {
@@ -1465,17 +1529,46 @@ export default function TripView() {
                       {activityCount > 0 && <span>{activityCount} att.</span>}
                       {activityCount > 0 && transportCount > 0 && <span className="opacity-40">·</span>}
                       {transportCount > 0 && <span>{transportCount} trasp.</span>}
-                      {totalDriveStr && (
-                        <span className="text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded font-extrabold text-[9.5px]">
-                          🚗 Guida: {totalDriveStr}
+                      {totalDriveStr ? (
+                        <span className="flex items-center gap-1 text-blue-600 bg-blue-50 pl-1.5 pr-1 py-0.5 rounded font-extrabold text-[9.5px]">
+                          🚗 {totalDriveStr}
+                          <a
+                            href={buildDayItineraryUrl(day.activities)}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Itinerario completo Google Maps"
+                            className="w-5 h-5 rounded bg-blue-100 flex items-center justify-center hover:bg-blue-200 active:scale-95 transition-all shrink-0"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
+                              <circle cx="12" cy="10" r="3"/>
+                            </svg>
+                          </a>
+                        </span>
+                      ) : (
+                        day.activities.length > 0 && (
+                          <a
+                            href={buildDayItineraryUrl(day.activities)}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            title="Itinerario Google Maps"
+                            className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center hover:bg-gray-200 active:scale-95 transition-all shrink-0"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
+                              <circle cx="12" cy="10" r="3"/>
+                            </svg>
+                          </a>
+                        )
+                      )}
+                      {totalNonDriveStr && (
+                        <span className="text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-extrabold text-[9.5px]">
+                          ✈️ {totalNonDriveStr}
                         </span>
                       )}
                       {day.activities.length === 0 && <span>Riposo / Libero</span>}
-                      {day.activities.length > 0 && (
-                        <span className="text-gray-400 font-normal italic truncate max-w-[150px] md:max-w-xs ml-1">
-                          (H: {highlight})
-                        </span>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -1490,22 +1583,77 @@ export default function TripView() {
 
               {/* Dettaglio della giornata espanso */}
               {isExpanded && (
-                <div className="border-t border-gray-100 px-4 pt-4 pb-3 bg-gray-50/50 rounded-b-2xl">
-                  {/* Barra controlli: modalità modifica */}
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[11px] text-gray-400 font-semibold">
-                      {day.activities.length} {day.activities.length === 1 ? "attività" : "attività"}
-                    </span>
-                    <button
-                      onClick={() => setEditModeDayId(isEditMode ? null : day.id)}
-                      className={`text-[11px] font-bold px-3 py-1 rounded-lg transition-colors ${
-                        isEditMode
-                          ? "bg-blue-600 text-white"
-                          : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                      }`}
-                    >
-                      {isEditMode ? "✓ Fine modifica" : "✏️ Modifica"}
-                    </button>
+                <div className="border-t border-gray-100 px-3 pt-3 pb-3 bg-gray-50/40 rounded-b-2xl">
+
+                  {/* ── Barra superiore: totali guida + Maps itinerario + Modifica ── */}
+                  <div className="mb-3 space-y-2">
+                    {/* Riga 1: stats + Maps + Modifica */}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {/* Totale guida auto */}
+                      {totalDriveStr ? (
+                        <div className="flex items-center gap-1 bg-blue-50 border border-blue-100 rounded-lg px-2 py-1">
+                          <span className="text-[10px] font-black text-blue-700">🚗 {totalDriveStr}</span>
+                          <span className="text-[9px] text-blue-400 font-medium">guida</span>
+                        </div>
+                      ) : null}
+                      {/* Totale non-guida (voli/traghetti/altro) */}
+                      {totalNonDriveStr ? (
+                        <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-lg px-2 py-1">
+                          <span className="text-[10px] font-black text-slate-600">✈️ {totalNonDriveStr}</span>
+                          <span className="text-[9px] text-slate-400 font-medium">transfer</span>
+                        </div>
+                      ) : null}
+                      {/* Se nessun totale disponibile */}
+                      {!totalDriveStr && !totalNonDriveStr && day.activities.length > 0 && (
+                        <span className="text-[10px] text-gray-400 font-medium">{day.activities.length} tappe</span>
+                      )}
+                      <div className="flex-1" />
+                      {/* Icona Maps itinerario completo */}
+                      {day.activities.length > 0 && (
+                        <a
+                          href={buildDayItineraryUrl(day.activities, dayFilter)}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Apri itinerario in Google Maps"
+                          className="flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-200 active:scale-95 transition-all"
+                        >
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
+                            <circle cx="12" cy="10" r="3"/>
+                          </svg>
+                          <span className="text-[10px] font-bold text-blue-600">Maps</span>
+                        </a>
+                      )}
+                      {/* Pulsante modifica */}
+                      <button
+                        onClick={() => setEditModeDayId(isEditMode ? null : day.id)}
+                        className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-colors ${
+                          isEditMode ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                        }`}
+                      >
+                        {isEditMode ? "✓ Fine" : "✏️"}
+                      </button>
+                    </div>
+
+                    {/* Riga 2: filtro Mattina / Intera / Pomeriggio */}
+                    {day.activities.length > 1 && (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9.5px] text-gray-400 font-semibold shrink-0">Itinerario Maps:</span>
+                        {(["all", "morning", "afternoon"] as const).map((f) => (
+                          <button
+                            key={f}
+                            onClick={() => setItineraryFilter(prev => ({ ...prev, [day.id]: f }))}
+                            className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full transition-colors ${
+                              dayFilter === f
+                                ? "bg-blue-600 text-white"
+                                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                            }`}
+                          >
+                            {f === "all" ? "🗺️ Intera" : f === "morning" ? "🌅 Mattina" : "🌆 Pomeriggio"}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   {day.activities.length === 0 ? (
@@ -1516,6 +1664,9 @@ export default function TripView() {
                     <div className="space-y-0">
                       {day.activities.map((act, actIdx) => {
                         const nextAct = day.activities[actIdx + 1];
+                        const prevAct = actIdx > 0 ? day.activities[actIdx - 1] : undefined;
+                        // Transit time from the previous activity to this one
+                        const transitFromPrev = prevAct ? getCachedTransitTime(prevAct, act) : undefined;
                         return (
                           <TripTimelineRow
                             key={act.id}
@@ -1530,6 +1681,8 @@ export default function TripView() {
                             onMoveUp={() => handleMoveActivity(day.id, actIdx, "up")}
                             onMoveDown={() => handleMoveActivity(day.id, actIdx, "down")}
                             editMode={isEditMode}
+                            transitTimeFromPrev={transitFromPrev}
+                            dayLocation={day.location}
                           />
                         );
                       })}
