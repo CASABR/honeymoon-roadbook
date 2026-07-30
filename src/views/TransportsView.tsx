@@ -56,6 +56,7 @@ function TransportIcon({ type }: { type: Transport["type"] }) {
     train:    { bg: "bg-indigo-50 border border-indigo-100", el: <IcTrain size={20} className="text-indigo-600" /> },
     ferry:    { bg: "bg-cyan-50 border border-cyan-100",   el: <IcFerry size={20} className="text-cyan-600" /> },
     car:      { bg: "bg-green-50 border border-green-100",  el: <IcCar size={20} className="text-green-600" /> },
+    taxi:     { bg: "bg-amber-50 border border-amber-100",  el: <span className="text-lg">🚕</span> },
     transfer: { bg: "bg-orange-50 border border-orange-100", el: <IcCar size={20} className="text-orange-600" /> },
     other:    { bg: "bg-gray-100 border border-gray-200",  el: <span className="text-lg">🚌</span> },
   };
@@ -64,9 +65,9 @@ function TransportIcon({ type }: { type: Transport["type"] }) {
 }
 
 const TYPE_LABEL: Record<Transport["type"], string> = {
-  plane: "Aereo", train: "Treno", ferry: "Traghetto", car: "Auto", transfer: "Transfer", other: "Altro",
+  plane: "Aereo", train: "Treno", ferry: "Traghetto", car: "Auto", taxi: "Taxi", transfer: "Transfer", other: "Altro",
 };
-const TYPE_OPTIONS: Transport["type"][] = ["plane", "train", "ferry", "car", "transfer", "other"];
+const TYPE_OPTIONS: Transport["type"][] = ["plane", "train", "ferry", "car", "taxi", "transfer", "other"];
 
 // ── Dettaglio trasporto (bottom sheet) ────────────────────────────────────────
 function TransportDetailSheet({
@@ -983,17 +984,20 @@ export default function TransportsView() {
   const [selected, setSelected] = useState<Transport | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("Tutti");
 
-  const getTransportCategory = (tr: Transport) => {
+  const getTransportCategory = (tr: Transport): string => {
     if (tr.rentalProvider || tr.type === "car") {
       return "Auto e van a noleggio";
     }
     if (tr.type === "plane" || tr.type === "train" || tr.type === "ferry") {
       return "Voli / treni / traghetti";
     }
+    if (tr.type === "taxi") {
+      return "Taxi";
+    }
     return "Altri trasporti";
   };
 
-  const categoriesList = ["Voli / treni / traghetti", "Auto e van a noleggio", "Altri trasporti"] as const;
+  const categoriesList = ["Voli / treni / traghetti", "Auto e van a noleggio", "Taxi", "Altri trasporti"] as const;
   const activeCategories = [
     "Tutti",
     ...categoriesList.filter(cat => transports.some(tr => getTransportCategory(tr) === cat))

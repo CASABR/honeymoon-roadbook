@@ -553,38 +553,44 @@ function buildSingleMapsUrl(activity: Activity, dayLocation?: string): string {
   if (activity.mapsUrl) return activity.mapsUrl;
   const query = activity.subtitle && activity.subtitle !== "Attività del giorno"
     ? `${activity.title}, ${activity.subtitle}`
-    : activity.title;
+    : (dayLocation ? `${activity.title}, ${dayLocation}` : activity.title);
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query.trim())}`;
 }
 
 // ── Helper: Google Maps itinerary URL (filter: 'all'|'morning'|'afternoon') ───
 function buildDayItineraryUrl(activities: Activity[], filter: "all" | "morning" | "afternoon" = "all"): string {
   const filtered = activities.filter(a => {
-    if (filter === "morning") {
-      const h = parseInt(a.time.split(":")[0] || "0");
-      return h < 13;
-    }
-    if (filter === "afternoon") {
-      const h = parseInt(a.time.split(":")[0] || "0");
-      return h >= 13;
-    }
+    if (!a.time) return filter === "all";
+    const hourMatch = a.time.match(/^(\d{1,2})/);
+    const hour = hourMatch ? parseInt(hourMatch[1], 10) : 12;
+    if (filter === "morning") return hour < 13;
+    if (filter === "afternoon") return hour >= 13;
     return true;
   });
+
   const withLocation = filtered.filter(a => {
     const q = a.subtitle && a.subtitle !== "Attività del giorno" ? a.subtitle : a.title;
     return q && q.trim().length > 2;
   });
+
   if (withLocation.length === 0) return "https://www.google.com/maps";
+
   const makeQ = (a: Activity) =>
-    a.subtitle && a.subtitle !== "Attività del giorno"
+    a.subtitle && a.subtitle !== "Attività del giorno" && !a.subtitle.includes("Dettagli") && !a.subtitle.includes("noleggio")
       ? `${a.title}, ${a.subtitle}`
       : a.title;
+
+  if (withLocation.length === 1) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(makeQ(withLocation[0]).trim())}`;
+  }
+
   const origin = encodeURIComponent(makeQ(withLocation[0]));
   const destination = encodeURIComponent(makeQ(withLocation[withLocation.length - 1]));
   const waypoints = withLocation
     .slice(1, -1)
     .map(a => encodeURIComponent(makeQ(a)))
     .join("|");
+
   let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
   if (waypoints) url += `&waypoints=${waypoints}`;
   return url;
@@ -623,7 +629,6 @@ function TripTimelineRow({
   dayLocation?: string;
 }) {
   const isTransport = activity.type === "transport";
-  const transitTime = getCachedTransitTime(activity, nextActivity);
   const mapsUrl = buildSingleMapsUrl(activity, dayLocation);
 
   return (
@@ -659,9 +664,6 @@ function TripTimelineRow({
              Always shown above the card (except first stop).
              Shows mode emoji + time, or N/D fallback. */}
         {!isFirst && !editMode && (() => {
-          const prevMode = nextActivity
-            ? undefined
-            : undefined; // not used here; mode is inferred from the *previous* context
           // We infer from the transitTimeFromPrev and activity data
           const time = transitTimeFromPrev || "N/D";
           const hasTime = !!transitTimeFromPrev;
@@ -688,7 +690,7 @@ function TripTimelineRow({
               <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full border text-[9.5px] font-bold ${modeBg} ${modeColor}`}>
                 <span>{modeEmoji}</span>
                 <span className={hasTime ? modeColor : "text-gray-400"}>{time}</span>
-                <span className="text-gray-400 font-normal normal-case">dal prec.</span>
+                <span className="text-gray-400 font-normal normal-case">({modeLabel})</span>
               </div>
               <div className="flex-1 h-px bg-gray-200" />
             </div>
@@ -1492,94 +1494,84 @@ export default function TripView() {
                 isToday ? "border-blue-300 ring-2 ring-blue-100" : "border-gray-100"
               }`}
             >
-              {/* Riepilogo giorno compatto */}
-              <button
-                className="w-full flex items-center justify-between p-4 text-left focus:outline-none"
-                onClick={() => toggleDay(day.id)}
-              >
-                <div className="flex items-start gap-3 min-w-0">
-                  <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0 ${
-                    isToday ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
-                  }`}>
-                    <span className="text-[9px] uppercase font-bold tracking-tight opacity-80 leading-none">
-                      G{idx + 1}
-                    </span>
-                    <span className="text-[16px] font-bold mt-0.5 leading-none">
-                      {day.dateShort}
-                    </span>
-                    <span className="text-[8px] uppercase tracking-tight opacity-80 leading-none">
-                      {day.monthShort}
-                    </span>
+              {/* Riepilogo giorno compatto — struttura: [button flex-1] [link-maps] */}
+              <div className="flex items-stretch">
+                <button
+                  className="flex-1 min-w-0 flex items-center justify-between p-4 text-left focus:outline-none gap-2"
+                  onClick={() => toggleDay(day.id)}
+                >
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center flex-shrink-0 ${
+                      isToday ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
+                    }`}>
+                      <span className="text-[9px] uppercase font-bold tracking-tight opacity-80 leading-none">
+                        G{idx + 1}
+                      </span>
+                      <span className="text-[16px] font-bold mt-0.5 leading-none">
+                        {day.dateShort}
+                      </span>
+                      <span className="text-[8px] uppercase tracking-tight opacity-80 leading-none">
+                        {day.monthShort}
+                      </span>
+                    </div>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <p className="text-[14px] font-bold text-gray-900">{day.dateLabel}</p>
+                        {isToday && (
+                          <span className="bg-blue-100 text-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                            Oggi
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 mt-0.5 text-gray-400">
+                        <IcMapPin size={11} className="text-gray-400 shrink-0" />
+                        <p className="text-[12px] truncate font-medium">{day.location}</p>
+                      </div>
+                      <div className="text-[11px] text-gray-400 mt-1 font-semibold flex items-center gap-1.5 flex-wrap">
+                        {activityCount > 0 && <span>{activityCount} att.</span>}
+                        {activityCount > 0 && transportCount > 0 && <span className="opacity-40">·</span>}
+                        {transportCount > 0 && <span>{transportCount} trasp.</span>}
+                        {totalDriveStr && (
+                          <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded font-extrabold text-[9.5px]">
+                            🚗 {totalDriveStr}
+                          </span>
+                        )}
+                        {totalNonDriveStr && (
+                          <span className="text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-extrabold text-[9.5px]">
+                            ✈️ {totalNonDriveStr}
+                          </span>
+                        )}
+                        {day.activities.length === 0 && <span>Riposo / Libero</span>}
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="text-[14px] font-bold text-gray-900">{day.dateLabel}</p>
-                      {isToday && (
-                        <span className="bg-blue-100 text-blue-700 text-[9px] font-bold px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                          Oggi
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 mt-0.5 text-gray-400">
-                      <IcMapPin size={11} className="text-gray-400 shrink-0" />
-                      <p className="text-[12px] truncate font-medium">{day.location}</p>
-                    </div>
-                    <div className="text-[11px] text-gray-400 mt-1 font-semibold flex items-center gap-1.5 flex-wrap">
-                      {activityCount > 0 && <span>{activityCount} att.</span>}
-                      {activityCount > 0 && transportCount > 0 && <span className="opacity-40">·</span>}
-                      {transportCount > 0 && <span>{transportCount} trasp.</span>}
-                      {totalDriveStr ? (
-                        <span className="flex items-center gap-1 text-blue-600 bg-blue-50 pl-1.5 pr-1 py-0.5 rounded font-extrabold text-[9.5px]">
-                          🚗 {totalDriveStr}
-                          <a
-                            href={buildDayItineraryUrl(day.activities)}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            title="Itinerario completo Google Maps"
-                            className="w-5 h-5 rounded bg-blue-100 flex items-center justify-center hover:bg-blue-200 active:scale-95 transition-all shrink-0"
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
-                              <circle cx="12" cy="10" r="3"/>
-                            </svg>
-                          </a>
-                        </span>
-                      ) : (
-                        day.activities.length > 0 && (
-                          <a
-                            href={buildDayItineraryUrl(day.activities)}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            title="Itinerario Google Maps"
-                            className="w-5 h-5 rounded bg-gray-100 flex items-center justify-center hover:bg-gray-200 active:scale-95 transition-all shrink-0"
-                          >
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
-                              <circle cx="12" cy="10" r="3"/>
-                            </svg>
-                          </a>
-                        )
-                      )}
-                      {totalNonDriveStr && (
-                        <span className="text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded font-extrabold text-[9.5px]">
-                          ✈️ {totalNonDriveStr}
-                        </span>
-                      )}
-                      {day.activities.length === 0 && <span>Riposo / Libero</span>}
-                    </div>
-                  </div>
-                </div>
+                  <IcChevronDown
+                    size={18}
+                    className={`text-gray-400 flex-shrink-0 transition-transform duration-200 ${
+                      isExpanded ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
 
-                <IcChevronDown
-                  size={18}
-                  className={`text-gray-400 flex-shrink-0 transition-transform duration-200 ${
-                    isExpanded ? "rotate-180" : ""
-                  }`}
-                />
-              </button>
+                {/* Icona Maps — fuori dal button per essere un link valido e cliccabile */}
+                {day.activities.length > 0 && (
+                  <a
+                    href={buildDayItineraryUrl(day.activities, dayFilter)}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Apri itinerario completo in Google Maps"
+                    className="flex flex-col items-center justify-center px-3.5 border-l border-gray-100 hover:bg-blue-55 active:bg-blue-100 transition-colors shrink-0 rounded-r-2xl"
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
+                      <circle cx="12" cy="10" r="3"/>
+                    </svg>
+                    <span className="text-[8.5px] font-black text-blue-600 mt-0.5">Maps</span>
+                  </a>
+                )}
+              </div>
 
               {/* Dettaglio della giornata espanso */}
               {isExpanded && (
@@ -1635,25 +1627,55 @@ export default function TripView() {
                       </button>
                     </div>
 
-                    {/* Riga 2: filtro Mattina / Intera / Pomeriggio */}
-                    {day.activities.length > 1 && (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[9.5px] text-gray-400 font-semibold shrink-0">Itinerario Maps:</span>
-                        {(["all", "morning", "afternoon"] as const).map((f) => (
-                          <button
-                            key={f}
-                            onClick={() => setItineraryFilter(prev => ({ ...prev, [day.id]: f }))}
-                            className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full transition-colors ${
-                              dayFilter === f
-                                ? "bg-blue-600 text-white"
-                                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                            }`}
-                          >
-                            {f === "all" ? "🗺️ Intera" : f === "morning" ? "🌅 Mattina" : "🌆 Pomeriggio"}
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    {/* Riga 2: pulsanti link Google Maps condensati per Intera / Mattina / Pomeriggio */}
+                    {day.activities.length > 0 && (() => {
+                      const morningUrl = buildDayItineraryUrl(day.activities, "morning");
+                      const afternoonUrl = buildDayItineraryUrl(day.activities, "afternoon");
+                      const allUrl = buildDayItineraryUrl(day.activities, "all");
+                      const hasMorning = morningUrl !== "https://www.google.com/maps";
+                      const hasAfternoon = afternoonUrl !== "https://www.google.com/maps";
+                      const hasAll = allUrl !== "https://www.google.com/maps";
+
+                      if (!hasAll && !hasMorning && !hasAfternoon) return null;
+
+                      return (
+                        <div className="flex items-center justify-around gap-1.5 pt-1 mt-1 border-t border-gray-100/60 text-center">
+                          {hasAll && (
+                            <a
+                              href={allUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all shadow-2xs leading-none"
+                            >
+                              <span className="text-[11px] leading-none mb-0.5">🗺️</span>
+                              <span className="text-[8px] font-black uppercase tracking-tight">Intera</span>
+                            </a>
+                          )}
+                          {hasMorning && (
+                            <a
+                              href={morningUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-lg bg-white text-blue-700 border border-blue-200/70 hover:bg-blue-50 active:scale-95 transition-all leading-none"
+                            >
+                              <span className="text-[11px] leading-none mb-0.5">🌅</span>
+                              <span className="text-[8px] font-black uppercase tracking-tight">Mattina</span>
+                            </a>
+                          )}
+                          {hasAfternoon && (
+                            <a
+                              href={afternoonUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-lg bg-white text-blue-700 border border-blue-200/70 hover:bg-blue-50 active:scale-95 transition-all leading-none"
+                            >
+                              <span className="text-[11px] leading-none mb-0.5">🌆</span>
+                              <span className="text-[8px] font-black uppercase tracking-tight">Pomeriggio</span>
+                            </a>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {day.activities.length === 0 ? (
@@ -1663,7 +1685,6 @@ export default function TripView() {
                   ) : (
                     <div className="space-y-0">
                       {day.activities.map((act, actIdx) => {
-                        const nextAct = day.activities[actIdx + 1];
                         const prevAct = actIdx > 0 ? day.activities[actIdx - 1] : undefined;
                         // Transit time from the previous activity to this one
                         const transitFromPrev = prevAct ? getCachedTransitTime(prevAct, act) : undefined;
@@ -1671,7 +1692,6 @@ export default function TripView() {
                           <TripTimelineRow
                             key={act.id}
                             activity={act}
-                            nextActivity={nextAct}
                             isFirst={actIdx === 0}
                             isLast={actIdx === day.activities.length - 1}
                             completed={completedActs.includes(act.id)}

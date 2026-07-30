@@ -80,7 +80,7 @@ export interface Transport {
   time: string; // HH:MM
   from: string;
   to: string;
-  type: "plane" | "train" | "ferry" | "car" | "transfer" | "other";
+  type: "plane" | "train" | "ferry" | "car" | "taxi" | "transfer" | "other";
   detail?: string;
   status?: string;
   note?: string;
@@ -211,9 +211,54 @@ export const DAYS: DayData[] = [
     dateShort: "28",
     monthShort: "nov",
     dayShort: "Sab",
-    location: "Roma, Italia",
+    location: "Roma → Milano, Italia 🇮🇹",
     activities: [
-      { id: "d1-1", time: "11:05", type: "transport", title: "Roma Termini → Milano Centrale", subtitle: "Trenitalia Frecciarossa · 1h 55m", status: "futuro", hasQR: true },
+      {
+        id: "d1-1",
+        time: "11:05",
+        type: "transport",
+        title: "Roma Termini → Milano Centrale",
+        subtitle: "Trenitalia Frecciarossa · Arrivo ore 14:15 (Durata 3h 10m)",
+        transitTime: "3h 10m",
+        status: "futuro",
+        hasQR: true,
+        bookingRef: "FR-ROMA-MILANO",
+        howToGetThere: "Binari alta velocità Roma Termini. Presentarsi 15 minuti prima al varco accesso treni.",
+        mapsUrl: "https://www.google.com/maps/dir/?api=1&origin=Roma+Termini&destination=Milano+Centrale&travelmode=transit",
+        note: "Frecciarossa diretto alta velocità. Orario di arrivo previsto a Milano Centrale: ore 14:15."
+      },
+      {
+        id: "d1-hotel",
+        time: "15:00",
+        type: "hotel",
+        title: "Check-in a&o Hostel Milano Ca Granda",
+        subtitle: "Via di Vittorio 1, Milano (Ca' Granda M5)",
+        price: 61.95,
+        isPaid: true,
+        mapsUrl: "https://www.google.com/maps/search/?api=1&query=ao+Hostel+Milano+Ca+Granda",
+        howToGetThere: "Da Milano Centrale prendere Metro M3 (gialla) fino a Zara, poi Metro M5 (lilla) fino a Ca' Granda. A piedi 3 minuti.",
+        note: "Check-in a partire dalle ore 15:00. Deposito bagagli gratuito se si arriva prima."
+      },
+      {
+        id: "d1-2",
+        time: "16:30",
+        type: "sightseeing",
+        title: "Passeggiata in centro: Duomo & Galleria Vittorio Emanuele II",
+        subtitle: "Piazza del Duomo, Milano",
+        duration: "2h",
+        mapsUrl: "https://www.google.com/maps/search/?api=1&query=Piazza+del+Duomo+Milano",
+        note: "Passeggiata rilassante e aperitivo in zona Brera / Navigli prima del volo di domani."
+      },
+      {
+        id: "d1-3",
+        time: "20:00",
+        type: "food",
+        title: "Cena a Milano",
+        subtitle: "Trattoria / Pizzeria zona Brera o Centrale",
+        price: 25,
+        isPaid: false,
+        mapsUrl: "https://www.google.com/maps/search/?api=1&query=Brera+Milano+ristorante"
+      }
     ],
   },
   {
@@ -224,9 +269,29 @@ export const DAYS: DayData[] = [
     dateShort: "29",
     monthShort: "nov",
     dayShort: "Dom",
-    location: "Milano / In volo",
+    location: "Milano → In volo per Pechino",
     activities: [
-      { id: "d2-1", time: "12:30", type: "transport", title: "Milano MXP → Pechino PEK", subtitle: "Air China CA950 · Volo", hasQR: true },
+      {
+        id: "d2-0",
+        time: "09:30",
+        type: "hotel",
+        title: "Check-out a&o Hostel Milano Ca Granda",
+        subtitle: "Direzione Aeroporto di Milano Malpensa (MXP)",
+        transitTime: "50m",
+        howToGetThere: "Prendere il Malpensa Express da Milano Centrale diretto al Terminal 1."
+      },
+      {
+        id: "d2-1",
+        time: "12:30",
+        type: "transport",
+        title: "Milano MXP → Pechino PEK",
+        subtitle: "Air China CA950 · Volo diretto · 10h 20m",
+        transitTime: "10h 20m",
+        hasQR: true,
+        isBooked: true,
+        timeBeforehand: "Presentarsi al Terminal 1 entro le 09:30 (3 ore prima)",
+        note: "Check-in e imbarco Air China Terminal 1 Malpensa. Chiusura imbarco ore 11:45."
+      },
     ],
   },
   {
@@ -245,6 +310,7 @@ export const DAYS: DayData[] = [
         type: "transport",
         title: "Arrivo a Pechino PEK",
         subtitle: "Air China CA950 · Terminal 3 · Scalo lungo 18h 35m",
+        transitTime: "18h 35m",
         note: "Scalo tecnico: ritirare il bagaglio, passare il controllo passaporti cinese e uscire dall'aeroporto con il visto di transito o TWOV (72h). Conservare la boarding card del volo precedente.",
         howToGetThere: "Terminal 3, Pechino Capital International Airport. Prendere la scala mobile verso le uscite internazionali per il ritiro bagagli.",
         isBooked: true,
@@ -345,6 +411,7 @@ export const DAYS: DayData[] = [
         type: "transport",
         title: "PEK → Auckland AKL",
         subtitle: "Air China CA783 · Volo di notte · 13h 35m",
+        transitTime: "13h 35m",
         hasQR: true,
         isBooked: true,
         note: "Volo notturno diretto Pechino → Auckland. Orario locale di arrivo: 1 dicembre ore 17:25 NZDT. Portare mascherina, cuscino da viaggio, tappi orecchie per il lungo raggio.",
@@ -361,8 +428,8 @@ export const DAYS: DayData[] = [
     dayShort: "Mar",
     location: "Auckland, NZ",
     activities: [
-      { id: "d4-1", time: "17:25", type: "transport", title: "Arrivo Auckland AKL", subtitle: "Dogana e ritiro auto a noleggio" },
-      { id: "d4-2", time: "20:00", type: "hotel", title: "Check-in Noa Hotel", subtitle: "Auckland CBD" },
+      { id: "d4-1", time: "17:25", type: "transport", title: "Arrivo Auckland AKL", subtitle: "Dogana e ritiro auto a noleggio", transitTime: "1h 30m" },
+      { id: "d4-2", time: "20:00", type: "hotel", title: "Check-in Noa Hotel", subtitle: "Auckland CBD", mapsUrl: "https://www.google.com/maps/search/?api=1&query=Noa+Hotel+Auckland" },
     ],
   },
   {
@@ -1364,9 +1431,11 @@ export const TRANSPORTS: Transport[] = [
     from: "Roma Termini",
     to: "Milano Centrale",
     type: "train",
-    detail: "Trenitalia Frecciarossa · 1h 55m",
+    detail: "Trenitalia Frecciarossa · 3h 10m",
     arrivalTime: "14:15",
-    importantNote: "Prezzo: 59,80 € · Tratta pre-volo",
+    duration: "3h 10m",
+    bookingRef: "FR-ROMA-MILANO",
+    importantNote: "Prezzo: 59,80 € · Tratta pre-volo · Partenza 11:05 - Arrivo 14:15",
     price: 59.80,
   },
   {
