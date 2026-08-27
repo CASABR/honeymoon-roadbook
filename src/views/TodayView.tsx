@@ -19,9 +19,38 @@ import {
   ActivityIcon,
 } from "../components/Icons";
 import { repository } from "../services/repository";
+import type { Checklist } from "../services/repository";
 import { EditActivitySheet } from "./TripView";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
+function getPriorityActivity(
+  activities: Activity[],
+  completedIds: string[],
+  isToday: boolean
+): { activity: Activity | null; isCompletedAll: boolean } {
+  if (!activities || activities.length === 0) return { activity: null, isCompletedAll: false };
+
+  const uncompleted = activities.filter((a) => !completedIds.includes(a.id));
+  if (uncompleted.length === 0) {
+    return { activity: null, isCompletedAll: true };
+  }
+
+  // Priority a: status === "in_corso"
+  const inCorso = uncompleted.find((a) => a.status === "in_corso");
+  if (inCorso) return { activity: inCorso, isCompletedAll: false };
+
+  // Priority b: if today's date, first uncompleted activity with time >= current time
+  if (isToday) {
+    const now = new Date();
+    const currentHHMM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const upcoming = uncompleted.find((a) => a.time && a.time >= currentHHMM);
+    if (upcoming) return { activity: upcoming, isCompletedAll: false };
+  }
+
+  // Priority c: first uncompleted activity of the day
+  return { activity: uncompleted[0], isCompletedAll: false };
+}
+
 function getToday(days: DayData[], dayId: string) {
   return days.find((d) => d.id === dayId) ?? days[0];
 }
@@ -646,9 +675,17 @@ function buildMapsUrl(activity: Activity, dayLocation?: string) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryParts.join(", ").trim())}`;
 }
 
-// ── Helper: Google Maps itinerary URL per il giorno ───────────────────────────
-function buildDayItineraryUrl(activities: Activity[]): string {
-  const withLocation = activities.filter(a => {
+/*
+function buildDayItineraryUrl(activities: Activity[], filter: "all" | "morning" | "afternoon" = "all"): string {
+  const filtered = activities.filter(a => {
+    if (!a.time) return filter === "all";
+    const hourMatch = a.time.match(/^(\d{1,2})/);
+    const hour = hourMatch ? parseInt(hourMatch[1], 10) : 12;
+    if (filter === "morning") return hour < 13;
+    if (filter === "afternoon") return hour >= 13;
+    return true;
+  });
+  const withLocation = filtered.filter(a => {
     const q = a.subtitle && a.subtitle !== "Attività del giorno" ? a.subtitle : a.title;
     return q && q.trim().length > 2;
   });
@@ -670,6 +707,7 @@ function buildDayItineraryUrl(activities: Activity[]): string {
   if (waypoints) url += `&waypoints=${waypoints}`;
   return url;
 }
+*/
 
 // ── Popup dedicato Indicazioni Copilota ───────────────────────────────────────
 function CopilotaPopup({
@@ -1291,6 +1329,7 @@ function TimelineRow({
   );
 }
 
+/*
 // ── Quick card ────────────────────────────────────────────────────────────────
 function QuickCard({ icon, bgColor, label, desc, onClick }: {
   icon: string; bgColor: string; label: string; desc: string; onClick?: () => void;
@@ -1371,6 +1410,7 @@ function AccoBanner({ acc, onClick }: { acc?: any; onClick?: () => void }) {
     </div>
   );
 }
+*/
 
 async function fetchDrivingDuration(fromQuery: string, toQuery: string): Promise<string | null> {
   const cleanFrom = cleanQueryForGeocoding(fromQuery);
@@ -1447,6 +1487,7 @@ export default function TodayView() {
   const [completedActs, setCompletedActs] = useState<string[]>([]);
   const [transportsList, setTransportsList] = useState<any[]>([]);
   const [accommodationsList, setAccommodationsList] = useState<any[]>([]);
+  const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const isLoadedRef = useRef(false);
   const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string } | null>(null);
@@ -1459,10 +1500,12 @@ export default function TodayView() {
         const completed = await repository.getCompletedActivities();
         const trs = await repository.getTransports(TRANSPORTS);
         const accs = await repository.getAccommodations(ACCOMMODATIONS);
+        const chks = await repository.getChecklists([]);
         setTripDays(days);
         setCompletedActs(completed);
         setTransportsList(trs);
         setAccommodationsList(accs);
+        setChecklists(chks);
         isLoadedRef.current = true;
       } catch (e) {
         console.error("Errore durante il caricamento dei dati in TodayView:", e);
@@ -1554,7 +1597,7 @@ export default function TodayView() {
             continue;
           }
 
-          if ((act.type === "sightseeing" || act.type === "meal") && nextAct.type === "sightseeing") {
+          if (act.type === "sightseeing" && nextAct.type === "sightseeing") {
             continue;
           }
 
@@ -1652,6 +1695,20 @@ export default function TodayView() {
     await repository.saveCompletedActivities(next);
   }
 
+  async function toggleChecklistItem(checklistId: string, itemId: string) {
+    const updated = checklists.map((c) => {
+      if (c.id === checklistId) {
+        return {
+          ...c,
+          items: c.items.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i)),
+        };
+      }
+      return c;
+    });
+    setChecklists(updated);
+    await repository.saveChecklists(updated);
+  }
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-[60dvh] gap-3">
@@ -1728,17 +1785,37 @@ export default function TodayView() {
   const totalDriveTimeStr = formatMinutesToHoursAndMinutes(totalDriveMinutes);
   const totalNonDriveTimeStr = formatMinutesToHoursAndMinutes(totalNonDriveMinutes);
 
-  const visibleActivities = expanded ? today.activities : today.activities.slice(0, VISIBLE_COUNT);
-  const hasMore = today.activities.length > VISIBLE_COUNT;
+  const visibleActivities = expanded ? (today?.activities || []) : (today?.activities || []).slice(0, VISIBLE_COUNT);
+  const hasMore = (today?.activities || []).length > VISIBLE_COUNT;
   const tomorrowActivities = tomorrow?.activities ?? [];
+
+  const priorityInfo = getPriorityActivity(today?.activities || [], completedActs, selectedDayId === TODAY_DAY_ID);
+  const priorityAct = priorityInfo.activity;
+
+  const imminentTransport = (() => {
+    if (!today?.date) return null;
+    const targetDates = [today.date];
+    if (tomorrow?.date) targetDates.push(tomorrow.date);
+    return (transportsList || []).find((t) => {
+      if (!t.date || typeof t.date !== "string") return false;
+      return targetDates.includes(t.date);
+    });
+  })();
+
+  const pendingChecklistItems = checklists.flatMap((c) =>
+    c.items.filter((i) => !i.checked).map((i) => ({ item: i, checklistId: c.id }))
+  ).slice(0, 3);
+
+  const prevDay = currentIdx > 0 ? tripDays[currentIdx - 1] : null;
+  const prevDayAcc = prevDay ? getTodayAccommodation(prevDay.date, accommodationsList, prevDay.activities) : null;
 
   return (
     <>
-      <div className="px-4 pt-5 pb-4 space-y-5">
-        {/* Header */}
+      <div className="px-4 pt-5 pb-4 space-y-4">
+        {/* 1. HEADER ESSENZIALE */}
         <div>
           {daysLeft > 0 && (
-            <div className="mb-3">
+            <div className="mb-2">
               <span
                 className="text-[12px] font-bold px-3 py-1 rounded-full border"
                 style={{ color: "#e07b55", borderColor: "#f4c2a4", background: "#fff5f0" }}
@@ -1748,7 +1825,7 @@ export default function TodayView() {
             </div>
           )}
           {daysLeft === 0 && (
-            <div className="mb-3">
+            <div className="mb-2">
               <span className="text-[12px] font-bold px-3 py-1 rounded-full bg-blue-600 text-white">
                 🎉 Oggi si parte!
               </span>
@@ -1756,18 +1833,18 @@ export default function TodayView() {
           )}
           <div className="flex items-center justify-between">
             <div className="min-w-0 flex-1 pr-2">
-              <h1 className="text-[21px] font-bold text-gray-900 leading-tight truncate">
+              <h1 className="text-[20px] font-bold text-gray-900 leading-tight truncate">
                 Oggi &middot; {todayLabel}
               </h1>
-              <div className="flex items-center gap-1 mt-1">
-                <IcMapPin size={13} className="text-green-500" />
-                <span className="text-[13px] text-green-600 font-medium truncate">{today.location}</span>
+              <div className="flex items-center gap-1 mt-0.5">
+                <IcMapPin size={13} className="text-green-500 flex-shrink-0" />
+                <span className="text-[13px] text-green-600 font-semibold truncate">{today.location}</span>
               </div>
             </div>
             {/* Navigazione giorno e Calendario */}
             <div className="flex items-center gap-1 flex-shrink-0">
               <button
-                className={`w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center transition-opacity ${
+                className={`w-9 h-9 rounded-xl bg-white border border-gray-200/80 shadow-xs flex items-center justify-center transition-opacity ${
                   currentIdx <= 0 ? "opacity-35 cursor-not-allowed" : "hover:bg-gray-50 active:scale-95"
                 }`}
                 onClick={handlePrevDay}
@@ -1778,7 +1855,7 @@ export default function TodayView() {
               </button>
 
               <button
-                className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center hover:bg-gray-50 active:scale-95"
+                className="w-10 h-10 rounded-xl bg-white border border-gray-200/80 shadow-xs flex items-center justify-center hover:bg-gray-50 active:scale-95"
                 onClick={() => setShowDatePicker(true)}
                 aria-label="Seleziona giorno"
               >
@@ -1786,7 +1863,7 @@ export default function TodayView() {
               </button>
 
               <button
-                className={`w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center transition-opacity ${
+                className={`w-9 h-9 rounded-xl bg-white shadow-xs border border-gray-200/80 flex items-center justify-center transition-opacity ${
                   currentIdx >= tripDays.length - 1 ? "opacity-35 cursor-not-allowed" : "hover:bg-gray-50 active:scale-95"
                 }`}
                 onClick={handleNextDay}
@@ -1799,11 +1876,202 @@ export default function TodayView() {
           </div>
         </div>
 
-        {/* La tua giornata */}
-        <section className="card p-4">
-          <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-gray-100 flex-wrap gap-2">
+        {/* 2. CARD PRIORITARIA "ADESSO / PROSSIMA TAPPA" */}
+        <section className="card p-4 border border-blue-100/90 shadow-sm bg-gradient-to-b from-blue-50/30 to-white space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] uppercase tracking-wider font-black text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-md">
+              {priorityAct?.status === "in_corso" ? "⚡ IN CORSO" : "📍 PROSSIMA TAPPA"}
+            </span>
+            {priorityAct && (
+              <span className="text-[11.5px] font-extrabold text-blue-900">
+                {priorityAct.time}
+              </span>
+            )}
+          </div>
+
+          {priorityAct ? (
+            <div className="space-y-3">
+              <div>
+                <h2 className="text-[16px] font-black text-gray-900 leading-snug">
+                  {priorityAct.title}
+                </h2>
+                {priorityAct.subtitle && (
+                  <p className="text-[12px] text-gray-500 font-semibold mt-0.5 truncate">
+                    {priorityAct.subtitle}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 pt-0.5">
+                {priorityAct.mapsUrl ? (
+                  <a
+                    href={priorityAct.mapsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 h-10 rounded-xl bg-blue-600 text-white font-extrabold text-[12px] flex items-center justify-center gap-1.5 shadow-sm hover:bg-blue-700 active:scale-98 transition-all"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
+                      <circle cx="12" cy="10" r="3"/>
+                    </svg>
+                    <span>Apri Mappe</span>
+                  </a>
+                ) : null}
+
+                <button
+                  onClick={() => setEditingActivity({ dayId: today.id, activity: priorityAct, dayLabel: today.dateLabel })}
+                  className="px-3.5 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[12px] flex items-center justify-center transition-all shrink-0"
+                >
+                  Dettagli
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="py-1 text-center">
+              <p className="text-[13px] font-extrabold text-emerald-700">
+                {priorityInfo.isCompletedAll ? "🎉 Programma di oggi completato!" : "Nessuna attività programmata per oggi."}
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* 3. CARD TRASPORTO IMMINENTE (Condizionale) */}
+        {imminentTransport && (
+          <section
+            onClick={() => navigate("/trasporti")}
+            className="card p-3.5 border border-purple-100 bg-purple-50/30 hover:bg-purple-50 transition-all cursor-pointer space-y-2"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-wider font-black text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-md">
+                ✈️ TRASPORTO IMMINENTE ({imminentTransport.date === today.date ? "Oggi" : "Domani"})
+              </span>
+              <span className="text-[11px] font-extrabold text-purple-900">
+                {imminentTransport.time} {imminentTransport.arrivalTime ? `➔ ${imminentTransport.arrivalTime}` : ""}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-[14px] font-black text-gray-900 leading-tight truncate">
+                  {imminentTransport.from} ➔ {imminentTransport.to}
+                </p>
+                <p className="text-[11.5px] text-gray-500 font-semibold truncate mt-0.5">
+                  {imminentTransport.detail || imminentTransport.type}
+                </p>
+              </div>
+
+              {imminentTransport.mapsUrl ? (
+                <a
+                  href={imminentTransport.mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="px-3 h-8 rounded-lg bg-purple-600 text-white font-bold text-[11px] flex items-center justify-center gap-1 shrink-0"
+                >
+                  Mappe
+                </a>
+              ) : (
+                <IcChevronRight size={18} className="text-purple-400 shrink-0" />
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* 4. CARD DOVE DORMIAMO STANOTTE */}
+        {acco && (
+          <section className="card p-3.5 border border-slate-200/80 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-wider font-black text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                🏨 DOVE DORMIAMO STANOTTE
+              </span>
+              {acco.checkIn && (
+                <span className="text-[11px] font-extrabold text-slate-600">
+                  Check-in {acco.checkIn}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <div
+                onClick={() => navigate("/accommodations")}
+                className="min-w-0 flex-1 cursor-pointer"
+              >
+                <h3 className="text-[14px] font-black text-gray-900 leading-tight truncate">
+                  {acco.name}
+                </h3>
+                <p className="text-[11.5px] text-gray-500 font-semibold truncate mt-0.5">
+                  📍 {acco.city}{acco.area ? `, ${acco.area}` : ""}
+                </p>
+              </div>
+
+              {acco.mapsUrl ? (
+                <a
+                  href={acco.mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="px-3.5 h-9 rounded-xl bg-slate-900 text-white font-bold text-[11px] flex items-center justify-center gap-1 shadow-xs hover:bg-slate-800 active:scale-95 transition-all shrink-0"
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
+                    <circle cx="12" cy="10" r="3"/>
+                  </svg>
+                  <span>Mappe</span>
+                </a>
+              ) : (
+                <button
+                  onClick={() => navigate("/accommodations")}
+                  className="p-1 text-gray-400 hover:text-gray-600"
+                >
+                  <IcChevronRight size={18} />
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* 5. CARD DA RICORDARE OGGI (Checklist non completate) */}
+        {pendingChecklistItems.length > 0 && (
+          <section className="card p-3.5 border border-amber-200/80 bg-amber-50/30 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] uppercase tracking-wider font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
+                📋 DA RICORDARE OGGI
+              </span>
+              <button
+                onClick={() => navigate("/altro?open=checklist")}
+                className="text-[11px] font-extrabold text-amber-800 hover:underline flex items-center gap-0.5"
+              >
+                Vedi tutto <IcChevronRight size={12} />
+              </button>
+            </div>
+
+            <div className="space-y-1 pt-0.5">
+              {pendingChecklistItems.map(({ item, checklistId }) => (
+                <div
+                  key={item.id}
+                  onClick={() => toggleChecklistItem(checklistId, item.id)}
+                  className="flex items-center gap-2 p-2 bg-white/90 rounded-xl border border-amber-100 cursor-pointer active:scale-[0.99] transition-all"
+                >
+                  <input
+                    type="checkbox"
+                    checked={item.checked}
+                    onChange={() => {}}
+                    className="w-4 h-4 rounded border-amber-300 text-amber-600 focus:ring-0 cursor-pointer"
+                  />
+                  <span className="text-[12px] font-semibold text-gray-800 truncate">
+                    {item.text}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 6. TIMELINE RESTO DELLA GIORNATA */}
+        <section className="card p-4 space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-gray-100 flex-wrap gap-2">
             <div>
-              <span className="section-label mb-0 block text-[13px] font-black text-gray-900 tracking-tight">La tua giornata</span>
+              <span className="section-label mb-0 block text-[13px] font-black text-gray-900 tracking-tight">Timeline della giornata</span>
               <p className="text-[11.5px] text-gray-400 mt-0.5 font-medium">{today.dateLabel}</p>
             </div>
             <div className="flex items-center gap-1.5 flex-wrap shrink-0">
@@ -1812,162 +2080,51 @@ export default function TodayView() {
                   🚗 Guida: {totalDriveTimeStr}
                 </span>
               )}
-              {totalNonDriveTimeStr && (() => {
-                const dayTransports = transportsList?.filter(tr => tr.date === today.date) || [];
-                const hasTrainToday = today.activities.some(a => {
-                  const t = `${a.title} ${a.subtitle || ""}`.toLowerCase();
-                  return t.includes("treno") || t.includes("frecciarossa") || t.includes("train") ||
-                    dayTransports.some(tr => tr.type === "train" && (t.includes(tr.from.toLowerCase()) || t.includes(tr.to.toLowerCase())));
-                });
-                const hasFerryToday = today.activities.some(a => {
-                  const t = `${a.title} ${a.subtitle || ""}`.toLowerCase();
-                  return t.includes("traghetto") || t.includes("ferry") || t.includes("nave") ||
-                    dayTransports.some(tr => tr.type === "ferry" && (t.includes(tr.from.toLowerCase()) || t.includes(tr.to.toLowerCase())));
-                });
-                const emoji = hasTrainToday ? "🚆" : hasFerryToday ? "🚢" : "✈️";
-                const label = hasTrainToday ? "Treno" : hasFerryToday ? "Traghetto" : "Transfer";
-                return (
-                  <span className="text-[10px] font-black text-slate-700 bg-slate-100/80 px-2 py-1 rounded-lg border border-slate-200/80 flex items-center gap-1">
-                    {emoji} {label}: {totalNonDriveTimeStr}
-                  </span>
-                );
-              })()}
-              {today.activities.length > 0 && (
-                <a
-                  href={buildDayItineraryUrl(today.activities, "all")}
-                  target="_blank"
-                  rel="noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  title="Apri itinerario in Google Maps"
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10.5px] font-black text-blue-650 bg-blue-50 border border-blue-200/80 hover:bg-blue-100 active:scale-95 transition-all shadow-xs shrink-0"
-                >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round" className="text-blue-600">
-                    <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
-                    <circle cx="12" cy="10" r="3"/>
-                  </svg>
-                  <span>Maps ↗</span>
-                </a>
+              {totalNonDriveTimeStr && (
+                <span className="text-[10px] font-black text-slate-700 bg-slate-100/80 px-2 py-1 rounded-lg border border-slate-200/80 flex items-center gap-1">
+                  🚆 Transfer: {totalNonDriveTimeStr}
+                </span>
               )}
             </div>
           </div>
 
-          {/* Barra Itinerario: 3 pulsanti condensati (icona sopra, label sotto, altezza ridotta) */}
-          {today.activities.length > 0 && (() => {
-            const morningUrl = buildDayItineraryUrl(today.activities, "morning");
-            const afternoonUrl = buildDayItineraryUrl(today.activities, "afternoon");
-            const allUrl = buildDayItineraryUrl(today.activities, "all");
-            const hasMorning = morningUrl !== "https://www.google.com/maps";
-            const hasAfternoon = afternoonUrl !== "https://www.google.com/maps";
-
-            return (
-              <div className="flex items-center justify-around gap-1.5 mb-2 bg-slate-50/90 p-1.5 rounded-xl border border-slate-100/90 text-center">
-                <a
-                  href={allUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all shadow-2xs leading-none"
-                >
-                  <span className="text-[12px] leading-none mb-0.5">🗺️</span>
-                  <span className="text-[8.5px] font-black uppercase tracking-tight">Intera</span>
-                </a>
-                {hasMorning && (
-                  <a
-                    href={morningUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-lg bg-white text-blue-700 border border-blue-200/70 hover:bg-blue-50 active:scale-95 transition-all leading-none"
-                  >
-                    <span className="text-[12px] leading-none mb-0.5">🌅</span>
-                    <span className="text-[8.5px] font-black uppercase tracking-tight">Mattina</span>
-                  </a>
-                )}
-                {hasAfternoon && (
-                  <a
-                    href={afternoonUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-lg bg-white text-blue-700 border border-blue-200/70 hover:bg-blue-50 active:scale-95 transition-all leading-none"
-                  >
-                    <span className="text-[12px] leading-none mb-0.5">🌆</span>
-                    <span className="text-[8.5px] font-black uppercase tracking-tight">Pomeriggio</span>
-                  </a>
-                )}
-              </div>
-            );
-          })()}
           <div className="space-y-0">
-            {(() => {
-              let activeId: string | null = null;
-              if (selectedDayId === TODAY_DAY_ID) {
-                const now = new Date();
-                const currentMinutes = now.getHours() * 60 + now.getMinutes();
-                let activeAct = visibleActivities[0] || null;
-                for (const act of visibleActivities) {
-                  const [hours, minutes] = act.time.split(":").map(Number);
-                  if (!isNaN(hours) && !isNaN(minutes)) {
-                    const actMinutes = hours * 60 + minutes;
-                    if (actMinutes > currentMinutes) {
-                      activeAct = act;
-                      break;
-                    }
-                    activeAct = act;
-                  }
-                }
-                activeId = activeAct?.id || null;
+            {visibleActivities.map((act, idx) => {
+              const nextAct = today.activities[idx + 1];
+              let transitTime: string | undefined;
+              if (idx === 0 && prevDayAcc) {
+                const routeKey = `${prevDayAcc.id}_to_${act.id}`;
+                transitTime = calculatedTransits[routeKey];
               } else {
-                activeId = visibleActivities[0]?.id || null;
+                const routeKey = `${act.id}_to_${nextAct?.id}`;
+                transitTime = calculatedTransits[routeKey] ?? getCachedTransitTime(act, nextAct);
               }
-
-              const prevDay = currentIdx > 0 ? tripDays[currentIdx - 1] : null;
-              const prevDayAcc = prevDay ? getTodayAccommodation(prevDay.date, accommodationsList, prevDay.activities) : null;
-
-              return visibleActivities.map((act, idx) => {
-                const nextAct = today.activities[idx + 1];
-                let transitTime: string | undefined;
-                if (idx === 0 && prevDayAcc) {
-                  const routeKey = `${prevDayAcc.id}_to_${act.id}`;
-                  if (calculatedTransits[routeKey]) {
-                    transitTime = calculatedTransits[routeKey];
-                  } else {
-                    const hotelQuery = `${prevDayAcc.name}, ${prevDayAcc.city}`;
-                    const actQuery = `${act.title}, ${act.subtitle || ""}`;
-                    const cacheKey = `hrb_route_${encodeURIComponent(cleanQueryForGeocoding(hotelQuery))}_${encodeURIComponent(cleanQueryForGeocoding(actQuery))}`;
-                    const cached = localStorage.getItem(cacheKey);
-                    if (cached) {
-                      try { transitTime = JSON.parse(cached).duration; } catch (_) {}
-                    }
-                  }
-                } else {
-                  const routeKey = `${act.id}_to_${nextAct?.id}`;
-                  transitTime = calculatedTransits[routeKey] ?? getCachedTransitTime(act, nextAct);
-                }
-                const isActive = act.id === activeId;
-                return (
-                  <TimelineRow
-                    key={act.id}
-                    activity={act}
-                    nextActivity={nextAct}
-                    transitTime={transitTime}
-                    prevAccommodation={prevDayAcc}
-                    isActive={isActive}
-                    isFirst={idx === 0}
-                    isLast={idx === visibleActivities.length - 1}
-                    onQRTap={setQrActivity}
-                    onEdit={() => setEditingActivity({ dayId: today.id, activity: act, dayLabel: today.dateLabel })}
-                    completed={completedActs.includes(act.id)}
-                    onToggle={() => toggleActivity(act.id)}
-                    dayLocation={today.location}
-                    dayDate={today.date}
-                    transportsList={transportsList}
-                    accommodationsList={accommodationsList}
-                  />
-                );
-              });
-            })()}
+              const isActive = act.id === priorityAct?.id;
+              return (
+                <TimelineRow
+                  key={act.id}
+                  activity={act}
+                  nextActivity={nextAct}
+                  transitTime={transitTime}
+                  prevAccommodation={prevDayAcc}
+                  isActive={isActive}
+                  isFirst={idx === 0}
+                  isLast={idx === visibleActivities.length - 1}
+                  onQRTap={setQrActivity}
+                  onEdit={() => setEditingActivity({ dayId: today.id, activity: act, dayLabel: today.dateLabel })}
+                  completed={completedActs.includes(act.id)}
+                  onToggle={() => toggleActivity(act.id)}
+                  dayLocation={today.location}
+                  dayDate={today.date}
+                  transportsList={transportsList}
+                  accommodationsList={accommodationsList}
+                />
+              );
+            })}
           </div>
           {hasMore && (
             <button
-              className="w-full mt-3 flex items-center justify-center gap-1 text-[13px] font-semibold text-blue-600 py-2"
+              className="w-full mt-2 flex items-center justify-center gap-1 text-[12.5px] font-bold text-blue-600 py-1.5"
               onClick={() => setExpanded(!expanded)}
             >
               {expanded ? "Mostra meno" : "Vedi tutta la giornata"}
@@ -1976,99 +2133,18 @@ export default function TodayView() {
           )}
         </section>
 
-        {/* In evidenza */}
-        <section className="space-y-3">
-          <span className="section-label block">In evidenza</span>
-          
-          {(() => {
-            const todayAttractions = today ? today.activities.filter(isAttraction) : [];
-            return (
-              <div 
-                onClick={() => {
-                  if (todayAttractions.length > 0) {
-                    setTicketModalIndex(0);
-                    setShowTicketsModal(true);
-                  } else {
-                    navigate("/altro?open=activities");
-                  }
-                }}
-                className="w-full text-left p-3.5 bg-blue-50/60 hover:bg-blue-50 border border-blue-100/60 rounded-2xl flex items-center justify-between gap-3 transition-all active:scale-[0.99] cursor-pointer"
-              >
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="w-10 h-10 rounded-xl bg-blue-600/10 text-blue-600 flex items-center justify-center flex-shrink-0 text-xl font-bold mt-0.5">
-                    🎟️
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-[14px] font-black text-gray-900 leading-tight">Attrazioni</p>
-                      {todayAttractions.length > 0 && (
-                        <span className="bg-blue-600 text-white text-[9.5px] font-black px-1.5 py-0.2 rounded-full">
-                          {todayAttractions.length}
-                        </span>
-                      )}
-                    </div>
-                    {todayAttractions.length > 0 ? (
-                      <p className="text-[11.5px] text-blue-900 mt-1 font-bold truncate">
-                        📌 {todayAttractions[0].title} {todayAttractions[0].bookingRef ? `(Ref: ${todayAttractions[0].bookingRef})` : ""}
-                      </p>
-                    ) : (
-                      <p className="text-[11.5px] text-gray-500 mt-0.5 font-medium leading-tight">
-                        Nessuna attrazione inserita per oggi.
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <IcChevronRight size={18} className="text-blue-500 flex-shrink-0" />
-                </div>
-              </div>
-            );
-          })()}
-
-          <div className="grid grid-cols-3 gap-2">
-            <QuickCard
-              icon="€"
-              bgColor="#fffbeb"
-              label="Budgeter"
-              desc="Controlla spese"
-              onClick={() => navigate("/budgeter")}
-            />
-            <QuickCard
-              icon="📋"
-              bgColor="#f3e8ff"
-              label="Checklist"
-              desc="Cose da fare"
-              onClick={() => navigate("/altro?open=checklist")}
-            />
-            <QuickCard
-              icon="🚨"
-              bgColor="#fff0f0"
-              label="Emergenze"
-              desc="Numeri utili"
-              onClick={() => navigate("/altro?open=emergencies")}
-            />
-          </div>
-        </section>
-
-        {/* Dove dormi stasera */}
-        <section>
-          <span className="section-label block mb-3">Dove dormi stasera</span>
-          <AccoBanner acc={acco} onClick={() => navigate("/accommodations")} />
-        </section>
-
         {/* Anteprima di domani — scorrevole orizzontale */}
         {tomorrow && tomorrowActivities.length > 0 && (
           <section>
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-2.5">
               <span className="section-label">Anteprima di domani</span>
               <button
-                className="text-[12px] font-semibold text-blue-600"
+                className="text-[12px] font-bold text-blue-600"
                 onClick={() => setShowTomorrowFull(true)}
               >
                 Vedi tutto
               </button>
             </div>
-            {/* Scroll orizzontale con tutte le attività */}
             <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
               {tomorrowActivities.map((act) => (
                 <div
@@ -2076,11 +2152,11 @@ export default function TodayView() {
                   className="flex-shrink-0 w-44 bg-white border border-gray-150 rounded-xl p-2.5 flex flex-col justify-between"
                 >
                   <div>
-                    <div className="flex items-center gap-1 text-[11px] font-semibold text-blue-600 mb-1">
+                    <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 mb-1">
                       <ActivityIcon type={act.type} size={12} />
                       <span>{act.time}</span>
                     </div>
-                    <p className="text-[12px] font-semibold text-gray-900 leading-tight line-clamp-2">
+                    <p className="text-[12px] font-bold text-gray-900 leading-tight line-clamp-2">
                       {act.title}
                     </p>
                   </div>

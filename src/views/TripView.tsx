@@ -601,7 +601,6 @@ function buildDayItineraryUrl(activities: Activity[], filter: "all" | "morning" 
 // ── Timeline row con controlli modifica/elimina/riordino ──────────────────────
 function TripTimelineRow({
   activity,
-  nextActivity,
   isFirst,
   isLast,
   completed,
@@ -1207,7 +1206,7 @@ export default function TripView() {
   const [toast, setToast] = useState<string | null>(null);
   const toastTimeoutRef = useRef<any>(null);
   // Per ogni giorno espanso: filtro itinerario ("all" | "morning" | "afternoon")
-  const [itineraryFilter, setItineraryFilter] = useState<Record<string, "all" | "morning" | "afternoon">>({});
+  const [itineraryFilter] = useState<Record<string, "all" | "morning" | "afternoon">>({});
 
   const showToast = (msg: string) => {
     if (toastTimeoutRef.current) {
@@ -1480,11 +1479,6 @@ export default function TripView() {
             return sum + mins;
           }, 0);
           const totalNonDriveStr = formatMinutesToHoursAndMinutes(totalNonDriveMin);
-
-          let highlight = "Nessuna attività pianificata";
-          if (day.activities.length > 0) {
-            highlight = day.activities[0].title;
-          }
 
           return (
             <div

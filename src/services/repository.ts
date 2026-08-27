@@ -1,6 +1,24 @@
 import { kvStorage } from "./db";
 import type { DayData, Transport, Accommodation } from "../data/mockData";
 
+export type CloudSyncSection =
+  | "itinerary"
+  | "completedActivities"
+  | "checklists"
+  | "accommodations"
+  | "transports"
+  | "budget";
+type CloudSyncHandler = (section: CloudSyncSection) => void;
+let cloudSyncHandler: CloudSyncHandler | null = null;
+
+export function registerCloudSyncHandler(handler: CloudSyncHandler | null): void {
+  cloudSyncHandler = handler;
+}
+
+function notifyCloudSync(section: CloudSyncSection): void {
+  cloudSyncHandler?.(section);
+}
+
 // Tipi per Checklist e Documenti di AltroView
 export interface ChecklistItem {
   id: string;
@@ -21,7 +39,7 @@ export interface AttachmentItem {
 export interface DocumentItem {
   id: string;
   title: string;
-  category: any;
+  category: "Passaporti" | "Visto Australia" | "Visto / eTravel Filippine" | "Patente internazionale" | "Assicurazione" | "Altri documenti";
   number: string;
   owner: string;
   notes?: string;
@@ -86,6 +104,7 @@ export const repository = {
   async saveTripDays(days: DayData[]): Promise<void> {
     await kvStorage.set("hrb_trip_days_v2", days);
     window.dispatchEvent(new CustomEvent("hrb_tripdays_change", { detail: days }));
+    notifyCloudSync("itinerary");
   },
 
   // Attività completate (spunte)
@@ -97,6 +116,7 @@ export const repository = {
   async saveCompletedActivities(ids: string[]): Promise<void> {
     await kvStorage.set("hrb_completed_activities_v2", ids);
     window.dispatchEvent(new CustomEvent("hrb_completed_activities_change", { detail: ids }));
+    notifyCloudSync("completedActivities");
   },
 
   // QR / Biglietti base64 di Oggi
@@ -118,6 +138,7 @@ export const repository = {
   async saveTransports(transports: Transport[]): Promise<void> {
     await kvStorage.set("hrb_transports_v3", transports);
     window.dispatchEvent(new CustomEvent("hrb_transports_change", { detail: transports }));
+    notifyCloudSync("transports");
   },
 
   // Alloggi
@@ -129,6 +150,7 @@ export const repository = {
   async saveAccommodations(accommodations: Accommodation[]): Promise<void> {
     await kvStorage.set("hrb_accommodations_v2", accommodations);
     window.dispatchEvent(new CustomEvent("hrb_accommodations_change", { detail: accommodations }));
+    notifyCloudSync("accommodations");
   },
 
   // Checklist
@@ -139,6 +161,7 @@ export const repository = {
   },
   async saveChecklists(checklists: Checklist[]): Promise<void> {
     await kvStorage.set("hrb_checklists_v3", checklists);
+    notifyCloudSync("checklists");
   },
 
   // Documenti
@@ -175,6 +198,7 @@ export const repository = {
   async saveBudgetEntries(entries: BudgetEntry[]): Promise<void> {
     await kvStorage.set("hrb_budget_entries_v2", entries);
     window.dispatchEvent(new CustomEvent("hrb_budget_change", { detail: entries }));
+    notifyCloudSync("budget");
   },
 
   // Note personali

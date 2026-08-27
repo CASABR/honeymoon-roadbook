@@ -17,9 +17,11 @@ import {
   linkWithCredential,
   setPersistence,
   browserLocalPersistence,
+  type Auth,
   type User
 } from "firebase/auth";
 import { 
+  type Firestore,
   initializeFirestore, 
   persistentLocalCache, 
   persistentMultipleTabManager 
@@ -41,10 +43,10 @@ const isConfigured =
   import.meta.env.VITE_FIREBASE_API_KEY.trim() !== "";
 
 // Inizializza Firebase con controllo degli errori
-let app;
-let auth: any = null;
-let googleProvider: any = null;
-let db: any = null;
+let app: ReturnType<typeof initializeApp> | undefined;
+let auth: Auth | null = null;
+let googleProvider: GoogleAuthProvider | null = null;
+let db: Firestore | null = null;
 
 if (isConfigured) {
   try {
