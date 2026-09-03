@@ -197,6 +197,27 @@ function sanitizeCacheKey(key: string): string {
   return key.toLowerCase().trim().replace(/[^a-z0-9_-]/gi, "_");
 }
 
+export function buildSegmentCacheKey(
+  originUrl?: string,
+  originFallback?: string,
+  destUrl?: string,
+  destFallback?: string
+): string {
+  const norm = (str?: string) => {
+    if (!str) return "";
+    return str
+      .trim()
+      .toLowerCase()
+      .replace(/\/+$/, "")
+      .replace(/\s+/g, " ");
+  };
+
+  const originKey = norm(originUrl) || norm(originFallback);
+  const destKey = norm(destUrl) || norm(destFallback);
+
+  return `${originKey}_to_${destKey}`;
+}
+
 export async function getCachedRoutePoint(queryKey: string): Promise<RoutePoint | null> {
   try {
     const key = `${POINT_CACHE_PREFIX}${sanitizeCacheKey(queryKey)}`;
@@ -250,13 +271,55 @@ export function delayMs(ms: number): Promise<void> {
 }
 
 /**
- * Risolve una posizione (mapsUrl o query) in un punto geografico RoutePoint.
- * Non esegue chiamate di rete automatiche; la chiamata a Nominatim avviene solo se sbloccata dal chiamante.
+ * Risolve una posizione (mapsUrl o queryFallback) in un punto geografico RoutePoint.
+ * Se urlOrQuery è uno short-link o non interpretabile, usa fallbackQuery per il geocoding.
  */
-export async function resolveRoutePoint(urlOrQuery: string): Promise<RoutePoint | null> {
-  const parsed = parseMapsLocation(urlOrQuery);
+export async function resolveRoutePoint(urlOrQuery?: string, fallbackQuery?: string): Promise<RoutePoint | null> {
+  const cleanInput = urlOrQuery?.trim() || "";
+  const parsed = parseMapsLocation(cleanInput);
 
-  if (parsed.type === "short-link" || parsed.type === "unsupported") {
+  // Se è un link breve o non interpretabile, tenta il fallbackQuery se fornito
+  if (parsed.type === "short-link" || parsed.type === "unsupported" || !cleanInput) {
+    if (fallbackQuery && fallbackQuery.trim()) {
+      const cleanFallback = fallbackQuery.trim();
+      const cached = await getCachedRoutePoint(cleanFallback);
+      if (cached) return cached;
+
+      if (!navigator.onLine) return null;
+
+      try {
+        const headers: Record<string, string> = {};
+        try {
+          headers["User-Agent"] = "HoneymoonRoadbookApp/1.0";
+        } catch (_) {}
+
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanFallback)}&limit=1`,
+          { headers }
+        );
+
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) return null;
+
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+
+        if (isNaN(lat) || isNaN(lon)) return null;
+
+        const point: RoutePoint = {
+          key: cleanInput || cleanFallback,
+          label: data[0].display_name || cleanFallback,
+          latitude: lat,
+          longitude: lon,
+        };
+
+        await saveCachedRoutePoint(point);
+        return point;
+      } catch (_) {
+        return null;
+      }
+    }
     return null;
   }
 
@@ -270,47 +333,71 @@ export async function resolveRoutePoint(urlOrQuery: string): Promise<RoutePoint 
   }
 
   if (parsed.type === "query" && parsed.query) {
-    const cached = await getCachedRoutePoint(parsed.query);
-    if (cached) return cached;
+    const queryCandidates = [parsed.query];
+    const cleanFallback = fallbackQuery?.trim();
+    if (cleanFallback && cleanFallback !== parsed.query) {
+      queryCandidates.push(cleanFallback);
+    }
 
     if (!navigator.onLine) return null;
 
-    try {
-      const headers: Record<string, string> = {};
+    for (const query of queryCandidates) {
+      const cached = await getCachedRoutePoint(query);
+      if (cached) return cached;
+
       try {
-        headers["User-Agent"] = "HoneymoonRoadbookApp/1.0";
+        const headers: Record<string, string> = {};
+        try {
+          headers["User-Agent"] = "HoneymoonRoadbookApp/1.0";
+        } catch (_) {}
+
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`,
+          { headers }
+        );
+
+        if (!res.ok) continue;
+        const data = await res.json();
+        if (!Array.isArray(data) || data.length === 0) continue;
+
+        const lat = parseFloat(data[0].lat);
+        const lon = parseFloat(data[0].lon);
+
+        if (isNaN(lat) || isNaN(lon)) continue;
+
+        const point: RoutePoint = {
+          key: query,
+          label: data[0].display_name || query,
+          latitude: lat,
+          longitude: lon,
+        };
+
+        await saveCachedRoutePoint(point);
+        return point;
       } catch (_) {}
-
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(parsed.query)}&limit=1`,
-        { headers }
-      );
-
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (!Array.isArray(data) || data.length === 0) return null;
-
-      const lat = parseFloat(data[0].lat);
-      const lon = parseFloat(data[0].lon);
-
-      if (isNaN(lat) || isNaN(lon)) return null;
-
-      const point: RoutePoint = {
-        key: parsed.query,
-        label: data[0].display_name || parsed.query,
-        latitude: lat,
-        longitude: lon,
-      };
-
-      await saveCachedRoutePoint(point);
-      return point;
-    } catch (_) {
-      return null;
     }
   }
 
   return null;
 }
+
+export type DrivingRouteResult =
+  | {
+      ok: true;
+      route: DrivingRoute;
+    }
+  | {
+      ok: false;
+      reason:
+        | "origin_not_found"
+        | "destination_not_found"
+        | "geocode_mismatch"
+        | "routing_unavailable"
+        | "routing_failed";
+      originLabel?: string;
+      destinationLabel?: string;
+      queriesTried?: string[];
+    };
 
 /**
  * Calcola manualmente la rotta in auto tra origine e destinazione.
@@ -318,33 +405,41 @@ export async function resolveRoutePoint(urlOrQuery: string): Promise<RoutePoint 
  */
 export async function calculateDrivingRoute(
   originLocation: string,
-  destinationLocation: string
-): Promise<RoutingResult> {
-  const parsedOrigin = parseMapsLocation(originLocation);
-  const parsedDest = parseMapsLocation(destinationLocation);
+  destinationLocation: string,
+  originFallback?: string,
+  destFallback?: string
+): Promise<DrivingRouteResult> {
+  const cacheKeyOrigin = originLocation || originFallback || "";
+  const cacheKeyDest = destinationLocation || destFallback || "";
 
-  if (parsedOrigin.type === "short-link" || parsedDest.type === "short-link") {
-    return {
-      status: "short-link-unsupported",
-      errorMessage: "Gli URL brevi (maps.app.goo.gl) richiedono verifica o sostituzione.",
-    };
-  }
+  const originQueries = [originLocation, originFallback].filter((q): q is string => !!q && q.trim() !== "");
+  const destQueries = [destinationLocation, destFallback].filter((q): q is string => !!q && q.trim() !== "");
 
   // 1. Cerca prima in cache IndexedDB
-  const cachedRoute = await getCachedDrivingRoute(originLocation, destinationLocation);
+  const cachedRoute = await getCachedDrivingRoute(cacheKeyOrigin, cacheKeyDest);
   if (cachedRoute) {
-    return { status: "success", route: cachedRoute };
+    return { ok: true, route: cachedRoute };
   }
 
   // 2. Risoluzione punti geografici
-  const originPoint = await resolveRoutePoint(originLocation);
+  const originPoint = await resolveRoutePoint(originLocation, originFallback);
   if (!originPoint) {
-    return { status: "unresolved-origin", errorMessage: "Impossibile localizzare il punto di origine." };
+    return {
+      ok: false,
+      reason: "origin_not_found",
+      originLabel: originLocation || originFallback,
+      queriesTried: originQueries,
+    };
   }
 
-  const destPoint = await resolveRoutePoint(destinationLocation);
+  const destPoint = await resolveRoutePoint(destinationLocation, destFallback);
   if (!destPoint) {
-    return { status: "unresolved-destination", errorMessage: "Impossibile localizzare il punto di destinazione." };
+    return {
+      ok: false,
+      reason: "destination_not_found",
+      destinationLabel: destinationLocation || destFallback,
+      queriesTried: destQueries,
+    };
   }
 
   // 3. Valida coordinate
@@ -352,7 +447,12 @@ export async function calculateDrivingRoute(
     isNaN(originPoint.latitude) || isNaN(originPoint.longitude) ||
     isNaN(destPoint.latitude) || isNaN(destPoint.longitude)
   ) {
-    return { status: "invalid-coordinates", errorMessage: "Coordinate geografiche non valide." };
+    return {
+      ok: false,
+      reason: "origin_not_found",
+      originLabel: originPoint.label,
+      destinationLabel: destPoint.label,
+    };
   }
 
   // 4. Guardrail di distanza in linea d'aria (Haversine <= 400km)
@@ -365,14 +465,21 @@ export async function calculateDrivingRoute(
 
   if (directDistKm > MAX_DRIVING_DISTANCE_KM) {
     return {
-      status: "skipped-distance",
-      errorMessage: `Distanza in linea d'aria (${directDistKm} km) superiore al limite di ${MAX_DRIVING_DISTANCE_KM} km per rotte guidabili.`,
+      ok: false,
+      reason: "routing_unavailable",
+      originLabel: originPoint.label,
+      destinationLabel: destPoint.label,
     };
   }
 
   // 5. Chiamata API OSRM pubblica
   if (!navigator.onLine) {
-    return { status: "network-error", errorMessage: "Dispositivo offline." };
+    return {
+      ok: false,
+      reason: "routing_unavailable",
+      originLabel: originPoint.label,
+      destinationLabel: destPoint.label,
+    };
   }
 
   try {
@@ -380,12 +487,22 @@ export async function calculateDrivingRoute(
     const response = await fetch(url);
 
     if (!response.ok) {
-      return { status: "network-error", errorMessage: `Errore server routing OSRM (${response.status})` };
+      return {
+        ok: false,
+        reason: "routing_failed",
+        originLabel: originPoint.label,
+        destinationLabel: destPoint.label,
+      };
     }
 
     const data = await response.json();
     if (data.code !== "Ok" || !data.routes || data.routes.length === 0) {
-      return { status: "network-error", errorMessage: "Nessun percorso stradale trovato per questi punti." };
+      return {
+        ok: false,
+        reason: "routing_failed",
+        originLabel: originPoint.label,
+        destinationLabel: destPoint.label,
+      };
     }
 
     const routeData = data.routes[0];
@@ -394,8 +511,8 @@ export async function calculateDrivingRoute(
     const formattedText = formatDrivingRouteText(distanceKm, durationMin);
 
     const drivingRoute: DrivingRoute = {
-      originKey: originLocation,
-      destinationKey: destinationLocation,
+      originKey: cacheKeyOrigin,
+      destinationKey: cacheKeyDest,
       distanceKm,
       durationMin,
       formattedText,
@@ -406,13 +523,15 @@ export async function calculateDrivingRoute(
     await saveCachedDrivingRoute(drivingRoute);
 
     return {
-      status: "success",
+      ok: true,
       route: drivingRoute,
     };
-  } catch (err) {
+  } catch (_) {
     return {
-      status: "network-error",
-      errorMessage: err instanceof Error ? err.message : "Errore sconosciuto nel calcolo del percorso.",
+      ok: false,
+      reason: "routing_failed",
+      originLabel: originPoint.label,
+      destinationLabel: destPoint.label,
     };
   }
 }

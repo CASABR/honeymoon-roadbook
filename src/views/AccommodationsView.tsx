@@ -275,10 +275,7 @@ function Field({
   );
 }
 
-// ── Card alloggio ─────────────────────────────────────────────────────────────
-function AccoCard({ acc, onOpenDetail }: { acc: Accommodation; onOpenDetail: () => void }) {
-  const mapsUrl = acc.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${acc.name}, ${acc.city}`)}`;
-  
+function AccoCard({ acc, onOpenDetail, onEdit }: { acc: Accommodation; onOpenDetail: () => void; onEdit?: (acc: Accommodation) => void }) {
   return (
     <div 
       className="card overflow-hidden cursor-pointer hover:border-blue-300 transition-colors animate-fade-in"
@@ -340,16 +337,31 @@ function AccoCard({ acc, onOpenDetail }: { acc: Accommodation; onOpenDetail: () 
 
         {/* Right side buttons container */}
         <div className="absolute right-2 top-0 bottom-0 flex flex-col justify-center gap-2 items-center z-10">
-          <a
-            href={mapsUrl}
-            target="_blank"
-            rel="noreferrer"
-            aria-label="Apri posizione su Google Maps"
-            onClick={(e) => e.stopPropagation()}
-            className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 active:scale-95 transition-all shadow-sm border border-blue-100"
-          >
-            <IcMapPin size={14} className="text-blue-600" />
-          </a>
+          {acc.mapsUrl ? (
+            <a
+              href={acc.mapsUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Apri posizione su Google Maps"
+              onClick={(e) => e.stopPropagation()}
+              className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 active:scale-95 transition-all shadow-2xs border border-blue-100"
+            >
+              <IcMapPin size={14} className="text-blue-600" />
+            </a>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onEdit) onEdit(acc);
+                else onOpenDetail();
+              }}
+              className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 font-bold text-[10px] flex items-center gap-1 active:scale-95 transition-all border border-slate-200/70 shrink-0"
+              title="Aggiungi link Google Maps alloggio"
+            >
+              <IcMapPin size={11} className="text-slate-500" />
+              <span>+ Mappa</span>
+            </button>
+          )}
           <IcChevronRight size={15} className="text-gray-300 pointer-events-none" />
         </div>
       </div>
@@ -371,8 +383,6 @@ function DetailAccoSheet({
   onEdit?: () => void;
   onUpdate: (updated: Accommodation) => void;
 }) {
-  const mapsUrl = acc.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${acc.name}, ${acc.city}`)}`;
-  
   const [copiedCode, setCopiedCode] = useState(false);
   const copiedTimeoutRef = useRef<any>(null);
 
@@ -550,15 +560,30 @@ function DetailAccoSheet({
           </div>
 
           {/* Action button for Google Maps */}
-          <a
-            href={mapsUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[13.5px] rounded-2xl shadow-lg shadow-blue-500/10 active:scale-98 transition-all"
-          >
-            <IcMapPin size={14} />
-            Apri posizione su Google Maps
-          </a>
+          {acc.mapsUrl ? (
+            <a
+              href={acc.mapsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[13.5px] rounded-2xl shadow-lg shadow-blue-500/10 active:scale-98 transition-all"
+            >
+              <IcMapPin size={14} />
+              Apri posizione su Google Maps
+            </a>
+          ) : (
+            onEdit && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onEdit();
+                }}
+                className="flex items-center justify-center gap-2 w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[13px] rounded-2xl border border-slate-200/80 active:scale-98 transition-all"
+              >
+                <IcMapPin size={14} className="text-slate-500" />
+                + Aggiungi link Google Maps
+              </button>
+            )
+          )}
         </div>
 
         <div className="flex gap-2 mt-3 pt-1">

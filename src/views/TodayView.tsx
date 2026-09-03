@@ -23,15 +23,128 @@ import { EditActivitySheet, AddActivitySheet } from "./TripView";
 import {
   calculateDrivingRoute,
   getCachedDrivingRoute,
+  buildSegmentCacheKey,
   delayMs,
   type DrivingRoute,
+  type DrivingRouteResult,
 } from "../services/routingService";
 
 export interface CandidateSegment {
   originUrl: string;
+  originFallback?: string;
   destUrl: string;
+  destFallback?: string;
   fromId: string;
   toId: string;
+}
+
+export type SegmentTravelType = "driving" | "walking" | "flight" | "train" | "ferry" | "manual" | "unknown";
+
+interface SegmentTravelClassification {
+  type: SegmentTravelType;
+  reason: string;
+  relatedTransportId?: string;
+}
+
+export function classifySegmentTravel(
+  act: Activity,
+  nextAct: Activity,
+  transportsList?: any[],
+  dayDate?: string
+): SegmentTravelClassification {
+  const findRelatedTransport = (activity: Activity) => {
+    if (!transportsList || !dayDate || activity.type !== "transport") return undefined;
+    const text = `${activity.title || ""} ${activity.subtitle || ""}`.toLowerCase();
+    return transportsList.find((tr) => {
+      if (tr.date !== dayDate) return false;
+      const from = String(tr.from || "").toLowerCase();
+      const to = String(tr.to || "").toLowerCase();
+      const carrierCode = String(tr.carrierCode || "").toLowerCase();
+      return (!!from && text.includes(from)) || (!!to && text.includes(to)) || (!!carrierCode && text.includes(carrierCode));
+    });
+  };
+
+  const relatedTransport = findRelatedTransport(act) || findRelatedTransport(nextAct);
+  if (relatedTransport?.type === "plane") return { type: "flight", reason: "related transport type is plane", relatedTransportId: relatedTransport.id };
+  if (relatedTransport?.type === "train") return { type: "train", reason: "related transport type is train", relatedTransportId: relatedTransport.id };
+  if (relatedTransport?.type === "ferry") return { type: "ferry", reason: "related transport type is ferry", relatedTransportId: relatedTransport.id };
+  if (["car", "taxi", "transfer"].includes(relatedTransport?.type)) {
+    return { type: "driving", reason: `related transport type is ${relatedTransport.type}`, relatedTransportId: relatedTransport.id };
+  }
+
+  const combinedText = `${act.title || ""} ${act.subtitle || ""} ${nextAct.title || ""} ${nextAct.subtitle || ""}`.toLowerCase();
+  if (/\b(volo|flight|scalo)\b|air china|cebu pacific|virgin|philippine|air new zealand/.test(combinedText)) {
+    return { type: "flight", reason: "flight keyword in segment text" };
+  }
+  if (/\b(treno|frecciarossa|train|ferrovia)\b/.test(combinedText)) {
+    return { type: "train", reason: "train keyword in segment text" };
+  }
+  if (/\b(traghetto|ferry|bluebridge|nave)\b/.test(combinedText)) {
+    return { type: "ferry", reason: "ferry keyword in segment text" };
+  }
+  if (/\b(a piedi|piedi|walk|walking|trekking|cammino)\b/.test(combinedText)) {
+    return { type: "walking", reason: "walking keyword in segment text" };
+  }
+  if (/\b(taxi|transfer|noleggio|ritiro auto|consegna auto|spostamento|strada|road|drive|airport)\b/.test(combinedText)) {
+    return { type: "driving", reason: "road keyword in segment text" };
+  }
+  if ((act as any).mapsUrl && (nextAct as any).mapsUrl) {
+    return { type: "driving", reason: "both nodes have mapsUrl and no non-road indicators" };
+  }
+
+  return { type: "unknown", reason: "no reliable transport or routing indicators" };
+}
+
+export function buildRoutingFallbackQuery(act?: Activity, dayLocation?: string, acco?: Accommodation): string | undefined {
+  if (acco) {
+    const parts = [acco.name];
+    if (acco.city) parts.push(acco.city);
+    return parts.join(", ");
+  }
+
+  if (!act) return undefined;
+
+  const cleanText = (str?: string) => {
+    if (!str) return "";
+    return str
+      .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "")
+      .replace(/PNR:?\s*[A-Z0-9]+/gi, "")
+      .replace(/€\d+/g, "")
+      .replace(/⏱️?\s*Orari:?\s*[\d:➔\s–-]+/gi, "")
+      .replace(/Durata:?\s*[^·,]+/gi, "")
+      .replace(/Presentarsi:?\s*[^·,]+/gi, "")
+      .trim();
+  };
+
+  const cleanSub = cleanText(cleanSubtitle(act.subtitle));
+  let cleanTitle = cleanText(act.title);
+
+  const parenMatch = cleanTitle.match(/\(([^)]+)\)/);
+  if (parenMatch && parenMatch[1].trim().length > 2) {
+    cleanTitle = parenMatch[1].trim();
+  } else {
+    cleanTitle = cleanTitle.replace(/^(cena|pranzo|colazione)\s+(da|a|in)\s+/i, "").trim();
+  }
+
+  // Se la subtitle ha un indirizzo o nome luogo valido (es. "Auckland Airport", "20 Alex Telfer Drive")
+  if (cleanSub && cleanSub.length > 2) {
+    const subLower = cleanSub.toLowerCase();
+    const isGenericSub = subLower === "in viaggio" || subLower === "dettagli";
+    if (!isGenericSub) {
+      if (cleanTitle.toLowerCase().includes(subLower)) {
+        return cleanTitle;
+      }
+      return `${cleanTitle}, ${cleanSub}`;
+    }
+  }
+
+  if (cleanTitle && cleanTitle.length > 2) {
+    const queryParts = [cleanTitle];
+    if (dayLocation) queryParts.push(dayLocation);
+    return queryParts.join(", ");
+  }
+
+  return undefined;
 }
 
 export function getDrivingCandidateSegments(
@@ -43,30 +156,62 @@ export function getDrivingCandidateSegments(
   if (!day) return [];
 
   const processed = dedupeDayActivities(day.activities || [], day.date, accommodationsList);
-  const points: { id: string; mapsUrl: string; act?: Activity }[] = [];
+  const points: { id: string; mapsUrl: string; fallback?: string; act?: Activity }[] = [];
 
-  // 1. Alloggio notte precedente (se ha mapsUrl)
-  if (prevDayAcc?.mapsUrl && prevDayAcc.mapsUrl.trim() !== "") {
-    points.push({ id: "prev_acc", mapsUrl: prevDayAcc.mapsUrl.trim() });
+  // 1. Alloggio notte precedente
+  if (prevDayAcc) {
+    const url = prevDayAcc.mapsUrl?.trim() || "";
+    const fallback = buildRoutingFallbackQuery(undefined, undefined, prevDayAcc);
+    if (url || fallback) {
+      const syntheticAct: Activity = {
+        id: "prev_acc",
+        time: "00:00",
+        type: "hotel",
+        title: prevDayAcc.name,
+        subtitle: prevDayAcc.city || "Hotel",
+        mapsUrl: url,
+      };
+      points.push({ id: "prev_acc", mapsUrl: url, fallback, act: syntheticAct });
+    }
   }
 
-  // 2. Attività della giornata con mapsUrl affidabile
+  // 2. Attività della giornata
   for (const act of processed) {
     const actAny = act as any;
-    if (actAny.mapsUrl && typeof actAny.mapsUrl === "string" && actAny.mapsUrl.trim() !== "") {
-      const url = actAny.mapsUrl.trim();
-      if (points.length === 0 || points[points.length - 1].mapsUrl !== url) {
-        points.push({ id: act.id, mapsUrl: url, act });
+    const url = typeof actAny.mapsUrl === "string" ? actAny.mapsUrl.trim() : "";
+    const fallback = buildRoutingFallbackQuery(act, day.location);
+    if (url || fallback) {
+      if (
+        points.length === 0 ||
+        points[points.length - 1].mapsUrl !== url ||
+        points[points.length - 1].fallback !== fallback
+      ) {
+        points.push({ id: act.id, mapsUrl: url, fallback, act });
       }
     }
   }
 
-  // 3. Alloggio notte corrente (se ha mapsUrl e diverso dall'ultimo punto)
+  // 3. Alloggio notte corrente
   const todayAcc = getTodayAccommodation(day.date, accommodationsList, day.activities);
-  if (todayAcc?.mapsUrl && todayAcc.mapsUrl.trim() !== "") {
-    const url = todayAcc.mapsUrl.trim();
-    if (points.length === 0 || points[points.length - 1].mapsUrl !== url) {
-      points.push({ id: "today_acc", mapsUrl: url });
+  if (todayAcc) {
+    const url = todayAcc.mapsUrl?.trim() || "";
+    const fallback = buildRoutingFallbackQuery(undefined, undefined, todayAcc);
+    if (url || fallback) {
+      if (
+        points.length === 0 ||
+        points[points.length - 1].mapsUrl !== url ||
+        points[points.length - 1].fallback !== fallback
+      ) {
+        const syntheticAct: Activity = {
+          id: "today_acc",
+          time: "23:59",
+          type: "hotel",
+          title: todayAcc.name,
+          subtitle: todayAcc.city || "Hotel",
+          mapsUrl: url,
+        };
+        points.push({ id: "today_acc", mapsUrl: url, fallback, act: syntheticAct });
+      }
     }
   }
 
@@ -78,25 +223,54 @@ export function getDrivingCandidateSegments(
     const p1 = points[i];
     const p2 = points[i + 1];
 
-    if (p1.act && p2.act) {
-      if (!isDrivingTransit(p1.act, p2.act, transportsList, day.date)) {
+    const act1 = p1.act;
+    const act2 = p2.act;
+
+    if (act1 && act2) {
+      const segmentType = classifySegmentTravel(act1, act2, transportsList, day.date);
+
+      if (import.meta.env.DEV) {
+        console.debug("[ROUTING DEBUG] segment-type", {
+          dayId: day.id,
+          originId: p1.id,
+          destinationId: p2.id,
+          type: segmentType.type,
+          reason: segmentType.reason,
+          relatedTransportId: segmentType.relatedTransportId,
+        });
+      }
+
+      if (segmentType.type !== "driving") {
+        if (import.meta.env.DEV) {
+          const logName = segmentType.type === "walking"
+            ? "[ROUTING DEBUG] walking-detected"
+            : ["flight", "train", "ferry", "manual"].includes(segmentType.type)
+            ? "[ROUTING DEBUG] manual-transport"
+            : "[ROUTING DEBUG] unknown-segment";
+          console.debug(logName, {
+            dayId: day.id,
+            originId: p1.id,
+            destinationId: p2.id,
+            reason: segmentType.reason,
+          });
+        }
         continue;
       }
-      if (
-        getActivityRoutingCategory(p1.act) === "TOTAL_EXCLUSION" ||
-        getActivityRoutingCategory(p2.act) === "TOTAL_EXCLUSION"
-      ) {
-        continue;
-      }
-      const manualTime = getReliableTransitTime(p1.act, p2.act, day.date, transportsList);
-      if (manualTime) {
-        continue;
+
+      if (import.meta.env.DEV) {
+        console.debug("[ROUTING DEBUG] driving-start", {
+          dayId: day.id,
+          originId: p1.id,
+          destinationId: p2.id,
+        });
       }
     }
 
     segments.push({
       originUrl: p1.mapsUrl,
+      originFallback: p1.fallback,
       destUrl: p2.mapsUrl,
+      destFallback: p2.fallback,
       fromId: p1.id,
       toId: p2.id,
     });
@@ -737,7 +911,7 @@ export function getActivityRoutingCategory(activity: Activity): RoutingCategory 
   return "MAP_POINT_ONLY";
 }
 
-function hasAddress(activity: Activity): boolean {
+export function _hasAddress(activity: Activity): boolean {
   return getActivityRoutingCategory(activity) === "REAL_DRIVING";
 }
 
@@ -833,7 +1007,7 @@ export function isDrivingTransit(act: Activity, nextAct?: Activity, transportsLi
   return !nonDrivingIndicators.some(indicator => combinedText.includes(indicator));
 }
 
-function buildMapsUrl(activity: Activity, dayLocation?: string) {
+export function _buildMapsUrl(activity: Activity, dayLocation?: string) {
   const actAny = activity as any;
   if (actAny.mapsUrl) return actAny.mapsUrl;
   const queryParts = [activity.title];
@@ -1139,11 +1313,12 @@ function TimelineRow({
   onEdit,
   completed,
   onToggle,
-  dayLocation,
+  dayLocation: _dayLocation,
   dayDate,
   transportsList,
   accommodationsList,
   drivingRoutesMap,
+  drivingRouteErrorsMap,
 }: {
   activity: Activity;
   nextActivity?: Activity;
@@ -1153,7 +1328,7 @@ function TimelineRow({
   isFirst?: boolean;
   isLast: boolean;
   onQRTap: (act: Activity) => void;
-  onEdit: () => void;
+  onEdit: (focusMapsUrl?: boolean) => void;
   completed: boolean;
   onToggle: () => void;
   dayLocation?: string;
@@ -1161,25 +1336,44 @@ function TimelineRow({
   transportsList?: any[];
   accommodationsList?: any[];
   drivingRoutesMap?: Record<string, DrivingRoute>;
+  drivingRouteErrorsMap?: Record<string, Extract<DrivingRouteResult, { ok: false }>>;
 }) {
   const [copiedPnr, setCopiedPnr] = useState(false);
   const [copilotaOpen, setCopilotaOpen] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const isTransport = activity.type === "transport";
-  const showMaps = hasAddress(activity);
-  const mapsUrl = buildMapsUrl(activity, dayLocation);
+  const hasSavedMapsUrl = !!((activity as any)?.mapsUrl?.trim());
 
   const prevAccMapsUrl = prevAccommodation?.mapsUrl?.trim();
   const actMapsUrl = (activity as any)?.mapsUrl?.trim();
   const nextMapsUrl = (nextActivity as any)?.mapsUrl?.trim();
 
-  const prevAccRoute = (prevAccMapsUrl && actMapsUrl && drivingRoutesMap)
-    ? drivingRoutesMap[`${prevAccMapsUrl}_to_${actMapsUrl}`]
-    : undefined;
+  const prevAccFallback = prevAccommodation ? buildRoutingFallbackQuery(undefined, undefined, prevAccommodation) : undefined;
+  const actFallback = buildRoutingFallbackQuery(activity, _dayLocation);
+  const nextFallback = nextActivity ? buildRoutingFallbackQuery(nextActivity, _dayLocation) : undefined;
 
-  const calculatedNextRoute = (actMapsUrl && nextMapsUrl && drivingRoutesMap)
-    ? drivingRoutesMap[`${actMapsUrl}_to_${nextMapsUrl}`]
-    : undefined;
+  const prevAccKey = buildSegmentCacheKey(prevAccMapsUrl, prevAccFallback, actMapsUrl, actFallback);
+  const nextKey = buildSegmentCacheKey(actMapsUrl, actFallback, nextMapsUrl, nextFallback);
+
+  const prevAccRoute = drivingRoutesMap ? drivingRoutesMap[prevAccKey] : undefined;
+  const calculatedNextRoute = drivingRoutesMap ? drivingRoutesMap[nextKey] : undefined;
+  const nextRouteError = drivingRouteErrorsMap ? drivingRouteErrorsMap[nextKey] : undefined;
+
+  if (import.meta.env.DEV && nextActivity) {
+    const isDriving = isDrivingTransit(activity, nextActivity, transportsList, dayDate);
+    console.debug("[ROUTING DEBUG] render-check", {
+      cacheKey: nextKey,
+      segmentType: isDriving ? "driving" : "non-driving",
+      hasRoute: !!calculatedNextRoute,
+      hasRouteError: !!nextRouteError,
+      routeErrorReason: nextRouteError?.reason,
+      reasonShown: calculatedNextRoute
+        ? "route"
+        : nextRouteError?.reason
+        ? nextRouteError.reason
+        : "not_calculated_yet",
+    });
+  }
 
   const matchedTr = transportsList && dayDate && activity.type === "transport"
     ? transportsList.find(tr => {
@@ -1214,6 +1408,53 @@ function TimelineRow({
   const baggageNote = matchedTr?.baggageNote || matchedTr?.baggageCabin || matchedTr?.baggageHand;
   const hasSecondaryDetails = !!(pnr || timeBefore || carrierCode || seat || gate || terminal || logistics || baggageNote || activity.duration || activity.note || activity.ticketUrl);
 
+  // ── Risoluzione dinamica dei titoli e delle tratte per Trasporti e Alloggi ──
+  const isHotel = activity.type === "hotel";
+  const isGenericTitle = !activity.title || activity.title.trim().length <= 2 || activity.title.trim().toUpperCase() === "T." || activity.title.toLowerCase().startsWith("treno:");
+
+  const transportRouteTitle = matchedTr?.from && matchedTr?.to
+    ? `${matchedTr.from} → ${matchedTr.to}`
+    : (cleanSubtitle(activity.subtitle) && isGenericTitle
+        ? cleanSubtitle(activity.subtitle)
+        : activity.title);
+
+  const accFullName = (isHotel && matchedAcc?.name && matchedAcc.name.length > activity.title.length)
+    ? matchedAcc.name
+    : activity.title;
+
+  const displayTitle = isTransport
+    ? (transportRouteTitle && transportRouteTitle.length > 0 ? transportRouteTitle : activity.title)
+    : isHotel
+    ? accFullName
+    : activity.title;
+
+  const displaySubtitle = isTransport
+    ? (displayTitle === cleanSubtitle(activity.subtitle)
+        ? (matchedTr?.detail || undefined)
+        : (activity.subtitle && !activity.subtitle.includes(displayTitle) ? cleanSubtitle(activity.subtitle) : matchedTr?.detail))
+    : isHotel
+    ? (matchedAcc?.address ? `${matchedAcc.address}${matchedAcc.city ? `, ${matchedAcc.city}` : ""}` : cleanSubtitle(activity.subtitle))
+    : cleanSubtitle(activity.subtitle);
+
+  const categoryBadgeLabel = isTransport
+    ? (matchedTr?.type ? (matchedTr.type.charAt(0).toUpperCase() + matchedTr.type.slice(1)) : "Trasporto")
+    : isHotel
+    ? "Alloggio"
+    : activity.type === "sightseeing" ? "Visita"
+    : activity.type === "food" ? "Pasto"
+    : activity.type === "shopping" ? "Shopping"
+    : "Altro";
+
+  const transportSchedule = isTransport && matchedTr?.time
+    ? `${matchedTr.time}${matchedTr.arrivalTime ? ` → ${matchedTr.arrivalTime}` : ""}`
+    : undefined;
+
+  const detailsToggleLabel = isTransport
+    ? (showDetails ? "▲ Nascondi dettagli trasporto" : "⌄ Dettagli trasporto")
+    : isHotel
+    ? (showDetails ? "▲ Nascondi dettagli alloggio" : "⌄ Dettagli alloggio")
+    : (showDetails ? "▲ Nascondi dettagli" : "⌄ Dettagli");
+
   return (
     <div className="space-y-0">
       {/* Distanza da alloggio precedente se prima tappa */}
@@ -1238,9 +1479,9 @@ function TimelineRow({
         </div>
       )}
 
-      <div className={`flex gap-2.5 items-stretch transition-opacity ${completed ? "opacity-50" : ""}`}>
-        {/* Colonna Timeline Sinistra (Orario sopra il pallino) */}
-        <div className="flex flex-col items-center flex-shrink-0 w-11 pt-0.5">
+      <div className={`grid grid-cols-[44px_minmax(0,1fr)] gap-2.5 items-start transition-opacity ${completed ? "opacity-50" : ""}`}>
+        {/* Colonna 1: Timeline Sinistra (Orario, Pallino, Linea) */}
+        <div className="flex flex-col items-center flex-shrink-0 w-11 pt-0.5 self-stretch">
           <span className={`text-[11px] leading-none font-extrabold tracking-tight text-center ${
             isActive ? "text-blue-700 font-black" : "text-gray-500"
           } ${completed ? "line-through text-gray-300" : ""}`}>
@@ -1256,126 +1497,127 @@ function TimelineRow({
           {!isLast && <div className="w-0.5 flex-1 bg-gray-200" />}
         </div>
 
-        {/* Card Contenuto Principale */}
-        <div className="flex-1 min-w-0 pb-1">
+        {/* Colonna 2: Card Contenuto Principale + Connettore sottostante */}
+        <div className="min-w-0 flex-1 w-full pb-1">
           <div
-            className={`min-w-0 mb-1.5 app-card p-3 cursor-pointer transition-all duration-300 border ${
+            className={`w-full min-w-0 mb-1.5 app-card p-3 cursor-pointer transition-all duration-300 border ${
               isActive
                 ? "border-l-4 border-l-blue-500 border-blue-200 bg-blue-50/5 shadow-xs"
                 : "bg-white border-gray-150/70"
             }`}
-            onClick={onEdit}
+            onClick={() => onEdit()}
           >
-            {/* RIGA 1: Tipo, Titolo (max 2 righe, visibilità prioritaria), Completamento */}
-            <div className="flex items-start justify-between gap-2">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap mb-1">
-                  <ActivityIcon type={activity.type} size={15} />
-                  {isActive && !completed && (
-                    <span className="text-[7.5px] font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-widest shrink-0">
-                      Ora / Prossimo
-                    </span>
-                  )}
-                  <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest shrink-0 border ${
-                    activity.type === "sightseeing" ? "bg-blue-50 text-blue-700 border-blue-100" :
-                    activity.type === "food" ? "bg-orange-50 text-orange-700 border-orange-100" :
-                    activity.type === "hotel" ? "bg-purple-50 text-purple-700 border-purple-100" :
-                    activity.type === "shopping" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
-                    activity.type === "transport" ? "bg-blue-50 text-blue-700 border-blue-100" :
-                    "bg-gray-100 text-gray-600 border-gray-200"
-                  }`}>
-                    {activity.type === "sightseeing" ? "Visita" :
-                     activity.type === "food" ? "Pasto" :
-                     activity.type === "hotel" ? "Alloggio" :
-                     activity.type === "shopping" ? "Shopping" :
-                     activity.type === "transport" ? "Trasporto" : "Altro"}
+            {/* RIGA 1: Categoria/Tipo a sinistra, Cerchio completamento a destra */}
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                <ActivityIcon type={activity.type} size={15} />
+                {isActive && !completed && (
+                  <span className="text-[7.5px] font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-widest shrink-0">
+                    Ora / Prossimo
                   </span>
-                </div>
-
-                <h3 className={`text-[13.5px] font-bold text-gray-900 leading-snug line-clamp-2 ${completed ? "line-through text-gray-400" : ""}`}>
-                  {activity.title}
-                </h3>
+                )}
+                <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest shrink-0 border ${
+                  activity.type === "sightseeing" ? "bg-blue-50 text-blue-700 border-blue-100" :
+                  activity.type === "food" ? "bg-orange-50 text-orange-700 border-orange-100" :
+                  activity.type === "hotel" ? "bg-purple-50 text-purple-700 border-purple-100" :
+                  activity.type === "shopping" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+                  activity.type === "transport" ? "bg-blue-50 text-blue-700 border-blue-100" :
+                  "bg-gray-100 text-gray-600 border-gray-200"
+                }`}>
+                  {categoryBadgeLabel}
+                </span>
               </div>
 
-              {/* Pulsante completamento allineato in alto a destra */}
+              {/* Pulsante completamento allineato in alto a destra nella riga della categoria */}
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggle();
                 }}
-                className="w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95 shrink-0 mt-0.5"
+                className="w-5.5 h-5.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95 shrink-0"
                 style={{
                   borderColor: completed ? "#10b981" : "#d1d5db",
                   backgroundColor: completed ? "#10b981" : "transparent"
                 }}
-                aria-label={completed ? "Segna come da completare" : "Segna come completato"}
-                title={completed ? "Completato" : "Segna completato"}
+                aria-label={completed ? "Segna come da completare" : "Segna come completata"}
+                title={completed ? "Completata" : "Segna completata"}
               >
                 {completed && <span className="text-white text-[10px] font-black">✓</span>}
               </button>
             </div>
 
-            {/* RIGA 2: Località (se presente, max 2 righe) */}
-            {cleanSubtitle(activity.subtitle) && (
-              <p className={`text-[11.5px] text-gray-500 line-clamp-2 mt-1 font-medium ${completed ? "line-through text-gray-300" : ""}`}>
-                📍 {cleanSubtitle(activity.subtitle)}
+            {/* RIGA 2: Titolo Attività */}
+            <h3 className={`font-extrabold text-[14.5px] leading-snug line-clamp-2 ${completed ? "line-through text-gray-400" : "text-gray-900"}`}>
+              {displayTitle}
+            </h3>
+
+            {/* RIGA 3: Località se presente */}
+            {displaySubtitle && (
+              <p className="text-[12px] text-gray-500 font-semibold line-clamp-1 mt-0.5">
+                {displaySubtitle}
               </p>
             )}
 
-            {/* RIGA 3: Prezzo/Stato, Maps, QR, PNR compatto */}
-            {(activity.price !== undefined || showMaps || activity.hasQR || pnr) && (
-              <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-1.5 border-t border-slate-100/60">
-                {activity.price !== undefined && (
-                  <span className={`text-[8.5px] font-extrabold px-1.5 py-0.5 rounded uppercase shrink-0 ${
-                    activity.isPaid
-                      ? "bg-green-55 text-green-600 border border-green-100"
-                      : "bg-red-50 text-red-500 border border-red-100"
-                  }`}>
-                    €{activity.price} · {activity.isPaid ? "Pagato" : "Da pagare"}
-                  </span>
-                )}
-
-                {showMaps && (
-                  <a
-                    href={mapsUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Apri posizione su Google Maps"
-                    title="Apri su Google Maps"
-                    onClick={(e) => e.stopPropagation()}
-                    className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 active:scale-90 transition-transform flex items-center gap-1 text-[10px] font-bold shrink-0 border border-blue-100/50"
-                  >
-                    <IcMapPin size={12} className="text-blue-600" />
-                    <span>Mappa</span>
-                  </a>
-                )}
-
-                {activity.hasQR && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onQRTap(activity);
-                    }}
-                    className={`active:scale-95 transition-transform flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                      isActive
-                        ? "bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
-                        : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200/60"
-                    }`}
-                    title="Visualizza Biglietto QR"
-                    aria-label="Visualizza Biglietto QR"
-                  >
-                    <IcQR size={13} className={isActive ? "text-white" : "text-gray-600"} />
-                    <span>Biglietto</span>
-                  </button>
-                )}
-
-                {pnr && (
-                  <span className="px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200/70 shrink-0">
-                    PNR: {pnr}
-                  </span>
-                )}
-              </div>
+            {/* Orario di trasporto se disponibile */}
+            {transportSchedule && (
+              <p className="text-[11px] font-extrabold text-blue-700 mt-1">
+                ⏱ {transportSchedule}
+              </p>
             )}
+
+            {/* Azioni rapide: Maps / Biglietto / PNR */}
+            <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-wrap items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+              {hasSavedMapsUrl ? (
+                <a
+                  href={(activity as any).mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="px-2 py-0.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md active:scale-95 transition-all flex items-center gap-1 text-[10px] font-bold shrink-0 border border-blue-100/80"
+                  title="Apri posizione su Google Maps"
+                >
+                  <IcMapPin size={11} className="text-blue-600" />
+                  <span>Mappa</span>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(true);
+                  }}
+                  className="px-2 py-0.5 bg-slate-50 text-slate-500 hover:text-blue-600 hover:bg-blue-50/60 rounded-md active:scale-95 transition-all flex items-center gap-1 text-[10px] font-bold shrink-0 border border-slate-200/60"
+                  title="Aggiungi link Google Maps"
+                >
+                  <IcMapPin size={11} className="text-slate-400" />
+                  <span>+ Aggiungi mappa</span>
+                </button>
+              )}
+
+              {activity.hasQR && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onQRTap(activity);
+                  }}
+                  className={`active:scale-95 transition-transform flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                    isActive
+                      ? "bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                      : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200/60"
+                  }`}
+                  title="Visualizza Biglietto QR"
+                  aria-label="Visualizza Biglietto QR"
+                >
+                  <IcQR size={13} className={isActive ? "text-white" : "text-gray-600"} />
+                  <span>Biglietto</span>
+                </button>
+              )}
+
+              {pnr && (
+                <span className="px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200/70 shrink-0">
+                  PNR: {pnr}
+                </span>
+              )}
+            </div>
 
             {/* RIGA 4: Controllo compatto "⌄ Dettagli" */}
             {hasSecondaryDetails && (
@@ -1388,15 +1630,14 @@ function TimelineRow({
                   }}
                   className="text-[10px] font-extrabold text-gray-500 hover:text-blue-600 flex items-center gap-1 transition-colors py-0.5"
                 >
-                  <span>{showDetails ? "▲ Nascondi dettagli" : "⌄ Dettagli"}</span>
+                  <span>{detailsToggleLabel}</span>
                 </button>
               </div>
             )}
 
-            {/* Dettagli Espandibili (Solo se aperto dall'utente e solo se realmente valorizzati) */}
+            {/* Dettagli Espandibili */}
             {showDetails && hasSecondaryDetails && (
               <div className="mt-2 pt-2 border-t border-slate-100 space-y-2 text-[11px] text-gray-600" onClick={(e) => e.stopPropagation()}>
-                {/* PNR completo e copiabile */}
                 {pnr && (
                   <div className="flex items-center justify-between bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1.5">
                     <div className="flex items-center gap-1.5">
@@ -1416,8 +1657,6 @@ function TimelineRow({
                     </button>
                   </div>
                 )}
-
-                {/* Dettagli Trasporto / Alloggio */}
                 {(carrierCode || seat || gate || terminal || baggageNote) && (
                   <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
                     {carrierCode && <span className="font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">✈️ {carrierCode} {terminal ? `(T${terminal})` : ""}</span>}
@@ -1426,16 +1665,12 @@ function TimelineRow({
                     {baggageNote && <span className="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-medium">🧳 {baggageNote}</span>}
                   </div>
                 )}
-
-                {/* Durata & Presentarsi */}
                 {(activity.duration || timeBefore) && (
                   <div className="flex flex-wrap items-center gap-2 text-[10.5px]">
                     {activity.duration && <span className="font-semibold text-slate-700">⏱ Durata: {activity.duration}</span>}
                     {timeBefore && <span className="font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/60">⌛ Presentarsi: {timeBefore}</span>}
                   </div>
                 )}
-
-                {/* Link Biglietto & Note */}
                 {activity.ticketUrl && (
                   <div>
                     <a href={activity.ticketUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-blue-600 hover:underline inline-flex items-center gap-1">
@@ -1448,8 +1683,6 @@ function TimelineRow({
                     📝 {activity.note}
                   </div>
                 )}
-
-                {/* Indicazioni Copilota */}
                 {logistics && (
                   <div className="p-2.5 bg-blue-50/50 border border-blue-100 rounded-lg space-y-1">
                     <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider block">🚗 Indicazioni Copilota</span>
@@ -1459,6 +1692,165 @@ function TimelineRow({
               </div>
             )}
           </div>
+
+          {/* Connettore transito */}
+          {nextActivity && (() => {
+            const displayTransitTime = getReliableTransitTime(activity, nextActivity, dayDate, transportsList);
+            if (displayTransitTime) {
+              return (
+                <div className="my-2.5 flex items-center gap-2 text-[10.5px] font-bold text-slate-700 flex-wrap w-full">
+                  <span className="px-2 py-0.5 rounded-full font-extrabold text-[10.5px] border bg-amber-50 border-amber-200 text-amber-900 shadow-2xs">
+                    ⏱️ Tratta: {displayTransitTime}
+                  </span>
+                  <div className="flex-1 border-t border-dashed border-gray-200 min-w-[20px]" />
+                  <span className="text-[10px] text-gray-400 font-bold shrink-0">Fino alle {nextActivity.time}</span>
+                </div>
+              );
+            }
+
+            if (calculatedNextRoute) {
+              return (
+                <div className="my-2.5 flex items-center gap-2 text-[10.5px] font-bold text-slate-700 flex-wrap w-full">
+                  <span className="px-2 py-0.5 rounded-full font-extrabold text-[10.5px] border bg-blue-50 border-blue-100/80 text-blue-700 shrink-0">
+                    🚗 Guida · {calculatedNextRoute.formattedText}
+                  </span>
+                  <div className="flex-1 border-t border-dashed border-blue-200 min-w-[20px]" />
+                  <span className="text-[10px] text-gray-400 font-bold shrink-0">Fino alle {nextActivity.time}</span>
+                </div>
+              );
+            }
+
+            const isDriving = isDrivingTransit(activity, nextActivity, transportsList, dayDate);
+
+            if (isDriving) {
+              let errorBadgeLabel = "";
+              let errorBadgeTooltip = "";
+
+              if (nextRouteError?.reason === "origin_not_found") {
+                errorBadgeLabel = "⚠️ Partenza non localizzata";
+                errorBadgeTooltip = "Impossibile trovare le coordinate per il punto di partenza.";
+              } else if (nextRouteError?.reason === "destination_not_found") {
+                errorBadgeLabel = "⚠️ Destinazione non localizzata";
+                errorBadgeTooltip = "Impossibile trovare le coordinate per la destinazione.";
+              } else if (nextRouteError?.reason === "geocode_mismatch") {
+                errorBadgeLabel = "⚠️ Località incoerente: verifica indirizzo o Maps";
+                errorBadgeTooltip = "I punti geografici trovati non sembrano coerenti con il percorso.";
+              } else if (nextRouteError?.reason === "routing_unavailable" || nextRouteError?.reason === "routing_failed") {
+                errorBadgeLabel = "⚠️ Routing stradale non disponibile";
+                errorBadgeTooltip = "Non è stato possibile calcolare un percorso stradale tra i due punti.";
+              }
+
+              if (errorBadgeLabel) {
+                return (
+                  <div className="my-2 flex items-center gap-2 w-full flex-wrap">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onEdit(true);
+                      }}
+                      className="px-2 py-0.5 rounded-full font-bold text-[9.5px] bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 shrink-0 flex items-center gap-1 active:scale-95 transition-all"
+                      title={errorBadgeTooltip}
+                    >
+                      <span>{errorBadgeLabel}</span>
+                    </button>
+                    <div className="flex-1 border-t border-dashed border-gray-200 min-w-[20px]" />
+                    <span className="text-[10px] text-gray-400 font-bold shrink-0">Fino alle {nextActivity.time}</span>
+                    <div className="flex-1 border-t border-dashed border-gray-200 min-w-[20px]" />
+                  </div>
+                );
+              }
+
+              return (
+                <div className="my-2 flex items-center gap-2 w-full flex-wrap">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onEdit(true);
+                    }}
+                    className="px-2 py-0.5 rounded-full font-bold text-[9.5px] bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 shrink-0 flex items-center gap-1 active:scale-95 transition-all"
+                    title="Premi 'Calcola guida' per stimare la durata e la distanza di questa tratta."
+                  >
+                    <span>Calcola guida per stimare la tratta</span>
+                  </button>
+                  <div className="flex-1 border-t border-dashed border-gray-200 min-w-[20px]" />
+                  <span className="text-[10px] text-gray-400 font-bold shrink-0">
+                    Fino alle {nextActivity.time}
+                  </span>
+                  <div className="flex-1 border-t border-dashed border-gray-200 min-w-[20px]" />
+                </div>
+              );
+            }
+
+            const matchTr1 = transportsList && dayDate && activity.type === "transport" ? transportsList.find(tr => {
+              if (tr.date !== dayDate) return false;
+              const actTitleLower = activity.title.toLowerCase();
+              const trFromLower = tr.from.toLowerCase();
+              const trToLower = tr.to.toLowerCase();
+              return actTitleLower.includes(trFromLower) || actTitleLower.includes(trToLower);
+            }) : null;
+
+            const matchTr2 = transportsList && dayDate && nextActivity.type === "transport" ? transportsList.find(tr => {
+              if (tr.date !== dayDate) return false;
+              const actTitleLower = nextActivity.title.toLowerCase();
+              const trFromLower = tr.from.toLowerCase();
+              const trToLower = tr.to.toLowerCase();
+              return actTitleLower.includes(trFromLower) || actTitleLower.includes(trToLower);
+            }) : null;
+
+            const t1 = matchTr1?.type;
+            const t2 = matchTr2?.type;
+
+            let transportEmoji = "🚗";
+            let transportLabel = "Guida";
+
+            const actTitleLower = activity.title.toLowerCase();
+            const actSubLower = (activity.subtitle || "").toLowerCase();
+            const isTrainAct = actTitleLower.includes("treno") || actTitleLower.includes("frecciarossa") || actSubLower.includes("frecciarossa") || actSubLower.includes("treno");
+
+            if (isTrainAct || t1 === "train" || t2 === "train") {
+              transportEmoji = "🚆";
+              transportLabel = "Treno";
+            } else if (t1 === "plane" || t2 === "plane") {
+              transportEmoji = "✈️";
+              transportLabel = "Volo";
+            } else if (t1 === "ferry" || t2 === "ferry") {
+              transportEmoji = "🚢";
+              transportLabel = "Traghetto";
+            } else {
+              const combinedText = `${activity.title} ${activity.subtitle || ""} ${nextActivity.title} ${nextActivity.subtitle || ""}`.toLowerCase();
+              if (combinedText.includes("treno") || combinedText.includes("frecciarossa") || combinedText.includes("train") || combinedText.includes("ferrovia")) {
+                transportEmoji = "🚆";
+                transportLabel = "Treno";
+              } else if (combinedText.includes("volo") || combinedText.includes("flight") || combinedText.includes("air china") || combinedText.includes("cebu") || combinedText.includes("virgin") || combinedText.includes("philippine") || combinedText.includes("air new zealand")) {
+                transportEmoji = "✈️";
+                transportLabel = "Volo";
+              } else if (combinedText.includes("traghetto") || combinedText.includes("ferry") || combinedText.includes("nave") || combinedText.includes("boat")) {
+                transportEmoji = "🚢";
+                transportLabel = "Traghetto";
+              } else if (combinedText.includes("cammino") || combinedText.includes("piedi") || combinedText.includes("walk") || combinedText.includes("trekking")) {
+                transportEmoji = "🚶";
+                transportLabel = "A piedi";
+              }
+            }
+            
+            const isDrive = transportLabel === "Guida";
+
+            return (
+              <div className="my-2.5 flex items-center gap-2 text-[10.5px] font-bold text-slate-700 flex-wrap w-full">
+                <span className={`px-2 py-0.5 rounded-full font-extrabold text-[10.5px] border shrink-0 ${
+                  isDrive 
+                    ? "bg-blue-50 border-blue-100 text-blue-700" 
+                    : "bg-amber-50 border-amber-200 text-amber-900 shadow-2xs"
+                }`}>
+                  {transportEmoji} {transportLabel} · {displayTransitTime}
+                </span>
+                <div className={`flex-1 border-t border-dashed ${isDrive ? "border-blue-200" : "border-amber-200"} min-w-[20px]`} />
+                <span className="text-[10px] text-gray-400 font-bold shrink-0">
+                  Fino alle {nextActivity.time}
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Popup Copilota dedicato */}
@@ -1473,112 +1865,6 @@ function TimelineRow({
             } : undefined}
           />
         )}
-
-        {/* Transition to next activity */}
-        {nextActivity && (() => {
-          const displayTransitTime = getReliableTransitTime(activity, nextActivity, dayDate, transportsList);
-
-          if (!displayTransitTime) {
-            if (calculatedNextRoute) {
-              return (
-                <div className="my-2.5 flex items-center gap-2 text-[10px] font-extrabold tracking-wider uppercase pl-1 flex-wrap">
-                  <span className="flex-shrink-0 text-blue-600/90">
-                    🚗 Guida:
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full font-black text-[10.5px] border bg-blue-50 border-blue-100/60 text-blue-600">
-                    {calculatedNextRoute.formattedText}
-                  </span>
-                  <div className="flex-1 border-t border-dashed border-blue-200/60" />
-                  <span className="text-[9.5px] text-gray-400 font-bold normal-case shrink-0">
-                    Fino alle {nextActivity.time}
-                  </span>
-                </div>
-              );
-            }
-
-            return (
-              <div className="my-2 flex items-center gap-2 pl-1 pr-1">
-                <div className="flex-1 border-t border-dashed border-gray-200" />
-                <span className="text-[9.5px] text-gray-400 font-bold normal-case shrink-0">
-                  Fino alle {nextActivity.time}
-                </span>
-              </div>
-            );
-          }
-
-          const matchTr1 = transportsList && dayDate && activity.type === "transport" ? transportsList.find(tr => {
-            if (tr.date !== dayDate) return false;
-            const actTitleLower = activity.title.toLowerCase();
-            const trFromLower = tr.from.toLowerCase();
-            const trToLower = tr.to.toLowerCase();
-            return actTitleLower.includes(trFromLower) || actTitleLower.includes(trToLower);
-          }) : null;
-
-          const matchTr2 = transportsList && dayDate && nextActivity.type === "transport" ? transportsList.find(tr => {
-            if (tr.date !== dayDate) return false;
-            const actTitleLower = nextActivity.title.toLowerCase();
-            const trFromLower = tr.from.toLowerCase();
-            const trToLower = tr.to.toLowerCase();
-            return actTitleLower.includes(trFromLower) || actTitleLower.includes(trToLower);
-          }) : null;
-
-          const t1 = matchTr1?.type;
-          const t2 = matchTr2?.type;
-
-          let transportEmoji = "🚗";
-          let transportLabel = "Guida";
-
-          const actTitleLower = activity.title.toLowerCase();
-          const actSubLower = (activity.subtitle || "").toLowerCase();
-          const isTrainAct = actTitleLower.includes("treno") || actTitleLower.includes("frecciarossa") || actSubLower.includes("frecciarossa") || actSubLower.includes("treno");
-
-          if (isTrainAct || t1 === "train" || t2 === "train") {
-            transportEmoji = "🚆";
-            transportLabel = "Treno";
-          } else if (t1 === "plane" || t2 === "plane") {
-            transportEmoji = "✈️";
-            transportLabel = "Volo";
-          } else if (t1 === "ferry" || t2 === "ferry") {
-            transportEmoji = "🚢";
-            transportLabel = "Traghetto";
-          } else {
-            const combinedText = `${activity.title} ${activity.subtitle || ""} ${nextActivity.title} ${nextActivity.subtitle || ""}`.toLowerCase();
-            if (combinedText.includes("treno") || combinedText.includes("frecciarossa") || combinedText.includes("train") || combinedText.includes("ferrovia")) {
-              transportEmoji = "🚆";
-              transportLabel = "Treno";
-            } else if (combinedText.includes("volo") || combinedText.includes("flight") || combinedText.includes("air china") || combinedText.includes("cebu") || combinedText.includes("virgin") || combinedText.includes("philippine") || combinedText.includes("air new zealand")) {
-              transportEmoji = "✈️";
-              transportLabel = "Volo";
-            } else if (combinedText.includes("traghetto") || combinedText.includes("ferry") || combinedText.includes("nave") || combinedText.includes("boat")) {
-              transportEmoji = "🚢";
-              transportLabel = "Traghetto";
-            } else if (combinedText.includes("cammino") || combinedText.includes("piedi") || combinedText.includes("walk") || combinedText.includes("trekking")) {
-              transportEmoji = "🚶";
-              transportLabel = "A piedi";
-            }
-          }
-          
-          const isDrive = transportLabel === "Guida";
-
-          return (
-            <div className="my-2.5 flex items-center gap-2 text-[10px] font-extrabold tracking-wider uppercase pl-1 flex-wrap">
-              <span className={`flex-shrink-0 ${isDrive ? "text-blue-600/90" : "text-amber-800 font-black"}`}>
-                {transportEmoji} {transportLabel}:
-              </span>
-              <span className={`px-2 py-0.5 rounded-full font-black text-[10.5px] border ${
-                isDrive 
-                  ? "bg-blue-50 border-blue-100/60 text-blue-600" 
-                  : "bg-amber-50 border-amber-200/80 text-amber-900 shadow-sm"
-              }`}>
-                {displayTransitTime}
-              </span>
-              <div className={`flex-1 border-t border-dashed ${isDrive ? "border-blue-200/60" : "border-amber-200"}`} />
-              <span className="text-[9.5px] text-gray-400 font-bold normal-case shrink-0">
-                Fino alle {nextActivity.time}
-              </span>
-            </div>
-          );
-        })()}
       </div>
     </div>
   );
@@ -1677,11 +1963,15 @@ export default function TodayView() {
   const [accommodationsList, setAccommodationsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const isLoadedRef = useRef(false);
-  const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string } | null>(null);
+  const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string; focusMapsUrl?: boolean } | null>(null);
   const [addingToDay, setAddingToDay] = useState<{ id: string; label: string } | null>(null);
 
   const [drivingRoutesMap, setDrivingRoutesMap] = useState<Record<string, DrivingRoute>>({});
+  const [drivingRouteErrorsMap, setDrivingRouteErrorsMap] = useState<
+    Record<string, Extract<DrivingRouteResult, { ok: false }>>
+  >({});
   const [isCalculatingDriving, setIsCalculatingDriving] = useState(false);
+  const [hasRunCalculation, setHasRunCalculation] = useState(false);
   const [calcProgress, setCalcProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
 
   useEffect(() => {
@@ -1720,9 +2010,13 @@ export default function TodayView() {
     async function loadCachedRoutes() {
       const loaded: Record<string, DrivingRoute> = {};
       for (const seg of candidateSegs) {
-        const cached = await getCachedDrivingRoute(seg.originUrl, seg.destUrl);
+        const cached = await getCachedDrivingRoute(
+          seg.originUrl || seg.originFallback || "",
+          seg.destUrl || seg.destFallback || ""
+        );
         if (cached && isMounted) {
-          loaded[`${seg.originUrl}_to_${seg.destUrl}`] = cached;
+          const cacheKey = buildSegmentCacheKey(seg.originUrl, seg.originFallback, seg.destUrl, seg.destFallback);
+          loaded[cacheKey] = cached;
         }
       }
       if (isMounted && Object.keys(loaded).length > 0) {
@@ -1878,26 +2172,134 @@ export default function TodayView() {
 
   const candidateSegments = today ? getDrivingCandidateSegments(today, prevDayAcc, accommodationsList, transportsList) : [];
   const hasCandidateSegments = candidateSegments.length > 0;
-  const hasCalculatedRoutes = candidateSegments.some(
-    (seg) => !!drivingRoutesMap[`${seg.originUrl}_to_${seg.destUrl}`]
-  );
+  const calculatedCount = candidateSegments.filter(
+    (seg) => !!drivingRoutesMap[buildSegmentCacheKey(seg.originUrl, seg.originFallback, seg.destUrl, seg.destFallback)]
+  ).length;
+  const unverifiedCount = candidateSegments.length - calculatedCount;
+
+  const calcSummaryPill = (() => {
+    if (isCalculatingDriving) return null;
+    if (calculatedCount > 0) {
+      if (unverifiedCount === 0) {
+        return (
+          <span className="text-[10px] font-black text-emerald-700 bg-emerald-50/90 px-2 py-0.5 rounded-lg border border-emerald-200 shrink-0">
+            ✓ {calculatedCount} tratte calcolate
+          </span>
+        );
+      }
+      return (
+        <span className="text-[10px] font-black text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 shrink-0">
+          {calculatedCount} calcolate &middot; {unverifiedCount} da verificare
+        </span>
+      );
+    }
+    if (hasRunCalculation && candidateSegments.length > 0) {
+      return (
+        <span className="text-[10px] font-black text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 shrink-0">
+          {candidateSegments.length} da verificare
+        </span>
+      );
+    }
+    return null;
+  })();
 
   async function handleCalculateDriving() {
     if (!today || isCalculatingDriving || candidateSegments.length === 0) return;
 
     setIsCalculatingDriving(true);
+    setHasRunCalculation(true);
     setCalcProgress({ current: 0, total: candidateSegments.length });
 
     for (let i = 0; i < candidateSegments.length; i++) {
       const seg = candidateSegments[i];
       setCalcProgress({ current: i + 1, total: candidateSegments.length });
+      const cacheKey = buildSegmentCacheKey(seg.originUrl, seg.originFallback, seg.destUrl, seg.destFallback);
+
+      if (import.meta.env.DEV) {
+        const originAct = (today.activities || []).find((a) => a.id === seg.fromId);
+        const destAct = (today.activities || []).find((a) => a.id === seg.toId);
+        const nodeSource = seg.fromId === "prev_acc"
+          ? "previous_accommodation"
+          : seg.fromId === "today_acc"
+          ? "current_accommodation"
+          : originAct?.type === "transport"
+          ? "transport"
+          : "activity";
+
+        console.debug("[ROUTING INPUT]", {
+          dayId: today.id,
+          originId: seg.fromId,
+          destinationId: seg.toId,
+          originTitle: originAct?.title || prevDayAcc?.name || seg.fromId,
+          destinationTitle: destAct?.title || acco?.name || seg.toId,
+          originNode: originAct || prevDayAcc,
+          destinationNode: destAct || acco,
+          originUrl: seg.originUrl,
+          originFallback: seg.originFallback,
+          destinationUrl: seg.destUrl,
+          destinationFallback: seg.destFallback,
+          cacheKey,
+          hasUsableOrigin: Boolean(seg.originUrl || seg.originFallback),
+          hasUsableDestination: Boolean(seg.destUrl || seg.destFallback),
+          nodeSource,
+          relatedAccommodationId: seg.fromId === "prev_acc" ? prevDayAcc?.id : seg.toId === "today_acc" ? acco?.id : undefined,
+          relatedTransportId: originAct?.type === "transport" ? originAct.id : destAct?.type === "transport" ? destAct.id : undefined,
+        });
+
+        console.debug("[ROUTING DEBUG] candidate", {
+          dayId: today.id,
+          originId: seg.fromId,
+          destinationId: seg.toId,
+          cacheKey,
+          originUrl: seg.originUrl,
+          destinationUrl: seg.destUrl,
+          originFallback: seg.originFallback,
+          destinationFallback: seg.destFallback,
+        });
+      }
 
       try {
-        const res = await calculateDrivingRoute(seg.originUrl, seg.destUrl);
-        if (res.status === "success" && res.route) {
+        const res = await calculateDrivingRoute(
+          seg.originUrl,
+          seg.destUrl,
+          seg.originFallback,
+          seg.destFallback
+        );
+        if (res.ok) {
+          if (import.meta.env.DEV) {
+            console.debug("[ROUTING DEBUG] route-result", {
+              cacheKey,
+              status: "success",
+              distanceKm: res.route.distanceKm,
+              durationMin: res.route.durationMin,
+            });
+            console.debug("[ROUTING DEBUG] state-write", {
+              cacheKey,
+              routeValue: res.route,
+            });
+          }
           setDrivingRoutesMap((prev) => ({
             ...prev,
-            [`${seg.originUrl}_to_${seg.destUrl}`]: res.route!,
+            [cacheKey]: res.route,
+          }));
+          setDrivingRouteErrorsMap((prev) => {
+            const next = { ...prev };
+            delete next[cacheKey];
+            return next;
+          });
+        } else {
+          if (import.meta.env.DEV) {
+            console.debug("[ROUTING DEBUG] route-error", {
+              cacheKey,
+              reason: res.reason,
+              originLabel: res.originLabel,
+              destinationLabel: res.destinationLabel,
+              queriesTried: res.queriesTried,
+            });
+          }
+          setDrivingRouteErrorsMap((prev) => ({
+            ...prev,
+            [cacheKey]: res,
           }));
         }
       } catch (e) {
@@ -1985,45 +2387,42 @@ export default function TodayView() {
         <section className="card p-4 space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-gray-100 flex-wrap gap-2">
             <div>
-              <span className="section-label mb-0 block text-[13px] font-black text-gray-900 tracking-tight">Timeline della giornata</span>
-              <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                <p className="text-[11.5px] text-gray-400 font-medium">{today.dateLabel}</p>
-                {totalDriveTimeStr && (
-                  <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
-                    &middot; 🚗 Guida stimata: {totalDriveTimeStr}
-                  </span>
-                )}
+              <div className="flex items-center gap-2">
+                <h2 className="text-[15px] font-extrabold text-gray-900">Programma di Oggi</h2>
+                {calcSummaryPill}
               </div>
+              <p className="text-[11.5px] text-gray-400 font-medium mt-0.5">
+                {today?.dateShort} &middot; {processedActivities.length} attività &middot; {totalDriveTimeStr ? `🚗 ${totalDriveTimeStr} guida` : "Nessun tragitto auto"}
+              </p>
             </div>
-            <div className="flex items-center gap-1.5 flex-wrap shrink-0">
-              <DayMapsButton activities={processedActivities} />
 
-              {hasCandidateSegments && (
-                <button
-                  onClick={handleCalculateDriving}
-                  disabled={isCalculatingDriving}
-                  className="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/60 font-extrabold text-[10.5px] flex items-center gap-1 active:scale-95 transition-all shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
-                  title="Calcola durata e distanza delle tratte in auto della giornata"
-                >
-                  {isCalculatingDriving ? (
-                    <span>Calcolo {calcProgress.current} di {calcProgress.total}...</span>
-                  ) : (
-                    <span>{hasCalculatedRoutes ? "Ricalcola guida" : "Calcola guida"}</span>
-                  )}
-                </button>
-              )}
-            </div>
+            {hasCandidateSegments && (
+              <button
+                onClick={handleCalculateDriving}
+                disabled={isCalculatingDriving}
+                className={`px-3 py-1.5 rounded-xl font-extrabold text-[11.5px] transition-all flex items-center gap-1.5 shadow-xs ${
+                  isCalculatingDriving
+                    ? "bg-blue-100 text-blue-400 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700 text-white active:scale-95"
+                }`}
+              >
+                {isCalculatingDriving ? (
+                  <>
+                    <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Calcolo ({calcProgress.current}/{calcProgress.total})...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>🚗 Calcola guida</span>
+                  </>
+                )}
+              </button>
+            )}
           </div>
 
-          {visibleActivities.length === 0 ? (
-            <div className="py-8 px-4 text-center bg-gray-50/60 border border-dashed border-gray-200 rounded-2xl space-y-3">
-              <p className="text-[13px] font-bold text-gray-700">Nessuna tappa programmata per questo giorno.</p>
-              <button
-                onClick={() => setAddingToDay({ id: today.id, label: today.dateLabel })}
-                className="px-4 py-2 bg-blue-600 text-white font-extrabold text-[12px] rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
-              >
-                + Aggiungi attività
-              </button>
+          {processedActivities.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-[13px]">
+              Nessuna attività in programma per questo giorno.
             </div>
           ) : (
             <>
@@ -2045,7 +2444,7 @@ export default function TodayView() {
                       isFirst={idx === 0}
                       isLast={idx === visibleActivities.length - 1}
                       onQRTap={setQrActivity}
-                      onEdit={() => setEditingActivity({ dayId: today.id, activity: act, dayLabel: today.dateLabel })}
+                      onEdit={(focusMapsUrl) => setEditingActivity({ dayId: today.id, activity: act, dayLabel: today.dateLabel, focusMapsUrl })}
                       completed={completedActs.includes(act.id)}
                       onToggle={() => toggleActivity(act.id)}
                       dayLocation={today.location}
@@ -2053,6 +2452,7 @@ export default function TodayView() {
                       transportsList={transportsList}
                       accommodationsList={accommodationsList}
                       drivingRoutesMap={drivingRoutesMap}
+                      drivingRouteErrorsMap={drivingRouteErrorsMap}
                     />
                   );
                 })}
@@ -2156,9 +2556,11 @@ export default function TodayView() {
               ) : (
                 <button
                   onClick={() => navigate("/accommodations")}
-                  className="p-1 text-gray-400 hover:text-gray-600"
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 font-bold text-[10.5px] flex items-center gap-1 active:scale-95 transition-all shrink-0 border border-slate-200/70"
+                  title="Aggiungi link Google Maps alloggio"
                 >
-                  <IcChevronRight size={18} />
+                  <IcMapPin size={11} className="text-slate-500" />
+                  <span>+ Aggiungi mappa</span>
                 </button>
               )}
             </div>
@@ -2251,6 +2653,7 @@ export default function TodayView() {
           onSave={(updated) => handleEditActivity(editingActivity.dayId, updated)}
           onDelete={() => handleDeleteActivity(editingActivity.dayId, editingActivity.activity.id)}
           onClose={() => setEditingActivity(null)}
+          focusMapsUrl={editingActivity.focusMapsUrl}
         />
       )}
       {addingToDay && (

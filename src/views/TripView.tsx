@@ -13,6 +13,7 @@ import {
   IcCalendar,
   IcChevronDown,
   IcPlus,
+  IcQR,
   ActivityIcon,
 } from "../components/Icons";
 import { repository } from "../services/repository";
@@ -25,12 +26,14 @@ export function EditActivitySheet({
   onSave,
   onDelete,
   onClose,
+  focusMapsUrl = false,
 }: {
   activity: Activity;
   dayLabel: string;
   onSave: (updated: Activity) => void;
   onDelete?: () => void;
   onClose: () => void;
+  focusMapsUrl?: boolean;
 }) {
   const [time, setTime] = useState(activity.time);
   const [type, setType] = useState<Activity["type"]>(activity.type);
@@ -49,6 +52,8 @@ export function EditActivitySheet({
   const [mapsUrl, setMapsUrl] = useState(activity.mapsUrl || "");
   const [copied, setCopied] = useState(false);
   const copiedTimeoutRef = useRef<any>(null);
+  const mapsInputRef = useRef<HTMLInputElement>(null);
+  const locationInputRef = useRef<HTMLInputElement>(null);
 
   const activeDetailsCount = [
     price,
@@ -65,7 +70,17 @@ export function EditActivitySheet({
     type === "other" ? subtitle : undefined,
   ].filter((val) => (typeof val === "boolean" ? val : !!(val && String(val).trim()))).length;
 
-  const [showOptionalDetails, setShowOptionalDetails] = useState(activeDetailsCount > 0);
+  const [showOptionalDetails, setShowOptionalDetails] = useState(activeDetailsCount > 0 || focusMapsUrl);
+
+  useEffect(() => {
+    if (focusMapsUrl && mapsInputRef.current) {
+      const timer = setTimeout(() => {
+        mapsInputRef.current?.focus();
+        mapsInputRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 200);
+      return () => clearTimeout(timer);
+    }
+  }, [focusMapsUrl]);
 
   const [transportsList, setTransportsList] = useState<any[]>([]);
   const [accommodationsList, setAccommodationsList] = useState<any[]>([]);
@@ -363,14 +378,18 @@ export function EditActivitySheet({
 
             {type !== "other" && (
               <div>
-                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Luogo</label>
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / indirizzo</label>
                 <input
+                  ref={locationInputRef}
                   type="text"
                   value={subtitle}
                   placeholder={type === "transport" ? "es. Aeroporto / Compagnia" : "es. Quartiere o città"}
                   onChange={(e) => setSubtitle(e.target.value)}
                   className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                 />
+                <p className="text-[10.5px] text-gray-400 mt-1 font-medium">
+                  Inserisci il luogo o un indirizzo preciso per calcolare la guida
+                </p>
               </div>
             )}
           </div>
@@ -506,12 +525,16 @@ export function EditActivitySheet({
               <div>
                 <label className="text-[11px] font-semibold text-gray-500 block mb-1">Link Google Maps</label>
                 <input
+                  ref={mapsInputRef}
                   type="text"
                   value={mapsUrl}
                   placeholder="Incolla il link Google Maps del luogo"
                   onChange={(e) => setMapsUrl(e.target.value)}
                   className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                 />
+                <p className="text-[10.5px] text-gray-400 mt-1 font-medium">
+                  Il link apre Google Maps; la località/indirizzo aiuta a calcolare la guida.
+                </p>
               </div>
 
               {/* Codice Prenotazione & Link */}
@@ -602,7 +625,7 @@ export function EditActivitySheet({
 }
 
 // ── Helper: Google Maps navigation URL for a single place ────────────────────
-function buildSingleMapsUrl(activity: Activity, dayLocation?: string): string {
+export function _buildSingleMapsUrl(activity: Activity, dayLocation?: string): string {
   // Use the activity's explicit mapsUrl if defined (e.g., taxi directions)
   if (activity.mapsUrl) return activity.mapsUrl;
   const query = activity.subtitle && activity.subtitle !== "Attività del giorno"
@@ -665,7 +688,7 @@ function TripTimelineRow({
   onMoveDown,
   editMode,
   transitTimeFromPrev,
-  dayLocation,
+  dayLocation: _dayLocation,
 }: {
   activity: Activity;
   nextActivity?: Activity;
@@ -673,7 +696,7 @@ function TripTimelineRow({
   isLast: boolean;
   completed: boolean;
   onToggle: () => void;
-  onEdit: () => void;
+  onEdit: (focusMapsUrl?: boolean) => void;
   onDelete: () => void;
   onMoveUp: () => void;
   onMoveDown: () => void;
@@ -682,7 +705,7 @@ function TripTimelineRow({
   dayLocation?: string;
 }) {
   const isTransport = activity.type === "transport";
-  const mapsUrl = buildSingleMapsUrl(activity, dayLocation);
+  const hasSavedMapsUrl = !!(activity.mapsUrl && activity.mapsUrl.trim());
 
   return (
     <div className={`flex gap-2.5 items-stretch select-none transition-opacity ${completed ? "opacity-60" : ""}`}>
@@ -752,142 +775,127 @@ function TripTimelineRow({
 
         <div
           className={`min-w-0 app-card rounded-xl p-3 ${editMode ? "" : "cursor-pointer"} ${isFirst ? "border-blue-200 bg-blue-50/20" : "bg-white"}`}
-          onClick={editMode ? undefined : onEdit}
+          onClick={editMode ? undefined : () => onEdit()}
         >
-          {isTransport ? (
-            <div className="flex items-start gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-[9.5px] font-black tracking-widest text-indigo-500 uppercase mb-0.5 leading-none">
-                  Trasporto
-                </p>
-                <p className={`font-bold text-[13.5px] text-gray-900 leading-snug [overflow-wrap:anywhere] ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                {cleanSubtitle(activity.subtitle) && (
-                  <p className={`text-[11px] text-gray-500 mt-0.5 leading-snug [overflow-wrap:anywhere] ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
-                )}
-              </div>
-              {/* Right controls: Maps icon + toggle stacked */}
-              <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-                {!editMode && (
-                  <a
-                    href={mapsUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    title="Apri in Google Maps"
-                    className="w-6 h-6 rounded-md bg-blue-50 border border-blue-200 flex items-center justify-center hover:bg-blue-100 active:scale-95 transition-all"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
-                      <circle cx="12" cy="10" r="3"/>
-                    </svg>
-                  </a>
-                )}
-                {editMode ? (
-                  <div className="flex flex-col gap-1">
-                    <div className="flex gap-1">
-                      <button onClick={onEdit} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-lg">✏️</button>
-                      <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-1.5 py-0.5 rounded-lg">🗑️</button>
-                    </div>
-                    <div className="flex gap-1">
-                      <button onClick={onMoveUp} disabled={isFirst} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}>↑</button>
-                      <button onClick={onMoveDown} disabled={isLast} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}>↓</button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onToggle(); }}
-                    className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all hover:scale-110 active:scale-95"
-                    style={{ borderColor: completed ? "#10b981" : "#d1d5db", backgroundColor: completed ? "#10b981" : "transparent" }}
-                  >
-                    {completed && <span className="text-white text-[10px] font-black">✓</span>}
-                  </button>
-                )}
-              </div>
+          {/* RIGA 1: Categoria/Tipo a sinistra, completamento / pulsanti edit a destra */}
+          <div className="flex items-center justify-between gap-2 mb-1">
+            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+              <ActivityIcon type={activity.type} size={15} />
+              <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest shrink-0 border ${
+                activity.type === "sightseeing" ? "bg-blue-50 text-blue-700 border-blue-100" :
+                activity.type === "transport" ? "bg-indigo-50 text-indigo-700 border-indigo-100" :
+                activity.type === "food" ? "bg-orange-50 text-orange-700 border-orange-100" :
+                activity.type === "hotel" ? "bg-purple-50 text-purple-700 border-purple-100" :
+                activity.type === "shopping" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+                "bg-gray-100 text-gray-600 border-gray-200"
+              }`}>
+                {activity.type === "sightseeing" ? "Visita" :
+                 activity.type === "transport" ? "Trasporto" :
+                 activity.type === "food" ? "Pasto" :
+                 activity.type === "hotel" ? "Alloggio" :
+                 activity.type === "shopping" ? "Shopping" : "Altro"}
+              </span>
             </div>
-          ) : (
-            <div className="flex items-start gap-2">
-              <div className="flex items-start gap-2 min-w-0 flex-1">
-                <div className="shrink-0 mt-0.5">
-                  <ActivityIcon type={activity.type} size={15} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start gap-1.5 flex-wrap">
-                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest shrink-0 border ${
-                      activity.type === "sightseeing" ? "bg-blue-50 text-blue-700 border-blue-100" :
-                      activity.type === "transport" ? "bg-indigo-50 text-indigo-700 border-indigo-100" :
-                      activity.type === "food" ? "bg-orange-50 text-orange-700 border-orange-100" :
-                      activity.type === "hotel" ? "bg-purple-50 text-purple-700 border-purple-100" :
-                      activity.type === "shopping" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
-                      "bg-gray-100 text-gray-600 border-gray-200"
-                    }`}>
-                      {activity.type === "sightseeing" ? "Visita" :
-                       activity.type === "transport" ? "Trasferimento" :
-                       activity.type === "food" ? "Pasto" :
-                       activity.type === "hotel" ? "Alloggio" :
-                       activity.type === "shopping" ? "Shopping" : "Altro"}
-                    </span>
-                    <p className={`font-bold text-[13.5px] text-gray-900 leading-snug [overflow-wrap:anywhere] ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                    {activity.price !== undefined && (
-                      <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase shrink-0 leading-none mt-0.5 ${
-                        activity.isPaid
-                          ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
-                          : "bg-red-50 text-red-500 border border-red-100"
-                      }`}>
-                        €{activity.price} {activity.isPaid ? "✓" : "–"}
-                      </span>
-                    )}
-                  </div>
-                  {cleanSubtitle(activity.subtitle) && (
-                    <div className="flex items-start gap-0.5 mt-0.5">
-                      <IcMapPin size={9} className="text-gray-400 mt-0.5 shrink-0" />
-                      <p className={`text-[11px] text-gray-500 leading-snug [overflow-wrap:anywhere] ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
-                    </div>
-                  )}
-                </div>
+
+            {/* Controlli in alto a destra: Edit controls se editMode, altrimenti cerchio completamento */}
+            {editMode ? (
+              <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => onEdit()} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-lg">✏️</button>
+                <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-1.5 py-0.5 rounded-lg">🗑️</button>
+                <button onClick={onMoveUp} disabled={isFirst} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}>↑</button>
+                <button onClick={onMoveDown} disabled={isLast} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}>↓</button>
               </div>
-              {/* Right controls */}
-              <div className="flex flex-col items-center gap-1.5 flex-shrink-0">
-                {activity.imageUrl && !editMode && (
-                  <img src={activity.imageUrl} alt={activity.title} className="w-8 h-8 rounded-lg object-cover" />
-                )}
-                {!editMode && (
-                  <a
-                    href={mapsUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    title="Apri in Google Maps"
-                    className="w-6 h-6 rounded-md bg-blue-50 border border-blue-200 flex items-center justify-center hover:bg-blue-100 active:scale-95 transition-all"
-                  >
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
-                      <circle cx="12" cy="10" r="3"/>
-                    </svg>
-                  </a>
-                )}
-                {editMode ? (
-                  <div className="flex flex-col gap-1">
-                    <div className="flex gap-1">
-                      <button onClick={onEdit} className="text-[10px] bg-blue-50 text-blue-600 font-bold px-1.5 py-0.5 rounded-lg">✏️</button>
-                      <button onClick={onDelete} className="text-[10px] bg-red-50 text-red-500 font-bold px-1.5 py-0.5 rounded-lg">🗑️</button>
-                    </div>
-                    <div className="flex gap-1">
-                      <button onClick={onMoveUp} disabled={isFirst} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isFirst ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}>↑</button>
-                      <button onClick={onMoveDown} disabled={isLast} className={`text-[10px] font-bold px-1.5 py-0.5 rounded-lg ${isLast ? "bg-gray-50 text-gray-300" : "bg-gray-100 text-gray-600"}`}>↓</button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onToggle(); }}
-                    className="w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all hover:scale-110 active:scale-95"
-                    style={{ borderColor: completed ? "#10b981" : "#d1d5db", backgroundColor: completed ? "#10b981" : "transparent" }}
-                  >
-                    {completed && <span className="text-white text-[10px] font-black">✓</span>}
-                  </button>
-                )}
-              </div>
-            </div>
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle();
+                }}
+                className="w-5.5 h-5.5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95 shrink-0"
+                style={{
+                  borderColor: completed ? "#10b981" : "#d1d5db",
+                  backgroundColor: completed ? "#10b981" : "transparent"
+                }}
+                aria-label={completed ? "Segna come da completare" : "Segna come completata"}
+                title={completed ? "Completata" : "Segna completata"}
+              >
+                {completed && <span className="text-white text-[10px] font-black">✓</span>}
+              </button>
+            )}
+          </div>
+
+          {/* RIGA 2: Titolo dell'attività (massimo 2 righe, larghezza piena) */}
+          <h3 className={`text-[13.5px] font-bold text-gray-900 leading-snug line-clamp-2 w-full ${completed ? "line-through text-gray-400" : ""}`}>
+            {activity.title}
+          </h3>
+
+          {/* RIGA 3: Località / Subtitle (massimo 2 righe) */}
+          {cleanSubtitle(activity.subtitle) && (
+            <p className={`text-[11.5px] text-gray-500 line-clamp-2 mt-1 font-medium ${completed ? "line-through text-gray-300" : ""}`}>
+              📍 {cleanSubtitle(activity.subtitle)}
+            </p>
           )}
+
+          {/* RIGA 4: Prezzo/Stato, Mappa / + Aggiungi mappa, Biglietto, PNR */}
+          <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-1.5 border-t border-slate-100/60">
+            {activity.price !== undefined && (
+              <span className={`text-[8.5px] font-extrabold px-1.5 py-0.5 rounded uppercase shrink-0 ${
+                activity.isPaid
+                  ? "bg-green-55 text-green-600 border border-green-100"
+                  : "bg-red-50 text-red-500 border border-red-100"
+              }`}>
+                €{activity.price} · {activity.isPaid ? "Pagato" : "Da pagare"}
+              </span>
+            )}
+
+            {hasSavedMapsUrl ? (
+              <a
+                href={activity.mapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label="Apri posizione su Google Maps"
+                title="Apri su Google Maps"
+                onClick={(e) => e.stopPropagation()}
+                className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 active:scale-90 transition-transform flex items-center gap-1 text-[10px] font-bold shrink-0 border border-blue-100/50"
+              >
+                <IcMapPin size={12} className="text-blue-600" />
+                <span>Mappa</span>
+              </a>
+            ) : (
+              !editMode && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEdit(true);
+                  }}
+                  className="px-2 py-0.5 bg-slate-50 text-slate-500 hover:text-blue-600 hover:bg-blue-50/60 rounded-md active:scale-95 transition-all flex items-center gap-1 text-[10px] font-bold shrink-0 border border-slate-200/60"
+                  title="Aggiungi link Google Maps"
+                >
+                  <IcMapPin size={11} className="text-slate-400" />
+                  <span>+ Aggiungi mappa</span>
+                </button>
+              )
+            )}
+
+            {(activity.ticketUrl || activity.hasQR) && (
+              <a
+                href={activity.ticketUrl || "#"}
+                target={activity.ticketUrl ? "_blank" : undefined}
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-md flex items-center gap-1 text-[10px] font-bold shrink-0 border border-gray-200/60"
+              >
+                <IcQR size={12} className="text-gray-600" />
+                <span>Biglietto</span>
+              </a>
+            )}
+
+            {activity.bookingRef && (
+              <span className="px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200/70 shrink-0">
+                PNR: {activity.bookingRef}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -1167,6 +1175,9 @@ export function AddActivitySheet({
                   onChange={(e) => setMapsUrl(e.target.value)}
                   className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                 />
+                <p className="text-[10.5px] text-gray-400 mt-1 font-medium">
+                  Il link apre Google Maps; la località/indirizzo aiuta a calcolare la guida.
+                </p>
               </div>
 
               {/* Codice Prenotazione & Link */}
@@ -1329,7 +1340,7 @@ export default function TripView() {
   const isLoadedRef = useRef(false);
 
   const [expandedDayId, setExpandedDayId] = useState<string | null>(TODAY_DAY_ID);
-  const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string } | null>(null);
+  const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string; focusMapsUrl?: boolean } | null>(null);
   const [addingToDay, setAddingToDay] = useState<{ id: string; label: string } | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   // Traccia quale giorno ha la modalità modifica attivata
@@ -1784,7 +1795,7 @@ export default function TripView() {
                             isLast={actIdx === day.activities.length - 1}
                             completed={completedActs.includes(act.id)}
                             onToggle={() => toggleActivity(act.id)}
-                            onEdit={() => setEditingActivity({ dayId: day.id, activity: act, dayLabel: day.dateLabel })}
+                            onEdit={(focusMapsUrl) => setEditingActivity({ dayId: day.id, activity: act, dayLabel: day.dateLabel, focusMapsUrl })}
                             onDelete={() => handleDeleteActivity(day.id, act.id)}
                             onMoveUp={() => handleMoveActivity(day.id, actIdx, "up")}
                             onMoveDown={() => handleMoveActivity(day.id, actIdx, "down")}
@@ -1831,6 +1842,7 @@ export default function TripView() {
           onSave={(updated) => handleEditActivity(editingActivity.dayId, updated)}
           onDelete={() => handleDeleteActivity(editingActivity.dayId, editingActivity.activity.id)}
           onClose={() => setEditingActivity(null)}
+          focusMapsUrl={editingActivity.focusMapsUrl}
         />
       )}
 
