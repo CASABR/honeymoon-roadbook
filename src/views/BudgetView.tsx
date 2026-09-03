@@ -302,56 +302,85 @@ function CategoryDetailSheet({
             </p>
           ) : (
             // Lista dei singoli elementi di spesa
-            displayedItems.map((item, idx) => (
-              <div key={idx} className="bg-gray-50/70 border border-gray-100 p-3 rounded-xl flex items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5 min-w-0">
-                    <p className="text-[13px] font-bold text-gray-800 leading-snug truncate">{item.label}</p>
-                    {item.type === "activity" && item.rawObject.mapsUrl && (
-                      <a 
-                        href={item.rawObject.mapsUrl} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="w-7 h-7 inline-flex items-center justify-center rounded-full bg-slate-50 border border-slate-100 text-slate-500 hover:text-blue-650 hover:bg-blue-50 hover:border-blue-100 transition-colors shrink-0"
-                        title="Apri posizione in Google Maps"
-                        onClick={(e) => e.stopPropagation()}
+            displayedItems.map((item, idx) => {
+              const getSourceBadge = () => {
+                if (item.type === "accommodation") {
+                  return { label: "Da alloggio", bg: "bg-purple-50 text-purple-700 border-purple-100", note: "Modifica questa voce nella sezione Alloggi" };
+                }
+                if (item.type === "transport") {
+                  return { label: "Da trasporto", bg: "bg-blue-50 text-blue-700 border-blue-100", note: "Modifica questa voce nella sezione Trasporti" };
+                }
+                if (item.type === "activity") {
+                  return { label: "Da attività", bg: "bg-amber-50 text-amber-700 border-amber-100", note: "Modifica questa voce nella sezione Attività" };
+                }
+                return { label: "Manuale", bg: "bg-gray-100 text-gray-600 border-gray-200", note: null };
+              };
+
+              const badge = getSourceBadge();
+
+              return (
+                <div key={idx} className="bg-gray-50/70 border border-gray-100 p-3 rounded-xl flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-3 w-full">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="text-[13px] font-bold text-gray-800 leading-snug truncate">{item.label}</p>
+                        <span className={`text-[9px] px-1.5 py-0.5 rounded font-black uppercase shrink-0 border ${badge.bg}`}>
+                          {badge.label}
+                        </span>
+                        {item.type === "activity" && item.rawObject.mapsUrl && (
+                          <a 
+                            href={item.rawObject.mapsUrl} 
+                            target="_blank" 
+                            rel="noreferrer"
+                            className="w-6 h-6 inline-flex items-center justify-center rounded-full bg-slate-50 border border-slate-100 text-slate-500 hover:text-blue-650 hover:bg-blue-50 hover:border-blue-100 transition-colors shrink-0"
+                            title="Apri posizione in Google Maps"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <IcMapPin size={12} />
+                          </a>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{item.date}</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {/* Toggle di pagamento */}
+                      <button
+                        onClick={() => handleTogglePaid(item)}
+                        className={`text-[9px] px-2 py-1 rounded font-extrabold uppercase shrink-0 active:scale-95 transition-all ${
+                          item.isPaid
+                            ? "bg-green-100 text-green-700 border border-green-200"
+                            : "bg-red-50 text-red-500 border border-red-100"
+                        }`}
                       >
-                        <IcMapPin size={13} />
-                      </a>
-                    )}
+                        {item.isPaid ? "Pagato" : "Da pagare"}
+                      </button>
+                      <span className="text-[13px] font-black text-gray-900">
+                        €{item.amount.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
+                      </span>
+                      {item.type === "entry" && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Rimuovere la spesa: ${item.label}?`)) {
+                              onDeleteEntry(item.id);
+                            }
+                          }}
+                          className="text-red-400 hover:text-red-600 text-[12px] font-bold ml-1"
+                        >
+                          🗑️
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-[11px] text-gray-400 mt-0.5 font-medium">{item.date}</p>
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  {/* Toggle di pagamento */}
-                  <button
-                    onClick={() => handleTogglePaid(item)}
-                    className={`text-[9px] px-2 py-1 rounded font-extrabold uppercase shrink-0 active:scale-95 transition-all ${
-                      item.isPaid
-                        ? "bg-green-100 text-green-700 border border-green-200"
-                        : "bg-red-50 text-red-500 border border-red-100"
-                    }`}
-                  >
-                    {item.isPaid ? "Pagato" : "Da pagare"}
-                  </button>
-                  <span className="text-[13px] font-black text-gray-900">
-                    €{item.amount.toLocaleString("it-IT", { minimumFractionDigits: 2 })}
-                  </span>
-                  {item.type === "entry" && (
-                    <button
-                      onClick={() => {
-                        if (window.confirm(`Rimuovere la spesa: ${item.label}?`)) {
-                          onDeleteEntry(item.id);
-                        }
-                      }}
-                      className="text-red-400 hover:text-red-600 text-[12px] font-bold ml-1"
-                    >
-                      🗑️
-                    </button>
+
+                  {/* Nota di reindirizzamento per spese collegate */}
+                  {badge.note && (
+                    <div className="text-[10px] text-gray-500 font-medium italic pt-1 border-t border-gray-200/50 flex items-center gap-1">
+                      <span>💡 {badge.note}</span>
+                    </div>
                   )}
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
 

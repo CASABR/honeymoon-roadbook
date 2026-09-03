@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { TRANSPORTS } from "../data/mockData";
 import type { Transport } from "../data/mockData";
-import { IcPlane, IcTrain, IcFerry, IcCar, IcVan, IcPlus, IcQR } from "../components/Icons";
+import { IcPlane, IcTrain, IcFerry, IcCar, IcVan, IcPlus, IcQR, IcChevronDown } from "../components/Icons";
 import { repository } from "../services/repository";
 import SwipeToDelete from "../components/SwipeToDelete";
 
@@ -32,7 +32,7 @@ function getLayoverDetails(tr: Transport) {
         hours,
       };
     }
-  } catch (e) { /* ignore */ }
+  } catch (_) { /* ignore */ }
 
   // Fallback statici basati sui dati reali
   if (tr.id === "tr-flight-mxp-akl") {
@@ -195,7 +195,21 @@ function TransportDetailSheet({
         </div>
 
         <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
-          {/* Informazioni noleggio */}
+          {/* ── SEZIONE ESSENZIALE (Sempre in alto) ── */}
+          <div className="bg-blue-50/40 border border-blue-100/60 rounded-2xl p-4 space-y-3 mb-4">
+            <p className="text-[10px] font-bold text-blue-800 uppercase tracking-widest">Dati essenziali</p>
+            <div className="grid grid-cols-2 gap-3 text-[12.5px]">
+              <DetailRow label="Tipo mezzo" value={tr.rentalProvider ? (isVan ? "Van a noleggio" : "Auto a noleggio") : TYPE_LABEL[tr.type]} />
+              <DetailRow label="Data" value={tr.dateLabel || tr.date} />
+              <DetailRow label="Da" value={tr.from || (tr.rentalProvider ? tr.pickupLocation : undefined) || "N/D"} />
+              <DetailRow label="A" value={tr.to || (tr.rentalProvider ? tr.returnLocation : undefined) || "N/D"} />
+              <DetailRow label="Orario partenza" value={tr.time || (tr.rentalProvider ? tr.pickupTime : undefined) || "N/D"} />
+              {tr.arrivalTime && <DetailRow label="Orario arrivo" value={tr.arrivalTime} />}
+              {tr.returnTime && <DetailRow label="Orario riconsegna" value={tr.returnTime} />}
+            </div>
+          </div>
+
+          {/* Informazioni noleggio / Dettagli tecnici */}
           {tr.rentalProvider ? (
           <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-4 space-y-3 mb-4">
             <div className="grid grid-cols-2 gap-2.5">
@@ -238,13 +252,8 @@ function TransportDetailSheet({
           </div>
         ) : (
           <>
-            {/* Informazioni principali */}
+            {/* Dettagli operativi */}
             <div className="bg-gray-50/70 border border-gray-100 rounded-2xl p-4 space-y-3 mb-4">
-              <div className="grid grid-cols-2 gap-2.5">
-                <DetailRow label="Data" value={tr.date} />
-                <DetailRow label="Orario" value={`${tr.time}${tr.arrivalTime ? ` → ${tr.arrivalTime}` : ""}`} />
-              </div>
-
               {tr.carrierCode && <DetailRow label="N° Volo / Tratta" value={tr.carrierCode} mono copyable />}
               {tr.airline && <DetailRow label="Compagnia / Operatore" value={tr.airline} />}
               {tr.bookingRef && <DetailRow label="Codice Prenotazione (PIR / Ref)" value={tr.bookingRef} mono copyable />}
@@ -485,6 +494,48 @@ function TransportDetailSheet({
               Nessun biglietto o QR code ancora associato. Aggiungilo per averlo offline.
             </p>
           )}
+
+          {/* PNR & Dettagli Tratta dentro la sezione Biglietti / QR */}
+          {(() => {
+            const pnrCode = tr.bookingRef || tr.confirmationCode;
+            if (!pnrCode && !tr.from && !tr.to) return null;
+            return (
+              <div className="bg-white border border-gray-200/80 rounded-xl p-3 mt-3 space-y-2 text-[12px] w-full">
+                {pnrCode && (
+                  <div className="flex items-center justify-between bg-slate-50 p-2 rounded-lg border border-slate-150">
+                    <div>
+                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Codice Prenotazione (PNR)</span>
+                      <span className="font-mono font-black text-[13.5px] text-slate-800 block mt-0.5">{pnrCode}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(pnrCode);
+                        alert(`Codice PNR "${pnrCode}" copiato negli appunti!`);
+                      }}
+                      className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-[10.5px] font-bold text-blue-700 active:scale-95 transition-all shrink-0"
+                    >
+                      📋 Copia
+                    </button>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2 text-gray-600 pt-0.5">
+                  {(tr.from || tr.to) && (
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 block uppercase">Tratta</span>
+                      <span className="font-extrabold text-gray-800 text-[12px] block">{tr.from} → {tr.to}</span>
+                    </div>
+                  )}
+                  {(tr.dateLabel || tr.date || tr.time) && (
+                    <div>
+                      <span className="text-[9px] font-bold text-gray-400 block uppercase">Data & Orario</span>
+                      <span className="font-bold text-gray-800 text-[11.5px] block">{tr.dateLabel || tr.date} {tr.time ? `· ${tr.time}` : ""}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Info Fonte */}
@@ -644,6 +695,9 @@ function TransportFormSheet({
   
   const [status, setStatus] = useState(tr?.status || "Confermato");
 
+  // Accordion per dettagli facoltativi: aperto di default se stiamo modificando un trasporto esistente
+  const [showOptionalDetails, setShowOptionalDetails] = useState<boolean>(() => !!tr);
+
   function handleSubmit() {
     if (!from.trim() || !to.trim() || !date.trim()) return;
 
@@ -705,7 +759,7 @@ function TransportFormSheet({
 
         <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
           {/* Tipo mezzo */}
-          <div className="mb-3">
+          <div className="mb-2">
             <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo mezzo</label>
             <div className="flex gap-2 flex-wrap">
               {TYPE_OPTIONS.map((t) => (
@@ -719,25 +773,9 @@ function TransportFormSheet({
             </div>
           </div>
 
-          {/* Sezione 1: Principali */}
-          <div className="bg-gray-50/70 border border-gray-100 p-3 rounded-2xl space-y-3">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Dati principali</p>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <Field label="Data (YYYY-MM-DD) *" value={date} placeholder="2026-11-28" onChange={setDate} />
-              </div>
-              <div className="flex-1">
-                <Field label="Orario partenza" value={time} placeholder="11:05" onChange={setTime} />
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <Field label="Etichetta data" value={dateLabel} placeholder="es. Sab 28 nov" onChange={setDateLabel} />
-              </div>
-              <div className="flex-1">
-                <Field label="Orario arrivo" value={arrivalTime} placeholder="14:15" onChange={setArrivalTime} />
-              </div>
-            </div>
+          {/* ── SEZIONE ESSENZIALE (Sempre visibile) ── */}
+          <div className="bg-blue-50/40 border border-blue-100 p-3.5 rounded-2xl space-y-3">
+            <p className="text-[10px] font-bold text-blue-800 uppercase tracking-widest">Dati essenziali</p>
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
                 <Field label="Da *" value={from} placeholder="es. Roma Termini" onChange={setFrom} />
@@ -746,85 +784,121 @@ function TransportFormSheet({
                 <Field label="A *" value={to} placeholder="es. Milano" onChange={setTo} />
               </div>
             </div>
-            <Field label="Dettaglio tratta veloce" value={detail} placeholder="es. Treno Frecciarossa" onChange={setDetail} />
-          </div>
-
-          {/* Sezione 2: Info Volo / Compagnia */}
-          <div className="bg-gray-50/70 border border-gray-100 p-3 rounded-2xl space-y-3">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Compagnia e codici</p>
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="flex-1">
-                <Field label="Compagnia / Airline" value={airline} placeholder="es. Air China" onChange={setAirline} />
+                <Field label="Data (YYYY-MM-DD) *" value={date} placeholder="2026-11-28" onChange={setDate} />
               </div>
               <div className="flex-1">
-                <Field label="N° Volo / Tratta" value={carrierCode} placeholder="es. CA950" onChange={setCarrierCode} />
+                <Field label="Orario partenza" value={time} placeholder="11:05" onChange={setTime} />
               </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <Field label="Cod. Prenotazione" value={bookingRef} placeholder="es. HEY2101" onChange={setBookingRef} />
-              </div>
-              <div className="flex-1">
-                <Field label="Codice Biglietto" value={confirmationCode} placeholder="es. 16888..." onChange={setConfirmationCode} />
-              </div>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1">
-                <Field label="Durata" value={duration} placeholder="es. 1h 55m" onChange={setDuration} />
-              </div>
-              <div className="flex-1">
-                <Field label="Prezzo (€)" value={price} placeholder="es. 355.96" onChange={setPrice} />
-              </div>
-            </div>
-            <div>
-              <Field label="Stato Tratta" value={status} placeholder="es. Confermato" onChange={setStatus} />
             </div>
           </div>
 
-          {/* Sezione 3: Terminal / Gate / Posto */}
-          <div className="bg-gray-50/70 border border-gray-100 p-3 rounded-2xl space-y-3">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Terminal & Posto</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Field label="Terminal" value={terminal} placeholder="es. T1" onChange={setTerminal} />
-              <Field label="Gate" value={gate} placeholder="es. A12" onChange={setGate} />
-              <Field label="Posto" value={seat} placeholder="es. 06C" onChange={setSeat} />
+          {/* ── TOGGLE ACCORDION DETTAGLI FACOLTATIVI ── */}
+          <button
+            type="button"
+            onClick={() => setShowOptionalDetails((prev) => !prev)}
+            className="w-full py-2.5 px-3 bg-gray-50 hover:bg-gray-100/80 border border-gray-200/80 rounded-xl text-[12px] font-bold text-gray-700 flex items-center justify-between transition-colors"
+          >
+            <span>{showOptionalDetails ? "➖ Nascondi dettagli facoltativi" : "➕ Aggiungi dettagli facoltativi (volo, PNR, bagagli...)"}</span>
+            <IcChevronDown size={16} className={`transition-transform duration-200 ${showOptionalDetails ? "rotate-180 text-blue-600" : "text-gray-400"}`} />
+          </button>
+
+          {/* ── SEZIONE DETTAGLI FACOLTATIVI (Richiudibile) ── */}
+          {showOptionalDetails && (
+            <div className="space-y-4 pt-1">
+              {/* Orario Arrivo & Tratta */}
+              <div className="bg-gray-50/70 border border-gray-100 p-3 rounded-2xl space-y-3">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Orari &amp; Tratta</p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1">
+                    <Field label="Orario arrivo" value={arrivalTime} placeholder="14:15" onChange={setArrivalTime} />
+                  </div>
+                  <div className="flex-1">
+                    <Field label="Etichetta data" value={dateLabel} placeholder="es. Sab 28 nov" onChange={setDateLabel} />
+                  </div>
+                </div>
+                <Field label="Dettaglio tratta veloce" value={detail} placeholder="es. Treno Frecciarossa" onChange={setDetail} />
+              </div>
+
+              {/* Info Volo / Compagnia */}
+              <div className="bg-gray-50/70 border border-gray-100 p-3 rounded-2xl space-y-3">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Compagnia e codici</p>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1">
+                    <Field label="Compagnia / Airline" value={airline} placeholder="es. Air China" onChange={setAirline} />
+                  </div>
+                  <div className="flex-1">
+                    <Field label="N° Volo / Tratta" value={carrierCode} placeholder="es. CA950" onChange={setCarrierCode} />
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1">
+                    <Field label="Cod. Prenotazione (PNR)" value={bookingRef} placeholder="es. HEY2101" onChange={setBookingRef} />
+                  </div>
+                  <div className="flex-1">
+                    <Field label="Codice Biglietto" value={confirmationCode} placeholder="es. 16888..." onChange={setConfirmationCode} />
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex-1">
+                    <Field label="Durata" value={duration} placeholder="es. 1h 55m" onChange={setDuration} />
+                  </div>
+                  <div className="flex-1">
+                    <Field label="Prezzo (€)" value={price} placeholder="es. 355.96" onChange={setPrice} />
+                  </div>
+                </div>
+                <div>
+                  <Field label="Stato Tratta" value={status} placeholder="es. Confermato" onChange={setStatus} />
+                </div>
+              </div>
+
+              {/* Terminal / Gate / Posto */}
+              <div className="bg-gray-50/70 border border-gray-100 p-3 rounded-2xl space-y-3">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Terminal &amp; Posto</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <Field label="Terminal" value={terminal} placeholder="es. T1" onChange={setTerminal} />
+                  <Field label="Gate" value={gate} placeholder="es. A12" onChange={setGate} />
+                  <Field label="Posto" value={seat} placeholder="es. 06C" onChange={setSeat} />
+                </div>
+              </div>
+
+              {/* Bagagli */}
+              <div className="bg-blue-50/30 border border-blue-100 p-3 rounded-2xl space-y-3">
+                <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Franchigia bagagli</p>
+                <Field label="Bagaglio a mano" value={baggageHand} placeholder="es. 1 zaino max 8kg" onChange={setBaggageHand} />
+                <Field label="Bagaglio stiva" value={baggageCabin} placeholder="es. 1 valigia max 23kg" onChange={setBaggageCabin} />
+                <Field label="Bagaglio extra" value={baggageExtra} placeholder="es. Attrezzatura sportiva" onChange={setBaggageExtra} />
+              </div>
+
+              {/* Stato Pagamento */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
+                <div>
+                  <p className="text-[12.5px] font-bold text-gray-805">Stato pagamento</p>
+                  <p className="text-[10px] text-gray-400">Questo trasporto è già stato bloccato/pagato?</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsPaid(!isPaid)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
+                    isPaid
+                      ? "bg-green-150 text-green-700 border border-green-200"
+                      : "bg-red-50 text-red-500 border border-red-100"
+                  }`}
+                >
+                  {isPaid ? "✅ Pagato" : "⏳ Da pagare"}
+                </button>
+              </div>
+
+              {/* Note e QR */}
+              <div className="bg-gray-50/70 border border-gray-100 p-3 rounded-2xl space-y-3">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Note e Documenti</p>
+                <Field label="Nota generale" value={note} placeholder="es. Bagaglio a mano incluso" onChange={setNote} />
+                <Field label="Nota importante (evidenziata)" value={importantNote} placeholder="es. Check-in 1 ora prima!" onChange={setImportantNote} />
+                <Field label="QR Code (separati da virgola)" value={qrCodeData} placeholder="es. Biglietto 1, Biglietto 2" onChange={setQrCodeData} />
+              </div>
             </div>
-          </div>
-
-          {/* Sezione 4: Bagagli */}
-          <div className="bg-blue-50/30 border border-blue-100 p-3 rounded-2xl space-y-3">
-            <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">Franchigia bagagli</p>
-            <Field label="Bagaglio a mano" value={baggageHand} placeholder="es. 1 zaino max 8kg" onChange={setBaggageHand} />
-            <Field label="Bagaglio stiva" value={baggageCabin} placeholder="es. 1 valigia max 23kg" onChange={setBaggageCabin} />
-            <Field label="Bagaglio extra" value={baggageExtra} placeholder="es. Attrezzatura sportiva" onChange={setBaggageExtra} />
-          </div>
-
-          {/* Stato Pagamento */}
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-2xl border border-gray-100">
-            <div>
-              <p className="text-[12.5px] font-bold text-gray-805">Stato pagamento</p>
-              <p className="text-[10px] text-gray-400">Questo trasporto è già stato bloccato/pagato?</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsPaid(!isPaid)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
-                isPaid
-                  ? "bg-green-150 text-green-700 border border-green-200"
-                  : "bg-red-50 text-red-500 border border-red-100"
-              }`}
-            >
-              {isPaid ? "✅ Pagato" : "⏳ Da pagare"}
-            </button>
-          </div>
-
-          {/* Sezione 5: Note e QR */}
-          <div className="bg-gray-50/70 border border-gray-100 p-3 rounded-2xl space-y-3">
-            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Note e Documenti</p>
-            <Field label="Nota generale" value={note} placeholder="es. Bagaglio a mano incluso" onChange={setNote} />
-            <Field label="Nota importante (evidenziata)" value={importantNote} placeholder="es. Check-in 1 ora prima!" onChange={setImportantNote} />
-            <Field label="QR Code (separati da virgola)" value={qrCodeData} placeholder="es. Biglietto 1, Biglietto 2" onChange={setQrCodeData} />
-          </div>
+          )}
         </div>
 
         <div className="flex gap-2 mt-5">
@@ -924,7 +998,35 @@ function TransportCard({ tr, onSelect }: { tr: Transport; onSelect: (t: Transpor
             <span className="text-[11px] text-gray-400 font-medium block mt-0.5 leading-none">{tr.dateLabel}</span>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          {(() => {
+            const pnrCode = tr.bookingRef || tr.confirmationCode;
+            const hasQr = (tr.qrCodes && tr.qrCodes.length > 0) || !!tr.qrCodeData;
+            if (hasQr) {
+              return (
+                <span className="px-2 py-0.5 rounded-lg text-[9.5px] font-black bg-blue-600 text-white flex items-center gap-1 shrink-0 shadow-2xs">
+                  🎫 QR
+                </span>
+              );
+            }
+            if (pnrCode) {
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigator.clipboard.writeText(pnrCode);
+                    alert(`PNR "${pnrCode}" copiato negli appunti!`);
+                  }}
+                  className="px-2 py-0.5 rounded-lg text-[9.5px] font-black bg-blue-50 text-blue-700 border border-blue-100 hover:bg-blue-100 active:scale-95 transition-all shrink-0"
+                  title="Copia PNR negli appunti"
+                >
+                  📋 PNR: {pnrCode}
+                </button>
+              );
+            }
+            return null;
+          })()}
           <span className={`text-[9px] px-2 py-0.5 rounded-lg font-extrabold uppercase shrink-0 border ${
             tr.isPaid
               ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
@@ -945,8 +1047,8 @@ function TransportCard({ tr, onSelect }: { tr: Transport; onSelect: (t: Transpor
         <h3 className="font-black text-[15.5px] text-gray-900 leading-snug">
           {tr.from}<span className="text-gray-300 font-normal mx-1.5">→</span>{tr.to}
         </h3>
-        <p className="text-[12.5px] text-gray-500 font-medium">
-          {tr.time && `${tr.time} · `}{tr.detail || (tr.airline ? `${tr.airline} ${tr.carrierCode || ""}` : "")}
+        <p className="text-[12.5px] text-gray-600 font-semibold">
+          📅 {tr.dateLabel || tr.date} {tr.time ? `· 🕒 ${tr.time}` : ""}{tr.detail || tr.carrierCode ? ` · ${tr.detail || tr.carrierCode}` : ""}
         </p>
       </div>
 
@@ -1016,8 +1118,11 @@ export default function TransportsView() {
   useEffect(() => {
     repository.getTransports(TRANSPORTS)
       .then((data) => {
+        const loaded = data || TRANSPORTS;
+        let needsSave = false;
+
         // Se nel database locale ci sono elementi senza prezzo ma con un valore predefinito in TRANSPORTS, unisci
-        const merged = data.map((t) => {
+        const merged = loaded.map((t) => {
           if (t.price === undefined || t.price === null) {
             const fallbackItem = TRANSPORTS.find((f) => f.id === t.id);
             if (fallbackItem && fallbackItem.price !== undefined) {
@@ -1027,23 +1132,9 @@ export default function TransportsView() {
           return t;
         });
 
-        // Assicuriamoci che i 3 noleggi statici esistano nel database locale
-        const newRentalIds = ["tr-rent-nz-snap", "tr-rent-au-eastcoast", "tr-rent-au-van"];
-        let needsSave = false;
-        const finalTransports = [...merged];
-        newRentalIds.forEach((id) => {
-          if (!finalTransports.some(t => t.id === id)) {
-            const staticItem = TRANSPORTS.find(t => t.id === id);
-            if (staticItem) {
-              finalTransports.push(staticItem);
-              needsSave = true;
-            }
-          }
-        });
-
         // Rimuoviamo eventuali vecchi noleggi picanto o mgzs se presenti
-        const cleanedTransports = finalTransports.filter(t => t.id !== "tr-car-picanto" && t.id !== "tr-car-mgzs");
-        if (cleanedTransports.length !== finalTransports.length) {
+        const cleanedTransports = merged.filter(t => t.id !== "tr-car-picanto" && t.id !== "tr-car-mgzs");
+        if (cleanedTransports.length !== merged.length) {
           needsSave = true;
         }
 
@@ -1143,17 +1234,29 @@ export default function TransportsView() {
           &middot; ordine cronologico
         </p>
 
-        <div className="space-y-3">
-          {filteredTransports.map((tr) => (
-            <SwipeToDelete
-              key={tr.id}
-              label="Elimina"
-              onDelete={() => handleDelete(tr.id)}
+        {transports.length === 0 ? (
+          <div className="py-10 px-4 text-center bg-gray-50/60 border border-dashed border-gray-200 rounded-2xl space-y-3">
+            <p className="text-[13px] font-bold text-gray-700">Non hai ancora inserito spostamenti.</p>
+            <button
+              onClick={() => setFormState({ show: true, tr: null })}
+              className="px-4 py-2 bg-blue-600 text-white font-extrabold text-[12px] rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
             >
-              <TransportCard tr={tr} onSelect={setSelected} />
-            </SwipeToDelete>
-          ))}
-        </div>
+              + Aggiungi trasporto
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredTransports.map((tr) => (
+              <SwipeToDelete
+                key={tr.id}
+                label="Elimina"
+                onDelete={() => handleDelete(tr.id)}
+              >
+                <TransportCard tr={tr} onSelect={setSelected} />
+              </SwipeToDelete>
+            ))}
+          </div>
+        )}
       </div>
 
       {selected && (

@@ -16,7 +16,7 @@ import {
   ActivityIcon,
 } from "../components/Icons";
 import { repository } from "../services/repository";
-import { parseTransitTimeToMinutes, formatMinutesToHoursAndMinutes, getCachedTransitTime, cleanSubtitle, isDrivingTransit } from "./TodayView";
+import { parseTransitTimeToMinutes, formatMinutesToHoursAndMinutes, getReliableTransitTime, cleanSubtitle, isDrivingTransit, DayMapsButton } from "./TodayView";
 
 // ── Sheet per modificare un'attività esistente ────────────────────────────────
 export function EditActivitySheet({
@@ -46,8 +46,26 @@ export function EditActivitySheet({
   const [bookingRef, setBookingRef] = useState(activity.bookingRef || "");
   const [ticketUrl, setTicketUrl] = useState(activity.ticketUrl || "");
   const [note, setNote] = useState(activity.note || "");
+  const [mapsUrl, setMapsUrl] = useState(activity.mapsUrl || "");
   const [copied, setCopied] = useState(false);
   const copiedTimeoutRef = useRef<any>(null);
+
+  const activeDetailsCount = [
+    price,
+    isPaid,
+    isBooked,
+    bookingRef,
+    timeBeforehand,
+    duration,
+    ticketUrl,
+    note,
+    howToGetThere,
+    transitTime,
+    mapsUrl,
+    type === "other" ? subtitle : undefined,
+  ].filter((val) => (typeof val === "boolean" ? val : !!(val && String(val).trim()))).length;
+
+  const [showOptionalDetails, setShowOptionalDetails] = useState(activeDetailsCount > 0);
 
   const [transportsList, setTransportsList] = useState<any[]>([]);
   const [accommodationsList, setAccommodationsList] = useState<any[]>([]);
@@ -119,6 +137,7 @@ export function EditActivitySheet({
       bookingRef: bookingRef.trim() || undefined,
       ticketUrl: ticketUrl.trim() || undefined,
       note: note.trim() || undefined,
+      mapsUrl: mapsUrl.trim() || undefined,
     });
     onClose();
   }
@@ -291,27 +310,32 @@ export function EditActivitySheet({
             </div>
           )}
 
-          {/* Tipo */}
-          <div>
-            <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
-            <div className="flex gap-2 flex-wrap">
-              {TYPES.map((t) => (
-                <button
-                  key={t.type}
-                  type="button"
-                  onClick={() => setType(t.type)}
-                  className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-colors flex items-center gap-1 ${
-                    type === t.type ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  <span>{t.icon}</span>
-                  <span>{t.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* 1. SEZIONE ESSENZIALE (Sempre Visibile) */}
+          <div className="bg-blue-50/40 border border-blue-100 p-3.5 rounded-2xl space-y-3">
+            <p className="text-[10px] font-bold text-blue-800 uppercase tracking-widest">Dati essenziali</p>
 
-          <div className="space-y-3">
+            {/* Tipo attività */}
+            <div>
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
+              <div className="flex gap-1.5 flex-wrap">
+                {TYPES.map((t) => (
+                  <button
+                    key={t.type}
+                    type="button"
+                    onClick={() => setType(t.type)}
+                    className={`px-2.5 py-1.5 rounded-xl text-[12px] font-semibold transition-colors flex items-center gap-1 ${
+                      type === t.type
+                        ? "bg-blue-600 text-white shadow-2xs"
+                        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span>{t.icon}</span>
+                    <span>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="w-full sm:w-1/3">
                 <label className="text-[11px] font-semibold text-gray-500 block mb-1">Orario *</label>
@@ -320,102 +344,124 @@ export function EditActivitySheet({
                   value={time}
                   placeholder="es. 10:30"
                   onChange={(e) => setTime(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                 />
               </div>
               <div className="w-full sm:w-2/3">
-                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Titolo *</label>
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">
+                  {type === "transport" ? "Titolo / Tratta *" : "Titolo *"}
+                </label>
                 <input
                   type="text"
                   value={title}
+                  placeholder={type === "transport" ? "es. Volo Milano → Tokyo" : "es. Visita al tempio"}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                 />
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="w-full sm:flex-1">
-                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
+
+            {type !== "other" && (
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Luogo</label>
                 <input
                   type="text"
                   value={subtitle}
+                  placeholder={type === "transport" ? "es. Aeroporto / Compagnia" : "es. Quartiere o città"}
                   onChange={(e) => setSubtitle(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                 />
               </div>
-              <div className="w-full sm:w-1/3">
-                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
-                <input
-                  type="text"
-                  value={price}
-                  placeholder="es. 50"
-                  onChange={(e) => setPrice(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento (es. 1h 30m)</label>
-              <input
-                type="text"
-                value={transitTime}
-                placeholder="Tempo di trasferimento dal posto precedente"
-                onChange={(e) => setTransitTime(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
-              />
-            </div>
+            )}
+          </div>
 
-            {/* Toggle Prenotato & Pagato */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-                <span className="text-[11px] font-bold text-gray-700">Prenotazione Richiesta</span>
-                <button
-                  type="button"
-                  onClick={() => setIsBooked(!isBooked)}
-                  className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
-                    isBooked
-                      ? "bg-blue-50 text-blue-600 border border-blue-200"
-                      : "bg-gray-100 text-gray-400 border border-gray-200"
-                  }`}
-                >
-                  {isBooked ? "✅ Sì" : "❌ No"}
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-                <span className="text-[11px] font-bold text-gray-700">Pagato</span>
-                <button
-                  type="button"
-                  onClick={() => setIsPaid(!isPaid)}
-                  className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
-                    isPaid
-                      ? "bg-green-50 text-green-600 border border-green-200"
-                      : "bg-red-50 text-red-500 border border-red-100"
-                  }`}
-                >
-                  {isPaid ? "✅ Sì" : "⏳ No"}
-                </button>
-              </div>
+          {/* 2. ACCORDION DETTAGLI CONDIZIONALI */}
+          <button
+            type="button"
+            onClick={() => setShowOptionalDetails((prev) => !prev)}
+            className="w-full py-2.5 px-3.5 bg-gray-50 hover:bg-gray-100 border border-gray-200/80 rounded-2xl text-[12px] font-bold text-gray-800 flex items-center justify-between transition-colors shadow-2xs"
+          >
+            <div className="flex items-center gap-2">
+              <span>📋</span>
+              <span>Altri dettagli</span>
+              {activeDetailsCount > 0 && (
+                <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full text-[10px] font-extrabold">
+                  {activeDetailsCount} {activeDetailsCount === 1 ? "inserito" : "inseriti"}
+                </span>
+              )}
             </div>
+            <IcChevronDown
+              size={16}
+              className={`transition-transform duration-200 ${
+                showOptionalDetails ? "rotate-180 text-blue-600" : "text-gray-400"
+              }`}
+            />
+          </button>
 
-            {/* Sezione Logistica / Informazioni aggiuntive per attività */}
-            {type !== "transport" && type !== "hotel" && (
-              <div className="border-t border-gray-100 pt-3.5 space-y-3">
-                <div className="bg-blue-50/50 border border-blue-100/50 rounded-xl px-3 py-2">
-                  <p className="text-[10px] text-blue-800 font-extrabold uppercase tracking-wider">Logistica & Info Biglietti</p>
+          {showOptionalDetails && (
+            <div className="space-y-3 p-3.5 bg-gray-50/70 border border-gray-200/60 rounded-2xl">
+              {type === "other" && (
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Luogo</label>
+                  <input
+                    type="text"
+                    value={subtitle}
+                    placeholder="es. Indirizzo o punto d'incontro"
+                    onChange={(e) => setSubtitle(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                  />
+                </div>
+              )}
+
+              {/* Prezzo & Toggles */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
+                  <input
+                    type="text"
+                    value={price}
+                    placeholder="es. 45"
+                    onChange={(e) => setPrice(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                  />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">Quanto prima presentarsi</label>
-                    <input
-                      type="text"
-                      value={timeBeforehand}
-                      placeholder="es. 30 minuti prima"
-                      onChange={(e) => setTimeBeforehand(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-                    />
+                {type !== "shopping" && (
+                  <div className="flex items-center justify-between p-2 bg-white rounded-xl border border-gray-200">
+                    <span className="text-[11px] font-bold text-gray-700">Prenotazione</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsBooked(!isBooked)}
+                      className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
+                        isBooked
+                          ? "bg-blue-50 text-blue-600 border border-blue-200"
+                          : "bg-gray-100 text-gray-400 border border-gray-200"
+                      }`}
+                    >
+                      {isBooked ? "✅ Sì" : "❌ No"}
+                    </button>
                   </div>
+                )}
+
+                <div className="flex items-center justify-between p-2 bg-white rounded-xl border border-gray-200">
+                  <span className="text-[11px] font-bold text-gray-700">Pagato</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsPaid(!isPaid)}
+                    className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
+                      isPaid
+                        ? "bg-green-50 text-green-600 border border-green-200"
+                        : "bg-red-50 text-red-500 border border-red-100"
+                    }`}
+                  >
+                    {isPaid ? "✅ Sì" : "⏳ No"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Durata & Presentarsi prima */}
+              {(type === "sightseeing" || type === "transport" || type === "food" || type === "other") && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
                     <label className="text-[11px] font-semibold text-gray-500 block mb-1">Durata</label>
                     <input
@@ -423,20 +469,64 @@ export function EditActivitySheet({
                       value={duration}
                       placeholder="es. 2 ore"
                       onChange={(e) => setDuration(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                      className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                  {(type === "sightseeing" || type === "transport") && (
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-500 block mb-1">Presentarsi prima</label>
+                      <input
+                        type="text"
+                        value={timeBeforehand}
+                        placeholder="es. 30m prima"
+                        onChange={(e) => setTimeBeforehand(e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tempo di trasferimento */}
+              {(type === "sightseeing" || type === "transport") && (
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento</label>
+                  <input
+                    type="text"
+                    value={transitTime}
+                    placeholder="es. 45m dal luogo precedente"
+                    onChange={(e) => setTransitTime(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                  />
+                </div>
+              )}
+
+              {/* Link Google Maps */}
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Link Google Maps</label>
+                <input
+                  type="text"
+                  value={mapsUrl}
+                  placeholder="Incolla il link Google Maps del luogo"
+                  onChange={(e) => setMapsUrl(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                />
+              </div>
+
+              {/* Codice Prenotazione & Link */}
+              {(type === "sightseeing" || type === "hotel" || type === "transport") && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">Codice Prenotazione</label>
+                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">
+                      {type === "transport" ? "PNR / Codice Prenotazione" : "Codice Prenotazione"}
+                    </label>
                     <input
                       type="text"
                       value={bookingRef}
                       placeholder="es. BK-987"
                       onChange={(e) => setBookingRef(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400 font-mono font-bold"
+                      className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 font-mono font-bold outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -446,84 +536,48 @@ export function EditActivitySheet({
                       value={ticketUrl}
                       placeholder="https://..."
                       onChange={(e) => setTicketUrl(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                      className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                     />
                   </div>
                 </div>
+              )}
 
-                {ticketUrl && ticketUrl.startsWith("http") && (
-                  <a
-                    href={ticketUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block text-center text-[12px] font-black text-blue-600 bg-blue-50 py-2 rounded-xl hover:underline"
-                  >
-                    🔗 Apri link prenotazione / biglietti
-                  </a>
-                )}
-
+              {(type === "food" || type === "shopping" || type === "other") && (
                 <div>
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="text-[11px] font-semibold text-gray-500 block">Come arrivare</label>
-                    {howToGetThere.trim() && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(howToGetThere);
-                          if (copiedTimeoutRef.current) {
-                            clearTimeout(copiedTimeoutRef.current);
-                          }
-                          setCopied(true);
-                          copiedTimeoutRef.current = setTimeout(() => {
-                            setCopied(false);
-                          }, 2000);
-                        }}
-                        className={`text-[9.5px] font-extrabold flex items-center gap-1 px-2.5 py-1 rounded-lg border transition-all active:scale-95 shrink-0 ${
-                          copied
-                            ? "bg-green-50 text-green-700 border-green-200"
-                            : "bg-slate-50 text-slate-600 border-slate-100 hover:text-blue-650 hover:bg-blue-50 hover:border-blue-100"
-                        }`}
-                        title="Copia negli appunti"
-                      >
-                        {copied ? (
-                          <>
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                            <span>Copiato</span>
-                          </>
-                        ) : (
-                          <>
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-                              <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                            </svg>
-                            <span>Copia</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Link / Sito web</label>
+                  <input
+                    type="text"
+                    value={ticketUrl}
+                    placeholder="https://..."
+                    onChange={(e) => setTicketUrl(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                  />
+                </div>
+              )}
+
+              {(type === "sightseeing" || type === "transport") && (
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Come arrivare / Note percorso</label>
                   <textarea
                     value={howToGetThere}
-                    placeholder="Parcheggio, fermata bus consigliata, indirizzo o note sul percorso..."
+                    placeholder="Parcheggio, fermata bus, indicazioni..."
                     onChange={(e) => setHowToGetThere(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-[12.5px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:bg-white resize-none min-h-[70px]"
+                    className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-[12.5px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 resize-none min-h-[60px]"
                   />
                 </div>
+              )}
 
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Note Pratiche</label>
-                  <textarea
-                    value={note}
-                    placeholder="Abbigliamento consigliato, cibo incluso, meteo-sensibilità..."
-                    onChange={(e) => setNote(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-[12.5px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:bg-white resize-none min-h-[70px]"
-                  />
-                </div>
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Note</label>
+                <textarea
+                  value={note}
+                  placeholder="Note o dettagli utili per questa attività..."
+                  onChange={(e) => setNote(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-[12.5px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 resize-none min-h-[60px]"
+                />
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         <div className="flex gap-2 mt-5">
@@ -631,26 +685,26 @@ function TripTimelineRow({
   const mapsUrl = buildSingleMapsUrl(activity, dayLocation);
 
   return (
-    <div className={`flex gap-3 items-start select-none transition-opacity ${completed ? "opacity-60" : ""}`}>
-      {/* Time */}
-      <div className="w-12 pt-1 flex-shrink-0 text-right">
-        <span className={`font-semibold ${isFirst ? "text-blue-700 text-[14px]" : "text-gray-400 text-[12px]"} ${completed ? "line-through text-gray-300" : ""}`}>
+    <div className={`flex gap-2.5 items-stretch select-none transition-opacity ${completed ? "opacity-60" : ""}`}>
+      {/* Colonna Timeline Sinistra (Orario sopra il pallino) */}
+      <div className="flex flex-col items-center flex-shrink-0 w-11 pt-0.5">
+        <span className={`text-[11px] leading-none font-extrabold tracking-tight text-center ${
+          isFirst ? "text-blue-700 font-black" : "text-gray-500"
+        } ${completed ? "line-through text-gray-300" : ""}`}>
           {activity.time}
         </span>
-      </div>
-
-      {/* Dot + line */}
-      <div className="flex flex-col items-center flex-shrink-0" style={{ width: 20, marginTop: 6 }}>
-        <div
-          className="rounded-full flex-shrink-0 w-3.5 h-3.5 border-2"
-          style={{
-            borderColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#6366f1" : "#d1d5db",
-            backgroundColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#6366f1" : "#ffffff",
-          }}
-        />
+        <div className="my-1.5 flex items-center justify-center min-h-[20px]">
+          <div
+            className="rounded-full flex-shrink-0 w-3.5 h-3.5 border-2"
+            style={{
+              borderColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#6366f1" : "#d1d5db",
+              backgroundColor: completed ? "#10b981" : isFirst ? "#2563eb" : isTransport ? "#6366f1" : "#ffffff",
+            }}
+          />
+        </div>
         {!isLast && (
           <div
-            className="w-px flex-1 my-1"
+            className="w-px flex-1"
             style={{ backgroundColor: completed ? "#10b981" : "#e5e7eb" }}
           />
         )}
@@ -758,7 +812,21 @@ function TripTimelineRow({
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-1.5 flex-wrap">
-                    <p className={`font-semibold text-[13px] text-gray-900 leading-snug [overflow-wrap:anywhere] ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
+                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest shrink-0 border ${
+                      activity.type === "sightseeing" ? "bg-blue-50 text-blue-700 border-blue-100" :
+                      activity.type === "transport" ? "bg-indigo-50 text-indigo-700 border-indigo-100" :
+                      activity.type === "food" ? "bg-orange-50 text-orange-700 border-orange-100" :
+                      activity.type === "hotel" ? "bg-purple-50 text-purple-700 border-purple-100" :
+                      activity.type === "shopping" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+                      "bg-gray-100 text-gray-600 border-gray-200"
+                    }`}>
+                      {activity.type === "sightseeing" ? "Visita" :
+                       activity.type === "transport" ? "Trasferimento" :
+                       activity.type === "food" ? "Pasto" :
+                       activity.type === "hotel" ? "Alloggio" :
+                       activity.type === "shopping" ? "Shopping" : "Altro"}
+                    </span>
+                    <p className={`font-bold text-[13.5px] text-gray-900 leading-snug [overflow-wrap:anywhere] ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
                     {activity.price !== undefined && (
                       <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded-full uppercase shrink-0 leading-none mt-0.5 ${
                         activity.isPaid
@@ -842,7 +910,6 @@ export function AddActivitySheet({
   const [type, setType] = useState<Activity["type"]>("sightseeing");
   const [title, setTitle] = useState("");
   const [subtitle, setSubtitle] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
   const [transitTime, setTransitTime] = useState("");
   const [price, setPrice] = useState("");
   const [isPaid, setIsPaid] = useState(false);
@@ -853,6 +920,9 @@ export function AddActivitySheet({
   const [bookingRef, setBookingRef] = useState("");
   const [ticketUrl, setTicketUrl] = useState("");
   const [note, setNote] = useState("");
+  const [mapsUrl, setMapsUrl] = useState("");
+
+  const [showOptionalDetails, setShowOptionalDetails] = useState(false);
 
   function handleSubmit() {
     if (!title.trim() || !time.trim()) return;
@@ -862,8 +932,7 @@ export function AddActivitySheet({
       time: time.trim(),
       type,
       title: title.trim(),
-      subtitle: subtitle.trim() || "Attività del giorno",
-      imageUrl: imageUrl.trim() || undefined,
+      subtitle: subtitle.trim() || (type === "other" ? "" : "Attività del giorno"),
       transitTime: transitTime.trim() || undefined,
       price: isNaN(parsedPrice) ? undefined : parsedPrice,
       isPaid,
@@ -874,6 +943,7 @@ export function AddActivitySheet({
       bookingRef: bookingRef.trim() || undefined,
       ticketUrl: ticketUrl.trim() || undefined,
       note: note.trim() || undefined,
+      mapsUrl: mapsUrl.trim() || undefined,
     };
     onSave(dayId, newAct);
     onClose();
@@ -889,44 +959,43 @@ export function AddActivitySheet({
   ];
 
   return (
-    <div
-      className="bottom-sheet-backdrop"
-      onClick={onClose}
-    >
-      <div
-        className="bottom-sheet-container"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
-        <div className="flex items-center justify-between mb-4">
+    <div className="bottom-sheet-backdrop" onClick={onClose}>
+      <div className="bottom-sheet-container flex flex-col max-h-[88dvh]" onClick={(e) => e.stopPropagation()}>
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
+        <div className="flex items-center justify-between mb-3 shrink-0">
           <div>
             <h2 className="text-[17px] font-extrabold text-gray-900">Nuova attività</h2>
-            <p className="text-[12px] text-gray-400">{dayLabel}</p>
+            <p className="text-[12px] font-semibold text-blue-600">{dayLabel}</p>
           </div>
         </div>
 
         <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
-          {/* Tipo */}
-          <div>
-            <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
-            <div className="flex gap-2 flex-wrap">
-              {TYPES.map((t) => (
-                <button
-                  key={t.type}
-                  type="button"
-                  onClick={() => setType(t.type)}
-                  className={`px-3 py-1.5 rounded-xl text-[12px] font-semibold transition-colors flex items-center gap-1 ${
-                    type === t.type ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  <span>{t.icon}</span>
-                  <span>{t.label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* 1. SEZIONE ESSENZIALE (Sempre Visibile) */}
+          <div className="bg-blue-50/40 border border-blue-100 p-3.5 rounded-2xl space-y-3">
+            <p className="text-[10px] font-bold text-blue-800 uppercase tracking-widest">Dati essenziali</p>
 
-          <div className="space-y-3">
+            {/* Tipo attività */}
+            <div>
+              <label className="text-[11px] font-semibold text-gray-500 block mb-1.5">Tipo attività</label>
+              <div className="flex gap-1.5 flex-wrap">
+                {TYPES.map((t) => (
+                  <button
+                    key={t.type}
+                    type="button"
+                    onClick={() => setType(t.type)}
+                    className={`px-2.5 py-1.5 rounded-xl text-[12px] font-semibold transition-colors flex items-center gap-1 ${
+                      type === t.type
+                        ? "bg-blue-600 text-white shadow-2xs"
+                        : "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span>{t.icon}</span>
+                    <span>{t.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-3">
               <div className="w-full sm:w-1/3">
                 <label className="text-[11px] font-semibold text-gray-500 block mb-1">Orario *</label>
@@ -935,117 +1004,119 @@ export function AddActivitySheet({
                   value={time}
                   placeholder="es. 10:30"
                   onChange={(e) => setTime(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                 />
               </div>
               <div className="w-full sm:w-2/3">
-                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Titolo attività *</label>
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">
+                  {type === "transport" ? "Titolo / Tratta *" : "Titolo *"}
+                </label>
                 <input
                   type="text"
                   value={title}
-                  placeholder="es. Visita al vulcano"
+                  placeholder={type === "transport" ? "es. Volo Milano → Tokyo" : "es. Visita al tempio"}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                 />
               </div>
             </div>
 
-            <div>
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Sottotitolo</label>
-              <input
-                type="text"
-                value={subtitle}
-                placeholder="es. Rotorua Geothermal Park"
-                onChange={(e) => setSubtitle(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
-              />
-            </div>
-
-            <div>
-              <label className="text-[11px] font-semibold text-gray-500 block mb-1">Immagine URL (opzionale)</label>
-              <input
-                type="text"
-                value={imageUrl}
-                placeholder="https://images.unsplash.com/..."
-                onChange={(e) => setImageUrl(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
-              />
-            </div>
-
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="w-full sm:flex-1">
-                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento (es. 1h 30m)</label>
+            {type !== "other" && (
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Luogo</label>
                 <input
                   type="text"
-                  value={transitTime}
-                  placeholder="Tempo di trasferimento dal posto precedente"
-                  onChange={(e) => setTransitTime(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
+                  value={subtitle}
+                  placeholder={type === "transport" ? "es. Aeroporto / Compagnia" : "es. Quartiere o città"}
+                  onChange={(e) => setSubtitle(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                 />
               </div>
-              <div className="w-full sm:w-1/3">
-                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
-                <input
-                  type="text"
-                  value={price}
-                  placeholder="es. 45"
-                  onChange={(e) => setPrice(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-                />
-              </div>
+            )}
+          </div>
+
+          {/* 2. ACCORDION DETTAGLI CONDIZIONALI */}
+          <button
+            type="button"
+            onClick={() => setShowOptionalDetails((prev) => !prev)}
+            className="w-full py-2.5 px-3.5 bg-gray-50 hover:bg-gray-100 border border-gray-200/80 rounded-2xl text-[12px] font-bold text-gray-800 flex items-center justify-between transition-colors shadow-2xs"
+          >
+            <div className="flex items-center gap-2">
+              <span>📋</span>
+              <span>Altri dettagli</span>
             </div>
+            <IcChevronDown
+              size={16}
+              className={`transition-transform duration-200 ${
+                showOptionalDetails ? "rotate-180 text-blue-600" : "text-gray-400"
+              }`}
+            />
+          </button>
 
-            {/* Toggle Prenotato & Pagato */}
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-                <span className="text-[11px] font-bold text-gray-700">Prenotazione Richiesta</span>
-                <button
-                  type="button"
-                  onClick={() => setIsBooked(!isBooked)}
-                  className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
-                    isBooked
-                      ? "bg-blue-50 text-blue-600 border border-blue-200"
-                      : "bg-gray-100 text-gray-400 border border-gray-200"
-                  }`}
-                >
-                  {isBooked ? "✅ Sì" : "❌ No"}
-                </button>
-              </div>
+          {showOptionalDetails && (
+            <div className="space-y-3 p-3.5 bg-gray-50/70 border border-gray-200/60 rounded-2xl">
+              {type === "other" && (
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Località / Luogo</label>
+                  <input
+                    type="text"
+                    value={subtitle}
+                    placeholder="es. Indirizzo o punto d'incontro"
+                    onChange={(e) => setSubtitle(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                  />
+                </div>
+              )}
 
-              <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100">
-                <span className="text-[11px] font-bold text-gray-700">Pagato</span>
-                <button
-                  type="button"
-                  onClick={() => setIsPaid(!isPaid)}
-                  className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
-                    isPaid
-                      ? "bg-green-50 text-green-600 border border-green-200"
-                      : "bg-red-50 text-red-500 border border-red-100"
-                  }`}
-                >
-                  {isPaid ? "✅ Sì" : "⏳ No"}
-                </button>
-              </div>
-            </div>
-
-            {/* Sezione Logistica / Informazioni aggiuntive per attività */}
-            {type !== "transport" && type !== "hotel" && (
-              <div className="border-t border-gray-100 pt-3.5 space-y-3">
-                <div className="bg-blue-50/50 border border-blue-100/50 rounded-xl px-3 py-2">
-                  <p className="text-[10px] text-blue-800 font-extrabold uppercase tracking-wider">Logistica & Info Biglietti</p>
+              {/* Prezzo & Toggles */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Prezzo (€)</label>
+                  <input
+                    type="text"
+                    value={price}
+                    placeholder="es. 45"
+                    onChange={(e) => setPrice(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                  />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">Quanto prima presentarsi</label>
-                    <input
-                      type="text"
-                      value={timeBeforehand}
-                      placeholder="es. 30 minuti prima"
-                      onChange={(e) => setTimeBeforehand(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
-                    />
+                {type !== "shopping" && (
+                  <div className="flex items-center justify-between p-2 bg-white rounded-xl border border-gray-200">
+                    <span className="text-[11px] font-bold text-gray-700">Prenotazione</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsBooked(!isBooked)}
+                      className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
+                        isBooked
+                          ? "bg-blue-50 text-blue-600 border border-blue-200"
+                          : "bg-gray-100 text-gray-400 border border-gray-200"
+                      }`}
+                    >
+                      {isBooked ? "✅ Sì" : "❌ No"}
+                    </button>
                   </div>
+                )}
+
+                <div className="flex items-center justify-between p-2 bg-white rounded-xl border border-gray-200">
+                  <span className="text-[11px] font-bold text-gray-700">Pagato</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsPaid(!isPaid)}
+                    className={`px-2 py-1 rounded text-[10px] font-extrabold uppercase transition-colors ${
+                      isPaid
+                        ? "bg-green-50 text-green-600 border border-green-200"
+                        : "bg-red-50 text-red-500 border border-red-100"
+                    }`}
+                  >
+                    {isPaid ? "✅ Sì" : "⏳ No"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Durata & Presentarsi prima */}
+              {(type === "sightseeing" || type === "transport" || type === "food" || type === "other") && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
                     <label className="text-[11px] font-semibold text-gray-500 block mb-1">Durata</label>
                     <input
@@ -1053,20 +1124,64 @@ export function AddActivitySheet({
                       value={duration}
                       placeholder="es. 2 ore"
                       onChange={(e) => setDuration(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                      className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                     />
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                  {(type === "sightseeing" || type === "transport") && (
+                    <div>
+                      <label className="text-[11px] font-semibold text-gray-500 block mb-1">Presentarsi prima</label>
+                      <input
+                        type="text"
+                        value={timeBeforehand}
+                        placeholder="es. 30m prima"
+                        onChange={(e) => setTimeBeforehand(e.target.value)}
+                        className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tempo di trasferimento */}
+              {(type === "sightseeing" || type === "transport") && (
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Tempo di trasferimento</label>
+                  <input
+                    type="text"
+                    value={transitTime}
+                    placeholder="es. 45m dal luogo precedente"
+                    onChange={(e) => setTransitTime(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                  />
+                </div>
+              )}
+
+              {/* Link Google Maps */}
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Link Google Maps</label>
+                <input
+                  type="text"
+                  value={mapsUrl}
+                  placeholder="Incolla il link Google Maps del luogo"
+                  onChange={(e) => setMapsUrl(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                />
+              </div>
+
+              {/* Codice Prenotazione & Link */}
+              {(type === "sightseeing" || type === "hotel" || type === "transport") && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div>
-                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">Codice Prenotazione</label>
+                    <label className="text-[11px] font-semibold text-gray-500 block mb-1">
+                      {type === "transport" ? "PNR / Codice Prenotazione" : "Codice Prenotazione"}
+                    </label>
                     <input
                       type="text"
                       value={bookingRef}
                       placeholder="es. BK-987"
                       onChange={(e) => setBookingRef(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400 font-mono font-bold"
+                      className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 font-mono font-bold outline-none focus:border-blue-400"
                     />
                   </div>
                   <div>
@@ -1076,44 +1191,62 @@ export function AddActivitySheet({
                       value={ticketUrl}
                       placeholder="https://..."
                       onChange={(e) => setTicketUrl(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                      className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
                     />
                   </div>
                 </div>
+              )}
 
+              {(type === "food" || type === "shopping" || type === "other") && (
                 <div>
-                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Come arrivare</label>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Link / Sito web</label>
+                  <input
+                    type="text"
+                    value={ticketUrl}
+                    placeholder="https://..."
+                    onChange={(e) => setTicketUrl(e.target.value)}
+                    className="w-full bg-white border border-gray-200 rounded-xl px-3 py-2 text-[13px] text-gray-900 outline-none focus:border-blue-400"
+                  />
+                </div>
+              )}
+
+              {(type === "sightseeing" || type === "transport") && (
+                <div>
+                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Come arrivare / Note percorso</label>
                   <textarea
                     value={howToGetThere}
-                    placeholder="Parcheggio, fermata bus consigliata, indirizzo o note sul percorso..."
+                    placeholder="Parcheggio, fermata bus, indicazioni..."
                     onChange={(e) => setHowToGetThere(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-[12.5px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:bg-white resize-none min-h-[70px]"
+                    className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-[12.5px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 resize-none min-h-[60px]"
                   />
                 </div>
+              )}
 
-                <div>
-                  <label className="text-[11px] font-semibold text-gray-500 block mb-1">Note Pratiche</label>
-                  <textarea
-                    value={note}
-                    placeholder="Abbigliamento consigliato, cibo incluso, meteo-sensibilità..."
-                    onChange={(e) => setNote(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-[12.5px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:bg-white resize-none min-h-[70px]"
-                  />
-                </div>
+              <div>
+                <label className="text-[11px] font-semibold text-gray-500 block mb-1">Note</label>
+                <textarea
+                  value={note}
+                  placeholder="Note o dettagli utili per questa attività..."
+                  onChange={(e) => setNote(e.target.value)}
+                  className="w-full bg-white border border-gray-200 rounded-xl p-2.5 text-[12.5px] text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 resize-none min-h-[60px]"
+                />
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
-        <div className="flex gap-2 mt-5">
+        {/* Action Buttons (Sempre Visibili in Basso) */}
+        <div className="flex gap-2 mt-4 pt-2 border-t border-gray-100 shrink-0">
           <button
-            className="flex-1 py-3.5 rounded-2xl bg-gray-100 text-gray-600 font-semibold text-[14px]"
+            type="button"
+            className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-700 font-semibold text-[14px]"
             onClick={onClose}
           >
             Annulla
           </button>
           <button
-            className="flex-1 py-3.5 rounded-2xl bg-blue-600 text-white font-semibold text-[14px]"
+            type="button"
+            className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-semibold text-[14px]"
             onClick={handleSubmit}
             disabled={!title.trim() || !time.trim()}
             style={{ opacity: !title.trim() || !time.trim() ? 0.5 : 1 }}
@@ -1196,8 +1329,8 @@ export default function TripView() {
   const isLoadedRef = useRef(false);
 
   const [expandedDayId, setExpandedDayId] = useState<string | null>(TODAY_DAY_ID);
-  const [addingToDay, setAddingToDay] = useState<{ id: string; label: string } | null>(null);
   const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string } | null>(null);
+  const [addingToDay, setAddingToDay] = useState<{ id: string; label: string } | null>(null);
   const [showDatePicker, setShowDatePicker] = useState(false);
   // Traccia quale giorno ha la modalità modifica attivata
   const [editModeDayId, setEditModeDayId] = useState<string | null>(null);
@@ -1452,7 +1585,32 @@ export default function TripView() {
 
       {/* Lista dei giorni cronologica */}
       <div className="px-4 space-y-3">
-        {tripDays.map((day, idx) => {
+        {(() => {
+          const totalActivities = tripDays.reduce((sum, d) => sum + (d.activities ? d.activities.length : 0), 0);
+          if (tripDays.length === 0) {
+            return (
+              <div className="py-10 px-4 text-center bg-gray-50/60 border border-dashed border-gray-200 rounded-2xl space-y-1.5">
+                <p className="text-[14px] font-bold text-gray-800">Non hai ancora creato il tuo viaggio.</p>
+                <p className="text-[12px] text-gray-500 font-medium leading-relaxed">
+                  La creazione di un viaggio da zero sarà disponibile con il futuro modulo di Onboarding / Nuovo Viaggio.
+                </p>
+              </div>
+            );
+          }
+          if (totalActivities === 0) {
+            return (
+              <div className="py-10 px-4 text-center bg-gray-50/60 border border-dashed border-gray-200 rounded-2xl space-y-3">
+                <p className="text-[14px] font-bold text-gray-800">Il tuo itinerario è vuoto. Inizia aggiungendo la prima tappa.</p>
+                <button
+                  onClick={() => setAddingToDay({ id: tripDays[0].id, label: tripDays[0].dateLabel })}
+                  className="px-4 py-2 bg-blue-600 text-white font-extrabold text-[12px] rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
+                >
+                  + Aggiungi prima tappa
+                </button>
+              </div>
+            );
+          }
+          return tripDays.map((day, idx) => {
           const isExpanded = expandedDayId === day.id;
           const isToday = day.id === realTodayId || (realTodayId === null && day.id === TODAY_DAY_ID);
           const isEditMode = editModeDayId === day.id;
@@ -1465,7 +1623,7 @@ export default function TripView() {
           const totalDriveMin = day.activities.reduce((sum, act, actIdx) => {
             const nextAct = day.activities[actIdx + 1];
             if (!nextAct || !isDrivingTransit(act, nextAct, transportsList, day.date)) return sum;
-            const timeStr = getCachedTransitTime(act, nextAct);
+            const timeStr = getReliableTransitTime(act, nextAct, day.date, transportsList);
             return sum + parseTransitTimeToMinutes(timeStr);
           }, 0);
           const totalDriveStr = formatMinutesToHoursAndMinutes(totalDriveMin);
@@ -1474,7 +1632,7 @@ export default function TripView() {
           const totalNonDriveMin = day.activities.reduce((sum, act, actIdx) => {
             const nextAct = day.activities[actIdx + 1];
             if (!nextAct || isDrivingTransit(act, nextAct, transportsList, day.date)) return sum;
-            const timeStr = getCachedTransitTime(act, nextAct);
+            const timeStr = getReliableTransitTime(act, nextAct, day.date, transportsList);
             const mins = parseTransitTimeToMinutes(timeStr);
             return sum + mins;
           }, 0);
@@ -1594,22 +1752,8 @@ export default function TripView() {
                         <span className="text-[10px] text-gray-400 font-medium">{day.activities.length} tappe</span>
                       )}
                       <div className="flex-1" />
-                      {/* Icona Maps itinerario completo */}
-                      {day.activities.length > 0 && (
-                        <a
-                          href={buildDayItineraryUrl(day.activities, dayFilter)}
-                          target="_blank"
-                          rel="noreferrer"
-                          title="Apri itinerario in Google Maps"
-                          className="flex items-center gap-1 px-2 py-1 bg-white border border-gray-200 rounded-lg hover:bg-blue-50 hover:border-blue-200 active:scale-95 transition-all"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
-                            <circle cx="12" cy="10" r="3"/>
-                          </svg>
-                          <span className="text-[10px] font-bold text-blue-600">Maps</span>
-                        </a>
-                      )}
+                      {/* Pulsante Apri mappa unificato */}
+                      <DayMapsButton activities={day.activities} />
                       {/* Pulsante modifica */}
                       <button
                         onClick={() => setEditModeDayId(isEditMode ? null : day.id)}
@@ -1620,56 +1764,6 @@ export default function TripView() {
                         {isEditMode ? "✓ Fine" : "✏️"}
                       </button>
                     </div>
-
-                    {/* Riga 2: pulsanti link Google Maps condensati per Intera / Mattina / Pomeriggio */}
-                    {day.activities.length > 0 && (() => {
-                      const morningUrl = buildDayItineraryUrl(day.activities, "morning");
-                      const afternoonUrl = buildDayItineraryUrl(day.activities, "afternoon");
-                      const allUrl = buildDayItineraryUrl(day.activities, "all");
-                      const hasMorning = morningUrl !== "https://www.google.com/maps";
-                      const hasAfternoon = afternoonUrl !== "https://www.google.com/maps";
-                      const hasAll = allUrl !== "https://www.google.com/maps";
-
-                      if (!hasAll && !hasMorning && !hasAfternoon) return null;
-
-                      return (
-                        <div className="flex items-center justify-around gap-1.5 pt-1 mt-1 border-t border-gray-100/60 text-center">
-                          {hasAll && (
-                            <a
-                              href={allUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-lg bg-blue-600 text-white hover:bg-blue-700 active:scale-95 transition-all shadow-2xs leading-none"
-                            >
-                              <span className="text-[11px] leading-none mb-0.5">🗺️</span>
-                              <span className="text-[8px] font-black uppercase tracking-tight">Intera</span>
-                            </a>
-                          )}
-                          {hasMorning && (
-                            <a
-                              href={morningUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-lg bg-white text-blue-700 border border-blue-200/70 hover:bg-blue-50 active:scale-95 transition-all leading-none"
-                            >
-                              <span className="text-[11px] leading-none mb-0.5">🌅</span>
-                              <span className="text-[8px] font-black uppercase tracking-tight">Mattina</span>
-                            </a>
-                          )}
-                          {hasAfternoon && (
-                            <a
-                              href={afternoonUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-lg bg-white text-blue-700 border border-blue-200/70 hover:bg-blue-50 active:scale-95 transition-all leading-none"
-                            >
-                              <span className="text-[11px] leading-none mb-0.5">🌆</span>
-                              <span className="text-[8px] font-black uppercase tracking-tight">Pomeriggio</span>
-                            </a>
-                          )}
-                        </div>
-                      );
-                    })()}
                   </div>
 
                   {day.activities.length === 0 ? (
@@ -1681,7 +1775,7 @@ export default function TripView() {
                       {day.activities.map((act, actIdx) => {
                         const prevAct = actIdx > 0 ? day.activities[actIdx - 1] : undefined;
                         // Transit time from the previous activity to this one
-                        const transitFromPrev = prevAct ? getCachedTransitTime(prevAct, act) : undefined;
+                        const transitFromPrev = prevAct ? getReliableTransitTime(prevAct, act, day.date, transportsList) : undefined;
                         return (
                           <TripTimelineRow
                             key={act.id}
@@ -1717,7 +1811,8 @@ export default function TripView() {
               )}
             </div>
           );
-        })}
+        });
+      })()}
       </div>
 
       {addingToDay && (
@@ -1736,6 +1831,18 @@ export default function TripView() {
           onSave={(updated) => handleEditActivity(editingActivity.dayId, updated)}
           onDelete={() => handleDeleteActivity(editingActivity.dayId, editingActivity.activity.id)}
           onClose={() => setEditingActivity(null)}
+        />
+      )}
+
+      {addingToDay && (
+        <AddActivitySheet
+          dayId={addingToDay.id}
+          dayLabel={addingToDay.label}
+          onSave={(dayId, act) => {
+            handleAddActivity(dayId, act);
+            setAddingToDay(null);
+          }}
+          onClose={() => setAddingToDay(null)}
         />
       )}
 

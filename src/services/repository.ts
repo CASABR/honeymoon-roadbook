@@ -99,7 +99,45 @@ export const repository = {
   async getTripDays(fallback: DayData[]): Promise<DayData[]> {
     await checkAndMigrate();
     const data = await kvStorage.get<DayData[]>("hrb_trip_days_v2");
-    return data || fallback;
+    if (!data) return fallback;
+
+    const fallbackMapsUrlMap = new Map<string, string>();
+    for (const day of fallback) {
+      for (const act of day.activities) {
+        if (act.mapsUrl && act.mapsUrl.trim() !== "") {
+          fallbackMapsUrlMap.set(act.id, act.mapsUrl);
+        }
+      }
+    }
+
+    let hasChanges = false;
+
+    const mergedDays: DayData[] = data.map((day) => {
+      let dayChanged = false;
+      const updatedActivities = day.activities.map((act) => {
+        const localMapsUrl = act.mapsUrl ? act.mapsUrl.trim() : "";
+        if (!localMapsUrl) {
+          const fallbackUrl = fallbackMapsUrlMap.get(act.id);
+          if (fallbackUrl) {
+            hasChanges = true;
+            dayChanged = true;
+            return { ...act, mapsUrl: fallbackUrl };
+          }
+        }
+        return act;
+      });
+
+      if (dayChanged) {
+        return { ...day, activities: updatedActivities };
+      }
+      return day;
+    });
+
+    if (hasChanges) {
+      await kvStorage.set("hrb_trip_days_v2", mergedDays);
+    }
+
+    return mergedDays;
   },
   async saveTripDays(days: DayData[]): Promise<void> {
     await kvStorage.set("hrb_trip_days_v2", days);
@@ -185,11 +223,6 @@ export const repository = {
           return { ...e, category: "Altro" };
         }
         return e;
-      });
-      fallback.forEach((init) => {
-        if (!list.some((e) => e.id === init.id)) {
-          list.push(init);
-        }
       });
       return list;
     }

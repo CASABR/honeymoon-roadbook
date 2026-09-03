@@ -264,7 +264,8 @@
         "type": "sightseeing",
         "title": "Hamilton Gardens",
         "subtitle": "Hamilton, Nuova Zelanda (consigliato)",
-        "transitTime": "1h 30m"
+        "transitTime": "1h 30m",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Hamilton+Gardens,+Hamilton,+New+Zealand"
       },
       {
         "id": "d5-3",
@@ -272,7 +273,8 @@
         "type": "sightseeing",
         "title": "Otorohanga Kiwi House",
         "subtitle": "20 Alex Telfer Drive, Otorohanga",
-        "transitTime": "45m"
+        "transitTime": "45m",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=20+Alex+Telfer+Drive,+Otorohanga,+New+Zealand"
       },
       {
         "id": "d5-4",
@@ -280,7 +282,8 @@
         "type": "sightseeing",
         "title": "Mangapohue Natural Bridge",
         "subtitle": "Te Anga Road, Waitomo",
-        "transitTime": "40m"
+        "transitTime": "40m",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Te+Anga+Road,+Waitomo,+New+Zealand"
       },
       {
         "id": "d5-5",
@@ -296,6 +299,7 @@
         "timeBeforehand": "Arrivare 15 minuti prima dell'inizio del tour",
         "duration": "45m",
         "ticketUrl": "https://www.waitomo.com/experiences/waitomo-glowworm-caves",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=39+Waitomo+Village+Road,+Waitomo,+New+Zealand",
         "note": "Il tour include una camminata guidata e un giro in barca silenzioso sotto migliaia di lucciole luminose. Temperatura interna di circa 12°C costante: si raccomanda una giacca e scarpe comode.",
         "isManaged": true
       },
@@ -332,6 +336,7 @@
         "timeBeforehand": "Arrivare 15 minuti prima",
         "duration": "2h 30m",
         "ticketUrl": "https://www.hobbitontours.com/",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=501+Buckland+Road,+Matamata,+New+Zealand",
         "note": "Visita guidata del set cinematografico dei film Lo Hobbit e Il Signore degli Anelli, e una bevanda inclusa al pub Green Dragon Inn.",
         "isManaged": true
       },
@@ -340,14 +345,16 @@
         "time": "13:00",
         "type": "food",
         "title": "Big Dog and Sheep — Pranzo a Tirau",
-        "subtitle": "Tirau i-SITE Visitor Information Centre"
+        "subtitle": "Tirau i-SITE Visitor Information Centre",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Tirau+i-SITE+Visitor+Centre,+Tirau,+New+Zealand"
       },
       {
         "id": "d6-3",
         "time": "15:00",
         "type": "sightseeing",
         "title": "Te Waihou Blue Spring",
-        "subtitle": "Whites Road, Putaruru"
+        "subtitle": "Whites Road, Putaruru",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Whites+Road,+Putaruru,+New+Zealand"
       },
       {
         "id": "d6-4",
@@ -363,6 +370,7 @@
         "timeBeforehand": "Check-in a partire dalle 17:15, inizio ore 17:30",
         "duration": "3h",
         "ticketUrl": "https://www.mitai.co.nz/",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=196+Fairy+Springs+Road,+Rotorua,+New+Zealand",
         "note": "Spettacolo culturale tradicional, visita della sorgente d'acqua sacra e cena Hangi tipica inclusa. Portare abbigliamento comodo e scarpe per la camminata notturna.",
         "isManaged": true
       },
@@ -398,6 +406,7 @@
         "timeBeforehand": "Arrivare all'orario prenotato",
         "duration": "40m",
         "ticketUrl": "https://www.redwoods.co.nz/",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=1+Long+Mile+Road,+Rotorua,+New+Zealand",
         "note": "Passeggiata notturna sospesa tra le sequoie illuminate.",
         "isManaged": true
       },

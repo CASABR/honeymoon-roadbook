@@ -19,37 +19,94 @@ import {
   ActivityIcon,
 } from "../components/Icons";
 import { repository } from "../services/repository";
-import type { Checklist } from "../services/repository";
-import { EditActivitySheet } from "./TripView";
+import { EditActivitySheet, AddActivitySheet } from "./TripView";
+import {
+  calculateDrivingRoute,
+  getCachedDrivingRoute,
+  delayMs,
+  type DrivingRoute,
+} from "../services/routingService";
+
+export interface CandidateSegment {
+  originUrl: string;
+  destUrl: string;
+  fromId: string;
+  toId: string;
+}
+
+export function getDrivingCandidateSegments(
+  day: DayData,
+  prevDayAcc?: Accommodation | null,
+  accommodationsList?: Accommodation[],
+  transportsList?: any[]
+): CandidateSegment[] {
+  if (!day) return [];
+
+  const processed = dedupeDayActivities(day.activities || [], day.date, accommodationsList);
+  const points: { id: string; mapsUrl: string; act?: Activity }[] = [];
+
+  // 1. Alloggio notte precedente (se ha mapsUrl)
+  if (prevDayAcc?.mapsUrl && prevDayAcc.mapsUrl.trim() !== "") {
+    points.push({ id: "prev_acc", mapsUrl: prevDayAcc.mapsUrl.trim() });
+  }
+
+  // 2. Attività della giornata con mapsUrl affidabile
+  for (const act of processed) {
+    const actAny = act as any;
+    if (actAny.mapsUrl && typeof actAny.mapsUrl === "string" && actAny.mapsUrl.trim() !== "") {
+      const url = actAny.mapsUrl.trim();
+      if (points.length === 0 || points[points.length - 1].mapsUrl !== url) {
+        points.push({ id: act.id, mapsUrl: url, act });
+      }
+    }
+  }
+
+  // 3. Alloggio notte corrente (se ha mapsUrl e diverso dall'ultimo punto)
+  const todayAcc = getTodayAccommodation(day.date, accommodationsList, day.activities);
+  if (todayAcc?.mapsUrl && todayAcc.mapsUrl.trim() !== "") {
+    const url = todayAcc.mapsUrl.trim();
+    if (points.length === 0 || points[points.length - 1].mapsUrl !== url) {
+      points.push({ id: "today_acc", mapsUrl: url });
+    }
+  }
+
+  if (points.length < 2) return [];
+
+  const segments: CandidateSegment[] = [];
+
+  for (let i = 0; i < points.length - 1; i++) {
+    const p1 = points[i];
+    const p2 = points[i + 1];
+
+    if (p1.act && p2.act) {
+      if (!isDrivingTransit(p1.act, p2.act, transportsList, day.date)) {
+        continue;
+      }
+      if (
+        getActivityRoutingCategory(p1.act) === "TOTAL_EXCLUSION" ||
+        getActivityRoutingCategory(p2.act) === "TOTAL_EXCLUSION"
+      ) {
+        continue;
+      }
+      const manualTime = getReliableTransitTime(p1.act, p2.act, day.date, transportsList);
+      if (manualTime) {
+        continue;
+      }
+    }
+
+    segments.push({
+      originUrl: p1.mapsUrl,
+      destUrl: p2.mapsUrl,
+      fromId: p1.id,
+      toId: p2.id,
+    });
+  }
+
+  return segments;
+}
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-function getPriorityActivity(
-  activities: Activity[],
-  completedIds: string[],
-  isToday: boolean
-): { activity: Activity | null; isCompletedAll: boolean } {
-  if (!activities || activities.length === 0) return { activity: null, isCompletedAll: false };
 
-  const uncompleted = activities.filter((a) => !completedIds.includes(a.id));
-  if (uncompleted.length === 0) {
-    return { activity: null, isCompletedAll: true };
-  }
-
-  // Priority a: status === "in_corso"
-  const inCorso = uncompleted.find((a) => a.status === "in_corso");
-  if (inCorso) return { activity: inCorso, isCompletedAll: false };
-
-  // Priority b: if today's date, first uncompleted activity with time >= current time
-  if (isToday) {
-    const now = new Date();
-    const currentHHMM = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-    const upcoming = uncompleted.find((a) => a.time && a.time >= currentHHMM);
-    if (upcoming) return { activity: upcoming, isCompletedAll: false };
-  }
-
-  // Priority c: first uncompleted activity of the day
-  return { activity: uncompleted[0], isCompletedAll: false };
-}
 
 function getToday(days: DayData[], dayId: string) {
   return days.find((d) => d.id === dayId) ?? days[0];
@@ -60,22 +117,34 @@ function getTomorrow(days: DayData[], dayId: string) {
   return idx >= 0 && idx < days.length - 1 ? days[idx + 1] : null;
 }
 
-function getTodayAccommodation(dateISO?: string, accommodations?: Accommodation[], dayActivities?: Activity[]) {
+export function getTodayAccommodation(dateISO?: string, accommodations?: Accommodation[], dayActivities?: Activity[]) {
   const list = accommodations && accommodations.length > 0 ? accommodations : ACCOMMODATIONS;
   
   if (dateISO) {
-    // 1. Cerca prima negli alloggi confermati per intervallo date o checkIn
+    // 1. Cerca prima negli alloggi confermati per intervallo date: startDate <= dateISO < endDate
     const foundAcc = list.find((acc) => {
       if (acc.startDate && acc.endDate) {
         return dateISO >= acc.startDate && dateISO < acc.endDate; // La notte appartiene all'intervallo prima del checkout
       }
-      return acc.checkIn?.includes(dateISO) || acc.dates?.includes(dateISO);
+      return false;
     });
     if (foundAcc) return foundAcc;
 
-    // 2. Cerca nelle attività del giorno se c'è un'attività hotel
+    // 2. Se non trova per startDate/endDate, cerca se acc.dates o acc.checkIn contengono esplicitamente dateISO
+    const fallbackAcc = list.find((acc) => {
+      if (acc.dates && acc.dates.includes(dateISO)) return true;
+      if (acc.checkIn && acc.checkIn.includes(dateISO)) return true;
+      return false;
+    });
+    if (fallbackAcc) return fallbackAcc;
+
+    // 3. Cerca nelle attività del giorno se c'è un'attività hotel che NON sia un check-out
     if (dayActivities) {
-      const hotelAct = dayActivities.find(a => a.type === "hotel");
+      const hotelAct = dayActivities.find(a => {
+        if (a.type !== "hotel") return false;
+        const t = a.title.toLowerCase();
+        return !t.includes("check-out") && !t.includes("checkout") && !t.includes("partenza") && !t.includes("lasciare");
+      });
       if (hotelAct) {
         return {
           id: hotelAct.id,
@@ -94,7 +163,49 @@ function getTodayAccommodation(dateISO?: string, accommodations?: Accommodation[
     // Se per quel giorno siamo in volo, scalo o transito e non c'è alloggio -> restituisce null
     return null;
   }
-  return list[0];
+  return null;
+}
+
+export function dedupeDayActivities(
+  activities: Activity[],
+  dayDate?: string,
+  accommodationsList?: Accommodation[]
+): Activity[] {
+  if (!activities || activities.length === 0) return [];
+
+  const seenKeys = new Set<string>();
+
+  return activities.filter((act) => {
+    if (act.type !== "hotel") {
+      if (seenKeys.has(act.id)) return false;
+      seenKeys.add(act.id);
+      return true;
+    }
+
+    const titleLower = act.title.toLowerCase();
+    const isCheckout = titleLower.includes("check-out") || titleLower.includes("checkout") || titleLower.includes("partenza");
+    const isCheckin = titleLower.includes("check-in") || titleLower.includes("checkin") || titleLower.includes("arrivo");
+
+    const matchedAcc = accommodationsList && dayDate ? accommodationsList.find((acc) => {
+      const accNameLower = acc.name.toLowerCase();
+      return titleLower.includes(accNameLower) || accNameLower.includes(titleLower) || (act.subtitle && act.subtitle.toLowerCase().includes(accNameLower));
+    }) : undefined;
+
+    if (matchedAcc && dayDate) {
+      if (isCheckout && matchedAcc.endDate && dayDate !== matchedAcc.endDate) {
+        return false;
+      }
+      if (isCheckin && matchedAcc.startDate && dayDate !== matchedAcc.startDate) {
+        return false;
+      }
+    }
+
+    const hotelKey = `hotel_${act.title.trim().toLowerCase()}_${act.time}`;
+    if (seenKeys.has(hotelKey)) return false;
+    seenKeys.add(hotelKey);
+    seenKeys.add(act.id);
+    return true;
+  });
 }
 
 export function cleanQueryForGeocoding(str: string): string {
@@ -172,33 +283,56 @@ export function cleanSubtitle(subtitle?: string): string | undefined {
   return subtitle;
 }
 
-export function getCachedTransitTime(act: Activity, nextAct?: Activity): string | undefined {
-  // 1. Ritorno immediato se l'attività ha un transitTime esplicito (senza controlli successivi)
+export function formatTransitTime(rawTime?: string): string | undefined {
+  if (!rawTime) return undefined;
+  const cleaned = rawTime.trim();
+  if (!cleaned || cleaned === "N/D" || cleaned === "—" || cleaned === "0" || cleaned === "0m") return undefined;
+
+  const totalMin = parseTransitTimeToMinutes(cleaned);
+  if (totalMin <= 0) return undefined;
+
+  if (totalMin < 60) {
+    return `${totalMin} min`;
+  }
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+export function getReliableTransitTime(
+  act: Activity,
+  nextAct?: Activity,
+  dayDate?: string,
+  transportsList?: any[]
+): string | undefined {
+  // 1. Priorità 1: transitTime manuale dell'attività corrente
   if (act.transitTime) {
-    if (act.title.includes("Roma Termini")) {
-      console.log("[DEBUG] getCachedTransitTime hit act.transitTime per Roma-Milano:", act.transitTime);
+    const formatted = formatTransitTime(act.transitTime);
+    if (formatted) return formatted;
+  }
+
+  // 2. Priorità 2: Transport chiaramente associato alla tratta con una duration valida
+  if (transportsList && dayDate) {
+    const targetAct = act.type === "transport" ? act : (nextAct?.type === "transport" ? nextAct : null);
+    if (targetAct) {
+      const matchTr = transportsList.find((tr) => {
+        if (tr.date !== dayDate) return false;
+        const actTitleLower = targetAct.title.toLowerCase();
+        const trFromLower = tr.from.toLowerCase();
+        const trToLower = tr.to.toLowerCase();
+        const cityMatch = actTitleLower.includes(trFromLower) || actTitleLower.includes(trToLower);
+        const codeMatch = tr.carrierCode && actTitleLower.includes(tr.carrierCode.toLowerCase());
+        return cityMatch || codeMatch;
+      });
+
+      if (matchTr?.duration) {
+        const formatted = formatTransitTime(matchTr.duration);
+        if (formatted) return formatted;
+      }
     }
-    return act.transitTime;
   }
 
-  // 2. Ritorno se dal testo del titolo/sottotitolo è estratta una durata esplicita
-  const extractedFromCurrent = extractDurationFromText(act.subtitle) || extractDurationFromText(act.title);
-  if (extractedFromCurrent) return extractedFromCurrent;
-
-  if (!nextAct) return undefined;
-
-  // 3. Fallback alla cache OSRM (solo per percorsi sprovvisti di tempo esplicito)
-  const fromQuery = cleanQueryForGeocoding(`${act.title}, ${act.subtitle || ""}`);
-  const toQuery = cleanQueryForGeocoding(`${nextAct.title}, ${nextAct.subtitle || ""}`);
-
-  const cacheKey = `hrb_route_${encodeURIComponent(fromQuery)}_${encodeURIComponent(toQuery)}`;
-  const cached = localStorage.getItem(cacheKey);
-  if (cached) {
-    try {
-      const { duration } = JSON.parse(cached);
-      return duration;
-    } catch (_) {}
-  }
+  // 3. Nessuna durata esplicita e affidabile -> undefined (niente N/D, niente stime)
   return undefined;
 }
 
@@ -382,6 +516,42 @@ function QRModal({ activity, onClose }: { activity: Activity; onClose: () => voi
               ⚠️ Salvata solo nel browser locale (max 10 MB).
               Si perde se si pulisce la cache.
             </p>
+          </div>
+        )}
+
+        {/* Box PNR & Dettagli Biglietto integrato nel popup QR */}
+        {(activity.bookingRef || activity.title) && (
+          <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-3.5 mb-4 space-y-2 text-[12px]">
+            {activity.bookingRef && (
+              <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-150 shadow-2xs">
+                <div>
+                  <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block">Codice Prenotazione (PNR)</span>
+                  <span className="font-mono font-black text-[14px] text-slate-850 block mt-0.5">{activity.bookingRef}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(activity.bookingRef || "");
+                    alert(`Codice PNR "${activity.bookingRef}" copiato negli appunti!`);
+                  }}
+                  className="px-2.5 py-1 bg-blue-50 border border-blue-100 rounded-lg text-[10.5px] font-bold text-blue-700 active:scale-95 transition-all shrink-0"
+                >
+                  📋 Copia
+                </button>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-2 text-slate-600 pt-1">
+              <div>
+                <span className="text-[9px] font-bold text-gray-400 block uppercase">Tratta / Attività</span>
+                <span className="font-bold text-slate-800 text-[12px] block truncate">{activity.title}</span>
+              </div>
+              {activity.time && (
+                <div>
+                  <span className="text-[9px] font-bold text-gray-400 block uppercase">Orario previsto</span>
+                  <span className="font-bold text-slate-800 text-[12px] block">{activity.time}</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -675,8 +845,7 @@ function buildMapsUrl(activity: Activity, dayLocation?: string) {
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(queryParts.join(", ").trim())}`;
 }
 
-/*
-function buildDayItineraryUrl(activities: Activity[], filter: "all" | "morning" | "afternoon" = "all"): string {
+export function buildDayItineraryUrl(activities: Activity[], filter: "all" | "morning" | "afternoon" = "all"): string {
   const filtered = activities.filter(a => {
     if (!a.time) return filter === "all";
     const hourMatch = a.time.match(/^(\d{1,2})/);
@@ -686,13 +855,13 @@ function buildDayItineraryUrl(activities: Activity[], filter: "all" | "morning" 
     return true;
   });
   const withLocation = filtered.filter(a => {
-    const q = a.subtitle && a.subtitle !== "Attività del giorno" ? a.subtitle : a.title;
+    const q = cleanSubtitle(a.subtitle) || a.title;
     return q && q.trim().length > 2;
   });
-  if (withLocation.length === 0) return "https://www.google.com/maps";
+  if (withLocation.length === 0) return "";
   const makeQ = (a: Activity) =>
-    a.subtitle && a.subtitle !== "Attività del giorno"
-      ? `${a.title}, ${a.subtitle}`
+    cleanSubtitle(a.subtitle)
+      ? `${a.title}, ${cleanSubtitle(a.subtitle)}`
       : a.title;
   if (withLocation.length === 1) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(makeQ(withLocation[0]).trim())}`;
@@ -707,7 +876,139 @@ function buildDayItineraryUrl(activities: Activity[], filter: "all" | "morning" 
   if (waypoints) url += `&waypoints=${waypoints}`;
   return url;
 }
-*/
+
+// ── Sheet / Modal per scegliere la fascia dell'itinerario Google Maps ───────────
+export function MapsPeriodSheet({
+  allUrl,
+  morningUrl,
+  afternoonUrl,
+  onClose,
+}: {
+  allUrl?: string;
+  morningUrl?: string;
+  afternoonUrl?: string;
+  onClose: () => void;
+}) {
+  return (
+    <div className="bottom-sheet-backdrop" onClick={onClose}>
+      <div className="bottom-sheet-container" onClick={(e) => e.stopPropagation()}>
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
+        <div className="flex items-center gap-2 mb-1">
+          <IcMapPin size={20} className="text-blue-600" />
+          <h2 className="text-[17px] font-extrabold text-gray-900">Apri itinerario su Google Maps</h2>
+        </div>
+        <p className="text-[12px] text-gray-400 mb-5">
+          Scegli quale fascia oraria della giornata desideri visualizzare sulla mappa:
+        </p>
+
+        <div className="space-y-2.5 mb-4">
+          {allUrl && (
+            <a
+              href={allUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={onClose}
+              className="w-full px-4 py-3 rounded-xl bg-blue-600 text-white font-extrabold text-[13px] flex items-center justify-between hover:bg-blue-700 active:scale-95 transition-all shadow-sm"
+            >
+              <div className="flex items-center gap-2">
+                <span>🗺️</span>
+                <span>Giornata intera</span>
+              </div>
+              <span>➔</span>
+            </a>
+          )}
+
+          {morningUrl && (
+            <a
+              href={morningUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={onClose}
+              className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 font-bold text-[13px] flex items-center justify-between hover:bg-gray-100 active:scale-95 transition-all"
+            >
+              <div className="flex items-center gap-2">
+                <span>🌅</span>
+                <span>Mattina (fino alle 13:00)</span>
+              </div>
+              <span className="text-gray-400">➔</span>
+            </a>
+          )}
+
+          {afternoonUrl && (
+            <a
+              href={afternoonUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={onClose}
+              className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-gray-800 font-bold text-[13px] flex items-center justify-between hover:bg-gray-100 active:scale-95 transition-all"
+            >
+              <div className="flex items-center gap-2">
+                <span>🌆</span>
+                <span>Pomeriggio (dalle 13:00 in poi)</span>
+              </div>
+              <span className="text-gray-400">➔</span>
+            </a>
+          )}
+        </div>
+
+        <button
+          className="w-full py-3 rounded-2xl bg-gray-100 text-gray-600 font-semibold text-[14px]"
+          onClick={onClose}
+        >
+          Annulla
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export function DayMapsButton({ activities }: { activities: Activity[] }) {
+  const [sheetOpen, setSheetOpen] = useState(false);
+
+  const allUrl = buildDayItineraryUrl(activities, "all");
+  const morningUrl = buildDayItineraryUrl(activities, "morning");
+  const afternoonUrl = buildDayItineraryUrl(activities, "afternoon");
+
+  const hasAll = !!allUrl && allUrl !== "";
+  const hasMorning = !!morningUrl && morningUrl !== "" && morningUrl !== allUrl;
+  const hasAfternoon = !!afternoonUrl && afternoonUrl !== "" && afternoonUrl !== allUrl;
+
+  if (!hasAll) return null;
+
+  const hasMultiple = hasMorning || hasAfternoon;
+
+  const handleClick = (e: React.MouseEvent) => {
+    if (hasMultiple) {
+      e.preventDefault();
+      setSheetOpen(true);
+    }
+  };
+
+  return (
+    <>
+      <a
+        href={hasMultiple ? "#" : allUrl}
+        target={hasMultiple ? undefined : "_blank"}
+        rel={hasMultiple ? undefined : "noreferrer"}
+        onClick={handleClick}
+        className="px-2.5 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-100 font-extrabold text-[10.5px] flex items-center gap-1 active:scale-95 transition-all shrink-0"
+        title="Apri itinerario su Google Maps"
+      >
+        <IcMapPin size={11} className="text-blue-600" />
+        <span>Apri mappa</span>
+      </a>
+
+      {sheetOpen && (
+        <MapsPeriodSheet
+          allUrl={hasAll ? allUrl : undefined}
+          morningUrl={hasMorning ? morningUrl : undefined}
+          afternoonUrl={hasAfternoon ? afternoonUrl : undefined}
+          onClose={() => setSheetOpen(false)}
+        />
+      )}
+    </>
+  );
+}
 
 // ── Popup dedicato Indicazioni Copilota ───────────────────────────────────────
 function CopilotaPopup({
@@ -842,6 +1143,7 @@ function TimelineRow({
   dayDate,
   transportsList,
   accommodationsList,
+  drivingRoutesMap,
 }: {
   activity: Activity;
   nextActivity?: Activity;
@@ -858,12 +1160,26 @@ function TimelineRow({
   dayDate?: string;
   transportsList?: any[];
   accommodationsList?: any[];
+  drivingRoutesMap?: Record<string, DrivingRoute>;
 }) {
   const [copiedPnr, setCopiedPnr] = useState(false);
   const [copilotaOpen, setCopilotaOpen] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const isTransport = activity.type === "transport";
   const showMaps = hasAddress(activity);
   const mapsUrl = buildMapsUrl(activity, dayLocation);
+
+  const prevAccMapsUrl = prevAccommodation?.mapsUrl?.trim();
+  const actMapsUrl = (activity as any)?.mapsUrl?.trim();
+  const nextMapsUrl = (nextActivity as any)?.mapsUrl?.trim();
+
+  const prevAccRoute = (prevAccMapsUrl && actMapsUrl && drivingRoutesMap)
+    ? drivingRoutesMap[`${prevAccMapsUrl}_to_${actMapsUrl}`]
+    : undefined;
+
+  const calculatedNextRoute = (actMapsUrl && nextMapsUrl && drivingRoutesMap)
+    ? drivingRoutesMap[`${actMapsUrl}_to_${nextMapsUrl}`]
+    : undefined;
 
   const matchedTr = transportsList && dayDate && activity.type === "transport"
     ? transportsList.find(tr => {
@@ -896,310 +1212,253 @@ function TimelineRow({
   const terminal = matchedTr?.terminal;
   const logistics = activity.howToGetThere;
   const baggageNote = matchedTr?.baggageNote || matchedTr?.baggageCabin || matchedTr?.baggageHand;
+  const hasSecondaryDetails = !!(pnr || timeBefore || carrierCode || seat || gate || terminal || logistics || baggageNote || activity.duration || activity.note || activity.ticketUrl);
 
   return (
     <div className="space-y-0">
       {/* Distanza da alloggio precedente se prima tappa */}
       {isFirst && prevAccommodation && (
-        <div className="my-1.5 flex items-center gap-2 text-[10px] font-extrabold tracking-wider uppercase pl-12 pb-1">
-          <span className="text-blue-600/90 shrink-0">🏨 Da alloggio ({prevAccommodation.name || prevAccommodation.city}):</span>
-          <span className="px-2 py-0.5 rounded-full font-black text-[10px] border bg-blue-50 border-blue-100/60 text-blue-600">
-            {transitTime || "—"}
-          </span>
+        <div className="my-2 flex items-center gap-2 pl-11 pb-1">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50/90 border border-blue-100/80 text-blue-900 max-w-[88%] shadow-2xs">
+            <span className="text-[11px] shrink-0">🏨</span>
+            <span className="text-[11px] font-extrabold leading-snug line-clamp-2 [overflow-wrap:anywhere]">
+              DA {prevAccommodation.name ? `${prevAccommodation.name}${prevAccommodation.city ? ` (${prevAccommodation.city})` : ""}` : prevAccommodation.city || "alloggio notte precedente"}
+            </span>
+            {transitTime ? (
+              <span className="px-1.5 py-0.2 rounded-md font-black text-[9.5px] bg-blue-100/70 border border-blue-200/60 text-blue-700 shrink-0 ml-1">
+                ⏱️ {transitTime}
+              </span>
+            ) : prevAccRoute ? (
+              <span className="px-1.5 py-0.2 rounded-md font-black text-[9.5px] bg-blue-100/70 border border-blue-200/60 text-blue-700 shrink-0 ml-1">
+                🚗 {prevAccRoute.formattedText}
+              </span>
+            ) : null}
+          </div>
           <div className="flex-1 border-t border-dashed border-blue-200/60" />
         </div>
       )}
 
-      <div className={`flex gap-2 items-start transition-opacity ${completed ? "opacity-50" : ""}`}>
-        <div className="w-8 pt-1 flex-shrink-0 text-right">
-          <span className={`font-semibold ${isActive ? "text-blue-700 text-[13px] font-black" : "text-gray-450 text-[11.5px]"} ${completed ? "line-through text-gray-300" : ""}`}>
+      <div className={`flex gap-2.5 items-stretch transition-opacity ${completed ? "opacity-50" : ""}`}>
+        {/* Colonna Timeline Sinistra (Orario sopra il pallino) */}
+        <div className="flex flex-col items-center flex-shrink-0 w-11 pt-0.5">
+          <span className={`text-[11px] leading-none font-extrabold tracking-tight text-center ${
+            isActive ? "text-blue-700 font-black" : "text-gray-500"
+          } ${completed ? "line-through text-gray-300" : ""}`}>
             {activity.time}
           </span>
+          <div className="my-1.5 flex items-center justify-center min-h-[20px]">
+            <div className={`rounded-full flex-shrink-0 transition-all duration-300 ${
+              isActive ? "bg-blue-600 w-4.5 h-4.5 shadow-md shadow-blue-500/20 ring-4 ring-blue-100/50"
+                : isTransport ? "bg-blue-500 w-3 h-3"
+                : "bg-emerald-500 w-3 h-3"
+            }`} />
+          </div>
+          {!isLast && <div className="w-0.5 flex-1 bg-gray-200" />}
         </div>
-      <div className="flex flex-col items-center flex-shrink-0" style={{ width: 24, marginTop: 4 }}>
-        <div className={`rounded-full flex-shrink-0 transition-all duration-300 ${
-          isActive ? "bg-blue-600 w-5 h-5 shadow-md shadow-blue-500/20 ring-4 ring-blue-100/50"
-            : isTransport ? "bg-blue-500 w-3.5 h-3.5"
-            : "bg-white border-2 border-gray-300 w-3.5 h-3.5"
-        } ${completed ? "!border-emerald-500 !bg-emerald-500 shadow-none ring-0" : ""}`} />
-        {!isLast && <div className="flex-1 w-0.5 bg-gray-200 mt-1" style={{ minHeight: 32 }} />}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div
-          className={`min-w-0 mb-2 app-card p-3 cursor-pointer transition-all duration-300 border ${
-            isActive
-              ? "border-l-4 border-l-blue-500 border-blue-200 bg-blue-50/5 shadow-md shadow-blue-500/5"
-              : "bg-white border-gray-150/70"
-          }`}
-          onClick={onEdit}
-        >
-          {isActive && isTransport ? (
-            <div className="flex items-start justify-between">
+
+        {/* Card Contenuto Principale */}
+        <div className="flex-1 min-w-0 pb-1">
+          <div
+            className={`min-w-0 mb-1.5 app-card p-3 cursor-pointer transition-all duration-300 border ${
+              isActive
+                ? "border-l-4 border-l-blue-500 border-blue-200 bg-blue-50/5 shadow-xs"
+                : "bg-white border-gray-150/70"
+            }`}
+            onClick={onEdit}
+          >
+            {/* RIGA 1: Tipo, Titolo (max 2 righe, visibilità prioritaria), Completamento */}
+            <div className="flex items-start justify-between gap-2">
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold tracking-widest text-gray-400 uppercase mb-0.5">Trasporto</p>
-                <p className={`font-bold text-[15px] text-gray-900 leading-snug ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                {activity.status === "in_corso" && <span className="badge-in-corso mt-1">In corso</span>}
+                <div className="flex items-center gap-1.5 flex-wrap mb-1">
+                  <ActivityIcon type={activity.type} size={15} />
+                  {isActive && !completed && (
+                    <span className="text-[7.5px] font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-widest shrink-0">
+                      Ora / Prossimo
+                    </span>
+                  )}
+                  <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest shrink-0 border ${
+                    activity.type === "sightseeing" ? "bg-blue-50 text-blue-700 border-blue-100" :
+                    activity.type === "food" ? "bg-orange-50 text-orange-700 border-orange-100" :
+                    activity.type === "hotel" ? "bg-purple-50 text-purple-700 border-purple-100" :
+                    activity.type === "shopping" ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
+                    activity.type === "transport" ? "bg-blue-50 text-blue-700 border-blue-100" :
+                    "bg-gray-100 text-gray-600 border-gray-200"
+                  }`}>
+                    {activity.type === "sightseeing" ? "Visita" :
+                     activity.type === "food" ? "Pasto" :
+                     activity.type === "hotel" ? "Alloggio" :
+                     activity.type === "shopping" ? "Shopping" :
+                     activity.type === "transport" ? "Trasporto" : "Altro"}
+                  </span>
+                </div>
+
+                <h3 className={`text-[13.5px] font-bold text-gray-900 leading-snug line-clamp-2 ${completed ? "line-through text-gray-400" : ""}`}>
+                  {activity.title}
+                </h3>
               </div>
-              <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
+
+              {/* Pulsante completamento allineato in alto a destra */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggle();
+                }}
+                className="w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95 shrink-0 mt-0.5"
+                style={{
+                  borderColor: completed ? "#10b981" : "#d1d5db",
+                  backgroundColor: completed ? "#10b981" : "transparent"
+                }}
+                aria-label={completed ? "Segna come da completare" : "Segna come completato"}
+                title={completed ? "Completato" : "Segna completato"}
+              >
+                {completed && <span className="text-white text-[10px] font-black">✓</span>}
+              </button>
+            </div>
+
+            {/* RIGA 2: Località (se presente, max 2 righe) */}
+            {cleanSubtitle(activity.subtitle) && (
+              <p className={`text-[11.5px] text-gray-500 line-clamp-2 mt-1 font-medium ${completed ? "line-through text-gray-300" : ""}`}>
+                📍 {cleanSubtitle(activity.subtitle)}
+              </p>
+            )}
+
+            {/* RIGA 3: Prezzo/Stato, Maps, QR, PNR compatto */}
+            {(activity.price !== undefined || showMaps || activity.hasQR || pnr) && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-2 pt-1.5 border-t border-slate-100/60">
+                {activity.price !== undefined && (
+                  <span className={`text-[8.5px] font-extrabold px-1.5 py-0.5 rounded uppercase shrink-0 ${
+                    activity.isPaid
+                      ? "bg-green-55 text-green-600 border border-green-100"
+                      : "bg-red-50 text-red-500 border border-red-100"
+                  }`}>
+                    €{activity.price} · {activity.isPaid ? "Pagato" : "Da pagare"}
+                  </span>
+                )}
+
                 {showMaps && (
                   <a
                     href={mapsUrl}
                     target="_blank"
                     rel="noreferrer"
                     aria-label="Apri posizione su Google Maps"
+                    title="Apri su Google Maps"
                     onClick={(e) => e.stopPropagation()}
-                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:scale-90 transition-transform flex items-center justify-center shrink-0 border border-blue-100/50"
+                    className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md hover:bg-blue-100 active:scale-90 transition-transform flex items-center gap-1 text-[10px] font-bold shrink-0 border border-blue-100/50"
                   >
-                    <IcMapPin size={13} className="text-blue-600" />
+                    <IcMapPin size={12} className="text-blue-600" />
+                    <span>Mappa</span>
                   </a>
                 )}
+
                 {activity.hasQR && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       onQRTap(activity);
                     }}
-                    className={`active:scale-95 transition-transform flex items-center justify-center shrink-0 ${
+                    className={`active:scale-95 transition-transform flex items-center gap-1 shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold ${
                       isActive
-                        ? "p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md shadow-blue-200/80 ring-4 ring-blue-100/70"
-                        : "p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl"
+                        ? "bg-blue-600 hover:bg-blue-700 text-white shadow-xs"
+                        : "bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-200/60"
                     }`}
-                    title="Visualizza Biglietti"
+                    title="Visualizza Biglietto QR"
+                    aria-label="Visualizza Biglietto QR"
                   >
-                    <IcQR size={isActive ? 24 : 20} className={isActive ? "text-white" : "text-gray-600"} />
+                    <IcQR size={13} className={isActive ? "text-white" : "text-gray-600"} />
+                    <span>Biglietto</span>
                   </button>
                 )}
-                <IcChevronRight size={16} className="text-gray-400" />
-              </div>
-            </div>
-          ) : isTransport ? (
-            <div className="flex items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                <ActivityIcon type={activity.type} size={16} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {isActive && !completed && (
-                      <span className="text-[7.5px] font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-widest shrink-0">
-                        Ora / Prossimo
-                      </span>
-                    )}
-                    <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                    {activity.price !== undefined && (
-                      <span className={`text-[8.5px] font-extrabold px-1 py-0.2 rounded uppercase shrink-0 ${
-                        activity.isPaid
-                          ? "bg-green-55 text-green-600 border border-green-100"
-                          : "bg-red-50 text-red-500 border border-red-100"
-                      }`}>
-                        €{activity.price} · {activity.isPaid ? "Pagato" : "Da pagare"}
-                      </span>
-                    )}
-                  </div>
-                  <p className={`text-[12px] text-gray-400 truncate ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-1.5 ml-2 flex-shrink-0">
-                {showMaps && (
-                  <a
-                    href={mapsUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Apri posizione su Google Maps"
-                    onClick={(e) => e.stopPropagation()}
-                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:scale-90 transition-transform flex items-center justify-center shrink-0 border border-blue-100/50"
-                  >
-                    <IcMapPin size={13} className="text-blue-600" />
-                  </a>
-                )}
-                {activity.hasQR && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onQRTap(activity);
-                    }}
-                    className={`active:scale-95 transition-transform flex items-center justify-center shrink-0 ${
-                      isActive
-                        ? "p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md shadow-blue-200/80 ring-4 ring-blue-100/70"
-                        : "p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg"
-                    }`}
-                    title="Visualizza Biglietti"
-                  >
-                    <IcQR size={isActive ? 24 : 18} className={isActive ? "text-white" : "text-gray-500"} />
-                  </button>
+
+                {pnr && (
+                  <span className="px-1.5 py-0.5 rounded text-[9.5px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200/70 shrink-0">
+                    PNR: {pnr}
+                  </span>
                 )}
               </div>
-            </div>
-          ) : (
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0 flex-1 pr-1">
-                  <ActivityIcon type={activity.type} size={16} />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {isActive && !completed && (
-                        <span className="text-[7.5px] font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100 uppercase tracking-widest shrink-0">
-                          Ora / Prossimo
-                        </span>
-                      )}
-                      <p className={`text-[13px] font-semibold text-gray-700 truncate ${completed ? "line-through text-gray-400" : ""}`}>{activity.title}</p>
-                      {activity.price !== undefined && (
-                        <span className={`text-[8.5px] font-extrabold px-1 py-0.2 rounded uppercase shrink-0 ${
-                          activity.isPaid
-                            ? "bg-green-55 text-green-600 border border-green-100"
-                            : "bg-red-50 text-red-500 border border-red-100"
-                        }`}>
-                          €{activity.price} · {activity.isPaid ? "Pagato" : "Da pagare"}
-                        </span>
-                      )}
-                    </div>
-                    <p className={`text-[11.5px] text-gray-400 truncate mt-0.5 ${completed ? "line-through text-gray-300" : ""}`}>{cleanSubtitle(activity.subtitle)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  {showMaps && (
-                    <a
-                      href={mapsUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="Apri posizione su Google Maps"
-                      onClick={(e) => e.stopPropagation()}
-                      className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 active:scale-90 transition-transform flex items-center justify-center shrink-0 border border-blue-100/50"
-                    >
-                      <IcMapPin size={13} className="text-blue-600" />
-                    </a>
-                  )}
-                {activity.hasQR && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onQRTap(activity);
-                    }}
-                    className={`active:scale-95 transition-transform flex items-center justify-center shrink-0 ${
-                      isActive
-                        ? "p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-md shadow-blue-200/80 ring-4 ring-blue-100/70"
-                        : "p-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg"
-                    }`}
-                    title="Visualizza Biglietti"
-                  >
-                    <IcQR size={isActive ? 24 : 18} className={isActive ? "text-white" : "text-gray-500"} />
-                  </button>
-                )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggle();
-                  }}
-                  className="w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all hover:scale-105 active:scale-95"
-                  style={{
-                    borderColor: completed ? "#10b981" : "#d1d5db",
-                    backgroundColor: completed ? "#10b981" : "transparent"
-                  }}
-                >
-                  {completed && <span className="text-white text-[10px] font-bold">✓</span>}
-                </button>
-              </div>
-            </div>
-          )}
+            )}
 
-          {/* Dati pratici a colpo d'occhio (Copilota & Offline) */}
-          {(pnr || timeBefore || carrierCode || seat || gate || terminal || logistics || baggageNote) && (
-            <div className="mt-2.5 pt-2 border-t border-slate-100/80 space-y-2 text-[11px] text-gray-500">
-              {/* Riga PNR, Volo e Posti */}
-              {(pnr || carrierCode || seat) && (
-                <div className="flex flex-wrap items-center gap-2 justify-between bg-slate-50/60 border border-slate-100/80 rounded-lg px-2 py-1.5">
-                  <div className="flex items-center gap-2 flex-wrap min-w-0">
-                    {carrierCode && (
-                      <span className="font-extrabold text-blue-600 bg-blue-50 border border-blue-100/50 px-1 rounded text-[10px] tracking-wider uppercase shrink-0">
-                        ✈️ {carrierCode} {terminal ? `(T${terminal})` : ""}
-                      </span>
-                    )}
-                    {seat && (
-                      <span className="font-bold text-slate-600 bg-slate-100 border border-slate-200 px-1 rounded text-[10px] shrink-0">
-                        💺 Posto {seat}
-                      </span>
-                    )}
-                    {gate && (
-                      <span className="font-bold text-amber-700 bg-amber-50 border border-amber-100/50 px-1 rounded text-[10px] shrink-0">
-                        🚪 Gate {gate}
-                      </span>
-                    )}
-                  </div>
-                  {pnr && (
-                    <div className="flex items-center gap-1 ml-auto shrink-0 min-w-0">
-                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider">PNR:</span>
-                      <span className="font-mono font-black text-[11.5px] text-gray-800 bg-white border border-slate-200 px-1.5 py-0.2 rounded shrink-0">
-                        {pnr}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigator.clipboard.writeText(pnr);
-                          setCopiedPnr(true);
-                          setTimeout(() => setCopiedPnr(false), 2000);
-                        }}
-                        className={`p-1 rounded-md border transition-all active:scale-95 shrink-0 ${
-                          copiedPnr
-                            ? "bg-green-50 text-green-700 border-green-200"
-                            : "bg-white text-gray-405 border-slate-200 hover:text-blue-600 hover:bg-blue-50 hover:border-blue-100"
-                        }`}
-                        title="Copia codice prenotazione"
-                      >
-                        {copiedPnr ? (
-                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        ) : (
-                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
-                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Orario e Bagagli */}
-              {(timeBefore || baggageNote) && (
-                <div className="flex flex-wrap items-center gap-2 text-[10.5px]">
-                  {timeBefore && (
-                    <span className="font-bold text-amber-800 bg-amber-50/50 border border-amber-100/70 px-1.5 py-0.2 rounded">
-                      ⏱ Presentarsi: {timeBefore}
-                    </span>
-                  )}
-                  {baggageNote && (
-                    <span className="text-gray-500 bg-slate-100/80 px-1.5 py-0.2 rounded font-medium">
-                      🧳 {baggageNote}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Indicazioni logistiche — Copilota */}
-              {logistics && (
+            {/* RIGA 4: Controllo compatto "⌄ Dettagli" */}
+            {hasSecondaryDetails && (
+              <div className="mt-1.5 pt-1 border-t border-slate-100 flex items-center justify-between">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setCopilotaOpen(true);
+                    setShowDetails((prev) => !prev);
                   }}
-                  className="w-full text-left text-[11px] bg-blue-50/40 hover:bg-blue-50 border border-blue-100/60 rounded-lg p-2 mt-0.5 leading-relaxed cursor-pointer transition-all active:scale-[0.99] flex items-center gap-2"
-                  title="Indicazioni copilota"
+                  className="text-[10px] font-extrabold text-gray-500 hover:text-blue-600 flex items-center gap-1 transition-colors py-0.5"
                 >
-                  <span className="text-[13px]">🚗</span>
-                  <div className="min-w-0 flex-1">
-                    <span className="font-extrabold text-[8.5px] text-blue-600 block uppercase tracking-wider leading-none mb-0.5">
-                      Indicazioni Copilota
-                    </span>
-                    <p className="line-clamp-2 text-slate-700 text-[11.5px] font-medium">{logistics}</p>
-                  </div>
-                  <span className="text-[9px] font-black text-blue-500 shrink-0 px-1.5 py-0.5 bg-blue-100/60 rounded-md">
-                    Apri
-                  </span>
+                  <span>{showDetails ? "▲ Nascondi dettagli" : "⌄ Dettagli"}</span>
                 </button>
-              )}
-            </div>
-          )}
+              </div>
+            )}
+
+            {/* Dettagli Espandibili (Solo se aperto dall'utente e solo se realmente valorizzati) */}
+            {showDetails && hasSecondaryDetails && (
+              <div className="mt-2 pt-2 border-t border-slate-100 space-y-2 text-[11px] text-gray-600" onClick={(e) => e.stopPropagation()}>
+                {/* PNR completo e copiabile */}
+                {pnr && (
+                  <div className="flex items-center justify-between bg-slate-50 border border-slate-200/80 rounded-lg px-2.5 py-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9.5px] font-black text-gray-400 uppercase">Codice Prenotazione:</span>
+                      <span className="font-mono font-black text-[12px] text-gray-900">{pnr}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(pnr);
+                        setCopiedPnr(true);
+                        setTimeout(() => setCopiedPnr(false), 2000);
+                      }}
+                      className="px-2 py-1 rounded bg-white border border-slate-200 text-[9.5px] font-bold text-gray-700 hover:bg-slate-50 transition-all active:scale-95"
+                    >
+                      {copiedPnr ? "Copiato ✓" : "Copia PNR"}
+                    </button>
+                  </div>
+                )}
+
+                {/* Dettagli Trasporto / Alloggio */}
+                {(carrierCode || seat || gate || terminal || baggageNote) && (
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                    {carrierCode && <span className="font-bold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-100">✈️ {carrierCode} {terminal ? `(T${terminal})` : ""}</span>}
+                    {seat && <span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">💺 Posto {seat}</span>}
+                    {gate && <span className="font-bold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100">🚪 Gate {gate}</span>}
+                    {baggageNote && <span className="text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded font-medium">🧳 {baggageNote}</span>}
+                  </div>
+                )}
+
+                {/* Durata & Presentarsi */}
+                {(activity.duration || timeBefore) && (
+                  <div className="flex flex-wrap items-center gap-2 text-[10.5px]">
+                    {activity.duration && <span className="font-semibold text-slate-700">⏱ Durata: {activity.duration}</span>}
+                    {timeBefore && <span className="font-semibold text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/60">⌛ Presentarsi: {timeBefore}</span>}
+                  </div>
+                )}
+
+                {/* Link Biglietto & Note */}
+                {activity.ticketUrl && (
+                  <div>
+                    <a href={activity.ticketUrl} target="_blank" rel="noreferrer" className="text-[11px] font-bold text-blue-600 hover:underline inline-flex items-center gap-1">
+                      🎟️ Apri biglietto / documento
+                    </a>
+                  </div>
+                )}
+                {activity.note && (
+                  <div className="p-2 bg-slate-50 rounded-lg text-[11px] italic text-slate-600 border border-slate-150">
+                    📝 {activity.note}
+                  </div>
+                )}
+
+                {/* Indicazioni Copilota */}
+                {logistics && (
+                  <div className="p-2.5 bg-blue-50/50 border border-blue-100 rounded-lg space-y-1">
+                    <span className="text-[9px] font-black text-blue-700 uppercase tracking-wider block">🚗 Indicazioni Copilota</span>
+                    <p className="text-[11.5px] text-slate-700 leading-relaxed font-medium">{logistics}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Popup Copilota dedicato */}
@@ -1217,7 +1476,36 @@ function TimelineRow({
 
         {/* Transition to next activity */}
         {nextActivity && (() => {
-          const displayTransitTime = transitTime || (activity.type === "hotel" || nextActivity?.type === "hotel" ? "—" : "N/D");
+          const displayTransitTime = getReliableTransitTime(activity, nextActivity, dayDate, transportsList);
+
+          if (!displayTransitTime) {
+            if (calculatedNextRoute) {
+              return (
+                <div className="my-2.5 flex items-center gap-2 text-[10px] font-extrabold tracking-wider uppercase pl-1 flex-wrap">
+                  <span className="flex-shrink-0 text-blue-600/90">
+                    🚗 Guida:
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full font-black text-[10.5px] border bg-blue-50 border-blue-100/60 text-blue-600">
+                    {calculatedNextRoute.formattedText}
+                  </span>
+                  <div className="flex-1 border-t border-dashed border-blue-200/60" />
+                  <span className="text-[9.5px] text-gray-400 font-bold normal-case shrink-0">
+                    Fino alle {nextActivity.time}
+                  </span>
+                </div>
+              );
+            }
+
+            return (
+              <div className="my-2 flex items-center gap-2 pl-1 pr-1">
+                <div className="flex-1 border-t border-dashed border-gray-200" />
+                <span className="text-[9.5px] text-gray-400 font-bold normal-case shrink-0">
+                  Fino alle {nextActivity.time}
+                </span>
+              </div>
+            );
+          }
+
           const matchTr1 = transportsList && dayDate && activity.type === "transport" ? transportsList.find(tr => {
             if (tr.date !== dayDate) return false;
             const actTitleLower = activity.title.toLowerCase();
@@ -1264,9 +1552,6 @@ function TimelineRow({
             } else if (combinedText.includes("traghetto") || combinedText.includes("ferry") || combinedText.includes("nave") || combinedText.includes("boat")) {
               transportEmoji = "🚢";
               transportLabel = "Traghetto";
-            } else if (combinedText.includes("scalo") || combinedText.includes("layover") || combinedText.includes("transito")) {
-              transportEmoji = "⏳";
-              transportLabel = "Scalo";
             } else if (combinedText.includes("cammino") || combinedText.includes("piedi") || combinedText.includes("walk") || combinedText.includes("trekking")) {
               transportEmoji = "🚶";
               transportLabel = "A piedi";
@@ -1274,30 +1559,6 @@ function TimelineRow({
           }
           
           const isDrive = transportLabel === "Guida";
-
-          // Calcola eventuale tempo di scalo/pausa basato sugli orari se non c'est un tempo di guida attivo o in aggiunta
-          const parseMinutes = (tStr?: string) => {
-            if (!tStr) return null;
-            const match = tStr.match(/^(\d{1,2}):(\d{2})/);
-            if (!match) return null;
-            return parseInt(match[1], 10) * 60 + parseInt(match[2], 10);
-          };
-
-          const m1 = parseMinutes(activity.time);
-          const m2 = parseMinutes(nextActivity.time);
-          let layoverTimeStr: string | null = null;
-          
-          if (m1 !== null && m2 !== null) {
-            let diffMin = m2 - m1;
-            if (diffMin < 0) diffMin += 24 * 60; // Cambio giorno (es. da 23:30 a 05:50)
-            const driveMin = parseTransitTimeToMinutes(displayTransitTime);
-            const pauseMin = diffMin - driveMin;
-            if (pauseMin >= 15 && (transportLabel === "Scalo" || transportLabel === "Volo" || activity.title.toLowerCase().includes("scalo") || nextActivity.title.toLowerCase().includes("scalo"))) {
-              const h = Math.floor(pauseMin / 60);
-              const m = pauseMin % 60;
-              layoverTimeStr = h > 0 ? (m > 0 ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
-            }
-          }
 
           return (
             <div className="my-2.5 flex items-center gap-2 text-[10px] font-extrabold tracking-wider uppercase pl-1 flex-wrap">
@@ -1311,11 +1572,6 @@ function TimelineRow({
               }`}>
                 {displayTransitTime}
               </span>
-              {layoverTimeStr && (
-                <span className="px-2 py-0.5 rounded-full font-black text-[10px] bg-purple-50 border border-purple-200 text-purple-800">
-                  ⏳ Pausa/Scalo: {layoverTimeStr}
-                </span>
-              )}
               <div className={`flex-1 border-t border-dashed ${isDrive ? "border-blue-200/60" : "border-amber-200"}`} />
               <span className="text-[9.5px] text-gray-400 font-bold normal-case shrink-0">
                 Fino alle {nextActivity.time}
@@ -1324,7 +1580,6 @@ function TimelineRow({
           );
         })()}
       </div>
-    </div>
     </div>
   );
 }
@@ -1412,73 +1667,6 @@ function AccoBanner({ acc, onClick }: { acc?: any; onClick?: () => void }) {
 }
 */
 
-async function fetchDrivingDuration(fromQuery: string, toQuery: string): Promise<string | null> {
-  const cleanFrom = cleanQueryForGeocoding(fromQuery);
-  const cleanTo = cleanQueryForGeocoding(toQuery);
-  if (!cleanFrom || !cleanTo) return null;
-
-  const cacheKey = `hrb_route_${encodeURIComponent(cleanFrom)}_${encodeURIComponent(cleanTo)}`;
-  const cached = localStorage.getItem(cacheKey);
-  if (cached) {
-    try {
-      const { duration, timestamp } = JSON.parse(cached);
-      if (Date.now() - timestamp < 7 * 24 * 60 * 60 * 1000) {
-        return duration;
-      }
-    } catch (_) {}
-  }
-
-  if (!navigator.onLine) return null;
-
-  try {
-    const fromRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanFrom)}&limit=1`, {
-      headers: { "User-Agent": "HoneymoonRoadbookApp/1.0" }
-    }).catch(() => null);
-    
-    if (!fromRes || !fromRes.ok) return null;
-    const fromData = await fromRes.json().catch(() => null);
-    if (!fromData || fromData.length === 0) return null;
-    const fromLon = fromData[0].lon;
-    const fromLat = fromData[0].lat;
-
-    const toRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanTo)}&limit=1`, {
-      headers: { "User-Agent": "HoneymoonRoadbookApp/1.0" }
-    }).catch(() => null);
-    
-    if (!toRes || !toRes.ok) return null;
-    const toData = await toRes.json().catch(() => null);
-    if (!toData || toData.length === 0) return null;
-    const toLon = toData[0].lon;
-    const toLat = toData[0].lat;
-
-    const routeRes = await fetch(`https://router.project-osrm.org/route/v1/driving/${fromLon},${fromLat};${toLon},${toLat}?overview=false`).catch(() => null);
-    if (!routeRes || !routeRes.ok) return null;
-    const routeData = await routeRes.json().catch(() => null);
-    if (routeData && routeData.code === "Ok" && routeData.routes && routeData.routes.length > 0) {
-      const durationSeconds = routeData.routes[0].duration;
-      const minutes = Math.round(durationSeconds / 60);
-      let durationStr = "";
-      if (minutes >= 60) {
-        const hours = Math.floor(minutes / 60);
-        const remainingMinutes = minutes % 60;
-        durationStr = remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
-      } else {
-        durationStr = `${minutes}m`;
-      }
-
-      localStorage.setItem(cacheKey, JSON.stringify({
-        duration: durationStr,
-        timestamp: Date.now()
-      }));
-
-      return durationStr;
-    }
-  } catch (e) {
-    console.error("Errore nel calcolo del percorso:", e);
-  }
-  return null;
-}
-
 // ── Main TodayView ────────────────────────────────────────────────────────────
 export default function TodayView() {
   const navigate = useNavigate();
@@ -1487,11 +1675,14 @@ export default function TodayView() {
   const [completedActs, setCompletedActs] = useState<string[]>([]);
   const [transportsList, setTransportsList] = useState<any[]>([]);
   const [accommodationsList, setAccommodationsList] = useState<any[]>([]);
-  const [checklists, setChecklists] = useState<Checklist[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const isLoadedRef = useRef(false);
   const [editingActivity, setEditingActivity] = useState<{ dayId: string; activity: Activity; dayLabel: string } | null>(null);
-  const [calculatedTransits, setCalculatedTransits] = useState<Record<string, string>>({});
+  const [addingToDay, setAddingToDay] = useState<{ id: string; label: string } | null>(null);
+
+  const [drivingRoutesMap, setDrivingRoutesMap] = useState<Record<string, DrivingRoute>>({});
+  const [isCalculatingDriving, setIsCalculatingDriving] = useState(false);
+  const [calcProgress, setCalcProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
 
   useEffect(() => {
     async function initData() {
@@ -1500,12 +1691,10 @@ export default function TodayView() {
         const completed = await repository.getCompletedActivities();
         const trs = await repository.getTransports(TRANSPORTS);
         const accs = await repository.getAccommodations(ACCOMMODATIONS);
-        const chks = await repository.getChecklists([]);
         setTripDays(days);
         setCompletedActs(completed);
         setTransportsList(trs);
         setAccommodationsList(accs);
-        setChecklists(chks);
         isLoadedRef.current = true;
       } catch (e) {
         console.error("Errore durante il caricamento dei dati in TodayView:", e);
@@ -1517,139 +1706,38 @@ export default function TodayView() {
   }, []);
 
   useEffect(() => {
-    if (tripDays.length === 0) return;
+    if (isLoading || tripDays.length === 0) return;
 
-    let isCancelled = false;
+    const currentDay = tripDays.find((d) => d.id === selectedDayId) ?? tripDays[0];
+    const currIdx = tripDays.findIndex((d) => d.id === selectedDayId);
+    const pDay = currIdx > 0 ? tripDays[currIdx - 1] : null;
+    const pDayAcc = pDay ? getTodayAccommodation(pDay.date, accommodationsList, pDay.activities) : null;
+    const candidateSegs = currentDay ? getDrivingCandidateSegments(currentDay, pDayAcc, accommodationsList, transportsList) : [];
+    if (candidateSegs.length === 0) return;
 
-    const calculateAllTransits = async () => {
-      // Scorriamo tutti i giorni del viaggio
-      for (let dayIdx = 0; dayIdx < tripDays.length; dayIdx++) {
-        const day = tripDays[dayIdx];
-        if (!day.activities || day.activities.length === 0) continue;
+    let isMounted = true;
 
-        // ── Caso speciale: hotel giorno precedente → prima tappa del giorno corrente ──
-        if (dayIdx > 0) {
-          const prevDay = tripDays[dayIdx - 1];
-          const firstAct = day.activities[0];
-          const prevDayAcc = getTodayAccommodation(prevDay.date, accommodationsList, prevDay.activities);
-          
-          if (prevDayAcc && firstAct) {
-            const routeKey = `${prevDayAcc.id}_to_${firstAct.id}`;
-            if (!calculatedTransits[routeKey]) {
-              const hotelQuery = `${prevDayAcc.name}, ${prevDayAcc.city}`;
-              const firstActQuery = `${firstAct.title}, ${firstAct.subtitle || ""}`;
-              const cleanFrom = cleanQueryForGeocoding(hotelQuery);
-              const cleanTo = cleanQueryForGeocoding(firstActQuery);
-              const cacheKey = `hrb_route_${encodeURIComponent(cleanFrom)}_${encodeURIComponent(cleanTo)}`;
-              const cached = localStorage.getItem(cacheKey);
-              if (cached) {
-                try {
-                  const { duration } = JSON.parse(cached);
-                  setCalculatedTransits((prev) => ({ ...prev, [routeKey]: duration }));
-                } catch (_) {}
-              }
-            }
-          }
-        }
-
-        // ── Loop normale: attività consecutive ──
-        if (day.activities.length < 2) continue;
-
-        for (let i = 0; i < day.activities.length - 1; i++) {
-          if (isCancelled) return;
-
-          const act = day.activities[i];
-          const nextAct = day.activities[i + 1];
-
-          const routeKey = `${act.id}_to_${nextAct.id}`;
-
-          // Se una delle due attività è un hotel, usa solo transitTime manuale/testo o cache localStorage (zero fetch Nominatim)
-          if (act.type === "hotel" || nextAct.type === "hotel") {
-            const manualOrText = act.transitTime || extractDurationFromText(act.subtitle) || extractDurationFromText(act.title);
-            if (manualOrText) {
-              if (!calculatedTransits[routeKey]) {
-                setCalculatedTransits((prev) => ({ ...prev, [routeKey]: manualOrText }));
-              }
-            } else if (!calculatedTransits[routeKey]) {
-              const fromQuery = `${act.title}, ${act.subtitle || ""}`;
-              const toQuery = `${nextAct.title}, ${nextAct.subtitle || ""}`;
-              const cleanFrom = cleanQueryForGeocoding(fromQuery);
-              const cleanTo = cleanQueryForGeocoding(toQuery);
-              const cacheKey = `hrb_route_${encodeURIComponent(cleanFrom)}_${encodeURIComponent(cleanTo)}`;
-              const cached = localStorage.getItem(cacheKey);
-              if (cached) {
-                try {
-                  const { duration } = JSON.parse(cached);
-                  setCalculatedTransits((prev) => ({ ...prev, [routeKey]: duration }));
-                } catch (_) {}
-              }
-            }
-            continue;
-          }
-
-          // Se una delle due attività non è di categoria REAL_DRIVING, blocca immediatamente il tentativo di fetch
-          if (getActivityRoutingCategory(act) !== "REAL_DRIVING" || getActivityRoutingCategory(nextAct) !== "REAL_DRIVING") {
-            continue;
-          }
-
-          // Se l'attività stessa o la successiva ha già una durata esplicita, registra ed avanza
-          if (act.transitTime || extractDurationFromText(act.subtitle) || extractDurationFromText(act.title)) {
-            continue;
-          }
-
-          if (act.type === "sightseeing" && nextAct.type === "sightseeing") {
-            continue;
-          }
-
-          if (!shouldCalculateDriving(act, nextAct) || !isDrivingTransit(act, nextAct, transportsList, day.date)) {
-            continue;
-          }
-
-          const fromQuery = `${act.title}, ${act.subtitle || ""}`;
-          const toQuery = `${nextAct.title}, ${nextAct.subtitle || ""}`;
-
-          const cleanFrom = cleanQueryForGeocoding(fromQuery);
-          const cleanTo = cleanQueryForGeocoding(toQuery);
-          const cacheKey = `hrb_route_${encodeURIComponent(cleanFrom)}_${encodeURIComponent(cleanTo)}`;
-          
-          if (calculatedTransits[routeKey] || localStorage.getItem(cacheKey)) {
-            if (!calculatedTransits[routeKey]) {
-              const cached = localStorage.getItem(cacheKey);
-              if (cached) {
-                try {
-                  const { duration } = JSON.parse(cached);
-                  setCalculatedTransits((prev) => ({ ...prev, [routeKey]: duration }));
-                } catch (_) {}
-              }
-            }
-            continue;
-          }
-
-          // Attendi un piccolo delay per la richiesta in background
-          await new Promise((resolve) => setTimeout(resolve, 600));
-          if (isCancelled) return;
-
-          try {
-            const duration = await fetchDrivingDuration(fromQuery, toQuery);
-            if (duration) {
-              setCalculatedTransits((prev) => ({
-                ...prev,
-                [routeKey]: duration,
-              }));
-            }
-          } catch (err) {
-            // Continua sulle tappe successive anche in caso di errore sulla singola tratta
-          }
+    async function loadCachedRoutes() {
+      const loaded: Record<string, DrivingRoute> = {};
+      for (const seg of candidateSegs) {
+        const cached = await getCachedDrivingRoute(seg.originUrl, seg.destUrl);
+        if (cached && isMounted) {
+          loaded[`${seg.originUrl}_to_${seg.destUrl}`] = cached;
         }
       }
-    };
+      if (isMounted && Object.keys(loaded).length > 0) {
+        setDrivingRoutesMap((prev) => ({ ...prev, ...loaded }));
+      }
+    }
 
-    calculateAllTransits();
+    loadCachedRoutes();
 
     return () => {
-      isCancelled = true;
+      isMounted = false;
     };
-  }, [tripDays, accommodationsList]);
+  }, [selectedDayId, tripDays, accommodationsList, transportsList, isLoading]);
+
+
 
   const [expanded, setExpanded] = useState(false);
   const [qrActivity, setQrActivity] = useState<Activity | null>(null);
@@ -1695,20 +1783,6 @@ export default function TodayView() {
     await repository.saveCompletedActivities(next);
   }
 
-  async function toggleChecklistItem(checklistId: string, itemId: string) {
-    const updated = checklists.map((c) => {
-      if (c.id === checklistId) {
-        return {
-          ...c,
-          items: c.items.map((i) => (i.id === itemId ? { ...i, checked: !i.checked } : i)),
-        };
-      }
-      return c;
-    });
-    setChecklists(updated);
-    await repository.saveChecklists(updated);
-  }
-
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-[60dvh] gap-3">
@@ -1734,6 +1808,19 @@ export default function TodayView() {
     if (currentIdx < tripDays.length - 1) {
       setSelectedDayId(tripDays[currentIdx + 1].id);
     }
+  }
+
+  function handleAddActivity(dayId: string, activity: Activity) {
+    const nextDays = tripDays.map((day) => {
+      if (day.id === dayId) {
+        const nextActs = [...day.activities, activity];
+        nextActs.sort((a, b) => a.time.localeCompare(b.time));
+        return { ...day, activities: nextActs };
+      }
+      return day;
+    });
+    setTripDays(nextDays);
+    repository.saveTripDays(nextDays);
   }
 
   function handleEditActivity(dayId: string, updated: Activity) {
@@ -1766,48 +1853,64 @@ export default function TodayView() {
   const daysLeft = getDaysToDeparture();
   const todayLabel = getTodayLabel();
 
-  const totalDriveMinutes = today ? today.activities.reduce((sum, act, idx) => {
-    const nextAct = today.activities[idx + 1];
-    if (!nextAct || !isDrivingTransit(act, nextAct, transportsList, today.date)) return sum;
-    const routeKey = `${act.id}_to_${nextAct?.id}`;
-    const timeStr = calculatedTransits[routeKey] ?? getCachedTransitTime(act, nextAct);
-    return sum + parseTransitTimeToMinutes(timeStr);
-  }, 0) : 0;
+  const processedActivities = dedupeDayActivities(today?.activities || [], today?.date, accommodationsList);
 
-  const totalNonDriveMinutes = today ? today.activities.reduce((sum, act, idx) => {
-    const nextAct = today.activities[idx + 1];
-    if (!nextAct || isDrivingTransit(act, nextAct, transportsList, today.date)) return sum;
-    const routeKey = `${act.id}_to_${nextAct?.id}`;
-    const timeStr = calculatedTransits[routeKey] ?? getCachedTransitTime(act, nextAct);
+  const totalDriveMinutes = today ? processedActivities.reduce((sum, act, idx) => {
+    const nextAct = processedActivities[idx + 1];
+    if (!nextAct || !isDrivingTransit(act, nextAct, transportsList, today.date)) return sum;
+    const timeStr = getReliableTransitTime(act, nextAct, today.date, transportsList);
     return sum + parseTransitTimeToMinutes(timeStr);
   }, 0) : 0;
 
   const totalDriveTimeStr = formatMinutesToHoursAndMinutes(totalDriveMinutes);
-  const totalNonDriveTimeStr = formatMinutesToHoursAndMinutes(totalNonDriveMinutes);
 
-  const visibleActivities = expanded ? (today?.activities || []) : (today?.activities || []).slice(0, VISIBLE_COUNT);
-  const hasMore = (today?.activities || []).length > VISIBLE_COUNT;
+  const visibleActivities = expanded ? processedActivities : processedActivities.slice(0, VISIBLE_COUNT);
+  const hasMore = processedActivities.length > VISIBLE_COUNT;
   const tomorrowActivities = tomorrow?.activities ?? [];
-
-  const priorityInfo = getPriorityActivity(today?.activities || [], completedActs, selectedDayId === TODAY_DAY_ID);
-  const priorityAct = priorityInfo.activity;
 
   const imminentTransport = (() => {
     if (!today?.date) return null;
-    const targetDates = [today.date];
-    if (tomorrow?.date) targetDates.push(tomorrow.date);
-    return (transportsList || []).find((t) => {
-      if (!t.date || typeof t.date !== "string") return false;
-      return targetDates.includes(t.date);
-    });
+    return (transportsList || []).find((t) => t.date === today.date);
   })();
-
-  const pendingChecklistItems = checklists.flatMap((c) =>
-    c.items.filter((i) => !i.checked).map((i) => ({ item: i, checklistId: c.id }))
-  ).slice(0, 3);
 
   const prevDay = currentIdx > 0 ? tripDays[currentIdx - 1] : null;
   const prevDayAcc = prevDay ? getTodayAccommodation(prevDay.date, accommodationsList, prevDay.activities) : null;
+
+  const candidateSegments = today ? getDrivingCandidateSegments(today, prevDayAcc, accommodationsList, transportsList) : [];
+  const hasCandidateSegments = candidateSegments.length > 0;
+  const hasCalculatedRoutes = candidateSegments.some(
+    (seg) => !!drivingRoutesMap[`${seg.originUrl}_to_${seg.destUrl}`]
+  );
+
+  async function handleCalculateDriving() {
+    if (!today || isCalculatingDriving || candidateSegments.length === 0) return;
+
+    setIsCalculatingDriving(true);
+    setCalcProgress({ current: 0, total: candidateSegments.length });
+
+    for (let i = 0; i < candidateSegments.length; i++) {
+      const seg = candidateSegments[i];
+      setCalcProgress({ current: i + 1, total: candidateSegments.length });
+
+      try {
+        const res = await calculateDrivingRoute(seg.originUrl, seg.destUrl);
+        if (res.status === "success" && res.route) {
+          setDrivingRoutesMap((prev) => ({
+            ...prev,
+            [`${seg.originUrl}_to_${seg.destUrl}`]: res.route!,
+          }));
+        }
+      } catch (e) {
+        console.error("Errore calcolo guida:", e);
+      }
+
+      if (i < candidateSegments.length - 1) {
+        await delayMs(1000);
+      }
+    }
+
+    setIsCalculatingDriving(false);
+  }
 
   return (
     <>
@@ -1831,18 +1934,20 @@ export default function TodayView() {
               </span>
             </div>
           )}
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 flex-1 pr-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1 pr-1">
               <h1 className="text-[20px] font-bold text-gray-900 leading-tight truncate">
                 Oggi &middot; {todayLabel}
               </h1>
-              <div className="flex items-center gap-1 mt-0.5">
-                <IcMapPin size={13} className="text-green-500 flex-shrink-0" />
-                <span className="text-[13px] text-green-600 font-semibold truncate">{today.location}</span>
+              <div className="mt-1 flex items-start gap-1">
+                <IcMapPin size={13} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                <span className="text-[12.5px] text-emerald-800 font-bold leading-snug line-clamp-2 [overflow-wrap:anywhere]">
+                  {today?.location || "In viaggio"}
+                </span>
               </div>
             </div>
             {/* Navigazione giorno e Calendario */}
-            <div className="flex items-center gap-1 flex-shrink-0">
+            <div className="flex items-center gap-1 flex-shrink-0 self-start pt-0.5">
               <button
                 className={`w-9 h-9 rounded-xl bg-white border border-gray-200/80 shadow-xs flex items-center justify-center transition-opacity ${
                   currentIdx <= 0 ? "opacity-35 cursor-not-allowed" : "hover:bg-gray-50 active:scale-95"
@@ -1876,66 +1981,96 @@ export default function TodayView() {
           </div>
         </div>
 
-        {/* 2. CARD PRIORITARIA "ADESSO / PROSSIMA TAPPA" */}
-        <section className="card p-4 border border-blue-100/90 shadow-sm bg-gradient-to-b from-blue-50/30 to-white space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-wider font-black text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-md">
-              {priorityAct?.status === "in_corso" ? "⚡ IN CORSO" : "📍 PROSSIMA TAPPA"}
-            </span>
-            {priorityAct && (
-              <span className="text-[11.5px] font-extrabold text-blue-900">
-                {priorityAct.time}
-              </span>
-            )}
-          </div>
-
-          {priorityAct ? (
-            <div className="space-y-3">
-              <div>
-                <h2 className="text-[16px] font-black text-gray-900 leading-snug">
-                  {priorityAct.title}
-                </h2>
-                {priorityAct.subtitle && (
-                  <p className="text-[12px] text-gray-500 font-semibold mt-0.5 truncate">
-                    {priorityAct.subtitle}
-                  </p>
+        {/* 2. TIMELINE DELLA GIORNATA (Primo contenuto principale) */}
+        <section className="card p-4 space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-gray-100 flex-wrap gap-2">
+            <div>
+              <span className="section-label mb-0 block text-[13px] font-black text-gray-900 tracking-tight">Timeline della giornata</span>
+              <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                <p className="text-[11.5px] text-gray-400 font-medium">{today.dateLabel}</p>
+                {totalDriveTimeStr && (
+                  <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1">
+                    &middot; 🚗 Guida stimata: {totalDriveTimeStr}
+                  </span>
                 )}
               </div>
+            </div>
+            <div className="flex items-center gap-1.5 flex-wrap shrink-0">
+              <DayMapsButton activities={processedActivities} />
 
-              <div className="flex items-center gap-2 pt-0.5">
-                {priorityAct.mapsUrl ? (
-                  <a
-                    href={priorityAct.mapsUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 h-10 rounded-xl bg-blue-600 text-white font-extrabold text-[12px] flex items-center justify-center gap-1.5 shadow-sm hover:bg-blue-700 active:scale-98 transition-all"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M21 10c0 7-9 13-9 13S3 17 3 10a9 9 0 0 1 18 0z"/>
-                      <circle cx="12" cy="10" r="3"/>
-                    </svg>
-                    <span>Apri Mappe</span>
-                  </a>
-                ) : null}
-
+              {hasCandidateSegments && (
                 <button
-                  onClick={() => setEditingActivity({ dayId: today.id, activity: priorityAct, dayLabel: today.dateLabel })}
-                  className="px-3.5 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[12px] flex items-center justify-center transition-all shrink-0"
+                  onClick={handleCalculateDriving}
+                  disabled={isCalculatingDriving}
+                  className="px-2.5 py-1 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200/60 font-extrabold text-[10.5px] flex items-center gap-1 active:scale-95 transition-all shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                  title="Calcola durata e distanza delle tratte in auto della giornata"
                 >
-                  Dettagli
+                  {isCalculatingDriving ? (
+                    <span>Calcolo {calcProgress.current} di {calcProgress.total}...</span>
+                  ) : (
+                    <span>{hasCalculatedRoutes ? "Ricalcola guida" : "Calcola guida"}</span>
+                  )}
                 </button>
-              </div>
+              )}
+            </div>
+          </div>
+
+          {visibleActivities.length === 0 ? (
+            <div className="py-8 px-4 text-center bg-gray-50/60 border border-dashed border-gray-200 rounded-2xl space-y-3">
+              <p className="text-[13px] font-bold text-gray-700">Nessuna tappa programmata per questo giorno.</p>
+              <button
+                onClick={() => setAddingToDay({ id: today.id, label: today.dateLabel })}
+                className="px-4 py-2 bg-blue-600 text-white font-extrabold text-[12px] rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
+              >
+                + Aggiungi attività
+              </button>
             </div>
           ) : (
-            <div className="py-1 text-center">
-              <p className="text-[13px] font-extrabold text-emerald-700">
-                {priorityInfo.isCompletedAll ? "🎉 Programma di oggi completato!" : "Nessuna attività programmata per oggi."}
-              </p>
-            </div>
+            <>
+              <div className="space-y-0">
+                {visibleActivities.map((act, idx) => {
+                  const nextAct = processedActivities[idx + 1];
+                  const transitTime = idx === 0 && prevDayAcc
+                    ? (act.transitTime ? formatTransitTime(act.transitTime) : undefined)
+                    : getReliableTransitTime(act, nextAct, today.date, transportsList);
+                  const isActive = idx === 0 && selectedDayId === TODAY_DAY_ID;
+                  return (
+                    <TimelineRow
+                      key={act.id}
+                      activity={act}
+                      nextActivity={nextAct}
+                      transitTime={transitTime}
+                      prevAccommodation={prevDayAcc}
+                      isActive={isActive}
+                      isFirst={idx === 0}
+                      isLast={idx === visibleActivities.length - 1}
+                      onQRTap={setQrActivity}
+                      onEdit={() => setEditingActivity({ dayId: today.id, activity: act, dayLabel: today.dateLabel })}
+                      completed={completedActs.includes(act.id)}
+                      onToggle={() => toggleActivity(act.id)}
+                      dayLocation={today.location}
+                      dayDate={today.date}
+                      transportsList={transportsList}
+                      accommodationsList={accommodationsList}
+                      drivingRoutesMap={drivingRoutesMap}
+                    />
+                  );
+                })}
+              </div>
+              {hasMore && (
+                <button
+                  className="w-full mt-2 flex items-center justify-center gap-1 text-[12.5px] font-bold text-blue-600 py-1.5"
+                  onClick={() => setExpanded(!expanded)}
+                >
+                  {expanded ? "Mostra meno" : "Vedi tutta la giornata"}
+                  <IcChevronDown size={14} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
+                </button>
+              )}
+            </>
           )}
         </section>
 
-        {/* 3. CARD TRASPORTO IMMINENTE (Condizionale) */}
+        {/* 3. TRASPORTO (Subito sotto la timeline, solo se associato a oggi) */}
         {imminentTransport && (
           <section
             onClick={() => navigate("/trasporti")}
@@ -1943,7 +2078,7 @@ export default function TodayView() {
           >
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase tracking-wider font-black text-purple-700 bg-purple-100/70 px-2 py-0.5 rounded-md">
-                ✈️ TRASPORTO IMMINENTE ({imminentTransport.date === today.date ? "Oggi" : "Domani"})
+                ✈️ TRASPORTO OGGI
               </span>
               <span className="text-[11px] font-extrabold text-purple-900">
                 {imminentTransport.time} {imminentTransport.arrivalTime ? `➔ ${imminentTransport.arrivalTime}` : ""}
@@ -1977,7 +2112,7 @@ export default function TodayView() {
           </section>
         )}
 
-        {/* 4. CARD DOVE DORMIAMO STANOTTE */}
+        {/* 4. DOVE DORMIAMO STANOTTE (Dopo il trasporto) */}
         {acco && (
           <section className="card p-3.5 border border-slate-200/80 space-y-2.5">
             <div className="flex items-center justify-between">
@@ -2030,110 +2165,34 @@ export default function TodayView() {
           </section>
         )}
 
-        {/* 5. CARD DA RICORDARE OGGI (Checklist non completate) */}
-        {pendingChecklistItems.length > 0 && (
-          <section className="card p-3.5 border border-amber-200/80 bg-amber-50/30 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] uppercase tracking-wider font-black text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md">
-                📋 DA RICORDARE OGGI
-              </span>
-              <button
-                onClick={() => navigate("/altro?open=checklist")}
-                className="text-[11px] font-extrabold text-amber-800 hover:underline flex items-center gap-0.5"
-              >
-                Vedi tutto <IcChevronRight size={12} />
-              </button>
-            </div>
+        {/* Strip Scorciatoie Rapide (Spese, Checklist, Emergenze) */}
+        <section className="grid grid-cols-3 gap-2 pt-1 pb-1">
+          <button
+            onClick={() => navigate("/budgeter")}
+            className="h-10 px-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200/80 text-slate-700 font-extrabold text-[11.5px] flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95 whitespace-nowrap overflow-hidden"
+          >
+            <span className="text-[13px] text-purple-600 font-black">€</span>
+            <span>Spese</span>
+          </button>
 
-            <div className="space-y-1 pt-0.5">
-              {pendingChecklistItems.map(({ item, checklistId }) => (
-                <div
-                  key={item.id}
-                  onClick={() => toggleChecklistItem(checklistId, item.id)}
-                  className="flex items-center gap-2 p-2 bg-white/90 rounded-xl border border-amber-100 cursor-pointer active:scale-[0.99] transition-all"
-                >
-                  <input
-                    type="checkbox"
-                    checked={item.checked}
-                    onChange={() => {}}
-                    className="w-4 h-4 rounded border-amber-300 text-amber-600 focus:ring-0 cursor-pointer"
-                  />
-                  <span className="text-[12px] font-semibold text-gray-800 truncate">
-                    {item.text}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
+          <button
+            onClick={() => navigate("/altro?open=checklist")}
+            className="h-10 px-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200/80 text-slate-700 font-extrabold text-[11.5px] flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95 whitespace-nowrap overflow-hidden"
+          >
+            <span className="text-[13px] text-blue-600 font-black">✓</span>
+            <span>Checklist</span>
+          </button>
 
-        {/* 6. TIMELINE RESTO DELLA GIORNATA */}
-        <section className="card p-4 space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-gray-100 flex-wrap gap-2">
-            <div>
-              <span className="section-label mb-0 block text-[13px] font-black text-gray-900 tracking-tight">Timeline della giornata</span>
-              <p className="text-[11.5px] text-gray-400 mt-0.5 font-medium">{today.dateLabel}</p>
-            </div>
-            <div className="flex items-center gap-1.5 flex-wrap shrink-0">
-              {totalDriveTimeStr && (
-                <span className="text-[10px] font-black text-blue-700 bg-blue-50/70 px-2 py-1 rounded-lg border border-blue-100 flex items-center gap-1">
-                  🚗 Guida: {totalDriveTimeStr}
-                </span>
-              )}
-              {totalNonDriveTimeStr && (
-                <span className="text-[10px] font-black text-slate-700 bg-slate-100/80 px-2 py-1 rounded-lg border border-slate-200/80 flex items-center gap-1">
-                  🚆 Transfer: {totalNonDriveTimeStr}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-0">
-            {visibleActivities.map((act, idx) => {
-              const nextAct = today.activities[idx + 1];
-              let transitTime: string | undefined;
-              if (idx === 0 && prevDayAcc) {
-                const routeKey = `${prevDayAcc.id}_to_${act.id}`;
-                transitTime = calculatedTransits[routeKey];
-              } else {
-                const routeKey = `${act.id}_to_${nextAct?.id}`;
-                transitTime = calculatedTransits[routeKey] ?? getCachedTransitTime(act, nextAct);
-              }
-              const isActive = act.id === priorityAct?.id;
-              return (
-                <TimelineRow
-                  key={act.id}
-                  activity={act}
-                  nextActivity={nextAct}
-                  transitTime={transitTime}
-                  prevAccommodation={prevDayAcc}
-                  isActive={isActive}
-                  isFirst={idx === 0}
-                  isLast={idx === visibleActivities.length - 1}
-                  onQRTap={setQrActivity}
-                  onEdit={() => setEditingActivity({ dayId: today.id, activity: act, dayLabel: today.dateLabel })}
-                  completed={completedActs.includes(act.id)}
-                  onToggle={() => toggleActivity(act.id)}
-                  dayLocation={today.location}
-                  dayDate={today.date}
-                  transportsList={transportsList}
-                  accommodationsList={accommodationsList}
-                />
-              );
-            })}
-          </div>
-          {hasMore && (
-            <button
-              className="w-full mt-2 flex items-center justify-center gap-1 text-[12.5px] font-bold text-blue-600 py-1.5"
-              onClick={() => setExpanded(!expanded)}
-            >
-              {expanded ? "Mostra meno" : "Vedi tutta la giornata"}
-              <IcChevronDown size={14} className={`transition-transform ${expanded ? "rotate-180" : ""}`} />
-            </button>
-          )}
+          <button
+            onClick={() => navigate("/altro?open=emergencies")}
+            className="h-10 px-2 rounded-xl bg-amber-50/70 hover:bg-amber-100/70 border border-amber-200/80 text-amber-900 font-extrabold text-[11.5px] flex items-center justify-center gap-1.5 shadow-2xs transition-all active:scale-95 whitespace-nowrap overflow-hidden"
+          >
+            <span className="text-[12px]">🚨</span>
+            <span>Emergenze</span>
+          </button>
         </section>
 
-        {/* Anteprima di domani — scorrevole orizzontale */}
+        {/* 5. ANTEPRIMA DI DOMANI (In fondo) */}
         {tomorrow && tomorrowActivities.length > 0 && (
           <section>
             <div className="flex items-center justify-between mb-2.5">
@@ -2192,6 +2251,17 @@ export default function TodayView() {
           onSave={(updated) => handleEditActivity(editingActivity.dayId, updated)}
           onDelete={() => handleDeleteActivity(editingActivity.dayId, editingActivity.activity.id)}
           onClose={() => setEditingActivity(null)}
+        />
+      )}
+      {addingToDay && (
+        <AddActivitySheet
+          dayId={addingToDay.id}
+          dayLabel={addingToDay.label}
+          onSave={(dayId, act) => {
+            handleAddActivity(dayId, act);
+            setAddingToDay(null);
+          }}
+          onClose={() => setAddingToDay(null)}
         />
       )}
 

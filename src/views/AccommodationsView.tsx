@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { ACCOMMODATIONS } from "../data/mockData";
 import type { Accommodation, Transport } from "../data/mockData";
-import { IcMapPin, IcChevronRight, IcPlus } from "../components/Icons";
+import { IcMapPin, IcChevronRight, IcPlus, IcChevronDown } from "../components/Icons";
 import { repository } from "../services/repository";
 import BookingVerificationView from "../components/BookingVerificationView";
 import SwipeToDelete from "../components/SwipeToDelete";
@@ -28,15 +28,49 @@ const EMPTY_FORM = {
   cancellationDeadline: "", // Data ultima cancellazione
 };
 
-// ── Bottom sheet per aggiungere alloggio ──────────────────────────────────────
+// ── Bottom sheet per aggiungere/modificare alloggio ──────────────────────────
 function AddAccoSheet({
   onSave,
   onClose,
+  accoToEdit,
 }: {
   onSave: (acc: Accommodation) => void;
   onClose: () => void;
+  accoToEdit?: Accommodation;
 }) {
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(() => {
+    if (accoToEdit) {
+      return {
+        name: accoToEdit.name || "",
+        city: accoToEdit.city || "",
+        area: accoToEdit.area || "",
+        checkIn: accoToEdit.checkIn || "",
+        checkOut: accoToEdit.checkOut || "",
+        dates: accoToEdit.dates || "",
+        note: accoToEdit.note || "",
+        mapsUrl: accoToEdit.mapsUrl || "",
+        price: accoToEdit.price !== undefined ? String(accoToEdit.price) : "",
+        isPaid: !!accoToEdit.isPaid,
+        cancellationDeadline: accoToEdit.cancellationDeadline || "",
+      };
+    }
+    return EMPTY_FORM;
+  });
+
+  const [showOptionalDetails, setShowOptionalDetails] = useState(() => {
+    if (accoToEdit) {
+      return !!(
+        accoToEdit.area ||
+        accoToEdit.dates ||
+        accoToEdit.price !== undefined ||
+        accoToEdit.cancellationDeadline ||
+        accoToEdit.mapsUrl ||
+        accoToEdit.note ||
+        accoToEdit.isPaid
+      );
+    }
+    return false;
+  });
 
   function handleChange(field: keyof typeof EMPTY_FORM, value: any) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -45,8 +79,9 @@ function AddAccoSheet({
   function handleSubmit() {
     if (!form.name.trim() || !form.city.trim()) return;
     const parsedPrice = parseFloat(form.price.replace(",", "."));
-    const newAcc: Accommodation = {
-      id: `acc-user-${Date.now()}`,
+    const updatedAcc: Accommodation = {
+      ...(accoToEdit || {}),
+      id: accoToEdit ? accoToEdit.id : `acc-user-${Date.now()}`,
       name: form.name.trim(),
       city: form.city.trim(),
       area: form.area.trim() || undefined,
@@ -59,7 +94,7 @@ function AddAccoSheet({
       isPaid: form.isPaid,
       cancellationDeadline: form.cancellationDeadline.trim() || undefined,
     };
-    onSave(newAcc);
+    onSave(updatedAcc);
     onClose();
   }
 
@@ -74,107 +109,123 @@ function AddAccoSheet({
       >
         <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[17px] font-extrabold text-gray-900">Nuovo alloggio</h2>
+          <h2 className="text-[17px] font-extrabold text-gray-900">
+            {accoToEdit ? "Modifica alloggio" : "Nuovo alloggio"}
+          </h2>
         </div>
 
         <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-0">
-          <Field
-            label="Nome struttura *"
-            value={form.name}
-            placeholder="es. Hotel Romolo"
-            onChange={(v) => handleChange("name", v)}
-          />
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
-              <Field
-                label="Città *"
-                value={form.city}
-                placeholder="es. Roma"
-                onChange={(v) => handleChange("city", v)}
-              />
+          {/* ── SEZIONE ESSENZIALE (Sempre visibile) ── */}
+          <div className="bg-blue-50/40 border border-blue-100 p-3.5 rounded-2xl space-y-3">
+            <p className="text-[10px] font-bold text-blue-800 uppercase tracking-widest">Dati essenziali</p>
+            <Field
+              label="Nome struttura *"
+              value={form.name}
+              placeholder="es. Hotel Romolo"
+              onChange={(v) => handleChange("name", v)}
+            />
+            <Field
+              label="Città *"
+              value={form.city}
+              placeholder="es. Tokyo"
+              onChange={(v) => handleChange("city", v)}
+            />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <Field
+                  label="Check-in (data/ora)"
+                  value={form.checkIn}
+                  placeholder="es. 25 nov · 15:00 o 25/11/2026"
+                  onChange={(v) => handleChange("checkIn", v)}
+                />
+              </div>
+              <div className="flex-1">
+                <Field
+                  label="Check-out (data/ora)"
+                  value={form.checkOut}
+                  placeholder="es. 27 nov · 11:00 o 27/11/2026"
+                  onChange={(v) => handleChange("checkOut", v)}
+                />
+              </div>
             </div>
-            <div className="flex-1">
+          </div>
+
+          {/* ── TOGGLE ACCORDION DETTAGLI FACOLTATIVI ── */}
+          <button
+            type="button"
+            onClick={() => setShowOptionalDetails((prev) => !prev)}
+            className="w-full py-2.5 px-3 bg-gray-50 hover:bg-gray-100/80 border border-gray-200/80 rounded-xl text-[12px] font-bold text-gray-700 flex items-center justify-between transition-colors"
+          >
+            <span>{showOptionalDetails ? "➖ Nascondi dettagli facoltativi" : "➕ Aggiungi dettagli facoltativi (prezzo, mappa, quartiere...)"}</span>
+            <IcChevronDown size={16} className={`transition-transform duration-200 ${showOptionalDetails ? "rotate-180 text-blue-600" : "text-gray-400"}`} />
+          </button>
+
+          {/* ── SEZIONE DETTAGLI FACOLTATIVI (Richiudibile) ── */}
+          {showOptionalDetails && (
+            <div className="space-y-3 pt-1">
               <Field
                 label="Area / Quartiere"
                 value={form.area}
-                placeholder="es. Trastevere"
+                placeholder="es. Trastevere, Shinjuku"
                 onChange={(v) => handleChange("area", v)}
               />
-            </div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
               <Field
-                label="Check-in"
-                value={form.checkIn}
-                placeholder="es. 25 nov · 15:00"
-                onChange={(v) => handleChange("checkIn", v)}
+                label="Date (etichetta estesa)"
+                value={form.dates}
+                placeholder="es. 25 – 27 novembre"
+                onChange={(v) => handleChange("dates", v)}
               />
-            </div>
-            <div className="flex-1">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <Field
+                    label="Prezzo (€)"
+                    value={form.price}
+                    placeholder="es. 69.00"
+                    onChange={(v) => handleChange("price", v)}
+                  />
+                </div>
+                <div className="flex-1">
+                  <Field
+                    label="Scadenza Cancellazione"
+                    value={form.cancellationDeadline}
+                    placeholder="es. 24 nov"
+                    onChange={(v) => handleChange("cancellationDeadline", v)}
+                  />
+                </div>
+              </div>
               <Field
-                label="Check-out"
-                value={form.checkOut}
-                placeholder="es. 27 nov · 11:00"
-                onChange={(v) => handleChange("checkOut", v)}
+                label="Link Maps"
+                value={form.mapsUrl}
+                placeholder="https://maps.google.com/..."
+                onChange={(v) => handleChange("mapsUrl", v)}
               />
-            </div>
-          </div>
-          <Field
-            label="Date (etichetta)"
-            value={form.dates}
-            placeholder="es. 25 – 27 novembre"
-            onChange={(v) => handleChange("dates", v)}
-          />
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="flex-1">
               <Field
-                label="Prezzo (€)"
-                value={form.price}
-                placeholder="es. 69.00"
-                onChange={(v) => handleChange("price", v)}
+                label="Nota"
+                value={form.note}
+                placeholder="es. Colazione inclusa"
+                onChange={(v) => handleChange("note", v)}
               />
-            </div>
-            <div className="flex-1">
-              <Field
-                label="Scadenza Cancellazione (es. 24 nov)"
-                value={form.cancellationDeadline}
-                placeholder="Data ultima cancellazione"
-                onChange={(v) => handleChange("cancellationDeadline", v)}
-              />
-            </div>
-          </div>
-          <Field
-            label="Nota"
-            value={form.note}
-            placeholder="es. Colazione inclusa"
-            onChange={(v) => handleChange("note", v)}
-          />
-          <Field
-            label="Link Maps"
-            value={form.mapsUrl}
-            placeholder="https://maps.google.com/..."
-            onChange={(v) => handleChange("mapsUrl", v)}
-          />
 
-          {/* Toggle Pagato */}
-          <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100 mt-2">
-            <div>
-              <p className="text-[12.5px] font-bold text-gray-800">Stato pagamento</p>
-              <p className="text-[10px] text-gray-400">Questo alloggio è già stato bloccato/pagato?</p>
+              {/* Toggle Pagato */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                <div>
+                  <p className="text-[12.5px] font-bold text-gray-800">Stato pagamento</p>
+                  <p className="text-[10px] text-gray-400">Questo alloggio è già stato bloccato/pagato?</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleChange("isPaid", !form.isPaid)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
+                    form.isPaid
+                      ? "bg-green-150 text-green-700 border border-green-200"
+                      : "bg-red-50 text-red-500 border border-red-100"
+                  }`}
+                >
+                  {form.isPaid ? "✅ Pagato" : "⏳ Da pagare"}
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => handleChange("isPaid", !form.isPaid)}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
-                form.isPaid
-                  ? "bg-green-150 text-green-700 border border-green-200"
-                  : "bg-red-50 text-red-500 border border-red-100"
-              }`}
-            >
-              {form.isPaid ? "✅ Pagato" : "⏳ Da pagare"}
-            </button>
-          </div>
+          )}
         </div>
 
         <div className="flex gap-2 mt-5">
@@ -190,7 +241,7 @@ function AddAccoSheet({
             disabled={!form.name.trim() || !form.city.trim()}
             style={{ opacity: !form.name.trim() || !form.city.trim() ? 0.5 : 1 }}
           >
-            Aggiungi
+            {accoToEdit ? "Salva modifiche" : "Aggiungi"}
           </button>
         </div>
       </div>
@@ -311,11 +362,13 @@ function DetailAccoSheet({
   acc,
   onClose,
   onDelete,
+  onEdit,
   onUpdate,
 }: {
   acc: Accommodation;
   onClose: () => void;
   onDelete: () => void;
+  onEdit?: () => void;
   onUpdate: (updated: Accommodation) => void;
 }) {
   const mapsUrl = acc.mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${acc.name}, ${acc.city}`)}`;
@@ -366,19 +419,29 @@ function DetailAccoSheet({
             />
           )}
 
-          <div className="grid grid-cols-2 gap-3 bg-gray-50 p-3 rounded-2xl border border-gray-100 text-[12.5px]">
+          <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 text-[12.5px] space-y-2">
             <div>
-              <p className="text-[9px] font-bold text-gray-400 uppercase">Check-in</p>
-              <p className="font-semibold text-gray-800">{acc.checkIn}</p>
+              <p className="text-[9.5px] font-bold text-gray-400 uppercase tracking-wide">Date Soggiorno</p>
+              <p className="font-bold text-gray-900 text-[13px]">
+                {acc.dates && acc.dates.trim() !== `${acc.checkIn} – ${acc.checkOut}`
+                  ? acc.dates
+                  : acc.checkIn && acc.checkOut
+                  ? `${acc.checkIn} – ${acc.checkOut}`
+                  : acc.dates || "Non specificate"}
+              </p>
             </div>
-            <div>
-              <p className="text-[9px] font-bold text-gray-400 uppercase">Check-out</p>
-              <p className="font-semibold text-gray-800">{acc.checkOut}</p>
-            </div>
-            <div className="col-span-2 border-t border-gray-200/60 pt-2 mt-1">
-              <p className="text-[9px] font-bold text-gray-400 uppercase">Date Soggiorno</p>
-              <p className="font-semibold text-gray-800">{acc.dates}</p>
-            </div>
+            {(acc.checkIn || acc.checkOut) && (
+              <div className="grid grid-cols-2 gap-3 border-t border-gray-200/60 pt-2">
+                <div>
+                  <p className="text-[9px] font-bold text-gray-400 uppercase">Check-in</p>
+                  <p className="font-semibold text-gray-800">{acc.checkIn || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-bold text-gray-400 uppercase">Check-out</p>
+                  <p className="font-semibold text-gray-800">{acc.checkOut || "—"}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Toggle stato pagamento al volo */}
@@ -439,18 +502,9 @@ function DetailAccoSheet({
             )}
             <div className="flex justify-between items-center py-2 border-b border-gray-100">
               <span className="text-[11px] text-gray-400 font-bold uppercase">Prezzo</span>
-              <button
-                onClick={() => {
-                  const val = window.prompt(`Modifica prezzo per: ${acc.name}`, acc.price !== undefined ? String(acc.price) : "");
-                  if (val !== null) {
-                    const parsed = parseFloat(val.replace(",", "."));
-                    onUpdate({ ...acc, price: isNaN(parsed) || parsed <= 0 ? undefined : parsed });
-                  }
-                }}
-                className="text-[13px] font-black text-blue-600 px-2 py-1 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
-              >
-                {acc.price !== undefined ? `€ ${typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}` : "+ Inserisci prezzo"}
-              </button>
+              <span className="text-[13px] font-black text-blue-600">
+                {acc.price !== undefined ? `€ ${typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}` : "Non specificato"}
+              </span>
             </div>
 
             {acc.cancellationDeadline && (
@@ -476,6 +530,15 @@ function DetailAccoSheet({
               </span>
             </div>
 
+            {acc.area && (
+              <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-[11px] text-gray-400 font-bold uppercase">Quartiere / Area</span>
+                <span className="text-[12px] font-semibold text-gray-700">
+                  {acc.area}
+                </span>
+              </div>
+            )}
+
             {acc.note && (
               <div className="py-2">
                 <p className="text-[11px] text-gray-400 font-bold uppercase mb-1">Note aggiuntive</p>
@@ -499,6 +562,14 @@ function DetailAccoSheet({
         </div>
 
         <div className="flex gap-2 mt-3 pt-1">
+          {onEdit && (
+            <button
+              className="flex-1 py-2.5 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-[13px] border border-blue-200/40 active:scale-95 transition-all"
+              onClick={onEdit}
+            >
+              ✏️ Modifica
+            </button>
+          )}
           <button
             className="flex-1 py-2.5 rounded-2xl bg-red-50 hover:bg-red-100 text-red-500 font-bold text-[13px] border border-red-200/40 active:scale-95 transition-all"
             onClick={onDelete}
@@ -524,6 +595,7 @@ export default function AccommodationsView() {
   const [isLoading, setIsLoading] = useState(true);
   const isLoadedRef = useRef(false);
   const [showForm, setShowForm] = useState(false);
+  const [editingAcco, setEditingAcco] = useState<Accommodation | null>(null);
   const [showImportSheet, setShowImportSheet] = useState(false);
   const [showVerification, setShowVerification] = useState(false);
   const [activeIssues, setActiveIssues] = useState<any[]>([]);
@@ -562,11 +634,8 @@ export default function AccommodationsView() {
   useEffect(() => {
     repository.getAccommodations(ACCOMMODATIONS)
       .then((data) => {
-        let loaded = data;
-        if (data.length < ACCOMMODATIONS.length) {
-          loaded = ACCOMMODATIONS;
-        }
-        // Assicurati che i prezzi di default vengano ripristinati se undefined
+        const loaded = data || ACCOMMODATIONS;
+        // Assicurati che i prezzi di default vengano ripristinati se undefined per i mock
         const merged = loaded.map((a) => {
           if (a.price === undefined || a.price === null) {
             const fallbackItem = ACCOMMODATIONS.find((f) => f.id === a.id);
@@ -754,24 +823,36 @@ export default function AccommodationsView() {
           </div>
         )}
 
-        <div className="space-y-3">
-          {filteredAccos.map((acc) => (
-            <SwipeToDelete
-              key={acc.id}
-              label="Elimina"
-              onDelete={() => {
-                const updated = accos.filter((a) => a.id !== acc.id);
-                setAccos(updated);
-                repository.saveAccommodations(updated);
-              }}
+        {accos.length === 0 ? (
+          <div className="py-10 px-4 text-center bg-gray-50/60 border border-dashed border-gray-200 rounded-2xl space-y-3">
+            <p className="text-[13px] font-bold text-gray-700">Non hai ancora inserito dove dormirai.</p>
+            <button
+              onClick={() => setShowForm(true)}
+              className="px-4 py-2 bg-blue-600 text-white font-extrabold text-[12px] rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
             >
-              <AccoCard
-                acc={acc}
-                onOpenDetail={() => setSelectedAcco(acc)}
-              />
-            </SwipeToDelete>
-          ))}
-        </div>
+              + Aggiungi alloggio
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredAccos.map((acc) => (
+              <SwipeToDelete
+                key={acc.id}
+                label="Elimina"
+                onDelete={() => {
+                  const updated = accos.filter((a) => a.id !== acc.id);
+                  setAccos(updated);
+                  repository.saveAccommodations(updated);
+                }}
+              >
+                <AccoCard
+                  acc={acc}
+                  onOpenDetail={() => setSelectedAcco(acc)}
+                />
+              </SwipeToDelete>
+            ))}
+          </div>
+        )}
       </div>
 
       {selectedAcco && (
@@ -779,6 +860,11 @@ export default function AccommodationsView() {
           acc={selectedAcco} 
           onClose={() => setSelectedAcco(null)} 
           onDelete={() => handleDeleteAcco(selectedAcco.id)}
+          onEdit={() => {
+            const target = selectedAcco;
+            setSelectedAcco(null);
+            setEditingAcco(target);
+          }}
           onUpdate={(updated) => {
             handleSave(updated);
             setSelectedAcco(updated);
@@ -786,8 +872,15 @@ export default function AccommodationsView() {
         />
       )}
 
-      {showForm && (
-        <AddAccoSheet onSave={handleSave} onClose={() => setShowForm(false)} />
+      {(showForm || editingAcco) && (
+        <AddAccoSheet 
+          accoToEdit={editingAcco || undefined}
+          onSave={handleSave} 
+          onClose={() => {
+            setShowForm(false);
+            setEditingAcco(null);
+          }} 
+        />
       )}
 
       {showImportSheet && (
