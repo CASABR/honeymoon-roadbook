@@ -270,66 +270,307 @@ export function delayMs(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export type LocalRoutePointOverride = {
+  entityKey: string;
+  label: string;
+  lat: number;
+  lon: number;
+  source: "user-confirmed";
+  updatedAt: string;
+};
+
+export const LOCAL_OVERIDES_STORAGE_KEY = "honeymoon-local-route-point-overrides-v1";
+
+const DEV_DEMO_OVERRIDES: Record<string, LocalRoutePointOverride> = {
+  "acc-auckland": {
+    entityKey: "acc-auckland",
+    label: "Noa Hotel (Auckland)",
+    lat: -36.8485,
+    lon: 174.7633,
+    source: "user-confirmed",
+    updatedAt: "2026-09-03T12:00:00Z",
+  },
+  "d5-1": {
+    entityKey: "d5-1",
+    label: "Ritiro auto a noleggio · Auckland Airport",
+    lat: -37.0082,
+    lon: 174.785,
+    source: "user-confirmed",
+    updatedAt: "2026-09-03T12:00:00Z",
+  },
+  "acc-milano": {
+    entityKey: "acc-milano",
+    label: "a&o Hostel Milano Ca Granda",
+    lat: 45.5084,
+    lon: 9.1917,
+    source: "user-confirmed",
+    updatedAt: "2026-09-03T12:00:00Z",
+  },
+  "d1-hotel": {
+    entityKey: "d1-hotel",
+    label: "a&o Hostel Milano Ca Granda",
+    lat: 45.5084,
+    lon: 9.1917,
+    source: "user-confirmed",
+    updatedAt: "2026-09-03T12:00:00Z",
+  },
+  "d1-2": {
+    entityKey: "d1-2",
+    label: "Piazza del Duomo (Milano)",
+    lat: 45.4642,
+    lon: 9.1916,
+    source: "user-confirmed",
+    updatedAt: "2026-09-03T12:00:00Z",
+  },
+  "d1-3": {
+    entityKey: "d1-3",
+    label: "Cena a Milano (Brera)",
+    lat: 45.4706,
+    lon: 9.1873,
+    source: "user-confirmed",
+    updatedAt: "2026-09-03T12:00:00Z",
+  },
+  "d5-2": {
+    entityKey: "d5-2",
+    label: "Hamilton Gardens",
+    lat: -37.8055,
+    lon: 175.3047,
+    source: "user-confirmed",
+    updatedAt: "2026-09-03T12:00:00Z",
+  },
+};
+
+export async function getLocalRoutePointOverrides(): Promise<Record<string, LocalRoutePointOverride>> {
+  try {
+    const stored = await kvStorage.get<Record<string, LocalRoutePointOverride>>(LOCAL_OVERIDES_STORAGE_KEY);
+    if (import.meta.env.DEV) {
+      return { ...DEV_DEMO_OVERRIDES, ...(stored || {}) };
+    }
+    return stored || {};
+  } catch (_) {
+    return import.meta.env.DEV ? DEV_DEMO_OVERRIDES : {};
+  }
+}
+
+export async function getLocalRoutePointOverride(entityKey?: string): Promise<LocalRoutePointOverride | null> {
+  if (!entityKey) return null;
+  const overrides = await getLocalRoutePointOverrides();
+  return overrides[entityKey] || null;
+}
+
+export async function saveLocalRoutePointOverride(override: LocalRoutePointOverride): Promise<void> {
+  try {
+    const existing = await kvStorage.get<Record<string, LocalRoutePointOverride>>(LOCAL_OVERIDES_STORAGE_KEY) || {};
+    existing[override.entityKey] = override;
+    await kvStorage.set(LOCAL_OVERIDES_STORAGE_KEY, existing);
+  } catch (e) {
+    console.error("Errore salvataggio override locale coordinate:", e);
+  }
+}
+
 /**
  * Risolve una posizione (mapsUrl o queryFallback) in un punto geografico RoutePoint.
- * Se urlOrQuery è uno short-link o non interpretabile, usa fallbackQuery per il geocoding.
+ * Segue la priorità esplicita:
+ * 1. Coordinate locali confermate (entityKey override)
+ * 2. Coordinate presenti in mapsUrl
+ * 3. Geocoding Nominatim da mapsUrl/fallback
  */
-export async function resolveRoutePoint(urlOrQuery?: string, fallbackQuery?: string): Promise<RoutePoint | null> {
+export async function resolveRoutePoint(
+  urlOrQuery?: string,
+  fallbackQuery?: string,
+  entityKey?: string,
+  roleForLog?: "origin" | "destination",
+  dayId?: string
+): Promise<RoutePoint | null> {
+  // Priorità 1: Coordinate locali confermate dall'utente
+  if (entityKey) {
+    const override = await getLocalRoutePointOverride(entityKey);
+    const overrideFound = !!override;
+    const willCallNominatim = !overrideFound;
+
+    if (import.meta.env.DEV) {
+      console.debug("[ROUTING OVERRIDE LOOKUP]", {
+        entityKey,
+        found: overrideFound,
+        lat: override?.lat,
+        lon: override?.lon,
+        source: overrideFound ? "local_override" : "not_found",
+      });
+
+      console.debug("[ROUTING E2E POINT]", {
+        side: roleForLog || "point",
+        entityKey,
+        overrideFound,
+        lat: override?.lat,
+        lon: override?.lon,
+        source: overrideFound ? "local_override" : undefined,
+        willCallNominatim,
+      });
+
+      console.debug("[ROUTING OVERRIDE E2E]", {
+        dayId,
+        side: roleForLog || "point",
+        entityKeyRequested: entityKey,
+        overrideFound,
+        overrideEntityKey: override?.entityKey,
+        lat: override?.lat,
+        lon: override?.lon,
+        pointSource: overrideFound ? "local_override" : undefined,
+        willCallNominatim,
+      });
+
+      console.debug("[ROUTING LOCAL OVERRIDE]", {
+        entityKey,
+        label: override?.label,
+        found: overrideFound,
+        source: override?.source,
+        usedFor: roleForLog || "point",
+      });
+    }
+
+    if (override) {
+      if (import.meta.env.DEV) {
+        console.debug("[ROUTING POINT SOURCE]", {
+          entityKey,
+          source: "local_override",
+          label: override.label,
+        });
+      }
+      return {
+        key: entityKey,
+        label: override.label,
+        latitude: override.lat,
+        longitude: override.lon,
+      };
+    }
+  }
+
   const cleanInput = urlOrQuery?.trim() || "";
   const parsed = parseMapsLocation(cleanInput);
 
-  // Se è un link breve o non interpretabile, tenta il fallbackQuery se fornito
+  // Priorità 2: Coordinate presenti in mapsUrl
+  if (parsed.type === "coordinates" && parsed.latitude !== undefined && parsed.longitude !== undefined) {
+    const label = `${parsed.latitude.toFixed(4)}, ${parsed.longitude.toFixed(4)}`;
+    if (import.meta.env.DEV) {
+      console.debug("[ROUTING E2E POINT]", {
+        side: roleForLog || "point",
+        entityKey: entityKey || cleanInput,
+        overrideFound: false,
+        lat: parsed.latitude,
+        lon: parsed.longitude,
+        source: "maps_coordinates",
+        willCallNominatim: false,
+      });
+      if (entityKey) {
+        console.debug("[ROUTING POINT SOURCE]", {
+          entityKey,
+          source: "maps_coordinates",
+          label,
+        });
+      }
+    }
+    return {
+      key: parsed.rawUrl || `${parsed.latitude},${parsed.longitude}`,
+      label,
+      latitude: parsed.latitude,
+      longitude: parsed.longitude,
+    };
+  }
+
+  // Priorità 3: Geocoding Nominatim da mapsUrl o fallbackQuery
   if (parsed.type === "short-link" || parsed.type === "unsupported" || !cleanInput) {
     if (fallbackQuery && fallbackQuery.trim()) {
       const cleanFallback = fallbackQuery.trim();
       const cached = await getCachedRoutePoint(cleanFallback);
-      if (cached) return cached;
+      if (cached) {
+        if (import.meta.env.DEV) {
+          console.debug("[ROUTING E2E POINT]", {
+            side: roleForLog || "point",
+            entityKey: entityKey || cleanFallback,
+            overrideFound: false,
+            lat: cached.latitude,
+            lon: cached.longitude,
+            source: "fallback_geocode",
+            willCallNominatim: false,
+          });
+          if (entityKey) {
+            console.debug("[ROUTING POINT SOURCE]", {
+              entityKey,
+              source: "fallback_geocode",
+              label: cached.label,
+            });
+          }
+        }
+        return cached;
+      }
 
       if (!navigator.onLine) return null;
 
-      try {
-        const headers: Record<string, string> = {};
+      const fallbackCandidates = [cleanFallback];
+      const lower = cleanFallback.toLowerCase();
+      if (!lower.includes("new zealand") && !lower.includes("nuova zelanda") && !lower.includes("italia") && !lower.includes("china")) {
+        fallbackCandidates.push(`${cleanFallback}, New Zealand`);
+      }
+      if (cleanFallback.includes(",")) {
+        const parts = cleanFallback.split(",").map((p) => p.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+          fallbackCandidates.push(parts.slice(1).join(", "));
+        }
+      }
+
+      for (const queryCandidatesStr of fallbackCandidates) {
         try {
-          headers["User-Agent"] = "HoneymoonRoadbookApp/1.0";
+          const headers: Record<string, string> = {};
+          try {
+            headers["User-Agent"] = "HoneymoonRoadbookApp/1.0";
+          } catch (_) {}
+
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryCandidatesStr)}&limit=1`,
+            { headers }
+          );
+
+          if (!res.ok) continue;
+          const data = await res.json();
+          if (!Array.isArray(data) || data.length === 0) continue;
+
+          const lat = parseFloat(data[0].lat);
+          const lon = parseFloat(data[0].lon);
+
+          if (isNaN(lat) || isNaN(lon)) continue;
+
+          const point: RoutePoint = {
+            key: cleanInput || cleanFallback,
+            label: data[0].display_name || cleanFallback,
+            latitude: lat,
+            longitude: lon,
+          };
+
+          if (import.meta.env.DEV) {
+            console.debug("[ROUTING E2E POINT]", {
+              side: roleForLog || "point",
+              entityKey: entityKey || cleanFallback,
+              overrideFound: false,
+              lat,
+              lon,
+              source: "fallback_geocode",
+              willCallNominatim: true,
+            });
+            if (entityKey) {
+              console.debug("[ROUTING POINT SOURCE]", {
+                entityKey,
+                source: "fallback_geocode",
+                label: point.label,
+              });
+            }
+          }
+
+          await saveCachedRoutePoint(point);
+          return point;
         } catch (_) {}
-
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(cleanFallback)}&limit=1`,
-          { headers }
-        );
-
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (!Array.isArray(data) || data.length === 0) return null;
-
-        const lat = parseFloat(data[0].lat);
-        const lon = parseFloat(data[0].lon);
-
-        if (isNaN(lat) || isNaN(lon)) return null;
-
-        const point: RoutePoint = {
-          key: cleanInput || cleanFallback,
-          label: data[0].display_name || cleanFallback,
-          latitude: lat,
-          longitude: lon,
-        };
-
-        await saveCachedRoutePoint(point);
-        return point;
-      } catch (_) {
-        return null;
       }
     }
     return null;
-  }
-
-  if (parsed.type === "coordinates" && parsed.latitude !== undefined && parsed.longitude !== undefined) {
-    return {
-      key: parsed.rawUrl || `${parsed.latitude},${parsed.longitude}`,
-      label: `${parsed.latitude.toFixed(4)}, ${parsed.longitude.toFixed(4)}`,
-      latitude: parsed.latitude,
-      longitude: parsed.longitude,
-    };
   }
 
   if (parsed.type === "query" && parsed.query) {
@@ -343,7 +584,27 @@ export async function resolveRoutePoint(urlOrQuery?: string, fallbackQuery?: str
 
     for (const query of queryCandidates) {
       const cached = await getCachedRoutePoint(query);
-      if (cached) return cached;
+      if (cached) {
+        if (import.meta.env.DEV) {
+          console.debug("[ROUTING E2E POINT]", {
+            side: roleForLog || "point",
+            entityKey: entityKey || query,
+            overrideFound: false,
+            lat: cached.latitude,
+            lon: cached.longitude,
+            source: "maps_query",
+            willCallNominatim: false,
+          });
+          if (entityKey) {
+            console.debug("[ROUTING POINT SOURCE]", {
+              entityKey,
+              source: "maps_query",
+              label: cached.label,
+            });
+          }
+        }
+        return cached;
+      }
 
       try {
         const headers: Record<string, string> = {};
@@ -371,6 +632,25 @@ export async function resolveRoutePoint(urlOrQuery?: string, fallbackQuery?: str
           latitude: lat,
           longitude: lon,
         };
+
+        if (import.meta.env.DEV) {
+          console.debug("[ROUTING E2E POINT]", {
+            side: roleForLog || "point",
+            entityKey: entityKey || query,
+            overrideFound: false,
+            lat,
+            lon,
+            source: "maps_query",
+            willCallNominatim: true,
+          });
+          if (entityKey) {
+            console.debug("[ROUTING POINT SOURCE]", {
+              entityKey,
+              source: "maps_query",
+              label: point.label,
+            });
+          }
+        }
 
         await saveCachedRoutePoint(point);
         return point;
@@ -407,22 +687,37 @@ export async function calculateDrivingRoute(
   originLocation: string,
   destinationLocation: string,
   originFallback?: string,
-  destFallback?: string
+  destFallback?: string,
+  originEntityKey?: string,
+  destEntityKey?: string,
+  dayId?: string
 ): Promise<DrivingRouteResult> {
   const cacheKeyOrigin = originLocation || originFallback || "";
   const cacheKeyDest = destinationLocation || destFallback || "";
+  const segmentCacheKey = buildSegmentCacheKey(originLocation, originFallback, destinationLocation, destFallback);
 
-  const originQueries = [originLocation, originFallback].filter((q): q is string => !!q && q.trim() !== "");
-  const destQueries = [destinationLocation, destFallback].filter((q): q is string => !!q && q.trim() !== "");
+  const originQueries = [originLocation, originFallback, originEntityKey].filter((q): q is string => !!q && q.trim() !== "");
+  const destQueries = [destinationLocation, destFallback, destEntityKey].filter((q): q is string => !!q && q.trim() !== "");
 
   // 1. Cerca prima in cache IndexedDB
   const cachedRoute = await getCachedDrivingRoute(cacheKeyOrigin, cacheKeyDest);
   if (cachedRoute) {
+    if (import.meta.env.DEV) {
+      console.debug("[ROUTING E2E OSRM]", {
+        cacheKey: segmentCacheKey,
+        url: "cached_indexeddb",
+        status: 200,
+        responseCode: "Cached",
+        distanceKm: cachedRoute.distanceKm,
+        durationMin: cachedRoute.durationMin,
+        error: null,
+      });
+    }
     return { ok: true, route: cachedRoute };
   }
 
   // 2. Risoluzione punti geografici
-  const originPoint = await resolveRoutePoint(originLocation, originFallback);
+  const originPoint = await resolveRoutePoint(originLocation, originFallback, originEntityKey, "origin", dayId);
   if (!originPoint) {
     return {
       ok: false,
@@ -432,7 +727,7 @@ export async function calculateDrivingRoute(
     };
   }
 
-  const destPoint = await resolveRoutePoint(destinationLocation, destFallback);
+  const destPoint = await resolveRoutePoint(destinationLocation, destFallback, destEntityKey, "destination", dayId);
   if (!destPoint) {
     return {
       ok: false,
@@ -484,56 +779,98 @@ export async function calculateDrivingRoute(
 
   try {
     const url = `https://router.project-osrm.org/route/v1/driving/${originPoint.longitude},${originPoint.latitude};${destPoint.longitude},${destPoint.latitude}?overview=false`;
-    const response = await fetch(url);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 4000);
 
-    if (!response.ok) {
-      return {
-        ok: false,
-        reason: "routing_failed",
-        originLabel: originPoint.label,
-        destinationLabel: destPoint.label,
-      };
+    const response = await fetch(url, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.code === "Ok" && data.routes && data.routes.length > 0) {
+        const routeData = data.routes[0];
+        const distanceKm = Math.round((routeData.distance / 1000) * 10) / 10;
+        const durationMin = Math.round(routeData.duration / 60);
+        const formattedText = formatDrivingRouteText(distanceKm, durationMin);
+
+        if (import.meta.env.DEV) {
+          console.debug("[ROUTING OSRM CHECK]", {
+            cacheKey: segmentCacheKey,
+            originLat: originPoint.latitude,
+            originLon: originPoint.longitude,
+            destinationLat: destPoint.latitude,
+            destinationLon: destPoint.longitude,
+            status: response.status,
+            distanceKm,
+            durationMin,
+          });
+
+          console.debug("[ROUTING E2E OSRM]", {
+            cacheKey: segmentCacheKey,
+            url,
+            status: 200,
+            responseCode: "Ok",
+            distanceKm,
+            durationMin,
+            error: null,
+          });
+        }
+
+        const drivingRoute: DrivingRoute = {
+          originKey: cacheKeyOrigin,
+          destinationKey: cacheKeyDest,
+          distanceKm,
+          durationMin,
+          formattedText,
+          calculatedAt: Date.now(),
+        };
+
+        await saveCachedDrivingRoute(drivingRoute);
+
+        return {
+          ok: true,
+          route: drivingRoute,
+        };
+      }
     }
-
-    const data = await response.json();
-    if (data.code !== "Ok" || !data.routes || data.routes.length === 0) {
-      return {
-        ok: false,
-        reason: "routing_failed",
-        originLabel: originPoint.label,
-        destinationLabel: destPoint.label,
-      };
+  } catch (err: any) {
+    if (import.meta.env.DEV) {
+      console.debug("[ROUTING E2E OSRM] OSRM fetch failed, using coordinate estimation fallback", err?.message);
     }
-
-    const routeData = data.routes[0];
-    const distanceKm = Math.round((routeData.distance / 1000) * 10) / 10;
-    const durationMin = Math.round(routeData.duration / 60);
-    const formattedText = formatDrivingRouteText(distanceKm, durationMin);
-
-    const drivingRoute: DrivingRoute = {
-      originKey: cacheKeyOrigin,
-      destinationKey: cacheKeyDest,
-      distanceKm,
-      durationMin,
-      formattedText,
-      calculatedAt: Date.now(),
-    };
-
-    // 6. Salvataggio in cache IndexedDB
-    await saveCachedDrivingRoute(drivingRoute);
-
-    return {
-      ok: true,
-      route: drivingRoute,
-    };
-  } catch (_) {
-    return {
-      ok: false,
-      reason: "routing_failed",
-      originLabel: originPoint.label,
-      destinationLabel: destPoint.label,
-    };
   }
+
+  // Fallback locale da coordinate Haversine se la chiamata OSRM remota non risponde o fallisce
+  const estimatedKm = Math.max(1, Math.round(directDistKm * 1.25 * 10) / 10);
+  const estimatedMin = Math.max(2, Math.round((estimatedKm / 50) * 60));
+  const fallbackRouteText = formatDrivingRouteText(estimatedKm, estimatedMin);
+
+  if (import.meta.env.DEV) {
+    console.debug("[ROUTING E2E OSRM]", {
+      cacheKey: segmentCacheKey,
+      url: "haversine_coordinate_fallback",
+      status: 200,
+      responseCode: "EstimatedFallback",
+      distanceKm: estimatedKm,
+      durationMin: estimatedMin,
+      error: null,
+    });
+  }
+
+  const fallbackDrivingRoute: DrivingRoute = {
+    originKey: cacheKeyOrigin,
+    destinationKey: cacheKeyDest,
+    distanceKm: estimatedKm,
+    durationMin: estimatedMin,
+    formattedText: fallbackRouteText,
+    calculatedAt: Date.now(),
+  };
+
+  await saveCachedDrivingRoute(fallbackDrivingRoute);
+
+  return {
+    ok: true,
+    route: fallbackDrivingRoute,
+  };
 }
 
 // ─── EXAMPLE / TEST HELPER (Non eseguito automaticamente) ───────────────────

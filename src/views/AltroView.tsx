@@ -449,6 +449,17 @@ export default function AltroView() {
   const [filterMode, setFilterMode] = useState<"todo" | "all">("todo");
   const [copiedNotes, setCopiedNotes] = useState(false);
   const notesTimeoutRef = useRef<any>(null);
+  const [copiedLiveLink, setCopiedLiveLink] = useState(false);
+
+  function handleCopyLiveLink() {
+    const liveUrl = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, "")}/live`;
+    navigator.clipboard.writeText(liveUrl).then(() => {
+      setCopiedLiveLink(true);
+      setTimeout(() => setCopiedLiveLink(false), 2500);
+    }).catch(() => {
+      alert(`Link Live Famiglia:\n${liveUrl}`);
+    });
+  }
 
   const user = auth?.currentUser || (localStorage.getItem("hrb_local_auth_bypass") ? JSON.parse(localStorage.getItem("hrb_local_auth_bypass")!) : null);
   // Temporarily commented out to avoid unused variable errors:
@@ -1276,6 +1287,36 @@ export default function AltroView() {
       {/* ── GRUPPO 2: STRUMENTI DI SUPPORTO ── */}
       <div className="space-y-3">
         <span className="section-label block mb-1">Strumenti di Supporto</span>
+
+        {/* Card Link per la famiglia */}
+        <div id="altro-sec-live-family" className="bg-gradient-to-br from-blue-50/80 to-indigo-50/60 border border-blue-100 rounded-2xl p-4 space-y-3 shadow-sm shadow-blue-50/50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-lg shadow-sm shrink-0">
+              👨‍👩‍👧‍👦
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-[14px] font-black text-gray-900 leading-snug">Link per la famiglia</h3>
+              <p className="text-[11.5px] text-gray-500 font-medium leading-tight">Vista live in sola lettura</p>
+            </div>
+          </div>
+          <p className="text-[12px] text-gray-650 leading-relaxed">
+            Un link semplice per i familiari per consultare in tempo reale dove siete, il prossimo spostamento e l'orario locale.
+          </p>
+          <div className="flex items-center gap-2 pt-0.5">
+            <button
+              onClick={handleCopyLiveLink}
+              className="py-2 px-3.5 bg-blue-600 hover:bg-blue-700 text-white font-extrabold text-[12px] rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
+            >
+              {copiedLiveLink ? "✅ Link copiato!" : "📋 Copia link"}
+            </button>
+            <button
+              onClick={() => navigate("/live")}
+              className="py-2 px-3.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold text-[12px] rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-sm"
+            >
+              👁️ Apri vista Live
+            </button>
+          </div>
+        </div>
 
         {/* Accordion delle Checklist */}
         <div id="altro-sec-checklist">

@@ -10,6 +10,7 @@ import AccommodationsView from "./views/AccommodationsView";
 import TransportsView from "./views/TransportsView";
 import BudgetView from "./views/BudgetView";
 import AltroView from "./views/AltroView";
+import LiveFamigliaView from "./views/LiveFamigliaView";
 import { useAuthStore } from "./stores/authStore";
 
 export default function App() {
@@ -123,6 +124,7 @@ export default function App() {
           <Route path="/trasporti" element={<TransportsView />} />
           <Route path="/budgeter" element={<BudgetView />} />
           <Route path="/altro" element={<AltroView />} />
+          <Route path="/live" element={<LiveFamigliaView />} />
         </Routes>
       </div>
       <BottomNav />

@@ -49,6 +49,7 @@ export interface DayData {
   monthShort: string;
   dayShort: string;
   location: string;
+  timezone?: string;
   activities: Activity[];
 }
 
