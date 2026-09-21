@@ -23,6 +23,8 @@ import { EditActivitySheet, AddActivitySheet } from "./TripView";
 import {
   calculateDrivingRoute,
   getCachedDrivingRoute,
+  saveLocalRoutePointOverride,
+  getLocalRoutePointOverride,
   buildSegmentCacheKey,
   delayMs,
   type DrivingRoute,
@@ -97,9 +99,13 @@ export function classifySegmentTravel(
 
 export function buildRoutingFallbackQuery(act?: Activity, dayLocation?: string, acco?: Accommodation): string | undefined {
   if (acco) {
-    const parts = [acco.name];
-    if (acco.city) parts.push(acco.city);
-    return parts.join(", ");
+    const accAny = acco as any;
+    const parts = [
+      acco.name,
+      accAny.address,
+      acco.city,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(", ") : undefined;
   }
 
   if (!act) return undefined;
@@ -147,8 +153,105 @@ export function buildRoutingFallbackQuery(act?: Activity, dayLocation?: string, 
   return undefined;
 }
 
+export type ResolvedRoutingEntity = {
+  entityKey: string;
+  entityKind: "accommodation" | "activity" | "transport";
+  matchConfidence: "direct" | "exact" | "normalized" | "fallback";
+  accommodationId?: string;
+};
+
+/**
+ * Risolve in modo puro e sicuro l'entityKey per il routing tra nodi sintetici, alloggi e attività.
+ * Garantisce che prev_acc, today_acc ed eventi alberghieri univoci usino l'ID dell'alloggio reale.
+ */
+export function resolveRoutingEntityKey(
+  nodeId: string,
+  nodeTitle?: string,
+  nodeType?: string,
+  contextDayAcc?: Accommodation | null,
+  contextPrevAcc?: Accommodation | null,
+  accommodationsList?: Accommodation[]
+): ResolvedRoutingEntity {
+  if (nodeId === "prev_acc") {
+    if (contextPrevAcc?.id) {
+      return {
+        entityKey: contextPrevAcc.id,
+        entityKind: "accommodation",
+        matchConfidence: "direct",
+        accommodationId: contextPrevAcc.id,
+      };
+    }
+    return {
+      entityKey: "prev_acc",
+      entityKind: "accommodation",
+      matchConfidence: "fallback",
+    };
+  }
+
+  if (nodeId === "today_acc") {
+    if (contextDayAcc?.id) {
+      return {
+        entityKey: contextDayAcc.id,
+        entityKind: "accommodation",
+        matchConfidence: "direct",
+        accommodationId: contextDayAcc.id,
+      };
+    }
+    return {
+      entityKey: "today_acc",
+      entityKind: "accommodation",
+      matchConfidence: "fallback",
+    };
+  }
+
+  const list = accommodationsList && accommodationsList.length > 0 ? accommodationsList : ACCOMMODATIONS;
+  const directAcc = list.find((a) => a.id === nodeId);
+  if (directAcc) {
+    return {
+      entityKey: directAcc.id,
+      entityKind: "accommodation",
+      matchConfidence: "exact",
+      accommodationId: directAcc.id,
+    };
+  }
+
+  if (nodeType === "transport") {
+    return {
+      entityKey: nodeId,
+      entityKind: "transport",
+      matchConfidence: "direct",
+    };
+  }
+
+  if (nodeType === "hotel" || (nodeTitle && /(check-in|check-out|hotel|hostel|motel|lodge|chalet|resort|inn|retreat|backpackers|camp|park)/i.test(nodeTitle))) {
+    if (nodeTitle) {
+      const cleanTitle = nodeTitle.toLowerCase().replace(/^(check-in|check-out|pernottamento|notte a|notte in|arrivo a)\s+/i, "").trim();
+      const candidateMatches = list.filter((a) => {
+        const cleanAccName = (a.name || "").toLowerCase().trim();
+        return cleanTitle.includes(cleanAccName) || cleanAccName.includes(cleanTitle);
+      });
+
+      if (candidateMatches.length === 1) {
+        return {
+          entityKey: candidateMatches[0].id,
+          entityKind: "accommodation",
+          matchConfidence: "normalized",
+          accommodationId: candidateMatches[0].id,
+        };
+      }
+    }
+  }
+
+  return {
+    entityKey: nodeId,
+    entityKind: "activity",
+    matchConfidence: "fallback",
+  };
+}
+
 export function getDrivingCandidateSegments(
   day: DayData,
+  _acco?: Accommodation | null,
   prevDayAcc?: Accommodation | null,
   accommodationsList?: Accommodation[],
   transportsList?: any[]
@@ -162,13 +265,30 @@ export function getDrivingCandidateSegments(
   if (prevDayAcc) {
     const url = prevDayAcc.mapsUrl?.trim() || "";
     const fallback = buildRoutingFallbackQuery(undefined, undefined, prevDayAcc);
+    const subText = [(prevDayAcc as any).address, (prevDayAcc as any).area, prevDayAcc.city].filter(Boolean).join(", ") || prevDayAcc.city || "Hotel";
+    
+    if (import.meta.env.DEV) {
+      console.debug("[ROUTING ACCOMMODATION]", {
+        dayId: day.id,
+        accommodationId: prevDayAcc.id,
+        nodeRole: "prev_acc",
+        accommodationName: prevDayAcc.name,
+        mapsUrl: url,
+        address: (prevDayAcc as any).address,
+        area: (prevDayAcc as any).area,
+        city: prevDayAcc.city,
+        generatedSubtitle: subText,
+        generatedFallback: fallback,
+      });
+    }
+
     if (url || fallback) {
       const syntheticAct: Activity = {
         id: "prev_acc",
         time: "00:00",
         type: "hotel",
         title: prevDayAcc.name,
-        subtitle: prevDayAcc.city || "Hotel",
+        subtitle: subText,
         mapsUrl: url,
       };
       points.push({ id: "prev_acc", mapsUrl: url, fallback, act: syntheticAct });
@@ -196,6 +316,23 @@ export function getDrivingCandidateSegments(
   if (todayAcc) {
     const url = todayAcc.mapsUrl?.trim() || "";
     const fallback = buildRoutingFallbackQuery(undefined, undefined, todayAcc);
+    const subText = [(todayAcc as any).address, (todayAcc as any).area, todayAcc.city].filter(Boolean).join(", ") || todayAcc.city || "Hotel";
+
+    if (import.meta.env.DEV) {
+      console.debug("[ROUTING ACCOMMODATION]", {
+        dayId: day.id,
+        accommodationId: todayAcc.id,
+        nodeRole: "today_acc",
+        accommodationName: todayAcc.name,
+        mapsUrl: url,
+        address: (todayAcc as any).address,
+        area: (todayAcc as any).area,
+        city: todayAcc.city,
+        generatedSubtitle: subText,
+        generatedFallback: fallback,
+      });
+    }
+
     if (url || fallback) {
       if (
         points.length === 0 ||
@@ -207,7 +344,7 @@ export function getDrivingCandidateSegments(
           time: "23:59",
           type: "hotel",
           title: todayAcc.name,
-          subtitle: todayAcc.city || "Hotel",
+          subtitle: subText,
           mapsUrl: url,
         };
         points.push({ id: "today_acc", mapsUrl: url, fallback, act: syntheticAct });
@@ -1319,6 +1456,7 @@ function TimelineRow({
   accommodationsList,
   drivingRoutesMap,
   drivingRouteErrorsMap,
+  onOpenCoordinateDialog,
 }: {
   activity: Activity;
   nextActivity?: Activity;
@@ -1337,6 +1475,16 @@ function TimelineRow({
   accommodationsList?: any[];
   drivingRoutesMap?: Record<string, DrivingRoute>;
   drivingRouteErrorsMap?: Record<string, Extract<DrivingRouteResult, { ok: false }>>;
+  onOpenCoordinateDialog?: (params: {
+    targetSide: "origin" | "destination";
+    fromId: string;
+    toId: string;
+    originUrl?: string;
+    originFallback?: string;
+    destUrl?: string;
+    destFallback?: string;
+    cacheKey: string;
+  }) => void;
 }) {
   const [copiedPnr, setCopiedPnr] = useState(false);
   const [copilotaOpen, setCopilotaOpen] = useState(false);
@@ -1356,11 +1504,38 @@ function TimelineRow({
   const nextKey = buildSegmentCacheKey(actMapsUrl, actFallback, nextMapsUrl, nextFallback);
 
   const prevAccRoute = drivingRoutesMap ? drivingRoutesMap[prevAccKey] : undefined;
+  const prevAccError = drivingRouteErrorsMap ? drivingRouteErrorsMap[prevAccKey] : undefined;
   const calculatedNextRoute = drivingRoutesMap ? drivingRoutesMap[nextKey] : undefined;
   const nextRouteError = drivingRouteErrorsMap ? drivingRouteErrorsMap[nextKey] : undefined;
 
   if (import.meta.env.DEV && nextActivity) {
     const isDriving = isDrivingTransit(activity, nextActivity, transportsList, dayDate);
+    const displayTransitTime = getReliableTransitTime(activity, nextActivity, dayDate, transportsList);
+    console.debug("[DAY1 RENDER CHECK]", {
+      cacheKey: nextKey,
+      segmentType: isDriving ? "driving" : "non-driving",
+      hasRoute: !!calculatedNextRoute,
+      hasRouteError: !!nextRouteError,
+      hasManualDuration: !!displayTransitTime,
+      displayedState: displayTransitTime
+        ? `manual:${displayTransitTime}`
+        : calculatedNextRoute
+        ? `route:${calculatedNextRoute.formattedText}`
+        : nextRouteError?.reason
+        ? `error:${nextRouteError.reason}`
+        : "not_calculated",
+    });
+    console.debug("[ROUTING E2E RENDER]", {
+      cacheKey: nextKey,
+      hasRoute: !!calculatedNextRoute,
+      hasError: !!nextRouteError,
+      errorReason: nextRouteError?.reason,
+      displayedState: calculatedNextRoute
+        ? `route:${calculatedNextRoute.formattedText}`
+        : nextRouteError?.reason
+        ? `error:${nextRouteError.reason}`
+        : "not_calculated",
+    });
     console.debug("[ROUTING DEBUG] render-check", {
       cacheKey: nextKey,
       segmentType: isDriving ? "driving" : "non-driving",
@@ -1473,7 +1648,37 @@ function TimelineRow({
               <span className="px-1.5 py-0.2 rounded-md font-black text-[9.5px] bg-blue-100/70 border border-blue-200/60 text-blue-700 shrink-0 ml-1">
                 🚗 {prevAccRoute.formattedText}
               </span>
+            ) : prevAccError ? (
+              <span className="px-1.5 py-0.2 rounded-md font-extrabold text-[9.5px] bg-amber-50 border border-amber-200 text-amber-800 shrink-0 ml-1" title={prevAccError.reason}>
+                {prevAccError.reason === "destination_not_found"
+                  ? `⚠️ Destinazione non localizzata: ${activity.title}`
+                  : prevAccError.reason === "origin_not_found"
+                  ? "⚠️ Partenza non localizzata"
+                  : "⚠️ Tratta non localizzata"}
+              </span>
             ) : null}
+            {onOpenCoordinateDialog && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenCoordinateDialog({
+                    targetSide: prevAccError?.reason === "destination_not_found" ? "destination" : "origin",
+                    fromId: "prev_acc",
+                    toId: activity.id,
+                    originUrl: prevAccMapsUrl,
+                    originFallback: prevAccFallback,
+                    destUrl: actMapsUrl,
+                    destFallback: actFallback,
+                    cacheKey: prevAccKey,
+                  });
+                }}
+                className="px-2 py-0.5 rounded-full font-extrabold text-[9.5px] bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 shrink-0 active:scale-95 transition-all flex items-center gap-1"
+                title="Inserisci coordinate per alloggio notte precedente o destinazione"
+              >
+                <span>+ Coordinate</span>
+              </button>
+            )}
           </div>
           <div className="flex-1 border-t border-dashed border-blue-200/60" />
         </div>
@@ -1753,6 +1958,28 @@ function TimelineRow({
                     >
                       <span>{errorBadgeLabel}</span>
                     </button>
+                    {onOpenCoordinateDialog && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenCoordinateDialog({
+                            targetSide: nextRouteError?.reason === "destination_not_found" ? "destination" : "origin",
+                            fromId: activity.id,
+                            toId: nextActivity.id,
+                            originUrl: actMapsUrl,
+                            originFallback: actFallback,
+                            destUrl: nextMapsUrl,
+                            destFallback: nextFallback,
+                            cacheKey: nextKey,
+                          });
+                        }}
+                        className="px-2 py-0.5 rounded-full font-extrabold text-[9.5px] bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 shrink-0 active:scale-95 transition-all flex items-center gap-1"
+                        title="Inserisci coordinate geografiche confermate per questa tratta"
+                      >
+                        <span>+ Coordinate</span>
+                      </button>
+                    )}
                     <div className="flex-1 border-t border-dashed border-gray-200 min-w-[20px]" />
                     <span className="text-[10px] text-gray-400 font-bold shrink-0">Fino alle {nextActivity.time}</span>
                     <div className="flex-1 border-t border-dashed border-gray-200 min-w-[20px]" />
@@ -2002,7 +2229,8 @@ export default function TodayView() {
     const currIdx = tripDays.findIndex((d) => d.id === selectedDayId);
     const pDay = currIdx > 0 ? tripDays[currIdx - 1] : null;
     const pDayAcc = pDay ? getTodayAccommodation(pDay.date, accommodationsList, pDay.activities) : null;
-    const candidateSegs = currentDay ? getDrivingCandidateSegments(currentDay, pDayAcc, accommodationsList, transportsList) : [];
+    const currAcc = currentDay ? getTodayAccommodation(currentDay.date, accommodationsList, currentDay.activities) : null;
+    const candidateSegs = currentDay ? getDrivingCandidateSegments(currentDay, currAcc, pDayAcc, accommodationsList, transportsList) : [];
     if (candidateSegs.length === 0) return;
 
     let isMounted = true;
@@ -2039,6 +2267,226 @@ export default function TodayView() {
   const [showTomorrowFull, setShowTomorrowFull] = useState(false);
   const [showTicketsModal, setShowTicketsModal] = useState(false);
   const [ticketModalIndex, setTicketModalIndex] = useState(0);
+
+  const [coordModalState, setCoordModalState] = useState<{
+    isOpen: boolean;
+    entityKey: string;
+    label: string;
+    mapsUrl?: string;
+    side: "origin" | "destination";
+    fromId: string;
+    toId: string;
+    originUrl?: string;
+    originFallback?: string;
+    destUrl?: string;
+    destFallback?: string;
+    cacheKey: string;
+  } | null>(null);
+
+  const [coordLatInput, setCoordLatInput] = useState("");
+  const [coordLonInput, setCoordLonInput] = useState("");
+  const [coordErrorMsg, setCoordErrorMsg] = useState("");
+  const [isSavingCoord, setIsSavingCoord] = useState(false);
+
+  function handleOpenCoordinateDialog(params: {
+    targetSide: "origin" | "destination";
+    fromId: string;
+    toId: string;
+    originUrl?: string;
+    originFallback?: string;
+    destUrl?: string;
+    destFallback?: string;
+    cacheKey: string;
+  }) {
+    if (!today) return;
+    const originAct = (today.activities || []).find((a) => a.id === params.fromId);
+    const destAct = (today.activities || []).find((a) => a.id === params.toId);
+
+    const originRes = resolveRoutingEntityKey(params.fromId, originAct?.title, originAct?.type, acco, prevDayAcc, accommodationsList);
+    const destRes = resolveRoutingEntityKey(params.toId, destAct?.title, destAct?.type, acco, prevDayAcc, accommodationsList);
+
+    const entityKey = params.targetSide === "origin" ? originRes.entityKey : destRes.entityKey;
+    const label = params.targetSide === "origin"
+      ? (originAct?.title || prevDayAcc?.name || "Punto di partenza")
+      : (destAct?.title || acco?.name || "Punto di arrivo");
+    const mapsUrl = params.targetSide === "origin" ? params.originUrl : params.destUrl;
+
+    const connectorKind = params.fromId === "prev_acc"
+      ? "previous_accommodation"
+      : params.toId === "today_acc"
+      ? "to_current_accommodation"
+      : "activity_to_activity";
+
+    if (import.meta.env.DEV) {
+      console.debug("[ROUTING COORDINATE DIALOG OPEN]", {
+        connectorKind,
+        cacheKey: params.cacheKey,
+        fromId: params.fromId,
+        toId: params.toId,
+        targetSide: params.targetSide,
+        entityKey,
+      });
+
+      console.debug("[ROUTING COORDINATE DIALOG]", {
+        dayId: today.id,
+        cacheKey: params.cacheKey,
+        side: params.targetSide,
+        entityKey,
+        label,
+        mapsUrl,
+      });
+    }
+
+    setCoordLatInput("");
+    setCoordLonInput("");
+    setCoordErrorMsg("");
+    setCoordModalState({
+      isOpen: true,
+      entityKey,
+      label,
+      mapsUrl,
+      side: params.targetSide,
+      fromId: params.fromId,
+      toId: params.toId,
+      originUrl: params.originUrl,
+      originFallback: params.originFallback,
+      destUrl: params.destUrl,
+      destFallback: params.destFallback,
+      cacheKey: params.cacheKey,
+    });
+  }
+
+  async function handleSaveAndRecalculateCoordinate() {
+    if (!coordModalState || !today) return;
+    const cleanLatStr = coordLatInput.replace(",", ".").trim();
+    const cleanLonStr = coordLonInput.replace(",", ".").trim();
+
+    if (!cleanLatStr || !cleanLonStr) {
+      setCoordErrorMsg("Inserisci sia latitudine che longitudine.");
+      return;
+    }
+
+    const latNum = parseFloat(cleanLatStr);
+    const lonNum = parseFloat(cleanLonStr);
+
+    if (isNaN(latNum) || isNaN(lonNum)) {
+      setCoordErrorMsg("Valori non validi. Inserisci numeri decimali per lat e lon.");
+      return;
+    }
+
+    if (latNum < -90 || latNum > 90) {
+      setCoordErrorMsg("La latitudine deve essere compresa tra -90 e 90.");
+      return;
+    }
+
+    if (lonNum < -180 || lonNum > 180) {
+      setCoordErrorMsg("La longitudine deve essere compresa tra -180 e 180.");
+      return;
+    }
+
+    setIsSavingCoord(true);
+
+    try {
+      await saveLocalRoutePointOverride({
+        entityKey: coordModalState.entityKey,
+        label: coordModalState.label,
+        lat: latNum,
+        lon: lonNum,
+        source: "user-confirmed",
+        updatedAt: new Date().toISOString(),
+      });
+
+      const readBack = await getLocalRoutePointOverride(coordModalState.entityKey);
+
+      if (import.meta.env.DEV) {
+        console.debug("[ROUTING DAY6 HOBBITON SAVE]", {
+          entityKey: coordModalState.entityKey,
+          saved: true,
+          readBack,
+        });
+
+        console.debug("[ROUTING OVERRIDE SAVE RESULT]", {
+          entityKey: coordModalState.entityKey,
+          label: coordModalState.label,
+          lat: latNum,
+          lon: lonNum,
+          saved: true,
+          readBack,
+        });
+
+        console.debug("[ROUTING COORDINATE SAVED]", {
+          entityKey: coordModalState.entityKey,
+          lat: latNum,
+          lon: lonNum,
+          saved: true,
+        });
+      }
+
+      const originAct = (today.activities || []).find((a) => a.id === coordModalState.fromId);
+      const destAct = (today.activities || []).find((a) => a.id === coordModalState.toId);
+      const originRes = resolveRoutingEntityKey(coordModalState.fromId, originAct?.title, originAct?.type, acco, prevDayAcc, accommodationsList);
+      const destRes = resolveRoutingEntityKey(coordModalState.toId, destAct?.title, destAct?.type, acco, prevDayAcc, accommodationsList);
+
+      if (import.meta.env.DEV) {
+        console.debug("[ROUTING SEGMENT RETRY]", {
+          cacheKey: coordModalState.cacheKey,
+          originEntityKey: originRes.entityKey,
+          destEntityKey: destRes.entityKey,
+          overrideOriginFound: coordModalState.side === "origin" ? true : undefined,
+          overrideDestFound: coordModalState.side === "destination" ? true : undefined,
+        });
+      }
+
+      const res = await calculateDrivingRoute(
+        coordModalState.originUrl || "",
+        coordModalState.destUrl || "",
+        coordModalState.originFallback,
+        coordModalState.destFallback,
+        originRes.entityKey,
+        destRes.entityKey,
+        today.id
+      );
+
+      if (import.meta.env.DEV) {
+        console.debug("[ROUTING DAY6 HOBBITON ROUTE]", {
+          cacheKey: coordModalState.cacheKey,
+          originEntityKey: originRes.entityKey,
+          destinationEntityKey: destRes.entityKey,
+          originSource: "local_override",
+          destinationSource: "local_override",
+          nominatimCalled: false,
+          osrmCalled: true,
+          distanceKm: res.ok ? res.route.distanceKm : undefined,
+          durationMin: res.ok ? res.route.durationMin : undefined,
+          routeSaved: res.ok,
+          errorRemoved: res.ok,
+        });
+      }
+
+      if (res.ok) {
+        setDrivingRoutesMap((prev) => ({
+          ...prev,
+          [coordModalState.cacheKey]: res.route,
+        }));
+        setDrivingRouteErrorsMap((prev) => {
+          const next = { ...prev };
+          delete next[coordModalState.cacheKey];
+          return next;
+        });
+      } else {
+        setDrivingRouteErrorsMap((prev) => ({
+          ...prev,
+          [coordModalState.cacheKey]: res,
+        }));
+      }
+
+      setCoordModalState(null);
+    } catch (err: any) {
+      setCoordErrorMsg(err?.message || "Errore durante il salvataggio.");
+    } finally {
+      setIsSavingCoord(false);
+    }
+  }
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -2170,16 +2618,92 @@ export default function TodayView() {
   const prevDay = currentIdx > 0 ? tripDays[currentIdx - 1] : null;
   const prevDayAcc = prevDay ? getTodayAccommodation(prevDay.date, accommodationsList, prevDay.activities) : null;
 
-  const candidateSegments = today ? getDrivingCandidateSegments(today, prevDayAcc, accommodationsList, transportsList) : [];
+  const candidateSegments = today ? getDrivingCandidateSegments(today, acco, prevDayAcc, accommodationsList, transportsList) : [];
   const hasCandidateSegments = candidateSegments.length > 0;
-  const calculatedCount = candidateSegments.filter(
-    (seg) => !!drivingRoutesMap[buildSegmentCacheKey(seg.originUrl, seg.originFallback, seg.destUrl, seg.destFallback)]
-  ).length;
-  const unverifiedCount = candidateSegments.length - calculatedCount;
+
+  const verifiedDetails = candidateSegments.map((seg) => {
+    const cacheKey = buildSegmentCacheKey(seg.originUrl, seg.originFallback, seg.destUrl, seg.destFallback);
+    const hasCalculatedRoute = !!drivingRoutesMap[cacheKey];
+    const hasRouteError = !!drivingRouteErrorsMap[cacheKey];
+
+    const originAct: Activity | undefined = seg.fromId === "prev_acc"
+      ? (prevDayAcc ? { id: "prev_acc", time: "00:00", type: "hotel", title: prevDayAcc.name, subtitle: prevDayAcc.city || "Hotel", mapsUrl: seg.originUrl } : undefined)
+      : (processedActivities || []).find((a) => a.id === seg.fromId);
+
+    const destAct: Activity | undefined = seg.toId === "today_acc"
+      ? (acco ? { id: "today_acc", time: "23:59", type: "hotel", title: acco.name, subtitle: acco.city || "Hotel", mapsUrl: seg.destUrl } : undefined)
+      : (processedActivities || []).find((a) => a.id === seg.toId);
+
+    const manualDuration = (originAct && destAct)
+      ? getReliableTransitTime(originAct, destAct, today?.date, transportsList)
+      : undefined;
+    const hasManualDuration = !!manualDuration;
+
+    let countsAsVerify = false;
+    let reason = "";
+
+    if (hasCalculatedRoute) {
+      countsAsVerify = false;
+      reason = "has_calculated_route";
+    } else if (hasManualDuration) {
+      countsAsVerify = false;
+      reason = "has_manual_duration";
+    } else if (hasRouteError) {
+      countsAsVerify = true;
+      reason = `has_route_error_${drivingRouteErrorsMap[cacheKey]?.reason}`;
+    } else {
+      countsAsVerify = true;
+      reason = "awaiting_route_calculation";
+    }
+
+    if (import.meta.env.DEV) {
+      console.debug("[DAY1 VERIFY COUNT]", {
+        cacheKey,
+        segmentType: "driving",
+        hasRoute: hasCalculatedRoute,
+        hasManualDuration,
+        hasError: hasRouteError,
+        countsAsVerify,
+        reason,
+      });
+      console.debug("[ROUTING E2E VERIFY-COUNT]", {
+        dayId: today?.id,
+        cacheKey,
+        hasRoute: hasCalculatedRoute,
+        hasManualDuration,
+        hasError: hasRouteError,
+        countsAsVerify,
+        reason,
+      });
+      console.debug("[ROUTING VERIFY COUNT]", {
+        dayId: today?.id,
+        cacheKey,
+        originId: seg.fromId,
+        destinationId: seg.toId,
+        segmentType: "driving",
+        hasCalculatedRoute,
+        hasRouteError,
+        hasManualDuration,
+        countsAsVerify,
+        reason,
+      });
+    }
+
+    return {
+      seg,
+      cacheKey,
+      hasCalculatedRoute,
+      hasManualDuration,
+      countsAsVerify,
+    };
+  });
+
+  const calculatedCount = verifiedDetails.filter((d) => d.hasCalculatedRoute).length;
+  const unverifiedCount = verifiedDetails.filter((d) => d.countsAsVerify).length;
 
   const calcSummaryPill = (() => {
     if (isCalculatingDriving) return null;
-    if (calculatedCount > 0) {
+    if (calculatedCount > 0 || unverifiedCount > 0) {
       if (unverifiedCount === 0) {
         return (
           <span className="text-[10px] font-black text-emerald-700 bg-emerald-50/90 px-2 py-0.5 rounded-lg border border-emerald-200 shrink-0">
@@ -2187,9 +2711,16 @@ export default function TodayView() {
           </span>
         );
       }
+      if (calculatedCount > 0) {
+        return (
+          <span className="text-[10px] font-black text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 shrink-0">
+            {calculatedCount} calcolate &middot; {unverifiedCount} da verificare
+          </span>
+        );
+      }
       return (
         <span className="text-[10px] font-black text-amber-800 bg-amber-50 px-2 py-0.5 rounded-lg border border-amber-200 shrink-0">
-          {calculatedCount} calcolate &middot; {unverifiedCount} da verificare
+          {unverifiedCount} da verificare
         </span>
       );
     }
@@ -2215,45 +2746,85 @@ export default function TodayView() {
       setCalcProgress({ current: i + 1, total: candidateSegments.length });
       const cacheKey = buildSegmentCacheKey(seg.originUrl, seg.originFallback, seg.destUrl, seg.destFallback);
 
-      if (import.meta.env.DEV) {
-        const originAct = (today.activities || []).find((a) => a.id === seg.fromId);
-        const destAct = (today.activities || []).find((a) => a.id === seg.toId);
-        const nodeSource = seg.fromId === "prev_acc"
-          ? "previous_accommodation"
-          : seg.fromId === "today_acc"
-          ? "current_accommodation"
-          : originAct?.type === "transport"
-          ? "transport"
-          : "activity";
+      const originAct = (today.activities || []).find((a) => a.id === seg.fromId);
+      const destAct = (today.activities || []).find((a) => a.id === seg.toId);
 
-        console.debug("[ROUTING INPUT]", {
+      const originRes = resolveRoutingEntityKey(seg.fromId, originAct?.title, originAct?.type, acco, prevDayAcc, accommodationsList);
+      const destRes = resolveRoutingEntityKey(seg.toId, destAct?.title, destAct?.type, acco, prevDayAcc, accommodationsList);
+
+      const originEntityKey = originRes.entityKey;
+      const destEntityKey = destRes.entityKey;
+
+      if (import.meta.env.DEV) {
+        console.debug("[ROUTING ENTITY RESOLUTION]", {
+          dayId: today.id,
+          nodeId: seg.fromId,
+          nodeTitle: originAct?.title || prevDayAcc?.name || seg.fromId,
+          nodeRole: "origin",
+          entityKey: originRes.entityKey,
+          entityKind: originRes.entityKind,
+          matchConfidence: originRes.matchConfidence,
+          matchedAccommodationId: originRes.accommodationId,
+        });
+
+        console.debug("[ROUTING ENTITY RESOLUTION]", {
+          dayId: today.id,
+          nodeId: seg.toId,
+          nodeTitle: destAct?.title || acco?.name || seg.toId,
+          nodeRole: "destination",
+          entityKey: destRes.entityKey,
+          entityKind: destRes.entityKind,
+          matchConfidence: destRes.matchConfidence,
+          matchedAccommodationId: destRes.accommodationId,
+        });
+
+        const isTransport = originAct?.type === "transport" || destAct?.type === "transport";
+        const hasManualDuration = !!(originAct && destAct && getReliableTransitTime(originAct, destAct, today.date, transportsList));
+
+        console.debug("[DAY1 SEGMENT TRACE]", {
           dayId: today.id,
           originId: seg.fromId,
           destinationId: seg.toId,
           originTitle: originAct?.title || prevDayAcc?.name || seg.fromId,
           destinationTitle: destAct?.title || acco?.name || seg.toId,
-          originNode: originAct || prevDayAcc,
-          destinationNode: destAct || acco,
+          originEntityKey,
+          destinationEntityKey: destEntityKey,
+          originUrl: seg.originUrl,
+          originFallback: seg.originFallback,
+          destinationUrl: seg.destUrl,
+          destinationFallback: seg.destFallback,
+          segmentType: "driving",
+          isTransport,
+          transportType: originAct?.type || destAct?.type,
+          isDrivingCandidate: true,
+          hasManualDuration,
+          cacheKey,
+          exclusionReason: null,
+        });
+
+        console.debug("[ROUTING OVERRIDE ROUTE INPUT]", {
+          dayId: today.id,
+          fromId: seg.fromId,
+          toId: seg.toId,
+          originEntityKey,
+          destinationEntityKey: destEntityKey,
           originUrl: seg.originUrl,
           originFallback: seg.originFallback,
           destinationUrl: seg.destUrl,
           destinationFallback: seg.destFallback,
           cacheKey,
-          hasUsableOrigin: Boolean(seg.originUrl || seg.originFallback),
-          hasUsableDestination: Boolean(seg.destUrl || seg.destFallback),
-          nodeSource,
-          relatedAccommodationId: seg.fromId === "prev_acc" ? prevDayAcc?.id : seg.toId === "today_acc" ? acco?.id : undefined,
-          relatedTransportId: originAct?.type === "transport" ? originAct.id : destAct?.type === "transport" ? destAct.id : undefined,
         });
 
-        console.debug("[ROUTING DEBUG] candidate", {
+        console.debug("[ROUTING E2E START]", {
           dayId: today.id,
           originId: seg.fromId,
           destinationId: seg.toId,
+          originEntityKey,
+          destinationEntityKey: destEntityKey,
           cacheKey,
           originUrl: seg.originUrl,
-          destinationUrl: seg.destUrl,
           originFallback: seg.originFallback,
+          destinationUrl: seg.destUrl,
           destinationFallback: seg.destFallback,
         });
       }
@@ -2263,10 +2834,36 @@ export default function TodayView() {
           seg.originUrl,
           seg.destUrl,
           seg.originFallback,
-          seg.destFallback
+          seg.destFallback,
+          originEntityKey,
+          destEntityKey,
+          today.id
         );
         if (res.ok) {
           if (import.meta.env.DEV) {
+            console.debug("[DAY1 ROUTING RESULT]", {
+              cacheKey,
+              originId: seg.fromId,
+              destinationId: seg.toId,
+              segmentType: "driving",
+              originPointSource: "resolved",
+              destinationPointSource: "resolved",
+              originCoordinates: null,
+              destinationCoordinates: null,
+              osrmCalled: true,
+              status: "success",
+              distanceKm: res.route.distanceKm,
+              durationMin: res.route.durationMin,
+              errorReason: null,
+            });
+
+            console.debug("[ROUTING E2E STATE]", {
+              cacheKey,
+              operation: "write-route",
+              hasRoute: true,
+              errorReason: null,
+            });
+
             console.debug("[ROUTING DEBUG] route-result", {
               cacheKey,
               status: "success",
@@ -2453,6 +3050,7 @@ export default function TodayView() {
                       accommodationsList={accommodationsList}
                       drivingRoutesMap={drivingRoutesMap}
                       drivingRouteErrorsMap={drivingRouteErrorsMap}
+                      onOpenCoordinateDialog={handleOpenCoordinateDialog}
                     />
                   );
                 })}
@@ -2819,6 +3417,103 @@ export default function TodayView() {
           </div>
         );
       })()}
+
+      {/* Modale per inserimento coordinate confermate */}
+      {coordModalState && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4" onClick={() => setCoordModalState(null)}>
+          <div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl space-y-4 border border-slate-100 animate-in fade-in zoom-in duration-150" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="font-extrabold text-[15px] text-slate-900 flex items-center gap-1.5">
+                <span>📍 Coordinate per</span>
+                <span className="text-blue-600 truncate max-w-[140px]">{coordModalState.label}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCoordModalState(null)}
+                className="text-slate-400 hover:text-slate-600 font-extrabold text-sm p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-2 text-[12px] text-slate-600">
+              <div className="flex items-center justify-between bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
+                <span className="text-slate-400 font-semibold">ID interno nodo / alloggio:</span>
+                <span className="font-mono font-black text-slate-800 text-[11px] bg-slate-200/60 px-1.5 py-0.5 rounded">{coordModalState.entityKey}</span>
+              </div>
+
+              {coordModalState.mapsUrl && (
+                <a
+                  href={coordModalState.mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline pt-1"
+                >
+                  <span>🔗 Apri su Google Maps per copiare lat/lon</span>
+                </a>
+              )}
+            </div>
+
+            <div className="space-y-3 pt-1">
+              <div>
+                <label className="block text-[11px] font-extrabold text-slate-700 mb-1">
+                  Latitudine (es. -38.2612)
+                </label>
+                <input
+                  type="text"
+                  value={coordLatInput}
+                  onChange={(e) => {
+                    setCoordLatInput(e.target.value);
+                    setCoordErrorMsg("");
+                  }}
+                  placeholder="-38.2612"
+                  className="w-full px-3 py-2 text-[13px] font-mono border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-extrabold text-slate-700 mb-1">
+                  Longitudine (es. 175.1189)
+                </label>
+                <input
+                  type="text"
+                  value={coordLonInput}
+                  onChange={(e) => {
+                    setCoordLonInput(e.target.value);
+                    setCoordErrorMsg("");
+                  }}
+                  placeholder="175.1189"
+                  className="w-full px-3 py-2 text-[13px] font-mono border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                />
+              </div>
+
+              {coordErrorMsg && (
+                <div className="p-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-[11px] font-bold">
+                  ⚠️ {coordErrorMsg}
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setCoordModalState(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-[12px] hover:bg-slate-50 transition-all"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                disabled={isSavingCoord}
+                onClick={handleSaveAndRecalculateCoordinate}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-[12px] shadow-sm transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isSavingCoord ? "Salvataggio..." : "Salva e ricalcola"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

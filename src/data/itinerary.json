@@ -8,19 +8,20 @@
     "monthShort": "nov",
     "dayShort": "Sab",
     "location": "Roma → Milano, Italia 🇮🇹",
+    "timezone": "Europe/Rome",
     "activities": [
       {
         "id": "d1-1",
         "time": "11:05",
         "type": "transport",
         "title": "Roma Termini → Milano Centrale",
-        "subtitle": "Trenitalia Frecciarossa · Arrivo ore 14:15 (Durata 3h 10m)",
+        "subtitle": "Italo 9978 · Smart, Carrozza 10, Posti 1-2 · Arrivo 14:15",
         "transitTime": "3h 10m",
         "status": "futuro",
         "hasQR": true,
         "howToGetThere": "Binari alta velocità Roma Termini. Presentarsi 15 minuti prima al varco accesso treni.",
         "mapsUrl": "https://www.google.com/maps/dir/?api=1&origin=Roma+Termini&destination=Milano+Centrale&travelmode=transit",
-        "note": "Frecciarossa diretto alta velocità. Orario di arrivo previsto a Milano Centrale: ore 14:15."
+        "note": "Italo 9978 alta velocità. Smart, carrozza 10, posti 1-2. Roma Termini 11:05 -> Milano Centrale 14:15."
       },
       {
         "id": "d1-hotel",
@@ -69,9 +70,9 @@
       {
         "id": "d2-0",
         "time": "09:30",
-        "type": "hotel",
-        "title": "Check-out a&o Hostel Milano Ca Granda",
-        "subtitle": "Direzione Aeroporto di Milano Malpensa (MXP)",
+        "type": "transport",
+        "title": "Malpensa Express → MXP T1",
+        "subtitle": "Milano Centrale → Aeroporto Milano Malpensa T1",
         "transitTime": "50m",
         "howToGetThere": "Prendere il Malpensa Express da Milano Centrale diretto al Terminal 1."
       },
@@ -79,13 +80,13 @@
         "id": "d2-1",
         "time": "12:30",
         "type": "transport",
-        "title": "Milano MXP → Pechino PEK",
-        "subtitle": "Air China CA950 · Volo diretto · 10h 20m",
+        "title": "Milano MXP T1 → Pechino PEK T3",
+        "subtitle": "Air China CA950 (A350-900) · PNR QKP125 · 10h 20m",
         "transitTime": "10h 20m",
         "hasQR": true,
         "isBooked": true,
         "timeBeforehand": "Presentarsi al Terminal 1 entro le 09:30 (3 ore prima)",
-        "note": "Check-in e imbarco Air China Terminal 1 Malpensa. Chiusura imbarco ore 11:45."
+        "note": "MXP T1 12:30 -> PEK T3 05:50 (+1). Posti: 50A (Giusy), 50B (Nunzio). PNR QKP125. Bagagli: 1x23kg stiva + 5kg cabina (rigido)."
       }
     ]
   },
@@ -98,16 +99,17 @@
     "monthShort": "nov",
     "dayShort": "Lun",
     "location": "Pechino, Cina 🇨🇳",
+    "timezone": "Asia/Shanghai",
     "activities": [
       {
         "id": "d3-1",
         "time": "05:50",
         "type": "transport",
-        "title": "Arrivo a Pechino PEK",
-        "subtitle": "Air China CA950 · Terminal 3 · Scalo lungo 18h 35m",
+        "title": "Arrivo a Pechino PEK T3",
+        "subtitle": "Air China CA950 · Terminal 3 · Scalo lungo 18h 35m (TWOV)",
         "transitTime": "18h 35m",
-        "note": "Scalo tecnico: ritirare il bagaglio, passare il controllo passaporti cinese e uscire dall'aeroporto con il visto di transito o TWOV (72h). Conservare la boarding card del volo precedente.",
-        "howToGetThere": "Terminal 3, Pechino Capital International Airport. Prendere la scala mobile verso le uscite internazionali per il ritiro bagagli.",
+        "note": "Scalo Pechino 30 nov: 18h35m con uscita città (TWOV). Ritirare bagaglio se richiesto e passare il controllo passaporti.",
+        "howToGetThere": "Terminal 3, Pechino Capital International Airport.",
         "isBooked": true
       },
       {
@@ -120,7 +122,7 @@
         "price": 25,
         "isPaid": false,
         "note": "Stima costo: ~200 CNY (≈ €25). Usare taxi ufficiali dalla coda taxi al Terminal 3. Evitare abusivi. Mostrare al tassista: 八达岭长城 (Badaling Great Wall). Autostrada G6 verso nord.",
-        "howToGetThere": "Uscite ufficiali taxi al piano arrivi, Terminal 3. Durata stimata ~1h 20m (traffico mattutino). In alternativa: Bus 919 rapido, 12 CNY ma ~2h.",
+        "howToGetThere": "Uscite ufficiali taxi al piano arrivi, Terminal 3.",
         "mapsUrl": "https://www.google.com/maps/dir/?api=1&origin=Beijing+Capital+International+Airport&destination=Badaling+Great+Wall,+Beijing&travelmode=driving"
       },
       {
@@ -132,8 +134,8 @@
         "duration": "2h 30m",
         "price": 40,
         "isPaid": false,
-        "note": "Sezione più restaurata e accessibile della Muraglia. Apertura dalle 06:30. Biglietto: ~40 CNY (≈ €5). Si consiglia la torre est (Torre 12) per meno folla. Vestiti a strati: in quota fa freddo anche in novembre. Scarpe comode obbligatorie.",
-        "howToGetThere": "Scendere dal taxi all'ingresso principale di Badaling. Biglietteria all'ingresso sud. Prenotazione online evita code.",
+        "note": "Sezione più restaurata e accessibile della Muraglia. Apertura dalle 06:30. Biglietto: ~40 CNY (≈ €5). Si consiglia la torre est (Torre 12) per meno folla.",
+        "howToGetThere": "Scendere dal taxi all'ingresso principale di Badaling.",
         "ticketUrl": "https://www.travelchinaguide.com/china_great_wall/badaling/",
         "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Badaling+Great+Wall+Beijing",
         "isManaged": true
@@ -147,8 +149,8 @@
         "transitTime": "1h 10m",
         "price": 18,
         "isPaid": false,
-        "note": "Stima costo: ~150 CNY (≈ €18). Il taxi va prenotato all'uscita della biglietteria Badaling — ci sono banchi taxi ufficiali. Mostrare: 天安门广场 (Piazza Tiananmen). Autostrada G6 verso sud.",
-        "howToGetThere": "Banco taxi all'uscita della biglietteria di Badaling. Evitare i tassisti che si avvicinano spontaneamente all'interno del parco.",
+        "note": "Stima costo: ~150 CNY (≈ €18). Il taxi va prenotato all'uscita della biglietteria Badaling. Mostrare: 天安门广场 (Piazza Tiananmen).",
+        "howToGetThere": "Banco taxi all'uscita della biglietteria di Badaling.",
         "mapsUrl": "https://www.google.com/maps/dir/?api=1&origin=Badaling+Great+Wall,+Beijing&destination=Tiananmen+Square,+Beijing&travelmode=driving"
       },
       {
@@ -160,7 +162,7 @@
         "duration": "1h",
         "price": 15,
         "isPaid": false,
-        "note": "Zona Qianmen con ristoranti tradizionali: anatra alla pechinese, dim sum, jiaozi. Consigliato: Quanjude (全聚德) per l'anatra, locale storico. Budget medio ~100 CNY (≈ €12-15) a persona.",
+        "note": "Zona Qianmen con ristoranti tradizionali: anatra alla pechinese, dim sum, jiaozi.",
         "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Qianmen+Street+Beijing+restaurant"
       },
       {
@@ -172,8 +174,8 @@
         "duration": "2h",
         "price": 10,
         "isPaid": false,
-        "note": "Piazza Tiananmen gratuita. Ingresso alla Città Proibita (故宫): ~60 CNY (≈ €8). Si consiglia solo l'esterno/piazza per i tempi dello scalo. La Città Proibita richiede prenotazione online anticipata. Bagagli non ammessi: usare deposito vicino all'ingresso.",
-        "howToGetThere": "Raggiungibile a piedi da Qianmen, oppure con la metro linea 1, fermata Tiananmen East/West.",
+        "note": "Piazza Tiananmen gratuita. Si consiglia l'esterno/piazza per i tempi dello scalo.",
+        "howToGetThere": "Raggiungibile a piedi da Qianmen, oppure con la metro linea 1.",
         "ticketUrl": "https://www.travelchinaguide.com/cityguides/beijing/forbidden-city/",
         "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Tiananmen+Square+Beijing"
       },
@@ -186,8 +188,8 @@
         "transitTime": "55m",
         "price": 18,
         "isPaid": false,
-        "note": "Stima costo: ~150 CNY (≈ €18). Partire entro le 15:30–15:45 per essere in aeroporto entro le 17:00 con margine confortevole. Mostrare al tassista: 北京首都国际机场 T3 (Aeroporto T3). Si consiglia di prenotare il taxi dall'app DiDi (DiDi Taxi, equivalente cinese di Uber).",
-        "howToGetThere": "Fermare un taxi sulla Tian'anmen West Avenue o usare l'app DiDi. Specificare Terminal 3 (T3) all'autista.",
+        "note": "Partire entro le 15:30–15:45 per essere in aeroporto entro le 17:00 con margine confortevole. Mostrare al tassista: 北京首都国际机场 T3.",
+        "howToGetThere": "Fermare un taxi sulla Tian'anmen West Avenue o usare l'app DiDi.",
         "mapsUrl": "https://www.google.com/maps/dir/?api=1&origin=Tiananmen+Square,+Beijing&destination=Beijing+Capital+International+Airport+Terminal+3&travelmode=driving"
       },
       {
@@ -196,20 +198,19 @@
         "type": "other",
         "title": "Check-in volo notte PEK → AKL",
         "subtitle": "Beijing Capital Airport, Terminal 3 · Gate E",
-        "note": "Check-in apre 3 ore prima. Orario chiusura gate: ore 23:25 ca. Consigliato arrivare entro le 21:00 per avere tempo per la cena e i controlli di sicurezza internazionali. La fast lane per passeggeri Air China è disponibile al banco First/Business Class check-in anche per Economy.",
-        "howToGetThere": "Terminal 3, lato internazionali. Seguire i cartelli per 'International Departures'. Security e passaporto richiede ~45 minuti.",
+        "note": "Check-in Air China Terminal 3 per volo CA783.",
         "isBooked": true
       },
       {
         "id": "d3-6",
         "time": "00:25",
         "type": "transport",
-        "title": "PEK → Auckland AKL",
-        "subtitle": "Air China CA783 · Volo di notte · 13h 35m",
-        "transitTime": "13h 35m",
+        "title": "PEK T3 → Auckland AKL",
+        "subtitle": "Air China CA783 (787-9) · PNR QKP125 · 13h 00m",
+        "transitTime": "13h 00m",
         "hasQR": true,
         "isBooked": true,
-        "note": "Volo notturno diretto Pechino → Auckland. Orario locale di arrivo: 1 dicembre ore 17:25 NZDT. Portare mascherina, cuscino da viaggio, tappi orecchie per il lungo raggio."
+        "note": "PEK T3 00:25 -> AKL 17:25 (1 dic). Posti: 50K (Giusy), 50L (Nunzio). PNR QKP125."
       }
     ]
   },
@@ -222,13 +223,14 @@
     "monthShort": "dic",
     "dayShort": "Mar",
     "location": "Auckland, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d4-1",
         "time": "17:25",
         "type": "transport",
         "title": "Arrivo Auckland AKL",
-        "subtitle": "Dogana e ritiro auto a noleggio",
+        "subtitle": "Dogana e pratiche di ingresso",
         "transitTime": "1h 30m"
       },
       {
@@ -237,6 +239,7 @@
         "type": "hotel",
         "title": "Check-in Noa Hotel",
         "subtitle": "Auckland CBD",
+        "price": 52,
         "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Noa+Hotel+Auckland"
       }
     ]
@@ -253,10 +256,11 @@
     "activities": [
       {
         "id": "d5-1",
-        "time": "09:00",
-        "type": "sightseeing",
-        "title": "Ritiro auto a noleggio · Auckland",
-        "subtitle": "Auckland Airport"
+        "time": "10:00",
+        "type": "transport",
+        "title": "Ritiro auto Snap Rentals NZ (ref 742210189)",
+        "subtitle": "Auckland Parnell (60-64 The Strand) · Auto One-Way",
+        "note": "Ref 742210189. Ritiro Parnell 02 dic 10:00 -> CHC Airport 15 dic 12:00. Totale 1.057,04 NZD (~591,94 €), saldo al banco 538,86 NZD."
       },
       {
         "id": "d5-2",
@@ -295,20 +299,21 @@
         "price": 75,
         "isPaid": false,
         "isBooked": true,
-        "howToGetThere": "Impostare navigatore su 39 Waitomo Village Road, Waitomo Caves. Ampio parcheggio gratuito all'ingresso principale del Visitor Centre.",
-        "timeBeforehand": "Arrivare 15 minuti prima dell'inizio del tour",
+        "howToGetThere": "39 Waitomo Village Road, Waitomo Caves.",
+        "timeBeforehand": "Arrivare 15 minuti prima",
         "duration": "45m",
         "ticketUrl": "https://www.waitomo.com/experiences/waitomo-glowworm-caves",
         "mapsUrl": "https://www.google.com/maps/search/?api=1&query=39+Waitomo+Village+Road,+Waitomo,+New+Zealand",
-        "note": "Il tour include una camminata guidata e un giro in barca silenzioso sotto migliaia di lucciole luminose. Temperatura interna di circa 12°C costante: si raccomanda una giacca e scarpe comode.",
+        "note": "Tour guidato in barca nelle grotte.",
         "isManaged": true
       },
       {
         "id": "d5-6",
         "time": "22:00",
         "type": "hotel",
-        "title": "Waitomo Village Chalets",
-        "subtitle": "Hotel Access Road, Waitomo",
+        "title": "Waitomo Village Chalets (Kiwipaka)",
+        "subtitle": "Waitomo Village",
+        "price": 68,
         "transitTime": "5m"
       }
     ]
@@ -332,12 +337,11 @@
         "price": 89,
         "isPaid": false,
         "isBooked": true,
-        "howToGetThere": "501 Buckland Road, Hinuera, Matamata. Il tour guidato parte in bus dal parcheggio principale di The Shire's Rest.",
+        "howToGetThere": "501 Buckland Road, Hinuera, Matamata.",
         "timeBeforehand": "Arrivare 15 minuti prima",
         "duration": "2h 30m",
         "ticketUrl": "https://www.hobbitontours.com/",
         "mapsUrl": "https://www.google.com/maps/search/?api=1&query=501+Buckland+Road,+Matamata,+New+Zealand",
-        "note": "Visita guidata del set cinematografico dei film Lo Hobbit e Il Signore degli Anelli, e una bevanda inclusa al pub Green Dragon Inn.",
         "isManaged": true
       },
       {
@@ -366,12 +370,9 @@
         "price": 130,
         "isPaid": false,
         "isBooked": true,
-        "howToGetThere": "196 Fairy Springs Road, Rotorua. Parcheggio all'ingresso principale del villaggio.",
-        "timeBeforehand": "Check-in a partire dalle 17:15, inizio ore 17:30",
         "duration": "3h",
         "ticketUrl": "https://www.mitai.co.nz/",
         "mapsUrl": "https://www.google.com/maps/search/?api=1&query=196+Fairy+Springs+Road,+Rotorua,+New+Zealand",
-        "note": "Spettacolo culturale tradicional, visita della sorgente d'acqua sacra e cena Hangi tipica inclusa. Portare abbigliamento comodo e scarpe per la camminata notturna.",
         "isManaged": true
       },
       {
@@ -379,7 +380,8 @@
         "time": "22:00",
         "type": "hotel",
         "title": "Wylie Court Motor Lodge",
-        "subtitle": "345 Fenton Street, Rotorua"
+        "subtitle": "345 Fenton Street, Rotorua",
+        "price": 106
       }
     ]
   },
@@ -402,12 +404,9 @@
         "price": 25,
         "isPaid": false,
         "isBooked": true,
-        "howToGetThere": "1 Long Mile Road, Rotorua. Biglietteria all'ingresso del parco.",
-        "timeBeforehand": "Arrivare all'orario prenotato",
         "duration": "40m",
         "ticketUrl": "https://www.redwoods.co.nz/",
         "mapsUrl": "https://www.google.com/maps/search/?api=1&query=1+Long+Mile+Road,+Rotorua,+New+Zealand",
-        "note": "Passeggiata notturna sospesa tra le sequoie illuminate.",
         "isManaged": true
       },
       {
@@ -419,11 +418,8 @@
         "price": 40,
         "isPaid": false,
         "isBooked": true,
-        "howToGetThere": "1000 Hinemoa Street, Rotorua. Parcheggio gratuito in loco.",
-        "timeBeforehand": "Arrivare 15 minuti prima",
         "duration": "2h",
         "ticketUrl": "https://www.polynesianspa.co.nz/",
-        "note": "Bagno termale rilassante nelle acque minerali calde.",
         "isManaged": true
       },
       {
@@ -451,8 +447,9 @@
         "id": "d7-6",
         "time": "18:45",
         "type": "hotel",
-        "title": "Skotel Alpine Resort",
-        "subtitle": "Tongariro National Park"
+        "title": "National Park Backpackers",
+        "subtitle": "National Park Village",
+        "price": 47
       }
     ]
   },
@@ -486,7 +483,8 @@
         "time": "20:00",
         "type": "hotel",
         "title": "Totara Lodge Motel",
-        "subtitle": "15 Devon Street, Levin"
+        "subtitle": "15 Devon Street, Levin",
+        "price": 51
       }
     ]
   },
@@ -516,11 +514,12 @@
       },
       {
         "id": "d9-1",
-        "time": "12:30",
+        "time": "07:50",
         "type": "transport",
-        "title": "Traghetto Wellington → Picton",
-        "subtitle": "Bluebridge Ferry (Livia) · Check-in tassativo ore 11:30",
-        "hasQR": true
+        "title": "Traghetto Stretto di Cook (auto)",
+        "subtitle": "Wellington (imbarco 07:00, 07:50) → Picton 11:20",
+        "hasQR": true,
+        "note": "Traghetto Stretto di Cook con auto al seguito. Wellington imbarco 07:00, partenza 07:50 -> arrivo Picton 11:20."
       },
       {
         "id": "d9-2",
@@ -534,7 +533,8 @@
         "time": "21:00",
         "type": "hotel",
         "title": "Kaikoura Seaside Lodge",
-        "subtitle": "268 Esplanade, Kaikoura"
+        "subtitle": "268 Esplanade, Kaikoura",
+        "price": 50
       }
     ]
   },
@@ -557,11 +557,8 @@
         "price": 160,
         "isPaid": false,
         "isBooked": true,
-        "howToGetThere": "Whale Way Station, 224 Esplanade, Kaikoura. Situato proprio di fronte alla stazione ferroviaria di Kaikoura.",
-        "timeBeforehand": "Arrivare 30 minuti prima (ore 08:30) per il check-in e briefing",
         "duration": "3h 15m",
         "ticketUrl": "https://www.whalewatch.co.nz/",
-        "note": "Esperienza di avvistamento capodogli in catamarano. In caso di mare mosso il tour viene cancellato con rimborso totale. Si consiglia vivamente una giacca calda/antivento e di assumere una pillola contro il mal di mare prima dell'imbarco.",
         "isManaged": true
       },
       {
@@ -577,7 +574,8 @@
         "time": "18:00",
         "type": "hotel",
         "title": "Otira Stagecoach Hotel",
-        "subtitle": "6435 Otira Highway, Otira"
+        "subtitle": "6435 Otira Highway, Otira",
+        "price": 72
       }
     ]
   },
@@ -596,7 +594,7 @@
         "time": "09:00",
         "type": "sightseeing",
         "title": "Partenza da Otira",
-        "subtitle": "Otira Viaduct Lookout, 14408 Otira Highway"
+        "subtitle": "Otira Viaduct Lookout"
       },
       {
         "id": "d11-1",
@@ -631,7 +629,8 @@
         "time": "19:00",
         "type": "hotel",
         "title": "Haka House Franz Josef",
-        "subtitle": "2/4 Cron Street, Franz Josef Glacier"
+        "subtitle": "2/4 Cron Street, Franz Josef Glacier",
+        "price": 68
       }
     ]
   },
@@ -654,11 +653,8 @@
         "price": 599,
         "isPaid": false,
         "isBooked": true,
-        "howToGetThere": "Fox Glacier Guiding Base, 44 Main Road (State Highway 6), Fox Glacier Village. Check-in all'ufficio ed equipaggiamento prima del volo.",
-        "timeBeforehand": "Arrivare 30 minuti prima dell'orario del volo (ore 08:00)",
         "duration": "4h",
         "ticketUrl": "https://www.foxguides.co.nz/our-trips/fox-glacier-flying-fox-heli-hike/",
-        "note": "Volo panoramico in elicottero e camminata guidata sui ghiacci. Forniscono stivali, calzini impermeabili, giacca da trekking e ramponi. Portare occhiali da sole, abbigliamento a strati caldi e crema solare. Condizioni dipendenti al 100% dal meteo.",
         "isManaged": true
       },
       {
@@ -672,8 +668,9 @@
         "id": "d12-3",
         "time": "18:00",
         "type": "hotel",
-        "title": "Ivorytowers Accommodation",
-        "subtitle": "33/35 Sullivans Road, Fox Glacier"
+        "title": "Ivorytowers Accommodation, Fox Glacier",
+        "subtitle": "33/35 Sullivans Road, Fox Glacier",
+        "price": 49
       }
     ]
   },
@@ -713,7 +710,7 @@
         "time": "12:15",
         "type": "sightseeing",
         "title": "Fantail Falls",
-        "subtitle": "Cascata su Haast Pass (consigliato)"
+        "subtitle": "Cascata su Haast Pass"
       },
       {
         "id": "d13-4",
@@ -734,14 +731,15 @@
         "time": "15:30",
         "type": "sightseeing",
         "title": "Roy's Peak Lookout",
-        "subtitle": "2 Glendhu Bay Road — Vista panoramica"
+        "subtitle": "2 Glendhu Bay Road"
       },
       {
         "id": "d13-7",
         "time": "17:30",
         "type": "hotel",
         "title": "Cardrona Hotel",
-        "subtitle": "Cardrona Valley Road, Cardrona"
+        "subtitle": "Cardrona Valley Road, Cardrona",
+        "price": 78
       }
     ]
   },
@@ -767,8 +765,9 @@
         "id": "d14-2",
         "time": "18:00",
         "type": "hotel",
-        "title": "Knobs Flat Accommodation",
-        "subtitle": "Eglinton Valley"
+        "title": "Eglinton Valley Camp",
+        "subtitle": "Te Anau Downs",
+        "price": 149
       }
     ]
   },
@@ -791,11 +790,8 @@
         "price": 70,
         "isPaid": false,
         "isBooked": true,
-        "howToGetThere": "Milford Sound Visitor Terminal, Milford Sound. Si consiglia di arrivare in auto percorrendo la Milford Road per tempo.",
-        "timeBeforehand": "Arrivare 20 minuti prima",
         "duration": "2h",
         "ticketUrl": "https://www.realnz.com/en/experiences/cruises/milford-sound-cruises/",
-        "note": "Crociera spettacolare tra cascate e fauna marina nei fiordi.",
         "isManaged": true
       },
       {
@@ -810,8 +806,9 @@
         "id": "d15-3",
         "time": "19:00",
         "type": "hotel",
-        "title": "Arrowtown Lodge",
-        "subtitle": "Arrowtown, Queenstown Area"
+        "title": "New Orleans Hotel",
+        "subtitle": "Arrowtown",
+        "price": 85
       }
     ]
   },
@@ -842,19 +839,17 @@
         "price": 95,
         "isPaid": false,
         "isBooked": true,
-        "howToGetThere": "Ufficio Dark Sky Project, Lake Tekapo Lakefront. Trasferimento in bus all'osservatorio incluso.",
-        "timeBeforehand": "Arrivare 15 minuti prima",
         "duration": "2h",
         "ticketUrl": "https://www.darkskyproject.co.nz/",
-        "note": "Esperienza di osservazione astronomica guidata nel cielo della riserva Dark Sky.",
         "isManaged": true
       },
       {
         "id": "d16-3",
         "time": "23:00",
         "type": "hotel",
-        "title": "Fairlie Holiday Park / Lodge",
-        "subtitle": "Lake Tekapo Area"
+        "title": "Fairlie Holiday Park",
+        "subtitle": "Fairlie",
+        "price": 61
       }
     ]
   },
@@ -866,30 +861,23 @@
     "dateShort": "14",
     "monthShort": "dic",
     "dayShort": "Lun",
-    "location": "Christchurch → Adelaide, AU",
+    "location": "Christchurch, NZ",
     "activities": [
       {
         "id": "d17-1",
         "time": "10:00",
         "type": "transport",
         "title": "Lake Tekapo → Christchurch Airport",
-        "subtitle": "Rilascio auto a noleggio in aeroporto",
+        "subtitle": "Spostamento verso Christchurch",
         "transitTime": "2h 51m"
       },
       {
         "id": "d17-2",
-        "time": "18:20",
-        "type": "transport",
-        "title": "Volo Christchurch CHC → Adelaide ADL",
-        "subtitle": "Air New Zealand NZ261 · 2h 10m",
-        "hasQR": true
-      },
-      {
-        "id": "d17-3",
-        "time": "20:25",
-        "type": "transport",
-        "title": "Arrivo Adelaide",
-        "subtitle": "Ritiro auto e check-in alloggio"
+        "time": "18:00",
+        "type": "hotel",
+        "title": "MCM Motel Christchurch",
+        "subtitle": "Christchurch",
+        "price": 65
       }
     ]
   },
@@ -901,29 +889,32 @@
     "dateShort": "15",
     "monthShort": "dic",
     "dayShort": "Mar",
-    "location": "Kangaroo Island, AU",
+    "location": "Christchurch → Adelaide, AU 🇦🇺",
     "activities": [
       {
         "id": "d18-1",
-        "time": "08:00",
+        "time": "15:25",
         "type": "transport",
-        "title": "Adelaide → Cape Jervis Ferry → Kangaroo Island",
-        "subtitle": "Traghetto auto e viaggio fino all'isola",
-        "transitTime": "5h 09m"
+        "title": "Volo Christchurch CHC → Adelaide ADL T1",
+        "subtitle": "Air New Zealand NZ261 · PNR XLY76H · 2h 10m [DA VERIFICARE]",
+        "hasQR": true,
+        "note": "[DA VERIFICARE: operatività martedì]. CHC 15:25 -> ADL T1 17:35. Tariffa Seat: 7kg cabina, 0kg stiva. Posti al web check-in."
       },
       {
         "id": "d18-2",
-        "time": "13:00",
-        "type": "sightseeing",
-        "title": "Flinders Chase National Park",
-        "subtitle": "Remarkable Rocks, Admiral's Arch, Koala & Canguri"
+        "time": "18:00",
+        "type": "transport",
+        "title": "Ritiro auto Bargain Car Rentals ADL (ref 755401529)",
+        "subtitle": "ADL Airport Shuttle · MG 3 o similare (automatico)",
+        "note": "Ref 755401529. Conducente: Nunzio Belardo. Ritiro ADL 15 dic 18:00 -> riconsegna 17 dic 17:30."
       },
       {
         "id": "d18-3",
-        "time": "19:00",
+        "time": "19:30",
         "type": "hotel",
-        "title": "Kangaroo Island Wilderness Retreat",
-        "subtitle": "Flinders Chase Area"
+        "title": "Check-in Adelaide Riviera Hotel",
+        "subtitle": "Adelaide",
+        "price": 75
       }
     ]
   },
@@ -935,29 +926,30 @@
     "dateShort": "16",
     "monthShort": "dic",
     "dayShort": "Mer",
-    "location": "Adelaide → Melbourne, AU",
+    "location": "Kangaroo Island, AU",
     "activities": [
       {
         "id": "d19-1",
-        "time": "15:00",
-        "type": "sightseeing",
-        "title": "Rientro ad Adelaide Airport",
-        "subtitle": "Rilascio auto"
+        "time": "09:00",
+        "type": "transport",
+        "title": "SeaLink Traghetto (auto) Cape Jervis → Penneshaw",
+        "subtitle": "Traghetto per Kangaroo Island con auto [DA VERIFICARE]",
+        "note": "[DA VERIFICARE: prenotazione veicolo]."
       },
       {
         "id": "d19-2",
-        "time": "19:00",
-        "type": "transport",
-        "title": "Volo Adelaide ADL → Melbourne MEL",
-        "subtitle": "Virgin Australia VA218 · 1h 50m",
-        "hasQR": true
+        "time": "13:00",
+        "type": "sightseeing",
+        "title": "Flinders Chase National Park",
+        "subtitle": "Remarkable Rocks, Admiral's Arch, Koala & Canguri"
       },
       {
         "id": "d19-3",
-        "time": "20:45",
-        "type": "transport",
-        "title": "Arrivo Melbourne",
-        "subtitle": "Ritiro Van camperizzato e notte in campeggio"
+        "time": "19:00",
+        "type": "hotel",
+        "title": "Discovery Parks Kangaroo Island",
+        "subtitle": "Kangaroo Island",
+        "price": 124
       }
     ]
   },
@@ -969,29 +961,37 @@
     "dateShort": "17",
     "monthShort": "dic",
     "dayShort": "Gio",
-    "location": "Great Ocean Road, AU",
+    "location": "Adelaide → Melbourne, AU",
     "activities": [
       {
         "id": "d20-1",
-        "time": "09:00",
-        "type": "sightseeing",
-        "title": "Melbourne → Geelong → Great Ocean Road",
-        "subtitle": "Partenza viaggio on-road"
+        "time": "17:30",
+        "type": "transport",
+        "title": "Riconsegna auto Bargain Car Rentals ADL",
+        "subtitle": "Adelaide Airport"
       },
       {
         "id": "d20-2",
-        "time": "16:00",
-        "type": "sightseeing",
-        "title": "Dodici Apostoli (Twelve Apostles)",
-        "subtitle": "Tramonto panoramico sulla Great Ocean Road",
-        "transitTime": "3h 39m"
+        "time": "19:50",
+        "type": "transport",
+        "title": "Volo Adelaide ADL → Melbourne MEL",
+        "subtitle": "Adelaide → Melbourne Tullamarine [DA VERIFICARE]",
+        "note": "[DA VERIFICARE: numero volo, orario, compagnia]."
       },
       {
         "id": "d20-3",
-        "time": "19:00",
+        "time": "23:00",
+        "type": "transport",
+        "title": "Ritiro Van Travellers Autobarn (ref U-152128)",
+        "subtitle": "Melbourne Tullamarine (5 Assembly Drive) · Contactless",
+        "note": "Ref U-152128. Budgie Van (2 pax). Protection Plus Pack (0 franchigia). Ritiro Tullamarine 17 dic 23:00-00:00 -> riconsegna Sydney 28 dic."
+      },
+      {
+        "id": "d20-4",
+        "time": "23:45",
         "type": "hotel",
-        "title": "12 Apostles Campground",
-        "subtitle": "Port Campbell area"
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Melbourne / Crystal Brook Campground"
       }
     ]
   },
@@ -1003,29 +1003,29 @@
     "dateShort": "18",
     "monthShort": "dic",
     "dayShort": "Ven",
-    "location": "Melbourne via Costa, AU",
+    "location": "Great Ocean Road, AU",
     "activities": [
       {
         "id": "d21-1",
         "time": "09:00",
-        "type": "transport",
-        "title": "12 Apostoli → Melbourne via Costa",
-        "subtitle": "Strada panoramica Great Ocean Road",
-        "transitTime": "4h 42m"
+        "type": "sightseeing",
+        "title": "Melbourne → Geelong → Great Ocean Road",
+        "subtitle": "Partenza viaggio on-road"
       },
       {
         "id": "d21-2",
         "time": "16:00",
         "type": "sightseeing",
-        "title": "Melbourne City tour",
-        "subtitle": "Street art a Hosier Lane e lungofiume Yarra"
+        "title": "Dodici Apostoli (Twelve Apostles)",
+        "subtitle": "Tramonto panoramico sulla Great Ocean Road",
+        "transitTime": "3h 39m"
       },
       {
         "id": "d21-3",
         "time": "19:00",
         "type": "hotel",
-        "title": "Melbourne Tourist Park",
-        "subtitle": "Melbourne Area"
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Port Campbell Campground area"
       }
     ]
   },
@@ -1043,7 +1043,7 @@
         "id": "d22-1",
         "time": "10:00",
         "type": "transport",
-        "title": "Melbourne → Phillip Island",
+        "title": "12 Apostoli → Phillip Island",
         "subtitle": "Trasferimento verso l'isola dei pinguini",
         "transitTime": "4h 02m"
       },
@@ -1058,8 +1058,8 @@
         "id": "d22-3",
         "time": "22:00",
         "type": "hotel",
-        "title": "Tidal Campground",
-        "subtitle": "Phillip Island"
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Phillip Island / San Remo Campground"
       }
     ]
   },
@@ -1085,8 +1085,8 @@
         "id": "d23-2",
         "time": "19:00",
         "type": "hotel",
-        "title": "Wilson Promontory Campsite",
-        "subtitle": "Wilson Promontory"
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Tidal River Campsite, Wilsons Promontory"
       }
     ]
   },
@@ -1098,13 +1098,13 @@
     "dateShort": "21",
     "monthShort": "dic",
     "dayShort": "Lun",
-    "location": "Metà strada Jervis Bay, AU",
+    "location": "NSW Coast, AU",
     "activities": [
       {
         "id": "d24-1",
         "time": "09:00",
         "type": "transport",
-        "title": "Wilson Promontory → NSW Coast",
+        "title": "Wilsons Promontory → Batemans Bay",
         "subtitle": "Lungo trasferimento lungo la costa",
         "transitTime": "6h 15m"
       },
@@ -1112,8 +1112,8 @@
         "id": "d24-2",
         "time": "18:00",
         "type": "hotel",
-        "title": "Mid-way Coast Camping",
-        "subtitle": "NSW Coast"
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Batemans Bay Campground"
       }
     ]
   },
@@ -1131,9 +1131,9 @@
         "id": "d25-1",
         "time": "09:00",
         "type": "transport",
-        "title": "NSW Coast → Jervis Bay",
+        "title": "Batemans Bay → Jervis Bay",
         "subtitle": "Arrivo alla baia di Jervis",
-        "transitTime": "5h 40m"
+        "transitTime": "2h 30m"
       },
       {
         "id": "d25-2",
@@ -1146,8 +1146,8 @@
         "id": "d25-3",
         "time": "19:00",
         "type": "hotel",
-        "title": "Jervis Bay Holiday Park",
-        "subtitle": "Jervis Bay"
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Jervis Bay Campground"
       }
     ]
   },
@@ -1170,19 +1170,18 @@
         "price": 90,
         "isPaid": false,
         "isBooked": true,
-        "howToGetThere": "Jervis Bay Wild Office, 58 Owen Street, Huskisson, NSW. Parcheggio pubblico gratuito disponibile vicino al molo.",
+        "howToGetThere": "Jervis Bay Wild Office, 58 Owen Street, Huskisson, NSW.",
         "timeBeforehand": "Arrivare 15 minuti prima dell'imbarco",
         "duration": "2h",
         "ticketUrl": "https://www.jervisbaywild.com.au/",
-        "note": "Navigazione nella baia per avvistare la popolazione residente di tursiopi. Portare cappello, occhiali da sole e crema solare. La barca ha coperture ma può fare vento.",
         "isManaged": true
       },
       {
         "id": "d26-2",
         "time": "19:00",
         "type": "hotel",
-        "title": "Jervis Bay Cabin",
-        "subtitle": "Jervis Bay"
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Jervis Bay Area"
       }
     ]
   },
@@ -1215,8 +1214,8 @@
         "id": "d27-3",
         "time": "18:00",
         "type": "hotel",
-        "title": "Katoomba Campsite",
-        "subtitle": "Blue Mountains"
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Katoomba / Blue Mountains Campsite"
       }
     ]
   },
@@ -1228,18 +1227,18 @@
     "dateShort": "25",
     "monthShort": "dic",
     "dayShort": "Ven",
-    "location": "Sydney CBD, AU",
+    "location": "Sydney Area, AU",
     "activities": [
       {
         "id": "d28-1",
-        "time": "09:00",
+        "time": "10:00",
         "type": "sightseeing",
-        "title": "Consegna Van a Sydney",
-        "subtitle": "Fine noleggio camper"
+        "title": "Blue Mountains → Sydney",
+        "subtitle": "Spostamento verso l'area di Sydney"
       },
       {
         "id": "d28-2",
-        "time": "13:00",
+        "time": "14:00",
         "type": "sightseeing",
         "title": "Sydney Opera House & The Rocks",
         "subtitle": "Esplorazione a piedi del porto"
@@ -1248,8 +1247,8 @@
         "id": "d28-3",
         "time": "18:00",
         "type": "hotel",
-        "title": "Sydney Central Hotel",
-        "subtitle": "Sydney CBD"
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Area Sydney Campground"
       }
     ]
   },
@@ -1281,8 +1280,8 @@
         "id": "d29-3",
         "time": "19:00",
         "type": "hotel",
-        "title": "Sydney Central Hotel",
-        "subtitle": "Sydney"
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Area Sydney Campground"
       }
     ]
   },
@@ -1294,29 +1293,21 @@
     "dateShort": "27",
     "monthShort": "dic",
     "dayShort": "Dom",
-    "location": "Sydney → Manila, PH",
+    "location": "Sydney Area, AU",
     "activities": [
       {
         "id": "d30-1",
-        "time": "12:15",
-        "type": "transport",
-        "title": "Volo Sydney SYD → Manila MNL",
-        "subtitle": "Cebu Pacific 5J040 · 7h 55m",
-        "hasQR": true
+        "time": "10:00",
+        "type": "sightseeing",
+        "title": "Sydney Harbor & Relax",
+        "subtitle": "Preparazione bagagli e check-out van per domani"
       },
       {
         "id": "d30-2",
-        "time": "17:55",
-        "type": "transport",
-        "title": "Arrivo Manila MNL",
-        "subtitle": "Check-in hotel transito aeroporto"
-      },
-      {
-        "id": "d30-3",
-        "time": "20:00",
+        "time": "19:00",
         "type": "hotel",
-        "title": "Manila Transit Hotel",
-        "subtitle": "Pasay City, Manila"
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Area Sydney Campground"
       }
     ]
   },
@@ -1328,21 +1319,46 @@
     "dateShort": "28",
     "monthShort": "dic",
     "dayShort": "Lun",
-    "location": "Manila City, PH",
+    "location": "Sydney → Manila, PH 🇵🇭",
     "activities": [
       {
         "id": "d31-1",
-        "time": "10:00",
-        "type": "sightseeing",
-        "title": "Giro storico Intramuros & Rizal Park",
-        "subtitle": "Manila coloniale spagnola"
+        "time": "08:30",
+        "type": "transport",
+        "title": "Riconsegna Van Travellers Autobarn",
+        "subtitle": "Sydney (1C McPherson St, Banksmeadow)",
+        "note": "Ref U-152128. Riconsegna ore 08:30–09:00."
       },
       {
         "id": "d31-2",
+        "time": "09:00",
+        "type": "transport",
+        "title": "Taxi Banksmeadow → SYD T1",
+        "subtitle": "Trasferimento al Terminal 1 Aeroporto Sydney"
+      },
+      {
+        "id": "d31-3",
+        "time": "12:15",
+        "type": "transport",
+        "title": "Volo Sydney SYD T1 → Manila MNL T3",
+        "subtitle": "Cebu Pacific 5J040 (A330-900neo) · PNR OPCF2E / BMR67K · 7h 55m [DA VERIFICARE]",
+        "hasQR": true,
+        "note": "[DA VERIFICARE: orario arrivo 17:55 vs 18:10; due PNR OPCF2E / BMR67K da chiarire]. SYD T1 12:15 -> MNL T3 18:10. Posti: 18H (Giusy), 18J (Nunzio)."
+      },
+      {
+        "id": "d31-4",
+        "time": "18:30",
+        "type": "transport",
+        "title": "Passerella Runway Manila → Newport City",
+        "subtitle": "Passerella pedonale da MNL Terminal 3"
+      },
+      {
+        "id": "d31-hotel",
         "time": "19:00",
         "type": "hotel",
-        "title": "Manila Transit Hotel",
-        "subtitle": "Manila"
+        "title": "Check-in Newport City",
+        "subtitle": "A piedi dall'aeroporto (Pasay City, Manila)",
+        "note": "[DA VERIFICARE: alloggio non confermato]"
       }
     ]
   },
@@ -1354,21 +1370,32 @@
     "dateShort": "29",
     "monthShort": "dic",
     "dayShort": "Mar",
-    "location": "Manila, PH",
+    "location": "Manila → Boracay, PH 🇵🇭",
     "activities": [
       {
         "id": "d32-1",
-        "time": "12:00",
-        "type": "sightseeing",
-        "title": "Relax & Preparazione Boracay",
-        "subtitle": "Organizzazione bagagli"
+        "time": "08:50",
+        "type": "transport",
+        "title": "Volo Manila MNL T3 → Caticlan MPH",
+        "subtitle": "Cebu Pacific 5J899 (A320-200) · 1h 10m",
+        "hasQR": true,
+        "note": "MNL T3 08:50 -> MPH Caticlan 10:00. Posti al check-in."
       },
       {
         "id": "d32-2",
-        "time": "19:00",
+        "time": "10:15",
+        "type": "transport",
+        "title": "Transfer Trip.com (terra + barca) Caticlan → Boracay",
+        "subtitle": "Transfer terra e barca incluso con Trip.com fino al resort"
+      },
+      {
+        "id": "d32-hotel",
+        "time": "13:00",
         "type": "hotel",
-        "title": "Manila Transit Hotel",
-        "subtitle": "Manila"
+        "title": "Check-in Bamboo Beach Resort, Boracay",
+        "subtitle": "Station 3, White Beach, Boracay",
+        "price": 142,
+        "note": "[DA VERIFICARE: 142 € / 3 notti vs soggiorno dichiarato fino al 2 gen → 4 notti]"
       }
     ]
   },
@@ -1380,29 +1407,21 @@
     "dateShort": "30",
     "monthShort": "dic",
     "dayShort": "Mer",
-    "location": "Manila → Boracay, PH",
+    "location": "Boracay, PH 🇵🇭",
     "activities": [
       {
         "id": "d33-1",
-        "time": "08:50",
-        "type": "transport",
-        "title": "Volo Manila MNL → Caticlan MPH",
-        "subtitle": "Cebu Pacific 5J899 · 1h 10m",
-        "hasQR": true
-      },
-      {
-        "id": "d33-2",
         "time": "10:00",
-        "type": "transport",
-        "title": "Transfer Barca Caticlan → Boracay",
-        "subtitle": "Avvicinamento all'isola"
+        "type": "sightseeing",
+        "title": "Relax White Beach & Spiaggia",
+        "subtitle": "Station 3 / Station 2 White Beach, Boracay"
       },
       {
-        "id": "d33-3",
-        "time": "13:00",
+        "id": "d33-hotel",
+        "time": "19:00",
         "type": "hotel",
-        "title": "Check-in Boracay Resort",
-        "subtitle": "White Beach, Boracay"
+        "title": "Bamboo Beach Resort",
+        "subtitle": "Station 3, White Beach, Boracay"
       }
     ]
   },
@@ -1434,7 +1453,7 @@
         "id": "d34-3",
         "time": "23:00",
         "type": "hotel",
-        "title": "Boracay Resort",
+        "title": "Bamboo Beach Resort",
         "subtitle": "Boracay"
       }
     ]
