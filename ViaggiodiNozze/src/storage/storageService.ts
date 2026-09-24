@@ -1,4 +1,4 @@
-import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument } from '../types';
+import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem } from '../types';
 import {
   STORES,
   idbGetAll,
@@ -111,9 +111,81 @@ class StorageService {
     }
   }
 
+  async seedMockActivities(): Promise<void> {
+    if (!import.meta.env.DEV) return;
+    try {
+      const MOCK_VERSION = 'v1_mock_milano';
+      const migrationVersion = typeof localStorage !== 'undefined' ? localStorage.getItem('mock_seed_ver') : null;
+      if (migrationVersion === MOCK_VERSION) return;
+
+      const dateStr = '2026-11-28';
+      const days = await idbGetAll<Giorno>(STORES.GIORNI);
+      let day = days.find(d => d.date === dateStr);
+      
+      if (!day) {
+        day = {
+          id: `day_${dateStr}`,
+          date: dateStr,
+          title: 'Milano Test',
+          location: 'Milano',
+          notes: 'Giornata di test routing',
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+        await idbPut(STORES.GIORNI, day);
+      }
+
+      const activities = await idbGetAll<Attivita>(STORES.ATTIVITA);
+      const hasMock = activities.some(a => a.id === 'mock_novecento' || a.id === 'mock_starita');
+      if (!hasMock) {
+        const novecento: Attivita = {
+          id: 'mock_novecento',
+          dayId: day.id,
+          title: 'Museo del Novecento',
+          time: '14:00',
+          location: 'Piazza del Duomo, 8, 20123 Milano MI',
+          category: 'cultura',
+          link: 'https://share.google/8yp7aQiQ1NeI9yQVx',
+          notes: '',
+          status: 'completata',
+          copilota: true,
+          coordinate: { lat: 45.4637, lng: 9.1905 },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+
+        const starita: Attivita = {
+          id: 'mock_starita',
+          dayId: day.id,
+          title: 'Starita Milano',
+          time: '20:00',
+          location: 'Via Gherardini, 1, 20145 Milano MI',
+          category: 'cibo',
+          link: 'https://share.google/2zCF6CNMyE5xhpnG8',
+          notes: '',
+          status: 'completata',
+          copilota: true,
+          coordinate: { lat: 45.4789, lng: 9.1724 },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+
+        await idbPut(STORES.ATTIVITA, novecento);
+        await idbPut(STORES.ATTIVITA, starita);
+      }
+
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('mock_seed_ver', MOCK_VERSION);
+      }
+    } catch (err) {
+      console.error('[StorageService] Errore seeding mock:', err);
+    }
+  }
+
   // --- ATTIVITA ---
   async getActivities(dayId?: string): Promise<Attivita[]> {
     try {
+      await this.seedMockActivities();
       const items = await idbGetAll<Attivita>(STORES.ATTIVITA);
       const filtered = dayId ? items.filter(a => a.dayId === dayId) : items;
       return filtered.sort((a, b) => {
@@ -296,6 +368,36 @@ class StorageService {
 
   async deleteDocument(id: string): Promise<void> {
     await idbDelete(STORES.DOCUMENTI, id);
+  }
+
+  // --- ROUTING CACHE ---
+  async getRouteCache(id: string): Promise<RoutingCacheItem | undefined> {
+    try {
+      return await idbGet<RoutingCacheItem>(STORES.ROUTES, id);
+    } catch (err) {
+      console.error('[StorageService] Errore lettura cache percorso:', err);
+      return undefined;
+    }
+  }
+
+  async getAllRouteCaches(): Promise<RoutingCacheItem[]> {
+    try {
+      return await idbGetAll<RoutingCacheItem>(STORES.ROUTES);
+    } catch (err) {
+      console.error('[StorageService] Errore lettura percorsi:', err);
+      return [];
+    }
+  }
+
+  async saveRouteCache(item: RoutingCacheItem): Promise<void> {
+    try {
+      await idbPut(STORES.ROUTES, {
+        ...item,
+        updatedAt: Date.now()
+      });
+    } catch (err) {
+      console.error('[StorageService] Errore salvataggio cache percorso:', err);
+    }
   }
 
   // --- BACKUP & RIPRISTINO ---

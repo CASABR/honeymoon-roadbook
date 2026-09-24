@@ -110,4 +110,20 @@ export interface Trasporto {
   updatedAt: number;
 }
 
+export interface RouteInfo {
+  distanceKm: number;
+  formattedDistance: string; // es. "185.4 km"
+  durationSeconds: number;
+  formattedDuration: string; // es. "2h 35m"
+  manualOverride?: boolean;
+}
+
+export interface RoutingCacheItem {
+  id: string; // es. route_${from}_${to}
+  from: string;
+  to: string;
+  route: RouteInfo;
+  updatedAt: number;
+}
+
 export type SectionTab = 'oggi' | 'attivita' | 'alloggi' | 'trasporti' | 'altro';

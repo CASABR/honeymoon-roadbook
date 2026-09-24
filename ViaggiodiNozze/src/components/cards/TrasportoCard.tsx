@@ -3,6 +3,7 @@ import type { Trasporto, TipoTrasporto } from '../../types';
 import Badge from '../common/Badge';
 import TrasportoInfoModal from '../modals/TrasportoInfoModal';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
+import RouteBadge from '../common/RouteBadge';
 import { getTransportMapTargets } from '../../utils/mapsHelper';
 
 interface TrasportoCardProps {
@@ -274,6 +275,13 @@ export default function TrasportoCard({
                   </div>
                 </div>
 
+                <div className="pl-[22px] py-1">
+                  <RouteBadge 
+                    from={transport.departureLocation} 
+                    to={transport.dropoffLocation || transport.arrivalLocation} 
+                  />
+                </div>
+
                 {/* Riconsegna */}
                 <div className="flex items-start gap-2 pt-2 border-t border-slate-200/60">
                   <div className="w-5 h-5 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-800 shrink-0 text-[10px] mt-0.5">
@@ -378,6 +386,19 @@ export default function TrasportoCard({
             </div>
           )}
         </div>
+
+        {/* Dettagli Acconto già versato (per voli, treni, transfer ecc.) */}
+        {!isRental && (transport.depositPaid || transport.acconto) && (
+          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+            <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
+              <span>💰</span>
+              <span>Acconto / Già pagato:</span>
+            </div>
+            <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+              ✓ {transport.depositPaid || transport.acconto}
+            </span>
+          </div>
+        )}
 
         {/* 3. RIGA INFERIORE PULITA: PNR + AZIONI MIRATE */}
         <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1.5 flex-wrap">
