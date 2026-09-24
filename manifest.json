@@ -1,0 +1,19 @@
+{
+  "name": "Honeymoon Roadbook",
+  "short_name": "Roadbook",
+  "description": "Il tuo piano di viaggio personale",
+  "start_url": "/honeymoon-roadbook/",
+  "scope": "/honeymoon-roadbook/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#1d4ed8",
+  "lang": "it",
+  "icons": [
+    {
+      "src": "/honeymoon-roadbook/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
