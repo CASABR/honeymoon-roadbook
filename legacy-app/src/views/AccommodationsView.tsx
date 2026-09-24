@@ -1,0 +1,1185 @@
+import { useState, useEffect, useRef } from "react";
+import { ACCOMMODATIONS } from "../data/mockData";
+import type { Accommodation, Transport } from "../data/mockData";
+import { IcMapPin, IcChevronRight, IcPlus, IcChevronDown } from "../components/Icons";
+import { repository } from "../services/repository";
+import BookingVerificationView from "../components/BookingVerificationView";
+import SwipeToDelete from "../components/SwipeToDelete";
+import {
+  getUnifiedBookings,
+  detectOverlaps,
+  detectDuplicates,
+  detectGaps,
+} from "../services/bookingService";
+import { parseBookingText } from "../services/bookingParser";
+
+// ── Form vuoto ────────────────────────────────────────────────────────────────
+const EMPTY_FORM = {
+  name: "",
+  city: "",
+  area: "",
+  checkIn: "",
+  checkOut: "",
+  dates: "",
+  note: "",
+  mapsUrl: "",
+  price: "",
+  isPaid: false, // flag pagamento
+  cancellationDeadline: "", // Data ultima cancellazione
+};
+
+// ── Bottom sheet per aggiungere/modificare alloggio ──────────────────────────
+function AddAccoSheet({
+  onSave,
+  onClose,
+  accoToEdit,
+}: {
+  onSave: (acc: Accommodation) => void;
+  onClose: () => void;
+  accoToEdit?: Accommodation;
+}) {
+  const [form, setForm] = useState(() => {
+    if (accoToEdit) {
+      return {
+        name: accoToEdit.name || "",
+        city: accoToEdit.city || "",
+        area: accoToEdit.area || "",
+        checkIn: accoToEdit.checkIn || "",
+        checkOut: accoToEdit.checkOut || "",
+        dates: accoToEdit.dates || "",
+        note: accoToEdit.note || "",
+        mapsUrl: accoToEdit.mapsUrl || "",
+        price: accoToEdit.price !== undefined ? String(accoToEdit.price) : "",
+        isPaid: !!accoToEdit.isPaid,
+        cancellationDeadline: accoToEdit.cancellationDeadline || "",
+      };
+    }
+    return EMPTY_FORM;
+  });
+
+  const [showOptionalDetails, setShowOptionalDetails] = useState(() => {
+    if (accoToEdit) {
+      return !!(
+        accoToEdit.area ||
+        accoToEdit.dates ||
+        accoToEdit.price !== undefined ||
+        accoToEdit.cancellationDeadline ||
+        accoToEdit.mapsUrl ||
+        accoToEdit.note ||
+        accoToEdit.isPaid
+      );
+    }
+    return false;
+  });
+
+  function handleChange(field: keyof typeof EMPTY_FORM, value: any) {
+    setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  function handleSubmit() {
+    if (!form.name.trim() || !form.city.trim()) return;
+    const parsedPrice = parseFloat(form.price.replace(",", "."));
+    const updatedAcc: Accommodation = {
+      ...(accoToEdit || {}),
+      id: accoToEdit ? accoToEdit.id : `acc-user-${Date.now()}`,
+      name: form.name.trim(),
+      city: form.city.trim(),
+      area: form.area.trim() || undefined,
+      checkIn: form.checkIn.trim(),
+      checkOut: form.checkOut.trim(),
+      dates: form.dates.trim() || `${form.checkIn} – ${form.checkOut}`,
+      note: form.note.trim() || undefined,
+      mapsUrl: form.mapsUrl.trim() || undefined,
+      price: isNaN(parsedPrice) ? undefined : parsedPrice,
+      isPaid: form.isPaid,
+      cancellationDeadline: form.cancellationDeadline.trim() || undefined,
+    };
+    onSave(updatedAcc);
+    onClose();
+  }
+
+  return (
+    <div
+      className="bottom-sheet-backdrop"
+      onClick={onClose}
+    >
+      <div
+        className="bottom-sheet-container"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[17px] font-extrabold text-gray-900">
+            {accoToEdit ? "Modifica alloggio" : "Nuovo alloggio"}
+          </h2>
+        </div>
+
+        <div className="space-y-3 overflow-y-auto pr-1 flex-1 min-h-0">
+          {/* ── SEZIONE ESSENZIALE (Sempre visibile) ── */}
+          <div className="bg-blue-50/40 border border-blue-100 p-3.5 rounded-2xl space-y-3">
+            <p className="text-[10px] font-bold text-blue-800 uppercase tracking-widest">Dati essenziali</p>
+            <Field
+              label="Nome struttura *"
+              value={form.name}
+              placeholder="es. Hotel Romolo"
+              onChange={(v) => handleChange("name", v)}
+            />
+            <Field
+              label="Città *"
+              value={form.city}
+              placeholder="es. Tokyo"
+              onChange={(v) => handleChange("city", v)}
+            />
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="flex-1">
+                <Field
+                  label="Check-in (data/ora)"
+                  value={form.checkIn}
+                  placeholder="es. 25 nov · 15:00 o 25/11/2026"
+                  onChange={(v) => handleChange("checkIn", v)}
+                />
+              </div>
+              <div className="flex-1">
+                <Field
+                  label="Check-out (data/ora)"
+                  value={form.checkOut}
+                  placeholder="es. 27 nov · 11:00 o 27/11/2026"
+                  onChange={(v) => handleChange("checkOut", v)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* ── TOGGLE ACCORDION DETTAGLI FACOLTATIVI ── */}
+          <button
+            type="button"
+            onClick={() => setShowOptionalDetails((prev) => !prev)}
+            className="w-full py-2.5 px-3 bg-gray-50 hover:bg-gray-100/80 border border-gray-200/80 rounded-xl text-[12px] font-bold text-gray-700 flex items-center justify-between transition-colors"
+          >
+            <span>{showOptionalDetails ? "➖ Nascondi dettagli facoltativi" : "➕ Aggiungi dettagli facoltativi (prezzo, mappa, quartiere...)"}</span>
+            <IcChevronDown size={16} className={`transition-transform duration-200 ${showOptionalDetails ? "rotate-180 text-blue-600" : "text-gray-400"}`} />
+          </button>
+
+          {/* ── SEZIONE DETTAGLI FACOLTATIVI (Richiudibile) ── */}
+          {showOptionalDetails && (
+            <div className="space-y-3 pt-1">
+              <Field
+                label="Area / Quartiere"
+                value={form.area}
+                placeholder="es. Trastevere, Shinjuku"
+                onChange={(v) => handleChange("area", v)}
+              />
+              <Field
+                label="Date (etichetta estesa)"
+                value={form.dates}
+                placeholder="es. 25 – 27 novembre"
+                onChange={(v) => handleChange("dates", v)}
+              />
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex-1">
+                  <Field
+                    label="Prezzo (€)"
+                    value={form.price}
+                    placeholder="es. 69.00"
+                    onChange={(v) => handleChange("price", v)}
+                  />
+                </div>
+                <div className="flex-1">
+                  <Field
+                    label="Scadenza Cancellazione"
+                    value={form.cancellationDeadline}
+                    placeholder="es. 24 nov"
+                    onChange={(v) => handleChange("cancellationDeadline", v)}
+                  />
+                </div>
+              </div>
+              <Field
+                label="Link Maps"
+                value={form.mapsUrl}
+                placeholder="https://maps.google.com/..."
+                onChange={(v) => handleChange("mapsUrl", v)}
+              />
+              <Field
+                label="Nota"
+                value={form.note}
+                placeholder="es. Colazione inclusa"
+                onChange={(v) => handleChange("note", v)}
+              />
+
+              {/* Toggle Pagato */}
+              <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
+                <div>
+                  <p className="text-[12.5px] font-bold text-gray-800">Stato pagamento</p>
+                  <p className="text-[10px] text-gray-400">Questo alloggio è già stato bloccato/pagato?</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleChange("isPaid", !form.isPaid)}
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors ${
+                    form.isPaid
+                      ? "bg-green-150 text-green-700 border border-green-200"
+                      : "bg-red-50 text-red-500 border border-red-100"
+                  }`}
+                >
+                  {form.isPaid ? "✅ Pagato" : "⏳ Da pagare"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 mt-5">
+          <button
+            className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-semibold text-[14px]"
+            onClick={onClose}
+          >
+            Annulla
+          </button>
+          <button
+            className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-semibold text-[14px]"
+            onClick={handleSubmit}
+            disabled={!form.name.trim() || !form.city.trim()}
+            style={{ opacity: !form.name.trim() || !form.city.trim() ? 0.5 : 1 }}
+          >
+            {accoToEdit ? "Salva modifiche" : "Aggiungi"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Campo form ────────────────────────────────────────────────────────────────
+function Field({
+  label,
+  value,
+  placeholder,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  placeholder: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div>
+      <label className="text-[11px] font-semibold text-gray-500 block mb-1">{label}</label>
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-[13px] text-gray-900 placeholder:text-gray-300 outline-none focus:border-blue-400"
+      />
+    </div>
+  );
+}
+
+function AccoCard({ acc, onOpenDetail, onEdit }: { acc: Accommodation; onOpenDetail: () => void; onEdit?: (acc: Accommodation) => void }) {
+  return (
+    <div 
+      className="card overflow-hidden cursor-pointer hover:border-blue-300 transition-colors animate-fade-in"
+      onClick={onOpenDetail}
+    >
+      <div className="flex relative">
+        {acc.imageUrl && (
+          <img
+            src={acc.imageUrl}
+            alt={acc.name}
+            className="w-[88px] h-[88px] object-cover flex-shrink-0"
+          />
+        )}
+        <div className="flex-1 p-3 min-w-0 pr-12">
+          <p className="font-bold text-[14px] text-gray-900 leading-snug truncate">{acc.name}</p>
+          <div className="flex items-center gap-0.5 mt-0.5 mb-1.5">
+            <IcMapPin size={11} className="text-gray-400" />
+            <p className="text-[12px] text-gray-400 truncate">
+              {acc.area ? `${acc.area}, ${acc.city}` : acc.city}
+            </p>
+          </div>
+          
+          <div className="flex items-end justify-between gap-2 flex-wrap">
+            <div className="min-w-0">
+              <p className="text-[12px] font-semibold text-gray-500">{acc.dates}</p>
+              {acc.cancellationDeadline && (
+                <p className="text-[9.5px] font-black text-red-500 mt-0.5 uppercase tracking-wide">
+                  ⏳ Canc. entro: {acc.cancellationDeadline}
+                </p>
+              )}
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+              {/* Badge pagamento: verde=Pagato, rosso=Da pagare */}
+              <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-extrabold uppercase ${
+                acc.isPaid
+                  ? "bg-green-50 text-green-600 border border-green-200"
+                  : "bg-red-50 text-red-500 border border-red-100"
+              }`}>
+                {acc.isPaid ? "Pagato" : "Da pagare"}
+              </span>
+              {/* Badge stato operativo: ambra=da verificare, verde=confermata. Solo se presente. */}
+              {acc.status && (
+                <span className={`text-[8.5px] px-1.5 py-0.5 rounded font-extrabold uppercase ${
+                  acc.status === "confermata" || acc.status === "confermato"
+                    ? "bg-green-50 text-green-700 border border-green-200"
+                    : "bg-amber-50 text-amber-600 border border-amber-200"
+                }`}>
+                  {acc.status}
+                </span>
+              )}
+              {acc.price !== undefined && (
+                <span className="text-[13px] font-extrabold text-blue-600">
+                  € {typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Right side buttons container */}
+        <div className="absolute right-2 top-0 bottom-0 flex flex-col justify-center gap-2 items-center z-10">
+          {acc.mapsUrl ? (
+            <a
+              href={acc.mapsUrl}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="Apri posizione su Google Maps"
+              onClick={(e) => e.stopPropagation()}
+              className="w-8 h-8 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center hover:bg-blue-100 active:scale-95 transition-all shadow-2xs border border-blue-100"
+            >
+              <IcMapPin size={14} className="text-blue-600" />
+            </a>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onEdit) onEdit(acc);
+                else onOpenDetail();
+              }}
+              className="px-2 py-1 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900 hover:bg-slate-200 font-bold text-[10px] flex items-center gap-1 active:scale-95 transition-all border border-slate-200/70 shrink-0"
+              title="Aggiungi link Google Maps alloggio"
+            >
+              <IcMapPin size={11} className="text-slate-500" />
+              <span>+ Mappa</span>
+            </button>
+          )}
+          <IcChevronRight size={15} className="text-gray-300 pointer-events-none" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Bottom sheet per i dettagli dell'alloggio ────────────────────────────────
+function DetailAccoSheet({
+  acc,
+  onClose,
+  onDelete,
+  onEdit,
+  onUpdate,
+}: {
+  acc: Accommodation;
+  onClose: () => void;
+  onDelete: () => void;
+  onEdit?: () => void;
+  onUpdate: (updated: Accommodation) => void;
+}) {
+  const [copiedCode, setCopiedCode] = useState(false);
+  const copiedTimeoutRef = useRef<any>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+    };
+  }, []);
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(true);
+    if (copiedTimeoutRef.current) clearTimeout(copiedTimeoutRef.current);
+    copiedTimeoutRef.current = setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  return (
+    <div className="bottom-sheet-backdrop animate-fade-in" onClick={onClose}>
+      <div className="bottom-sheet-container animate-slide-up" onClick={(e) => e.stopPropagation()}>
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4" />
+        
+        <div className="flex justify-between items-start gap-4 mb-3">
+          <div className="min-w-0">
+            <span className="text-[9px] font-black uppercase tracking-wider text-blue-500">Prenotazione Alloggio</span>
+            <h2 className="text-[17px] font-extrabold text-gray-900 leading-snug truncate">{acc.name}</h2>
+          </div>
+          {acc.status && (
+            <span className={`text-[9px] px-2 py-0.5 rounded font-extrabold uppercase shrink-0 ${
+              acc.status === "confermata" || acc.status === "confermato"
+                ? "bg-green-50 text-green-600 border border-green-100"
+                : "bg-amber-50 text-amber-600 border border-amber-100"
+            }`}>
+              {acc.status}
+            </span>
+          )}
+        </div>
+
+        <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
+          {acc.imageUrl && (
+            <img 
+              src={acc.imageUrl} 
+              alt={acc.name} 
+              className="w-full h-32 object-cover rounded-2xl border border-gray-100" 
+            />
+          )}
+
+          <div className="bg-gray-50 p-3 rounded-2xl border border-gray-100 text-[12.5px] space-y-2">
+            <div>
+              <p className="text-[9.5px] font-bold text-gray-400 uppercase tracking-wide">Date Soggiorno</p>
+              <p className="font-bold text-gray-900 text-[13px]">
+                {acc.dates && acc.dates.trim() !== `${acc.checkIn} – ${acc.checkOut}`
+                  ? acc.dates
+                  : acc.checkIn && acc.checkOut
+                  ? `${acc.checkIn} – ${acc.checkOut}`
+                  : acc.dates || "Non specificate"}
+              </p>
+            </div>
+            {(acc.checkIn || acc.checkOut) && (
+              <div className="grid grid-cols-2 gap-3 border-t border-gray-200/60 pt-2">
+                <div>
+                  <p className="text-[9px] font-bold text-gray-400 uppercase">Check-in</p>
+                  <p className="font-semibold text-gray-800">{acc.checkIn || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[9px] font-bold text-gray-400 uppercase">Check-out</p>
+                  <p className="font-semibold text-gray-800">{acc.checkOut || "—"}</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Toggle stato pagamento al volo */}
+          <div className="flex items-center justify-between p-3 bg-blue-50/30 border border-blue-100/50 rounded-xl">
+            <div>
+              <p className="text-[12.5px] font-bold text-gray-850">Stato Pagamento</p>
+              <p className="text-[10px] text-gray-400 font-medium">Tocca il badge per cambiare stato</p>
+            </div>
+            <button
+              onClick={() => onUpdate({ ...acc, isPaid: !acc.isPaid })}
+              className={`px-3 py-1.5 rounded-lg text-[11px] font-extrabold uppercase transition-colors active:scale-95 ${
+                acc.isPaid
+                  ? "bg-green-100 text-green-700 border border-green-200"
+                  : "bg-red-50 text-red-500 border border-red-100"
+              }`}
+            >
+              {acc.isPaid ? "✅ Pagato" : "⏳ Da pagare"}
+            </button>
+          </div>
+
+          <div className="space-y-2.5">
+            {acc.confirmationCode && (
+              <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-[11px] text-gray-400 font-bold uppercase">Codice Prenotazione</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[12px] font-mono font-bold text-gray-800">
+                    {acc.confirmationCode}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyCode(acc.confirmationCode!)}
+                    className={`flex items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-extrabold transition-all active:scale-95 shrink-0 ${
+                      copiedCode
+                        ? "bg-green-50 text-green-700 border-green-200"
+                        : "bg-slate-50 text-slate-500 border-slate-100 hover:text-blue-650 hover:bg-blue-50 hover:border-blue-100"
+                    }`}
+                    title="Copia negli appunti"
+                  >
+                    {copiedCode ? (
+                      <>
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        <span>Copiato</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                        <span>Copia</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-[11px] text-gray-400 font-bold uppercase">Prezzo</span>
+              <span className="text-[13px] font-black text-blue-600">
+                {acc.price !== undefined ? `€ ${typeof acc.price === 'number' ? acc.price.toFixed(2) : acc.price}` : "Non specificato"}
+              </span>
+            </div>
+
+            {acc.cancellationDeadline && (
+              <div className="flex justify-between items-center py-2 border-b border-gray-100 bg-red-50/30 px-2.5 rounded-xl">
+                <span className="text-[10.5px] text-red-500 font-black uppercase">Termine Cancellazione</span>
+                <span className="text-[12px] font-black text-red-650">
+                  {acc.cancellationDeadline}
+                </span>
+              </div>
+            )}
+
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-[11px] text-gray-400 font-bold uppercase">Colazione</span>
+              <span className="text-[12px] font-semibold text-gray-700 text-right">
+                {acc.breakfast || "Non specificata"}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center py-2 border-b border-gray-100">
+              <span className="text-[11px] text-gray-400 font-bold uppercase">Città / Località</span>
+              <span className="text-[12px] font-semibold text-gray-700">
+                {acc.city}
+              </span>
+            </div>
+
+            {acc.area && (
+              <div className="flex justify-between items-center py-2 border-b border-gray-100">
+                <span className="text-[11px] text-gray-400 font-bold uppercase">Quartiere / Area</span>
+                <span className="text-[12px] font-semibold text-gray-700">
+                  {acc.area}
+                </span>
+              </div>
+            )}
+
+            {acc.note && (
+              <div className="py-2">
+                <p className="text-[11px] text-gray-400 font-bold uppercase mb-1">Note aggiuntive</p>
+                <div className="bg-blue-50/40 border border-blue-100/50 rounded-xl p-3 text-[12px] text-gray-600 leading-relaxed font-semibold">
+                  {acc.note}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Action button for Google Maps */}
+          {acc.mapsUrl ? (
+            <a
+              href={acc.mapsUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-[13.5px] rounded-2xl shadow-lg shadow-blue-500/10 active:scale-98 transition-all"
+            >
+              <IcMapPin size={14} />
+              Apri posizione su Google Maps
+            </a>
+          ) : (
+            onEdit && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onEdit();
+                }}
+                className="flex items-center justify-center gap-2 w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[13px] rounded-2xl border border-slate-200/80 active:scale-98 transition-all"
+              >
+                <IcMapPin size={14} className="text-slate-500" />
+                + Aggiungi link Google Maps
+              </button>
+            )
+          )}
+        </div>
+
+        <div className="flex gap-2 mt-3 pt-1">
+          {onEdit && (
+            <button
+              className="flex-1 py-2.5 rounded-2xl bg-blue-50 hover:bg-blue-100 text-blue-600 font-bold text-[13px] border border-blue-200/40 active:scale-95 transition-all"
+              onClick={onEdit}
+            >
+              ✏️ Modifica
+            </button>
+          )}
+          <button
+            className="flex-1 py-2.5 rounded-2xl bg-red-50 hover:bg-red-100 text-red-500 font-bold text-[13px] border border-red-200/40 active:scale-95 transition-all"
+            onClick={onDelete}
+          >
+            🗑️ Elimina
+          </button>
+          <button
+            className="flex-1 py-2.5 rounded-2xl bg-gray-100 text-gray-500 font-bold text-[13px] border border-gray-200/50"
+            onClick={onClose}
+          >
+            Chiudi
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main AccommodationsView ───────────────────────────────────────────────────
+export default function AccommodationsView() {
+  const [accos, setAccos] = useState<Accommodation[]>([]);
+  const [transports, setTransports] = useState<Transport[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const isLoadedRef = useRef(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingAcco, setEditingAcco] = useState<Accommodation | null>(null);
+  const [showImportSheet, setShowImportSheet] = useState(false);
+  const [showVerification, setShowVerification] = useState(false);
+  const [activeIssues, setActiveIssues] = useState<any[]>([]);
+  const [selectedAcco, setSelectedAcco] = useState<Accommodation | null>(null);
+  const [activeTab, setActiveTab] = useState<"tutti" | "nz" | "au" | "ph">(() => {
+    // Pre-selezione automatica: trova la categoria dell'alloggio
+    // con startDate più vicino a oggi (non nel futuro o il più prossimo futuro)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split("T")[0];
+
+    // Cerca l'alloggio "corrente" = startDate <= oggi <= endDate
+    const current = ACCOMMODATIONS.find((a) => {
+      if (!a.startDate) return false;
+      const start = a.startDate;
+      const end = a.endDate || a.startDate;
+      return start <= todayStr && todayStr <= end;
+    });
+
+    // Se nessuno corrente, cerca il prossimo futuro
+    const upcoming = !current
+      ? ACCOMMODATIONS.filter((a) => a.startDate && a.startDate > todayStr)
+          .sort((a, b) => (a.startDate! > b.startDate! ? 1 : -1))[0]
+      : null;
+
+    const target = current || upcoming;
+    if (!target) return "tutti";
+
+    // Regole geografiche
+    if (target.city === "Boracay") return "ph";
+    if (target.area === "Australia & Filippine") return "au";
+    if (target.area === "Europa & Nuova Zelanda" && target.city !== "Milano") return "nz";
+    return "tutti";
+  });
+
+  useEffect(() => {
+    repository.getAccommodations(ACCOMMODATIONS)
+      .then((data) => {
+        const loaded = data || ACCOMMODATIONS;
+        // Assicurati che i prezzi di default vengano ripristinati se undefined per i mock
+        const merged = loaded.map((a) => {
+          if (a.price === undefined || a.price === null) {
+            const fallbackItem = ACCOMMODATIONS.find((f) => f.id === a.id);
+            if (fallbackItem && fallbackItem.price !== undefined) {
+              return { ...a, price: fallbackItem.price };
+            }
+          }
+          return a;
+        });
+        setAccos(merged);
+        repository.saveAccommodations(merged);
+        isLoadedRef.current = true;
+      })
+      .catch((e) => console.error("Errore caricamento alloggi:", e))
+      .finally(() => setIsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    repository.getTransports([]).then((data) => setTransports(data));
+  }, [accos]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) setAccos(detail);
+    };
+    window.addEventListener("hrb_accommodations_change", handler as EventListener);
+    return () => window.removeEventListener("hrb_accommodations_change", handler as EventListener);
+  }, []);
+
+  // Rileva problemi per il banner
+  useEffect(() => {
+    async function checkIssues() {
+      const tripStartDateStr = localStorage.getItem("hrb_departure_date") || "2026-11-28";
+      const defaultDays = await repository.getTripDays([]);
+      let tripEndDateStr = "2027-01-10";
+      if (defaultDays.length > 0) {
+        tripEndDateStr = defaultDays[defaultDays.length - 1].date;
+      }
+
+      const unified = getUnifiedBookings(accos, transports);
+      const overlaps = detectOverlaps(unified);
+      const duplicates = detectDuplicates(unified);
+      const gaps = detectGaps(unified, tripStartDateStr, tripEndDateStr);
+
+      const allIssues = [...overlaps, ...duplicates, ...gaps];
+      const ignored = localStorage.getItem("hrb_ignored_issues");
+      const ignoredKeys = ignored ? JSON.parse(ignored) : [];
+      const active = allIssues.filter((iss) => !ignoredKeys.includes(iss.ignoredKey));
+      setActiveIssues(active);
+    }
+    checkIssues();
+  }, [accos, transports, showVerification]);
+
+  function handleSave(acc: Accommodation) {
+    let next: Accommodation[];
+    const exists = accos.some((item) => item.id === acc.id);
+    if (exists) {
+      next = accos.map((item) => (item.id === acc.id ? acc : item));
+    } else {
+      next = [...accos, acc];
+    }
+    setAccos(next);
+    repository.saveAccommodations(next);
+    window.dispatchEvent(new CustomEvent("hrb_accommodations_change", { detail: next }));
+  }
+
+  function handleDeleteAcco(id: string) {
+    if (window.confirm("Sei sicuro di voler eliminare questa prenotazione?")) {
+      const updated = accos.filter((a) => a.id !== id);
+      setAccos(updated);
+      repository.saveAccommodations(updated);
+      setSelectedAcco(null);
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60dvh] gap-3">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <span className="text-[12px] text-slate-500 font-semibold">Caricamento alloggi...</span>
+      </div>
+    );
+  }
+
+  const totalCost = accos.reduce((sum, acc) => sum + (acc.price || 0), 0);
+  const totalNights = accos.length;
+
+  // Helper di categoria geografica
+  function getCategory(acc: Accommodation): "nz" | "au" | "ph" | "altri" {
+    if (acc.city === "Boracay") return "ph";
+    if (acc.area === "Australia & Filippine") return "au";
+    if (acc.area === "Europa & Nuova Zelanda" && acc.city !== "Milano") return "nz";
+    return "altri"; // Milano e alloggi aggiunti manualmente senza area
+  }
+
+  const filteredAccos = accos.filter((acc) => {
+    if (activeTab === "nz") return getCategory(acc) === "nz";
+    if (activeTab === "au") return getCategory(acc) === "au";
+    if (activeTab === "ph") return getCategory(acc) === "ph";
+    return true; // "tutti"
+  });
+
+  return (
+    <>
+      <div className="px-4 pt-5 pb-4">
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-[24px] font-extrabold text-gray-900">Alloggi</h1>
+          <div className="flex gap-2">
+            <button
+              className="flex items-center gap-1 bg-blue-50 text-blue-600 text-[12.5px] font-bold px-2.5 py-2 rounded-xl"
+              onClick={() => setShowImportSheet(true)}
+            >
+              📥 Importa
+            </button>
+            <button
+              className="flex items-center gap-1.5 bg-blue-600 text-white text-[12.5px] font-semibold px-2.5 py-2 rounded-xl"
+              onClick={() => setShowForm(true)}
+            >
+              <IcPlus size={15} />
+              Aggiungi
+            </button>
+          </div>
+        </div>
+
+        <p className="text-[13px] text-gray-400 mb-4">
+          {accos.length} strutture · tutto il viaggio ·{" "}
+          <span
+            className="text-blue-600 font-bold cursor-pointer"
+            onClick={() => setShowVerification(true)}
+          >
+            Verifica coerenza
+          </span>
+        </p>
+
+        {/* Statistiche alloggi */}
+        <div className="grid grid-cols-2 gap-3 mb-4 bg-blue-50/50 border border-blue-100/50 p-3 rounded-2xl animate-fade-in">
+          <div className="text-center">
+            <span className="text-[10px] font-bold text-gray-400 uppercase block animate-pulse">Spesa Totale</span>
+            <span className="text-[15px] font-black text-blue-600">€ {totalCost.toFixed(2)}</span>
+          </div>
+          <div className="text-center border-l border-blue-100">
+            <span className="text-[10px] font-bold text-gray-400 uppercase block">Strutture</span>
+            <span className="text-[15px] font-black text-gray-705">{totalNights} alloggi</span>
+          </div>
+        </div>
+
+        {/* Tab Selector */}
+        <div className="flex bg-gray-100 p-1 rounded-xl mb-4 text-[11.5px] font-bold gap-0.5">
+          {([
+            { key: "tutti", label: "Tutte" },
+            { key: "nz",    label: "Nuova Zelanda" },
+            { key: "au",    label: "Australia" },
+            { key: "ph",    label: "Filippine" },
+          ] as { key: "tutti" | "nz" | "au" | "ph"; label: string }[]).map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              className={`flex-1 py-1.5 text-center rounded-lg transition-all truncate ${
+                activeTab === key ? "bg-white text-gray-900 shadow-xs" : "text-gray-400 hover:text-gray-700"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {activeIssues.length > 0 && (
+          <div
+            onClick={() => setShowVerification(true)}
+            className="mb-4 p-3 bg-amber-50 border border-amber-100 rounded-2xl flex items-center justify-between cursor-pointer animate-fade-in"
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-[18px]">⚠️</span>
+              <div className="min-w-0">
+                <p className="text-[12.5px] font-extrabold text-amber-800">Verifica Prenotazioni</p>
+                <p className="text-[11px] text-amber-600 truncate">
+                  Rilevati {activeIssues.length} potenziali conflitti o notti vuote
+                </p>
+              </div>
+            </div>
+            <span className="text-[11px] font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-lg shrink-0">
+              Vedi
+            </span>
+          </div>
+        )}
+
+        {accos.length === 0 ? (
+          <div className="py-10 px-4 text-center bg-gray-50/60 border border-dashed border-gray-200 rounded-2xl space-y-3">
+            <p className="text-[13px] font-bold text-gray-700">Non hai ancora inserito dove dormirai.</p>
+            <button
+              onClick={() => setShowForm(true)}
+              className="px-4 py-2 bg-blue-600 text-white font-extrabold text-[12px] rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all"
+            >
+              + Aggiungi alloggio
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredAccos.map((acc) => (
+              <SwipeToDelete
+                key={acc.id}
+                label="Elimina"
+                onDelete={() => {
+                  const updated = accos.filter((a) => a.id !== acc.id);
+                  setAccos(updated);
+                  repository.saveAccommodations(updated);
+                }}
+              >
+                <AccoCard
+                  acc={acc}
+                  onOpenDetail={() => setSelectedAcco(acc)}
+                />
+              </SwipeToDelete>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {selectedAcco && (
+        <DetailAccoSheet 
+          acc={selectedAcco} 
+          onClose={() => setSelectedAcco(null)} 
+          onDelete={() => handleDeleteAcco(selectedAcco.id)}
+          onEdit={() => {
+            const target = selectedAcco;
+            setSelectedAcco(null);
+            setEditingAcco(target);
+          }}
+          onUpdate={(updated) => {
+            handleSave(updated);
+            setSelectedAcco(updated);
+          }}
+        />
+      )}
+
+      {(showForm || editingAcco) && (
+        <AddAccoSheet 
+          accoToEdit={editingAcco || undefined}
+          onSave={handleSave} 
+          onClose={() => {
+            setShowForm(false);
+            setEditingAcco(null);
+          }} 
+        />
+      )}
+
+      {showImportSheet && (
+        <ImportBookingSheet onSave={handleSave} onClose={() => setShowImportSheet(false)} />
+      )}
+
+      {showVerification && (
+        <BookingVerificationView onClose={() => setShowVerification(false)} />
+      )}
+    </>
+  );
+}
+
+// ── Bottom sheet per importazione da Booking ──────────────────────────────────
+function ImportBookingSheet({
+  onSave,
+  onClose,
+}: {
+  onSave: (acc: Accommodation) => void;
+  onClose: () => void;
+}) {
+  const [pasteText, setPasteText] = useState("");
+  const [form, setForm] = useState({
+    name: "",
+    city: "",
+    checkIn: "",
+    checkOut: "",
+    startDate: "",
+    endDate: "",
+    price: "",
+    confirmationCode: "",
+    note: "",
+  });
+  const [confidence, setConfidence] = useState<Record<string, boolean>>({});
+
+  function handleTextPasteChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const text = e.target.value;
+    setPasteText(text);
+    if (!text.trim()) return;
+
+    const parsed = parseBookingText(text);
+    setForm({
+      name: parsed.name || "",
+      city: parsed.city || "",
+      checkIn: parsed.checkIn || "",
+      checkOut: parsed.checkOut || "",
+      startDate: parsed.startDate || "",
+      endDate: parsed.endDate || "",
+      price: parsed.price ? String(parsed.price) : "",
+      confirmationCode: parsed.confirmationCode || "",
+      note: parsed.note || "",
+    });
+    setConfidence(parsed.confidence || {});
+  }
+
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      setPasteText(text);
+      const parsed = parseBookingText(text);
+      setForm({
+        name: parsed.name || "",
+        city: parsed.city || "",
+        checkIn: parsed.checkIn || "",
+        checkOut: parsed.checkOut || "",
+        startDate: parsed.startDate || "",
+        endDate: parsed.endDate || "",
+        price: parsed.price ? String(parsed.price) : "",
+        confirmationCode: parsed.confirmationCode || "",
+        note: parsed.note || "",
+      });
+      setConfidence(parsed.confidence || {});
+    };
+    reader.readAsText(file);
+  }
+
+  function handleSubmit() {
+    if (!form.name.trim() || !form.city.trim()) return;
+    const priceVal = parseFloat(form.price.replace(",", "."));
+    const sDate = form.startDate || form.checkIn;
+    const eDate = form.endDate || form.checkOut;
+
+    const newAcc: Accommodation = {
+      id: `acc-booking-${Date.now()}`,
+      name: form.name.trim(),
+      city: form.city.trim(),
+      checkIn: form.checkIn.trim(),
+      checkOut: form.checkOut.trim(),
+      dates: form.checkIn && form.checkOut ? `${form.checkIn} – ${form.checkOut}` : "Date da definire",
+      note: form.note.trim() || undefined,
+      price: isNaN(priceVal) ? undefined : priceVal,
+      source: "booking",
+      confirmationCode: form.confirmationCode.trim() || undefined,
+      startDate: sDate,
+      endDate: eDate,
+      type: "hotel",
+    };
+    onSave(newAcc);
+    onClose();
+  }
+
+  return (
+    <div className="bottom-sheet-backdrop" onClick={onClose}>
+      <div className="bottom-sheet-container" onClick={(e) => e.stopPropagation()}>
+        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5" />
+        <h2 className="text-[17px] font-extrabold text-gray-900 mb-3">Importa da Booking.com</h2>
+
+        <div className="space-y-4 overflow-y-auto pr-1 flex-1 min-h-0">
+          <div>
+            <label className="text-[11px] font-semibold text-gray-500 block mb-1">
+              Incolla il testo della mail o della conferma
+            </label>
+            <textarea
+              rows={4}
+              value={pasteText}
+              onChange={handleTextPasteChange}
+              placeholder="Incolla qui il testo copiato..."
+              className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-xl text-[12.5px] text-gray-905 placeholder:text-gray-300 outline-none focus:border-blue-400 font-mono resize-none"
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+            <div>
+              <p className="text-[12px] font-bold text-gray-700">Carica file TXT/HTML/PDF</p>
+              <p className="text-[10px] text-gray-400">Analizza testo da file</p>
+            </div>
+            <label className="bg-blue-600 hover:bg-blue-700 text-white text-[12px] font-bold px-3 py-2 rounded-lg cursor-pointer transition-colors shrink-0">
+              Scegli file
+              <input type="file" onChange={handleFileUpload} accept=".txt,.html,.pdf" className="hidden" />
+            </label>
+          </div>
+
+          {pasteText.trim() && (
+            <div className="space-y-3 pt-2 border-t border-gray-100">
+              <p className="text-[12px] font-extrabold text-blue-600 uppercase tracking-wide">
+                Verifica dati estratti
+              </p>
+
+              <div className="space-y-3">
+                <FieldWithWarning
+                  label="Nome Struttura *"
+                  value={form.name}
+                  onChange={(v) => setForm({ ...form, name: v })}
+                  warning={!confidence.name}
+                />
+                <FieldWithWarning
+                  label="Città *"
+                  value={form.city}
+                  onChange={(v) => setForm({ ...form, city: v })}
+                  warning={!form.city}
+                />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <FieldWithWarning
+                      label="Check-in"
+                      value={form.checkIn}
+                      onChange={(v) => setForm({ ...form, checkIn: v })}
+                      warning={!confidence.checkIn}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <FieldWithWarning
+                      label="Check-out"
+                      value={form.checkOut}
+                      onChange={(v) => setForm({ ...form, checkOut: v })}
+                      warning={!confidence.checkOut}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <FieldWithWarning
+                      label="Prezzo Totale (€)"
+                      value={form.price}
+                      onChange={(v) => setForm({ ...form, price: v })}
+                      placeholder="es. 120.00"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <FieldWithWarning
+                      label="Codice Conferma"
+                      value={form.confirmationCode}
+                      onChange={(v) => setForm({ ...form, confirmationCode: v })}
+                      warning={!confidence.confirmationCode}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <FieldWithWarning
+                      label="Data ISO Inizio (YYYY-MM-DD)"
+                      value={form.startDate}
+                      onChange={(v) => setForm({ ...form, startDate: v })}
+                      placeholder="es. 2026-12-02"
+                      warning={!form.startDate}
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <FieldWithWarning
+                      label="Data ISO Fine (YYYY-MM-DD)"
+                      value={form.endDate}
+                      onChange={(v) => setForm({ ...form, endDate: v })}
+                      placeholder="es. 2026-12-03"
+                      warning={!form.endDate}
+                    />
+                  </div>
+                </div>
+
+                <FieldWithWarning
+                  label="Note / Ospite"
+                  value={form.note}
+                  onChange={(v) => setForm({ ...form, note: v })}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 mt-5">
+          <button
+            className="flex-1 py-3 rounded-2xl bg-gray-100 text-gray-600 font-semibold text-[14px]"
+            onClick={onClose}
+          >
+            Annulla
+          </button>
+          <button
+            className="flex-1 py-3 rounded-2xl bg-blue-600 text-white font-semibold text-[14px]"
+            onClick={handleSubmit}
+            disabled={!form.name.trim() || !form.city.trim()}
+            style={{ opacity: !form.name.trim() || !form.city.trim() ? 0.5 : 1 }}
+          >
+            Importa
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Campo input con warning per Booking ───────────────────────────────────────
+function FieldWithWarning({
+  label,
+  value,
+  placeholder = "",
+  onChange,
+  warning,
+}: {
+  label: string;
+  value: string;
+  placeholder?: string;
+  onChange: (v: string) => void;
+  warning?: boolean;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-[11px] font-semibold text-gray-500">{label}</label>
+        {warning && <span className="text-[9px] text-amber-500 font-extrabold">⚠️ Controlla</span>}
+      </div>
+      <input
+        type="text"
+        value={value}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        className={`w-full bg-gray-50 border rounded-xl px-3 py-2 text-[12.5px] text-gray-900 outline-none focus:border-blue-400 ${
+          warning ? "border-amber-400/80" : "border-gray-200"
+        }`}
+      />
+    </div>
+  );
+}

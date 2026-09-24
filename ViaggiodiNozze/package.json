@@ -1,20 +1,15 @@
 {
-  "name": "app-viaggio-di-nozze",
+  "name": "viaggio-di-nozze",
   "private": true,
-  "version": "0.0.0",
-  "homepage": "https://casabr.github.io/honeymoon-roadbook/",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "npm run dev --prefix ViaggiodiNozze",
-    "build": "npm run build --prefix ViaggiodiNozze",
-    "dev:new": "npm run dev --prefix ViaggiodiNozze",
-    "build:new": "npm run build --prefix ViaggiodiNozze",
-    "dev:legacy": "npm run dev --prefix legacy-app",
-    "build:legacy": "npm run build --prefix legacy-app",
+    "dev": "vite",
+    "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "npm run preview --prefix ViaggiodiNozze",
+    "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d ViaggiodiNozze/dist"
+    "deploy": "gh-pages -d dist"
   },
   "dependencies": {
     "firebase": "^12.16.0",
