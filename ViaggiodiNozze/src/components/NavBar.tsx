@@ -1,4 +1,4 @@
-﻿export type SectionTab = 'attivita' | 'alloggi' | 'trasporti';
+export type SectionTab = 'attivita' | 'alloggi' | 'trasporti';
 
 interface NavBarProps {
   activeTab: SectionTab;
@@ -44,7 +44,7 @@ export default function NavBar({ activeTab, onTabChange }: NavBarProps) {
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-center bg-slate-950/80 backdrop-blur-xl border-t border-slate-800/80 px-4 py-2">
-      <div className="w-full max-w-md flex items-center justify-around">
+      <div className="w-full max-w-md mx-auto flex items-center justify-around">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           const activeClasses = isActive ? activeColorMap[tab.id] : 'text-slate-400 hover:text-slate-200 font-medium';

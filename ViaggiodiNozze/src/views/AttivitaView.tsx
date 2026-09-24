@@ -1,5 +1,5 @@
-﻿import { useState, useEffect, useCallback } from 'react';
-import type { Giorno, Attivita } from '../types';
+import { useState, useEffect, useCallback } from 'react';
+import type { Giorno, Attivita, CategoriaAttivita } from '../types';
 import { storageService } from '../storage/storageService';
 import GiornoCard from '../components/cards/GiornoCard';
 import AttivitaCard from '../components/cards/AttivitaCard';
@@ -13,6 +13,9 @@ export default function AttivitaView() {
   const [days, setDays] = useState<Giorno[]>([]);
   const [activities, setActivities] = useState<Attivita[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filtro categoria attività
+  const [categoryFilter, setCategoryFilter] = useState<CategoriaAttivita | 'tutte'>('tutte');
 
   // Giorno selezionato per visualizzare/filtrare le attività
   const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
@@ -164,6 +167,44 @@ export default function AttivitaView() {
         </button>
       </header>
 
+      {/* Filtro Categoria — chips scrollabili */}
+      {days.length > 0 && activities.length > 0 && (
+        <div className="-mx-1 mb-4">
+          <div className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-none snap-x">
+            {([
+              { id: 'tutte', label: 'Tutte', count: activities.length },
+              { id: 'visita', label: 'Visite', count: activities.filter(a => a.category === 'visita').length },
+              { id: 'cibo', label: 'Cibo', count: activities.filter(a => a.category === 'cibo').length },
+              { id: 'relax', label: 'Relax', count: activities.filter(a => a.category === 'relax').length },
+              { id: 'natura', label: 'Natura', count: activities.filter(a => a.category === 'natura').length },
+              { id: 'cultura', label: 'Cultura', count: activities.filter(a => a.category === 'cultura').length },
+              { id: 'shopping', label: 'Shopping', count: activities.filter(a => a.category === 'shopping').length },
+              { id: 'altro', label: 'Altro', count: activities.filter(a => a.category === 'altro').length },
+            ] as { id: CategoriaAttivita | 'tutte'; label: string; count: number }[]).map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setCategoryFilter(chip.id)}
+                className={
+                  'snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ' +
+                  (categoryFilter === chip.id
+                    ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                    : 'bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80')
+                }
+              >
+                <span>{chip.label}</span>
+                {chip.count > 0 && (
+                  <span className={
+                    'text-[10px] font-bold px-1 rounded-full ' +
+                    (categoryFilter === chip.id ? 'bg-slate-950/20 text-slate-900' : 'bg-slate-700 text-slate-400')
+                  }>{chip.count}</span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Stato Vuoto se 0 Giorni */}
       {days.length === 0 ? (
         <EmptyState
@@ -181,7 +222,9 @@ export default function AttivitaView() {
       ) : (
         <div className="space-y-4">
           {days.map((day) => {
-            const dayActivities = activities.filter((a) => a.dayId === day.id);
+            const dayActivities = activities
+              .filter((a) => a.dayId === day.id)
+              .filter((a) => categoryFilter === 'tutte' || a.category === categoryFilter);
             const isSelected = selectedDayId === day.id;
 
             return (
