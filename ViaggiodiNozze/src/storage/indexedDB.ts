@@ -3,14 +3,15 @@
  * Isolato all'interno del layer di storage.
  */
 const DB_NAME = 'ViaggiodiNozzeDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const STORES = {
   GIORNI: 'giorni',
   ATTIVITA: 'attivita',
   ALLOGGI: 'alloggi',
   TRASPORTI: 'trasporti',
-  DOCUMENTI: 'documenti'
+  DOCUMENTI: 'documenti',
+  ROUTES: 'routes'
 } as const;
 
 export type StoreName = typeof STORES[keyof typeof STORES];
@@ -55,6 +56,10 @@ function openDatabase(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORES.DOCUMENTI)) {
         const store = db.createObjectStore(STORES.DOCUMENTI, { keyPath: 'id' });
         store.createIndex('category', 'category', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.ROUTES)) {
+        db.createObjectStore(STORES.ROUTES, { keyPath: 'id' });
       }
     };
 

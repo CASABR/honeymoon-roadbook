@@ -8,6 +8,7 @@ import AttivitaForm from '../components/forms/AttivitaForm';
 import Modal from '../components/common/Modal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
+import RouteBadge from '../components/common/RouteBadge';
 
 export default function AttivitaView() {
   const [days, setDays] = useState<Giorno[]>([]);
@@ -44,6 +45,24 @@ export default function AttivitaView() {
       ]);
       setDays(loadedDays);
       setActivities(loadedActivities);
+      
+      if (import.meta.env.DEV) {
+        console.group('🛠️ [DEBUG] IndexedDB Dati Attività');
+        console.log(`Totale attività nel DB: ${loadedActivities.length}`);
+        
+        const day28 = loadedDays.find(d => d.date === '2026-11-28');
+        if (day28) {
+          const act28 = loadedActivities.filter(a => a.dayId === day28.id);
+          console.log(`Totale attività per il 28/11/2026 (dayId: ${day28.id}): ${act28.length}`);
+          act28.forEach((a, idx) => {
+            console.log(`[Attività ${idx + 1}] ID: ${a.id} | Titolo: "${a.title}" | Ora: ${a.time} | Cat: ${a.category} | Coord: ${a.coordinate ? `${a.coordinate.lat},${a.coordinate.lng}` : 'N/A'} | Copilota: ${a.copilota}`);
+          });
+        } else {
+          console.log('Nessun giorno "2026-11-28" trovato in STORES.GIORNI.');
+        }
+        console.groupEnd();
+      }
+
       setSelectedDayId((prev) => (prev ? prev : (loadedDays[0]?.id || null)));
     } catch (err) {
       console.error('Errore nel caricamento dei dati:', err);
@@ -227,6 +246,10 @@ export default function AttivitaView() {
               .filter((a) => categoryFilter === 'tutte' || a.category === categoryFilter);
             const isSelected = selectedDayId === day.id;
 
+            if (import.meta.env.DEV && day.date === '2026-11-28') {
+              console.log(`[DEBUG RENDER] Il giorno 2026-11-28 ha ${dayActivities.length} attività da mostrare. IsSelected: ${isSelected}`);
+            }
+
             return (
               <div key={day.id} className="space-y-2.5">
                 <GiornoCard
@@ -265,20 +288,32 @@ export default function AttivitaView() {
                         </button>
                       </div>
                     ) : (
-                      dayActivities.map((activity) => (
-                        <AttivitaCard
-                          key={activity.id}
-                          activity={activity}
-                          onEdit={() => handleOpenEditActivity(activity)}
-                          onDelete={() =>
-                            setDeleteTarget({
-                              type: 'activity',
-                              id: activity.id,
-                              title: activity.title
-                            })
-                          }
-                        />
-                      ))
+                      dayActivities.map((activity, index) => {
+                        const nextActivity = dayActivities[index + 1];
+                        return (
+                          <div key={activity.id} className="flex flex-col gap-2">
+                            <AttivitaCard
+                              activity={activity}
+                              onEdit={() => handleOpenEditActivity(activity)}
+                              onDelete={() =>
+                                setDeleteTarget({
+                                  type: 'activity',
+                                  id: activity.id,
+                                  title: activity.title
+                                })
+                              }
+                            />
+                            {nextActivity && activity.location && nextActivity.location && (
+                              <div className="pl-6 py-0.5">
+                                <RouteBadge 
+                                  from={activity.location} 
+                                  to={nextActivity.location} 
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
                     )}
                   </div>
                 )}

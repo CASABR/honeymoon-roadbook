@@ -401,6 +401,33 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Costo (es. 250 €)
+                </label>
+                <input
+                  type="text"
+                  placeholder="es. 250 €"
+                  value={cost}
+                  onChange={(e) => setCost(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
+                  Acconto / Già Pagato
+                </label>
+                <input
+                  type="text"
+                  placeholder="es. 50 €"
+                  value={depositPaid}
+                  onChange={(e) => setDepositPaid(e.target.value)}
+                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-600 mb-1">
                   Compagnia / Vettore
                 </label>
                 <input

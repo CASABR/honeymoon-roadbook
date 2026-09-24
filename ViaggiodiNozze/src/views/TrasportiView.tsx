@@ -7,12 +7,23 @@ import Modal from '../components/common/Modal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 
+const detectCountry = (t: Trasporto): string => {
+  const text = `${t.departureLocation} ${t.arrivalLocation} ${t.layover?.airport || ''} ${t.carrier || ''} ${t.notes || ''}`.toLowerCase();
+  if (/(auckland|akl|chc|wellington|christchurch|picton|queenstown|rotorua|snap rentals|cook strait|sealink|nuova zelanda)/.test(text)) return '🇳🇿 Nuova Zelanda';
+  if (/(syd|mel|adl|adelaide|kangaroo island|sydney|melbourne|virgin australia|jetstar|australia)/.test(text)) return '🇦🇺 Australia';
+  if (/(mnl|mph|eni|usu|ceb|manila|boracay|el nido|tao coron|cebu|filippine|airswift|asia)/.test(text)) return '🇵🇭 Filippine';
+  if (/(pek|pvg|roma|fco|mxp|malpensa|air china|china airlines|doha)/.test(text) || (t.type === 'volo' && (text.includes('milano') || text.includes('roma') || text.includes('intercontinentale')))) return '✈️ Intercontinentali';
+  return '🌍 Altro';
+};
+
 type FilterType = 'tutti' | 'volo' | 'traghetto' | 'auto_camper' | 'transfer';
+type CountryFilterType = 'tutti' | '🇳🇿 Nuova Zelanda' | '🇦🇺 Australia' | '🇵🇭 Filippine' | '✈️ Intercontinentali' | '🌍 Altro';
 
 export default function TrasportiView() {
   const [transports, setTransports] = useState<Trasporto[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>('tutti');
+  const [activeCountryFilter, setActiveCountryFilter] = useState<CountryFilterType>('tutti');
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransport, setEditingTransport] = useState<Trasporto | null>(null);
@@ -63,6 +74,10 @@ export default function TrasportiView() {
       layover: data.layover,
       notes: data.notes,
       status: data.status,
+      depositPaid: data.depositPaid,
+      acconto: data.acconto,
+      copilota: data.copilota,
+      attachments: data.attachments || [],
       createdAt: editingTransport?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
@@ -88,15 +103,19 @@ export default function TrasportiView() {
 
   // Filtraggio tratte
   const filteredTransports = transports.filter((t) => {
-    if (activeFilter === 'tutti') return true;
-    if (activeFilter === 'volo') return t.type === 'volo';
-    if (activeFilter === 'traghetto') return t.type === 'traghetto';
-    if (activeFilter === 'auto_camper') return t.type === 'auto' || t.type === 'camper';
-    if (activeFilter === 'transfer') return t.type === 'transfer';
-    return true;
+    const typeMatch = (activeFilter === 'tutti') || 
+                      (activeFilter === 'volo' && t.type === 'volo') ||
+                      (activeFilter === 'traghetto' && t.type === 'traghetto') ||
+                      (activeFilter === 'auto_camper' && (t.type === 'auto' || t.type === 'camper')) ||
+                      (activeFilter === 'transfer' && t.type === 'transfer');
+    
+    const c = detectCountry(t);
+    const countryMatch = (activeCountryFilter === 'tutti') || (activeCountryFilter === c);
+    
+    return typeMatch && countryMatch;
   });
 
-  // Contatori per badge delle chips
+  // Contatori
   const counts = {
     tutti: transports.length,
     volo: transports.filter((t) => t.type === 'volo').length,
@@ -113,15 +132,32 @@ export default function TrasportiView() {
     { id: 'transfer', label: 'Transfer', icon: '🚕', count: counts.transfer }
   ];
 
-  // Raggruppamento giorno per giorno (Intestazione Data)
-  const groupedTransports = filteredTransports.reduce<Record<string, Trasporto[]>>((acc, transport) => {
+  const countryChips: { id: CountryFilterType; label: string }[] = [
+    { id: 'tutti', label: 'Tutti i Paesi' },
+    { id: '✈️ Intercontinentali', label: '✈️ Intercont.' },
+    { id: '🇳🇿 Nuova Zelanda', label: '🇳🇿 NZ' },
+    { id: '🇦🇺 Australia', label: '🇦🇺 AU' },
+    { id: '🇵🇭 Filippine', label: '🇵🇭 PH' },
+    { id: '🌍 Altro', label: '🌍 Altro' }
+  ];
+
+  // Raggruppamento macro-aree -> giorni
+  const groupedByCountry = filteredTransports.reduce<Record<string, Record<string, Trasporto[]>>>((acc, transport) => {
+    const country = detectCountry(transport);
     const dateKey = transport.date;
-    if (!acc[dateKey]) acc[dateKey] = [];
-    acc[dateKey].push(transport);
+    if (!acc[country]) acc[country] = {};
+    if (!acc[country][dateKey]) acc[country][dateKey] = [];
+    acc[country][dateKey].push(transport);
     return acc;
   }, {});
 
-  const sortedDates = Object.keys(groupedTransports).sort((a, b) => a.localeCompare(b));
+  // Define macro order
+  const macroOrder = ['✈️ Intercontinentali', '🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🌍 Altro'];
+  const sortedCountries = Object.keys(groupedByCountry).sort((a, b) => {
+    const idxA = macroOrder.indexOf(a);
+    const idxB = macroOrder.indexOf(b);
+    return (idxA > -1 ? idxA : 99) - (idxB > -1 ? idxB : 99);
+  });
 
   const formatGroupDateHeader = (dateStr: string) => {
     try {
@@ -184,9 +220,9 @@ export default function TrasportiView() {
         </div>
       </header>
 
-      {/* Chips Filter Horizontal Bar */}
+      {/* Chips Filter Horizontal Bar - Types */}
       {transports.length > 0 && (
-        <div className="-mx-1 mb-5">
+        <div className="-mx-1 mb-2">
           <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 px-1 scrollbar-none snap-x">
             {filterChips.map((chip) => {
               const isActive = activeFilter === chip.id;
@@ -197,7 +233,7 @@ export default function TrasportiView() {
                   onClick={() => setActiveFilter(chip.id)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all snap-start cursor-pointer border ${
                     isActive
-                      ? 'bg-sky-500 text-white border-sky-500 shadow-md shadow-sky-500/20'
+                      ? 'bg-sky-500 text-slate-900 border-sky-500 shadow-md shadow-sky-500/20'
                       : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
@@ -205,11 +241,36 @@ export default function TrasportiView() {
                   <span>{chip.label}</span>
                   <span
                     className={`ml-0.5 px-1.5 py-0.2 text-[10px] rounded-full font-mono ${
-                      isActive ? 'bg-white/20 text-white font-bold' : 'bg-slate-100 text-slate-600'
+                      isActive ? 'bg-slate-900/10 text-slate-900 font-bold' : 'bg-slate-100 text-slate-600'
                     }`}
                   >
                     {chip.count}
                   </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Chips Filter Horizontal Bar - Countries */}
+      {transports.length > 0 && (
+        <div className="-mx-1 mb-5">
+          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 px-1 scrollbar-none snap-x">
+            {countryChips.map((chip) => {
+              const isActive = activeCountryFilter === chip.id;
+              return (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => setActiveCountryFilter(chip.id)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all snap-start cursor-pointer border ${
+                    isActive
+                      ? 'bg-slate-800 text-white border-slate-800 shadow-md shadow-slate-800/20'
+                      : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>{chip.label}</span>
                 </button>
               );
             })}
@@ -233,48 +294,53 @@ export default function TrasportiView() {
         />
       ) : filteredTransports.length === 0 ? (
         <div className="text-center py-10 px-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
-          <p className="text-sm text-slate-500">Nessuna tratta per la categoria selezionata.</p>
+          <p className="text-sm text-slate-500">Nessuna tratta per la categoria/paese selezionata.</p>
           <button
             type="button"
-            onClick={() => setActiveFilter('tutti')}
+            onClick={() => { setActiveFilter('tutti'); setActiveCountryFilter('tutti'); }}
             className="mt-3 text-xs font-semibold text-sky-600 hover:text-sky-700 cursor-pointer"
           >
             Mostra tutti i trasporti
           </button>
         </div>
       ) : (
-        /* Elenco Raggruppato Giorno per Giorno */
-        <div className="space-y-6">
-          {sortedDates.map((dateKey) => {
-            const dayItems = groupedTransports[dateKey];
+        /* Elenco Raggruppato Paese -> Giorno */
+        <div className="space-y-8">
+          {sortedCountries.map((country) => {
+            const countryGroup = groupedByCountry[country];
+            const sortedDates = Object.keys(countryGroup).sort((a, b) => a.localeCompare(b));
+            
             return (
-              <div key={dateKey} className="space-y-3">
-                {/* Intestazione Data */}
-                <div className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-md py-2 flex items-center justify-between border-b border-slate-200/80">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm">🗓️</span>
-                    <h2 className="text-sm font-bold text-sky-800 tracking-wide uppercase">
-                      {formatGroupDateHeader(dateKey)}
-                    </h2>
-                  </div>
-                  <span className="text-[11px] font-mono font-medium text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-2xs">
-                    {dayItems.length} {dayItems.length === 1 ? 'spostamento' : 'spostamenti'}
-                  </span>
+              <div key={country} className="space-y-4">
+                <div className="sticky top-0 z-10 py-2 bg-slate-50/95 backdrop-blur-md border-b border-slate-200">
+                  <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    {country}
+                  </h2>
                 </div>
-
-                {/* Card del Giorno */}
-                <div className="space-y-3">
-                  {dayItems.map((transport) => (
-                    <TrasportoCard
-                      key={transport.id}
-                      transport={transport}
-                      onEdit={() => handleOpenEdit(transport)}
-                      onDelete={() => setDeletingTransport(transport)}
-                      onUpdate={(updated) => {
-                        setTransports((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
-                      }}
-                    />
-                  ))}
+                
+                <div className="space-y-6">
+                  {sortedDates.map((dateKey) => {
+                    const dayItems = countryGroup[dateKey];
+                    return (
+                      <div key={dateKey} className="space-y-3">
+                        <h3 className="text-[13px] font-bold text-slate-500 uppercase tracking-wider pl-1 flex items-center gap-2">
+                          <span className="w-4 h-px bg-slate-300 rounded-full" />
+                          {formatGroupDateHeader(dateKey)}
+                          <span className="flex-1 h-px bg-slate-200/60 rounded-full" />
+                        </h3>
+                        <div className="grid gap-3">
+                          {dayItems.map((t) => (
+                            <TrasportoCard
+                              key={t.id}
+                              transport={t}
+                              onEdit={() => handleOpenEdit(t)}
+                              onDelete={() => setDeletingTransport(t)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
@@ -282,33 +348,29 @@ export default function TrasportiView() {
         </div>
       )}
 
-      {/* Modal Form */}
+      {/* MODALS */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingTransport ? 'Modifica Trasporto' : 'Nuovo Trasporto'}
-        accentVariant="sky"
       >
         <TrasportoForm
-          initialData={editingTransport}
+          initialData={editingTransport || undefined}
           onSave={handleSave}
           onCancel={() => setIsModalOpen(false)}
         />
       </Modal>
 
-      {/* Dialog Conferma Eliminazione */}
       <ConfirmDialog
-        isOpen={Boolean(deletingTransport)}
-        title="Elimina trasporto"
-        message={"Sei sicuro di voler eliminare la tratta " + (deletingTransport ? deletingTransport.departureLocation + ' → ' + deletingTransport.arrivalLocation : '') + "? I dati inseriti verranno rimossi."}
+        isOpen={!!deletingTransport}
+        title="Elimina Trasporto"
+        message={`Sei sicuro di voler eliminare la tratta ${deletingTransport?.departureLocation} ➔ ${deletingTransport?.arrivalLocation}? L'azione è irreversibile.`}
         confirmLabel="Elimina"
         cancelLabel="Annulla"
-        isDestructive={true}
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeletingTransport(null)}
+        isDestructive
       />
     </section>
   );
 }
-
-
