@@ -16,6 +16,14 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
 
   // Campi facoltativi
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [cost, setCost] = useState('');
+  const [dropoffDate, setDropoffDate] = useState('');
+  const [dropoffTime, setDropoffTime] = useState('');
+  const [dropoffLocation, setDropoffLocation] = useState('');
+  const [layoverAirport, setLayoverAirport] = useState('');
+  const [layoverDuration, setLayoverDuration] = useState('');
+  const [layoverArrivalTime, setLayoverArrivalTime] = useState('');
+  const [layoverDepartureTime, setLayoverDepartureTime] = useState('');
   const [departureTime, setDepartureTime] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
   const [carrier, setCarrier] = useState('');
@@ -24,6 +32,8 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
 
+  const isRental = type === 'auto' || type === 'camper';
+
   useEffect(() => {
     if (initialData) {
       setType(initialData.type);
@@ -31,13 +41,21 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       setDepartureLocation(initialData.departureLocation);
       setArrivalLocation(initialData.arrivalLocation);
       setStatus(initialData.status);
+      setCost(initialData.cost || '');
+      setDropoffDate(initialData.dropoffDate || '');
+      setDropoffTime(initialData.dropoffTime || '');
+      setDropoffLocation(initialData.dropoffLocation || '');
+      setLayoverAirport(initialData.layover?.airport || '');
+      setLayoverDuration(initialData.layover?.duration || '');
+      setLayoverArrivalTime(initialData.layover?.arrivalTime || '');
+      setLayoverDepartureTime(initialData.layover?.departureTime || '');
       setDepartureTime(initialData.departureTime || '');
       setArrivalTime(initialData.arrivalTime || '');
       setCarrier(initialData.carrier || '');
       setBookingCode(initialData.bookingCode || '');
       setTicketUrl(initialData.ticketUrl || '');
       setNotes(initialData.notes || '');
-      if (initialData.departureTime || initialData.arrivalTime || initialData.carrier || initialData.bookingCode || initialData.ticketUrl || initialData.notes) {
+      if (initialData.cost || initialData.layover || initialData.departureTime || initialData.arrivalTime || initialData.carrier || initialData.bookingCode || initialData.ticketUrl || initialData.notes || initialData.dropoffDate || initialData.dropoffTime || initialData.dropoffLocation) {
         setShowAdvanced(true);
       }
     } else {
@@ -46,6 +64,14 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       setDepartureLocation('');
       setArrivalLocation('');
       setStatus('pianificato');
+      setCost('');
+      setDropoffDate('');
+      setDropoffTime('');
+      setDropoffLocation('');
+      setLayoverAirport('');
+      setLayoverDuration('');
+      setLayoverArrivalTime('');
+      setLayoverDepartureTime('');
       setDepartureTime('');
       setArrivalTime('');
       setCarrier('');
@@ -58,20 +84,39 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!date || !departureLocation.trim() || !arrivalLocation.trim()) {
-      setError('Data, luogo di partenza e luogo di arrivo sono obbligatori.');
+    if (!date || !departureLocation.trim()) {
+      setError('Data e luogo di partenza/ritiro sono obbligatori.');
       return;
     }
+    // Per noleggi, se arrivalLocation è vuoto ma dropoffLocation c'è, usa dropoffLocation
+    const finalArrivalLocation = isRental ? (arrivalLocation.trim() || dropoffLocation.trim() || departureLocation.trim()) : arrivalLocation.trim();
+    if (!finalArrivalLocation) {
+      setError('Il luogo di arrivo o riconsegna è obbligatorio.');
+      return;
+    }
+
     setError('');
     onSave({
       id: initialData?.id,
       type,
       date,
       departureLocation: departureLocation.trim(),
-      arrivalLocation: arrivalLocation.trim(),
+      arrivalLocation: finalArrivalLocation,
+      dropoffDate: isRental ? (dropoffDate || undefined) : undefined,
+      dropoffTime: isRental ? (dropoffTime.trim() || undefined) : undefined,
+      dropoffLocation: isRental ? (dropoffLocation.trim() || undefined) : undefined,
       status,
-      departureTime: departureTime || undefined,
-      arrivalTime: arrivalTime || undefined,
+      cost: cost.trim() || undefined,
+      layover: layoverAirport.trim()
+        ? {
+            airport: layoverAirport.trim(),
+            duration: layoverDuration.trim() || undefined,
+            arrivalTime: layoverArrivalTime.trim() || undefined,
+            departureTime: layoverDepartureTime.trim() || undefined
+          }
+        : undefined,
+      departureTime: departureTime.trim() || undefined,
+      arrivalTime: arrivalTime.trim() || undefined,
       carrier: carrier.trim() || undefined,
       bookingCode: bookingCode.trim() || undefined,
       ticketUrl: ticketUrl.trim() || undefined,
@@ -98,17 +143,18 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
             className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-sky-500 transition-colors"
           >
             <option value="volo">✈️ Volo</option>
-            <option value="treno">🚄 Treno</option>
-            <option value="auto">🚗 Auto / Noleggio</option>
-            <option value="bus">🚌 Bus</option>
             <option value="traghetto">⛴️ Traghetto</option>
+            <option value="camper">🚐 Camper / Campervan</option>
+            <option value="auto">🚗 Auto / Noleggio</option>
             <option value="transfer">🚕 Taxi / Transfer</option>
+            <option value="treno">🚄 Treno</option>
+            <option value="bus">🚌 Bus</option>
             <option value="altro">Altro</option>
           </select>
         </div>
         <div>
           <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-            Data Viaggio *
+            {isRental ? 'Data Ritiro (Pick-up) *' : 'Data Viaggio *'}
           </label>
           <input
             type="date"
@@ -120,49 +166,145 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
         </div>
       </div>
 
+      {isRental ? (
+        /* Box Ritiro & Riconsegna specifico per Noleggi */
+        <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/60 space-y-3">
+          <div className="text-xs font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
+            <span>🔑</span>
+            <span>Dettagli Ritiro & Riconsegna</span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Luogo Ritiro (Pick-up) *
+              </label>
+              <input
+                type="text"
+                placeholder="es. Auckland Apt"
+                value={departureLocation}
+                onChange={(e) => setDepartureLocation(e.target.value)}
+                className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-amber-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Ora Ritiro
+              </label>
+              <input
+                type="text"
+                placeholder="es. 09:30"
+                value={departureTime}
+                onChange={(e) => setDepartureTime(e.target.value)}
+                className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-amber-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Luogo Riconsegna (Drop-off)
+              </label>
+              <input
+                type="text"
+                placeholder="es. Christchurch Apt"
+                value={dropoffLocation}
+                onChange={(e) => {
+                  setDropoffLocation(e.target.value);
+                  setArrivalLocation(e.target.value);
+                }}
+                className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-amber-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 mb-1">
+                Data Riconsegna
+              </label>
+              <input
+                type="date"
+                value={dropoffDate}
+                onChange={(e) => setDropoffDate(e.target.value)}
+                className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-amber-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 mb-1">
+              Ora Riconsegna
+            </label>
+            <input
+              type="text"
+              placeholder="es. 12:30"
+              value={dropoffTime}
+              onChange={(e) => setDropoffTime(e.target.value)}
+              className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-amber-500"
+            />
+          </div>
+        </div>
+      ) : (
+        /* Campi Standard Tratta per Voli, Traghetti e Transfer */
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              Partenza Da *
+            </label>
+            <input
+              type="text"
+              placeholder="es. Milano"
+              value={departureLocation}
+              onChange={(e) => setDepartureLocation(e.target.value)}
+              className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-sky-500 transition-colors placeholder:text-slate-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              Arrivo A *
+            </label>
+            <input
+              type="text"
+              placeholder="es. Auckland (AKL)"
+              value={arrivalLocation}
+              onChange={(e) => setArrivalLocation(e.target.value)}
+              className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-sky-500 transition-colors placeholder:text-slate-500"
+              required
+            />
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-            Partenza Da *
+            Stato Tratta *
           </label>
-          <input
-            type="text"
-            placeholder="es. Roma Fiumicino (FCO)"
-            value={departureLocation}
-            onChange={(e) => setDepartureLocation(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-sky-500 transition-colors placeholder:text-slate-500"
-            required
-          />
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as StatoTrasporto)}
+            className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-sky-500 transition-colors"
+          >
+            <option value="prenotato">Prenotato</option>
+            <option value="da_prenotare">Da Prenotare</option>
+            <option value="pianificato">Pianificato</option>
+            <option value="completato">Completato</option>
+            <option value="annullato">Annullato</option>
+          </select>
         </div>
         <div>
           <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-            Arrivo A *
+            Costo / Note Pagamento
           </label>
           <input
             type="text"
-            placeholder="es. Tokyo Haneda (HND)"
-            value={arrivalLocation}
-            onChange={(e) => setArrivalLocation(e.target.value)}
+            placeholder="es. 84,51 € / Incluso"
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
             className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-sky-500 transition-colors placeholder:text-slate-500"
-            required
           />
         </div>
-      </div>
-
-      <div>
-        <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-          Stato Tratta *
-        </label>
-        <select
-          value={status}
-          onChange={(e) => setStatus(e.target.value as StatoTrasporto)}
-          className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-sky-500 transition-colors"
-        >
-          <option value="pianificato">Pianificato</option>
-          <option value="prenotato">Prenotato</option>
-          <option value="completato">Completato</option>
-          <option value="annullato">Annullato</option>
-        </select>
       </div>
 
       {/* Dettagli Avanzati */}
@@ -175,7 +317,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
           <svg className={"w-4 h-4 transition-transform " + (showAdvanced ? 'rotate-90' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
           </svg>
-          <span>{showAdvanced ? 'Nascondi orari e riferimenti biglietto' : 'Aggiungi orari, compagnia e codice prenotazione'}</span>
+          <span>{showAdvanced ? 'Nascondi orari e dettagli biglietto' : 'Aggiungi orari, vettore e codice PNR'}</span>
         </button>
 
         {showAdvanced && (
@@ -183,24 +325,26 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Orario Partenza
+                  Orario / Note Partenza
                 </label>
                 <input
-                  type="time"
+                  type="text"
+                  placeholder="es. 08:30 / Mattina"
                   value={departureTime}
                   onChange={(e) => setDepartureTime(e.target.value)}
-                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-sky-500"
+                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Orario Arrivo
+                  Orario / Note Arrivo
                 </label>
                 <input
-                  type="time"
+                  type="text"
+                  placeholder="es. 17:35 / 12:30 (15 Dic)"
                   value={arrivalTime}
                   onChange={(e) => setArrivalTime(e.target.value)}
-                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-sky-500"
+                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
                 />
               </div>
             </div>
@@ -212,7 +356,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                 </label>
                 <input
                   type="text"
-                  placeholder="es. ANA / Shinkansen"
+                  placeholder="es. Air China (CA783)"
                   value={carrier}
                   onChange={(e) => setCarrier(e.target.value)}
                   className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
@@ -220,13 +364,67 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
               </div>
               <div>
                 <label className="block text-xs font-semibold text-slate-400 mb-1">
-                  Codice / Tratta
+                  Codice PNR / Prenotazione
                 </label>
                 <input
                   type="text"
-                  placeholder="es. NH216 / Treno 35"
+                  placeholder="es. X8KORM"
                   value={bookingCode}
                   onChange={(e) => setBookingCode(e.target.value)}
+                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Aeroporto Scalo (se previsto)
+                </label>
+                <input
+                  type="text"
+                  placeholder="es. Pechino (PEK T3)"
+                  value={layoverAirport}
+                  onChange={(e) => setLayoverAirport(e.target.value)}
+                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Durata Attesa Scalo
+                </label>
+                <input
+                  type="text"
+                  placeholder="es. 18h 35m"
+                  value={layoverDuration}
+                  onChange={(e) => setLayoverDuration(e.target.value)}
+                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Inizio Scalo (Arrivo)
+                </label>
+                <input
+                  type="text"
+                  placeholder="es. 05:50 (30 Nov)"
+                  value={layoverArrivalTime}
+                  onChange={(e) => setLayoverArrivalTime(e.target.value)}
+                  className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1">
+                  Fine Scalo (Ripartenza)
+                </label>
+                <input
+                  type="text"
+                  placeholder="es. 00:25 (01 Dic)"
+                  value={layoverDepartureTime}
+                  onChange={(e) => setLayoverDepartureTime(e.target.value)}
                   className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500"
                 />
               </div>
@@ -247,11 +445,11 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
 
             <div>
               <label className="block text-xs font-semibold text-slate-400 mb-1">
-                Note o coincidenze
+                Note operative (franchigie, biosicurezza...)
               </label>
               <textarea
                 rows={2}
-                placeholder="es. Terminal 3, franchigia bagagli 23kg..."
+                placeholder="es. Dichiarare scarpe da trekking all'arrivo..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 className="w-full p-2.5 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-sky-500 placeholder:text-slate-500 resize-none"

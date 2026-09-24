@@ -1,4 +1,4 @@
-﻿export type StatoAttivita = 'pianificata' | 'completata' | 'annullata';
+export type StatoAttivita = 'pianificata' | 'completata' | 'annullata';
 export type CategoriaAttivita = 'visita' | 'cibo' | 'relax' | 'shopping' | 'natura' | 'cultura' | 'altro';
 
 export interface Giorno {
@@ -44,8 +44,8 @@ export interface Alloggio {
   updatedAt: number;
 }
 
-export type TipoTrasporto = 'volo' | 'treno' | 'auto' | 'bus' | 'traghetto' | 'transfer' | 'altro';
-export type StatoTrasporto = 'pianificato' | 'prenotato' | 'completato' | 'annullato';
+export type TipoTrasporto = 'volo' | 'traghetto' | 'auto' | 'camper' | 'transfer' | 'treno' | 'bus' | 'altro';
+export type StatoTrasporto = 'pianificato' | 'prenotato' | 'da_prenotare' | 'completato' | 'annullato';
 
 export interface Trasporto {
   id: string;
@@ -55,9 +55,20 @@ export interface Trasporto {
   arrivalTime?: string; // HH:mm
   departureLocation: string;
   arrivalLocation: string;
+  dropoffDate?: string; // YYYY-MM-DD (per noleggi auto e camper)
+  dropoffTime?: string; // HH:mm
+  dropoffLocation?: string; // Luogo di riconsegna
   carrier?: string;
   bookingCode?: string;
   ticketUrl?: string;
+  cost?: string;
+  layover?: {
+    airport: string;
+    duration?: string;
+    arrivalTime?: string;
+    departureTime?: string;
+    notes?: string;
+  };
   notes?: string;
   status: StatoTrasporto;
   createdAt: number;
