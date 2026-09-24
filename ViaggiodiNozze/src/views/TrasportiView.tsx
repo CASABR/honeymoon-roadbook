@@ -151,10 +151,10 @@ export default function TrasportiView() {
       {/* Header Mobile-First */}
       <header className="flex items-center justify-between mb-3.5 flex-wrap gap-2.5">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-100 tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Trasporti
           </h1>
-          <p className="text-[11px] text-slate-400 mt-0.5">
+          <p className="text-[11px] text-slate-500 mt-0.5">
             {transports.length === 0
               ? 'Nessuna tratta inserita'
               : `${transports.length} ${transports.length === 1 ? 'tratta registrata' : 'tratte registrate'} (confermate)`}
@@ -166,7 +166,7 @@ export default function TrasportiView() {
             type="button"
             onClick={handleReloadSeedData}
             title="Carica o ripristina le tratte certificate del viaggio di nozze"
-            className="inline-flex items-center gap-1 min-h-[36px] px-2.5 bg-slate-800 hover:bg-slate-700 active:scale-95 text-sky-400 font-medium text-xs rounded-xl border border-slate-700/80 transition-all cursor-pointer"
+            className="inline-flex items-center gap-1 min-h-[36px] px-2.5 bg-white hover:bg-slate-50 active:scale-95 text-sky-700 font-semibold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer shadow-sm"
           >
             <span>🔄 Ripristina</span>
           </button>
@@ -197,15 +197,15 @@ export default function TrasportiView() {
                   onClick={() => setActiveFilter(chip.id)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all snap-start cursor-pointer border ${
                     isActive
-                      ? 'bg-sky-500/20 border-sky-500/50 text-sky-300 shadow-md shadow-sky-500/10'
-                      : 'bg-slate-800/60 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      ? 'bg-sky-500 text-white border-sky-500 shadow-md shadow-sky-500/20'
+                      : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
                   <span>{chip.icon}</span>
                   <span>{chip.label}</span>
                   <span
                     className={`ml-0.5 px-1.5 py-0.2 text-[10px] rounded-full font-mono ${
-                      isActive ? 'bg-sky-500 text-slate-950 font-bold' : 'bg-slate-700/80 text-slate-300'
+                      isActive ? 'bg-white/20 text-white font-bold' : 'bg-slate-100 text-slate-600'
                     }`}
                   >
                     {chip.count}
@@ -232,12 +232,12 @@ export default function TrasportiView() {
           }
         />
       ) : filteredTransports.length === 0 ? (
-        <div className="text-center py-10 px-4 rounded-2xl bg-slate-900/40 border border-slate-800">
-          <p className="text-sm text-slate-400">Nessuna tratta per la categoria selezionata.</p>
+        <div className="text-center py-10 px-4 rounded-2xl bg-white border border-slate-200 shadow-sm">
+          <p className="text-sm text-slate-500">Nessuna tratta per la categoria selezionata.</p>
           <button
             type="button"
             onClick={() => setActiveFilter('tutti')}
-            className="mt-3 text-xs font-semibold text-sky-400 hover:text-sky-300 cursor-pointer"
+            className="mt-3 text-xs font-semibold text-sky-600 hover:text-sky-700 cursor-pointer"
           >
             Mostra tutti i trasporti
           </button>
@@ -250,14 +250,14 @@ export default function TrasportiView() {
             return (
               <div key={dateKey} className="space-y-3">
                 {/* Intestazione Data */}
-                <div className="sticky top-0 z-10 bg-slate-950/90 backdrop-blur-md py-2 flex items-center justify-between border-b border-slate-800/80">
+                <div className="sticky top-0 z-10 bg-slate-50/95 backdrop-blur-md py-2 flex items-center justify-between border-b border-slate-200/80">
                   <div className="flex items-center gap-2">
                     <span className="text-sm">🗓️</span>
-                    <h2 className="text-sm font-bold text-sky-400 tracking-wide uppercase">
+                    <h2 className="text-sm font-bold text-sky-800 tracking-wide uppercase">
                       {formatGroupDateHeader(dateKey)}
                     </h2>
                   </div>
-                  <span className="text-[11px] font-mono font-medium text-slate-400 bg-slate-800/60 px-2 py-0.5 rounded-full border border-slate-800">
+                  <span className="text-[11px] font-mono font-medium text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200 shadow-2xs">
                     {dayItems.length} {dayItems.length === 1 ? 'spostamento' : 'spostamenti'}
                   </span>
                 </div>

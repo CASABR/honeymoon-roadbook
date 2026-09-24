@@ -84,19 +84,19 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {error && (
-        <div className="p-3 text-xs rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400">
+        <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
           {error}
         </div>
       )}
 
       <div>
-        <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
           Giorno Associato *
         </label>
         <select
           value={dayId}
           onChange={(e) => setDayId(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-amber-500 transition-colors"
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
           required
         >
           {days.length === 0 && <option value="">Nessun giorno presente</option>}
@@ -109,7 +109,7 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       </div>
 
       <div>
-        <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
           Titolo Attività *
         </label>
         <input
@@ -117,31 +117,31 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
           placeholder="es. Visita al tempio Senso-ji"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-500"
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
           required
         />
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Orario (opzionale)
           </label>
           <input
             type="time"
             value={time}
             onChange={(e) => setTime(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-amber-500 transition-colors"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Categoria *
           </label>
           <select
             value={category}
             onChange={(e) => setCategory(e.target.value as CategoriaAttivita)}
-            className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-amber-500 transition-colors"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
           >
             <option value="visita">Visita / Tour</option>
             <option value="cibo">Cibo & Ristorante</option>
@@ -156,7 +156,7 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
 
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Località *
           </label>
           <input
@@ -164,18 +164,18 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
             placeholder="es. Asakusa"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-500"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
             required
           />
         </div>
         <div>
-          <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Stato *
           </label>
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value as StatoAttivita)}
-            className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-amber-500 transition-colors"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
           >
             <option value="pianificata">Pianificata</option>
             <option value="completata">Completata</option>
@@ -185,14 +185,14 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       </div>
 
       {/* Opzione Co-pilota */}
-      <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/60 flex items-center justify-between gap-3">
+      <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <span className="text-base">🧭</span>
           <div>
-            <label htmlFor="copilota-att-toggle" className="text-xs font-semibold text-slate-200 cursor-pointer block">
+            <label htmlFor="copilota-att-toggle" className="text-xs font-bold text-slate-800 cursor-pointer block">
               Mostra al co-pilota
             </label>
-            <p className="text-[11px] text-slate-400">
+            <p className="text-[11px] text-slate-500 font-medium">
               Segna questa attività come tappa rilevante per il co-pilota di bordo
             </p>
           </div>
@@ -202,16 +202,16 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
           type="checkbox"
           checked={copilota}
           onChange={(e) => setCopilota(e.target.checked)}
-          className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-emerald-500 focus:ring-offset-slate-900 cursor-pointer"
+          className="w-4 h-4 rounded text-emerald-600 bg-white border-slate-300 focus:ring-emerald-500 cursor-pointer"
         />
       </div>
 
       {/* Dettagli Opzionali Richiudibili */}
-      <div className="pt-2">
+      <div className="pt-1">
         <button
           type="button"
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer py-1"
+          className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer py-1"
         >
           <svg className={"w-4 h-4 transition-transform " + (showAdvanced ? 'rotate-90' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
@@ -220,9 +220,9 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
         </button>
 
         {showAdvanced && (
-          <div className="mt-3 space-y-3 p-3.5 rounded-xl bg-slate-800/40 border border-slate-800 animate-fade-in">
+          <div className="mt-3 space-y-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 animate-fade-in">
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">
+              <label className="block text-xs font-bold text-slate-600 mb-1">
                 Durata stimata (es. 2 ore)
               </label>
               <input
@@ -230,11 +230,11 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
                 placeholder="es. 1h 30m"
                 value={duration}
                 onChange={(e) => setDuration(e.target.value)}
-                className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-500"
+                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">
+              <label className="block text-xs font-bold text-slate-600 mb-1">
                 Link o sito web utile
               </label>
               <input
@@ -242,11 +242,11 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
                 placeholder="https://..."
                 value={link}
                 onChange={(e) => setLink(e.target.value)}
-                className="w-full h-10 px-3 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-500"
+                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400"
               />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-slate-400 mb-1">
+              <label className="block text-xs font-bold text-slate-600 mb-1">
                 Note o suggerimenti
               </label>
               <textarea
@@ -254,24 +254,24 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
                 placeholder="Dettagli biglietti, orari di apertura..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                className="w-full p-2.5 bg-slate-800 border border-slate-700/80 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-500 resize-none"
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400 resize-none"
               />
             </div>
           </div>
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
+      <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
         <button
           type="button"
           onClick={onCancel}
-          className="min-h-[44px] px-4 rounded-xl text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-all cursor-pointer"
+          className="min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
         >
           Annulla
         </button>
         <button
           type="submit"
-          className="min-h-[44px] px-6 rounded-xl text-sm font-semibold bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+          className="min-h-[44px] px-6 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
         >
           {initialData ? 'Aggiorna Attività' : 'Salva Attività'}
         </button>

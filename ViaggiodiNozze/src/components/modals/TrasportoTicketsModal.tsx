@@ -108,12 +108,12 @@ export default function TrasportoTicketsModal({
       <Modal isOpen={isOpen} onClose={onClose} title="Biglietti, Pass & QR Code" accentVariant="sky">
         <div className="space-y-4">
           {/* Header Sintetico */}
-          <div className="flex items-center justify-between gap-2 p-3 rounded-xl bg-slate-800/80 border border-slate-700/70">
+          <div className="flex items-center justify-between gap-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
             <div className="min-w-0">
-              <div className="text-xs font-bold text-slate-100 truncate">
+              <div className="text-xs font-bold text-slate-900 truncate">
                 {transport.carrier || `${transport.departureLocation} ➔ ${transport.arrivalLocation}`}
               </div>
-              <div className="text-[11px] text-slate-400">
+              <div className="text-[11px] text-slate-500 font-medium">
                 {attachments.length === 0
                   ? 'Nessun file salvato'
                   : `${attachments.length} ${attachments.length === 1 ? 'file salvato offline' : 'file salvati offline'}`}
@@ -124,7 +124,7 @@ export default function TrasportoTicketsModal({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-bold text-xs shadow-md shadow-sky-500/20 transition-all cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-bold text-xs shadow-md shadow-sky-500/20 transition-all cursor-pointer disabled:opacity-50"
             >
               {isUploading ? (
                 <>
@@ -152,12 +152,12 @@ export default function TrasportoTicketsModal({
 
           {/* Banner Errore */}
           {errorMessage && (
-            <div className="p-3 text-xs rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 flex items-center justify-between gap-2">
+            <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700 flex items-center justify-between gap-2">
               <span>{errorMessage}</span>
               <button
                 type="button"
                 onClick={() => setErrorMessage('')}
-                className="text-rose-400 hover:text-rose-200 text-sm font-bold"
+                className="text-rose-600 hover:text-rose-800 text-sm font-bold"
               >
                 ✕
               </button>
@@ -168,16 +168,16 @@ export default function TrasportoTicketsModal({
           {attachments.length === 0 ? (
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-700 hover:border-sky-500/60 rounded-2xl p-6 text-center cursor-pointer transition-colors bg-slate-800/30 hover:bg-slate-800/50"
+              className="border-2 border-dashed border-slate-300 hover:border-sky-500 rounded-3xl p-6 text-center cursor-pointer transition-colors bg-slate-50 hover:bg-slate-100/70"
             >
-              <div className="w-12 h-12 mx-auto rounded-full bg-sky-500/10 border border-sky-500/20 flex items-center justify-center text-sky-400 text-2xl mb-2.5">
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600 text-2xl mb-2.5">
                 📱
               </div>
-              <h4 className="text-sm font-bold text-slate-100">Carica Biglietto, Pass o QR Code</h4>
-              <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
+              <h4 className="text-sm font-bold text-slate-900">Carica Biglietto, Pass o QR Code</h4>
+              <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
                 Tocca qui per caricare screenshot di carte d'imbarco, QR code o PDF di prenotazione (fino a 25 MB).
               </p>
-              <span className="inline-block mt-3 px-3 py-1 text-[11px] font-semibold text-sky-300 bg-sky-500/15 rounded-md border border-sky-500/30">
+              <span className="inline-block mt-3 px-3 py-1 text-[11px] font-semibold text-sky-700 bg-sky-50 rounded-full border border-sky-200">
                 Disponibili 100% offline
               </span>
             </div>
@@ -186,22 +186,22 @@ export default function TrasportoTicketsModal({
               {attachments.map((att) => (
                 <div
                   key={att.id}
-                  className="flex items-center justify-between gap-3 p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 transition-all hover:border-slate-600"
+                  className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs transition-all hover:border-slate-300"
                 >
                   {/* Anteprima Sinistra */}
                   {att.type === 'image' ? (
                     <div
                       onClick={() => setZoomedImage(att.dataUrl)}
-                      className="w-14 h-14 rounded-lg bg-slate-900 border border-slate-700 overflow-hidden cursor-pointer shrink-0 relative group flex items-center justify-center"
+                      className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden cursor-pointer shrink-0 relative group flex items-center justify-center"
                       title="Tocca per ingrandire e scansionare"
                     >
                       <img src={att.dataUrl} alt={att.name} className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                        <span className="text-xs">🔍</span>
+                        <span className="text-xs text-white">🔍</span>
                       </div>
                     </div>
                   ) : (
-                    <div className="w-14 h-14 rounded-lg bg-rose-500/10 border border-rose-500/30 flex flex-col items-center justify-center text-rose-400 shrink-0">
+                    <div className="w-14 h-14 rounded-xl bg-rose-50 border border-rose-200 flex flex-col items-center justify-center text-rose-600 shrink-0">
                       <span className="text-lg font-bold">📄</span>
                       <span className="text-[9px] font-mono font-bold uppercase mt-0.5">PDF</span>
                     </div>
@@ -209,20 +209,20 @@ export default function TrasportoTicketsModal({
 
                   {/* Informazioni File */}
                   <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-slate-100 truncate" title={att.name}>
+                    <p className="text-xs font-semibold text-slate-900 truncate" title={att.name}>
                       {att.name}
                     </p>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
                       <span>{formatFileSize(att.size)}</span>
                       <span>•</span>
-                      <span className="text-emerald-400 font-medium">Offline</span>
+                      <span className="text-emerald-600 font-medium">Offline</span>
                     </div>
 
                     {att.type === 'image' ? (
                       <button
                         type="button"
                         onClick={() => setZoomedImage(att.dataUrl)}
-                        className="mt-1 text-[11px] font-semibold text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
+                        className="mt-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
                       >
                         <span>Tocca per mostrare QR a schermo intero</span>
                         <span>🔍</span>
@@ -231,7 +231,7 @@ export default function TrasportoTicketsModal({
                       <button
                         type="button"
                         onClick={() => handleOpenPdf(att.dataUrl, att.name)}
-                        className="mt-1 text-[11px] font-semibold text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
+                        className="mt-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
                       >
                         <span>Apri documento PDF</span>
                         <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -246,7 +246,7 @@ export default function TrasportoTicketsModal({
                     type="button"
                     onClick={() => handleDeleteAttachment(att.id)}
                     title="Elimina allegato"
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-rose-400 hover:text-rose-200 hover:bg-rose-500/20 transition-all cursor-pointer shrink-0"
+                    className="w-8 h-8 rounded-xl flex items-center justify-center text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-all cursor-pointer shrink-0"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -258,11 +258,11 @@ export default function TrasportoTicketsModal({
           )}
 
           {/* Footer del Modal */}
-          <div className="pt-3 border-t border-slate-800">
+          <div className="pt-3 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-colors cursor-pointer"
+              className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors cursor-pointer"
             >
               Chiudi
             </button>
