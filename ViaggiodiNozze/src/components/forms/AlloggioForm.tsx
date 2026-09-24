@@ -14,6 +14,7 @@ export default function AlloggioForm({ initialData, onSave, onCancel }: Alloggio
   const [checkOut, setCheckOut] = useState('');
   const [address, setAddress] = useState('');
   const [status, setStatus] = useState<StatoAlloggio>('da_prenotare');
+  const [copilota, setCopilota] = useState(false);
 
   // Campi facoltativi richiudibili
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -31,11 +32,12 @@ export default function AlloggioForm({ initialData, onSave, onCancel }: Alloggio
       setCheckOut(initialData.checkOut);
       setAddress(initialData.address);
       setStatus(initialData.status);
+      setCopilota(initialData.copilota || false);
       setBookingCode(initialData.bookingCode || '');
       setBookingUrl(initialData.bookingUrl || '');
       setPhone(initialData.phone || '');
       setNotes(initialData.notes || '');
-      if (initialData.bookingCode || initialData.bookingUrl || initialData.phone || initialData.notes) {
+      if (initialData.bookingCode || initialData.bookingUrl || initialData.phone || initialData.notes || initialData.copilota) {
         setShowAdvanced(true);
       }
     } else {
@@ -45,6 +47,7 @@ export default function AlloggioForm({ initialData, onSave, onCancel }: Alloggio
       setCheckOut('');
       setAddress('');
       setStatus('da_prenotare');
+      setCopilota(false);
       setBookingCode('');
       setBookingUrl('');
       setPhone('');
@@ -72,6 +75,7 @@ export default function AlloggioForm({ initialData, onSave, onCancel }: Alloggio
       checkOut,
       address: address.trim(),
       status,
+      copilota: copilota || undefined,
       bookingCode: bookingCode.trim() || undefined,
       bookingUrl: bookingUrl.trim() || undefined,
       phone: phone.trim() || undefined,
@@ -169,6 +173,28 @@ export default function AlloggioForm({ initialData, onSave, onCancel }: Alloggio
           onChange={(e) => setAddress(e.target.value)}
           className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-purple-500 transition-colors placeholder:text-slate-500"
           required
+        />
+      </div>
+
+      {/* Opzione Co-pilota */}
+      <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/60 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="text-base">🧭</span>
+          <div>
+            <label htmlFor="copilota-alloggio-toggle" className="text-xs font-semibold text-slate-200 cursor-pointer block">
+              Mostra al co-pilota
+            </label>
+            <p className="text-[11px] text-slate-400">
+              Segna questo alloggio come tappa rilevante per il co-pilota di bordo
+            </p>
+          </div>
+        </div>
+        <input
+          id="copilota-alloggio-toggle"
+          type="checkbox"
+          checked={copilota}
+          onChange={(e) => setCopilota(e.target.checked)}
+          className="w-4 h-4 rounded text-purple-600 bg-slate-900 border-slate-700 focus:ring-purple-500 focus:ring-offset-slate-900 cursor-pointer"
         />
       </div>
 

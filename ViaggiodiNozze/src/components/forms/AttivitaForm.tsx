@@ -18,6 +18,7 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
   const [status, setStatus] = useState<StatoAttivita>('pianificata');
   
   // Campi avanzati / opzionali
+  const [copilota, setCopilota] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [duration, setDuration] = useState('');
   const [notes, setNotes] = useState('');
@@ -32,10 +33,11 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       setLocation(initialData.location);
       setCategory(initialData.category);
       setStatus(initialData.status);
+      setCopilota(initialData.copilota || false);
       setDuration(initialData.duration || '');
       setNotes(initialData.notes || '');
       setLink(initialData.link || '');
-      if (initialData.duration || initialData.notes || initialData.link) {
+      if (initialData.duration || initialData.notes || initialData.link || initialData.copilota) {
         setShowAdvanced(true);
       }
     } else {
@@ -45,6 +47,7 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       setLocation('');
       setCategory('visita');
       setStatus('pianificata');
+      setCopilota(false);
       setDuration('');
       setNotes('');
       setLink('');
@@ -71,6 +74,7 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       location: location.trim(),
       category,
       status,
+      copilota: copilota || undefined,
       duration: duration.trim() || undefined,
       notes: notes.trim() || undefined,
       link: link.trim() || undefined
@@ -178,6 +182,28 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
             <option value="annullata">Annullata</option>
           </select>
         </div>
+      </div>
+
+      {/* Opzione Co-pilota */}
+      <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/60 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="text-base">🧭</span>
+          <div>
+            <label htmlFor="copilota-att-toggle" className="text-xs font-semibold text-slate-200 cursor-pointer block">
+              Mostra al co-pilota
+            </label>
+            <p className="text-[11px] text-slate-400">
+              Segna questa attività come tappa rilevante per il co-pilota di bordo
+            </p>
+          </div>
+        </div>
+        <input
+          id="copilota-att-toggle"
+          type="checkbox"
+          checked={copilota}
+          onChange={(e) => setCopilota(e.target.checked)}
+          className="w-4 h-4 rounded text-emerald-500 bg-slate-900 border-slate-700 focus:ring-emerald-500 focus:ring-offset-slate-900 cursor-pointer"
+        />
       </div>
 
       {/* Dettagli Opzionali Richiudibili */}

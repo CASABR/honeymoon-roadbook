@@ -1,15 +1,12 @@
-﻿import { useState } from 'react';
+import { useState } from 'react';
 import type { Alloggio } from '../../types';
 import Badge from '../common/Badge';
+import { resolveMapUrl } from '../../utils/mapsHelper';
 
 interface AlloggioCardProps {
   accommodation: Alloggio;
   onEdit: () => void;
   onDelete: () => void;
-}
-
-function mapsUrl(query: string) {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
 export default function AlloggioCard({ accommodation, onEdit, onDelete }: AlloggioCardProps) {
@@ -59,6 +56,12 @@ export default function AlloggioCard({ accommodation, onEdit, onDelete }: Allogg
               </h3>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <Badge label={statusLabels[accommodation.status]} variant={statusVariant} />
+                {accommodation.copilota && (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                    <span>🧭</span>
+                    <span>Co-pilota</span>
+                  </span>
+                )}
                 <span className="text-[11px] text-slate-500 font-mono">
                   {formatDate(accommodation.checkIn)} → {formatDate(accommodation.checkOut)}
                 </span>
@@ -90,23 +93,25 @@ export default function AlloggioCard({ accommodation, onEdit, onDelete }: Allogg
           </div>
 
           {/* Location → Google Maps */}
-          <a
-            href={mapsUrl(accommodation.location)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-purple-300 transition-colors group"
-          >
-            <svg className="w-3.5 h-3.5 text-slate-500 group-hover:text-purple-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span>{accommodation.location}</span>
-          </a>
+          {accommodation.location && (
+            <a
+              href={resolveMapUrl(accommodation.location)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-purple-300 transition-colors group"
+            >
+              <svg className="w-3.5 h-3.5 text-slate-500 group-hover:text-purple-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span>{accommodation.location}</span>
+            </a>
+          )}
 
           {/* Indirizzo → Google Maps */}
           {accommodation.address && (
             <a
-              href={mapsUrl(accommodation.address)}
+              href={resolveMapUrl(accommodation.address)}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-start gap-1 text-xs text-slate-400 hover:text-purple-300 transition-colors group mt-1"

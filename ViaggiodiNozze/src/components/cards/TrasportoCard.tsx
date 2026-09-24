@@ -3,6 +3,7 @@ import type { Trasporto, TipoTrasporto } from '../../types';
 import Badge from '../common/Badge';
 import TrasportoInfoModal from '../modals/TrasportoInfoModal';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
+import { getTransportMapTargets } from '../../utils/mapsHelper';
 
 interface TrasportoCardProps {
   transport: Trasporto;
@@ -27,6 +28,7 @@ export default function TrasportoCard({
   }, [initialTransport]);
 
   const attachmentsCount = transport.attachments?.length || 0;
+  const mapTargets = getTransportMapTargets(transport);
 
   const handleUpdateTransport = (updated: Trasporto) => {
     setTransport(updated);
@@ -215,6 +217,14 @@ export default function TrasportoCard({
 
             {/* Badge Stato compatto */}
             <Badge label={statusLabel} variant={statusVariant} />
+
+            {/* Badge Co-pilota */}
+            {transport.copilota && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                <span>🧭</span>
+                <span>Co-pilota</span>
+              </span>
+            )}
           </div>
 
           {/* PREZZO IN EURO IN ALTO A DESTRA */}
@@ -348,26 +358,26 @@ export default function TrasportoCard({
           )}
         </div>
 
-        {/* 3. RIGA INFERIORE PULITA: PNR + PULSANTI INFO "i", QR CODE/BIGLIETTI, MODIFICA ED ELIMINA */}
-        <div className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between gap-1.5 flex-wrap">
+        {/* 3. RIGA INFERIORE PULITA: PNR + NAVIGA MAPS, INFO "i", QR CODE/BIGLIETTI, MODIFICA ED ELIMINA */}
+        <div className="mt-3 pt-2.5 border-t border-slate-800/80 flex items-center justify-between gap-1.5 flex-wrap">
           {/* Sezione Sinistra: PNR Rapido (se presente) */}
           <div className="flex items-center gap-1.5">
             {transport.bookingCode ? (
-              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-800/90 border border-slate-700/80">
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800/90 border border-slate-700/80">
                 <span className="text-[10px] text-slate-400 font-medium">PNR:</span>
-                <span className="text-[11px] font-mono text-sky-300 font-bold tracking-wider">
+                <span className="text-xs font-mono text-sky-300 font-bold tracking-wider">
                   {transport.bookingCode}
                 </span>
                 <button
                   type="button"
                   onClick={handleCopyBookingCode}
                   title="Copia PNR"
-                  className="ml-0.5 p-1 text-[10px] text-sky-400 hover:text-sky-200 transition-colors cursor-pointer active:scale-95"
+                  className="ml-0.5 p-1 text-[11px] text-sky-400 hover:text-sky-200 transition-colors cursor-pointer active:scale-95 min-w-[24px] flex items-center justify-center"
                 >
                   {copied ? (
-                    <span className="text-emerald-400 font-bold text-[10px]">✓</span>
+                    <span className="text-emerald-400 font-bold text-[11px]">✓</span>
                   ) : (
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -379,31 +389,48 @@ export default function TrasportoCard({
                 </button>
               </div>
             ) : (
-              <span className="text-[10px] font-mono text-slate-500">
+              <span className="text-[11px] font-mono text-slate-500 font-medium">
                 {formatDate(transport.date)}
               </span>
             )}
           </div>
 
-          {/* Sezione Destra: Pulsanti Info "i", Biglietti / QR Code, Modifica ed Elimina */}
+          {/* Sezione Destra: Pulsanti Naviga, Info "i", Biglietti / QR Code, Modifica ed Elimina */}
           <div className="flex items-center gap-1.5 ml-auto">
-            {/* 1. Pulsante Info "i" */}
+            {/* 1. Pulsante Naviga Google Maps */}
+            {mapTargets.primaryUrl && (
+              <a
+                href={mapTargets.primaryUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Naviga su Google Maps verso ${mapTargets.primaryLabel}`}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all cursor-pointer active:scale-95 min-h-[40px]"
+              >
+                <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="text-[11px]">Naviga</span>
+              </a>
+            )}
+
+            {/* 2. Pulsante Info "i" */}
             <button
               type="button"
               onClick={() => setIsInfoOpen(true)}
               title="Dettagli e istruzioni operative"
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 transition-all cursor-pointer active:scale-95 min-h-[30px]"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 transition-all cursor-pointer active:scale-95 min-h-[40px]"
             >
               <span className="font-bold text-[13px] leading-none">ℹ</span>
               <span className="text-[11px]">Info</span>
             </button>
 
-            {/* 2. Pulsante Biglietti & QR Code */}
+            {/* 3. Pulsante Biglietti & QR Code */}
             <button
               type="button"
               onClick={() => setIsTicketsOpen(true)}
               title="Biglietti, Pass e QR Code offline"
-              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer active:scale-95 min-h-[30px] border ${
+              className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 min-h-[40px] border ${
                 attachmentsCount > 0
                   ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/25'
                   : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
@@ -418,12 +445,12 @@ export default function TrasportoCard({
               )}
             </button>
 
-            {/* 3. Pulsante Modifica */}
+            {/* 4. Pulsante Modifica */}
             <button
               type="button"
               onClick={onEdit}
               title="Modifica trasporto"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 min-h-[30px] min-w-[30px] flex items-center justify-center border border-slate-700/60"
+              className="w-10 h-10 min-h-[40px] min-w-[40px] rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer active:scale-95 flex items-center justify-center border border-slate-700/60"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -435,12 +462,12 @@ export default function TrasportoCard({
               </svg>
             </button>
 
-            {/* 4. Pulsante Elimina */}
+            {/* 5. Pulsante Elimina */}
             <button
               type="button"
               onClick={onDelete}
               title="Elimina trasporto"
-              className="p-1.5 rounded-lg text-rose-400 hover:text-rose-200 hover:bg-rose-500/20 transition-colors cursor-pointer active:scale-95 min-h-[30px] min-w-[30px] flex items-center justify-center border border-rose-500/30"
+              className="w-10 h-10 min-h-[40px] min-w-[40px] rounded-xl text-rose-400 hover:text-rose-200 hover:bg-rose-500/20 transition-colors cursor-pointer active:scale-95 flex items-center justify-center border border-rose-500/30"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path

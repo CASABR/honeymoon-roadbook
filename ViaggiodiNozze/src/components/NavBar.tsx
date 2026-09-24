@@ -1,4 +1,6 @@
-export type SectionTab = 'attivita' | 'alloggi' | 'trasporti';
+import type { SectionTab } from '../types';
+
+export type { SectionTab };
 
 interface NavBarProps {
   activeTab: SectionTab;
@@ -43,8 +45,8 @@ export default function NavBar({ activeTab, onTabChange }: NavBarProps) {
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-center bg-slate-950/80 backdrop-blur-xl border-t border-slate-800/80 px-4 py-2">
-      <div className="w-full max-w-md mx-auto flex items-center justify-around">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 flex justify-center bg-slate-950/85 backdrop-blur-xl border-t border-slate-800/80 px-2 py-1.5 shadow-2xl">
+      <div className="w-full max-w-md mx-auto flex items-center justify-around gap-1">
         {tabs.map((tab) => {
           const isActive = activeTab === tab.id;
           const activeClasses = isActive ? activeColorMap[tab.id] : 'text-slate-400 hover:text-slate-200 font-medium';
@@ -53,12 +55,12 @@ export default function NavBar({ activeTab, onTabChange }: NavBarProps) {
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={"flex flex-col items-center gap-1.5 py-2 px-4 rounded-xl transition-all duration-200 cursor-pointer min-w-[90px] " + activeClasses}
+              className={"flex flex-col items-center justify-center gap-1 py-1.5 px-2.5 rounded-xl transition-all duration-200 cursor-pointer flex-1 min-h-[44px] " + activeClasses}
             >
               <div className={"transition-transform duration-200 " + iconScale}>
                 {tab.icon}
               </div>
-              <span className="text-[11px] tracking-tight">{tab.label}</span>
+              <span className="text-[10px] tracking-tight leading-tight">{tab.label}</span>
             </button>
           );
         })}

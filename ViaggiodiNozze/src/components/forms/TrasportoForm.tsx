@@ -15,6 +15,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
   const [status, setStatus] = useState<StatoTrasporto>('pianificato');
 
   // Campi facoltativi
+  const [copilota, setCopilota] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [cost, setCost] = useState('');
   const [dropoffDate, setDropoffDate] = useState('');
@@ -41,6 +42,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       setDepartureLocation(initialData.departureLocation);
       setArrivalLocation(initialData.arrivalLocation);
       setStatus(initialData.status);
+      setCopilota(initialData.copilota || false);
       setCost(initialData.cost || '');
       setDropoffDate(initialData.dropoffDate || '');
       setDropoffTime(initialData.dropoffTime || '');
@@ -55,7 +57,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       setBookingCode(initialData.bookingCode || '');
       setTicketUrl(initialData.ticketUrl || '');
       setNotes(initialData.notes || '');
-      if (initialData.cost || initialData.layover || initialData.departureTime || initialData.arrivalTime || initialData.carrier || initialData.bookingCode || initialData.ticketUrl || initialData.notes || initialData.dropoffDate || initialData.dropoffTime || initialData.dropoffLocation) {
+      if (initialData.cost || initialData.layover || initialData.departureTime || initialData.arrivalTime || initialData.carrier || initialData.bookingCode || initialData.ticketUrl || initialData.notes || initialData.dropoffDate || initialData.dropoffTime || initialData.dropoffLocation || initialData.copilota) {
         setShowAdvanced(true);
       }
     } else {
@@ -64,6 +66,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       setDepartureLocation('');
       setArrivalLocation('');
       setStatus('pianificato');
+      setCopilota(false);
       setCost('');
       setDropoffDate('');
       setDropoffTime('');
@@ -106,6 +109,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       dropoffTime: isRental ? (dropoffTime.trim() || undefined) : undefined,
       dropoffLocation: isRental ? (dropoffLocation.trim() || undefined) : undefined,
       status,
+      copilota: copilota || undefined,
       cost: cost.trim() || undefined,
       layover: layoverAirport.trim()
         ? {
@@ -305,6 +309,28 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
             className="w-full h-11 px-3 bg-slate-800 border border-slate-700/80 rounded-xl text-slate-100 text-sm focus:outline-none focus:border-sky-500 transition-colors placeholder:text-slate-500"
           />
         </div>
+      </div>
+
+      {/* Opzione Co-pilota */}
+      <div className="p-3 rounded-xl bg-slate-800/40 border border-slate-700/60 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5">
+          <span className="text-base">🧭</span>
+          <div>
+            <label htmlFor="copilota-trasporto-toggle" className="text-xs font-semibold text-slate-200 cursor-pointer block">
+              Mostra al co-pilota
+            </label>
+            <p className="text-[11px] text-slate-400">
+              Segna questo spostamento come tratta o tappa rilevante per il co-pilota
+            </p>
+          </div>
+        </div>
+        <input
+          id="copilota-trasporto-toggle"
+          type="checkbox"
+          checked={copilota}
+          onChange={(e) => setCopilota(e.target.checked)}
+          className="w-4 h-4 rounded text-sky-500 bg-slate-900 border-slate-700 focus:ring-sky-500 focus:ring-offset-slate-900 cursor-pointer"
+        />
       </div>
 
       {/* Dettagli Avanzati */}
