@@ -270,6 +270,9 @@ export default function TrasportiView() {
                       transport={transport}
                       onEdit={() => handleOpenEdit(transport)}
                       onDelete={() => setDeletingTransport(transport)}
+                      onUpdate={(updated) => {
+                        setTransports((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+                      }}
                     />
                   ))}
                 </div>
