@@ -47,6 +47,15 @@ export interface Alloggio {
 export type TipoTrasporto = 'volo' | 'traghetto' | 'auto' | 'camper' | 'transfer' | 'treno' | 'bus' | 'altro';
 export type StatoTrasporto = 'pianificato' | 'prenotato' | 'da_prenotare' | 'completato' | 'annullato';
 
+export interface TransportAttachment {
+  id: string;
+  name: string;
+  type: 'image' | 'pdf';
+  dataUrl: string;
+  size: number;
+  createdAt: string;
+}
+
 export interface Trasporto {
   id: string;
   type: TipoTrasporto;
@@ -70,6 +79,7 @@ export interface Trasporto {
     notes?: string;
   };
   notes?: string;
+  attachments?: TransportAttachment[];
   status: StatoTrasporto;
   createdAt: number;
   updatedAt: number;
