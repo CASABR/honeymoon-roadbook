@@ -1,9 +1,48 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import type { TravelDocument } from '../types';
+import { storageService } from '../storage/storageService';
+import DocumentFilesModal from '../components/modals/DocumentFilesModal';
 
 type SubTab = 'tutti' | 'assicurazione' | 'emergenze' | 'documenti';
 
 export default function AltroView() {
   const [activeSubTab, setActiveSubTab] = useState<SubTab>('tutti');
+  const [documents, setDocuments] = useState<TravelDocument[]>([]);
+  const [selectedDoc, setSelectedDoc] = useState<TravelDocument | null>(null);
+
+  useEffect(() => {
+    async function loadDocs() {
+      try {
+        const loaded = await storageService.getDocuments();
+        setDocuments(loaded);
+      } catch (err) {
+        console.error('Errore caricamento documenti:', err);
+      }
+    }
+    loadDocs();
+  }, []);
+
+  const getDoc = (id: string): TravelDocument | undefined => {
+    return documents.find((d) => d.id === id);
+  };
+
+  const handleOpenDocModal = (doc: TravelDocument) => {
+    setSelectedDoc(doc);
+  };
+
+  const handleUpdateDocument = (updated: TravelDocument) => {
+    setDocuments((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
+    if (selectedDoc?.id === updated.id) {
+      setSelectedDoc(updated);
+    }
+  };
+
+  const insuranceDoc = getDoc('doc_assicurazione');
+  const passportDoc = getDoc('doc_passaporti');
+  const nzetaDoc = getDoc('doc_visto_nzeta');
+  const australiaDoc = getDoc('doc_visto_australia');
+  const filippineDoc = getDoc('doc_visto_filippine');
+  const patenteDoc = getDoc('doc_patente');
 
   return (
     <div className="space-y-4 pt-1 animate-fade-in">
@@ -105,6 +144,22 @@ export default function AltroView() {
               </svg>
               <span>Chiama H24</span>
             </a>
+          </div>
+
+          {/* Gestione Allegati Polizza */}
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+            <span className="text-xs text-slate-500 font-medium">
+              {insuranceDoc?.attachments?.length
+                ? `📎 ${insuranceDoc.attachments.length} ${insuranceDoc.attachments.length === 1 ? 'file caricato' : 'file caricati'}`
+                : 'Nessun certificato caricato'}
+            </span>
+            <button
+              type="button"
+              onClick={() => insuranceDoc && handleOpenDocModal(insuranceDoc)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition-all cursor-pointer"
+            >
+              <span>📎 Certificato & Foto</span>
+            </button>
           </div>
 
           <div className="text-[11px] text-slate-500 leading-relaxed space-y-1">
@@ -260,7 +315,7 @@ export default function AltroView() {
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Passaporti Elettronici
             </h3>
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2.5">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="font-bold text-slate-800 text-xs">Sposo & Sposa</span>
@@ -273,69 +328,148 @@ export default function AltroView() {
               <p className="text-[11px] text-slate-400 leading-snug">
                 Scadenza oltre la data richiesta per il rientro in Italia (Gennaio 2027).
               </p>
+
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                <span className="text-[11px] font-medium text-slate-500">
+                  {passportDoc?.attachments?.length
+                    ? `📎 ${passportDoc.attachments.length} ${passportDoc.attachments.length === 1 ? 'file caricato' : 'file caricati'}`
+                    : 'Nessuna foto passaporto'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => passportDoc && handleOpenDocModal(passportDoc)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all cursor-pointer"
+                >
+                  <span>{passportDoc?.attachments?.length ? 'Visualizza / Aggiungi' : '+ Carica Foto / PDF'}</span>
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Visti e Autorizzazioni */}
-          <div className="space-y-2 pt-1">
+          <div className="space-y-2.5 pt-1">
             <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">
               Visti e Permessi di Soggiorno
             </h3>
 
             {/* NZeTA */}
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-slate-900 text-xs">🇳🇿 NZeTA + Tassa IVL</span>
                 <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Richiesto / Valido
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 leading-snug">
                 Autorizzazione elettronica per Nuova Zelanda collegata digitalmente al passaporto.
               </p>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                <span className="text-[11px] font-medium text-slate-500">
+                  {nzetaDoc?.attachments?.length
+                    ? `📎 ${nzetaDoc.attachments.length} ${nzetaDoc.attachments.length === 1 ? 'file caricato' : 'file caricati'}`
+                    : 'Nessun visto salvato'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => nzetaDoc && handleOpenDocModal(nzetaDoc)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all cursor-pointer"
+                >
+                  <span>{nzetaDoc?.attachments?.length ? 'Visualizza / Aggiungi' : '+ Carica Documenti/Foto'}</span>
+                </button>
+              </div>
             </div>
 
             {/* eVisitor Australia */}
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-slate-900 text-xs">🇦🇺 eVisitor (Subclass 651)</span>
                 <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Richiesto / Valido
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 leading-snug">
                 Visto turistico australiano gratuito per cittadini UE, valido 12 mesi per soggiorni fino a 3 mesi.
               </p>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                <span className="text-[11px] font-medium text-slate-500">
+                  {australiaDoc?.attachments?.length
+                    ? `📎 ${australiaDoc.attachments.length} ${australiaDoc.attachments.length === 1 ? 'file caricato' : 'file caricati'}`
+                    : 'Nessun visto salvato'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => australiaDoc && handleOpenDocModal(australiaDoc)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all cursor-pointer"
+                >
+                  <span>{australiaDoc?.attachments?.length ? 'Visualizza / Aggiungi' : '+ Carica Documenti/Foto'}</span>
+                </button>
+              </div>
             </div>
 
             {/* eTravel Filippine */}
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-slate-900 text-xs">🇵🇭 eTravel Philippines</span>
                 <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Richiesto / Valido
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 leading-snug">
                 Registrazione digitale di arrivo da completare online nelle 72 ore precedenti l'imbarco.
               </p>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                <span className="text-[11px] font-medium text-slate-500">
+                  {filippineDoc?.attachments?.length
+                    ? `📎 ${filippineDoc.attachments.length} ${filippineDoc.attachments.length === 1 ? 'file caricato' : 'file caricati'}`
+                    : 'Nessun QR code caricato'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => filippineDoc && handleOpenDocModal(filippineDoc)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all cursor-pointer"
+                >
+                  <span>{filippineDoc?.attachments?.length ? 'Visualizza / Aggiungi' : '+ Carica QR Code'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Patente Internazionale */}
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-100 space-y-1">
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-slate-900 text-xs">🪪 Patente Internazionale (IDP)</span>
                 <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                   Richiesta / Valida
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500">
+              <p className="text-[11px] text-slate-500 leading-snug">
                 Modello Ginevra 1949 / Vienna 1968, indispensabile per il ritiro del campervan e dell'auto.
               </p>
+              <div className="flex items-center justify-between pt-1 border-t border-slate-200/60">
+                <span className="text-[11px] font-medium text-slate-500">
+                  {patenteDoc?.attachments?.length
+                    ? `📎 ${patenteDoc.attachments.length} ${patenteDoc.attachments.length === 1 ? 'file caricato' : 'file caricati'}`
+                    : 'Nessuna scansione caricata'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => patenteDoc && handleOpenDocModal(patenteDoc)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all cursor-pointer"
+                >
+                  <span>{patenteDoc?.attachments?.length ? 'Visualizza / Aggiungi' : '+ Carica Scansione'}</span>
+                </button>
+              </div>
             </div>
           </div>
         </section>
       )}
+
+      {/* MODAL GESTIONE ALLEGATI DOCUMENTO */}
+      <DocumentFilesModal
+        isOpen={selectedDoc !== null}
+        onClose={() => setSelectedDoc(null)}
+        document={selectedDoc}
+        onUpdateDocument={handleUpdateDocument}
+      />
     </div>
   );
 }

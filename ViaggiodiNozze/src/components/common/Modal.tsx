@@ -5,7 +5,7 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
-  accentVariant?: 'amber' | 'purple' | 'sky';
+  accentVariant?: 'amber' | 'purple' | 'sky' | 'indigo';
 }
 
 export default function Modal({ isOpen, onClose, title, children, accentVariant = 'amber' }: ModalProps) {
@@ -25,7 +25,8 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
   const accentBorder = {
     amber: 'border-amber-200',
     purple: 'border-purple-200',
-    sky: 'border-sky-200'
+    sky: 'border-sky-200',
+    indigo: 'border-indigo-200'
   }[accentVariant];
 
   return (

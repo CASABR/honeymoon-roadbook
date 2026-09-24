@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import type { Trasporto, TransportAttachment } from '../../types';
 import Modal from '../common/Modal';
+import LightboxCarousel from '../common/LightboxCarousel';
 import { processFileForAttachment, formatFileSize } from '../../utils/fileAttachment';
 import { storageService } from '../../storage/storageService';
 
@@ -18,26 +19,31 @@ export default function TrasportoTicketsModal({
   onUpdateTransport
 }: TrasportoTicketsModalProps) {
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [zoomedIndex, setZoomedIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!transport) return null;
 
   const attachments = transport.attachments || [];
+  const imageAttachments = attachments.filter((att) => att.type === 'image');
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
+    const filesArray = Array.from(files);
     setErrorMessage('');
     setIsUploading(true);
+    setUploadProgressText(`Elaborazione di ${filesArray.length} ${filesArray.length === 1 ? 'file' : 'file'}...`);
 
     try {
       const newAttachments: TransportAttachment[] = [...attachments];
 
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
+      for (let i = 0; i < filesArray.length; i++) {
+        setUploadProgressText(`Elaborazione file ${i + 1} di ${filesArray.length}...`);
+        const file = filesArray[i];
         const processed = await processFileForAttachment(file);
         newAttachments.push(processed);
       }
@@ -56,6 +62,7 @@ export default function TrasportoTicketsModal({
       setErrorMessage(msg);
     } finally {
       setIsUploading(false);
+      setUploadProgressText('');
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -129,7 +136,7 @@ export default function TrasportoTicketsModal({
               {isUploading ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                  <span>Caricamento...</span>
+                  <span>{uploadProgressText || 'Caricamento...'}</span>
                 </>
               ) : (
                 <>
@@ -175,7 +182,7 @@ export default function TrasportoTicketsModal({
               </div>
               <h4 className="text-sm font-bold text-slate-900">Carica Biglietto, Pass o QR Code</h4>
               <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-                Tocca qui per caricare screenshot di carte d'imbarco, QR code o PDF di prenotazione (fino a 25 MB).
+                Tocca qui per caricare più file contemporaneamente: carte d'imbarco, QR code o PDF (fino a 25 MB ciascuno).
               </p>
               <span className="inline-block mt-3 px-3 py-1 text-[11px] font-semibold text-sky-700 bg-sky-50 rounded-full border border-sky-200">
                 Disponibili 100% offline
@@ -183,77 +190,80 @@ export default function TrasportoTicketsModal({
             </div>
           ) : (
             <div className="space-y-3">
-              {attachments.map((att) => (
-                <div
-                  key={att.id}
-                  className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs transition-all hover:border-slate-300"
-                >
-                  {/* Anteprima Sinistra */}
-                  {att.type === 'image' ? (
-                    <div
-                      onClick={() => setZoomedImage(att.dataUrl)}
-                      className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden cursor-pointer shrink-0 relative group flex items-center justify-center"
-                      title="Tocca per ingrandire e scansionare"
-                    >
-                      <img src={att.dataUrl} alt={att.name} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                        <span className="text-xs text-white">🔍</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="w-14 h-14 rounded-xl bg-rose-50 border border-rose-200 flex flex-col items-center justify-center text-rose-600 shrink-0">
-                      <span className="text-lg font-bold">📄</span>
-                      <span className="text-[9px] font-mono font-bold uppercase mt-0.5">PDF</span>
-                    </div>
-                  )}
-
-                  {/* Informazioni File */}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-slate-900 truncate" title={att.name}>
-                      {att.name}
-                    </p>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
-                      <span>{formatFileSize(att.size)}</span>
-                      <span>•</span>
-                      <span className="text-emerald-600 font-medium">Offline</span>
-                    </div>
-
-                    {att.type === 'image' ? (
-                      <button
-                        type="button"
-                        onClick={() => setZoomedImage(att.dataUrl)}
-                        className="mt-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
-                      >
-                        <span>Tocca per mostrare QR a schermo intero</span>
-                        <span>🔍</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleOpenPdf(att.dataUrl, att.name)}
-                        className="mt-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
-                      >
-                        <span>Apri documento PDF</span>
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Tasto Elimina */}
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteAttachment(att.id)}
-                    title="Elimina allegato"
-                    className="w-8 h-8 rounded-xl flex items-center justify-center text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-all cursor-pointer shrink-0"
+              {attachments.map((att) => {
+                const imgIdx = att.type === 'image' ? imageAttachments.findIndex((a) => a.id === att.id) : -1;
+                return (
+                  <div
+                    key={att.id}
+                    className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-white border border-slate-200 shadow-2xs transition-all hover:border-slate-300"
                   >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
+                    {/* Anteprima Sinistra */}
+                    {att.type === 'image' ? (
+                      <div
+                        onClick={() => setZoomedIndex(imgIdx >= 0 ? imgIdx : 0)}
+                        className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden cursor-pointer shrink-0 relative group flex items-center justify-center"
+                        title="Tocca per ingrandire e scansionare"
+                      >
+                        <img src={att.dataUrl} alt={att.name} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <span className="text-xs text-white">🔍</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-14 h-14 rounded-xl bg-rose-50 border border-rose-200 flex flex-col items-center justify-center text-rose-600 shrink-0">
+                        <span className="text-lg font-bold">📄</span>
+                        <span className="text-[9px] font-mono font-bold uppercase mt-0.5">PDF</span>
+                      </div>
+                    )}
+
+                    {/* Informazioni File */}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-slate-900 truncate" title={att.name}>
+                        {att.name}
+                      </p>
+                      <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+                        <span>{formatFileSize(att.size)}</span>
+                        <span>•</span>
+                        <span className="text-emerald-600 font-medium">Offline</span>
+                      </div>
+
+                      {att.type === 'image' ? (
+                        <button
+                          type="button"
+                          onClick={() => setZoomedIndex(imgIdx >= 0 ? imgIdx : 0)}
+                          className="mt-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>Mostra a schermo intero (sfogliabile)</span>
+                          <span>🔍</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenPdf(att.dataUrl, att.name)}
+                          className="mt-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>Apri documento PDF</span>
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Tasto Elimina */}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAttachment(att.id)}
+                      title="Elimina allegato"
+                      className="w-8 h-8 rounded-xl flex items-center justify-center text-rose-500 hover:text-rose-700 hover:bg-rose-50 transition-all cursor-pointer shrink-0"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
 
@@ -270,41 +280,14 @@ export default function TrasportoTicketsModal({
         </div>
       </Modal>
 
-      {/* OVERLAY ZOOM QR CODE A SCHERMO INTERO PER SCANSIONE AI VARCHI */}
-      {zoomedImage && (
-        <div
-          className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-black/95 p-4 backdrop-blur-md animate-fade-in"
-          onClick={() => setZoomedImage(null)}
-        >
-          <div className="w-full max-w-sm flex items-center justify-between pb-3 text-white">
-            <span className="text-xs font-bold uppercase tracking-wider text-sky-400">
-              Pronto per la scansione
-            </span>
-            <button
-              type="button"
-              onClick={() => setZoomedImage(null)}
-              className="w-8 h-8 rounded-full bg-slate-800/80 hover:bg-slate-700 text-white flex items-center justify-center text-sm font-bold cursor-pointer"
-            >
-              ✕
-            </button>
-          </div>
-
-          <div
-            className="w-full max-w-sm bg-white p-3 rounded-2xl shadow-2xl flex items-center justify-center overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <img
-              src={zoomedImage}
-              alt="QR Code o Pass ingrandito"
-              className="w-full h-auto max-h-[75vh] object-contain rounded-lg"
-            />
-          </div>
-
-          <p className="text-xs text-slate-400 mt-3 text-center">
-            Aumenta la luminosità dello schermo per facilitare la scansione del lettore ottico.
-          </p>
-        </div>
-      )}
+      {/* CAROSELLO SFOGLIABILE A SCHERMO INTERO CON SUPPORTO TOUCH SWIPE */}
+      <LightboxCarousel
+        isOpen={zoomedIndex !== null}
+        onClose={() => setZoomedIndex(null)}
+        items={attachments}
+        initialIndex={zoomedIndex ?? 0}
+        title={transport.carrier || 'Pass & QR Code'}
+      />
     </>
   );
 }
