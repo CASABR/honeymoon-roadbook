@@ -51,7 +51,8 @@ export const SEED_TRANSPORTS: Omit<Trasporto, 'createdAt' | 'updatedAt'>[] = [
     bookingCode: '#U-520010 (Agenzia 742210189)',
     status: 'prenotato',
     cost: 'Da saldare: ~310 € (538,86 NZD)',
-    notes: 'One-Way fee isola inclusa. Navetta gratuita inclusa per il terminal partenze di Christchurch dopo il rilascio. Tel: +64 9 275 2438.'
+    depositPaid: '518,18 NZD (~282 €)',
+    notes: 'One-Way fee isola inclusa. Navetta gratuita inclusa per il terminal partenze di Christchurch dopo il rilascio. Tel: +64 9 275 2438. Totale noleggio: 1.057,04 NZD (~592 €). Acconto già versato: 518,18 NZD (~282 €). Saldo da versare al banco: 538,86 NZD (~310 €).'
   },
   // [TRATTA 4: Traghetto Bluebridge Wellington - Picton]
   {
@@ -156,7 +157,8 @@ export const SEED_TRANSPORTS: Omit<Trasporto, 'createdAt' | 'updatedAt'>[] = [
     bookingCode: 'U-152128',
     status: 'prenotato',
     cost: 'Da saldare: ~1.180 € (1.957,13 AUD)',
-    notes: 'Copertura Protection Plus (Franchigia zero). Ritiro notturno con cassetta codificata. Targa da registrare su Linkt per i pedaggi.'
+    depositPaid: '511,00 AUD (~308 €)',
+    notes: 'Copertura Protection Plus (Franchigia zero). Ritiro notturno con cassetta codificata. Targa da registrare su Linkt per i pedaggi. Totale stimato: 2.468,13 AUD (~1.488 €). Acconto già versato: 511,00 AUD (~308 €). Saldo da versare: 1.957,13 AUD (~1.180 €).'
   },
   // [TRATTA 11: Volo Sydney - Manila]
   {

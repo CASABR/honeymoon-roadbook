@@ -227,8 +227,16 @@ export default function TrasportoCard({
             )}
           </div>
 
-          {/* PREZZO IN EURO IN ALTO A DESTRA */}
-          <div className="shrink-0">{renderCostBadge()}</div>
+          {/* PREZZO IN EURO ED EVENTUALE ACCONTO IN ALTO A DESTRA */}
+          <div className="shrink-0 flex flex-col items-end gap-1">
+            {renderCostBadge()}
+            {(transport.depositPaid || transport.acconto) && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
+                <span>✓ Acconto:</span>
+                <span className="font-extrabold">{transport.depositPaid || transport.acconto}</span>
+              </span>
+            )}
+          </div>
         </div>
 
         {/* 2. CORPO DELLA CARD: TRATTA O TIMELINE ESSENZIALE */}
@@ -286,6 +294,19 @@ export default function TrasportoCard({
                     </div>
                   </div>
                 </div>
+
+                {/* Dettaglio Acconto già versato */}
+                {(transport.depositPaid || transport.acconto) && (
+                  <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
+                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
+                      <span>💰</span>
+                      <span>Acconto già versato:</span>
+                    </div>
+                    <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                      ✓ {transport.depositPaid || transport.acconto}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           ) : (

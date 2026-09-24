@@ -18,6 +18,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
   const [copilota, setCopilota] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [cost, setCost] = useState('');
+  const [depositPaid, setDepositPaid] = useState('');
   const [dropoffDate, setDropoffDate] = useState('');
   const [dropoffTime, setDropoffTime] = useState('');
   const [dropoffLocation, setDropoffLocation] = useState('');
@@ -44,6 +45,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       setStatus(initialData.status);
       setCopilota(initialData.copilota || false);
       setCost(initialData.cost || '');
+      setDepositPaid(initialData.depositPaid || initialData.acconto || '');
       setDropoffDate(initialData.dropoffDate || '');
       setDropoffTime(initialData.dropoffTime || '');
       setDropoffLocation(initialData.dropoffLocation || '');
@@ -57,7 +59,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       setBookingCode(initialData.bookingCode || '');
       setTicketUrl(initialData.ticketUrl || '');
       setNotes(initialData.notes || '');
-      if (initialData.cost || initialData.layover || initialData.departureTime || initialData.arrivalTime || initialData.carrier || initialData.bookingCode || initialData.ticketUrl || initialData.notes || initialData.dropoffDate || initialData.dropoffTime || initialData.dropoffLocation || initialData.copilota) {
+      if (initialData.cost || initialData.depositPaid || initialData.acconto || initialData.layover || initialData.departureTime || initialData.arrivalTime || initialData.carrier || initialData.bookingCode || initialData.ticketUrl || initialData.notes || initialData.dropoffDate || initialData.dropoffTime || initialData.dropoffLocation || initialData.copilota) {
         setShowAdvanced(true);
       }
     } else {
@@ -68,6 +70,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       setStatus('pianificato');
       setCopilota(false);
       setCost('');
+      setDepositPaid('');
       setDropoffDate('');
       setDropoffTime('');
       setDropoffLocation('');
@@ -111,6 +114,8 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       status,
       copilota: copilota || undefined,
       cost: cost.trim() || undefined,
+      depositPaid: depositPaid.trim() || undefined,
+      acconto: depositPaid.trim() || undefined,
       layover: layoverAirport.trim()
         ? {
             airport: layoverAirport.trim(),
@@ -299,15 +304,33 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Costo / Note Pagamento
+            Costo / Saldo da pagare
           </label>
           <input
             type="text"
-            placeholder="es. 84,51 € / Incluso"
+            placeholder="es. Da saldare: ~310 € / Incluso"
             value={cost}
             onChange={(e) => setCost(e.target.value)}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-sky-500 transition-colors placeholder:text-slate-400"
           />
+        </div>
+      </div>
+
+      {/* Acconto già versato */}
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+          <span>Acconto Già Versato</span>
+          <span className="text-[10px] text-emerald-600 font-semibold lowercase">se già versato un anticipo</span>
+        </label>
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="es. 518,18 NZD (~282 €) o 511,00 AUD (~308 €)"
+            value={depositPaid}
+            onChange={(e) => setDepositPaid(e.target.value)}
+            className="w-full h-11 pl-9 pr-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-emerald-500 transition-colors placeholder:text-slate-400"
+          />
+          <span className="absolute left-3 top-3 text-sm text-emerald-600">💰</span>
         </div>
       </div>
 
