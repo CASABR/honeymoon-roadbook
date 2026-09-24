@@ -96,4 +96,4 @@ export interface Trasporto {
   updatedAt: number;
 }
 
-export type SectionTab = 'attivita' | 'alloggi' | 'trasporti';
+export type SectionTab = 'oggi' | 'attivita' | 'alloggi' | 'trasporti' | 'altro';

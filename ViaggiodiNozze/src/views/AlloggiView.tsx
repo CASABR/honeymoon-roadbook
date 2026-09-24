@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import type { Alloggio } from '../types';
 import { storageService } from '../storage/storageService';
 import AlloggioCard from '../components/cards/AlloggioCard';
@@ -81,12 +81,12 @@ export default function AlloggiView() {
   return (
     <section className="flex flex-col flex-1 pb-10">
       {/* Header */}
-      <header className="flex items-center justify-between mb-6">
+      <header className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100 tracking-tight">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             Alloggi
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             {accommodations.length === 0
               ? 'Nessuna struttura inserita'
               : accommodations.length + ' ' + (accommodations.length === 1 ? 'struttura registrata' : 'strutture registrate')}

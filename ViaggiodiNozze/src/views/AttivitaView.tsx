@@ -143,12 +143,12 @@ export default function AttivitaView() {
   return (
     <section className="flex flex-col flex-1 pb-10">
       {/* Header Sezione */}
-      <header className="flex items-center justify-between mb-6">
+      <header className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold text-slate-100 tracking-tight">
+          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
             Attività
           </h1>
-          <p className="text-xs text-slate-400 mt-0.5">
+          <p className="text-xs text-slate-500 mt-0.5">
             {days.length === 0
               ? 'Nessun giorno programmato'
               : days.length + ' ' + (days.length === 1 ? 'giorno' : 'giorni') + ' • ' + activities.length + ' attività'}
@@ -186,17 +186,17 @@ export default function AttivitaView() {
                 type="button"
                 onClick={() => setCategoryFilter(chip.id)}
                 className={
-                  'snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer ' +
+                  'snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ' +
                   (categoryFilter === chip.id
                     ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                    : 'bg-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-700/80')
+                    : 'bg-white text-slate-600 border border-slate-200/80 hover:text-slate-900 hover:bg-slate-50')
                 }
               >
                 <span>{chip.label}</span>
                 {chip.count > 0 && (
                   <span className={
-                    'text-[10px] font-bold px-1 rounded-full ' +
-                    (categoryFilter === chip.id ? 'bg-slate-950/20 text-slate-900' : 'bg-slate-700 text-slate-400')
+                    'text-[10px] font-bold px-1.5 py-0.5 rounded-full ' +
+                    (categoryFilter === chip.id ? 'bg-slate-950/20 text-slate-900' : 'bg-slate-100 text-slate-600')
                   }>{chip.count}</span>
                 )}
               </button>
@@ -247,16 +247,16 @@ export default function AttivitaView() {
 
                 {/* Lista Attività Collegate al Giorno */}
                 {isSelected && (
-                  <div className="pl-3 sm:pl-4 border-l-2 border-amber-500/30 space-y-2 mt-2">
+                  <div className="pl-3 sm:pl-4 border-l-2 border-amber-500/40 space-y-2 mt-2">
                     {dayActivities.length === 0 ? (
-                      <div className="p-4 rounded-xl bg-slate-900/40 border border-dashed border-slate-800 text-center">
-                        <p className="text-xs text-slate-400 mb-2">
+                      <div className="p-4 rounded-2xl bg-white border border-dashed border-slate-300 text-center shadow-sm">
+                        <p className="text-xs text-slate-500 mb-2">
                           Nessuna attività programmata per questo giorno.
                         </p>
                         <button
                           type="button"
                           onClick={() => handleOpenAddActivity(day.id)}
-                          className="text-xs font-semibold text-amber-400 hover:text-amber-300 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                          className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
