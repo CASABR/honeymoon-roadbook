@@ -1,0 +1,1794 @@
+[
+  {
+    "id": "day-1",
+    "dayNumber": 1,
+    "date": "2026-11-28",
+    "dateLabel": "Sab 28 nov",
+    "dateShort": "28",
+    "monthShort": "nov",
+    "dayShort": "Sab",
+    "location": "Roma → Milano, Italia 🇮🇹",
+    "timezone": "Europe/Rome",
+    "activities": [
+      {
+        "id": "d1-1",
+        "time": "11:05",
+        "type": "transport",
+        "title": "Roma Termini → Milano Centrale",
+        "subtitle": "Italo 9978 · Smart, Carrozza 10, Posti 1-2 · Arrivo 14:15 (3h 10m)",
+        "transitTime": "3h 10m",
+        "status": "futuro",
+        "hasQR": true,
+        "howToGetThere": "Binari alta velocità Roma Termini. Presentarsi 15 minuti prima al varco accesso treni.",
+        "mapsUrl": "https://www.google.com/maps/dir/?api=1&origin=Roma+Termini&destination=Milano+Centrale&travelmode=transit",
+        "note": "Italo 9978 alta velocità (durata 3h 10m). Smart, carrozza 10, posti 1-2. Roma Termini 11:05 -> Milano Centrale 14:15."
+      },
+      {
+        "id": "d1-museo",
+        "time": "15:30",
+        "type": "sightseeing",
+        "title": "Visita al Museo del Novecento & Piazza Duomo",
+        "subtitle": "Piazza del Duomo 8, Milano",
+        "duration": "2h",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Museo+del+Novecento+Milano",
+        "note": "Tour delle collezioni d'arte del XX secolo e vista panoramica esclusiva sul Duomo dal palazzo dell'Arengario."
+      },
+      {
+        "id": "d1-2",
+        "time": "17:30",
+        "type": "sightseeing",
+        "title": "Passeggiata Galleria Vittorio Emanuele II & Aperitivo in Brera",
+        "subtitle": "Galleria & Quartiere Brera, Milano",
+        "duration": "1h 30m",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Galleria+Vittorio+Emanuele+II+Milano",
+        "note": "Passeggiata rilassante e aperitivo in Brera prima di andare in albergo."
+      },
+      {
+        "id": "d1-hotel",
+        "time": "19:30",
+        "type": "hotel",
+        "title": "Check-in in serata a&o Hostel Milano Ca Granda",
+        "subtitle": "Via di Vittorio 1, Milano (Ca' Granda M5)",
+        "price": 61.95,
+        "isPaid": true,
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=ao+Hostel+Milano+Ca+Granda",
+        "howToGetThere": "Da Milano Centrale o dal Duomo prendere Metro M3 (gialla) fino a Zara, poi Metro M5 (lilla) fino a Ca' Granda. A piedi 3 minuti.",
+        "note": "Check-in serale (dalle 19:30). Camere pronte."
+      },
+      {
+        "id": "d1-3",
+        "time": "20:30",
+        "type": "food",
+        "title": "Cena a Milano",
+        "subtitle": "Trattoria / Pizzeria in zona Milano",
+        "price": 25,
+        "isPaid": false,
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Brera+Milano+ristorante"
+      }
+    ]
+  },
+  {
+    "id": "day-2",
+    "dayNumber": 2,
+    "date": "2026-11-29",
+    "dateLabel": "Dom 29 nov",
+    "dateShort": "29",
+    "monthShort": "nov",
+    "dayShort": "Dom",
+    "location": "Milano → In volo per Pechino",
+    "timezone": "Europe/Rome",
+    "activities": [
+      {
+        "id": "d2-0",
+        "time": "09:30",
+        "type": "transport",
+        "title": "Malpensa Express → MXP T1",
+        "subtitle": "Milano Centrale → Aeroporto Milano Malpensa T1",
+        "transitTime": "50m",
+        "howToGetThere": "Prendere il Malpensa Express da Milano Centrale diretto al Terminal 1."
+      },
+      {
+        "id": "d2-1",
+        "time": "12:30",
+        "type": "transport",
+        "title": "Milano MXP T1 → Pechino PEK T3",
+        "subtitle": "Air China CA950 (A350-900) · PNR ***REMOVED*** · 10h 20m",
+        "transitTime": "10h 20m",
+        "hasQR": true,
+        "isBooked": true,
+        "timeBeforehand": "Presentarsi al Terminal 1 entro le 09:30 (3 ore prima)",
+        "note": "MXP T1 12:30 -> PEK T3 05:50 (+1). Posti: 50A (***REMOVED***), 50B (***REMOVED***). PNR ***REMOVED***. Bagagli: 1x23kg stiva + 5kg cabina (rigido)."
+      }
+    ]
+  },
+  {
+    "id": "day-3",
+    "dayNumber": 3,
+    "date": "2026-11-30",
+    "dateLabel": "Lun 30 nov",
+    "dateShort": "30",
+    "monthShort": "nov",
+    "dayShort": "Lun",
+    "location": "Pechino, Cina 🇨🇳",
+    "timezone": "Asia/Shanghai",
+    "activities": [
+      {
+        "id": "d3-1",
+        "time": "05:50",
+        "type": "transport",
+        "title": "Arrivo a Pechino PEK T3",
+        "subtitle": "Air China CA950 · Terminal 3 · Scalo lungo 18h 35m (TWOV)",
+        "transitTime": "18h 35m",
+        "note": "Scalo Pechino 30 nov: 18h35m con uscita città (TWOV). Ritirare bagaglio se richiesto e passare il controllo passaporti.",
+        "howToGetThere": "Terminal 3, Pechino Capital International Airport.",
+        "isBooked": true
+      },
+      {
+        "id": "d3-taxi1",
+        "time": "07:00",
+        "type": "transport",
+        "title": "Taxi: Aeroporto PEK → Muraglia Cinese (Badaling)",
+        "subtitle": "Pechino Capital Airport, Terminal 3",
+        "transitTime": "1h 20m",
+        "price": 25,
+        "isPaid": false,
+        "note": "Stima costo: ~200 CNY (≈ €25). Usare taxi ufficiali dalla coda taxi al Terminal 3. Evitare abusivi. Mostrare al tassista: 八达岭长城 (Badaling Great Wall). Autostrada G6 verso nord.",
+        "howToGetThere": "Uscite ufficiali taxi al piano arrivi, Terminal 3.",
+        "mapsUrl": "https://www.google.com/maps/dir/?api=1&origin=Beijing+Capital+International+Airport&destination=Badaling+Great+Wall,+Beijing&travelmode=driving"
+      },
+      {
+        "id": "d3-2",
+        "time": "08:30",
+        "type": "sightseeing",
+        "title": "Muraglia Cinese a Badaling",
+        "subtitle": "Badaling, Great Wall of China, Pechino",
+        "duration": "2h 30m",
+        "price": 40,
+        "isPaid": false,
+        "note": "Sezione più restaurata e accessibile della Muraglia. Apertura dalle 06:30. Biglietto: ~40 CNY (≈ €5). Si consiglia la torre est (Torre 12) per meno folla.",
+        "howToGetThere": "Scendere dal taxi all'ingresso principale di Badaling.",
+        "ticketUrl": "https://www.travelchinaguide.com/china_great_wall/badaling/",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Badaling+Great+Wall+Beijing",
+        "isManaged": true
+      },
+      {
+        "id": "d3-taxi2",
+        "time": "11:10",
+        "type": "transport",
+        "title": "Taxi: Muraglia → Piazza Tiananmen",
+        "subtitle": "Badaling Great Wall → Piazza Tiananmen, Pechino",
+        "transitTime": "1h 10m",
+        "price": 18,
+        "isPaid": false,
+        "note": "Stima costo: ~150 CNY (≈ €18). Il taxi va prenotato all'uscita della biglietteria Badaling. Mostrare: 天安门广场 (Piazza Tiananmen).",
+        "howToGetThere": "Banco taxi all'uscita della biglietteria di Badaling.",
+        "mapsUrl": "https://www.google.com/maps/dir/?api=1&origin=Badaling+Great+Wall,+Beijing&destination=Tiananmen+Square,+Beijing&travelmode=driving"
+      },
+      {
+        "id": "d3-3",
+        "time": "12:20",
+        "type": "food",
+        "title": "Pranzo in zona Tiananmen / Hutong",
+        "subtitle": "Qianmen Street, Pechino",
+        "duration": "1h",
+        "price": 15,
+        "isPaid": false,
+        "note": "Zona Qianmen con ristoranti tradizionali: anatra alla pechinese, dim sum, jiaozi.",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Qianmen+Street+Beijing+restaurant"
+      },
+      {
+        "id": "d3-4",
+        "time": "13:30",
+        "type": "sightseeing",
+        "title": "Piazza Tiananmen e Città Proibita",
+        "subtitle": "Tiananmen Square & Forbidden City, Pechino",
+        "duration": "2h",
+        "price": 10,
+        "isPaid": false,
+        "note": "Piazza Tiananmen gratuita. Si consiglia l'esterno/piazza per i tempi dello scalo.",
+        "howToGetThere": "Raggiungibile a piedi da Qianmen, oppure con la metro linea 1.",
+        "ticketUrl": "https://www.travelchinaguide.com/cityguides/beijing/forbidden-city/",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Tiananmen+Square+Beijing"
+      },
+      {
+        "id": "d3-taxi3",
+        "time": "15:40",
+        "type": "transport",
+        "title": "Taxi: Tiananmen → Aeroporto PEK",
+        "subtitle": "Piazza Tiananmen → Beijing Capital Airport T3",
+        "transitTime": "55m",
+        "price": 18,
+        "isPaid": false,
+        "note": "Partire entro le 15:30–15:45 per essere in aeroporto entro le 17:00 con margine confortevole. Mostrare al tassista: 北京首都国际机场 T3.",
+        "howToGetThere": "Fermare un taxi sulla Tian'anmen West Avenue o usare l'app DiDi.",
+        "mapsUrl": "https://www.google.com/maps/dir/?api=1&origin=Tiananmen+Square,+Beijing&destination=Beijing+Capital+International+Airport+Terminal+3&travelmode=driving"
+      },
+      {
+        "id": "d3-5",
+        "time": "17:00",
+        "type": "other",
+        "title": "Check-in volo notte PEK → AKL",
+        "subtitle": "Beijing Capital Airport, Terminal 3 · Gate E",
+        "note": "Check-in Air China Terminal 3 per volo CA783.",
+        "isBooked": true
+      },
+      {
+        "id": "d3-6",
+        "time": "00:25",
+        "type": "transport",
+        "title": "PEK T3 → Auckland AKL",
+        "subtitle": "Air China CA783 (787-9) · PNR ***REMOVED*** · 13h 00m",
+        "transitTime": "13h 00m",
+        "hasQR": true,
+        "isBooked": true,
+        "note": "PEK T3 00:25 -> AKL 17:25 (1 dic). Posti: 50K (***REMOVED***), 50L (***REMOVED***). PNR ***REMOVED***."
+      }
+    ]
+  },
+  {
+    "id": "day-4",
+    "dayNumber": 4,
+    "date": "2026-12-01",
+    "dateLabel": "Mar 1 dic",
+    "dateShort": "1",
+    "monthShort": "dic",
+    "dayShort": "Mar",
+    "location": "Auckland, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d4-1",
+        "time": "17:25",
+        "type": "transport",
+        "title": "Arrivo Auckland AKL",
+        "subtitle": "Dogana e pratiche di ingresso",
+        "transitTime": "1h 30m"
+      },
+      {
+        "id": "d4-2",
+        "time": "20:00",
+        "type": "hotel",
+        "title": "Check-in Noa Hotel",
+        "subtitle": "Auckland CBD",
+        "price": 52,
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Noa+Hotel+Auckland"
+      }
+    ]
+  },
+  {
+    "id": "day-5",
+    "dayNumber": 5,
+    "date": "2026-12-02",
+    "dateLabel": "Mer 2 dic",
+    "dateShort": "2",
+    "monthShort": "dic",
+    "dayShort": "Mer",
+    "location": "Waitomo, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d5-1",
+        "time": "10:00",
+        "type": "transport",
+        "title": "Ritiro auto Snap Rentals NZ (ref 742210189)",
+        "subtitle": "Auckland Parnell (60-64 The Strand) · Auto One-Way",
+        "note": "Ref 742210189. Ritiro Parnell 02 dic 10:00 -> CHC Airport 15 dic 12:00. Totale 1.057,04 NZD (~591,94 €), saldo al banco 538,86 NZD."
+      },
+      {
+        "id": "d5-2",
+        "time": "11:15",
+        "type": "sightseeing",
+        "title": "Hamilton Gardens",
+        "subtitle": "Hamilton, Nuova Zelanda (consigliato)",
+        "transitTime": "1h 30m",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Hamilton+Gardens,+Hamilton,+New+Zealand"
+      },
+      {
+        "id": "d5-3",
+        "time": "13:30",
+        "type": "sightseeing",
+        "title": "Otorohanga Kiwi House",
+        "subtitle": "20 Alex Telfer Drive, Otorohanga",
+        "transitTime": "45m",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=20+Alex+Telfer+Drive,+Otorohanga,+New+Zealand"
+      },
+      {
+        "id": "d5-4",
+        "time": "16:00",
+        "type": "sightseeing",
+        "title": "Mangapohue Natural Bridge",
+        "subtitle": "Te Anga Road, Waitomo",
+        "transitTime": "40m",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Te+Anga+Road,+Waitomo,+New+Zealand"
+      },
+      {
+        "id": "d5-5",
+        "time": "17:30",
+        "type": "sightseeing",
+        "title": "Waitomo Glowworm Caves",
+        "subtitle": "39 Waitomo Village Road — grotte bioluminescenti",
+        "transitTime": "15m",
+        "price": 75,
+        "isPaid": false,
+        "isBooked": true,
+        "howToGetThere": "39 Waitomo Village Road, Waitomo Caves.",
+        "timeBeforehand": "Arrivare 15 minuti prima",
+        "duration": "45m",
+        "ticketUrl": "https://www.waitomo.com/experiences/waitomo-glowworm-caves",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=39+Waitomo+Village+Road,+Waitomo,+New+Zealand",
+        "note": "Tour guidato in barca nelle grotte.",
+        "isManaged": true
+      },
+      {
+        "id": "d5-6",
+        "time": "22:00",
+        "type": "hotel",
+        "title": "Waitomo Village Chalets (Kiwipaka)",
+        "subtitle": "Waitomo Village",
+        "price": 68,
+        "transitTime": "5m"
+      }
+    ]
+  },
+  {
+    "id": "day-6",
+    "dayNumber": 6,
+    "date": "2026-12-03",
+    "dateLabel": "Gio 3 dic",
+    "dateShort": "3",
+    "monthShort": "dic",
+    "dayShort": "Gio",
+    "location": "Rotorua, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d6-1",
+        "time": "09:00",
+        "type": "sightseeing",
+        "title": "Hobbiton Movie Set",
+        "subtitle": "501 Buckland Road, Matamata",
+        "price": 89,
+        "isPaid": false,
+        "isBooked": true,
+        "howToGetThere": "501 Buckland Road, Hinuera, Matamata.",
+        "timeBeforehand": "Arrivare 15 minuti prima",
+        "duration": "2h 30m",
+        "ticketUrl": "https://www.hobbitontours.com/",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=501+Buckland+Road,+Matamata,+New+Zealand",
+        "isManaged": true
+      },
+      {
+        "id": "d6-2",
+        "time": "13:00",
+        "type": "food",
+        "title": "Big Dog and Sheep — Pranzo a Tirau",
+        "subtitle": "Tirau i-SITE Visitor Information Centre",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Tirau+i-SITE+Visitor+Centre,+Tirau,+New+Zealand"
+      },
+      {
+        "id": "d6-3",
+        "time": "15:00",
+        "type": "sightseeing",
+        "title": "Te Waihou Blue Spring",
+        "subtitle": "Whites Road, Putaruru",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Whites+Road,+Putaruru,+New+Zealand"
+      },
+      {
+        "id": "d6-4",
+        "time": "17:30",
+        "type": "sightseeing",
+        "title": "Mitai Maori Village",
+        "subtitle": "196 Fairy Springs Road, Rotorua — Spettacolo culturale e cena tipica",
+        "transitTime": "15m",
+        "price": 130,
+        "isPaid": false,
+        "isBooked": true,
+        "duration": "3h",
+        "ticketUrl": "https://www.mitai.co.nz/",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=196+Fairy+Springs+Road,+Rotorua,+New+Zealand",
+        "isManaged": true
+      },
+      {
+        "id": "d6-5",
+        "time": "22:00",
+        "type": "hotel",
+        "title": "Wylie Court Motor Lodge",
+        "subtitle": "345 Fenton Street, Rotorua",
+        "price": 106
+      }
+    ]
+  },
+  {
+    "id": "day-7",
+    "dayNumber": 7,
+    "date": "2026-12-04",
+    "dateLabel": "Ven 4 dic",
+    "dateShort": "4",
+    "monthShort": "dic",
+    "dayShort": "Ven",
+    "location": "Tongariro NP, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d7-1",
+        "time": "09:00",
+        "type": "sightseeing",
+        "title": "Redwoods Treewalk",
+        "subtitle": "1 Long Mile Road, Rotorua",
+        "price": 25,
+        "isPaid": false,
+        "isBooked": true,
+        "duration": "40m",
+        "ticketUrl": "https://www.redwoods.co.nz/",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=1+Long+Mile+Road,+Rotorua,+New+Zealand",
+        "isManaged": true
+      },
+      {
+        "id": "d7-2",
+        "time": "11:00",
+        "type": "sightseeing",
+        "title": "Polynesian Spa",
+        "subtitle": "1000 Hinemoa Street, Rotorua",
+        "price": 40,
+        "isPaid": false,
+        "isBooked": true,
+        "duration": "2h",
+        "ticketUrl": "https://www.polynesianspa.co.nz/",
+        "isManaged": true
+      },
+      {
+        "id": "d7-3",
+        "time": "13:30",
+        "type": "sightseeing",
+        "title": "Waiotapu Thermal Wonderland",
+        "subtitle": "201 Waiotapu Loop Road"
+      },
+      {
+        "id": "d7-4",
+        "time": "15:30",
+        "type": "sightseeing",
+        "title": "Wairakei Terraces e Thermal Health Spa",
+        "subtitle": "Wairakei"
+      },
+      {
+        "id": "d7-5",
+        "time": "16:30",
+        "type": "sightseeing",
+        "title": "Cascate Huka",
+        "subtitle": "Wairakei, Taupo"
+      },
+      {
+        "id": "d7-6",
+        "time": "18:45",
+        "type": "hotel",
+        "title": "National Park Backpackers",
+        "subtitle": "National Park Village",
+        "price": 47
+      }
+    ]
+  },
+  {
+    "id": "day-8",
+    "dayNumber": 8,
+    "date": "2026-12-05",
+    "dateLabel": "Sab 5 dic",
+    "dateShort": "5",
+    "monthShort": "dic",
+    "dayShort": "Sab",
+    "location": "Levin, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d8-1",
+        "time": "08:00",
+        "type": "sightseeing",
+        "title": "Trekking Tongariro Alpine Crossing",
+        "subtitle": "Trekking tra i vulcani attivi (19.4 km)"
+      },
+      {
+        "id": "d8-2",
+        "time": "17:00",
+        "type": "transport",
+        "title": "Spostamento a Levin",
+        "subtitle": "Trasferimento da Tongariro a Levin",
+        "transitTime": "2h 41m"
+      },
+      {
+        "id": "d8-3",
+        "time": "20:00",
+        "type": "hotel",
+        "title": "Totara Lodge Motel",
+        "subtitle": "15 Devon Street, Levin",
+        "price": 51
+      }
+    ]
+  },
+  {
+    "id": "day-9",
+    "dayNumber": 9,
+    "date": "2026-12-06",
+    "dateLabel": "Dom 6 dic",
+    "dateShort": "6",
+    "monthShort": "dic",
+    "dayShort": "Dom",
+    "location": "Wellington → Kaikoura, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d9-0",
+        "time": "08:30",
+        "type": "sightseeing",
+        "title": "Partenza da Levin",
+        "subtitle": "Verso Wellington"
+      },
+      {
+        "id": "d9-1a",
+        "time": "10:00",
+        "type": "sightseeing",
+        "title": "Museum Te Papa Tongarewa",
+        "subtitle": "Wellington — Museo Nazionale Nuova Zelanda"
+      },
+      {
+        "id": "d9-1",
+        "time": "07:50",
+        "type": "transport",
+        "title": "Traghetto Stretto di Cook (auto)",
+        "subtitle": "Wellington (imbarco 07:00, 07:50) → Picton 11:20",
+        "hasQR": true,
+        "note": "Traghetto Stretto di Cook con auto al seguito. Wellington imbarco 07:00, partenza 07:50 -> arrivo Picton 11:20."
+      },
+      {
+        "id": "d9-2",
+        "time": "16:15",
+        "type": "transport",
+        "title": "Arrivo Picton · Marlborough Sounds",
+        "subtitle": "Proseguire verso Kaikoura (Queen Charlotte Drive)"
+      },
+      {
+        "id": "d9-3",
+        "time": "21:00",
+        "type": "hotel",
+        "title": "Kaikoura Seaside Lodge",
+        "subtitle": "268 Esplanade, Kaikoura",
+        "price": 50
+      }
+    ]
+  },
+  {
+    "id": "day-10",
+    "dayNumber": 10,
+    "date": "2026-12-07",
+    "dateLabel": "Lun 7 dic",
+    "dateShort": "7",
+    "monthShort": "dic",
+    "dayShort": "Lun",
+    "location": "Arthur Pass, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d10-whale",
+        "time": "09:00",
+        "type": "sightseeing",
+        "title": "Whale Watch Kaikoura",
+        "subtitle": "Whale Way Station, Kaikoura",
+        "price": 160,
+        "isPaid": false,
+        "isBooked": true,
+        "duration": "3h 15m",
+        "ticketUrl": "https://www.whalewatch.co.nz/",
+        "isManaged": true
+      },
+      {
+        "id": "d10-1",
+        "time": "13:30",
+        "type": "transport",
+        "title": "Kaikoura → Arthur Pass",
+        "subtitle": "Strada panoramica sulla costa est",
+        "transitTime": "4h 21m"
+      },
+      {
+        "id": "d10-2",
+        "time": "18:00",
+        "type": "hotel",
+        "title": "Otira Stagecoach Hotel",
+        "subtitle": "6435 Otira Highway, Otira",
+        "price": 72
+      }
+    ]
+  },
+  {
+    "id": "day-11",
+    "dayNumber": 11,
+    "date": "2026-12-08",
+    "dateLabel": "Mar 8 dic",
+    "dateShort": "8",
+    "monthShort": "dic",
+    "dayShort": "Mar",
+    "location": "Hokitika → Franz Josef, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d11-0",
+        "time": "09:00",
+        "type": "sightseeing",
+        "title": "Partenza da Otira",
+        "subtitle": "Otira Viaduct Lookout"
+      },
+      {
+        "id": "d11-1",
+        "time": "10:00",
+        "type": "sightseeing",
+        "title": "Hokitika",
+        "subtitle": "Hokitika, West Coast NZ"
+      },
+      {
+        "id": "d11-2",
+        "time": "11:30",
+        "type": "sightseeing",
+        "title": "Hokitika Gorge",
+        "subtitle": "Kokatahi 7881 — Gola dal colore turchese"
+      },
+      {
+        "id": "d11-3",
+        "time": "14:00",
+        "type": "food",
+        "title": "Sosta pranzo a Franz Josef",
+        "subtitle": "Full Of Beans, Main Road, Franz Josef"
+      },
+      {
+        "id": "d11-4",
+        "time": "16:00",
+        "type": "sightseeing",
+        "title": "Franz Josef Glacier Walk",
+        "subtitle": "Passeggiata verso il fronte del ghiacciaio"
+      },
+      {
+        "id": "d11-5",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "Haka House Franz Josef",
+        "subtitle": "2/4 Cron Street, Franz Josef Glacier",
+        "price": 68
+      }
+    ]
+  },
+  {
+    "id": "day-12",
+    "dayNumber": 12,
+    "date": "2026-12-09",
+    "dateLabel": "Mer 9 dic",
+    "dateShort": "9",
+    "monthShort": "dic",
+    "dayShort": "Mer",
+    "location": "Fox Glacier, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d12-1",
+        "time": "08:30",
+        "type": "sightseeing",
+        "title": "Fox Glacier Helihike",
+        "subtitle": "Salita in elicottero e trekking sul ghiacciaio",
+        "price": 599,
+        "isPaid": false,
+        "isBooked": true,
+        "duration": "4h",
+        "ticketUrl": "https://www.foxguides.co.nz/our-trips/fox-glacier-flying-fox-heli-hike/",
+        "isManaged": true
+      },
+      {
+        "id": "d12-2",
+        "time": "15:00",
+        "type": "sightseeing",
+        "title": "Lake Matheson Walk",
+        "subtitle": "Specchio riflesso del Monte Cook"
+      },
+      {
+        "id": "d12-3",
+        "time": "18:00",
+        "type": "hotel",
+        "title": "Ivorytowers Accommodation, Fox Glacier",
+        "subtitle": "33/35 Sullivans Road, Fox Glacier",
+        "price": 49
+      }
+    ]
+  },
+  {
+    "id": "day-13",
+    "dayNumber": 13,
+    "date": "2026-12-10",
+    "dateLabel": "Gio 10 dic",
+    "dateShort": "10",
+    "monthShort": "dic",
+    "dayShort": "Gio",
+    "location": "Wanaka → Cardrona, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d13-0",
+        "time": "08:30",
+        "type": "sightseeing",
+        "title": "Partenza da Ivory Towers (Fox Glacier)",
+        "subtitle": "33/35 Sullivans Road, Fox Glacier"
+      },
+      {
+        "id": "d13-1",
+        "time": "09:00",
+        "type": "sightseeing",
+        "title": "Lake Matheson",
+        "subtitle": "Lake Matheson Road — Specchio del Monte Cook"
+      },
+      {
+        "id": "d13-2",
+        "time": "12:00",
+        "type": "sightseeing",
+        "title": "Haast Pass",
+        "subtitle": "West Coast 9382 — Passo panoramico"
+      },
+      {
+        "id": "d13-3",
+        "time": "12:15",
+        "type": "sightseeing",
+        "title": "Fantail Falls",
+        "subtitle": "Cascata su Haast Pass"
+      },
+      {
+        "id": "d13-4",
+        "time": "13:30",
+        "type": "sightseeing",
+        "title": "Blue Pools",
+        "subtitle": "Blue Pools Track, Otago Region"
+      },
+      {
+        "id": "d13-5",
+        "time": "15:00",
+        "type": "sightseeing",
+        "title": "Wanaka",
+        "subtitle": "Lake Wanaka, Nuova Zelanda"
+      },
+      {
+        "id": "d13-6",
+        "time": "15:30",
+        "type": "sightseeing",
+        "title": "Roy's Peak Lookout",
+        "subtitle": "2 Glendhu Bay Road"
+      },
+      {
+        "id": "d13-7",
+        "time": "17:30",
+        "type": "hotel",
+        "title": "Cardrona Hotel",
+        "subtitle": "Cardrona Valley Road, Cardrona",
+        "price": 78
+      }
+    ]
+  },
+  {
+    "id": "day-14",
+    "dayNumber": 14,
+    "date": "2026-12-11",
+    "dateLabel": "Ven 11 dic",
+    "dateShort": "11",
+    "monthShort": "dic",
+    "dayShort": "Ven",
+    "location": "Eglinton Valley, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d14-1",
+        "time": "09:00",
+        "type": "transport",
+        "title": "Avvicinamento Milford Sound",
+        "subtitle": "Viaggio attraverso Eglinton Valley",
+        "transitTime": "4h 28m"
+      },
+      {
+        "id": "d14-2",
+        "time": "18:00",
+        "type": "hotel",
+        "title": "Eglinton Valley Camp",
+        "subtitle": "Te Anau Downs",
+        "price": 149
+      }
+    ]
+  },
+  {
+    "id": "day-15",
+    "dayNumber": 15,
+    "date": "2026-12-12",
+    "dateLabel": "Sab 12 dic",
+    "dateShort": "12",
+    "monthShort": "dic",
+    "dayShort": "Sab",
+    "location": "Arrowtown, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d15-1",
+        "time": "10:00",
+        "type": "sightseeing",
+        "title": "Milford Sound Cruise",
+        "subtitle": "Crociera panoramica sui fiordi (Fiordland)",
+        "price": 70,
+        "isPaid": false,
+        "isBooked": true,
+        "duration": "2h",
+        "ticketUrl": "https://www.realnz.com/en/experiences/cruises/milford-sound-cruises/",
+        "isManaged": true
+      },
+      {
+        "id": "d15-2",
+        "time": "15:00",
+        "type": "transport",
+        "title": "Milford Sound → Queenstown → Arrowtown",
+        "subtitle": "Rientro verso la regione di Queenstown",
+        "transitTime": "3h 54m"
+      },
+      {
+        "id": "d15-3",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "New Orleans Hotel",
+        "subtitle": "Arrowtown",
+        "price": 85
+      }
+    ]
+  },
+  {
+    "id": "day-16",
+    "dayNumber": 16,
+    "date": "2026-12-13",
+    "dateLabel": "Dom 13 dic",
+    "dateShort": "13",
+    "monthShort": "dic",
+    "dayShort": "Dom",
+    "location": "Lake Tekapo, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d16-1",
+        "time": "10:00",
+        "type": "transport",
+        "title": "Arrowtown → Lake Tekapo",
+        "subtitle": "Spostamento panoramico verso i laghi turchesi",
+        "transitTime": "3h 51m"
+      },
+      {
+        "id": "d16-2",
+        "time": "21:00",
+        "type": "sightseeing",
+        "title": "Stargazing Monte John Observatory",
+        "subtitle": "Cielo stellato UNESCO Lake Tekapo",
+        "price": 95,
+        "isPaid": false,
+        "isBooked": true,
+        "duration": "2h",
+        "ticketUrl": "https://www.darkskyproject.co.nz/",
+        "isManaged": true
+      },
+      {
+        "id": "d16-3",
+        "time": "23:00",
+        "type": "hotel",
+        "title": "Fairlie Holiday Park",
+        "subtitle": "Fairlie",
+        "price": 61
+      }
+    ]
+  },
+  {
+    "id": "day-17",
+    "dayNumber": 17,
+    "date": "2026-12-14",
+    "dateLabel": "Lun 14 dic",
+    "dateShort": "14",
+    "monthShort": "dic",
+    "dayShort": "Lun",
+    "location": "Christchurch, NZ",
+    "timezone": "Pacific/Auckland",
+    "activities": [
+      {
+        "id": "d17-1",
+        "time": "10:00",
+        "type": "transport",
+        "title": "Lake Tekapo → Christchurch Airport",
+        "subtitle": "Spostamento verso Christchurch",
+        "transitTime": "2h 51m"
+      },
+      {
+        "id": "d17-2",
+        "time": "18:00",
+        "type": "hotel",
+        "title": "MCM Motel Christchurch",
+        "subtitle": "Christchurch",
+        "price": 65
+      }
+    ]
+  },
+  {
+    "id": "day-18",
+    "dayNumber": 18,
+    "date": "2026-12-15",
+    "dateLabel": "Mar 15 dic",
+    "dateShort": "15",
+    "monthShort": "dic",
+    "dayShort": "Mar",
+    "location": "Christchurch → Adelaide, AU 🇦🇺",
+    "timezone": "Australia/Adelaide",
+    "activities": [
+      {
+        "id": "d18-1",
+        "time": "15:25",
+        "type": "transport",
+        "title": "Volo Christchurch CHC → Adelaide ADL T1",
+        "subtitle": "Air New Zealand NZ261 · PNR ***REMOVED*** · 2h 10m [DA VERIFICARE]",
+        "hasQR": true,
+        "note": "[DA VERIFICARE: operatività martedì]. CHC 15:25 -> ADL T1 17:35. Tariffa Seat: 7kg cabina, 0kg stiva. Posti al web check-in."
+      },
+      {
+        "id": "d18-2",
+        "time": "18:00",
+        "type": "transport",
+        "title": "Ritiro auto Bargain Car Rentals ADL (ref 755401529)",
+        "subtitle": "ADL Airport Shuttle · MG 3 o similare (automatico)",
+        "note": "Ref 755401529. Conducente: ***REMOVED*** Belardo. Ritiro ADL 15 dic 18:00 -> riconsegna 17 dic 17:30."
+      },
+      {
+        "id": "d18-3",
+        "time": "19:30",
+        "type": "hotel",
+        "title": "Check-in Adelaide Riviera Hotel",
+        "subtitle": "Adelaide",
+        "price": 75
+      }
+    ]
+  },
+  {
+    "id": "day-19",
+    "dayNumber": 19,
+    "date": "2026-12-16",
+    "dateLabel": "Mer 16 dic",
+    "dateShort": "16",
+    "monthShort": "dic",
+    "dayShort": "Mer",
+    "location": "Kangaroo Island, AU",
+    "timezone": "Australia/Adelaide",
+    "activities": [
+      {
+        "id": "d19-1",
+        "time": "09:00",
+        "type": "transport",
+        "title": "SeaLink Traghetto (auto) Cape Jervis → Penneshaw",
+        "subtitle": "Traghetto per Kangaroo Island con auto [DA VERIFICARE]",
+        "note": "[DA VERIFICARE: prenotazione veicolo]."
+      },
+      {
+        "id": "d19-2",
+        "time": "13:00",
+        "type": "sightseeing",
+        "title": "Flinders Chase National Park",
+        "subtitle": "Remarkable Rocks, Admiral's Arch, Koala & Canguri"
+      },
+      {
+        "id": "d19-3",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "Discovery Parks Kangaroo Island",
+        "subtitle": "Kangaroo Island",
+        "price": 124
+      }
+    ]
+  },
+  {
+    "id": "day-20",
+    "dayNumber": 20,
+    "date": "2026-12-17",
+    "dateLabel": "Gio 17 dic",
+    "dateShort": "17",
+    "monthShort": "dic",
+    "dayShort": "Gio",
+    "location": "Adelaide → Melbourne, AU",
+    "timezone": "Australia/Melbourne",
+    "activities": [
+      {
+        "id": "d20-1",
+        "time": "17:30",
+        "type": "transport",
+        "title": "Riconsegna auto Bargain Car Rentals ADL",
+        "subtitle": "Adelaide Airport"
+      },
+      {
+        "id": "d20-2",
+        "time": "19:50",
+        "type": "transport",
+        "title": "Volo Adelaide ADL → Melbourne MEL",
+        "subtitle": "Adelaide → Melbourne Tullamarine [DA VERIFICARE]",
+        "note": "[DA VERIFICARE: numero volo, orario, compagnia]."
+      },
+      {
+        "id": "d20-3",
+        "time": "23:00",
+        "type": "transport",
+        "title": "Ritiro Van Travellers Autobarn (ref ***REMOVED***)",
+        "subtitle": "Melbourne Tullamarine (5 Assembly Drive) · Contactless",
+        "note": "Ref ***REMOVED***. Budgie Van (2 pax). Protection Plus Pack (0 franchigia). Ritiro Tullamarine 17 dic 23:00-00:00 -> riconsegna Sydney 28 dic."
+      },
+      {
+        "id": "d20-4",
+        "time": "23:45",
+        "type": "hotel",
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Melbourne / Crystal Brook Campground"
+      }
+    ]
+  },
+  {
+    "id": "day-21",
+    "dayNumber": 21,
+    "date": "2026-12-18",
+    "dateLabel": "Ven 18 dic",
+    "dateShort": "18",
+    "monthShort": "dic",
+    "dayShort": "Ven",
+    "location": "Great Ocean Road, AU",
+    "timezone": "Australia/Melbourne",
+    "activities": [
+      {
+        "id": "d21-1",
+        "time": "09:00",
+        "type": "sightseeing",
+        "title": "Melbourne → Geelong → Great Ocean Road",
+        "subtitle": "Partenza viaggio on-road"
+      },
+      {
+        "id": "d21-2",
+        "time": "16:00",
+        "type": "sightseeing",
+        "title": "Dodici Apostoli (Twelve Apostles)",
+        "subtitle": "Tramonto panoramico sulla Great Ocean Road",
+        "transitTime": "3h 39m"
+      },
+      {
+        "id": "d21-3",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Port Campbell Campground area"
+      }
+    ]
+  },
+  {
+    "id": "day-22",
+    "dayNumber": 22,
+    "date": "2026-12-19",
+    "dateLabel": "Sab 19 dic",
+    "dateShort": "19",
+    "monthShort": "dic",
+    "dayShort": "Sab",
+    "location": "Phillip Island, AU",
+    "timezone": "Australia/Melbourne",
+    "activities": [
+      {
+        "id": "d22-1",
+        "time": "10:00",
+        "type": "transport",
+        "title": "12 Apostoli → Phillip Island",
+        "subtitle": "Trasferimento verso l'isola dei pinguini",
+        "transitTime": "4h 02m"
+      },
+      {
+        "id": "d22-2",
+        "time": "20:00",
+        "type": "sightseeing",
+        "title": "Penguin Parade",
+        "subtitle": "Parata dei pinguini nani al tramonto"
+      },
+      {
+        "id": "d22-3",
+        "time": "22:00",
+        "type": "hotel",
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Phillip Island / San Remo Campground"
+      }
+    ]
+  },
+  {
+    "id": "day-23",
+    "dayNumber": 23,
+    "date": "2026-12-20",
+    "dateLabel": "Dom 20 dic",
+    "dateShort": "20",
+    "monthShort": "dic",
+    "dayShort": "Dom",
+    "location": "Wilson Promontory, AU",
+    "timezone": "Australia/Melbourne",
+    "activities": [
+      {
+        "id": "d23-1",
+        "time": "08:00",
+        "type": "sightseeing",
+        "title": "Wilsons Promontory NP hikes",
+        "subtitle": "Spiagge e percorsi naturali",
+        "transitTime": "32m"
+      },
+      {
+        "id": "d23-2",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Tidal River Campsite, Wilsons Promontory"
+      }
+    ]
+  },
+  {
+    "id": "day-24",
+    "dayNumber": 24,
+    "date": "2026-12-21",
+    "dateLabel": "Lun 21 dic",
+    "dateShort": "21",
+    "monthShort": "dic",
+    "dayShort": "Lun",
+    "location": "NSW Coast, AU",
+    "timezone": "Australia/Sydney",
+    "activities": [
+      {
+        "id": "d24-1",
+        "time": "09:00",
+        "type": "transport",
+        "title": "Wilsons Promontory → Batemans Bay",
+        "subtitle": "Lungo trasferimento lungo la costa",
+        "transitTime": "6h 15m"
+      },
+      {
+        "id": "d24-2",
+        "time": "18:00",
+        "type": "hotel",
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Batemans Bay Campground"
+      }
+    ]
+  },
+  {
+    "id": "day-25",
+    "dayNumber": 25,
+    "date": "2026-12-22",
+    "dateLabel": "Mar 22 dic",
+    "dateShort": "22",
+    "monthShort": "dic",
+    "dayShort": "Mar",
+    "location": "Jervis Bay, AU",
+    "timezone": "Australia/Sydney",
+    "activities": [
+      {
+        "id": "d25-1",
+        "time": "09:00",
+        "type": "transport",
+        "title": "Batemans Bay → Jervis Bay",
+        "subtitle": "Arrivo alla baia di Jervis",
+        "transitTime": "2h 30m"
+      },
+      {
+        "id": "d25-2",
+        "time": "15:00",
+        "type": "sightseeing",
+        "title": "Hyams Beach",
+        "subtitle": "Spiaggia di sabbia finissima bianca"
+      },
+      {
+        "id": "d25-3",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Jervis Bay Campground"
+      }
+    ]
+  },
+  {
+    "id": "day-26",
+    "dayNumber": 26,
+    "date": "2026-12-23",
+    "dateLabel": "Mer 23 dic",
+    "dateShort": "23",
+    "monthShort": "dic",
+    "dayShort": "Mer",
+    "location": "Jervis Bay Tour, AU",
+    "timezone": "Australia/Sydney",
+    "activities": [
+      {
+        "id": "d26-1",
+        "time": "10:00",
+        "type": "sightseeing",
+        "title": "Dolphin Watching Tour & Relax",
+        "subtitle": "Tour in barca per avvistamento delfini e fauna marina",
+        "price": 90,
+        "isPaid": false,
+        "isBooked": true,
+        "howToGetThere": "Jervis Bay Wild Office, 58 Owen Street, Huskisson, NSW.",
+        "timeBeforehand": "Arrivare 15 minuti prima dell'imbarco",
+        "duration": "2h",
+        "ticketUrl": "https://www.jervisbaywild.com.au/",
+        "isManaged": true
+      },
+      {
+        "id": "d26-2",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Jervis Bay Area"
+      }
+    ]
+  },
+  {
+    "id": "day-27",
+    "dayNumber": 27,
+    "date": "2026-12-24",
+    "dateLabel": "Gio 24 dic",
+    "dateShort": "24",
+    "monthShort": "dic",
+    "dayShort": "Gio",
+    "location": "Blue Mountains, AU",
+    "timezone": "Australia/Sydney",
+    "activities": [
+      {
+        "id": "d27-1",
+        "time": "09:00",
+        "type": "transport",
+        "title": "Jervis Bay → Blue Mountains",
+        "subtitle": "Spostamento verso le montagne blu",
+        "transitTime": "3h"
+      },
+      {
+        "id": "d27-2",
+        "time": "14:00",
+        "type": "sightseeing",
+        "title": "Tre Sorelle (Three Sisters) & Katoomba",
+        "subtitle": "Punti panoramici sulle Blue Mountains"
+      },
+      {
+        "id": "d27-3",
+        "time": "18:00",
+        "type": "hotel",
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Katoomba / Blue Mountains Campsite"
+      }
+    ]
+  },
+  {
+    "id": "day-28",
+    "dayNumber": 28,
+    "date": "2026-12-25",
+    "dateLabel": "Ven 25 dic",
+    "dateShort": "25",
+    "monthShort": "dic",
+    "dayShort": "Ven",
+    "location": "Sydney Area, AU",
+    "timezone": "Australia/Sydney",
+    "activities": [
+      {
+        "id": "d28-1",
+        "time": "10:00",
+        "type": "sightseeing",
+        "title": "Blue Mountains → Sydney",
+        "subtitle": "Spostamento verso l'area di Sydney"
+      },
+      {
+        "id": "d28-2",
+        "time": "14:00",
+        "type": "sightseeing",
+        "title": "Sydney Opera House & The Rocks",
+        "subtitle": "Esplorazione a piedi del porto"
+      },
+      {
+        "id": "d28-3",
+        "time": "18:00",
+        "type": "hotel",
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Area Sydney Campground"
+      }
+    ]
+  },
+  {
+    "id": "day-29",
+    "dayNumber": 29,
+    "date": "2026-12-26",
+    "dateLabel": "Sab 26 dic",
+    "dateShort": "26",
+    "monthShort": "dic",
+    "dayShort": "Sab",
+    "location": "Sydney / Bondi Beach, AU",
+    "timezone": "Australia/Sydney",
+    "activities": [
+      {
+        "id": "d29-1",
+        "time": "10:00",
+        "type": "sightseeing",
+        "title": "Corso Surf Bondi Beach",
+        "subtitle": "Lezione di surf a Bondi Beach"
+      },
+      {
+        "id": "d29-2",
+        "time": "15:00",
+        "type": "sightseeing",
+        "title": "Bondi to Coogee Coastal Walk",
+        "subtitle": "Passeggiata sulle scogliere di Sydney"
+      },
+      {
+        "id": "d29-3",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Area Sydney Campground"
+      }
+    ]
+  },
+  {
+    "id": "day-30",
+    "dayNumber": 30,
+    "date": "2026-12-27",
+    "dateLabel": "Dom 27 dic",
+    "dateShort": "27",
+    "monthShort": "dic",
+    "dayShort": "Dom",
+    "location": "Sydney Area, AU",
+    "timezone": "Australia/Sydney",
+    "activities": [
+      {
+        "id": "d30-1",
+        "time": "10:00",
+        "type": "sightseeing",
+        "title": "Sydney Harbor & Relax",
+        "subtitle": "Preparazione bagagli e check-out van per domani"
+      },
+      {
+        "id": "d30-2",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "Pernottamento in Campervan",
+        "subtitle": "Area Sydney Campground"
+      }
+    ]
+  },
+  {
+    "id": "day-31",
+    "dayNumber": 31,
+    "date": "2026-12-28",
+    "dateLabel": "Lun 28 dic",
+    "dateShort": "28",
+    "monthShort": "dic",
+    "dayShort": "Lun",
+    "location": "Sydney → Manila, PH 🇵🇭",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d31-1",
+        "time": "08:30",
+        "type": "transport",
+        "title": "Riconsegna Van Travellers Autobarn",
+        "subtitle": "Sydney (1C McPherson St, Banksmeadow)",
+        "note": "Ref ***REMOVED***. Riconsegna ore 08:30–09:00."
+      },
+      {
+        "id": "d31-2",
+        "time": "09:00",
+        "type": "transport",
+        "title": "Taxi Banksmeadow → SYD T1",
+        "subtitle": "Trasferimento al Terminal 1 Aeroporto Sydney"
+      },
+      {
+        "id": "d31-3",
+        "time": "12:15",
+        "type": "transport",
+        "title": "Volo Sydney SYD T1 → Manila MNL T3",
+        "subtitle": "Cebu Pacific 5J040 (A330-900neo) · PNR ***REMOVED*** / ***REMOVED*** · 7h 55m [DA VERIFICARE]",
+        "hasQR": true,
+        "note": "[DA VERIFICARE: orario arrivo 17:55 vs 18:10; due PNR ***REMOVED*** / ***REMOVED*** da chiarire]. SYD T1 12:15 -> MNL T3 18:10. Posti: 18H (***REMOVED***), 18J (***REMOVED***)."
+      },
+      {
+        "id": "d31-4",
+        "time": "18:30",
+        "type": "transport",
+        "title": "Passerella Runway Manila → Newport City",
+        "subtitle": "Passerella pedonale da MNL Terminal 3"
+      },
+      {
+        "id": "d31-hotel",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "Check-in Newport City",
+        "subtitle": "A piedi dall'aeroporto (Pasay City, Manila)",
+        "note": "[DA VERIFICARE: alloggio non confermato]"
+      }
+    ]
+  },
+  {
+    "id": "day-32",
+    "dayNumber": 32,
+    "date": "2026-12-29",
+    "dateLabel": "Mar 29 dic",
+    "dateShort": "29",
+    "monthShort": "dic",
+    "dayShort": "Mar",
+    "location": "Manila → Boracay, PH 🇵🇭",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d32-1",
+        "time": "08:50",
+        "type": "transport",
+        "title": "Volo Manila MNL T3 → Caticlan MPH",
+        "subtitle": "Cebu Pacific 5J899 (A320-200) · 1h 10m",
+        "hasQR": true,
+        "note": "MNL T3 08:50 -> MPH Caticlan 10:00. Posti al check-in."
+      },
+      {
+        "id": "d32-2",
+        "time": "10:15",
+        "type": "transport",
+        "title": "Transfer Trip.com (terra + barca) Caticlan → Boracay",
+        "subtitle": "Transfer terra e barca incluso con Trip.com fino al resort"
+      },
+      {
+        "id": "d32-hotel",
+        "time": "13:00",
+        "type": "hotel",
+        "title": "Check-in Bamboo Beach Resort, Boracay",
+        "subtitle": "Station 3, White Beach, Boracay",
+        "price": 142,
+        "note": "[DA VERIFICARE: 142 € / 3 notti vs soggiorno dichiarato fino al 2 gen → 4 notti]"
+      }
+    ]
+  },
+  {
+    "id": "day-33",
+    "dayNumber": 33,
+    "date": "2026-12-30",
+    "dateLabel": "Mer 30 dic",
+    "dateShort": "30",
+    "monthShort": "dic",
+    "dayShort": "Mer",
+    "location": "Boracay, PH 🇵🇭",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d33-1",
+        "time": "10:00",
+        "type": "sightseeing",
+        "title": "Relax White Beach & Spiaggia",
+        "subtitle": "Station 3 / Station 2 White Beach, Boracay"
+      },
+      {
+        "id": "d33-hotel",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "Bamboo Beach Resort",
+        "subtitle": "Station 3, White Beach, Boracay"
+      }
+    ]
+  },
+  {
+    "id": "day-34",
+    "dayNumber": 34,
+    "date": "2026-12-31",
+    "dateLabel": "Gio 31 dic",
+    "dateShort": "31",
+    "monthShort": "dic",
+    "dayShort": "Gio",
+    "location": "Boracay Capodanno, PH",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d34-1",
+        "time": "10:00",
+        "type": "sightseeing",
+        "title": "Relax White Beach",
+        "subtitle": "Giornata di mare a Boracay"
+      },
+      {
+        "id": "d34-2",
+        "time": "20:00",
+        "type": "sightseeing",
+        "title": "Cenone e Capodanno in spiaggia",
+        "subtitle": "White Beach Boracay"
+      },
+      {
+        "id": "d34-3",
+        "time": "23:00",
+        "type": "hotel",
+        "title": "Bamboo Beach Resort",
+        "subtitle": "Boracay"
+      }
+    ]
+  },
+  {
+    "id": "day-35",
+    "dayNumber": 35,
+    "date": "2027-01-01",
+    "dateLabel": "Ven 1 gen",
+    "dateShort": "1",
+    "monthShort": "gen",
+    "dayShort": "Ven",
+    "location": "Boracay → El Nido, PH",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d35-1",
+        "time": "15:50",
+        "type": "transport",
+        "title": "Volo Caticlan MPH → El Nido ENI",
+        "subtitle": "Cebu Pacific DG5411 · 1h 10m",
+        "hasQR": true,
+        "isManaged": true
+      },
+      {
+        "id": "d35-2",
+        "time": "17:00",
+        "type": "transport",
+        "title": "Arrivo El Nido & Transfer",
+        "subtitle": "Hotel check-in"
+      },
+      {
+        "id": "d35-3",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "El Nido Beach Hotel",
+        "subtitle": "El Nido, Palawan"
+      }
+    ]
+  },
+  {
+    "id": "day-36",
+    "dayNumber": 36,
+    "date": "2027-01-02",
+    "dateLabel": "Sab 2 gen",
+    "dateShort": "2",
+    "monthShort": "gen",
+    "dayShort": "Sab",
+    "location": "Tao Expedition, PH",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d36-1",
+        "time": "08:30",
+        "type": "sightseeing",
+        "title": "Tao Experience Expedition (Giorno 1)",
+        "subtitle": "El Nido → Coron (imbarco e inizio navigazione)",
+        "price": 650,
+        "isPaid": true,
+        "isBooked": true,
+        "howToGetThere": "Tao Office / Boat Dock, El Nido Town. Presentarsi all'ufficio per il briefing iniziale e il controllo bagagli.",
+        "timeBeforehand": "Presentarsi all'ufficio Tao il giorno precedente per registrazione; ritrovo ore 08:00 il giorno dell'imbarco.",
+        "duration": "4d 3n",
+        "ticketUrl": "https://taophilippines.com/",
+        "note": "Spedizione in barca tradizionale attraverso gli arcipelaghi remoti di Palawan. Alloggiamenti semplici in capanne tradizionali. Portare sacche stagne e powerbank (no elettricità fissa nelle isole).",
+        "isManaged": true
+      },
+      {
+        "id": "d36-2",
+        "time": "17:00",
+        "type": "hotel",
+        "title": "Tao Island Campsite 1",
+        "subtitle": "Isola deserta arcipelago Linapacan"
+      }
+    ]
+  },
+  {
+    "id": "day-37",
+    "dayNumber": 37,
+    "date": "2027-01-03",
+    "dateLabel": "Dom 3 gen",
+    "dateShort": "3",
+    "monthShort": "gen",
+    "dayShort": "Dom",
+    "location": "Tao Expedition, PH",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d37-1",
+        "time": "08:00",
+        "type": "sightseeing",
+        "title": "Tao Experience Expedition (Giorno 2)",
+        "subtitle": "Snorkeling in barriera corallina e relax"
+      },
+      {
+        "id": "d37-2",
+        "time": "17:00",
+        "type": "hotel",
+        "title": "Tao Island Campsite 2",
+        "subtitle": "Isola deserta"
+      }
+    ]
+  },
+  {
+    "id": "day-38",
+    "dayNumber": 38,
+    "date": "2027-01-04",
+    "dateLabel": "Lun 4 gen",
+    "dateShort": "4",
+    "monthShort": "gen",
+    "dayShort": "Lun",
+    "location": "Tao Expedition, PH",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d38-1",
+        "time": "08:00",
+        "type": "sightseeing",
+        "title": "Tao Experience Expedition (Giorno 3)",
+        "subtitle": "Esplorazione isole e villaggi tradizionali"
+      },
+      {
+        "id": "d38-2",
+        "time": "17:00",
+        "type": "hotel",
+        "title": "Tao Island Campsite 3",
+        "subtitle": "Isola deserta"
+      }
+    ]
+  },
+  {
+    "id": "day-39",
+    "dayNumber": 39,
+    "date": "2027-01-05",
+    "dateLabel": "Mar 5 gen",
+    "dateShort": "5",
+    "monthShort": "gen",
+    "dayShort": "Mar",
+    "location": "Coron Town, PH",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d39-1",
+        "time": "08:00",
+        "type": "sightseeing",
+        "title": "Tao Experience Expedition (Giorno 4)",
+        "subtitle": "Ultima navigazione e arrivo a Coron"
+      },
+      {
+        "id": "d39-2",
+        "time": "16:00",
+        "type": "hotel",
+        "title": "Coron Bay Hotel",
+        "subtitle": "Coron Town, Busuanga"
+      }
+    ]
+  },
+  {
+    "id": "day-40",
+    "dayNumber": 40,
+    "date": "2027-01-06",
+    "dateLabel": "Mer 6 gen",
+    "dateShort": "6",
+    "monthShort": "gen",
+    "dayShort": "Mer",
+    "location": "Coron Dugonghi, PH",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d40-1",
+        "time": "07:00",
+        "type": "sightseeing",
+        "title": "Dugong Watching Quest",
+        "subtitle": "Escursione avvistamento dugonghi Coron",
+        "price": 120,
+        "isPaid": false,
+        "isBooked": true,
+        "howToGetThere": "Molo di Coron Town. Prelievo in hotel alle ore 06:45 organizzato dall'operatore.",
+        "timeBeforehand": "Essere pronti in lobby hotel alle 06:40",
+        "duration": "8h",
+        "ticketUrl": "https://www.corondugongs.com",
+        "note": "Tour giornaliero in barca per avvistare la popolazione protetta di dugonghi nel nord di Busuanga. Include pranzo, tasse ecologiche e attrezzatura snorkeling.",
+        "isManaged": true
+      },
+      {
+        "id": "d40-2",
+        "time": "19:00",
+        "type": "hotel",
+        "title": "Coron Bay Hotel",
+        "subtitle": "Coron"
+      }
+    ]
+  },
+  {
+    "id": "day-41",
+    "dayNumber": 41,
+    "date": "2027-01-07",
+    "dateLabel": "Gio 7 gen",
+    "dateShort": "7",
+    "monthShort": "gen",
+    "dayShort": "Gio",
+    "location": "Coron → Cebu, PH",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d41-1",
+        "time": "16:55",
+        "type": "transport",
+        "title": "Busuanga USU → Cebu CEB",
+        "subtitle": "Philippine Airlines ***REMOVED*** · 1h 15m",
+        "hasQR": true
+      },
+      {
+        "id": "d41-2",
+        "time": "18:10",
+        "type": "transport",
+        "title": "Arrivo Cebu & Check-in",
+        "subtitle": "Hotel vicino aeroporto"
+      },
+      {
+        "id": "d41-3",
+        "time": "19:30",
+        "type": "hotel",
+        "title": "Cebu Airport Hotel",
+        "subtitle": "Lapu-Lapu City, Cebu"
+      }
+    ]
+  },
+  {
+    "id": "day-42",
+    "dayNumber": 42,
+    "date": "2027-01-08",
+    "dateLabel": "Ven 8 gen",
+    "dateShort": "8",
+    "monthShort": "gen",
+    "dayShort": "Ven",
+    "location": "Cebu City, PH",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d42-1",
+        "time": "10:00",
+        "type": "sightseeing",
+        "title": "Giro città & Souvenir",
+        "subtitle": "Cebu City historical sites"
+      },
+      {
+        "id": "d42-2",
+        "time": "19:30",
+        "type": "hotel",
+        "title": "Cebu Airport Hotel",
+        "subtitle": "Cebu"
+      }
+    ]
+  },
+  {
+    "id": "day-43",
+    "dayNumber": 43,
+    "date": "2027-01-09",
+    "dateLabel": "Sab 9 gen",
+    "dateShort": "9",
+    "monthShort": "gen",
+    "dayShort": "Sab",
+    "location": "Cebu → Roma via Taipei",
+    "timezone": "Asia/Manila",
+    "activities": [
+      {
+        "id": "d43-1",
+        "time": "12:10",
+        "type": "transport",
+        "title": "Cebu CEB → Taipei → Roma FCO",
+        "subtitle": "China Airlines · Volo di rientro (17h 35m)",
+        "hasQR": true
+      }
+    ]
+  },
+  {
+    "id": "day-44",
+    "dayNumber": 44,
+    "date": "2027-01-10",
+    "dateLabel": "Dom 10 gen",
+    "dateShort": "10",
+    "monthShort": "gen",
+    "dayShort": "Dom",
+    "location": "Roma, FCO",
+    "timezone": "Europe/Rome",
+    "activities": [
+      {
+        "id": "d44-1",
+        "time": "08:00",
+        "type": "sightseeing",
+        "title": "Arrivo in Italia",
+        "subtitle": "Rientro a Roma (fine viaggio)"
+      }
+    ]
+  }
+]

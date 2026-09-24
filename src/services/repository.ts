@@ -110,9 +110,25 @@ export const repository = {
       }
     }
 
+    // Unisci eventuali nuove attività da fallback che non esistono nell'IndexedDB locale
+    const fallbackDayMap = new Map<string, DayData>();
+    for (const d of fallback) fallbackDayMap.set(d.id, d);
+
     let hasChanges = false;
 
     const mergedDays: DayData[] = data.map((day) => {
+      const fallbackDay = fallbackDayMap.get(day.id);
+      if (!fallbackDay) return day;
+
+      const existingActIds = new Set(day.activities.map((a) => a.id));
+      const missingActivities = fallbackDay.activities.filter((a) => !existingActIds.has(a.id));
+
+      if (missingActivities.length > 0) {
+        hasChanges = true;
+        const combined = [...day.activities, ...missingActivities].sort((a, b) => a.time.localeCompare(b.time));
+        return { ...day, activities: combined };
+      }
+
       let dayChanged = false;
       const updatedActivities = day.activities.map((act) => {
         const localMapsUrl = act.mapsUrl ? act.mapsUrl.trim() : "";

@@ -1,0 +1,90 @@
+import { initializeApp } from "firebase/app";
+import { 
+  getAuth, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signInAnonymously,
+  signOut,
+  linkWithPopup,
+  onAuthStateChanged,
+  signInWithRedirect,
+  getRedirectResult,
+  linkWithRedirect,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  EmailAuthProvider,
+  linkWithCredential,
+  setPersistence,
+  browserLocalPersistence,
+  type Auth,
+  type User
+} from "firebase/auth";
+import { 
+  type Firestore,
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager 
+} from "firebase/firestore";
+
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "placeholder-api-key",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "placeholder-auth-domain.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "placeholder-project-id",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "placeholder-storage-bucket.appspot.com",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "placeholder-sender-id",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "placeholder-app-id"
+};
+
+// Rileva se il client Firebase è stato configurato con chiavi reali
+const isConfigured = 
+  import.meta.env.VITE_FIREBASE_API_KEY && 
+  import.meta.env.VITE_FIREBASE_API_KEY !== "placeholder-api-key" &&
+  import.meta.env.VITE_FIREBASE_API_KEY.trim() !== "";
+
+// Inizializza Firebase con controllo degli errori
+let app: ReturnType<typeof initializeApp> | undefined;
+let auth: Auth | null = null;
+let googleProvider: GoogleAuthProvider | null = null;
+let db: Firestore | null = null;
+
+if (isConfigured) {
+  try {
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    setPersistence(auth, browserLocalPersistence).catch((err) => {
+      console.error("Errore nell'impostare la persistenza auth:", err);
+    });
+    googleProvider = new GoogleAuthProvider();
+    googleProvider.setCustomParameters({ prompt: 'select_account' });
+    db = initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    });
+  } catch (error) {
+    console.error("Errore nell'inizializzazione di Firebase:", error);
+  }
+} else {
+  console.warn("Firebase Auth non configurato. Crea il file .env.local per abilitare le funzionalità di autenticazione e sincronizzazione cloud.");
+}
+
+export { 
+  auth, 
+  googleProvider, 
+  db, 
+  signInWithPopup, 
+  signInAnonymously, 
+  signOut, 
+  linkWithPopup, 
+  onAuthStateChanged,
+  signInWithRedirect,
+  getRedirectResult,
+  linkWithRedirect,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+  EmailAuthProvider,
+  linkWithCredential
+};
+export type { User };

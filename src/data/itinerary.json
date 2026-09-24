@@ -15,42 +15,52 @@
         "time": "11:05",
         "type": "transport",
         "title": "Roma Termini → Milano Centrale",
-        "subtitle": "Italo 9978 · Smart, Carrozza 10, Posti 1-2 · Arrivo 14:15",
+        "subtitle": "Italo 9978 · Smart, Carrozza 10, Posti 1-2 · Arrivo 14:15 (3h 10m)",
         "transitTime": "3h 10m",
         "status": "futuro",
         "hasQR": true,
         "howToGetThere": "Binari alta velocità Roma Termini. Presentarsi 15 minuti prima al varco accesso treni.",
         "mapsUrl": "https://www.google.com/maps/dir/?api=1&origin=Roma+Termini&destination=Milano+Centrale&travelmode=transit",
-        "note": "Italo 9978 alta velocità. Smart, carrozza 10, posti 1-2. Roma Termini 11:05 -> Milano Centrale 14:15."
+        "note": "Italo 9978 alta velocità (durata 3h 10m). Smart, carrozza 10, posti 1-2. Roma Termini 11:05 -> Milano Centrale 14:15."
+      },
+      {
+        "id": "d1-museo",
+        "time": "15:30",
+        "type": "sightseeing",
+        "title": "Visita al Museo del Novecento & Piazza Duomo",
+        "subtitle": "Piazza del Duomo 8, Milano",
+        "duration": "2h",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Museo+del+Novecento+Milano",
+        "note": "Tour delle collezioni d'arte del XX secolo e vista panoramica esclusiva sul Duomo dal palazzo dell'Arengario."
+      },
+      {
+        "id": "d1-2",
+        "time": "17:30",
+        "type": "sightseeing",
+        "title": "Passeggiata Galleria Vittorio Emanuele II & Aperitivo in Brera",
+        "subtitle": "Galleria & Quartiere Brera, Milano",
+        "duration": "1h 30m",
+        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Galleria+Vittorio+Emanuele+II+Milano",
+        "note": "Passeggiata rilassante e aperitivo in Brera prima di andare in albergo."
       },
       {
         "id": "d1-hotel",
-        "time": "15:00",
+        "time": "19:30",
         "type": "hotel",
-        "title": "Check-in a&o Hostel Milano Ca Granda",
+        "title": "Check-in in serata a&o Hostel Milano Ca Granda",
         "subtitle": "Via di Vittorio 1, Milano (Ca' Granda M5)",
         "price": 61.95,
         "isPaid": true,
         "mapsUrl": "https://www.google.com/maps/search/?api=1&query=ao+Hostel+Milano+Ca+Granda",
-        "howToGetThere": "Da Milano Centrale prendere Metro M3 (gialla) fino a Zara, poi Metro M5 (lilla) fino a Ca' Granda. A piedi 3 minuti.",
-        "note": "Check-in a partire dalle ore 15:00. Deposito bagagli gratuito se si arriva prima."
-      },
-      {
-        "id": "d1-2",
-        "time": "16:30",
-        "type": "sightseeing",
-        "title": "Passeggiata in centro: Duomo & Galleria Vittorio Emanuele II",
-        "subtitle": "Piazza del Duomo, Milano",
-        "duration": "2h",
-        "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Piazza+del+Duomo+Milano",
-        "note": "Passeggiata rilassante e aperitivo in zona Brera / Navigli prima del volo di domani."
+        "howToGetThere": "Da Milano Centrale o dal Duomo prendere Metro M3 (gialla) fino a Zara, poi Metro M5 (lilla) fino a Ca' Granda. A piedi 3 minuti.",
+        "note": "Check-in serale (dalle 19:30). Camere pronte."
       },
       {
         "id": "d1-3",
-        "time": "20:00",
+        "time": "20:30",
         "type": "food",
         "title": "Cena a Milano",
-        "subtitle": "Trattoria / Pizzeria zona Brera o Centrale",
+        "subtitle": "Trattoria / Pizzeria in zona Milano",
         "price": 25,
         "isPaid": false,
         "mapsUrl": "https://www.google.com/maps/search/?api=1&query=Brera+Milano+ristorante"
@@ -66,6 +76,7 @@
     "monthShort": "nov",
     "dayShort": "Dom",
     "location": "Milano → In volo per Pechino",
+    "timezone": "Europe/Rome",
     "activities": [
       {
         "id": "d2-0",
@@ -253,6 +264,7 @@
     "monthShort": "dic",
     "dayShort": "Mer",
     "location": "Waitomo, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d5-1",
@@ -327,6 +339,7 @@
     "monthShort": "dic",
     "dayShort": "Gio",
     "location": "Rotorua, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d6-1",
@@ -394,6 +407,7 @@
     "monthShort": "dic",
     "dayShort": "Ven",
     "location": "Tongariro NP, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d7-1",
@@ -462,6 +476,7 @@
     "monthShort": "dic",
     "dayShort": "Sab",
     "location": "Levin, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d8-1",
@@ -497,6 +512,7 @@
     "monthShort": "dic",
     "dayShort": "Dom",
     "location": "Wellington → Kaikoura, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d9-0",
@@ -547,6 +563,7 @@
     "monthShort": "dic",
     "dayShort": "Lun",
     "location": "Arthur Pass, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d10-whale",
@@ -588,6 +605,7 @@
     "monthShort": "dic",
     "dayShort": "Mar",
     "location": "Hokitika → Franz Josef, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d11-0",
@@ -643,6 +661,7 @@
     "monthShort": "dic",
     "dayShort": "Mer",
     "location": "Fox Glacier, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d12-1",
@@ -683,6 +702,7 @@
     "monthShort": "dic",
     "dayShort": "Gio",
     "location": "Wanaka → Cardrona, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d13-0",
@@ -752,6 +772,7 @@
     "monthShort": "dic",
     "dayShort": "Ven",
     "location": "Eglinton Valley, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d14-1",
@@ -780,6 +801,7 @@
     "monthShort": "dic",
     "dayShort": "Sab",
     "location": "Arrowtown, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d15-1",
@@ -821,6 +843,7 @@
     "monthShort": "dic",
     "dayShort": "Dom",
     "location": "Lake Tekapo, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d16-1",
@@ -862,6 +885,7 @@
     "monthShort": "dic",
     "dayShort": "Lun",
     "location": "Christchurch, NZ",
+    "timezone": "Pacific/Auckland",
     "activities": [
       {
         "id": "d17-1",
@@ -890,6 +914,7 @@
     "monthShort": "dic",
     "dayShort": "Mar",
     "location": "Christchurch → Adelaide, AU 🇦🇺",
+    "timezone": "Australia/Adelaide",
     "activities": [
       {
         "id": "d18-1",
@@ -927,6 +952,7 @@
     "monthShort": "dic",
     "dayShort": "Mer",
     "location": "Kangaroo Island, AU",
+    "timezone": "Australia/Adelaide",
     "activities": [
       {
         "id": "d19-1",
@@ -962,6 +988,7 @@
     "monthShort": "dic",
     "dayShort": "Gio",
     "location": "Adelaide → Melbourne, AU",
+    "timezone": "Australia/Melbourne",
     "activities": [
       {
         "id": "d20-1",
@@ -1004,6 +1031,7 @@
     "monthShort": "dic",
     "dayShort": "Ven",
     "location": "Great Ocean Road, AU",
+    "timezone": "Australia/Melbourne",
     "activities": [
       {
         "id": "d21-1",
@@ -1038,6 +1066,7 @@
     "monthShort": "dic",
     "dayShort": "Sab",
     "location": "Phillip Island, AU",
+    "timezone": "Australia/Melbourne",
     "activities": [
       {
         "id": "d22-1",
@@ -1072,6 +1101,7 @@
     "monthShort": "dic",
     "dayShort": "Dom",
     "location": "Wilson Promontory, AU",
+    "timezone": "Australia/Melbourne",
     "activities": [
       {
         "id": "d23-1",
@@ -1099,6 +1129,7 @@
     "monthShort": "dic",
     "dayShort": "Lun",
     "location": "NSW Coast, AU",
+    "timezone": "Australia/Sydney",
     "activities": [
       {
         "id": "d24-1",
@@ -1126,6 +1157,7 @@
     "monthShort": "dic",
     "dayShort": "Mar",
     "location": "Jervis Bay, AU",
+    "timezone": "Australia/Sydney",
     "activities": [
       {
         "id": "d25-1",
@@ -1160,6 +1192,7 @@
     "monthShort": "dic",
     "dayShort": "Mer",
     "location": "Jervis Bay Tour, AU",
+    "timezone": "Australia/Sydney",
     "activities": [
       {
         "id": "d26-1",
@@ -1194,6 +1227,7 @@
     "monthShort": "dic",
     "dayShort": "Gio",
     "location": "Blue Mountains, AU",
+    "timezone": "Australia/Sydney",
     "activities": [
       {
         "id": "d27-1",
@@ -1228,6 +1262,7 @@
     "monthShort": "dic",
     "dayShort": "Ven",
     "location": "Sydney Area, AU",
+    "timezone": "Australia/Sydney",
     "activities": [
       {
         "id": "d28-1",
@@ -1261,6 +1296,7 @@
     "monthShort": "dic",
     "dayShort": "Sab",
     "location": "Sydney / Bondi Beach, AU",
+    "timezone": "Australia/Sydney",
     "activities": [
       {
         "id": "d29-1",
@@ -1294,6 +1330,7 @@
     "monthShort": "dic",
     "dayShort": "Dom",
     "location": "Sydney Area, AU",
+    "timezone": "Australia/Sydney",
     "activities": [
       {
         "id": "d30-1",
@@ -1320,6 +1357,7 @@
     "monthShort": "dic",
     "dayShort": "Lun",
     "location": "Sydney → Manila, PH 🇵🇭",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d31-1",
@@ -1371,6 +1409,7 @@
     "monthShort": "dic",
     "dayShort": "Mar",
     "location": "Manila → Boracay, PH 🇵🇭",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d32-1",
@@ -1408,6 +1447,7 @@
     "monthShort": "dic",
     "dayShort": "Mer",
     "location": "Boracay, PH 🇵🇭",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d33-1",
@@ -1434,6 +1474,7 @@
     "monthShort": "dic",
     "dayShort": "Gio",
     "location": "Boracay Capodanno, PH",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d34-1",
@@ -1467,6 +1508,7 @@
     "monthShort": "gen",
     "dayShort": "Ven",
     "location": "Boracay → El Nido, PH",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d35-1",
@@ -1502,6 +1544,7 @@
     "monthShort": "gen",
     "dayShort": "Sab",
     "location": "Tao Expedition, PH",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d36-1",
@@ -1537,6 +1580,7 @@
     "monthShort": "gen",
     "dayShort": "Dom",
     "location": "Tao Expedition, PH",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d37-1",
@@ -1563,6 +1607,7 @@
     "monthShort": "gen",
     "dayShort": "Lun",
     "location": "Tao Expedition, PH",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d38-1",
@@ -1589,6 +1634,7 @@
     "monthShort": "gen",
     "dayShort": "Mar",
     "location": "Coron Town, PH",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d39-1",
@@ -1615,6 +1661,7 @@
     "monthShort": "gen",
     "dayShort": "Mer",
     "location": "Coron Dugonghi, PH",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d40-1",
@@ -1650,6 +1697,7 @@
     "monthShort": "gen",
     "dayShort": "Gio",
     "location": "Coron → Cebu, PH",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d41-1",
@@ -1684,6 +1732,7 @@
     "monthShort": "gen",
     "dayShort": "Ven",
     "location": "Cebu City, PH",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d42-1",
@@ -1710,6 +1759,7 @@
     "monthShort": "gen",
     "dayShort": "Sab",
     "location": "Cebu → Roma via Taipei",
+    "timezone": "Asia/Manila",
     "activities": [
       {
         "id": "d43-1",
@@ -1730,6 +1780,7 @@
     "monthShort": "gen",
     "dayShort": "Dom",
     "location": "Roma, FCO",
+    "timezone": "Europe/Rome",
     "activities": [
       {
         "id": "d44-1",
