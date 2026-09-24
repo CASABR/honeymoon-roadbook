@@ -11,6 +11,11 @@ export interface Giorno {
   updatedAt: number;
 }
 
+export interface Coordinate {
+  lat: number;
+  lng: number;
+}
+
 export interface Attivita {
   id: string;
   dayId: string;
@@ -22,6 +27,8 @@ export interface Attivita {
   notes?: string;
   link?: string;
   status: StatoAttivita;
+  copilota?: boolean;
+  coordinate?: Coordinate;
   createdAt: number;
   updatedAt: number;
 }
@@ -40,6 +47,8 @@ export interface Alloggio {
   phone?: string;
   notes?: string;
   status: StatoAlloggio;
+  copilota?: boolean;
+  coordinate?: Coordinate;
   createdAt: number;
   updatedAt: number;
 }
@@ -80,6 +89,8 @@ export interface Trasporto {
   };
   notes?: string;
   attachments?: TransportAttachment[];
+  copilota?: boolean;
+  coordinate?: Coordinate;
   status: StatoTrasporto;
   createdAt: number;
   updatedAt: number;

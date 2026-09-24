@@ -1,14 +1,11 @@
-﻿import type { Attivita } from '../../types';
+import type { Attivita } from '../../types';
 import Badge from '../common/Badge';
+import { resolveMapUrl } from '../../utils/mapsHelper';
 
 interface AttivitaCardProps {
   activity: Attivita;
   onEdit: () => void;
   onDelete: () => void;
-}
-
-function mapsUrl(query: string) {
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
 export default function AttivitaCard({ activity, onEdit, onDelete }: AttivitaCardProps) {
@@ -28,6 +25,8 @@ export default function AttivitaCard({ activity, onEdit, onDelete }: AttivitaCar
     annullata: 'rose',
   }[activity.status] as 'amber' | 'emerald' | 'rose';
 
+  const mapLink = activity.location ? resolveMapUrl(activity.location) : '';
+
   return (
     <div className="rounded-xl border border-slate-700/60 bg-slate-800/40 p-3.5 hover:border-slate-600/70 transition-all">
       <div className="flex items-start justify-between gap-2.5">
@@ -41,6 +40,12 @@ export default function AttivitaCard({ activity, onEdit, onDelete }: AttivitaCar
             )}
             <Badge label={categoryLabels[activity.category] || activity.category} variant="slate" />
             <Badge label={activity.status} variant={statusVariant} />
+            {activity.copilota && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">
+                <span>🧭</span>
+                <span>Co-pilota</span>
+              </span>
+            )}
             {activity.duration && (
               <span className="text-[11px] text-slate-500">⏱ {activity.duration}</span>
             )}
@@ -51,19 +56,21 @@ export default function AttivitaCard({ activity, onEdit, onDelete }: AttivitaCar
             {activity.title}
           </h4>
 
-          {/* Location → Google Maps */}
-          <a
-            href={mapsUrl(activity.location)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-amber-300 transition-colors group mt-1"
-          >
-            <svg className="w-3 h-3 text-slate-500 group-hover:text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            <span>{activity.location}</span>
-          </a>
+          {/* Location → Google Maps (mostrato solo se valorizzato) */}
+          {activity.location && mapLink && (
+            <a
+              href={mapLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-amber-300 transition-colors group mt-1"
+            >
+              <svg className="w-3.5 h-3.5 text-slate-500 group-hover:text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              <span className="truncate">{activity.location}</span>
+            </a>
+          )}
 
           {/* Note */}
           {activity.notes && (
