@@ -284,6 +284,35 @@ export default function TrasportoInfoModal({ isOpen, onClose, transport }: Trasp
           </div>
         )}
 
+        {/* Riepilogo Costi, Saldo ed Acconto Pagato */}
+        {(transport.cost || transport.depositPaid || transport.acconto) && (
+          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+            <div className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <span>💳</span>
+              <span>Dati Economici & Pagamento</span>
+            </div>
+            <div className="space-y-1.5 text-xs">
+              {transport.cost && (
+                <div className="flex justify-between items-center py-1 border-b border-slate-200/60">
+                  <span className="text-slate-500 font-medium">Costo / Saldo da pagare:</span>
+                  <span className="font-bold text-slate-900">{transport.cost}</span>
+                </div>
+              )}
+              {(transport.depositPaid || transport.acconto) && (
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-emerald-800 font-semibold flex items-center gap-1">
+                    <span>✓</span>
+                    <span>Acconto già dato:</span>
+                  </span>
+                  <span className="font-extrabold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-lg border border-emerald-300">
+                    {transport.depositPaid || transport.acconto}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Sezione Note Operative Spacchettata per Icone */}
         {transport.notes && (
           <div className="space-y-2 pt-1">

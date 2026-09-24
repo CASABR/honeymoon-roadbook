@@ -4,8 +4,7 @@ import {
   idbGetAll,
   idbGet,
   idbPut,
-  idbDelete,
-  idbClear
+  idbDelete
 } from './indexedDB';
 import { SEED_TRANSPORTS } from './seedTransports';
 
@@ -15,6 +14,8 @@ export const DEFAULT_DOCUMENTS: TravelDocument[] = [
     category: 'assicurazione',
     title: 'Polizza Assicurazione Viaggio',
     description: 'Polizza Europ Assistance Viaggi No-Stop, massimale illimitato spese mediche e assistenza h24.',
+    status: 'Valido',
+    validity: 'Valida per l\'intero viaggio (28 Nov 2026 – 12 Gen 2027)',
     attachments: [],
     updatedAt: new Date().toISOString()
   },
@@ -23,6 +24,8 @@ export const DEFAULT_DOCUMENTS: TravelDocument[] = [
     category: 'passaporto',
     title: 'Passaporti Elettronici (Sposo & Sposa)',
     description: 'Scansioni dei passaporti biometrici validi per espatrio con scadenza superiore a 6 mesi.',
+    status: 'Valido',
+    validity: 'Validi (> 6 mesi oltre il rientro, fino al 2036)',
     attachments: [],
     updatedAt: new Date().toISOString()
   },
@@ -31,6 +34,8 @@ export const DEFAULT_DOCUMENTS: TravelDocument[] = [
     category: 'visto',
     title: 'Visto NZeTA + Tassa IVL (Nuova Zelanda)',
     description: 'Autorizzazione elettronica di viaggio e conservazione turistica per ingresso in Nuova Zelanda.',
+    status: 'Valido',
+    validity: 'Valido 2 anni (ingressi multipli)',
     attachments: [],
     updatedAt: new Date().toISOString()
   },
@@ -39,6 +44,8 @@ export const DEFAULT_DOCUMENTS: TravelDocument[] = [
     category: 'visto',
     title: 'Visto eVisitor Subclass 651 (Australia)',
     description: 'Visto turistico australiano collegato al passaporto europeo, valido 12 mesi.',
+    status: 'Valido',
+    validity: 'Valido 12 mesi (max 3 mesi per soggiorno)',
     attachments: [],
     updatedAt: new Date().toISOString()
   },
@@ -47,6 +54,8 @@ export const DEFAULT_DOCUMENTS: TravelDocument[] = [
     category: 'visto',
     title: 'Registrazione eTravel (Filippine)',
     description: 'QR Code eTravel da compilare nelle 72 ore precedenti il volo per le Filippine.',
+    status: 'Da richiedere',
+    validity: 'Da compilare 72 ore prima del volo (Dicembre 2026)',
     attachments: [],
     updatedAt: new Date().toISOString()
   },
@@ -55,6 +64,8 @@ export const DEFAULT_DOCUMENTS: TravelDocument[] = [
     category: 'patente',
     title: 'Patente Internazionale di Guida (IDP)',
     description: 'Permesso internazionale di guida convenzione Ginevra 1949 / Vienna 1968 per campervan e auto.',
+    status: 'Valido',
+    validity: 'Valida 1 anno (Convenzione Ginevra 1949)',
     attachments: [],
     updatedAt: new Date().toISOString()
   }
@@ -160,7 +171,7 @@ class StorageService {
   async seedTransports(force = false): Promise<void> {
     try {
       const existing = await idbGetAll<Trasporto>(STORES.TRASPORTI);
-      const SEED_VERSION = 'v5_mobile_timeline_euro';
+      const SEED_VERSION = 'v6_acconto_trasporti';
       const migrationVersion = typeof localStorage !== 'undefined' ? localStorage.getItem('trasporti_seed_ver') : null;
       const needsMigration = migrationVersion !== SEED_VERSION;
 
@@ -174,14 +185,16 @@ class StorageService {
 
       if (existing.length === SEED_TRANSPORTS.length && !force && !hasMockData && !needsMigration) return;
 
-      // Svuotamento completo e atomico di IndexedDB per trasporti
-      await idbClear(STORES.TRASPORTI);
-
+      const existingMap = new Map(existing.map(t => [t.id, t]));
       const now = Date.now();
       for (const item of SEED_TRANSPORTS) {
+        const prev = existingMap.get(item.id);
         await idbPut(STORES.TRASPORTI, {
           ...item,
-          createdAt: now,
+          attachments: (prev?.attachments && prev.attachments.length > 0) ? prev.attachments : (item.attachments || []),
+          copilota: prev?.copilota ?? item.copilota,
+          depositPaid: item.depositPaid || prev?.depositPaid,
+          createdAt: prev?.createdAt || now,
           updatedAt: now
         });
       }
@@ -241,6 +254,20 @@ class StorageService {
         if (!existingIds.has(defDoc.id)) {
           await idbPut(STORES.DOCUMENTI, defDoc);
           items.push(defDoc);
+        }
+      }
+      // Integra status o validity predefiniti se assenti
+      for (let i = 0; i < items.length; i++) {
+        const doc = items[i];
+        const defDoc = DEFAULT_DOCUMENTS.find(d => d.id === doc.id);
+        if (defDoc && (!doc.validity || !doc.status)) {
+          const updated: TravelDocument = {
+            ...doc,
+            status: doc.status || defDoc.status,
+            validity: doc.validity || defDoc.validity
+          };
+          await idbPut(STORES.DOCUMENTI, updated);
+          items[i] = updated;
         }
       }
       return items;

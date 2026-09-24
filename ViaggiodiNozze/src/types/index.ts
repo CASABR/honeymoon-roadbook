@@ -70,6 +70,9 @@ export interface TravelDocument {
   category: 'passaporto' | 'visto' | 'assicurazione' | 'patente' | 'altro';
   title: string;
   description?: string;
+  status?: string;
+  validity?: string;
+  expiresAt?: string;
   attachments: TransportAttachment[];
   updatedAt: string;
 }
@@ -89,6 +92,8 @@ export interface Trasporto {
   bookingCode?: string;
   ticketUrl?: string;
   cost?: string;
+  depositPaid?: string; // Quantitativo di acconto già dato
+  acconto?: string; // Alias di depositPaid
   layover?: {
     airport: string;
     duration?: string;
