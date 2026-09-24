@@ -1,12 +1,64 @@
-import type { Giorno, Attivita, Alloggio, Trasporto } from '../types';
+import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument } from '../types';
 import {
   STORES,
   idbGetAll,
+  idbGet,
   idbPut,
   idbDelete,
   idbClear
 } from './indexedDB';
 import { SEED_TRANSPORTS } from './seedTransports';
+
+export const DEFAULT_DOCUMENTS: TravelDocument[] = [
+  {
+    id: 'doc_assicurazione',
+    category: 'assicurazione',
+    title: 'Polizza Assicurazione Viaggio',
+    description: 'Polizza Europ Assistance Viaggi No-Stop, massimale illimitato spese mediche e assistenza h24.',
+    attachments: [],
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'doc_passaporti',
+    category: 'passaporto',
+    title: 'Passaporti Elettronici (Sposo & Sposa)',
+    description: 'Scansioni dei passaporti biometrici validi per espatrio con scadenza superiore a 6 mesi.',
+    attachments: [],
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'doc_visto_nzeta',
+    category: 'visto',
+    title: 'Visto NZeTA + Tassa IVL (Nuova Zelanda)',
+    description: 'Autorizzazione elettronica di viaggio e conservazione turistica per ingresso in Nuova Zelanda.',
+    attachments: [],
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'doc_visto_australia',
+    category: 'visto',
+    title: 'Visto eVisitor Subclass 651 (Australia)',
+    description: 'Visto turistico australiano collegato al passaporto europeo, valido 12 mesi.',
+    attachments: [],
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'doc_visto_filippine',
+    category: 'visto',
+    title: 'Registrazione eTravel (Filippine)',
+    description: 'QR Code eTravel da compilare nelle 72 ore precedenti il volo per le Filippine.',
+    attachments: [],
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'doc_patente',
+    category: 'patente',
+    title: 'Patente Internazionale di Guida (IDP)',
+    description: 'Permesso internazionale di guida convenzione Ginevra 1949 / Vienna 1968 per campervan e auto.',
+    attachments: [],
+    updatedAt: new Date().toISOString()
+  }
+];
 
 /**
  * Servizio di persistenza locale astratto.
@@ -172,20 +224,68 @@ class StorageService {
     await idbDelete(STORES.TRASPORTI, id);
   }
 
+  // --- DOCUMENTI ---
+  async getDocuments(): Promise<TravelDocument[]> {
+    try {
+      const items = await idbGetAll<TravelDocument>(STORES.DOCUMENTI);
+      if (items.length === 0) {
+        // Inizializza con i documenti predefiniti
+        for (const doc of DEFAULT_DOCUMENTS) {
+          await idbPut(STORES.DOCUMENTI, doc);
+        }
+        return DEFAULT_DOCUMENTS;
+      }
+      // Assicura che tutti i documenti standard esistano se ne mancano alcuni
+      const existingIds = new Set(items.map(d => d.id));
+      for (const defDoc of DEFAULT_DOCUMENTS) {
+        if (!existingIds.has(defDoc.id)) {
+          await idbPut(STORES.DOCUMENTI, defDoc);
+          items.push(defDoc);
+        }
+      }
+      return items;
+    } catch (err) {
+      console.error('[StorageService] Errore lettura documenti:', err);
+      return DEFAULT_DOCUMENTS;
+    }
+  }
+
+  async getDocumentById(id: string): Promise<TravelDocument | undefined> {
+    try {
+      return await idbGet<TravelDocument>(STORES.DOCUMENTI, id);
+    } catch (err) {
+      console.error('[StorageService] Errore lettura documento:', err);
+      return undefined;
+    }
+  }
+
+  async saveDocument(doc: TravelDocument): Promise<void> {
+    const item: TravelDocument = {
+      ...doc,
+      updatedAt: new Date().toISOString()
+    };
+    await idbPut(STORES.DOCUMENTI, item);
+  }
+
+  async deleteDocument(id: string): Promise<void> {
+    await idbDelete(STORES.DOCUMENTI, id);
+  }
+
   // --- BACKUP & RIPRISTINO ---
 
   /** Esporta tutti i dati in una stringa JSON con metadati. */
   async exportAllData(): Promise<string> {
-    const [giorni, attivita, alloggi, trasporti] = await Promise.all([
+    const [giorni, attivita, alloggi, trasporti, documenti] = await Promise.all([
       idbGetAll<Giorno>(STORES.GIORNI),
       idbGetAll<Attivita>(STORES.ATTIVITA),
       idbGetAll<Alloggio>(STORES.ALLOGGI),
       idbGetAll<Trasporto>(STORES.TRASPORTI),
+      idbGetAll<TravelDocument>(STORES.DOCUMENTI),
     ]);
     const backup = {
       version: 1,
       exportedAt: new Date().toISOString(),
-      data: { giorni, attivita, alloggi, trasporti },
+      data: { giorni, attivita, alloggi, trasporti, documenti },
     };
     return JSON.stringify(backup, null, 2);
   }
@@ -227,6 +327,7 @@ class StorageService {
       { key: 'attivita', store: STORES.ATTIVITA },
       { key: 'alloggi', store: STORES.ALLOGGI },
       { key: 'trasporti', store: STORES.TRASPORTI },
+      { key: 'documenti', store: STORES.DOCUMENTI },
     ] as const;
 
     for (const { key, store } of stores) {

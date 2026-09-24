@@ -65,6 +65,15 @@ export interface TransportAttachment {
   createdAt: string;
 }
 
+export interface TravelDocument {
+  id: string;
+  category: 'passaporto' | 'visto' | 'assicurazione' | 'patente' | 'altro';
+  title: string;
+  description?: string;
+  attachments: TransportAttachment[];
+  updatedAt: string;
+}
+
 export interface Trasporto {
   id: string;
   type: TipoTrasporto;

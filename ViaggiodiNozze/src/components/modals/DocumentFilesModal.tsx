@@ -1,32 +1,32 @@
 import { useState, useRef } from 'react';
-import type { Trasporto, TransportAttachment } from '../../types';
+import type { TravelDocument, TransportAttachment } from '../../types';
 import Modal from '../common/Modal';
 import LightboxCarousel from '../common/LightboxCarousel';
 import { processFileForAttachment, formatFileSize } from '../../utils/fileAttachment';
 import { storageService } from '../../storage/storageService';
 
-interface TrasportoTicketsModalProps {
+interface DocumentFilesModalProps {
   isOpen: boolean;
   onClose: () => void;
-  transport: Trasporto | null;
-  onUpdateTransport: (updated: Trasporto) => void;
+  document: TravelDocument | null;
+  onUpdateDocument: (updated: TravelDocument) => void;
 }
 
-export default function TrasportoTicketsModal({
+export default function DocumentFilesModal({
   isOpen,
   onClose,
-  transport,
-  onUpdateTransport
-}: TrasportoTicketsModalProps) {
+  document,
+  onUpdateDocument
+}: DocumentFilesModalProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgressText, setUploadProgressText] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [zoomedIndex, setZoomedIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  if (!transport) return null;
+  if (!document) return null;
 
-  const attachments = transport.attachments || [];
+  const attachments = document.attachments || [];
   const imageAttachments = attachments.filter((att) => att.type === 'image');
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,14 +48,14 @@ export default function TrasportoTicketsModal({
         newAttachments.push(processed);
       }
 
-      const updatedTransport: Trasporto = {
-        ...transport,
+      const updatedDocument: TravelDocument = {
+        ...document,
         attachments: newAttachments,
-        updatedAt: Date.now()
+        updatedAt: new Date().toISOString()
       };
 
-      await storageService.saveTransport(updatedTransport);
-      onUpdateTransport(updatedTransport);
+      await storageService.saveDocument(updatedDocument);
+      onUpdateDocument(updatedDocument);
     } catch (err: unknown) {
       console.error('Errore durante il caricamento del file:', err);
       const msg = err instanceof Error ? err.message : 'Errore imprevisto durante il caricamento del file.';
@@ -70,18 +70,18 @@ export default function TrasportoTicketsModal({
   };
 
   const handleDeleteAttachment = async (attachmentId: string) => {
-    if (!confirm('Vuoi eliminare questo biglietto / allegato?')) return;
+    if (!confirm('Vuoi eliminare questo documento / allegato?')) return;
 
     const newAttachments = attachments.filter((att) => att.id !== attachmentId);
-    const updatedTransport: Trasporto = {
-      ...transport,
+    const updatedDocument: TravelDocument = {
+      ...document,
       attachments: newAttachments,
-      updatedAt: Date.now()
+      updatedAt: new Date().toISOString()
     };
 
     try {
-      await storageService.saveTransport(updatedTransport);
-      onUpdateTransport(updatedTransport);
+      await storageService.saveDocument(updatedDocument);
+      onUpdateDocument(updatedDocument);
     } catch (err) {
       console.error('Errore durante l\'eliminazione:', err);
       setErrorMessage('Errore durante l\'eliminazione del file.');
@@ -96,14 +96,13 @@ export default function TrasportoTicketsModal({
           `<title>${fileName}</title><iframe src="${dataUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`
         );
       } else {
-        // Fallback su download diretto
-        const a = document.createElement('a');
+        const a = window.document.createElement('a');
         a.href = dataUrl;
         a.download = fileName;
         a.click();
       }
     } catch {
-      const a = document.createElement('a');
+      const a = window.document.createElement('a');
       a.href = dataUrl;
       a.download = fileName;
       a.click();
@@ -112,18 +111,18 @@ export default function TrasportoTicketsModal({
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title="Biglietti, Pass & QR Code" accentVariant="sky">
+      <Modal isOpen={isOpen} onClose={onClose} title="Allegati & Scansioni Documento" accentVariant="indigo">
         <div className="space-y-4">
           {/* Header Sintetico */}
           <div className="flex items-center justify-between gap-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
             <div className="min-w-0">
               <div className="text-xs font-bold text-slate-900 truncate">
-                {transport.carrier || `${transport.departureLocation} ➔ ${transport.arrivalLocation}`}
+                {document.title}
               </div>
               <div className="text-[11px] text-slate-500 font-medium">
                 {attachments.length === 0
                   ? 'Nessun file salvato'
-                  : `${attachments.length} ${attachments.length === 1 ? 'file salvato offline' : 'file salvati offline'}`}
+                  : `${attachments.length} ${attachments.length === 1 ? 'file disponibile offline' : 'file disponibili offline'}`}
               </div>
             </div>
 
@@ -131,11 +130,11 @@ export default function TrasportoTicketsModal({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isUploading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-bold text-xs shadow-md shadow-sky-500/20 transition-all cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs shadow-md shadow-indigo-600/20 transition-all cursor-pointer disabled:opacity-50"
             >
               {isUploading ? (
                 <>
-                  <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   <span>{uploadProgressText || 'Caricamento...'}</span>
                 </>
               ) : (
@@ -171,20 +170,20 @@ export default function TrasportoTicketsModal({
             </div>
           )}
 
-          {/* Lista Biglietti / Allegati */}
+          {/* Lista Allegati / Documenti */}
           {attachments.length === 0 ? (
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-300 hover:border-sky-500 rounded-3xl p-6 text-center cursor-pointer transition-colors bg-slate-50 hover:bg-slate-100/70"
+              className="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-3xl p-6 text-center cursor-pointer transition-colors bg-slate-50 hover:bg-slate-100/70"
             >
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600 text-2xl mb-2.5">
-                📱
+              <div className="w-12 h-12 mx-auto rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 text-2xl mb-2.5">
+                📁
               </div>
-              <h4 className="text-sm font-bold text-slate-900">Carica Biglietto, Pass o QR Code</h4>
+              <h4 className="text-sm font-bold text-slate-900">Carica Documenti o Foto</h4>
               <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-                Tocca qui per caricare più file contemporaneamente: carte d'imbarco, QR code o PDF (fino a 25 MB ciascuno).
+                Tocca qui per caricare più file insieme: foto di passaporti, visti PDF o certificati di polizza (fino a 25 MB ciascuno).
               </p>
-              <span className="inline-block mt-3 px-3 py-1 text-[11px] font-semibold text-sky-700 bg-sky-50 rounded-full border border-sky-200">
+              <span className="inline-block mt-3 px-3 py-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 rounded-full border border-indigo-200">
                 Disponibili 100% offline
               </span>
             </div>
@@ -202,7 +201,7 @@ export default function TrasportoTicketsModal({
                       <div
                         onClick={() => setZoomedIndex(imgIdx >= 0 ? imgIdx : 0)}
                         className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden cursor-pointer shrink-0 relative group flex items-center justify-center"
-                        title="Tocca per ingrandire e scansionare"
+                        title="Tocca per visualizzare a schermo intero"
                       >
                         <img src={att.dataUrl} alt={att.name} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -231,7 +230,7 @@ export default function TrasportoTicketsModal({
                         <button
                           type="button"
                           onClick={() => setZoomedIndex(imgIdx >= 0 ? imgIdx : 0)}
-                          className="mt-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
+                          className="mt-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
                         >
                           <span>Mostra a schermo intero (sfogliabile)</span>
                           <span>🔍</span>
@@ -240,7 +239,7 @@ export default function TrasportoTicketsModal({
                         <button
                           type="button"
                           onClick={() => handleOpenPdf(att.dataUrl, att.name)}
-                          className="mt-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
+                          className="mt-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
                         >
                           <span>Apri documento PDF</span>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -286,7 +285,7 @@ export default function TrasportoTicketsModal({
         onClose={() => setZoomedIndex(null)}
         items={attachments}
         initialIndex={zoomedIndex ?? 0}
-        title={transport.carrier || 'Pass & QR Code'}
+        title={document.title}
       />
     </>
   );
