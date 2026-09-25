@@ -46,6 +46,20 @@ export interface Tappa {
   updatedAt: number;
 }
 
+export interface Ristorante {
+  id: string;
+  nome: string;
+  data?: string; // YYYY-MM-DD
+  coordinate?: Coordinate;
+  indirizzo?: string;
+  telefono?: string;
+  linkPrenotazione?: string;
+  nota?: string;
+  copilota?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type StatoAlloggio = 'da_prenotare' | 'prenotato' | 'completato';
 
 export interface Alloggio {

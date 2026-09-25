@@ -1,4 +1,4 @@
-import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa } from '../types';
+import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante } from '../types';
 import {
   STORES,
   idbGetAll,
@@ -469,21 +469,92 @@ class StorageService {
     await idbDelete(STORES.TAPPE, id);
   }
 
+  // --- RISTORANTI ---
+  async getRistoranti(): Promise<Ristorante[]> {
+    try {
+      const items = await idbGetAll<Ristorante>(STORES.RISTORANTI);
+      return items.sort((a, b) => {
+        if (a.data && b.data) return a.data.localeCompare(b.data);
+        if (a.data) return -1;
+        if (b.data) return 1;
+        return a.nome.localeCompare(b.nome);
+      });
+    } catch (err) {
+      console.error('[StorageService] Errore lettura ristoranti:', err);
+      return [];
+    }
+  }
+
+  async getRistorantiPerData(data: string): Promise<Ristorante[]> {
+    try {
+      const all = await this.getRistoranti();
+      return all.filter(r => r.data === data);
+    } catch (err) {
+      console.error('[StorageService] Errore lettura ristoranti per data:', err);
+      return [];
+    }
+  }
+
+  async addRistorante(ristorante: Omit<Ristorante, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<Ristorante> {
+    const now = Date.now();
+    const newRistorante: Ristorante = {
+      ...ristorante,
+      id: ristorante.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'ristorante_' + now),
+      createdAt: now,
+      updatedAt: now
+    };
+    await idbPut(STORES.RISTORANTI, newRistorante);
+    return newRistorante;
+  }
+
+  async updateRistorante(id: string, partial: Partial<Ristorante>): Promise<void> {
+    try {
+      const existing = await idbGet<Ristorante>(STORES.RISTORANTI, id);
+      if (!existing) throw new Error(`Ristorante con id ${id} non trovato`);
+      const updated: Ristorante = {
+        ...existing,
+        ...partial,
+        id,
+        updatedAt: Date.now()
+      };
+      await idbPut(STORES.RISTORANTI, updated);
+    } catch (err) {
+      console.error('[StorageService] Errore aggiornamento ristorante:', err);
+      throw err;
+    }
+  }
+
+  async saveRistorante(r: Ristorante): Promise<void> {
+    const now = Date.now();
+    const item: Ristorante = {
+      ...r,
+      createdAt: r.createdAt || now,
+      updatedAt: now
+    };
+    await idbPut(STORES.RISTORANTI, item);
+  }
+
+  async deleteRistorante(id: string): Promise<void> {
+    await idbDelete(STORES.RISTORANTI, id);
+  }
+
   // --- BACKUP & RIPRISTINO ---
 
   /** Esporta tutti i dati in una stringa JSON con metadati. */
   async exportAllData(): Promise<string> {
-    const [giorni, attivita, alloggi, trasporti, documenti] = await Promise.all([
+    const [giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti] = await Promise.all([
       idbGetAll<Giorno>(STORES.GIORNI),
       idbGetAll<Attivita>(STORES.ATTIVITA),
       idbGetAll<Alloggio>(STORES.ALLOGGI),
       idbGetAll<Trasporto>(STORES.TRASPORTI),
       idbGetAll<TravelDocument>(STORES.DOCUMENTI),
+      idbGetAll<Tappa>(STORES.TAPPE),
+      idbGetAll<Ristorante>(STORES.RISTORANTI),
     ]);
     const backup = {
       version: 1,
       exportedAt: new Date().toISOString(),
-      data: { giorni, attivita, alloggi, trasporti, documenti },
+      data: { giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti },
     };
     return JSON.stringify(backup, null, 2);
   }
@@ -526,6 +597,8 @@ class StorageService {
       { key: 'alloggi', store: STORES.ALLOGGI },
       { key: 'trasporti', store: STORES.TRASPORTI },
       { key: 'documenti', store: STORES.DOCUMENTI },
+      { key: 'tappe', store: STORES.TAPPE },
+      { key: 'ristoranti', store: STORES.RISTORANTI },
     ] as const;
 
     for (const { key, store } of stores) {
