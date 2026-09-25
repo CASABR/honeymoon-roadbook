@@ -29,6 +29,8 @@ export interface Attivita {
   status: StatoAttivita;
   copilota?: boolean;
   coordinate?: Coordinate;
+  qrCode?: string; // Codice testuale, numero biglietto o URL per QR code
+  attachments?: TransportAttachment[]; // File, biglietti, immagini o QR code salvati offline
   createdAt: number;
   updatedAt: number;
 }

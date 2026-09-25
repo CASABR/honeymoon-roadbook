@@ -298,6 +298,7 @@ export default function AttivitaView() {
                                   title: activity.title
                                 })
                               }
+                              onUpdate={loadData}
                             />
                             {nextActivity && activity.location && nextActivity.location && (
                               <div className="pl-6 py-0.5">

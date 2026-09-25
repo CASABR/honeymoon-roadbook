@@ -20,6 +20,7 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
   // Campi avanzati / opzionali
   const [copilota, setCopilota] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [qrCode, setQrCode] = useState('');
   const [duration, setDuration] = useState('');
   const [notes, setNotes] = useState('');
   const [link, setLink] = useState('');
@@ -34,10 +35,11 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       setCategory(initialData.category);
       setStatus(initialData.status);
       setCopilota(initialData.copilota || false);
+      setQrCode(initialData.qrCode || '');
       setDuration(initialData.duration || '');
       setNotes(initialData.notes || '');
       setLink(initialData.link || '');
-      if (initialData.duration || initialData.notes || initialData.link || initialData.copilota) {
+      if (initialData.duration || initialData.notes || initialData.link || initialData.copilota || initialData.qrCode) {
         setShowAdvanced(true);
       }
     } else {
@@ -48,6 +50,7 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       setCategory('visita');
       setStatus('pianificata');
       setCopilota(false);
+      setQrCode('');
       setDuration('');
       setNotes('');
       setLink('');
@@ -75,6 +78,8 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       category,
       status,
       copilota: copilota || undefined,
+      qrCode: qrCode.trim() || undefined,
+      attachments: initialData?.attachments,
       duration: duration.trim() || undefined,
       notes: notes.trim() || undefined,
       link: link.trim() || undefined
@@ -221,6 +226,22 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
 
         {showAdvanced && (
           <div className="mt-3 space-y-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 animate-fade-in">
+            <div>
+              <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center justify-between">
+                <span>Codice Biglietto / Testo per QR Code</span>
+                <span className="text-[10px] text-amber-700 font-semibold lowercase">genera QR code scansionabile</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="es. TICKET-98234-MILANO o URL voucher"
+                  value={qrCode}
+                  onChange={(e) => setQrCode(e.target.value)}
+                  className="w-full h-10 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400 font-mono"
+                />
+                <span className="absolute left-3 top-2.5 text-xs text-amber-600">📱</span>
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">
                 Durata stimata (es. 2 ore)

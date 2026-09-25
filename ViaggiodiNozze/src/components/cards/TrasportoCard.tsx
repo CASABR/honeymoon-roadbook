@@ -199,11 +199,11 @@ export default function TrasportoCard({
         className={`w-full rounded-3xl border border-slate-200/80 ${currentType.borderAccent} bg-white p-4 shadow-sm transition-all duration-200 hover:border-slate-300`}
       >
         {/* 1. HEADER CARD: Categoria, Vettore e Prezzo in Euro Sempre in Primo Piano */}
-        <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
-          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+        <div className="flex items-start sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100 flex-wrap sm:flex-nowrap">
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
             {/* Badge Categoria */}
             <span
-              className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md shadow-sm shrink-0 ${currentType.badgeStyle}`}
+              className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md shadow-2xs shrink-0 ${currentType.badgeStyle}`}
             >
               <span>{currentType.icon}</span>
               <span>{currentType.label}</span>
@@ -211,7 +211,7 @@ export default function TrasportoCard({
 
             {/* Vettore / Compagnia */}
             {transport.carrier && !isRental && (
-              <span className="text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 truncate max-w-[160px] sm:max-w-none">
+              <span className="text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 truncate max-w-[150px] sm:max-w-none">
                 {transport.carrier}
               </span>
             )}
@@ -221,7 +221,7 @@ export default function TrasportoCard({
 
             {/* Badge Co-pilota */}
             {transport.copilota && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
                 <span>🧭</span>
                 <span>Co-pilota</span>
               </span>
@@ -229,7 +229,7 @@ export default function TrasportoCard({
           </div>
 
           {/* PREZZO IN EURO ED EVENTUALE ACCONTO IN ALTO A DESTRA */}
-          <div className="shrink-0 flex flex-col items-end gap-1">
+          <div className="shrink-0 flex flex-col items-end gap-1 ml-auto">
             {renderCostBadge()}
             {(transport.depositPaid || transport.acconto) && (
               <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
@@ -246,36 +246,36 @@ export default function TrasportoCard({
             /* ================= LAYOUT DEDICATO NOLEGGI (AUTO & CAMPER) ================= */
             <div className="space-y-2">
               {transport.carrier && (
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 break-words">
                   <span className="text-amber-500">🔑</span>
                   <span>{transport.carrier}</span>
                 </div>
               )}
 
               {/* Box Ritiro & Riconsegna essenziale */}
-              <div className="space-y-2 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+              <div className="space-y-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                 {/* Ritiro */}
-                <div className="flex items-start gap-2">
+                <div className="flex items-start gap-2.5">
                   <div className="w-5 h-5 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-800 shrink-0 text-[10px] mt-0.5">
                     🔑
                   </div>
                   <div className="text-xs leading-tight min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-1 flex-wrap">
+                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
                       <span className="font-bold text-amber-800 uppercase tracking-wider text-[10px]">
                         Ritiro (Pick-up)
                       </span>
-                      <span className="font-mono text-slate-900 font-bold text-[11px]">
+                      <span className="font-mono text-slate-900 font-bold text-[11px] shrink-0">
                         {formatDate(transport.date)}
                         {transport.departureTime ? ` • h ${transport.departureTime}` : ''}
                       </span>
                     </div>
-                    <div className="text-slate-600 mt-0.5 font-medium truncate">
+                    <div className="text-slate-700 mt-1 font-medium text-xs break-words leading-relaxed">
                       {transport.departureLocation}
                     </div>
                   </div>
                 </div>
 
-                <div className="pl-[22px] py-1">
+                <div className="pl-7 py-0.5">
                   <RouteBadge 
                     from={transport.departureLocation} 
                     to={transport.dropoffLocation || transport.arrivalLocation} 
@@ -283,21 +283,21 @@ export default function TrasportoCard({
                 </div>
 
                 {/* Riconsegna */}
-                <div className="flex items-start gap-2 pt-2 border-t border-slate-200/60">
+                <div className="flex items-start gap-2.5 pt-2 border-t border-slate-200/60">
                   <div className="w-5 h-5 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-800 shrink-0 text-[10px] mt-0.5">
                     🏁
                   </div>
                   <div className="text-xs leading-tight min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-1 flex-wrap">
+                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
                       <span className="font-bold text-amber-800 uppercase tracking-wider text-[10px]">
                         Riconsegna (Drop-off)
                       </span>
-                      <span className="font-mono text-slate-900 font-bold text-[11px]">
+                      <span className="font-mono text-slate-900 font-bold text-[11px] shrink-0">
                         {formatDate(transport.dropoffDate || transport.date)}
                         {transport.dropoffTime ? ` • h ${transport.dropoffTime}` : ''}
                       </span>
                     </div>
-                    <div className="text-slate-600 mt-0.5 font-medium truncate">
+                    <div className="text-slate-700 mt-1 font-medium text-xs break-words leading-relaxed">
                       {transport.dropoffLocation || transport.arrivalLocation}
                     </div>
                   </div>
@@ -305,7 +305,7 @@ export default function TrasportoCard({
 
                 {/* Dettaglio Acconto già versato */}
                 {(transport.depositPaid || transport.acconto) && (
-                  <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px]">
+                  <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
                       <span>💰</span>
                       <span>Acconto già versato:</span>
@@ -324,7 +324,7 @@ export default function TrasportoCard({
               <div className="absolute left-[6px] top-2.5 bottom-2.5 w-0.5 border-l-2 border-dashed border-slate-200" />
 
               {/* 1. PUNTO PARTENZA */}
-              <div className="relative flex items-start gap-2">
+              <div className="relative flex items-start gap-2.5">
                 <div className="absolute -left-5 top-1 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100 flex items-center justify-center shrink-0">
                   <div className="w-1 h-1 rounded-full bg-white" />
                 </div>
@@ -337,7 +337,7 @@ export default function TrasportoCard({
                       Partenza
                     </span>
                   </div>
-                  <div className="text-xs font-bold text-slate-800 truncate">
+                  <div className="text-xs font-bold text-slate-800 break-words mt-0.5 leading-snug">
                     {transport.departureLocation}
                   </div>
                 </div>
@@ -351,12 +351,12 @@ export default function TrasportoCard({
                   </div>
 
                   <div className="min-w-0 flex-1 p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1 truncate">
+                    <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1 break-words">
                       <span>🛑</span>
                       <span>Scalo: {transport.layover.airport}</span>
                     </span>
                     {transport.layover.duration && (
-                      <span className="text-[10px] font-bold font-mono text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded">
+                      <span className="text-[10px] font-bold font-mono text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">
                         ⏳ {transport.layover.duration}
                       </span>
                     )}
@@ -365,7 +365,7 @@ export default function TrasportoCard({
               )}
 
               {/* 3. PUNTO ARRIVO FINALE */}
-              <div className="relative flex items-start gap-2">
+              <div className="relative flex items-start gap-2.5">
                 <div className="absolute -left-5 top-1 w-3 h-3 rounded-full bg-emerald-600 ring-4 ring-emerald-100 flex items-center justify-center shrink-0">
                   <div className="w-1 h-1 rounded-full bg-white" />
                 </div>
@@ -378,7 +378,7 @@ export default function TrasportoCard({
                       Arrivo
                     </span>
                   </div>
-                  <div className="text-xs font-bold text-slate-800 truncate">
+                  <div className="text-xs font-bold text-slate-800 break-words mt-0.5 leading-snug">
                     {transport.arrivalLocation}
                   </div>
                 </div>
@@ -389,7 +389,7 @@ export default function TrasportoCard({
 
         {/* Dettagli Acconto già versato (per voli, treni, transfer ecc.) */}
         {!isRental && (transport.depositPaid || transport.acconto) && (
-          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] gap-2 flex-wrap">
             <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
               <span>💰</span>
               <span>Acconto / Già pagato:</span>
@@ -401,20 +401,20 @@ export default function TrasportoCard({
         )}
 
         {/* 3. RIGA INFERIORE PULITA: PNR + AZIONI MIRATE */}
-        <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1.5 flex-wrap">
+        <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
           {/* Sezione Sinistra: PNR Rapido (se presente) */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
             {transport.bookingCode ? (
-              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200">
+              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200 min-w-0">
                 <span className="text-[10px] text-slate-500 font-medium">PNR:</span>
-                <span className="text-xs font-mono text-blue-700 font-bold tracking-wider">
+                <span className="text-xs font-mono text-blue-700 font-bold tracking-wider truncate">
                   {transport.bookingCode}
                 </span>
                 <button
                   type="button"
                   onClick={handleCopyBookingCode}
                   title="Copia PNR"
-                  className="ml-0.5 p-1 text-[11px] text-blue-600 hover:text-blue-800 transition-colors cursor-pointer active:scale-95 min-w-[24px] flex items-center justify-center"
+                  className="ml-0.5 p-1 text-[11px] text-blue-600 hover:text-blue-800 transition-colors cursor-pointer active:scale-95 min-w-[24px] flex items-center justify-center shrink-0"
                 >
                   {copied ? (
                     <span className="text-emerald-600 font-bold text-[11px]">✓</span>
@@ -438,7 +438,7 @@ export default function TrasportoCard({
           </div>
 
           {/* Sezione Destra: Pulsanti Mirati (Naviga se Maps, Info se note, Pass se accessibile) */}
-          <div className="flex items-center gap-1.5 ml-auto">
+          <div className="flex items-center gap-1.5 ml-auto flex-wrap sm:flex-nowrap justify-end">
             {/* 1. Pulsante Naviga Google Maps (Solo se presente) */}
             {mapTargets.primaryUrl && (
               <a
@@ -446,7 +446,7 @@ export default function TrasportoCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 title={`Naviga su Google Maps verso ${mapTargets.primaryLabel}`}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all cursor-pointer active:scale-95 min-h-[38px]"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all cursor-pointer active:scale-95 min-h-[38px] shrink-0"
               >
                 <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
