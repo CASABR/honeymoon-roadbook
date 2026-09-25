@@ -620,43 +620,81 @@ class StorageService {
   // --- TIMELINE OGGI ---
   async getTimelineForDate(dateStr: string): Promise<import('../types').TimelineItem[]> {
     try {
-      const [days, transports] = await Promise.all([
+      const [days, transports, tappe, ristoranti] = await Promise.all([
         this.getDays(),
-        this.getTransports()
+        this.getTransports(),
+        this.getTappe(),
+        this.getRistoranti()
       ]);
       const day = days.find(d => d.date === dateStr);
       const activities = day ? await this.getActivities(day.id) : [];
       
       const dayTransports = transports.filter(t => t.date === dateStr);
+      const dayTappe = tappe.filter(t => t.data === dateStr);
+      const dayRistoranti = ristoranti.filter(r => r.data === dateStr);
       
       const timeline: import('../types').TimelineItem[] = [];
       
-      activities.forEach(a => {
-        timeline.push({
-          id: a.id,
-          type: 'attivita',
-          time: a.time || '23:59',
-          title: a.title,
-          location: a.location,
-          categoryOrType: a.category,
-          copilota: a.copilota,
-          originalData: a
-        });
-      });
-      
+      // 1. Spostamenti / Trasporti del giorno
       dayTransports.forEach(t => {
-        const time = t.departureTime || '23:59';
-        const title = t.carrier ? `${t.type.toUpperCase()} - ${t.carrier}` : t.type.toUpperCase();
+        const time = t.departureTime || '08:00';
+        const title = t.carrier ? `${t.type.toUpperCase()} • ${t.carrier}` : t.type.toUpperCase();
         const loc = t.departureLocation ? `${t.departureLocation} ➔ ${t.arrivalLocation}` : t.arrivalLocation;
         timeline.push({
           id: t.id,
           type: 'trasporto',
-          time: time,
-          title: title,
+          time,
+          title,
           location: loc,
           categoryOrType: t.type,
           copilota: t.copilota,
+          coordinate: t.coordinate,
           originalData: t
+        });
+      });
+
+      // 2. Tappe programmate per la data
+      dayTappe.forEach(t => {
+        timeline.push({
+          id: t.id,
+          type: 'tappa',
+          time: '10:00', // Orario indicativo mattutino per le soste di viaggio se non specificato
+          title: t.titolo,
+          location: t.titolo,
+          categoryOrType: 'tappa',
+          copilota: t.copilota,
+          coordinate: t.coordinate,
+          originalData: t
+        });
+      });
+
+      // 3. Attività
+      activities.forEach(a => {
+        timeline.push({
+          id: a.id,
+          type: 'attivita',
+          time: a.time || '14:00',
+          title: a.title,
+          location: a.location,
+          categoryOrType: a.category,
+          copilota: a.copilota,
+          coordinate: a.coordinate,
+          originalData: a
+        });
+      });
+
+      // 4. Prenotazioni Ristoranti
+      dayRistoranti.forEach(r => {
+        timeline.push({
+          id: r.id,
+          type: 'ristorante',
+          time: r.orario || '19:30',
+          title: r.nome,
+          location: r.indirizzo || r.nome,
+          categoryOrType: 'ristorante',
+          copilota: r.copilota,
+          coordinate: r.coordinate,
+          originalData: r
         });
       });
       

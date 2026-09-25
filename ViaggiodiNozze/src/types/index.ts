@@ -170,11 +170,12 @@ export type CategoriaTab = 'tappe' | 'attivita' | 'ristoranti' | 'alloggi' | 'tr
 
 export interface TimelineItem {
   id: string;
-  type: 'attivita' | 'trasporto';
+  type: 'attivita' | 'trasporto' | 'tappa' | 'ristorante' | 'alloggio';
   time: string; // HH:mm or '23:59' if undefined
   title: string;
   location: string;
   categoryOrType: string;
   copilota?: boolean;
+  coordinate?: Coordinate;
   originalData: any;
 }
