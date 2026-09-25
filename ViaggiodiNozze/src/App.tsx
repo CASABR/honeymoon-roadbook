@@ -15,9 +15,11 @@ import UpdateToast from './components/common/UpdateToast';
 export default function App() {
   const [activeTab, setActiveTab] = useState<SectionTab>('oggi');
   const [activeCategoria, setActiveCategoria] = useState<CategoriaTab | null>(null);
+  const [isCategorieOpen, setIsCategorieOpen] = useState(false);
 
   const handleTabChange = (tab: SectionTab, categoria?: CategoriaTab) => {
     setActiveTab(tab);
+    setIsCategorieOpen(false);
     if (tab === 'oggi' || tab === 'altro') {
       setActiveCategoria(null);
     } else if (tab === 'categorie') {
@@ -25,20 +27,18 @@ export default function App() {
     }
   };
 
-  const handleOpenCategorie = () => {
-    setActiveTab('categorie');
-    if (!activeCategoria) {
-      setActiveCategoria('tappe');
-    }
+  const handleToggleCategorie = () => {
+    setIsCategorieOpen(prev => !prev);
   };
 
   const handleSelectCategoria = (cat: CategoriaTab) => {
     setActiveCategoria(cat);
     setActiveTab('categorie');
+    setIsCategorieOpen(false);
   };
 
   const handleCloseCategorie = () => {
-    setActiveTab('oggi');
+    setIsCategorieOpen(false);
   };
 
   return (
@@ -72,20 +72,20 @@ export default function App() {
         {activeTab === 'altro' && <AltroView />}
       </main>
 
-      {/* Quando si è in "Categorie", compare la barra orizzontale dock/capsula scura a 5 icone */}
-      {activeTab === 'categorie' ? (
+      {/* Barra inferiore classica a 3 tab (Oggi - Categorie - Altro) sempre presente come base */}
+      <NavBar
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        onOpenCategorie={handleToggleCategorie}
+        isCategorieActive={activeTab === 'categorie' || isCategorieOpen}
+      />
+
+      {/* Dock orizzontale a capsula mostrato in overlay sovrimpresso al click su "Categorie" */}
+      {isCategorieOpen && (
         <CategorieBar
           activeCategoria={activeCategoria}
           onSelectCategoria={handleSelectCategoria}
           onClose={handleCloseCategorie}
-        />
-      ) : (
-        /* Barra inferiore classica a 3 tab (Oggi - Categorie - Altro) */
-        <NavBar
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-          onOpenCategorie={handleOpenCategorie}
-          isCategorieActive={false}
         />
       )}
 
