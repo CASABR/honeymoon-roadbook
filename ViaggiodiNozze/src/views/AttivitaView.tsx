@@ -246,10 +246,6 @@ export default function AttivitaView() {
               .filter((a) => categoryFilter === 'tutte' || a.category === categoryFilter);
             const isSelected = selectedDayId === day.id;
 
-            if (import.meta.env.DEV && day.date === '2026-11-28') {
-              console.log(`[DEBUG RENDER] Il giorno 2026-11-28 ha ${dayActivities.length} attività da mostrare. IsSelected: ${isSelected}`);
-            }
-
             return (
               <div key={day.id} className="space-y-2.5">
                 <GiornoCard
