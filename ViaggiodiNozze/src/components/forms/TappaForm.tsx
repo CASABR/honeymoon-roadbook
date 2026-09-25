@@ -10,8 +10,7 @@ interface TappaFormProps {
 export default function TappaForm({ initialData, onSave, onCancel }: TappaFormProps) {
   const [titolo, setTitolo] = useState('');
   const [data, setData] = useState('');
-  const [lat, setLat] = useState('');
-  const [lng, setLng] = useState('');
+  const [mapsUrl, setMapsUrl] = useState('');
   const [nota, setNota] = useState('');
   const [copilota, setCopilota] = useState(false);
   const [error, setError] = useState('');
@@ -20,15 +19,13 @@ export default function TappaForm({ initialData, onSave, onCancel }: TappaFormPr
     if (initialData) {
       setTitolo(initialData.titolo);
       setData(initialData.data || '');
-      setLat(initialData.coordinate?.lat !== undefined ? String(initialData.coordinate.lat) : '');
-      setLng(initialData.coordinate?.lng !== undefined ? String(initialData.coordinate.lng) : '');
+      setMapsUrl(initialData.mapsUrl || '');
       setNota(initialData.nota || '');
       setCopilota(initialData.copilota || false);
     } else {
       setTitolo('');
       setData('');
-      setLat('');
-      setLng('');
+      setMapsUrl('');
       setNota('');
       setCopilota(false);
     }
@@ -37,19 +34,8 @@ export default function TappaForm({ initialData, onSave, onCancel }: TappaFormPr
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!titolo.trim()) {
-      setError('Il titolo è obbligatorio.');
+      setError('Il titolo/luogo della tappa è obbligatorio.');
       return;
-    }
-
-    let coordinate: { lat: number; lng: number } | undefined = undefined;
-    if (lat.trim() !== '' && lng.trim() !== '') {
-      const parsedLat = parseFloat(lat);
-      const parsedLng = parseFloat(lng);
-      if (isNaN(parsedLat) || isNaN(parsedLng)) {
-        setError('Le coordinate devono essere valori numerici validi.');
-        return;
-      }
-      coordinate = { lat: parsedLat, lng: parsedLng };
     }
 
     setError('');
@@ -57,7 +43,8 @@ export default function TappaForm({ initialData, onSave, onCancel }: TappaFormPr
       id: initialData?.id,
       titolo: titolo.trim(),
       data: data || undefined,
-      coordinate,
+      mapsUrl: mapsUrl.trim() || undefined,
+      coordinate: initialData?.coordinate,
       nota: nota.trim() || undefined,
       copilota: copilota || undefined
     });
@@ -97,39 +84,25 @@ export default function TappaForm({ initialData, onSave, onCancel }: TappaFormPr
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Latitudine (opzionale)
-          </label>
-          <input
-            type="text"
-            placeholder="es. -38.6857"
-            value={lat}
-            onChange={(e) => setLat(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400 text-xs"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Longitudine (opzionale)
-          </label>
-          <input
-            type="text"
-            placeholder="es. 176.0702"
-            value={lng}
-            onChange={(e) => setLng(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400 text-xs"
-          />
-        </div>
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          Link o Indirizzo Google Maps (opzionale)
+        </label>
+        <input
+          type="text"
+          placeholder="es. Indirizzo o link https://maps.app.goo.gl/..."
+          value={mapsUrl}
+          onChange={(e) => setMapsUrl(e.target.value)}
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
+        />
       </div>
 
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Nota / Descrizione (opzionale)
+          Descrizione / Note sintetiche (opzionale)
         </label>
         <textarea
-          rows={3}
+          rows={2}
           placeholder="es. Punto panoramico per foto al tramonto, rifornimento carburante..."
           value={nota}
           onChange={(e) => setNota(e.target.value)}

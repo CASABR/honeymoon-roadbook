@@ -13,17 +13,17 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
   const [dayId, setDayId] = useState(selectedDayId || (days[0]?.id || ''));
   const [title, setTitle] = useState('');
   const [time, setTime] = useState('');
+  const [cost, setCost] = useState('');
+  const [category, setCategory] = useState<CategoriaAttivita>('cultura');
   const [location, setLocation] = useState('');
-  const [category, setCategory] = useState<CategoriaAttivita>('visita');
   const [status, setStatus] = useState<StatoAttivita>('pianificata');
   
-  // Campi avanzati / opzionali
+  // Campi secondari
   const [copilota, setCopilota] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [qrCode, setQrCode] = useState('');
-  const [duration, setDuration] = useState('');
-  const [notes, setNotes] = useState('');
   const [link, setLink] = useState('');
+  const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -31,29 +31,29 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       setDayId(initialData.dayId);
       setTitle(initialData.title);
       setTime(initialData.time || '');
+      setCost(initialData.cost || '');
       setLocation(initialData.location);
-      setCategory(initialData.category);
+      setCategory(initialData.category || 'cultura');
       setStatus(initialData.status);
       setCopilota(initialData.copilota || false);
       setQrCode(initialData.qrCode || '');
-      setDuration(initialData.duration || '');
-      setNotes(initialData.notes || '');
       setLink(initialData.link || '');
-      if (initialData.duration || initialData.notes || initialData.link || initialData.copilota || initialData.qrCode) {
+      setNotes(initialData.notes || '');
+      if (initialData.qrCode || initialData.link || initialData.copilota) {
         setShowAdvanced(true);
       }
     } else {
       if (selectedDayId) setDayId(selectedDayId);
       setTitle('');
       setTime('');
+      setCost('');
       setLocation('');
-      setCategory('visita');
+      setCategory('cultura');
       setStatus('pianificata');
       setCopilota(false);
       setQrCode('');
-      setDuration('');
-      setNotes('');
       setLink('');
+      setNotes('');
       setShowAdvanced(false);
     }
   }, [initialData, selectedDayId]);
@@ -64,8 +64,8 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       setError('Seleziona il giorno associato.');
       return;
     }
-    if (!title.trim() || !location.trim()) {
-      setError('Titolo e località sono obbligatori.');
+    if (!title.trim()) {
+      setError('Il titolo dell\'attività è obbligatorio.');
       return;
     }
     setError('');
@@ -74,13 +74,13 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       dayId,
       title: title.trim(),
       time: time || undefined,
-      location: location.trim(),
+      cost: cost.trim() || undefined,
+      location: location.trim() || title.trim(),
       category,
       status,
       copilota: copilota || undefined,
       qrCode: qrCode.trim() || undefined,
       attachments: initialData?.attachments,
-      duration: duration.trim() || undefined,
       notes: notes.trim() || undefined,
       link: link.trim() || undefined
     });
@@ -94,32 +94,14 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
         </div>
       )}
 
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Giorno Associato *
-        </label>
-        <select
-          value={dayId}
-          onChange={(e) => setDayId(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
-          required
-        >
-          {days.length === 0 && <option value="">Nessun giorno presente</option>}
-          {days.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.date} – {d.title}
-            </option>
-          ))}
-        </select>
-      </div>
-
+      {/* Titolo Attività */}
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
           Titolo Attività *
         </label>
         <input
           type="text"
-          placeholder="es. Visita al tempio Senso-ji"
+          placeholder="es. Visita al Museo del Novecento, Gita in barca"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
@@ -127,7 +109,26 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
         />
       </div>
 
+      {/* Giorno e Orario */}
       <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Giorno Associato *
+          </label>
+          <select
+            value={dayId}
+            onChange={(e) => setDayId(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs sm:text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors truncate"
+            required
+          >
+            {days.length === 0 && <option value="">Nessun giorno presente</option>}
+            {days.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.date} – {d.title}
+              </option>
+            ))}
+          </select>
+        </div>
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Orario (opzionale)
@@ -139,6 +140,10 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
           />
         </div>
+      </div>
+
+      {/* Categoria e Costo */}
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Categoria *
@@ -148,70 +153,56 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
             onChange={(e) => setCategory(e.target.value as CategoriaAttivita)}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
           >
-            <option value="visita">Visita / Tour</option>
-            <option value="cibo">Cibo & Ristorante</option>
-            <option value="relax">Relax & Benessere</option>
-            <option value="natura">Natura & Trekking</option>
-            <option value="cultura">Cultura & Musei</option>
-            <option value="shopping">Shopping</option>
-            <option value="altro">Altro</option>
+            <option value="cultura">🏛️ Cultura & Musei</option>
+            <option value="natura">🌿 Natura & Parchi</option>
+            <option value="visita">🧭 Avventura & Tour</option>
+            <option value="cibo">🍽️ Cibo & Degustazioni</option>
+            <option value="relax">💆 Relax & Spiaggia</option>
           </select>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Località *
+            Costo in € (opzionale)
           </label>
           <input
             type="text"
-            placeholder="es. Asakusa"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
+            placeholder="es. 40 € / Gratuito"
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
-            required
           />
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Stato *
-          </label>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as StatoAttivita)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
-          >
-            <option value="pianificata">Pianificata</option>
-            <option value="completata">Completata</option>
-            <option value="annullata">Annullata</option>
-          </select>
         </div>
       </div>
 
-      {/* Opzione Co-pilota */}
-      <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="text-base">🧭</span>
-          <div>
-            <label htmlFor="copilota-att-toggle" className="text-xs font-bold text-slate-800 cursor-pointer block">
-              Mostra al co-pilota
-            </label>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Segna questa attività come tappa rilevante per il co-pilota di bordo
-            </p>
-          </div>
-        </div>
+      {/* Località / Indirizzo */}
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          Località / Luogo
+        </label>
         <input
-          id="copilota-att-toggle"
-          type="checkbox"
-          checked={copilota}
-          onChange={(e) => setCopilota(e.target.checked)}
-          className="w-4 h-4 rounded text-emerald-600 bg-white border-slate-300 focus:ring-emerald-500 cursor-pointer"
+          type="text"
+          placeholder="es. Piazza del Duomo 8, Milano"
+          value={location}
+          onChange={(e) => setLocation(e.target.value)}
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
         />
       </div>
 
-      {/* Dettagli Opzionali Richiudibili */}
+      {/* Note */}
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          Note o dettagli (opzionale)
+        </label>
+        <textarea
+          rows={2}
+          placeholder="Dettagli biglietti, ingressi, prenotazioni..."
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-amber-500 placeholder:text-slate-400 resize-none"
+        />
+      </div>
+
+      {/* Sezione Voucher / Link / Co-pilota (Richiudibile) */}
       <div className="pt-1">
         <button
           type="button"
@@ -221,42 +212,14 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
           <svg className={"w-4 h-4 transition-transform " + (showAdvanced ? 'rotate-90' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
           </svg>
-          <span>{showAdvanced ? 'Nascondi dettagli avanzati' : 'Mostra dettagli avanzati (durata, link, note)'}</span>
+          <span>{showAdvanced ? 'Meno opzioni (link, voucher QR)' : 'Aggiungi link/voucher o QR code'}</span>
         </button>
 
         {showAdvanced && (
-          <div className="mt-3 space-y-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 animate-fade-in">
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center justify-between">
-                <span>Codice Biglietto / Testo per QR Code</span>
-                <span className="text-[10px] text-amber-700 font-semibold lowercase">genera QR code scansionabile</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="es. TICKET-98234-MILANO o URL voucher"
-                  value={qrCode}
-                  onChange={(e) => setQrCode(e.target.value)}
-                  className="w-full h-10 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400 font-mono"
-                />
-                <span className="absolute left-3 top-2.5 text-xs text-amber-600">📱</span>
-              </div>
-            </div>
+          <div className="mt-2.5 space-y-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 animate-fade-in">
             <div>
               <label className="block text-xs font-bold text-slate-600 mb-1">
-                Durata stimata (es. 2 ore)
-              </label>
-              <input
-                type="text"
-                placeholder="es. 1h 30m"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">
-                Link o sito web utile
+                Link o voucher web
               </label>
               <input
                 type="url"
@@ -266,16 +229,35 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
                 className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400"
               />
             </div>
+
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">
-                Note o suggerimenti
+              <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center justify-between">
+                <span>Codice Biglietto / Testo per QR Code</span>
+                <span className="text-[10px] text-amber-700 font-semibold lowercase">genera QR code scansionabile</span>
               </label>
-              <textarea
-                rows={2}
-                placeholder="Dettagli biglietti, orari di apertura..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400 resize-none"
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="es. TICKET-12345 o codice a barre"
+                  value={qrCode}
+                  onChange={(e) => setQrCode(e.target.value)}
+                  className="w-full h-10 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400 font-mono"
+                />
+                <span className="absolute left-3 top-2.5 text-xs text-amber-600">📱</span>
+              </div>
+            </div>
+
+            <div className="pt-1 flex items-center justify-between gap-3">
+              <label htmlFor="copilota-att-toggle" className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1.5">
+                <span>🧭</span>
+                <span>Mostra al co-pilota</span>
+              </label>
+              <input
+                id="copilota-att-toggle"
+                type="checkbox"
+                checked={copilota}
+                onChange={(e) => setCopilota(e.target.checked)}
+                className="w-4 h-4 rounded text-emerald-600 bg-white border-slate-300 focus:ring-emerald-500 cursor-pointer"
               />
             </div>
           </div>

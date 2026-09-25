@@ -72,28 +72,10 @@ export default function TrasportoCard({
       icon: '🚕',
       borderAccent: 'border-l-4 border-l-emerald-600',
       badgeStyle: 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-    },
-    treno: {
-      label: 'Treno',
-      icon: '🚄',
-      borderAccent: 'border-l-4 border-l-indigo-600',
-      badgeStyle: 'bg-indigo-50 text-indigo-800 border border-indigo-200'
-    },
-    bus: {
-      label: 'Bus',
-      icon: '🚌',
-      borderAccent: 'border-l-4 border-l-blue-600',
-      badgeStyle: 'bg-blue-50 text-blue-800 border border-blue-200'
-    },
-    altro: {
-      label: 'Spostamento',
-      icon: '🧭',
-      borderAccent: 'border-l-4 border-l-slate-400',
-      badgeStyle: 'bg-slate-100 text-slate-800 border border-slate-200'
     }
   };
 
-  const currentType = typeConfig[transport.type] || typeConfig.altro;
+  const currentType = typeConfig[transport.type] || typeConfig.transfer;
   const isRental = transport.type === 'auto' || transport.type === 'camper';
 
   const statusVariant = {

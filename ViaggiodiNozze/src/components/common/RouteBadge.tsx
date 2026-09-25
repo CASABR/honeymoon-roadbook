@@ -61,10 +61,6 @@ export default function RouteBadge({
     };
   }, [from, to, profile, fromCoord, toCoord, onDistanceCalculated]);
 
-  const handleToggleProfile = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setProfile(prev => (prev === 'driving-car' ? 'foot-walking' : 'driving-car'));
-  };
 
   const handleOpenMaps = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -141,34 +137,79 @@ export default function RouteBadge({
   }
 
   const isCar = profile === 'driving-car';
-  const icon = isCar ? '🚗' : '🚶';
 
   return (
     <div
-      onClick={handleOpenMaps}
-      title="Clicca per aprire la rotta esatta in Google Maps"
-      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-50 hover:bg-sky-100/80 text-sky-900 border border-sky-200/70 text-[11px] font-semibold transition-all cursor-pointer shadow-2xs group active:scale-95 ${className}`}
+      className={`inline-flex flex-wrap items-center gap-1.5 p-1 px-2 rounded-2xl bg-white/95 border border-slate-200 shadow-sm text-xs ${className}`}
     >
-      {/* Toggle auto / piedi */}
+      {/* Due pulsanti pillola ben visibili [🚗 In Auto] [🚶 A Piedi] */}
+      <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 border border-slate-200/80">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (profile !== 'driving-car') setProfile('driving-car');
+          }}
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+            isCar
+              ? 'bg-slate-900 text-white shadow-xs font-bold'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+          title="Calcola percorso in auto"
+        >
+          <span>🚗</span>
+          <span>In Auto</span>
+        </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (profile !== 'foot-walking') setProfile('foot-walking');
+          }}
+          className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer ${
+            !isCar
+              ? 'bg-slate-900 text-white shadow-xs font-bold'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+          title="Calcola percorso a piedi"
+        >
+          <span>🚶</span>
+          <span>A Piedi</span>
+        </button>
+      </div>
+
+      {/* Valore distanza e durata calcolati */}
+      <div className="flex items-center gap-1.5 px-1.5 py-0.5 text-[11px] text-slate-700 font-medium">
+        {loading ? (
+          <span className="text-slate-400 animate-pulse">Calcolo...</span>
+        ) : (
+          <>
+            <span className="font-bold text-slate-900">
+              {route?.formattedDistance || '— km'}
+            </span>
+            <span className="text-slate-300">•</span>
+            <span className="text-amber-700 font-medium">
+              ~{route?.formattedDuration || '—'}
+            </span>
+          </>
+        )}
+      </div>
+
+      {/* Pulsante rotta ufficiale Google Maps */}
       <button
         type="button"
-        onClick={handleToggleProfile}
-        title={isCar ? 'Passa a piedi 🚶' : 'Passa in auto 🚗'}
-        className="w-5 h-5 -ml-1 rounded-full bg-white hover:bg-sky-200 flex items-center justify-center text-xs transition-colors shadow-2xs cursor-pointer"
+        onClick={handleOpenMaps}
+        title="Apri percorso esatto in Google Maps"
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-xl bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200/70 text-[10px] font-semibold transition-all cursor-pointer active:scale-95"
       >
-        {icon}
+        <svg className="w-3 h-3 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <span>Apri rotta</span>
       </button>
 
-      <span>{route?.formattedDistance || 'Distanza n/d'}</span>
-      <span className="text-sky-300">•</span>
-      <span className="text-sky-700">~{route?.formattedDuration || 'Tempo n/d'}</span>
-
-      {/* Icona esterna Maps */}
-      <svg className="w-3 h-3 text-sky-500 group-hover:text-sky-700 transition-colors ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-      </svg>
-
-      {/* Tasto modifica manuale su hover */}
+      {/* Tasto modifica manuale */}
       <button
         type="button"
         onClick={e => {
@@ -177,8 +218,8 @@ export default function RouteBadge({
           setManualDuration(route?.formattedDuration || '');
           setIsEditing(true);
         }}
-        className="opacity-0 group-hover:opacity-100 ml-0.5 text-slate-400 hover:text-sky-800 transition-opacity cursor-pointer text-xs"
-        title="Modifica km e tempo manualmente"
+        className="p-1 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer text-xs"
+        title="Modifica km o tempo manualmente"
       >
         ✏️
       </button>
