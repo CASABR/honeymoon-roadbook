@@ -474,6 +474,56 @@ class StorageService {
 
     return true;
   }
+
+  // --- TIMELINE OGGI ---
+  async getTimelineForDate(dateStr: string): Promise<import('../types').TimelineItem[]> {
+    try {
+      const [days, transports] = await Promise.all([
+        this.getDays(),
+        this.getTransports()
+      ]);
+      const day = days.find(d => d.date === dateStr);
+      const activities = day ? await this.getActivities(day.id) : [];
+      
+      const dayTransports = transports.filter(t => t.date === dateStr);
+      
+      const timeline: import('../types').TimelineItem[] = [];
+      
+      activities.forEach(a => {
+        timeline.push({
+          id: a.id,
+          type: 'attivita',
+          time: a.time || '23:59',
+          title: a.title,
+          location: a.location,
+          categoryOrType: a.category,
+          copilota: a.copilota,
+          originalData: a
+        });
+      });
+      
+      dayTransports.forEach(t => {
+        const time = t.departureTime || '23:59';
+        const title = t.carrier ? `${t.type.toUpperCase()} - ${t.carrier}` : t.type.toUpperCase();
+        const loc = t.departureLocation ? `${t.departureLocation} ➔ ${t.arrivalLocation}` : t.arrivalLocation;
+        timeline.push({
+          id: t.id,
+          type: 'trasporto',
+          time: time,
+          title: title,
+          location: loc,
+          categoryOrType: t.type,
+          copilota: t.copilota,
+          originalData: t
+        });
+      });
+      
+      return timeline.sort((a, b) => a.time.localeCompare(b.time));
+    } catch (err) {
+      console.error('[StorageService] Errore lettura timeline:', err);
+      return [];
+    }
+  }
 }
 
 export const storageService = new StorageService();

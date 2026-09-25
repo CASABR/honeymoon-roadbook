@@ -82,6 +82,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     }
   };
 
+  const [timeline, setTimeline] = useState<import('../types').TimelineItem[]>([]);
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -93,10 +95,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         setAccommodations(accs);
         setDaysData(days);
 
-        // Se oggi ricade all'interno del viaggio, seleziona la data odierna
+        // Se oggi ricade all'interno del viaggio, seleziona la data odierna al primissimo mount
         const todayStr = new Date().toISOString().split('T')[0];
         const isInTrip = TRIP_DAYS.some((d) => d.dateStr === todayStr);
-        if (isInTrip) {
+        if (isInTrip && selectedDate === tripDays[0]?.dateStr) {
           setSelectedDate(todayStr);
         }
       } catch (err) {
@@ -106,7 +108,15 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       }
     }
     loadData();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    async function fetchTimeline() {
+      const items = await storageService.getTimelineForDate(selectedDate);
+      setTimeline(items);
+    }
+    fetchTimeline();
+  }, [selectedDate]);
 
   // Informazioni del giorno selezionato
   const currentDayMeta = tripDays.find((d) => d.dateStr === selectedDate);
@@ -214,6 +224,51 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             );
           })}
         </div>
+      </div>
+
+      {/* 2.5 TIMELINE (ATTIVITÀ E TRASPORTI) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+            Timeline {formatDateHuman(selectedDate)}
+          </span>
+        </div>
+
+        {timeline.length > 0 ? (
+          <div className="relative pl-3 space-y-4 before:absolute before:inset-y-0 before:left-3.5 before:w-px before:bg-slate-200">
+            {timeline.map((item, idx) => (
+              <div key={`${item.id}-${idx}`} className="relative pl-5">
+                <span className={`absolute left-[-5px] top-1 w-3 h-3 rounded-full border-2 border-white ${item.type === 'attivita' ? 'bg-amber-400' : 'bg-sky-400'} z-10 shadow-sm`} />
+                
+                <div className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm flex flex-col gap-1.5">
+                  <div className="flex justify-between items-start">
+                    <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md shrink-0">
+                      {item.time}
+                    </span>
+                    {item.copilota && (
+                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full ml-2 shrink-0">
+                        🧭 Co-pilota
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 leading-tight">
+                      {item.title}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium mt-0.5 flex items-center gap-1">
+                      {item.type === 'attivita' ? '📍' : '✈️'} {item.location}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-slate-100/50 rounded-2xl border border-slate-200 border-dashed p-4 text-center">
+            <p className="text-xs font-medium text-slate-500">Nessuna attività o trasporto per questa giornata.</p>
+          </div>
+        )}
       </div>
 
       {/* 3. RIQUADRO "DOVE DORMIRAI STASERA" */}
