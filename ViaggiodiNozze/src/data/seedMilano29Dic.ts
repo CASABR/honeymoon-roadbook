@@ -1,5 +1,5 @@
 import { storageService } from '../storage/storageService';
-import type { Attivita, Giorno } from '../types';
+import type { Attivita } from '../types';
 
 export async function seedMilano29Dic() {
   try {
