@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Ristorante, Giorno } from '../../types';
+import type { Ristorante } from '../../types';
 import { storageService } from '../../storage/storageService';
 import RistoranteForm from '../../components/forms/RistoranteForm';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import { openMapLink, resolveMapUrl } from '../../utils/mapsHelper';
+import DayPickerStrip from '../../components/common/DayPickerStrip';
 
 interface RistorantiViewProps {
   onBack?: () => void;
@@ -13,7 +14,6 @@ interface RistorantiViewProps {
 
 export default function RistorantiView({ onBack }: RistorantiViewProps) {
   const [ristoranti, setRistoranti] = useState<Ristorante[]>([]);
-  const [days, setDays] = useState<Giorno[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | 'tutte'>('tutte');
   const [loading, setLoading] = useState(true);
 
@@ -27,12 +27,8 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [loadedRistoranti, loadedDays] = await Promise.all([
-        storageService.getRistoranti(),
-        storageService.getDays()
-      ]);
+      const loadedRistoranti = await storageService.getRistoranti();
       setRistoranti(loadedRistoranti);
-      setDays(loadedDays);
     } catch (err) {
       console.error('Errore nel caricamento dei ristoranti:', err);
     } finally {
@@ -119,51 +115,18 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
         </button>
       </header>
 
-      {/* Selettore filtro per Data (Chips scrollabili) */}
-      {days.length > 0 && ristoranti.length > 0 && (
-        <div className="-mx-1 mb-4">
-          <div className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-none snap-x">
-            <button
-              type="button"
-              onClick={() => setSelectedDate('tutte')}
-              className={
-                'snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ' +
-                (selectedDate === 'tutte'
-                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                  : 'bg-white text-slate-600 border border-slate-200/80 hover:text-slate-900 hover:bg-slate-50')
-              }
-            >
-              <span>Tutti ({ristoranti.length})</span>
-            </button>
-
-            {days.map((day) => {
-              const count = ristoranti.filter(r => r.data === day.date).length;
-              if (count === 0 && selectedDate !== day.date) return null;
-              return (
-                <button
-                  key={day.id}
-                  type="button"
-                  onClick={() => setSelectedDate(day.date)}
-                  className={
-                    'snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ' +
-                    (selectedDate === day.date
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                      : 'bg-white text-slate-600 border border-slate-200/80 hover:text-slate-900 hover:bg-slate-50')
-                  }
-                >
-                  <span>{day.title || day.date}</span>
-                  {count > 0 && (
-                    <span className={
-                      'text-[10px] font-bold px-1.5 py-0.5 rounded-full ' +
-                      (selectedDate === day.date ? 'bg-slate-950/20 text-slate-900' : 'bg-slate-100 text-slate-600')
-                    }>{count}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Selettore DayPickerStrip standardizzato a scorrimento orizzontale */}
+      <DayPickerStrip
+        selectedDate={selectedDate}
+        onSelectDate={setSelectedDate}
+        totalCount={ristoranti.length}
+        itemCounts={ristoranti.reduce<Record<string, number>>((acc, r) => {
+          if (r.data) {
+            acc[r.data] = (acc[r.data] || 0) + 1;
+          }
+          return acc;
+        }, {})}
+      />
 
       {/* Contenuto principale */}
       {loading ? (
@@ -171,18 +134,42 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
           <div className="w-7 h-7 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : filteredRistoranti.length === 0 ? (
-        <EmptyState
-          title="Nessun ristorante registrato"
-          description="Aggiungi locali consigliati, pub, ristoranti tipici o prenotazioni per il viaggio."
-          actionLabel="+ Nuovo Ristorante"
-          accentVariant="amber"
-          onAction={handleOpenAdd}
-          icon={
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-          }
-        />
+        selectedDate !== 'tutte' ? (
+          <div className="p-8 rounded-3xl bg-white border border-slate-200/80 text-center shadow-sm flex flex-col items-center justify-center gap-3">
+            <span className="text-3xl">🍽️</span>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">
+                Nessun elemento programmato per questo giorno
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                Nessun ristorante o locale salvato per la data {selectedDate}.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+              </svg>
+              <span>+ Nuovo Ristorante per questa data</span>
+            </button>
+          </div>
+        ) : (
+          <EmptyState
+            title="Nessun ristorante registrato"
+            description="Aggiungi locali consigliati, pub, ristoranti tipici o prenotazioni per il viaggio."
+            actionLabel="+ Nuovo Ristorante"
+            accentVariant="amber"
+            onAction={handleOpenAdd}
+            icon={
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            }
+          />
+        )
       ) : (
         <div className="space-y-6">
           {Object.entries(groupedRistoranti).map(([groupKey, rGroup]) => (
