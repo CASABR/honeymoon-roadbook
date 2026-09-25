@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { SectionTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto } from '../types';
+import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto } from '../types';
 import { storageService } from '../storage/storageService';
 import { resolveMapUrl } from '../utils/mapsHelper';
 import TimelineItemDetailModal from '../components/modals/TimelineItemDetailModal';
@@ -8,7 +8,7 @@ import AttivitaForm from '../components/forms/AttivitaForm';
 import TrasportoForm from '../components/forms/TrasportoForm';
 
 interface OggiViewProps {
-  onNavigateTab?: (tab: SectionTab) => void;
+  onNavigateTab?: (tab: SectionTab, categoria?: CategoriaTab) => void;
 }
 
 // Generatore di giorni per il viaggio (29 Nov 2026 - 10 Gen 2027)
@@ -353,7 +353,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           {onNavigateTab && (
             <button
               type="button"
-              onClick={() => onNavigateTab('alloggi')}
+              onClick={() => onNavigateTab('categorie', 'alloggi')}
               className="text-xs font-semibold text-purple-600 hover:text-purple-700 transition-colors cursor-pointer"
             >
               Tutti ➔
