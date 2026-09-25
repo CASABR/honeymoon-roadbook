@@ -2,6 +2,7 @@ import { useState } from 'react';
 import NavBar, { type SectionTab } from './components/NavBar';
 import OggiView from './views/OggiView';
 import AttivitaView from './views/AttivitaView';
+import TappeView from './views/altro/TappeView';
 import AlloggiView from './views/AlloggiView';
 import TrasportiView from './views/TrasportiView';
 import AltroView from './views/AltroView';
@@ -28,6 +29,7 @@ export default function App() {
       <main className="w-full max-w-md mx-auto flex-1 flex flex-col px-4 pt-1 pb-28">
         {activeTab === 'oggi' && <OggiView onNavigateTab={setActiveTab} />}
         {activeTab === 'attivita' && <AttivitaView />}
+        {activeTab === 'tappe' && <TappeView />}
         {activeTab === 'alloggi' && <AlloggiView />}
         {activeTab === 'trasporti' && <TrasportiView />}
         {activeTab === 'altro' && <AltroView />}
