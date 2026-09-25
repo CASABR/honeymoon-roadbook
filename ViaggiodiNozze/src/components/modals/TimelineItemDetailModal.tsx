@@ -121,6 +121,47 @@ export default function TimelineItemDetailModal({
                     </p>
                   </div>
                 )}
+
+                {/* Sezione Biglietto / QR Code per Attività */}
+                {att.qrCode && (
+                  <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-12 h-12 bg-white rounded-xl border border-amber-200 p-1 flex items-center justify-center shrink-0">
+                        <img
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(att.qrCode)}`}
+                          alt="QR Code"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">
+                          QR Code Biglietto
+                        </span>
+                        <p className="text-xs font-mono font-bold text-slate-900 truncate">
+                          {att.qrCode}
+                        </p>
+                      </div>
+                    </div>
+                    <a
+                      href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(att.qrCode)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] rounded-xl shrink-0 transition-colors"
+                    >
+                      Ingrandisci 🔍
+                    </a>
+                  </div>
+                )}
+
+                {att.attachments && att.attachments.length > 0 && (
+                  <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-between text-xs text-purple-900">
+                    <span className="font-semibold flex items-center gap-1.5">
+                      <span>🎟️</span>
+                      <span>{att.attachments.length} biglietti/allegati caricati</span>
+                    </span>
+                    <span className="text-[10px] text-purple-600 font-bold">Disponibili offline</span>
+                  </div>
+                )}
               </div>
             );
           })()
