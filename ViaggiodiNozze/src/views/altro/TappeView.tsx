@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { Tappa, Giorno } from '../../types';
+import type { Tappa } from '../../types';
 import { storageService } from '../../storage/storageService';
 import TappaForm from '../../components/forms/TappaForm';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import { openMapLink, resolveMapUrl } from '../../utils/mapsHelper';
+import DayPickerStrip from '../../components/common/DayPickerStrip';
 
 interface TappeViewProps {
   onBack?: () => void;
@@ -13,7 +14,6 @@ interface TappeViewProps {
 
 export default function TappeView({ onBack }: TappeViewProps) {
   const [tappe, setTappe] = useState<Tappa[]>([]);
-  const [days, setDays] = useState<Giorno[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | 'tutte'>('tutte');
   const [loading, setLoading] = useState(true);
 
@@ -27,12 +27,8 @@ export default function TappeView({ onBack }: TappeViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [loadedTappe, loadedDays] = await Promise.all([
-        storageService.getTappe(),
-        storageService.getDays()
-      ]);
+      const loadedTappe = await storageService.getTappe();
       setTappe(loadedTappe);
-      setDays(loadedDays);
     } catch (err) {
       console.error('Errore nel caricamento delle tappe:', err);
     } finally {
@@ -119,51 +115,18 @@ export default function TappeView({ onBack }: TappeViewProps) {
         </button>
       </header>
 
-      {/* Selettore filtro per Data (Chips scrollabili con le date dei giorni salvati) */}
-      {days.length > 0 && tappe.length > 0 && (
-        <div className="-mx-1 mb-4">
-          <div className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-none snap-x">
-            <button
-              type="button"
-              onClick={() => setSelectedDate('tutte')}
-              className={
-                'snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ' +
-                (selectedDate === 'tutte'
-                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                  : 'bg-white text-slate-600 border border-slate-200/80 hover:text-slate-900 hover:bg-slate-50')
-              }
-            >
-              <span>Tutte ({tappe.length})</span>
-            </button>
-
-            {days.map((day) => {
-              const count = tappe.filter(t => t.data === day.date).length;
-              if (count === 0 && selectedDate !== day.date) return null;
-              return (
-                <button
-                  key={day.id}
-                  type="button"
-                  onClick={() => setSelectedDate(day.date)}
-                  className={
-                    'snap-start shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all cursor-pointer ' +
-                    (selectedDate === day.date
-                      ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
-                      : 'bg-white text-slate-600 border border-slate-200/80 hover:text-slate-900 hover:bg-slate-50')
-                  }
-                >
-                  <span>{day.title || day.date}</span>
-                  {count > 0 && (
-                    <span className={
-                      'text-[10px] font-bold px-1.5 py-0.5 rounded-full ' +
-                      (selectedDate === day.date ? 'bg-slate-950/20 text-slate-900' : 'bg-slate-100 text-slate-600')
-                    }>{count}</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {/* Selettore DayPickerStrip standardizzato a scorrimento orizzontale */}
+      <DayPickerStrip
+        selectedDate={selectedDate}
+        onSelectDate={setSelectedDate}
+        totalCount={tappe.length}
+        itemCounts={tappe.reduce<Record<string, number>>((acc, t) => {
+          if (t.data) {
+            acc[t.data] = (acc[t.data] || 0) + 1;
+          }
+          return acc;
+        }, {})}
+      />
 
       {/* Contenuto principale */}
       {loading ? (
@@ -171,19 +134,43 @@ export default function TappeView({ onBack }: TappeViewProps) {
           <div className="w-7 h-7 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : filteredTappe.length === 0 ? (
-        <EmptyState
-          title="Nessuna tappa registrata"
-          description="Aggiungi punti di passaggio, soste foto o stazioni di rifornimento lungo il tuo percorso."
-          actionLabel="+ Nuova Tappa"
-          accentVariant="amber"
-          onAction={handleOpenAdd}
-          icon={
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-          }
-        />
+        selectedDate !== 'tutte' ? (
+          <div className="p-8 rounded-3xl bg-white border border-slate-200/80 text-center shadow-sm flex flex-col items-center justify-center gap-3">
+            <span className="text-3xl">📍</span>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">
+                Nessun elemento programmato per questo giorno
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                Nessuna tappa di passaggio registrata per la data {selectedDate}.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+              </svg>
+              <span>+ Nuova Tappa per questa data</span>
+            </button>
+          </div>
+        ) : (
+          <EmptyState
+            title="Nessuna tappa registrata"
+            description="Aggiungi punti di passaggio, soste foto o stazioni di rifornimento lungo il tuo percorso."
+            actionLabel="+ Nuova Tappa"
+            accentVariant="amber"
+            onAction={handleOpenAdd}
+            icon={
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            }
+          />
+        )
       ) : (
         <div className="space-y-6">
           {Object.entries(groupedTappe).map(([groupKey, tappeGroup]) => (

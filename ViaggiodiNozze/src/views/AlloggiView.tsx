@@ -6,9 +6,11 @@ import AlloggioForm from '../components/forms/AlloggioForm';
 import Modal from '../components/common/Modal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
+import DayPickerStrip from '../components/common/DayPickerStrip';
 
 export default function AlloggiView() {
   const [accommodations, setAccommodations] = useState<Alloggio[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | 'tutte'>('tutte');
   const [loading, setLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -105,7 +107,14 @@ export default function AlloggiView() {
         </button>
       </header>
 
-      {/* Empty State */}
+      {/* Selettore DayPickerStrip a scorrimento orizzontale */}
+      <DayPickerStrip
+        selectedDate={selectedDate}
+        onSelectDate={setSelectedDate}
+        totalCount={accommodations.length}
+      />
+
+      {/* Empty State Globale */}
       {accommodations.length === 0 ? (
         <EmptyState
           title="Nessun alloggio inserito"
@@ -119,18 +128,55 @@ export default function AlloggiView() {
             </svg>
           }
         />
-      ) : (
-        <div className="space-y-3.5">
-          {accommodations.map((acc) => (
-            <AlloggioCard
-              key={acc.id}
-              accommodation={acc}
-              onEdit={() => handleOpenEdit(acc)}
-              onDelete={() => setDeletingAccommodation(acc)}
-            />
-          ))}
-        </div>
-      )}
+      ) : (() => {
+        const filteredAccommodations = accommodations.filter((acc) => {
+          if (selectedDate === 'tutte') return true;
+          // Mostra se la data selezionata cade tra checkIn (incluso) e checkOut (escluso/incluso per soggiorno)
+          if (acc.checkIn && acc.checkOut) {
+            return selectedDate >= acc.checkIn && selectedDate <= acc.checkOut;
+          }
+          return acc.checkIn === selectedDate;
+        });
+
+        if (filteredAccommodations.length === 0) {
+          return (
+            <div className="p-8 rounded-3xl bg-white border border-slate-200/80 text-center shadow-sm flex flex-col items-center justify-center gap-3">
+              <span className="text-3xl">🏨</span>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Nessun elemento programmato per questo giorno
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                  Nessun alloggio o pernottamento registrato per la data {selectedDate}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleOpenAdd}
+                className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md shadow-purple-600/20 transition-all cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>+ Aggiungi Alloggio per questa data</span>
+              </button>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-3.5">
+            {filteredAccommodations.map((acc) => (
+              <AlloggioCard
+                key={acc.id}
+                accommodation={acc}
+                onEdit={() => handleOpenEdit(acc)}
+                onDelete={() => setDeletingAccommodation(acc)}
+              />
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Modal Form */}
       <Modal

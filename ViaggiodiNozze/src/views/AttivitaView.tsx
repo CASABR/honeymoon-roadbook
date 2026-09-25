@@ -9,11 +9,15 @@ import Modal from '../components/common/Modal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import RouteBadge from '../components/common/RouteBadge';
+import DayPickerStrip from '../components/common/DayPickerStrip';
 
 export default function AttivitaView() {
   const [days, setDays] = useState<Giorno[]>([]);
   const [activities, setActivities] = useState<Attivita[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Filtro data: 'tutte' come DEFAULT oppure 'YYYY-MM-DD'
+  const [selectedDate, setSelectedDate] = useState<string | 'tutte'>('tutte');
 
   // Filtro categoria attività
   const [categoryFilter, setCategoryFilter] = useState<CategoriaAttivita | 'tutte'>('tutte');
@@ -186,8 +190,22 @@ export default function AttivitaView() {
         </button>
       </header>
 
-      {/* Filtro Categoria — chips scrollabili */}
-      {days.length > 0 && activities.length > 0 && (
+      {/* 1. Day Picker Orizzontale a Scorrimento */}
+      <DayPickerStrip
+        selectedDate={selectedDate}
+        onSelectDate={setSelectedDate}
+        totalCount={activities.length}
+        itemCounts={activities.reduce<Record<string, number>>((acc, a) => {
+          const matchingDay = days.find(d => d.id === a.dayId);
+          if (matchingDay?.date) {
+            acc[matchingDay.date] = (acc[matchingDay.date] || 0) + 1;
+          }
+          return acc;
+        }, {})}
+      />
+
+      {/* 2. Filtro Categoria — chips scrollabili */}
+      {activities.length > 0 && (
         <div className="-mx-1 mb-4">
           <div className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-none snap-x">
             {([
@@ -238,13 +256,46 @@ export default function AttivitaView() {
             </svg>
           }
         />
-      ) : (
-        <div className="space-y-4">
-          {days.map((day) => {
-            const dayActivities = activities
-              .filter((a) => a.dayId === day.id)
-              .filter((a) => categoryFilter === 'tutte' || a.category === categoryFilter);
-            const isSelected = selectedDayId === day.id;
+      ) : (() => {
+        const filteredDays = days.filter(d => selectedDate === 'tutte' || d.date === selectedDate);
+
+        if (filteredDays.length === 0) {
+          // Giorno selezionato non ha ancora un Giorno nel DB
+          return (
+            <div className="p-8 rounded-3xl bg-white border border-slate-200/80 text-center shadow-sm flex flex-col items-center justify-center gap-3">
+              <span className="text-3xl">🗓️</span>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">
+                  Nessun elemento programmato per questo giorno
+                </h3>
+                <p className="text-xs text-slate-500 mt-1 max-w-xs">
+                  Non ci sono attività registrate per la data {selectedDate}.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingDay(null);
+                  setIsDayModalOpen(true);
+                }}
+                className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>+ Crea Giorno per questa Data</span>
+              </button>
+            </div>
+          );
+        }
+
+        return (
+          <div className="space-y-4">
+            {filteredDays.map((day) => {
+              const dayActivities = activities
+                .filter((a) => a.dayId === day.id)
+                .filter((a) => categoryFilter === 'tutte' || a.category === categoryFilter);
+              const isSelected = selectedDate !== 'tutte' || selectedDayId === day.id;
 
             return (
               <div key={day.id} className="space-y-2.5">
@@ -318,7 +369,8 @@ export default function AttivitaView() {
             );
           })}
         </div>
-      )}
+      );
+    })()}
 
       {/* Modale Giorno */}
       <Modal

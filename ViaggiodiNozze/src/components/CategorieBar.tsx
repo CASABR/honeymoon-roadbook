@@ -163,18 +163,15 @@ export default function CategorieBar({
                   key={item.id}
                   type="button"
                   onClick={() => onSelectCategoria(item.id)}
-                  className={`group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-full transition-all duration-200 cursor-pointer min-h-[46px] active:scale-95`}
+                  className={`group relative flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all duration-150 cursor-pointer min-h-[46px] hover:scale-105 active:scale-95 hover:bg-slate-900/10 dark:hover:bg-white/15 ${
+                    isActive ? 'bg-slate-900/5 dark:bg-white/10' : ''
+                  }`}
                 >
-                  {/* Sfondo discreto per l'elemento attivo */}
-                  {isActive && (
-                    <div className="absolute inset-0 bg-slate-900/5 dark:bg-white/10 rounded-full pointer-events-none" />
-                  )}
-
                   {/* Icona */}
                   <div
-                    className={`relative z-10 transition-all duration-200 ${
+                    className={`relative z-10 transition-all duration-150 ${
                       isActive
-                        ? 'text-slate-900 dark:text-white scale-105'
+                        ? 'text-slate-900 dark:text-white scale-105 font-bold'
                         : 'text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white'
                     }`}
                   >
@@ -183,10 +180,10 @@ export default function CategorieBar({
 
                   {/* Micro-etichetta */}
                   <span
-                    className={`relative z-10 text-[11px] font-medium tracking-tight mt-1 transition-colors ${
+                    className={`relative z-10 text-[11px] font-medium tracking-tight mt-1 transition-colors duration-150 ${
                       isActive
                         ? 'text-slate-900 dark:text-white font-semibold'
-                        : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'
+                        : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white'
                     }`}
                   >
                     {item.label}
