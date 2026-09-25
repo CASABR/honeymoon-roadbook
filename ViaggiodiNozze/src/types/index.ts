@@ -33,6 +33,17 @@ export interface Attivita {
   updatedAt: number;
 }
 
+export interface Tappa {
+  id: string;
+  titolo: string;
+  data?: string; // YYYY-MM-DD
+  coordinate?: Coordinate;
+  nota?: string;
+  copilota?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type StatoAlloggio = 'da_prenotare' | 'prenotato' | 'completato';
 
 export interface Alloggio {
