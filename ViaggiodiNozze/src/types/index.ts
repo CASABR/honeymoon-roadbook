@@ -137,18 +137,22 @@ export interface Trasporto {
   updatedAt: number;
 }
 
+export type RouteProfile = 'driving-car' | 'foot-walking';
+
 export interface RouteInfo {
   distanceKm: number;
   formattedDistance: string; // es. "185.4 km"
   durationSeconds: number;
   formattedDuration: string; // es. "2h 35m"
+  profile?: RouteProfile;
   manualOverride?: boolean;
 }
 
 export interface RoutingCacheItem {
-  id: string; // es. route_${from}_${to}
+  id: string; // es. route_${profile}_${from}_${to}
   from: string;
   to: string;
+  profile?: RouteProfile;
   route: RouteInfo;
   updatedAt: number;
 }
