@@ -3,14 +3,16 @@ import PlaceholderView from './altro/PlaceholderView';
 import DocumentiView from './altro/DocumentiView';
 import AssicurazioneView from './altro/AssicurazioneView';
 import DocumentiGalleriaView from './altro/DocumentiGalleriaView';
+import RistorantiView from './altro/RistorantiView';
 
-type SubViewType = 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | null;
+type SubViewType = 'ristoranti' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | null;
 
 export default function AltroView() {
   const [activeSubView, setActiveSubView] = useState<SubViewType>(null);
 
   const handleBack = () => setActiveSubView(null);
 
+  if (activeSubView === 'ristoranti') return <RistorantiView onBack={handleBack} />;
   if (activeSubView === 'assicurazione') return <AssicurazioneView onBack={handleBack} />;
   if (activeSubView === 'documenti') return <DocumentiView onBack={handleBack} />;
   if (activeSubView === 'emergenza') return <PlaceholderView title="Numeri di Emergenza" icon="📞" onBack={handleBack} />;
@@ -32,6 +34,18 @@ export default function AltroView() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
+        {/* Card Ristoranti */}
+        <button 
+          onClick={() => setActiveSubView('ristoranti')}
+          className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all text-left flex flex-col gap-2 min-h-[100px] cursor-pointer"
+        >
+          <span className="text-2xl">🍽️</span>
+          <div>
+            <h3 className="font-bold text-slate-900 text-sm leading-tight">Ristoranti</h3>
+            <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">Luoghi dove mangiare</p>
+          </div>
+        </button>
+
         {/* Card 1: Assicurazione */}
         <button 
           onClick={() => setActiveSubView('assicurazione')}
