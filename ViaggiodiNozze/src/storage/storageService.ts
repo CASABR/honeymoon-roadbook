@@ -518,7 +518,9 @@ class StorageService {
         });
       });
       
-      return timeline.sort((a, b) => a.time.localeCompare(b.time));
+      const merged = timeline.sort((a, b) => a.time.localeCompare(b.time));
+      
+      return merged;
     } catch (err) {
       console.error('[StorageService] Errore lettura timeline:', err);
       return [];
