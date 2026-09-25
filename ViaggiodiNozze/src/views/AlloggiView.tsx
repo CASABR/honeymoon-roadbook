@@ -112,6 +112,12 @@ export default function AlloggiView() {
         selectedDate={selectedDate}
         onSelectDate={setSelectedDate}
         totalCount={accommodations.length}
+        itemCounts={accommodations.reduce<Record<string, number>>((acc, a) => {
+          if (a.checkIn) {
+            acc[a.checkIn] = (acc[a.checkIn] || 0) + 1;
+          }
+          return acc;
+        }, {})}
       />
 
       {/* Empty State Globale */}
