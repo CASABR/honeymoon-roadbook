@@ -22,6 +22,7 @@ export interface Attivita {
   title: string;
   time?: string; // HH:mm
   location: string;
+  cost?: string; // Costo in €
   category: CategoriaAttivita;
   duration?: string;
   notes?: string;
@@ -40,6 +41,7 @@ export interface Tappa {
   titolo: string;
   data?: string; // YYYY-MM-DD
   coordinate?: Coordinate;
+  mapsUrl?: string; // Link o indirizzo Maps
   nota?: string;
   copilota?: boolean;
   createdAt: number;
@@ -50,6 +52,8 @@ export interface Ristorante {
   id: string;
   nome: string;
   data?: string; // YYYY-MM-DD
+  orario?: string; // HH:mm
+  budget?: string; // es. 45 €
   coordinate?: Coordinate;
   indirizzo?: string;
   telefono?: string;
@@ -67,8 +71,12 @@ export interface Alloggio {
   name: string;
   location: string;
   checkIn: string; // YYYY-MM-DD
+  checkInTime?: string; // HH:mm
   checkOut: string; // YYYY-MM-DD
+  checkOutTime?: string; // HH:mm
   address: string;
+  cost?: string; // Costo totale in €
+  paymentStatus?: 'saldato' | 'da_saldare'; // Stato pagamento
   bookingUrl?: string;
   bookingCode?: string;
   phone?: string;
@@ -80,7 +88,7 @@ export interface Alloggio {
   updatedAt: number;
 }
 
-export type TipoTrasporto = 'volo' | 'traghetto' | 'auto' | 'camper' | 'transfer' | 'treno' | 'bus' | 'altro';
+export type TipoTrasporto = 'volo' | 'traghetto' | 'auto' | 'camper' | 'transfer';
 export type StatoTrasporto = 'pianificato' | 'prenotato' | 'da_prenotare' | 'completato' | 'annullato';
 
 export interface TransportAttachment {

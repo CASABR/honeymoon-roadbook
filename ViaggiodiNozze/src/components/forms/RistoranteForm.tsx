@@ -10,11 +10,11 @@ interface RistoranteFormProps {
 export default function RistoranteForm({ initialData, onSave, onCancel }: RistoranteFormProps) {
   const [nome, setNome] = useState('');
   const [data, setData] = useState('');
-  const [lat, setLat] = useState('');
-  const [lng, setLng] = useState('');
+  const [orario, setOrario] = useState('');
   const [indirizzo, setIndirizzo] = useState('');
-  const [telefono, setTelefono] = useState('');
+  const [budget, setBudget] = useState('');
   const [linkPrenotazione, setLinkPrenotazione] = useState('');
+  const [telefono, setTelefono] = useState('');
   const [nota, setNota] = useState('');
   const [copilota, setCopilota] = useState(false);
   const [error, setError] = useState('');
@@ -23,21 +23,21 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
     if (initialData) {
       setNome(initialData.nome);
       setData(initialData.data || '');
-      setLat(initialData.coordinate?.lat !== undefined ? String(initialData.coordinate.lat) : '');
-      setLng(initialData.coordinate?.lng !== undefined ? String(initialData.coordinate.lng) : '');
+      setOrario(initialData.orario || '');
       setIndirizzo(initialData.indirizzo || '');
-      setTelefono(initialData.telefono || '');
+      setBudget(initialData.budget || '');
       setLinkPrenotazione(initialData.linkPrenotazione || '');
+      setTelefono(initialData.telefono || '');
       setNota(initialData.nota || '');
       setCopilota(initialData.copilota || false);
     } else {
       setNome('');
       setData('');
-      setLat('');
-      setLng('');
+      setOrario('');
       setIndirizzo('');
-      setTelefono('');
+      setBudget('');
       setLinkPrenotazione('');
+      setTelefono('');
       setNota('');
       setCopilota(false);
     }
@@ -50,26 +50,17 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       return;
     }
 
-    let coordinate: { lat: number; lng: number } | undefined = undefined;
-    if (lat.trim() !== '' && lng.trim() !== '') {
-      const parsedLat = parseFloat(lat);
-      const parsedLng = parseFloat(lng);
-      if (isNaN(parsedLat) || isNaN(parsedLng)) {
-        setError('Le coordinate devono essere valori numerici validi.');
-        return;
-      }
-      coordinate = { lat: parsedLat, lng: parsedLng };
-    }
-
     setError('');
     onSave({
       id: initialData?.id,
       nome: nome.trim(),
       data: data || undefined,
-      coordinate,
+      orario: orario || undefined,
       indirizzo: indirizzo.trim() || undefined,
-      telefono: telefono.trim() || undefined,
+      budget: budget.trim() || undefined,
       linkPrenotazione: linkPrenotazione.trim() || undefined,
+      telefono: telefono.trim() || undefined,
+      coordinate: initialData?.coordinate,
       nota: nota.trim() || undefined,
       copilota: copilota || undefined
     });
@@ -83,13 +74,14 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
         </div>
       )}
 
+      {/* Nome locale */}
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Nome Ristorante *
+          Nome Locale / Ristorante *
         </label>
         <input
           type="text"
-          placeholder="es. Starita Milano, Fergburger Queenstown"
+          placeholder="es. Fergburger, Starita Milano, Depot Eatery"
           value={nome}
           onChange={(e) => setNome(e.target.value)}
           className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
@@ -97,111 +89,94 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
         />
       </div>
 
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Data (opzionale)
-        </label>
-        <input
-          type="date"
-          value={data}
-          onChange={(e) => setData(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
-        />
-      </div>
-
+      {/* Data e Orario */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Latitudine (opzionale)
+            Data (opzionale)
           </label>
           <input
-            type="text"
-            placeholder="es. 45.4789"
-            value={lat}
-            onChange={(e) => setLat(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400 text-xs"
+            type="date"
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
           />
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Longitudine (opzionale)
+            Orario (opzionale)
           </label>
           <input
-            type="text"
-            placeholder="es. 9.1762"
-            value={lng}
-            onChange={(e) => setLng(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400 text-xs"
+            type="time"
+            value={orario}
+            onChange={(e) => setOrario(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
           />
         </div>
       </div>
 
+      {/* Indirizzo / Città / Link Maps */}
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Indirizzo (opzionale)
+          Indirizzo / Città o Link Maps
         </label>
         <input
           type="text"
-          placeholder="es. Via G. G. Mora 5, Milano"
+          placeholder="es. Shotover St, Queenstown o link Maps"
           value={indirizzo}
           onChange={(e) => setIndirizzo(e.target.value)}
           className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
         />
       </div>
 
+      {/* Budget stimato e Link / Prenotazione */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Telefono (opzionale)
+            Budget stimato (€)
           </label>
           <input
-            type="tel"
-            placeholder="es. +39 02 123456"
-            value={telefono}
-            onChange={(e) => setTelefono(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400 text-xs"
+            type="text"
+            placeholder="es. 35 € a persona"
+            value={budget}
+            onChange={(e) => setBudget(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
           />
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Link Prenotazione (opzionale)
+            Link Prenotazione / Web
           </label>
           <input
             type="url"
             placeholder="https://..."
             value={linkPrenotazione}
             onChange={(e) => setLinkPrenotazione(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400 text-xs"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
           />
         </div>
       </div>
 
+      {/* Note / Prenotazione */}
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Nota / Menu / Consigli (opzionale)
+          Note / Dettagli prenotazione
         </label>
         <textarea
-          rows={3}
-          placeholder="es. Tavolo prenotato alle 20:30 a nome Mario. Specialità montanara e pizza fritta..."
+          rows={2}
+          placeholder="es. Tavolo prenotato a nome Mario, piatti consigliati, orario limite arrivo..."
           value={nota}
           onChange={(e) => setNota(e.target.value)}
-          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-amber-500 placeholder:text-slate-400 resize-none"
+          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-amber-500 placeholder:text-slate-400 resize-none"
         />
       </div>
 
-      {/* Checkbox Co-pilota */}
-      <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="text-base">🧭</span>
-          <div>
-            <label htmlFor="copilota-ristorante-toggle" className="text-xs font-bold text-slate-800 cursor-pointer block">
-              Mostra al co-pilota
-            </label>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Mostra il badge "🧭 Co-pilota" per le tappe culinarie chiave del percorso
-            </p>
-          </div>
-        </div>
+      {/* Opzione Co-pilota */}
+      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+        <label htmlFor="copilota-ristorante-toggle" className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1.5">
+          <span>🧭</span>
+          <span>Mostra al co-pilota per pause pranzo/cena</span>
+        </label>
         <input
           id="copilota-ristorante-toggle"
           type="checkbox"
@@ -215,15 +190,15 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 transition-colors cursor-pointer"
+          className="min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
         >
           Annulla
         </button>
         <button
           type="submit"
-          className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer"
+          className="min-h-[44px] px-6 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
         >
-          {initialData ? 'Salva Modifiche' : 'Aggiungi Ristorante'}
+          {initialData ? 'Aggiorna Ristorante' : 'Salva Ristorante'}
         </button>
       </div>
     </form>

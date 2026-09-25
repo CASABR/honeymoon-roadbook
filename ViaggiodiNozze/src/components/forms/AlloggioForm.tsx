@@ -11,17 +11,16 @@ export default function AlloggioForm({ initialData, onSave, onCancel }: Alloggio
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [checkIn, setCheckIn] = useState('');
+  const [checkInTime, setCheckInTime] = useState('');
   const [checkOut, setCheckOut] = useState('');
+  const [checkOutTime, setCheckOutTime] = useState('');
   const [address, setAddress] = useState('');
-  const [status, setStatus] = useState<StatoAlloggio>('da_prenotare');
-  const [copilota, setCopilota] = useState(false);
-
-  // Campi facoltativi richiudibili
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [bookingCode, setBookingCode] = useState('');
+  const [cost, setCost] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState<'saldato' | 'da_saldare'>('saldato');
   const [bookingUrl, setBookingUrl] = useState('');
-  const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
+  const [copilota, setCopilota] = useState(false);
+  const [status, setStatus] = useState<StatoAlloggio>('prenotato');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -29,37 +28,37 @@ export default function AlloggioForm({ initialData, onSave, onCancel }: Alloggio
       setName(initialData.name);
       setLocation(initialData.location);
       setCheckIn(initialData.checkIn);
+      setCheckInTime(initialData.checkInTime || '');
       setCheckOut(initialData.checkOut);
+      setCheckOutTime(initialData.checkOutTime || '');
       setAddress(initialData.address);
+      setCost(initialData.cost || '');
+      setPaymentStatus(initialData.paymentStatus || 'saldato');
+      setBookingUrl(initialData.bookingUrl || '');
+      setNotes(initialData.notes || '');
       setStatus(initialData.status);
       setCopilota(initialData.copilota || false);
-      setBookingCode(initialData.bookingCode || '');
-      setBookingUrl(initialData.bookingUrl || '');
-      setPhone(initialData.phone || '');
-      setNotes(initialData.notes || '');
-      if (initialData.bookingCode || initialData.bookingUrl || initialData.phone || initialData.notes || initialData.copilota) {
-        setShowAdvanced(true);
-      }
     } else {
       setName('');
       setLocation('');
       setCheckIn('');
+      setCheckInTime('14:00');
       setCheckOut('');
+      setCheckOutTime('10:00');
       setAddress('');
-      setStatus('da_prenotare');
-      setCopilota(false);
-      setBookingCode('');
+      setCost('');
+      setPaymentStatus('saldato');
       setBookingUrl('');
-      setPhone('');
       setNotes('');
-      setShowAdvanced(false);
+      setStatus('prenotato');
+      setCopilota(false);
     }
   }, [initialData]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !location.trim() || !checkIn || !checkOut || !address.trim()) {
-      setError('Nome struttura, località, date check-in/out e indirizzo sono obbligatori.');
+    if (!name.trim() || !checkIn || !checkOut) {
+      setError('Nome struttura e date check-in/check-out sono obbligatori.');
       return;
     }
     if (checkOut < checkIn) {
@@ -70,16 +69,19 @@ export default function AlloggioForm({ initialData, onSave, onCancel }: Alloggio
     onSave({
       id: initialData?.id,
       name: name.trim(),
-      location: location.trim(),
+      location: location.trim() || name.trim(),
       checkIn,
+      checkInTime: checkInTime.trim() || undefined,
       checkOut,
-      address: address.trim(),
+      checkOutTime: checkOutTime.trim() || undefined,
+      address: address.trim() || location.trim() || name.trim(),
+      cost: cost.trim() || undefined,
+      paymentStatus,
+      bookingUrl: bookingUrl.trim() || undefined,
+      notes: notes.trim() || undefined,
       status,
       copilota: copilota || undefined,
-      bookingCode: bookingCode.trim() || undefined,
-      bookingUrl: bookingUrl.trim() || undefined,
-      phone: phone.trim() || undefined,
-      notes: notes.trim() || undefined
+      coordinate: initialData?.coordinate
     });
   };
 
@@ -91,13 +93,14 @@ export default function AlloggioForm({ initialData, onSave, onCancel }: Alloggio
         </div>
       )}
 
+      {/* Nome struttura */}
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
           Nome Struttura / Hotel *
         </label>
         <input
           type="text"
-          placeholder="es. Hotel Gracery Shinjuku"
+          placeholder="es. Scenic Hotel Franz Josef Glacier, Hilton Auckland"
           value={name}
           onChange={(e) => setName(e.target.value)}
           className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-purple-500 transition-colors placeholder:text-slate-400"
@@ -105,90 +108,163 @@ export default function AlloggioForm({ initialData, onSave, onCancel }: Alloggio
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      {/* Check-in: Data e Ora */}
+      <div className="p-3.5 rounded-2xl bg-purple-50/40 border border-purple-100 space-y-2.5">
+        <span className="text-xs font-bold text-purple-900 uppercase tracking-wider flex items-center gap-1.5">
+          <span>🛎️</span> Check-in
+        </span>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+              Data Check-in *
+            </label>
+            <input
+              type="date"
+              value={checkIn}
+              onChange={(e) => setCheckIn(e.target.value)}
+              className="w-full h-10 px-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs sm:text-sm focus:outline-none focus:border-purple-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+              Ora Prevista
+            </label>
+            <input
+              type="text"
+              placeholder="es. 14:00"
+              value={checkInTime}
+              onChange={(e) => setCheckInTime(e.target.value)}
+              className="w-full h-10 px-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs sm:text-sm focus:outline-none focus:border-purple-500 placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Check-out: Data e Ora */}
+      <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+        <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+          <span>🚪</span> Check-out
+        </span>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+              Data Check-out *
+            </label>
+            <input
+              type="date"
+              value={checkOut}
+              onChange={(e) => setCheckOut(e.target.value)}
+              className="w-full h-10 px-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs sm:text-sm focus:outline-none focus:border-purple-500"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+              Ora Limite
+            </label>
+            <input
+              type="text"
+              placeholder="es. 10:00"
+              value={checkOutTime}
+              onChange={(e) => setCheckOutTime(e.target.value)}
+              className="w-full h-10 px-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs sm:text-sm focus:outline-none focus:border-purple-500 placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Indirizzo / Città */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Località *
+            Città / Località
           </label>
           <input
             type="text"
-            placeholder="es. Tokyo"
+            placeholder="es. Franz Josef, Auckland"
             value={location}
             onChange={(e) => setLocation(e.target.value)}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-purple-500 transition-colors placeholder:text-slate-400"
-            required
           />
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Stato Prenotazione *
+            Indirizzo o Link Maps
+          </label>
+          <input
+            type="text"
+            placeholder="es. Main Rd 36 o link Maps"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-purple-500 transition-colors placeholder:text-slate-400"
+          />
+        </div>
+      </div>
+
+      {/* Costo e Stato Pagamento */}
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Costo Totale (€)
+          </label>
+          <input
+            type="text"
+            placeholder="es. 340 €"
+            value={cost}
+            onChange={(e) => setCost(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-purple-500 transition-colors placeholder:text-slate-400"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Stato Pagamento
           </label>
           <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value as StatoAlloggio)}
+            value={paymentStatus}
+            onChange={(e) => setPaymentStatus(e.target.value as 'saldato' | 'da_saldare')}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-purple-500 transition-colors"
           >
-            <option value="da_prenotare">Da Prenotare</option>
-            <option value="prenotato">Prenotato</option>
-            <option value="completato">Completato</option>
+            <option value="saldato">✅ Saldato</option>
+            <option value="da_saldare">⏳ Da saldare in loco</option>
           </select>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Check-in *
-          </label>
-          <input
-            type="date"
-            value={checkIn}
-            onChange={(e) => setCheckIn(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-purple-500 transition-colors"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Check-out *
-          </label>
-          <input
-            type="date"
-            value={checkOut}
-            onChange={(e) => setCheckOut(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-purple-500 transition-colors"
-            required
-          />
-        </div>
-      </div>
-
+      {/* Link Prenotazione */}
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Indirizzo Completo *
+          Link Prenotazione / Voucher (opzionale)
         </label>
         <input
-          type="text"
-          placeholder="es. 1-19-1 Kabukicho, Shinjuku City"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
+          type="url"
+          placeholder="https://booking.com/..."
+          value={bookingUrl}
+          onChange={(e) => setBookingUrl(e.target.value)}
           className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-purple-500 transition-colors placeholder:text-slate-400"
-          required
+        />
+      </div>
+
+      {/* Note Check-in */}
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          Note Check-in / Istruzioni
+        </label>
+        <textarea
+          rows={2}
+          placeholder="es. Codice cassetta chiavi, parcheggio sul retro, orario reception..."
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-purple-500 placeholder:text-slate-400 resize-none"
         />
       </div>
 
       {/* Opzione Co-pilota */}
-      <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="text-base">🧭</span>
-          <div>
-            <label htmlFor="copilota-alloggio-toggle" className="text-xs font-bold text-slate-800 cursor-pointer block">
-              Mostra al co-pilota
-            </label>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Segna questo alloggio come tappa rilevante per il co-pilota di bordo
-            </p>
-          </div>
-        </div>
+      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
+        <label htmlFor="copilota-alloggio-toggle" className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1.5">
+          <span>🧭</span>
+          <span>Mostra al co-pilota come sosta importante</span>
+        </label>
         <input
           id="copilota-alloggio-toggle"
           type="checkbox"
@@ -196,75 +272,6 @@ export default function AlloggioForm({ initialData, onSave, onCancel }: Alloggio
           onChange={(e) => setCopilota(e.target.checked)}
           className="w-4 h-4 rounded text-purple-600 bg-white border-slate-300 focus:ring-purple-500 cursor-pointer"
         />
-      </div>
-
-      {/* Dettagli Avanzati */}
-      <div className="pt-1">
-        <button
-          type="button"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer py-1"
-        >
-          <svg className={"w-4 h-4 transition-transform " + (showAdvanced ? 'rotate-90' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-          </svg>
-          <span>{showAdvanced ? 'Nascondi recapiti e codici' : 'Aggiungi codice prenotazione, link o telefono'}</span>
-        </button>
-
-        {showAdvanced && (
-          <div className="mt-3 space-y-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 animate-fade-in">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">
-                  Codice Prenotazione
-                </label>
-                <input
-                  type="text"
-                  placeholder="es. BK-982312"
-                  value={bookingCode}
-                  onChange={(e) => setBookingCode(e.target.value)}
-                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-purple-500 placeholder:text-slate-400"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1">
-                  Telefono
-                </label>
-                <input
-                  type="tel"
-                  placeholder="+81 3-xxxx-xxxx"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-purple-500 placeholder:text-slate-400"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">
-                Link Prenotazione (Booking, Airbnb, ecc.)
-              </label>
-              <input
-                type="url"
-                placeholder="https://..."
-                value={bookingUrl}
-                onChange={(e) => setBookingUrl(e.target.value)}
-                className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-purple-500 placeholder:text-slate-400"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">
-                Note o istruzioni per il check-in
-              </label>
-              <textarea
-                rows={2}
-                placeholder="es. Deposito bagagli consentito, colazione inclusa..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-purple-500 placeholder:text-slate-400 resize-none"
-              />
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">

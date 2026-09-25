@@ -207,9 +207,11 @@ export default function TappeView({ onBack }: TappeViewProps) {
                 {tappeGroup.map((tappa, idx) => {
                   const nextTappa = tappeGroup[idx + 1];
                   const hasCoordinates = tappa.coordinate && tappa.coordinate.lat !== undefined && tappa.coordinate.lng !== undefined;
-                  const mapUrl = hasCoordinates 
+                  const mapUrl = tappa.mapsUrl?.startsWith('http')
+                    ? tappa.mapsUrl
+                    : hasCoordinates 
                     ? `https://www.google.com/maps/search/?api=1&query=${tappa.coordinate!.lat},${tappa.coordinate!.lng}`
-                    : resolveMapUrl(tappa.titolo);
+                    : resolveMapUrl(tappa.mapsUrl || tappa.titolo);
 
                   return (
                     <React.Fragment key={tappa.id}>
