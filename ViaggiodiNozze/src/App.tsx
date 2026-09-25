@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { SectionTab, CategoriaTab } from './types';
 import NavBar from './components/NavBar';
-import CategorieDrawer from './components/CategorieDrawer';
+import CategorieBar from './components/CategorieBar';
 import OggiView from './views/OggiView';
 import AttivitaView from './views/AttivitaView';
 import TappeView from './views/altro/TappeView';
@@ -15,25 +15,30 @@ import UpdateToast from './components/common/UpdateToast';
 export default function App() {
   const [activeTab, setActiveTab] = useState<SectionTab>('oggi');
   const [activeCategoria, setActiveCategoria] = useState<CategoriaTab | null>(null);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const handleTabChange = (tab: SectionTab, categoria?: CategoriaTab) => {
     setActiveTab(tab);
     if (tab === 'oggi' || tab === 'altro') {
       setActiveCategoria(null);
-    } else if (tab === 'categorie' && categoria) {
-      setActiveCategoria(categoria);
+    } else if (tab === 'categorie') {
+      setActiveCategoria(categoria || activeCategoria || 'tappe');
     }
   };
 
   const handleOpenCategorie = () => {
-    setIsDrawerOpen(true);
+    setActiveTab('categorie');
+    if (!activeCategoria) {
+      setActiveCategoria('tappe');
+    }
   };
 
   const handleSelectCategoria = (cat: CategoriaTab) => {
     setActiveCategoria(cat);
     setActiveTab('categorie');
-    setIsDrawerOpen(false);
+  };
+
+  const handleCloseCategorie = () => {
+    setActiveTab('oggi');
   };
 
   return (
@@ -60,28 +65,29 @@ export default function App() {
             {activeCategoria === 'ristoranti' && <RistorantiView />}
             {activeCategoria === 'alloggi' && <AlloggiView />}
             {activeCategoria === 'trasporti' && <TrasportiView />}
-            {!activeCategoria && <AttivitaView />}
+            {!activeCategoria && <TappeView />}
           </>
         )}
 
         {activeTab === 'altro' && <AltroView />}
       </main>
 
-      {/* Navigazione Inferiore con sole 3 tab */}
-      <NavBar
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        onOpenCategorie={handleOpenCategorie}
-        isCategorieActive={Boolean(activeCategoria && activeTab === 'categorie')}
-      />
-
-      {/* Drawer Categorie dal basso */}
-      <CategorieDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        onSelectCategoria={handleSelectCategoria}
-        activeCategoria={activeCategoria}
-      />
+      {/* Quando si è in "Categorie", compare la barra orizzontale dock/capsula scura a 5 icone */}
+      {activeTab === 'categorie' ? (
+        <CategorieBar
+          activeCategoria={activeCategoria}
+          onSelectCategoria={handleSelectCategoria}
+          onClose={handleCloseCategorie}
+        />
+      ) : (
+        /* Barra inferiore classica a 3 tab (Oggi - Categorie - Altro) */
+        <NavBar
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          onOpenCategorie={handleOpenCategorie}
+          isCategorieActive={false}
+        />
+      )}
 
       {/* PWA Update Toast */}
       <UpdateToast />
