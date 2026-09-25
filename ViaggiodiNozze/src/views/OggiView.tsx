@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto } from '../types';
+import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante } from '../types';
 import { storageService } from '../storage/storageService';
 import { resolveMapUrl } from '../utils/mapsHelper';
 import TimelineItemDetailModal from '../components/modals/TimelineItemDetailModal';
 import Modal from '../components/common/Modal';
 import AttivitaForm from '../components/forms/AttivitaForm';
 import TrasportoForm from '../components/forms/TrasportoForm';
+import TappaForm from '../components/forms/TappaForm';
+import AlloggioForm from '../components/forms/AlloggioForm';
+import RistoranteForm from '../components/forms/RistoranteForm';
 import RouteBadge from '../components/common/RouteBadge';
 
 interface OggiViewProps {
@@ -93,37 +96,41 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [detailItem, setDetailItem] = useState<TimelineItem | null>(null);
   const [editingActivityItem, setEditingActivityItem] = useState<Attivita | null>(null);
   const [editingTransportItem, setEditingTransportItem] = useState<Trasporto | null>(null);
+  const [editingTappaItem, setEditingTappaItem] = useState<Tappa | null>(null);
+  const [editingAlloggioItem, setEditingAlloggioItem] = useState<Alloggio | null>(null);
+  const [editingRistoranteItem, setEditingRistoranteItem] = useState<Ristorante | null>(null);
 
   const fetchTimeline = useCallback(async () => {
     const items = await storageService.getTimelineForDate(selectedDate);
     setTimeline(items);
   }, [selectedDate]);
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setLoading(true);
-        const [accs, days] = await Promise.all([
-          storageService.getAccommodations(),
-          storageService.getDays()
-        ]);
-        setAccommodations(accs);
-        setDaysData(days);
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [accs, days] = await Promise.all([
+        storageService.getAccommodations(),
+        storageService.getDays()
+      ]);
+      setAccommodations(accs);
+      setDaysData(days);
 
-        // Se oggi ricade all'interno del viaggio, seleziona la data odierna al primissimo mount
-        const todayStr = new Date().toISOString().split('T')[0];
-        const isInTrip = TRIP_DAYS.some((d) => d.dateStr === todayStr);
-        if (isInTrip && selectedDate === tripDays[0]?.dateStr) {
-          setSelectedDate(todayStr);
-        }
-      } catch (err) {
-        console.error('Errore caricamento dati OggiView:', err);
-      } finally {
-        setLoading(false);
+      // Se oggi ricade all'interno del viaggio, seleziona la data odierna al primissimo mount
+      const todayStr = new Date().toISOString().split('T')[0];
+      const isInTrip = TRIP_DAYS.some((d) => d.dateStr === todayStr);
+      if (isInTrip && selectedDate === tripDays[0]?.dateStr) {
+        setSelectedDate(todayStr);
       }
+    } catch (err) {
+      console.error('Errore caricamento dati OggiView:', err);
+    } finally {
+      setLoading(false);
     }
+  }, [selectedDate, tripDays]);
+
+  useEffect(() => {
     loadData();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadData]);
 
   useEffect(() => {
     fetchTimeline();
@@ -133,8 +140,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     setDetailItem(null);
     if (item.type === 'attivita') {
       setEditingActivityItem(item.originalData as Attivita);
-    } else {
+    } else if (item.type === 'trasporto') {
       setEditingTransportItem(item.originalData as Trasporto);
+    } else if (item.type === 'tappa') {
+      setEditingTappaItem(item.originalData as Tappa);
+    } else if (item.type === 'alloggio') {
+      setEditingAlloggioItem(item.originalData as Alloggio);
+    } else if (item.type === 'ristorante') {
+      setEditingRistoranteItem(item.originalData as Ristorante);
     }
   };
 
@@ -168,6 +181,43 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     };
     await storageService.saveTransport(transportToSave);
     setEditingTransportItem(null);
+    await fetchTimeline();
+  };
+
+  const handleSaveTappa = async (data: Omit<Tappa, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const tappaToSave: Tappa = {
+      ...data,
+      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'tappa_' + Date.now()),
+      createdAt: editingTappaItem?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+    await storageService.saveTappa(tappaToSave);
+    setEditingTappaItem(null);
+    await fetchTimeline();
+  };
+
+  const handleSaveAlloggio = async (data: Omit<Alloggio, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const alloggioToSave: Alloggio = {
+      ...data,
+      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'acc_' + Date.now()),
+      createdAt: editingAlloggioItem?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+    await storageService.saveAccommodation(alloggioToSave);
+    setEditingAlloggioItem(null);
+    await loadData();
+    await fetchTimeline();
+  };
+
+  const handleSaveRistorante = async (data: Omit<Ristorante, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const ristoranteToSave: Ristorante = {
+      ...data,
+      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'rist_' + Date.now()),
+      createdAt: editingRistoranteItem?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+    await storageService.saveRistorante(ristoranteToSave);
+    setEditingRistoranteItem(null);
     await fetchTimeline();
   };
 
@@ -245,9 +295,22 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
             Calendario Tappe
           </span>
-          <span className="text-xs text-slate-400 font-medium">
-            Giorno {currentDayMeta?.dayNum || 1}
-          </span>
+          <div className="flex items-center gap-2">
+            <label className="text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 px-2 py-0.5 rounded-full cursor-pointer flex items-center gap-1 transition-colors">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => {
+                  if (e.target.value) setSelectedDate(e.target.value);
+                }}
+                className="sr-only"
+              />
+              <span>📅 Data Libera</span>
+            </label>
+            <span className="text-xs text-slate-400 font-medium">
+              Giorno {currentDayMeta?.dayNum || '–'}
+            </span>
+          </div>
         </div>
 
         <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 px-0.5 -mx-1 snap-x">
@@ -409,15 +472,30 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               </p>
                             </div>
                           </div>
-                          {onNavigateTab && (
-                            <button
-                              type="button"
-                              onClick={() => onNavigateTab('categorie', 'alloggi')}
-                              className="text-xs font-semibold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer"
-                            >
-                              Alloggi ➔
-                            </button>
-                          )}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {tonightsAccommodation && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingAlloggioItem(tonightsAccommodation);
+                                }}
+                                className="w-6 h-6 rounded-full bg-purple-100 hover:bg-purple-200 text-purple-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+                                title="Modifica alloggio"
+                              >
+                                ✏️
+                              </button>
+                            )}
+                            {onNavigateTab && (
+                              <button
+                                type="button"
+                                onClick={() => onNavigateTab('categorie', 'alloggi')}
+                                className="text-xs font-semibold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer"
+                              >
+                                Alloggi ➔
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         <div className="space-y-2.5">
@@ -472,7 +550,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                       </div>
                     ) : (
                       /* Card Normale di Itinerario: Trasporto, Tappa, Attività, Ristorante */
-                      <div className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs hover:border-slate-300 transition-all flex flex-col gap-2">
+                      <div
+                        onClick={() => {
+                          const found = timeline.find(t => t.id === item.id);
+                          if (found) setDetailItem(found);
+                        }}
+                        className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all flex flex-col gap-2 cursor-pointer"
+                      >
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex items-center gap-2">
                             <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${
@@ -499,12 +583,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                             )}
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 const found = timeline.find(t => t.id === item.id);
                                 if (found) setDetailItem(found);
                               }}
                               className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                              title="Dettagli"
+                              title="Dettagli e Modifica"
                             >
                               ℹ️
                             </button>
@@ -524,6 +609,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                 href={resolveMapUrl(item.location)}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
                                 className="text-[10px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2 py-0.5 rounded-lg transition-colors shrink-0"
                               >
                                 Maps ↗
@@ -657,6 +743,48 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           initialData={editingTransportItem}
           onSave={handleSaveTransport}
           onCancel={() => setEditingTransportItem(null)}
+        />
+      </Modal>
+
+      {/* Modale Form Tappa */}
+      <Modal
+        isOpen={Boolean(editingTappaItem)}
+        onClose={() => setEditingTappaItem(null)}
+        title="Modifica Tappa"
+        accentVariant="rose"
+      >
+        <TappaForm
+          initialData={editingTappaItem}
+          onSave={handleSaveTappa}
+          onCancel={() => setEditingTappaItem(null)}
+        />
+      </Modal>
+
+      {/* Modale Form Alloggio */}
+      <Modal
+        isOpen={Boolean(editingAlloggioItem)}
+        onClose={() => setEditingAlloggioItem(null)}
+        title="Modifica Alloggio"
+        accentVariant="purple"
+      >
+        <AlloggioForm
+          initialData={editingAlloggioItem}
+          onSave={handleSaveAlloggio}
+          onCancel={() => setEditingAlloggioItem(null)}
+        />
+      </Modal>
+
+      {/* Modale Form Ristorante */}
+      <Modal
+        isOpen={Boolean(editingRistoranteItem)}
+        onClose={() => setEditingRistoranteItem(null)}
+        title="Modifica Ristorante"
+        accentVariant="emerald"
+      >
+        <RistoranteForm
+          initialData={editingRistoranteItem}
+          onSave={handleSaveRistorante}
+          onCancel={() => setEditingRistoranteItem(null)}
         />
       </Modal>
     </div>

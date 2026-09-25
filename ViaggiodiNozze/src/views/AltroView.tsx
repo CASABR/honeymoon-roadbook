@@ -3,6 +3,7 @@ import PlaceholderView from './altro/PlaceholderView';
 import DocumentiView from './altro/DocumentiView';
 import AssicurazioneView from './altro/AssicurazioneView';
 import DocumentiGalleriaView from './altro/DocumentiGalleriaView';
+import SpeseBudgetView from './altro/SpeseBudgetView';
 
 type SubViewType = 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | null;
 
@@ -15,7 +16,7 @@ export default function AltroView() {
   if (activeSubView === 'documenti') return <DocumentiView onBack={handleBack} />;
   if (activeSubView === 'emergenza') return <PlaceholderView title="Numeri di Emergenza" icon="📞" onBack={handleBack} />;
   if (activeSubView === 'info') return <PlaceholderView title="Info Utili" icon="ℹ️" onBack={handleBack} />;
-  if (activeSubView === 'spese') return <PlaceholderView title="Spese & Budget" icon="💳" onBack={handleBack} />;
+  if (activeSubView === 'spese') return <SpeseBudgetView onBack={handleBack} />;
   if (activeSubView === 'bagagli') return <PlaceholderView title="Lista Bagagli" icon="🧳" onBack={handleBack} />;
   if (activeSubView === 'note') return <PlaceholderView title="Note di Viaggio" icon="📝" onBack={handleBack} />;
   if (activeSubView === 'galleria') return <DocumentiGalleriaView onBack={handleBack} />;

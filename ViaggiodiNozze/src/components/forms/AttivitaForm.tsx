@@ -26,9 +26,13 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
 
+  const [customDate, setCustomDate] = useState('');
+
   useEffect(() => {
     if (initialData) {
       setDayId(initialData.dayId);
+      const matchedDay = days.find(d => d.id === initialData.dayId);
+      if (matchedDay) setCustomDate(matchedDay.date);
       setTitle(initialData.title);
       setTime(initialData.time || '');
       setCost(initialData.cost || '');
@@ -43,7 +47,14 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
         setShowAdvanced(true);
       }
     } else {
-      if (selectedDayId) setDayId(selectedDayId);
+      if (selectedDayId) {
+        setDayId(selectedDayId);
+        const matched = days.find(d => d.id === selectedDayId);
+        if (matched) setCustomDate(matched.date);
+      } else if (days[0]) {
+        setDayId(days[0].id);
+        setCustomDate(days[0].date);
+      }
       setTitle('');
       setTime('');
       setCost('');
@@ -56,12 +67,24 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       setNotes('');
       setShowAdvanced(false);
     }
-  }, [initialData, selectedDayId]);
+  }, [initialData, selectedDayId, days]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!dayId) {
-      setError('Seleziona il giorno associato.');
+    let finalDayId = dayId;
+
+    // Se l'utente ha inserito una data libera che non corrisponde a un giorno esistente
+    if (customDate) {
+      const existing = days.find(d => d.date === customDate);
+      if (existing) {
+        finalDayId = existing.id;
+      } else {
+        finalDayId = `day_${customDate}`;
+      }
+    }
+
+    if (!finalDayId) {
+      setError('Seleziona una data o un giorno per l\'attività.');
       return;
     }
     if (!title.trim()) {
@@ -71,7 +94,7 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
     setError('');
     onSave({
       id: initialData?.id,
-      dayId,
+      dayId: finalDayId,
       title: title.trim(),
       time: time || undefined,
       cost: cost.trim() || undefined,
@@ -109,25 +132,24 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
         />
       </div>
 
-      {/* Giorno e Orario */}
+      {/* Data e Orario */}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Giorno Associato *
+            Data Attività *
           </label>
-          <select
-            value={dayId}
-            onChange={(e) => setDayId(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs sm:text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors truncate"
+          <input
+            type="date"
+            value={customDate}
+            onChange={(e) => {
+              const val = e.target.value;
+              setCustomDate(val);
+              const found = days.find(d => d.date === val);
+              if (found) setDayId(found.id);
+            }}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs sm:text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
             required
-          >
-            {days.length === 0 && <option value="">Nessun giorno presente</option>}
-            {days.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.date} – {d.title}
-              </option>
-            ))}
-          </select>
+          />
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
