@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto } from '../types';
 import { storageService } from '../storage/storageService';
 import { resolveMapUrl } from '../utils/mapsHelper';
@@ -6,6 +6,7 @@ import TimelineItemDetailModal from '../components/modals/TimelineItemDetailModa
 import Modal from '../components/common/Modal';
 import AttivitaForm from '../components/forms/AttivitaForm';
 import TrasportoForm from '../components/forms/TrasportoForm';
+import RouteBadge from '../components/common/RouteBadge';
 
 interface OggiViewProps {
   onNavigateTab?: (tab: SectionTab, categoria?: CategoriaTab) => void;
@@ -278,150 +279,288 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         </div>
       </div>
 
-      {/* 2.5 TIMELINE (ATTIVITÀ E TRASPORTI) */}
+      {/* 2.5 SEQUENZA DELLA GIORNATA E TAPPA FINALE NOTTURNA */}
       <div className="space-y-3">
         <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-            Timeline {formatDateHuman(selectedDate)}
-          </span>
-        </div>
-
-        {timeline.length > 0 ? (
-          <div className="relative pl-3 space-y-4 before:absolute before:inset-y-0 before:left-3.5 before:w-px before:bg-slate-200">
-            {timeline.map((item, idx) => (
-              <div key={`${item.id}-${idx}`} className="relative pl-5">
-                <span className={`absolute left-[-5px] top-1 w-3 h-3 rounded-full border-2 border-white ${item.type === 'attivita' ? 'bg-amber-400' : 'bg-sky-400'} z-10 shadow-sm`} />
-                
-                <div className="bg-white rounded-2xl p-3 border border-slate-200/80 shadow-sm flex flex-col gap-1.5">
-                  <div className="flex justify-between items-start">
-                    <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md shrink-0">
-                      {item.time}
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      {item.copilota && (
-                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full shrink-0">
-                          🧭 Co-pilota
-                        </span>
-                      )}
-                      {/* Pulsante Info "I" */}
-                      <button
-                        type="button"
-                        onClick={() => setDetailItem(item)}
-                        className="w-6 h-6 rounded-full bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer shrink-0"
-                        title="Dettagli e Modifica"
-                      >
-                        ℹ️
-                      </button>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 leading-tight">
-                      {item.title}
-                    </h3>
-                    <p className="text-[11px] text-slate-500 font-medium mt-0.5 flex items-center gap-1">
-                      {item.type === 'attivita' ? '📍' : '✈️'} {item.location}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="bg-slate-100/50 rounded-2xl border border-slate-200 border-dashed p-4 text-center">
-            <p className="text-xs font-medium text-slate-500">Nessuna attività o trasporto per questa giornata.</p>
-          </div>
-        )}
-      </div>
-
-      {/* 3. RIQUADRO "DOVE DORMIRAI STASERA" */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-sm">
-        <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-xl bg-purple-50 text-purple-700 flex items-center justify-center text-sm font-bold">
-              🛏️
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Itinerario del Giorno
             </span>
-            <div>
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                Dove dormirai stasera
-              </h2>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Notte del {formatDateHuman(selectedDate)}
-              </p>
-            </div>
+            <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+              {formatDateHuman(selectedDate)}
+            </span>
           </div>
           {onNavigateTab && (
             <button
               type="button"
-              onClick={() => onNavigateTab('categorie', 'alloggi')}
-              className="text-xs font-semibold text-purple-600 hover:text-purple-700 transition-colors cursor-pointer"
+              onClick={() => onNavigateTab('categorie', 'tappe')}
+              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors cursor-pointer"
             >
-              Tutti ➔
+              Tappe ➔
             </button>
           )}
         </div>
 
-        {tonightsAccommodation ? (
-          <div className="space-y-2.5">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 leading-snug">
-                  {tonightsAccommodation.name}
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                  📍 {tonightsAccommodation.location}
-                </p>
+        {/* Sequenza Unificata: timeline + eventuale alloggio notturno */}
+        {(() => {
+          // Prepara gli elementi di percorso sequenziali
+          const dayItems: {
+            id: string;
+            type: 'trasporto' | 'tappa' | 'attivita' | 'ristorante' | 'alloggio';
+            time: string;
+            title: string;
+            location: string;
+            departurePoint?: string;
+            arrivalPoint?: string;
+            coordinate?: import('../types').Coordinate;
+            originalData?: any;
+            copilota?: boolean;
+          }[] = [];
+
+          timeline.forEach(item => {
+            let departurePoint = item.location;
+            let arrivalPoint = item.location;
+
+            if (item.type === 'trasporto') {
+              const tr = item.originalData as Trasporto;
+              departurePoint = tr.departureLocation || item.location;
+              arrivalPoint = tr.arrivalLocation || item.location;
+            }
+
+            dayItems.push({
+              id: item.id,
+              type: item.type,
+              time: item.time,
+              title: item.title,
+              location: item.location,
+              departurePoint,
+              arrivalPoint,
+              coordinate: item.coordinate,
+              originalData: item.originalData,
+              copilota: item.copilota
+            });
+          });
+
+          // Aggiungi alloggio notturno come ultima tappa fissa della sequenza se presente
+          if (tonightsAccommodation) {
+            const accLoc = tonightsAccommodation.address || tonightsAccommodation.location || tonightsAccommodation.name;
+            dayItems.push({
+              id: `lodging_${tonightsAccommodation.id}`,
+              type: 'alloggio',
+              time: tonightsAccommodation.checkInTime || '20:00',
+              title: tonightsAccommodation.name,
+              location: accLoc,
+              departurePoint: accLoc,
+              arrivalPoint: accLoc,
+              coordinate: tonightsAccommodation.coordinate,
+              originalData: tonightsAccommodation,
+              copilota: tonightsAccommodation.copilota
+            });
+          }
+
+          if (dayItems.length === 0) {
+            return (
+              <div className="bg-slate-100/60 rounded-3xl border border-slate-200 border-dashed p-6 text-center">
+                <span className="text-2xl mb-1 block">🏖️</span>
+                <p className="text-xs font-bold text-slate-700">Nessuna attività programmata per oggi</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Giornata libera per relax, esplorazione spontanea o spostamento.</p>
               </div>
-              {tonightsAccommodation.copilota && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                  🧭 Co-pilota
-                </span>
-              )}
+            );
+          }
+
+          return (
+            <div className="space-y-2">
+              {dayItems.map((item, idx) => {
+                const nextItem = dayItems[idx + 1];
+
+                // Punti di routing punto-a-punto verso il prossimo elemento
+                const fromLoc = item.arrivalPoint || item.location;
+                const toLoc = nextItem ? (nextItem.departurePoint || nextItem.location) : '';
+                const fromCoord = item.coordinate;
+                const toCoord = nextItem ? nextItem.coordinate : undefined;
+
+                const isLodging = item.type === 'alloggio';
+                const isTransport = item.type === 'trasporto';
+                const isTappa = item.type === 'tappa';
+                const isRistorante = item.type === 'ristorante';
+
+                return (
+                  <React.Fragment key={`${item.id}-${idx}`}>
+                    {/* CARD DELL'ELEMENTO NELLA SEQUENZA */}
+                    {isLodging ? (
+                      /* Card Tappa Finale: Alloggio Notturno */
+                      <div className="bg-gradient-to-br from-purple-50/80 via-white to-indigo-50/50 rounded-3xl border border-purple-200/90 p-4 shadow-sm relative overflow-hidden">
+                        <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-purple-100">
+                          <div className="flex items-center gap-2">
+                            <span className="w-7 h-7 rounded-xl bg-purple-600 text-white flex items-center justify-center text-sm font-bold shadow-xs">
+                              🛏️
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <h2 className="text-xs font-bold text-purple-950 uppercase tracking-wider">
+                                  Dove dormirai stanotte
+                                </h2>
+                                <span className="text-[9px] font-bold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded-full">
+                                  Tappa Finale
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-purple-700 font-medium">
+                                Check-in dalle {tonightsAccommodation?.checkInTime || '14:00'} • Notte del {formatDateHuman(selectedDate)}
+                              </p>
+                            </div>
+                          </div>
+                          {onNavigateTab && (
+                            <button
+                              type="button"
+                              onClick={() => onNavigateTab('categorie', 'alloggi')}
+                              className="text-xs font-semibold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer"
+                            >
+                              Alloggi ➔
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="space-y-2.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <h3 className="text-base font-bold text-slate-900 leading-snug">
+                                {tonightsAccommodation?.name}
+                              </h3>
+                              <p className="text-xs text-slate-600 mt-0.5 font-medium flex items-center gap-1">
+                                <span>📍</span>
+                                <span>{tonightsAccommodation?.location}</span>
+                              </p>
+                            </div>
+                            {tonightsAccommodation?.copilota && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                                🧭 Co-pilota
+                              </span>
+                            )}
+                          </div>
+
+                          {tonightsAccommodation?.address && (
+                            <p className="text-xs text-slate-600 bg-white/80 p-2.5 rounded-xl border border-purple-100">
+                              {tonightsAccommodation.address}
+                            </p>
+                          )}
+
+                          <div className="flex items-center justify-between pt-1 text-xs">
+                            {tonightsAccommodation?.bookingCode ? (
+                              <span className="font-mono text-[11px] font-semibold bg-purple-100/70 px-2 py-1 rounded-lg text-purple-900">
+                                Cod: {tonightsAccommodation.bookingCode}
+                              </span>
+                            ) : (
+                              <span />
+                            )}
+
+                            {(tonightsAccommodation?.address || tonightsAccommodation?.location) && (
+                              <a
+                                href={resolveMapUrl(tonightsAccommodation.address || tonightsAccommodation.location)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-xs transition-colors"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span>Mappa Alloggio</span>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Card Normale di Itinerario: Trasporto, Tappa, Attività, Ristorante */
+                      <div className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs hover:border-slate-300 transition-all flex flex-col gap-2">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${
+                              isTransport ? 'bg-sky-50 text-sky-700' :
+                              isTappa ? 'bg-rose-50 text-rose-700' :
+                              isRistorante ? 'bg-emerald-50 text-emerald-700' :
+                              'bg-amber-50 text-amber-700'
+                            }`}>
+                              {isTransport ? '✈️' : isTappa ? '📍' : isRistorante ? '🍽️' : '🌿'}
+                            </span>
+                            <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-lg shrink-0">
+                              {item.time}
+                            </span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              {isTransport ? 'Spostamento' : isTappa ? 'Tappa' : isRistorante ? 'Ristorante' : 'Attività'}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {item.copilota && (
+                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                                🧭 Co-pilota
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const found = timeline.find(t => t.id === item.id);
+                                if (found) setDetailItem(found);
+                              }}
+                              className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+                              title="Dettagli"
+                            >
+                              ℹ️
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                            {item.title}
+                          </h3>
+                          <div className="flex items-center justify-between gap-2 mt-1">
+                            <p className="text-[11px] text-slate-500 font-medium truncate">
+                              📍 {item.location}
+                            </p>
+                            {item.location && (
+                              <a
+                                href={resolveMapUrl(item.location)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2 py-0.5 rounded-lg transition-colors shrink-0"
+                              >
+                                Maps ↗
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ROUTEBADGE SEQUENZIALE TRA QUESTO ELEMENTO E IL SUCCESSIVO */}
+                    {nextItem && fromLoc && toLoc && fromLoc.trim().toLowerCase() !== toLoc.trim().toLowerCase() && (
+                      <div className="flex items-center justify-center py-1">
+                        <RouteBadge
+                          from={fromLoc}
+                          to={toLoc}
+                          fromCoord={fromCoord}
+                          toCoord={toCoord}
+                          className="scale-95 shadow-xs"
+                        />
+                      </div>
+                    )}
+                  </React.Fragment>
+                );
+              })}
             </div>
-
-            {tonightsAccommodation.address && (
-              <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                {tonightsAccommodation.address}
-              </p>
-            )}
-
-            <div className="flex items-center justify-between pt-1 text-xs">
-              {tonightsAccommodation.bookingCode ? (
-                <span className="font-mono text-[11px] font-semibold bg-slate-100 px-2 py-1 rounded-lg text-slate-700">
-                  Cod: {tonightsAccommodation.bookingCode}
-                </span>
-              ) : (
-                <span />
-              )}
-
-              {/* Azione Maps solo se presente indirizzo fisico o località */}
-              {(tonightsAccommodation.address || tonightsAccommodation.location) && (
-                <a
-                  href={resolveMapUrl(tonightsAccommodation.address || tonightsAccommodation.location)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 text-purple-700 hover:bg-purple-100 font-semibold text-xs transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span>Mappa</span>
-                </a>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div className="py-4 text-center">
-            <p className="text-xs font-semibold text-slate-600">
-              Nessun alloggio fissato per stanotte
-            </p>
-            <p className="text-[11px] text-slate-400 mt-1 max-w-xs mx-auto">
-              Potresti essere in volo o pernottare in campervan libero lungo la tratta.
-            </p>
-          </div>
-        )}
+          );
+        })()}
       </div>
+
+      {/* Se non c'era alloggio per stanotte ma vogliamo comunicarlo chiaramente all'utente */}
+      {!tonightsAccommodation && (
+        <div className="bg-slate-50 rounded-2xl border border-slate-200/80 p-3.5 text-center text-xs text-slate-500">
+          <p className="font-semibold text-slate-700">Nessun alloggio fissato per stanotte</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Pernottamento libero, camping van o tratta in volo notturno.</p>
+        </div>
+      )}
 
       {/* 4. RIQUADRO RAPIDO "EMERGENZE" */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-sm flex items-center justify-between gap-3">

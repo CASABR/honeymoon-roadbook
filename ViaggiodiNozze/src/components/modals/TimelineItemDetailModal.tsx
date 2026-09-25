@@ -18,14 +18,26 @@ export default function TimelineItemDetailModal({
   if (!item) return null;
 
   const isAttivita = item.type === 'attivita';
-  const data = item.originalData as (Attivita | Trasporto);
+  const isTrasporto = item.type === 'trasporto';
+  const isTappa = item.type === 'tappa';
+  const data = item.originalData;
+
+  const modalTitle = isAttivita
+    ? 'Dettagli Attività'
+    : isTrasporto
+    ? 'Dettagli Trasporto'
+    : isTappa
+    ? 'Dettagli Tappa'
+    : 'Dettagli Ristorante';
+
+  const modalAccent = isAttivita ? 'amber' : isTrasporto ? 'sky' : isTappa ? 'rose' : 'emerald';
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={isAttivita ? 'Dettagli Attività' : 'Dettagli Trasporto'}
-      accentVariant={isAttivita ? 'amber' : 'sky'}
+      title={modalTitle}
+      accentVariant={modalAccent as any}
     >
       <div className="space-y-4 text-slate-800">
         {/* Intestazione con Titolo e Badge */}
@@ -42,7 +54,13 @@ export default function TimelineItemDetailModal({
               )}
             </div>
             <p className="text-xs text-slate-500 font-medium mt-1">
-              {isAttivita ? `Categoria: ${(data as Attivita).category.toUpperCase()}` : `Tipo: ${(data as Trasporto).type.toUpperCase()}`}
+              {isAttivita
+                ? `Categoria: ${data.category?.toUpperCase() || 'ATTIVITÀ'}`
+                : isTrasporto
+                ? `Tipo: ${data.type?.toUpperCase() || 'TRASPORTO'}`
+                : isTappa
+                ? 'TAPPA PROGRAMMATA'
+                : 'PRENOTAZIONE RISTORANTE'}
             </p>
           </div>
           <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-xl shrink-0">
@@ -165,7 +183,7 @@ export default function TimelineItemDetailModal({
               </div>
             );
           })()
-        ) : (
+        ) : isTrasporto ? (
           /* Informazioni specifici per Trasporto */
           (() => {
             const tr = data as Trasporto;
@@ -263,6 +281,144 @@ export default function TimelineItemDetailModal({
                     </span>
                     <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
                       {tr.notes}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        ) : isTappa ? (
+          /* Informazioni specifiche per Tappa */
+          (() => {
+            const tp = data as import('../../types').Tappa;
+            return (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                    Nome / Destinazione Tappa
+                  </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-bold text-slate-800 text-sm">📍 {tp.titolo}</p>
+                    {(tp.mapsUrl || tp.titolo) && (
+                      <button
+                        type="button"
+                        onClick={() => openMapLink(resolveMapUrl(tp.mapsUrl || tp.titolo))}
+                        className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                      >
+                        Apri Maps ↗
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {tp.data && (
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                      Data Programmata
+                    </span>
+                    <p className="font-semibold text-slate-700">📅 {tp.data}</p>
+                  </div>
+                )}
+
+                {tp.nota && (
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                      Note & Suggerimenti
+                    </span>
+                    <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
+                      {tp.nota}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        ) : (
+          /* Informazioni specifiche per Ristorante */
+          (() => {
+            const rt = data as import('../../types').Ristorante;
+            return (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                    Ristorante / Cucina
+                  </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-bold text-slate-800 text-sm">🍽️ {rt.nome}</p>
+                    {(rt.indirizzo || rt.nome) && (
+                      <button
+                        type="button"
+                        onClick={() => openMapLink(resolveMapUrl(rt.indirizzo || rt.nome))}
+                        className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                      >
+                        Apri Maps ↗
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {rt.indirizzo && (
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                      Indirizzo
+                    </span>
+                    <p className="font-semibold text-slate-700">{rt.indirizzo}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  {rt.orario && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                        Orario Prenotazione
+                      </span>
+                      <span className="font-semibold text-slate-700">⏰ {rt.orario}</span>
+                    </div>
+                  )}
+                  {rt.budget && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                        Budget Stimato
+                      </span>
+                      <span className="font-semibold text-emerald-600">💶 {rt.budget}</span>
+                    </div>
+                  )}
+                </div>
+
+                {rt.telefono && (
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                      Telefono
+                    </span>
+                    <a href={`tel:${rt.telefono}`} className="font-semibold text-indigo-600 hover:underline">
+                      📞 {rt.telefono}
+                    </a>
+                  </div>
+                )}
+
+                {rt.linkPrenotazione && (
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                      Link Prenotazione
+                    </span>
+                    <a
+                      href={rt.linkPrenotazione}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-600 font-semibold underline truncate block hover:text-emerald-700"
+                    >
+                      {rt.linkPrenotazione}
+                    </a>
+                  </div>
+                )}
+
+                {rt.nota && (
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                      Note Ristorante
+                    </span>
+                    <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
+                      {rt.nota}
                     </p>
                   </div>
                 )}
