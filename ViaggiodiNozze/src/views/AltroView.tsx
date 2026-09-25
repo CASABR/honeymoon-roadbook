@@ -1,56 +1,25 @@
-import { useState, useEffect } from 'react';
-import type { TravelDocument } from '../types';
-import { storageService } from '../storage/storageService';
-import DocumentFilesModal from '../components/modals/DocumentFilesModal';
-import DocumentValidityModal from '../components/modals/DocumentValidityModal';
+import { useState } from 'react';
+import PlaceholderView from './altro/PlaceholderView';
+import DocumentiView from './altro/DocumentiView';
+import AssicurazioneView from './altro/AssicurazioneView';
+import DocumentiGalleriaView from './altro/DocumentiGalleriaView';
+
+type SubViewType = 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | null;
 
 export default function AltroView() {
-  const [documents, setDocuments] = useState<TravelDocument[]>([]);
-  const [selectedDocForFiles, setSelectedDocForFiles] = useState<TravelDocument | null>(null);
-  const [selectedDocForValidity, setSelectedDocForValidity] = useState<TravelDocument | null>(null);
+  const [activeSubView, setActiveSubView] = useState<SubViewType>(null);
 
-  useEffect(() => {
-    async function loadDocs() {
-      try {
-        const loaded = await storageService.getDocuments();
-        setDocuments(loaded);
-      } catch (err) {
-        console.error('Errore caricamento documenti:', err);
-      }
-    }
-    loadDocs();
-  }, []);
+  const handleBack = () => setActiveSubView(null);
 
-  const getDoc = (id: string): TravelDocument | undefined => {
-    return documents.find((d) => d.id === id);
-  };
+  if (activeSubView === 'assicurazione') return <AssicurazioneView onBack={handleBack} />;
+  if (activeSubView === 'documenti') return <DocumentiView onBack={handleBack} />;
+  if (activeSubView === 'emergenza') return <PlaceholderView title="Numeri di Emergenza" icon="📞" onBack={handleBack} />;
+  if (activeSubView === 'info') return <PlaceholderView title="Info Utili" icon="ℹ️" onBack={handleBack} />;
+  if (activeSubView === 'spese') return <PlaceholderView title="Spese & Budget" icon="💳" onBack={handleBack} />;
+  if (activeSubView === 'bagagli') return <PlaceholderView title="Lista Bagagli" icon="🧳" onBack={handleBack} />;
+  if (activeSubView === 'note') return <PlaceholderView title="Note di Viaggio" icon="📝" onBack={handleBack} />;
+  if (activeSubView === 'galleria') return <DocumentiGalleriaView onBack={handleBack} />;
 
-  const handleOpenFilesModal = (doc: TravelDocument) => {
-    setSelectedDocForFiles(doc);
-  };
-
-  const handleOpenValidityModal = (doc: TravelDocument) => {
-    setSelectedDocForValidity(doc);
-  };
-
-  const handleSaveDocument = async (updated: TravelDocument) => {
-    try {
-      await storageService.saveDocument(updated);
-      setDocuments((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-      if (selectedDocForFiles?.id === updated.id) {
-        setSelectedDocForFiles(updated);
-      }
-      if (selectedDocForValidity?.id === updated.id) {
-        setSelectedDocForValidity(updated);
-      }
-    } catch (err) {
-      console.error('Errore salvataggio documento:', err);
-    }
-  };
-
-  const insuranceDoc = getDoc('doc_assicurazione');
-  const passportDoc = getDoc('doc_passaporti');
-  
   return (
     <div className="space-y-4 pt-1 animate-fade-in pb-10">
       <div className="flex flex-col mb-4 px-1">
@@ -65,7 +34,7 @@ export default function AltroView() {
       <div className="grid grid-cols-2 gap-3">
         {/* Card 1: Assicurazione */}
         <button 
-          onClick={() => insuranceDoc ? handleOpenValidityModal(insuranceDoc) : null}
+          onClick={() => setActiveSubView('assicurazione')}
           className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all text-left flex flex-col gap-2 min-h-[100px] cursor-pointer"
         >
           <span className="text-2xl">🛡️</span>
@@ -77,7 +46,7 @@ export default function AltroView() {
 
         {/* Card 2: Documenti */}
         <button 
-          onClick={() => passportDoc ? handleOpenValidityModal(passportDoc) : null}
+          onClick={() => setActiveSubView('documenti')}
           className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all text-left flex flex-col gap-2 min-h-[100px] cursor-pointer"
         >
           <span className="text-2xl">📑</span>
@@ -88,53 +57,68 @@ export default function AltroView() {
         </button>
 
         {/* Card 3: Numeri Emergenza */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex flex-col gap-2 min-h-[100px]">
+        <button 
+          onClick={() => setActiveSubView('emergenza')}
+          className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all text-left flex flex-col gap-2 min-h-[100px] cursor-pointer"
+        >
           <span className="text-2xl">📞</span>
           <div>
             <h3 className="font-bold text-slate-900 text-sm leading-tight">Numeri di emergenza</h3>
             <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">111 NZ, 000 AU, 911 PH, Consolati</p>
           </div>
-        </div>
+        </button>
 
         {/* Card 4: Info utili */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex flex-col gap-2 min-h-[100px]">
+        <button 
+          onClick={() => setActiveSubView('info')}
+          className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all text-left flex flex-col gap-2 min-h-[100px] cursor-pointer"
+        >
           <span className="text-2xl">ℹ️</span>
           <div>
             <h3 className="font-bold text-slate-900 text-sm leading-tight">Info utili</h3>
             <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">Fuso orario, valuta, prese elettriche</p>
           </div>
-        </div>
+        </button>
 
         {/* Card 5: Spese & Budget */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex flex-col gap-2 min-h-[100px]">
+        <button 
+          onClick={() => setActiveSubView('spese')}
+          className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all text-left flex flex-col gap-2 min-h-[100px] cursor-pointer"
+        >
           <span className="text-2xl">💳</span>
           <div>
             <h3 className="font-bold text-slate-900 text-sm leading-tight">Spese & Budget</h3>
             <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">Riepilogo costi saldati vs da saldare</p>
           </div>
-        </div>
+        </button>
 
         {/* Card 6: Lista bagagli */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex flex-col gap-2 min-h-[100px]">
+        <button 
+          onClick={() => setActiveSubView('bagagli')}
+          className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all text-left flex flex-col gap-2 min-h-[100px] cursor-pointer"
+        >
           <span className="text-2xl">🧳</span>
           <div>
             <h3 className="font-bold text-slate-900 text-sm leading-tight">Lista bagagli</h3>
             <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">Checklist cosa portare, franchigie</p>
           </div>
-        </div>
+        </button>
 
         {/* Card 7: Note di viaggio */}
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex flex-col gap-2 min-h-[100px]">
+        <button 
+          onClick={() => setActiveSubView('note')}
+          className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all text-left flex flex-col gap-2 min-h-[100px] cursor-pointer"
+        >
           <span className="text-2xl">📝</span>
           <div>
             <h3 className="font-bold text-slate-900 text-sm leading-tight">Note di viaggio</h3>
             <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">Appunti, idee, promemoria</p>
           </div>
-        </div>
+        </button>
 
         {/* Card Full Width: Documenti del Viaggio */}
         <button 
-          onClick={() => passportDoc ? handleOpenFilesModal(passportDoc) : null}
+          onClick={() => setActiveSubView('galleria')}
           className="col-span-2 bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex items-center justify-between cursor-pointer mt-2"
         >
           <div className="flex items-center gap-3">
@@ -151,26 +135,6 @@ export default function AltroView() {
           </svg>
         </button>
       </div>
-
-      {/* MODAL GESTIONE ALLEGATI DOCUMENTO */}
-      {selectedDocForFiles && (
-        <DocumentFilesModal
-          isOpen={true}
-          onClose={() => setSelectedDocForFiles(null)}
-          document={selectedDocForFiles}
-          onUpdateDocument={handleSaveDocument}
-        />
-      )}
-
-      {/* MODAL MODIFICA VALIDITÀ E DURATA */}
-      {selectedDocForValidity && (
-        <DocumentValidityModal
-          isOpen={true}
-          onClose={() => setSelectedDocForValidity(null)}
-          document={selectedDocForValidity}
-          onSave={handleSaveDocument}
-        />
-      )}
     </div>
   );
 }
