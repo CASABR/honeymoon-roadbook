@@ -23,12 +23,14 @@ const ENDPOINTS: Record<RouteProfile, { primary: string; fallback: string }> = {
  * Garantisce il calcolo anche se offline, senza API key o con quota esaurita.
  */
 export const KNOWN_COORDINATES: Record<string, Coordinate> = {
-  // Nuova Zelanda
+  // Aeroporti e Città Nuova Zelanda
   auckland: { lat: -36.8485, lng: 174.7633 },
+  akl: { lat: -37.0082, lng: 174.7850 }, // Aeroporto di Auckland
   rotorua: { lat: -38.1368, lng: 176.2497 },
   taupo: { lat: -38.6857, lng: 176.0702 },
   tongariro: { lat: -39.2906, lng: 175.5626 },
   wellington: { lat: -41.2865, lng: 174.7762 },
+  wlg: { lat: -41.3276, lng: 174.8076 }, // Aeroporto di Wellington
   picton: { lat: -41.2931, lng: 174.0041 },
   abel_tasman: { lat: -40.9419, lng: 173.0189 },
   kaiteriteri: { lat: -41.0378, lng: 173.0177 },
@@ -37,34 +39,52 @@ export const KNOWN_COORDINATES: Record<string, Coordinate> = {
   fox_glacier: { lat: -43.4646, lng: 170.0182 },
   wanaka: { lat: -44.7032, lng: 169.1321 },
   queenstown: { lat: -45.0312, lng: 168.6626 },
+  zqn: { lat: -45.0216, lng: 168.7392 }, // Aeroporto Queenstown
   milford_sound: { lat: -44.6718, lng: 167.9256 },
   te_anau: { lat: -45.4145, lng: 167.7176 },
   lake_tekapo: { lat: -44.0047, lng: 170.4771 },
   mount_cook: { lat: -43.7342, lng: 170.0963 },
   christchurch: { lat: -43.5321, lng: 172.6362 },
+  chc: { lat: -43.4894, lng: 172.5322 }, // Aeroporto Christchurch
   kaikoura: { lat: -42.4008, lng: 173.6814 },
 
-  // Australia
+  // Aeroporti e Città Australia
   adelaide: { lat: -34.9285, lng: 138.6007 },
+  adl: { lat: -34.9450, lng: 138.5306 }, // Aeroporto Adelaide
   kangaroo_island: { lat: -35.7752, lng: 137.2142 },
   penneshaw: { lat: -35.7197, lng: 137.9406 },
   kingscote: { lat: -35.6558, lng: 137.6402 },
   melbourne: { lat: -37.8136, lng: 144.9631 },
+  mel: { lat: -37.6690, lng: 144.8410 }, // Aeroporto Melbourne
   sydney: { lat: -33.8688, lng: 151.2093 },
+  syd: { lat: -33.9399, lng: 151.1753 }, // Aeroporto Sydney
 
   // Filippine
   manila: { lat: 14.5995, lng: 120.9842 },
+  mnl: { lat: 14.5086, lng: 121.0194 }, // Ninoy Aquino International Airport
   boracay: { lat: 11.9674, lng: 121.9248 },
   caticlan: { lat: 11.9298, lng: 121.9532 },
+  mph: { lat: 11.9298, lng: 121.9532 }, // Godofredo P. Ramos Airport Caticlan
   el_nido: { lat: 11.1804, lng: 119.3879 },
+  eni: { lat: 11.2008, lng: 119.4167 }, // El Nido Airport (Lio)
   coron: { lat: 12.0006, lng: 120.2057 },
+  busuanga: { lat: 12.1214, lng: 120.1003 },
+  usu: { lat: 12.1214, lng: 120.1003 }, // Busuanga Airport
   cebu: { lat: 10.3157, lng: 123.8854 },
+  ceb: { lat: 10.3075, lng: 123.9794 }, // Mactan-Cebu International Airport
   bohol: { lat: 9.8500, lng: 124.1435 },
+  panglao: { lat: 9.5786, lng: 123.7744 },
+  tag: { lat: 9.5786, lng: 123.7744 }, // Bohol-Panglao Airport
   siargao: { lat: 9.8576, lng: 126.0469 },
+  iaq: { lat: 9.8589, lng: 126.0133 }, // Sayak Airport Siargao
 
-  // Italia
+  // Hub e Italia
+  pechino: { lat: 40.0799, lng: 116.6031 },
+  pek: { lat: 40.0799, lng: 116.6031 }, // Aeroporto Pechino Capitale
   milano: { lat: 45.4642, lng: 9.1900 },
-  roma: { lat: 41.9028, lng: 12.4964 }
+  mxp: { lat: 45.6301, lng: 8.7255 }, // Milano Malpensa
+  roma: { lat: 41.9028, lng: 12.4964 },
+  fco: { lat: 41.8003, lng: 12.2389 } // Roma Fiumicino
 };
 
 /**
@@ -73,9 +93,20 @@ export const KNOWN_COORDINATES: Record<string, Coordinate> = {
 export function lookupKnownCoordinate(text: string): Coordinate | null {
   if (!text) return null;
   const clean = text.toLowerCase().replace(/[^a-z0-9]/g, ' ');
+  const words = clean.split(/\s+/).filter(Boolean);
+
+  // 1. Priorità: match esatto con una delle parole (ottimo per codici IATA aeroporti es. 'akl', 'chc', 'syd', 'mxp')
+  for (const w of words) {
+    if (KNOWN_COORDINATES[w]) {
+      return KNOWN_COORDINATES[w];
+    }
+  }
+
+  // 2. Match parziale o sottostringa per nomi composti (es. 'queenstown', 'milford sound', 'lake tekapo')
   for (const [key, coord] of Object.entries(KNOWN_COORDINATES)) {
+    if (key.length <= 3) continue; // evita falsi positivi con codici IATA corti in substring
     const keySpaced = key.replace(/_/g, ' ');
-    if (clean.includes(keySpaced) || keySpaced.includes(clean)) {
+    if (clean.includes(keySpaced)) {
       return coord;
     }
   }

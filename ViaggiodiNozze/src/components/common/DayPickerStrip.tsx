@@ -38,6 +38,36 @@ export default function DayPickerStrip({
           </span>
         </button>
 
+        {/* Pulsante rapido selezione data libera */}
+        <label
+          className={`snap-start shrink-0 relative flex flex-col items-center justify-center w-11 sm:w-12 py-1.5 px-1 rounded-2xl transition-all duration-150 cursor-pointer ${
+            selectedDate !== 'tutte' && !TRIP_DAYS.some(d => d.dateStr === selectedDate)
+              ? 'bg-slate-900 text-white font-bold shadow-md shadow-slate-900/20 scale-105'
+              : 'bg-white border border-slate-200/80 text-slate-600 hover:border-slate-300 hover:text-slate-900 shadow-2xs'
+          }`}
+          title="Seleziona qualsiasi data"
+        >
+          <input
+            type="date"
+            value={selectedDate === 'tutte' ? '' : selectedDate}
+            onChange={(e) => {
+              if (e.target.value) onSelectDate(e.target.value);
+            }}
+            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+          />
+          <span className="text-[10px] uppercase font-medium tracking-tight text-slate-400">
+            DATA
+          </span>
+          <span className="text-sm my-0.5 leading-none">
+            📅
+          </span>
+          <span className="text-[9px] font-semibold text-rose-500 truncate max-w-full px-0.5">
+            {selectedDate !== 'tutte' && !TRIP_DAYS.some(d => d.dateStr === selectedDate)
+              ? selectedDate.slice(5)
+              : 'LIBERA'}
+          </span>
+        </label>
+
         {/* Card/Pill dei Singoli Giorni (layout compatto verticale a densità elevata) */}
         {TRIP_DAYS.map((day: TripDayItem) => {
           const isSelected = selectedDate === day.dateStr;

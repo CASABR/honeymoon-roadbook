@@ -1,4 +1,4 @@
-import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante } from '../types';
+import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Spesa } from '../types';
 import {
   STORES,
   idbGetAll,
@@ -538,11 +538,36 @@ class StorageService {
     await idbDelete(STORES.RISTORANTI, id);
   }
 
+  // --- SPESE & BUDGET ---
+  async getSpese(): Promise<Spesa[]> {
+    try {
+      const items = await idbGetAll<Spesa>(STORES.SPESE);
+      return items.sort((a, b) => b.date.localeCompare(a.date));
+    } catch (err) {
+      console.error('[StorageService] Errore lettura spese:', err);
+      return [];
+    }
+  }
+
+  async saveSpesa(spesa: Spesa): Promise<void> {
+    const now = Date.now();
+    const item: Spesa = {
+      ...spesa,
+      createdAt: spesa.createdAt || now,
+      updatedAt: now
+    };
+    await idbPut(STORES.SPESE, item);
+  }
+
+  async deleteSpesa(id: string): Promise<void> {
+    await idbDelete(STORES.SPESE, id);
+  }
+
   // --- BACKUP & RIPRISTINO ---
 
   /** Esporta tutti i dati in una stringa JSON con metadati. */
   async exportAllData(): Promise<string> {
-    const [giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti] = await Promise.all([
+    const [giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, spese] = await Promise.all([
       idbGetAll<Giorno>(STORES.GIORNI),
       idbGetAll<Attivita>(STORES.ATTIVITA),
       idbGetAll<Alloggio>(STORES.ALLOGGI),
@@ -550,11 +575,12 @@ class StorageService {
       idbGetAll<TravelDocument>(STORES.DOCUMENTI),
       idbGetAll<Tappa>(STORES.TAPPE),
       idbGetAll<Ristorante>(STORES.RISTORANTI),
+      idbGetAll<Spesa>(STORES.SPESE),
     ]);
     const backup = {
       version: 1,
       exportedAt: new Date().toISOString(),
-      data: { giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti },
+      data: { giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, spese },
     };
     return JSON.stringify(backup, null, 2);
   }
@@ -599,6 +625,7 @@ class StorageService {
       { key: 'documenti', store: STORES.DOCUMENTI },
       { key: 'tappe', store: STORES.TAPPE },
       { key: 'ristoranti', store: STORES.RISTORANTI },
+      { key: 'spese', store: STORES.SPESE },
     ] as const;
 
     for (const { key, store } of stores) {

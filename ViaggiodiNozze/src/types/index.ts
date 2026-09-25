@@ -179,3 +179,19 @@ export interface TimelineItem {
   coordinate?: Coordinate;
   originalData: any;
 }
+
+export type CategoriaSpesa = 'trasporti' | 'alloggi' | 'attivita' | 'ristoranti' | 'altro';
+export type StatoSpesa = 'saldato' | 'da_saldare';
+
+export interface Spesa {
+  id: string;
+  title: string;
+  amount: number;       // importo in Euro (€)
+  category: CategoriaSpesa;
+  status: StatoSpesa;
+  date: string;         // YYYY-MM-DD
+  notes?: string;
+  createdAt?: number;
+  updatedAt?: number;
+}
+
