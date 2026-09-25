@@ -57,6 +57,6 @@ export async function seedMilano29Dic() {
       await storageService.saveActivity(starita);
     }
   } catch (err) {
-    console.error('Errore durante l\\'inserimento di Milano 29 Dicembre:', err);
+    console.error("Errore durante l'inserimento di Milano 29 Dicembre:", err);
   }
 }
