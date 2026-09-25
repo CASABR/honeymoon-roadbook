@@ -23,13 +23,13 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth={active ? "2.2" : "1.7"}
+          strokeWidth={active ? "2" : "1.6"}
           d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
         />
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth={active ? "2.2" : "1.7"}
+          strokeWidth={active ? "2" : "1.6"}
           d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
         />
       </svg>
@@ -44,14 +44,14 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth={active ? "2.2" : "1.7"}
+          strokeWidth={active ? "2" : "1.6"}
           d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
         />
         <circle
           cx="16"
           cy="16"
           r="3.5"
-          fill="#0f172a"
+          className="fill-white/80 dark:fill-slate-900/80"
           stroke="currentColor"
           strokeWidth={active ? "2" : "1.6"}
         />
@@ -74,14 +74,14 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth={active ? "2.2" : "1.7"}
+          strokeWidth={active ? "2" : "1.6"}
           d="M6 3v5a2 2 0 002 2v11M10 3v5a2 2 0 01-2 2M8 3v5"
         />
         {/* Coltello affusolato */}
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth={active ? "2.2" : "1.7"}
+          strokeWidth={active ? "2" : "1.6"}
           d="M17 3v9a2 2 0 01-2 2v7M17 3c1.8 1.2 2 5.5 2 9h-2"
         />
       </svg>
@@ -93,18 +93,18 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
     // 🛏️ Icona letto con cuscino
     icon: (active) => (
       <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        {/* Testiera sinistra e pediera destra */}
+        {/* Struttura letto */}
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth={active ? "2.2" : "1.7"}
+          strokeWidth={active ? "2" : "1.6"}
           d="M3 7v13M21 15v5M3 15h18M3 11h18a2 2 0 012 2v2H3v-2a2 2 0 012-2z"
         />
         {/* Cuscino */}
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth={active ? "2.2" : "1.7"}
+          strokeWidth={active ? "2" : "1.6"}
           d="M6.5 11a1.5 1.5 0 011.5-1.5h2a1.5 1.5 0 011.5 1.5"
         />
       </svg>
@@ -119,7 +119,7 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth={active ? "2.2" : "1.7"}
+          strokeWidth={active ? "2" : "1.6"}
           d="M3 12.5l7 1.5 4-8.5 2 1-2.5 8 5.5 1.5 2-2.5 1.5.5-1 3.5 1 3.5-1.5.5-2-2.5-5.5 1.5 2.5 8-2 1-4-8.5-7 1.5z"
         />
       </svg>
@@ -145,15 +145,15 @@ export default function CategorieBar({
     <>
       {/* Overlay trasparente e leggero di sfondo (cliccare fuori chiude il dock) */}
       <div
-        className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px] transition-opacity animate-fade-in"
+        className="fixed inset-0 z-40 bg-black/20 backdrop-blur-xs transition-opacity animate-fade-in"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* Dock orizzontale a capsula fluttuante */}
-      <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto z-50 animate-slide-up">
-        <div className="relative bg-slate-900/85 backdrop-blur-2xl border border-white/20 shadow-2xl shadow-black/70 rounded-full px-3 py-2.5 flex items-center justify-between">
-          {/* I 5 elementi distribuiti orizzontalmente */}
+      {/* Dock orizzontale a capsula fluttuante in stile Light Glassmorphism */}
+      <div className="fixed bottom-5 left-4 right-4 max-w-md mx-auto z-50 animate-slide-up">
+        <div className="relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-full px-4 py-2.5 flex items-center justify-between">
+          {/* I 5 elementi distribuiti orizzontalmente in modo uniforme */}
           <div className="flex items-center justify-around w-full">
             {CATEGORIE_ITEMS.map((item) => {
               const isActive = activeCategoria === item.id;
@@ -165,25 +165,28 @@ export default function CategorieBar({
                   onClick={() => onSelectCategoria(item.id)}
                   className={`group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-full transition-all duration-200 cursor-pointer min-h-[46px] active:scale-95`}
                 >
-                  {/* Bagliore morbido / alone dorato-bianco se attivo */}
+                  {/* Sfondo discreto per l'elemento attivo */}
                   {isActive && (
-                    <div className="absolute inset-0 rounded-full bg-white/10 blur-sm pointer-events-none" />
+                    <div className="absolute inset-0 bg-slate-900/5 dark:bg-white/10 rounded-full pointer-events-none" />
                   )}
 
+                  {/* Icona */}
                   <div
                     className={`relative z-10 transition-all duration-200 ${
                       isActive
-                        ? 'text-amber-300 scale-110 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]'
-                        : 'text-slate-300 group-hover:text-white group-hover:scale-105'
+                        ? 'text-slate-900 dark:text-white scale-105'
+                        : 'text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white'
                     }`}
                   >
                     {item.icon(isActive)}
                   </div>
+
+                  {/* Micro-etichetta */}
                   <span
-                    className={`relative z-10 text-[10px] tracking-tight leading-tight mt-1 transition-colors ${
+                    className={`relative z-10 text-[11px] font-medium tracking-tight mt-1 transition-colors ${
                       isActive
-                        ? 'text-white font-bold drop-shadow-sm'
-                        : 'text-slate-300 font-medium group-hover:text-white'
+                        ? 'text-slate-900 dark:text-white font-semibold'
+                        : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'
                     }`}
                   >
                     {item.label}
@@ -192,17 +195,6 @@ export default function CategorieBar({
               );
             })}
           </div>
-
-          {/* Piccolo e discreto pulsante "✕" per chiusura overlay */}
-          <button
-            type="button"
-            onClick={onClose}
-            title="Chiudi dock categorie"
-            className="w-6 h-6 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-slate-300 hover:text-white text-xs transition-all cursor-pointer ml-1 shrink-0"
-            aria-label="Chiudi"
-          >
-            ✕
-          </button>
         </div>
       </div>
     </>
