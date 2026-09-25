@@ -1,9 +1,10 @@
+import { useEffect } from 'react';
 import type { CategoriaTab } from '../types';
 
 interface CategorieBarProps {
   activeCategoria: CategoriaTab | null;
   onSelectCategoria: (cat: CategoriaTab) => void;
-  onClose?: () => void;
+  onClose: () => void;
 }
 
 interface CategoriaItem {
@@ -16,9 +17,9 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'tappe',
     label: 'Tappe',
-    // Icona pin mappa minimale
+    // 📍 Icona pin mappa elegante e sottile
     icon: (active) => (
-      <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -37,9 +38,9 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'attivita',
     label: 'Attività',
-    // Icona calendario con orologio minimale
+    // 🗓️ Icona calendario con orologio minimale
     icon: (active) => (
-      <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
@@ -47,18 +48,18 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
           d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
         />
         <circle
-          cx="16.5"
-          cy="16.5"
-          r="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          cx="16"
+          cy="16"
+          r="3.5"
+          fill="#0f172a"
+          stroke="currentColor"
           strokeWidth={active ? "2" : "1.6"}
         />
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={active ? "2" : "1.6"}
-          d="M16.5 15.5v1.2l.8.8"
+          d="M16 14.5v1.5l1 1"
         />
       </svg>
     )
@@ -66,22 +67,22 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'ristoranti',
     label: 'Ristoranti',
-    // Icona forchetta e coltello
+    // 🍽️ Icona forchetta e coltello da ristorazione
     icon: (active) => (
-      <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        {/* Forchetta */}
+      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Forchetta a 3 punte */}
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={active ? "2.2" : "1.7"}
-          d="M7 3v6a2 2 0 002 2h0a2 2 0 002-2V3M9 3v8m0 0v10"
+          d="M6 3v5a2 2 0 002 2v11M10 3v5a2 2 0 01-2 2M8 3v5"
         />
-        {/* Coltello */}
+        {/* Coltello affusolato */}
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={active ? "2.2" : "1.7"}
-          d="M16 3v9a2 2 0 01-2 2h0m2-11a3 3 0 013 3v8a2 2 0 01-2 2v5"
+          d="M17 3v9a2 2 0 01-2 2v7M17 3c1.8 1.2 2 5.5 2 9h-2"
         />
       </svg>
     )
@@ -89,22 +90,22 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'alloggi',
     label: 'Alloggi',
-    // Icona letto
+    // 🛏️ Icona letto con cuscino
     icon: (active) => (
-      <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Testiera sinistra e pediera destra */}
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={active ? "2.2" : "1.7"}
-          d="M3 7v14M21 17v4M3 17h18M3 13h18a2 2 0 002-2V9a2 2 0 00-2-2H9a2 2 0 00-2 2v4"
+          d="M3 7v13M21 15v5M3 15h18M3 11h18a2 2 0 012 2v2H3v-2a2 2 0 012-2z"
         />
-        <circle
-          cx="6.5"
-          cy="10.5"
-          r="1.5"
+        {/* Cuscino */}
+        <path
           strokeLinecap="round"
           strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.7"}
+          strokeWidth={active ? "2.2" : "1.7"}
+          d="M6.5 11a1.5 1.5 0 011.5-1.5h2a1.5 1.5 0 011.5 1.5"
         />
       </svg>
     )
@@ -112,22 +113,14 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'trasporti',
     label: 'Trasporti',
-    // Icona auto con aereo / aereo + mobilità
+    // ✈️ Icona aereo pulita e fedele
     icon: (active) => (
-      <svg className="w-5 h-5 transition-transform group-hover:scale-110" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        {/* Sagoma aereo stilizzata / auto */}
+      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path
           strokeLinecap="round"
           strokeLinejoin="round"
           strokeWidth={active ? "2.2" : "1.7"}
-          d="M12 3l2 4 5 .5-3.5 3.5 1 5L12 14l-4.5 2 1-5L5 7.5 10 7l2-4z"
-        />
-        {/* Percorso o ruote veicolo inferiore */}
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.5"}
-          d="M4 20h16M7 20a1 1 0 11-2 0 1 1 0 012 0zm12 0a1 1 0 11-2 0 1 1 0 012 0z"
+          d="M3 12.5l7 1.5 4-8.5 2 1-2.5 8 5.5 1.5 2-2.5 1.5.5-1 3.5 1 3.5-1.5.5-2-2.5-5.5 1.5 2.5 8-2 1-4-8.5-7 1.5z"
         />
       </svg>
     )
@@ -139,66 +132,79 @@ export default function CategorieBar({
   onSelectCategoria,
   onClose
 }: CategorieBarProps) {
+  // Chiudi premendo Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto z-50 animate-slide-up">
-      <div className="bg-slate-900/85 backdrop-blur-xl border border-white/15 shadow-2xl shadow-black/60 rounded-3xl px-3 py-2.5 flex items-center justify-between gap-1">
-        {/* Tasto Ritorno / Back veloce a sinistra */}
-        {onClose && (
+    <>
+      {/* Overlay trasparente e leggero di sfondo (cliccare fuori chiude il dock) */}
+      <div
+        className="fixed inset-0 z-40 bg-black/25 backdrop-blur-[2px] transition-opacity animate-fade-in"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Dock orizzontale a capsula fluttuante */}
+      <div className="fixed bottom-4 left-4 right-4 max-w-md mx-auto z-50 animate-slide-up">
+        <div className="relative bg-slate-900/85 backdrop-blur-2xl border border-white/20 shadow-2xl shadow-black/70 rounded-full px-3 py-2.5 flex items-center justify-between">
+          {/* I 5 elementi distribuiti orizzontalmente */}
+          <div className="flex items-center justify-around w-full">
+            {CATEGORIE_ITEMS.map((item) => {
+              const isActive = activeCategoria === item.id;
+
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => onSelectCategoria(item.id)}
+                  className={`group relative flex-1 flex flex-col items-center justify-center py-1 px-1 rounded-full transition-all duration-200 cursor-pointer min-h-[46px] active:scale-95`}
+                >
+                  {/* Bagliore morbido / alone dorato-bianco se attivo */}
+                  {isActive && (
+                    <div className="absolute inset-0 rounded-full bg-white/10 blur-sm pointer-events-none" />
+                  )}
+
+                  <div
+                    className={`relative z-10 transition-all duration-200 ${
+                      isActive
+                        ? 'text-amber-300 scale-110 drop-shadow-[0_0_8px_rgba(251,191,36,0.6)]'
+                        : 'text-slate-300 group-hover:text-white group-hover:scale-105'
+                    }`}
+                  >
+                    {item.icon(isActive)}
+                  </div>
+                  <span
+                    className={`relative z-10 text-[10px] tracking-tight leading-tight mt-1 transition-colors ${
+                      isActive
+                        ? 'text-white font-bold drop-shadow-sm'
+                        : 'text-slate-300 font-medium group-hover:text-white'
+                    }`}
+                  >
+                    {item.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Piccolo e discreto pulsante "✕" per chiusura overlay */}
           <button
             type="button"
             onClick={onClose}
-            title="Chiudi Categorie / Torna al menu principale"
-            className="group flex flex-col items-center justify-center p-1.5 rounded-2xl text-slate-400 hover:text-white hover:bg-white/10 active:scale-95 transition-all cursor-pointer shrink-0 mr-0.5"
-            aria-label="Torna indietro"
+            title="Chiudi dock categorie"
+            className="w-6 h-6 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-slate-300 hover:text-white text-xs transition-all cursor-pointer ml-1 shrink-0"
+            aria-label="Chiudi"
           >
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-slate-300 group-hover:text-white transition-colors">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
-              </svg>
-            </div>
-            <span className="text-[10px] text-slate-400 group-hover:text-slate-200 font-medium mt-0.5">
-              Menu
-            </span>
+            ✕
           </button>
-        )}
-
-        {/* 5 Pulsanti Categorie distribuiti in orizzontale */}
-        <div className="flex items-center justify-around flex-1 gap-1">
-          {CATEGORIE_ITEMS.map((item) => {
-            const isActive = activeCategoria === item.id;
-
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onSelectCategoria(item.id)}
-                className={`group flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all duration-200 cursor-pointer min-h-[46px] active:scale-95 ${
-                  isActive
-                    ? 'text-white bg-white/15 shadow-inner shadow-white/10 font-semibold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5 font-medium'
-                }`}
-              >
-                <div
-                  className={`transition-all duration-200 ${
-                    isActive
-                      ? 'scale-110 text-amber-300 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]'
-                      : 'text-slate-300 group-hover:text-white'
-                  }`}
-                >
-                  {item.icon(isActive)}
-                </div>
-                <span
-                  className={`text-[11px] tracking-tight leading-tight mt-1 transition-colors ${
-                    isActive ? 'text-white font-semibold' : 'text-slate-400 group-hover:text-slate-200'
-                  }`}
-                >
-                  {item.label}
-                </span>
-              </button>
-            );
-          })}
         </div>
       </div>
-    </div>
+    </>
   );
 }
