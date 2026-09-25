@@ -11,7 +11,8 @@ export const STORES = {
   ALLOGGI: 'alloggi',
   TRASPORTI: 'trasporti',
   DOCUMENTI: 'documenti',
-  ROUTES: 'routes'
+  ROUTES: 'routes',
+  TAPPE: 'tappe'
 } as const;
 
 export type StoreName = typeof STORES[keyof typeof STORES];
@@ -60,6 +61,11 @@ function openDatabase(): Promise<IDBDatabase> {
 
       if (!db.objectStoreNames.contains(STORES.ROUTES)) {
         db.createObjectStore(STORES.ROUTES, { keyPath: 'id' });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.TAPPE)) {
+        const store = db.createObjectStore(STORES.TAPPE, { keyPath: 'id' });
+        store.createIndex('data', 'data', { unique: false });
       }
     };
 

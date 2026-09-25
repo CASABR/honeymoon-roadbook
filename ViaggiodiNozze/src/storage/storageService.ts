@@ -1,4 +1,4 @@
-import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem } from '../types';
+import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa } from '../types';
 import {
   STORES,
   idbGetAll,
@@ -398,6 +398,75 @@ class StorageService {
     } catch (err) {
       console.error('[StorageService] Errore salvataggio cache percorso:', err);
     }
+  }
+
+  // --- TAPPE ---
+  async getTappe(): Promise<Tappa[]> {
+    try {
+      const items = await idbGetAll<Tappa>(STORES.TAPPE);
+      return items.sort((a, b) => {
+        if (a.data && b.data) return a.data.localeCompare(b.data);
+        if (a.data) return -1;
+        if (b.data) return 1;
+        return a.titolo.localeCompare(b.titolo);
+      });
+    } catch (err) {
+      console.error('[StorageService] Errore lettura tappe:', err);
+      return [];
+    }
+  }
+
+  async getTappePerData(data: string): Promise<Tappa[]> {
+    try {
+      const all = await this.getTappe();
+      return all.filter(t => t.data === data);
+    } catch (err) {
+      console.error('[StorageService] Errore lettura tappe per data:', err);
+      return [];
+    }
+  }
+
+  async addTappa(tappa: Omit<Tappa, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<Tappa> {
+    const now = Date.now();
+    const newTappa: Tappa = {
+      ...tappa,
+      id: tappa.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'tappa_' + now),
+      createdAt: now,
+      updatedAt: now
+    };
+    await idbPut(STORES.TAPPE, newTappa);
+    return newTappa;
+  }
+
+  async updateTappa(id: string, partial: Partial<Tappa>): Promise<void> {
+    try {
+      const existing = await idbGet<Tappa>(STORES.TAPPE, id);
+      if (!existing) throw new Error(`Tappa con id ${id} non trovata`);
+      const updated: Tappa = {
+        ...existing,
+        ...partial,
+        id,
+        updatedAt: Date.now()
+      };
+      await idbPut(STORES.TAPPE, updated);
+    } catch (err) {
+      console.error('[StorageService] Errore aggiornamento tappa:', err);
+      throw err;
+    }
+  }
+
+  async saveTappa(tappa: Tappa): Promise<void> {
+    const now = Date.now();
+    const item: Tappa = {
+      ...tappa,
+      createdAt: tappa.createdAt || now,
+      updatedAt: now
+    };
+    await idbPut(STORES.TAPPE, item);
+  }
+
+  async deleteTappa(id: string): Promise<void> {
+    await idbDelete(STORES.TAPPE, id);
   }
 
   // --- BACKUP & RIPRISTINO ---
