@@ -28,6 +28,16 @@ export default function NavBar({ activeTab, onTabChange }: NavBarProps) {
       )
     },
     {
+      id: 'tappe',
+      label: 'Tappe',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      )
+    },
+    {
       id: 'alloggi',
       label: 'Alloggi',
       icon: (
@@ -59,6 +69,7 @@ export default function NavBar({ activeTab, onTabChange }: NavBarProps) {
   const activeColorMap: Record<SectionTab, string> = {
     oggi: 'text-rose-600 bg-rose-50/80 font-bold',
     attivita: 'text-amber-600 bg-amber-50/80 font-bold',
+    tappe: 'text-emerald-600 bg-emerald-50/80 font-bold',
     alloggi: 'text-purple-600 bg-purple-50/80 font-bold',
     trasporti: 'text-blue-600 bg-blue-50/80 font-bold',
     altro: 'text-slate-900 bg-slate-100 font-bold'

@@ -1,7 +1,11 @@
-import { useState, useEffect } from 'react';
-import type { SectionTab, Alloggio, Giorno } from '../types';
+import { useState, useEffect, useCallback } from 'react';
+import type { SectionTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto } from '../types';
 import { storageService } from '../storage/storageService';
 import { resolveMapUrl } from '../utils/mapsHelper';
+import TimelineItemDetailModal from '../components/modals/TimelineItemDetailModal';
+import Modal from '../components/common/Modal';
+import AttivitaForm from '../components/forms/AttivitaForm';
+import TrasportoForm from '../components/forms/TrasportoForm';
 
 interface OggiViewProps {
   onNavigateTab?: (tab: SectionTab) => void;
@@ -84,6 +88,16 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   const [timeline, setTimeline] = useState<import('../types').TimelineItem[]>([]);
 
+  // Modali Dettaglio e Modifica
+  const [detailItem, setDetailItem] = useState<TimelineItem | null>(null);
+  const [editingActivityItem, setEditingActivityItem] = useState<Attivita | null>(null);
+  const [editingTransportItem, setEditingTransportItem] = useState<Trasporto | null>(null);
+
+  const fetchTimeline = useCallback(async () => {
+    const items = await storageService.getTimelineForDate(selectedDate);
+    setTimeline(items);
+  }, [selectedDate]);
+
   useEffect(() => {
     async function loadData() {
       try {
@@ -111,12 +125,50 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    async function fetchTimeline() {
-      const items = await storageService.getTimelineForDate(selectedDate);
-      setTimeline(items);
-    }
     fetchTimeline();
-  }, [selectedDate]);
+  }, [fetchTimeline]);
+
+  const handleOpenEditFromDetail = (item: TimelineItem) => {
+    setDetailItem(null);
+    if (item.type === 'attivita') {
+      setEditingActivityItem(item.originalData as Attivita);
+    } else {
+      setEditingTransportItem(item.originalData as Trasporto);
+    }
+  };
+
+  const handleSaveActivity = async (data: Omit<Attivita, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const activityToSave: Attivita = {
+      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'act_' + Date.now()),
+      dayId: data.dayId,
+      title: data.title,
+      time: data.time,
+      location: data.location,
+      category: data.category,
+      status: data.status,
+      duration: data.duration,
+      notes: data.notes,
+      link: data.link,
+      copilota: data.copilota,
+      createdAt: editingActivityItem?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+    await storageService.saveActivity(activityToSave);
+    setEditingActivityItem(null);
+    await fetchTimeline();
+  };
+
+  const handleSaveTransport = async (data: Omit<Trasporto, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const transportToSave: Trasporto = {
+      ...data,
+      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'trans_' + Date.now()),
+      createdAt: editingTransportItem?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+    await storageService.saveTransport(transportToSave);
+    setEditingTransportItem(null);
+    await fetchTimeline();
+  };
 
   // Informazioni del giorno selezionato
   const currentDayMeta = tripDays.find((d) => d.dateStr === selectedDate);
@@ -245,11 +297,22 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded-md shrink-0">
                       {item.time}
                     </span>
-                    {item.copilota && (
-                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full ml-2 shrink-0">
-                        🧭 Co-pilota
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5">
+                      {item.copilota && (
+                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full shrink-0">
+                          🧭 Co-pilota
+                        </span>
+                      )}
+                      {/* Pulsante Info "I" */}
+                      <button
+                        type="button"
+                        onClick={() => setDetailItem(item)}
+                        className="w-6 h-6 rounded-full bg-slate-100 hover:bg-amber-100 text-slate-600 hover:text-amber-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer shrink-0"
+                        title="Dettagli e Modifica"
+                      >
+                        ℹ️
+                      </button>
+                    </div>
                   </div>
                   
                   <div>
@@ -419,6 +482,44 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           </div>
         </div>
       )}
+
+      {/* Modale Dettaglio Timeline */}
+      <TimelineItemDetailModal
+        isOpen={Boolean(detailItem)}
+        onClose={() => setDetailItem(null)}
+        item={detailItem}
+        onEdit={handleOpenEditFromDetail}
+      />
+
+      {/* Modale Form Attività */}
+      <Modal
+        isOpen={Boolean(editingActivityItem)}
+        onClose={() => setEditingActivityItem(null)}
+        title="Modifica Attività"
+        accentVariant="amber"
+      >
+        <AttivitaForm
+          days={daysData}
+          selectedDayId={editingActivityItem?.dayId}
+          initialData={editingActivityItem}
+          onSave={handleSaveActivity}
+          onCancel={() => setEditingActivityItem(null)}
+        />
+      </Modal>
+
+      {/* Modale Form Trasporto */}
+      <Modal
+        isOpen={Boolean(editingTransportItem)}
+        onClose={() => setEditingTransportItem(null)}
+        title="Modifica Trasporto"
+        accentVariant="sky"
+      >
+        <TrasportoForm
+          initialData={editingTransportItem}
+          onSave={handleSaveTransport}
+          onCancel={() => setEditingTransportItem(null)}
+        />
+      </Modal>
     </div>
   );
 }

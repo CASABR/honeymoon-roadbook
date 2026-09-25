@@ -137,7 +137,7 @@ export interface RoutingCacheItem {
   updatedAt: number;
 }
 
-export type SectionTab = 'oggi' | 'attivita' | 'alloggi' | 'trasporti' | 'altro';
+export type SectionTab = 'oggi' | 'attivita' | 'tappe' | 'alloggi' | 'trasporti' | 'altro';
 
 export interface TimelineItem {
   id: string;
