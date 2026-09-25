@@ -127,3 +127,14 @@ export interface RoutingCacheItem {
 }
 
 export type SectionTab = 'oggi' | 'attivita' | 'alloggi' | 'trasporti' | 'altro';
+
+export interface TimelineItem {
+  id: string;
+  type: 'attivita' | 'trasporto';
+  time: string; // HH:mm or '23:59' if undefined
+  title: string;
+  location: string;
+  categoryOrType: string;
+  copilota?: boolean;
+  originalData: any;
+}
