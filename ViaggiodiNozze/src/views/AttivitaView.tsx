@@ -136,22 +136,25 @@ export default function AttivitaView() {
 
   const handleSaveActivity = async (data: Omit<Attivita, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const activityToSave: Attivita = {
-      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'act_' + Date.now()),
-      dayId: data.dayId,
-      title: data.title,
-      time: data.time,
-      location: data.location,
-      category: data.category,
-      status: data.status,
-      duration: data.duration,
-      notes: data.notes,
-      link: data.link,
+      ...data,
+      id: data.id || editingActivity?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'act_' + Date.now()),
       createdAt: editingActivity?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
     await storageService.saveActivity(activityToSave);
     setIsActivityModalOpen(false);
     setEditingActivity(null);
+
+    const matchedDay = days.find(d => d.id === activityToSave.dayId);
+    if (matchedDay?.date) {
+      setSelectedDate(matchedDay.date);
+      setSelectedDayId(matchedDay.id);
+    } else if (activityToSave.dayId.startsWith('day_')) {
+      const freeDate = activityToSave.dayId.replace('day_', '');
+      setSelectedDate(freeDate);
+      setSelectedDayId(activityToSave.dayId);
+    }
+
     await loadData();
   };
 

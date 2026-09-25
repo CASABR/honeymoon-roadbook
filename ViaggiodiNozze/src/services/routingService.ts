@@ -164,10 +164,10 @@ function calculateFallbackRoute(
   let start = fromCoord || lookupKnownCoordinate(from);
   let end = toCoord || lookupKnownCoordinate(to);
 
-  // Se abbiamo le coordinate (reali o dalla tabella statica), calcoliamo con fattore di tortuosità stradale (1.3 per auto, 1.2 a piedi)
+  // Se abbiamo le coordinate (reali o dalla tabella statica), calcoliamo con fattore di tortuosità stradale (1.35 per auto, 1.2 a piedi)
   if (start && end) {
     const directKm = calculateHaversineDistance(start, end);
-    const windingFactor = profile === 'driving-car' ? 1.3 : 1.2;
+    const windingFactor = profile === 'driving-car' ? 1.35 : 1.2;
     const distanceKm = Math.max(0.5, Math.round(directKm * windingFactor * 10) / 10);
     
     // Velocità media stimata: auto 70 km/h, a piedi 4.5 km/h
@@ -186,7 +186,7 @@ function calculateFallbackRoute(
 
   // Se i nomi sono definiti ma mancano coordinate esatte, calcoliamo una stima simbolica realistica locale
   const distanceKm = profile === 'driving-car' ? 18.5 : 2.4;
-  const avgSpeed = profile === 'driving-car' ? 60 : 4.5;
+  const avgSpeed = profile === 'driving-car' ? 70 : 4.5;
   const durationSeconds = Math.round((distanceKm / avgSpeed) * 3600);
 
   return {
@@ -338,7 +338,18 @@ export async function getRoute(
         body: JSON.stringify(payload)
       });
       if (!response.ok) {
-        return calculateFallbackRoute(from, to, profile, start, end);
+        const fallback = calculateFallbackRoute(from, to, profile, start, end);
+        try {
+          await storageService.saveRouteCache({
+            id: cacheKey,
+            from,
+            to,
+            profile,
+            route: fallback,
+            updatedAt: Date.now()
+          });
+        } catch {}
+        return fallback;
       }
     }
 
@@ -373,7 +384,18 @@ export async function getRoute(
     console.warn('[RoutingService] Routing API fetch failed, using fallback:', err);
   }
 
-  return calculateFallbackRoute(from, to, profile, fromCoord, toCoord);
+  const finalFallback = calculateFallbackRoute(from, to, profile, fromCoord, toCoord);
+  try {
+    await storageService.saveRouteCache({
+      id: cacheKey,
+      from,
+      to,
+      profile,
+      route: finalFallback,
+      updatedAt: Date.now()
+    });
+  } catch {}
+  return finalFallback;
 }
 
 /**

@@ -1,8 +1,10 @@
-import { TRIP_DAYS, type TripDayItem } from '../../utils/tripDates';
+import { TRIP_DAYS, type TripDayItem, generateTripDays, calculateEarliestTripDate } from '../../utils/tripDates';
 
 interface DayPickerStripProps {
   selectedDate: string | 'tutte';
   onSelectDate: (date: string | 'tutte') => void;
+  /** Opzionale: lista personalizzata dei giorni calcolati dinamicamente */
+  tripDays?: TripDayItem[];
   /** Opzionale: conteggio elementi per data { 'YYYY-MM-DD': number } */
   itemCounts?: Record<string, number>;
   totalCount?: number;
@@ -11,9 +13,12 @@ interface DayPickerStripProps {
 export default function DayPickerStrip({
   selectedDate,
   onSelectDate,
+  tripDays: propTripDays,
   itemCounts,
   totalCount
 }: DayPickerStripProps) {
+  // Se non fornito, calcola dinamicamente l'inizio considerando le date presenti in itemCounts
+  const dynamicDays = propTripDays || (itemCounts ? generateTripDays(calculateEarliestTripDate(Object.keys(itemCounts))) : TRIP_DAYS);
   return (
     <div className="-mx-1 mb-4">
       <div className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-none snap-x items-center">
@@ -41,7 +46,7 @@ export default function DayPickerStrip({
         {/* Pulsante rapido selezione data libera */}
         <label
           className={`snap-start shrink-0 relative flex flex-col items-center justify-center w-11 sm:w-12 py-1.5 px-1 rounded-2xl transition-all duration-150 cursor-pointer ${
-            selectedDate !== 'tutte' && !TRIP_DAYS.some(d => d.dateStr === selectedDate)
+            selectedDate !== 'tutte' && !dynamicDays.some(d => d.dateStr === selectedDate)
               ? 'bg-slate-900 text-white font-bold shadow-md shadow-slate-900/20 scale-105'
               : 'bg-white border border-slate-200/80 text-slate-600 hover:border-slate-300 hover:text-slate-900 shadow-2xs'
           }`}
@@ -62,14 +67,14 @@ export default function DayPickerStrip({
             📅
           </span>
           <span className="text-[9px] font-semibold text-rose-500 truncate max-w-full px-0.5">
-            {selectedDate !== 'tutte' && !TRIP_DAYS.some(d => d.dateStr === selectedDate)
+            {selectedDate !== 'tutte' && !dynamicDays.some(d => d.dateStr === selectedDate)
               ? selectedDate.slice(5)
               : 'LIBERA'}
           </span>
         </label>
 
         {/* Card/Pill dei Singoli Giorni (layout compatto verticale a densità elevata) */}
-        {TRIP_DAYS.map((day: TripDayItem) => {
+        {dynamicDays.map((day: TripDayItem) => {
           const isSelected = selectedDate === day.dateStr;
           const count = itemCounts ? itemCounts[day.dateStr] || 0 : undefined;
           const hasItems = typeof count === 'number' && count > 0;

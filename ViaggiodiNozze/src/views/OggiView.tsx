@@ -15,62 +15,19 @@ interface OggiViewProps {
   onNavigateTab?: (tab: SectionTab, categoria?: CategoriaTab) => void;
 }
 
-// Generatore di giorni per il viaggio (29 Nov 2026 - 10 Gen 2027)
-interface TripDayItem {
-  dateStr: string; // YYYY-MM-DD
-  dayNum: number;
-  dayOfMonth: string;
-  monthShort: string;
-  dayNameShort: string;
-}
-
-function generateTripDays(): TripDayItem[] {
-  const days: TripDayItem[] = [];
-  const start = new Date(2026, 10, 29); // Mese 10 = Novembre
-  const end = new Date(2027, 0, 10); // Mese 0 = Gennaio
-
-  const dayNames = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
-  const monthNames = [
-    'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu',
-    'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'
-  ];
-
-  let current = new Date(start);
-  let count = 1;
-
-  while (current <= end) {
-    const y = current.getFullYear();
-    const m = String(current.getMonth() + 1).padStart(2, '0');
-    const d = String(current.getDate()).padStart(2, '0');
-    const dateStr = `${y}-${m}-${d}`;
-
-    days.push({
-      dateStr,
-      dayNum: count,
-      dayOfMonth: d,
-      monthShort: monthNames[current.getMonth()],
-      dayNameShort: dayNames[current.getDay()]
-    });
-
-    current.setDate(current.getDate() + 1);
-    count++;
-  }
-
-  return days;
-}
-
-const TRIP_DAYS = generateTripDays();
+import { generateTripDays, calculateEarliestTripDate, type TripDayItem } from '../utils/tripDates';
 
 export default function OggiView({ onNavigateTab }: OggiViewProps) {
-  const tripDays = TRIP_DAYS;
-  const [selectedDate, setSelectedDate] = useState<string>(tripDays[0]?.dateStr || '2026-11-29');
+  const [tripDays, setTripDays] = useState<TripDayItem[]>(() => generateTripDays());
+  const [selectedDate, setSelectedDate] = useState<string>('2026-11-29');
   const [accommodations, setAccommodations] = useState<Alloggio[]>([]);
   const [daysData, setDaysData] = useState<Giorno[]>([]);
   const [, setLoading] = useState(true);
 
-  // Calcolo dinamico Countdown rispetto alla partenza (29 Novembre 2026)
+  // Calcolo dinamico Countdown rispetto alla partenza reale
   const calculateCountdown = () => {
-    const target = new Date('2026-11-29T00:00:00');
+    const startDate = tripDays[0]?.dateStr || '2026-11-29';
+    const target = new Date(`${startDate}T00:00:00`);
     const now = new Date();
     const diffMs = target.getTime() - now.getTime();
     const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
@@ -108,25 +65,55 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [accs, days] = await Promise.all([
+      const [accs, days, activities, transports, tappe, ristoranti] = await Promise.all([
         storageService.getAccommodations(),
-        storageService.getDays()
+        storageService.getDays(),
+        storageService.getActivities(),
+        storageService.getTransports(),
+        storageService.getTappe(),
+        storageService.getRistoranti()
       ]);
       setAccommodations(accs);
       setDaysData(days);
 
+      // Raccogli tutte le date presenti nel DB per calcolare l'inizio dinamico del viaggio
+      const allDates: (string | undefined)[] = [
+        ...days.map(d => d.date),
+        ...activities.map(a => {
+          const match = days.find(d => d.id === a.dayId);
+          if (match?.date) return match.date;
+          if (a.dayId.startsWith('day_')) return a.dayId.replace('day_', '');
+          return undefined;
+        }),
+        ...transports.map(t => t.date),
+        ...tappe.map(t => t.data),
+        ...ristoranti.map(r => r.data),
+        ...accs.map(a => a.checkIn)
+      ];
+
+      const dynamicStartDate = calculateEarliestTripDate(allDates);
+      const dynamicDays = generateTripDays(dynamicStartDate);
+      setTripDays(dynamicDays);
+
       // Se oggi ricade all'interno del viaggio, seleziona la data odierna al primissimo mount
       const todayStr = new Date().toISOString().split('T')[0];
-      const isInTrip = TRIP_DAYS.some((d) => d.dateStr === todayStr);
-      if (isInTrip && selectedDate === tripDays[0]?.dateStr) {
-        setSelectedDate(todayStr);
-      }
+      const isInTrip = dynamicDays.some((d) => d.dateStr === todayStr);
+      setSelectedDate(prev => {
+        if (isInTrip && (prev === '2026-11-29' || prev === dynamicDays[0]?.dateStr)) {
+          return todayStr;
+        }
+        // Se la data precedente non è valida nel nuovo intervallo, imposta la prima
+        if (!dynamicDays.some(d => d.dateStr === prev) && prev === '2026-11-29') {
+          return dynamicStartDate;
+        }
+        return prev;
+      });
     } catch (err) {
       console.error('Errore caricamento dati OggiView:', err);
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, tripDays]);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -153,22 +140,22 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   const handleSaveActivity = async (data: Omit<Attivita, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const activityToSave: Attivita = {
-      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'act_' + Date.now()),
-      dayId: data.dayId,
-      title: data.title,
-      time: data.time,
-      location: data.location,
-      category: data.category,
-      status: data.status,
-      duration: data.duration,
-      notes: data.notes,
-      link: data.link,
-      copilota: data.copilota,
+      ...data,
+      id: data.id || editingActivityItem?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'act_' + Date.now()),
       createdAt: editingActivityItem?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
     await storageService.saveActivity(activityToSave);
     setEditingActivityItem(null);
+
+    // Se l'attività è stata spostata su un altro giorno, aggiorna selectedDate sul nuovo giorno
+    const matchedDay = daysData.find(d => d.id === activityToSave.dayId);
+    const targetDate = matchedDay?.date || (activityToSave.dayId.startsWith('day_') ? activityToSave.dayId.replace('day_', '') : null);
+    if (targetDate && targetDate !== selectedDate) {
+      setSelectedDate(targetDate);
+    }
+
+    await loadData();
     await fetchTimeline();
   };
 
