@@ -20,6 +20,7 @@ export default function TimelineItemDetailModal({
   const isAttivita = item.type === 'attivita';
   const isTrasporto = item.type === 'trasporto';
   const isTappa = item.type === 'tappa';
+  const isShopping = item.type === 'shopping';
   const data = item.originalData;
 
   const modalTitle = isAttivita
@@ -28,9 +29,11 @@ export default function TimelineItemDetailModal({
     ? 'Dettagli Trasporto'
     : isTappa
     ? 'Dettagli Tappa'
+    : isShopping
+    ? 'Dettagli Shopping'
     : 'Dettagli Ristorante';
 
-  const modalAccent = isAttivita ? 'amber' : isTrasporto ? 'sky' : isTappa ? 'rose' : 'emerald';
+  const modalAccent = isAttivita ? 'amber' : isTrasporto ? 'sky' : isTappa ? 'rose' : isShopping ? 'rose' : 'emerald';
 
   return (
     <Modal
@@ -60,6 +63,8 @@ export default function TimelineItemDetailModal({
                 ? `Tipo: ${data.type?.toUpperCase() || 'TRASPORTO'}`
                 : isTappa
                 ? 'TAPPA PROGRAMMATA'
+                : isShopping
+                ? 'SHOPPING & ACQUISTI'
                 : 'PRENOTAZIONE RISTORANTE'}
             </p>
           </div>
@@ -327,6 +332,87 @@ export default function TimelineItemDetailModal({
                     </span>
                     <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
                       {tp.nota}
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          })()
+        ) : isShopping ? (
+          /* Informazioni specifiche per Shopping */
+          (() => {
+            const sh = data as import('../../types').Shopping;
+            return (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                    Negozio / Mercato / Destinazione Shopping
+                  </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-bold text-slate-800 text-sm">🛍️ {sh.nome}</p>
+                    {(sh.indirizzo || sh.nome) && (
+                      <button
+                        type="button"
+                        onClick={() => openMapLink(resolveMapUrl(sh.indirizzo || sh.nome))}
+                        className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                      >
+                        Apri Maps ↗
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {sh.indirizzo && (
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                      Indirizzo / Località
+                    </span>
+                    <p className="font-semibold text-slate-700">{sh.indirizzo}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  {sh.orario && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                        Orario Previsto
+                      </span>
+                      <span className="font-semibold text-slate-700">⏰ {sh.orario}</span>
+                    </div>
+                  )}
+                  {sh.budget && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                        Budget Indicativo
+                      </span>
+                      <span className="font-semibold text-rose-600">💶 {sh.budget}</span>
+                    </div>
+                  )}
+                </div>
+
+                {sh.link && (
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                      Link Web / Info
+                    </span>
+                    <a
+                      href={sh.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-rose-600 font-semibold underline truncate block hover:text-rose-700"
+                    >
+                      {sh.link}
+                    </a>
+                  </div>
+                )}
+
+                {sh.nota && (
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                      Cosa Comprare / Note
+                    </span>
+                    <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
+                      {sh.nota}
                     </p>
                   </div>
                 )}
