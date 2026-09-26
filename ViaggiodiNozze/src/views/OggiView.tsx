@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante } from '../types';
+import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante, Shopping } from '../types';
 import { storageService } from '../storage/storageService';
 import { resolveMapUrl } from '../utils/mapsHelper';
 import TimelineItemDetailModal from '../components/modals/TimelineItemDetailModal';
@@ -9,6 +9,7 @@ import TrasportoForm from '../components/forms/TrasportoForm';
 import TappaForm from '../components/forms/TappaForm';
 import AlloggioForm from '../components/forms/AlloggioForm';
 import RistoranteForm from '../components/forms/RistoranteForm';
+import ShoppingForm from '../components/forms/ShoppingForm';
 import RouteBadge from '../components/common/RouteBadge';
 
 interface OggiViewProps {
@@ -56,6 +57,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [editingTappaItem, setEditingTappaItem] = useState<Tappa | null>(null);
   const [editingAlloggioItem, setEditingAlloggioItem] = useState<Alloggio | null>(null);
   const [editingRistoranteItem, setEditingRistoranteItem] = useState<Ristorante | null>(null);
+  const [editingShoppingItem, setEditingShoppingItem] = useState<Shopping | null>(null);
 
   const fetchTimeline = useCallback(async () => {
     const items = await storageService.getTimelineForDate(selectedDate);
@@ -65,13 +67,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [accs, days, activities, transports, tappe, ristoranti] = await Promise.all([
+      const [accs, days, activities, transports, tappe, ristoranti, shoppingList] = await Promise.all([
         storageService.getAccommodations(),
         storageService.getDays(),
         storageService.getActivities(),
         storageService.getTransports(),
         storageService.getTappe(),
-        storageService.getRistoranti()
+        storageService.getRistoranti(),
+        storageService.getShopping()
       ]);
       setAccommodations(accs);
       setDaysData(days);
@@ -88,6 +91,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         ...transports.map(t => t.date),
         ...tappe.map(t => t.data),
         ...ristoranti.map(r => r.data),
+        ...shoppingList.map(s => s.data),
         ...accs.map(a => a.checkIn)
       ];
 
@@ -135,6 +139,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       setEditingAlloggioItem(item.originalData as Alloggio);
     } else if (item.type === 'ristorante') {
       setEditingRistoranteItem(item.originalData as Ristorante);
+    } else if (item.type === 'shopping') {
+      setEditingShoppingItem(item.originalData as Shopping);
     }
   };
 
@@ -205,6 +211,18 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     };
     await storageService.saveRistorante(ristoranteToSave);
     setEditingRistoranteItem(null);
+    await fetchTimeline();
+  };
+
+  const handleSaveShopping = async (data: Omit<Shopping, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const shoppingToSave: Shopping = {
+      ...data,
+      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'shopping_' + Date.now()),
+      createdAt: editingShoppingItem?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+    await storageService.saveShopping(shoppingToSave);
+    setEditingShoppingItem(null);
     await fetchTimeline();
   };
 
@@ -356,7 +374,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           // Prepara gli elementi di percorso sequenziali
           const dayItems: {
             id: string;
-            type: 'trasporto' | 'tappa' | 'attivita' | 'ristorante' | 'alloggio';
+            type: 'trasporto' | 'tappa' | 'attivita' | 'ristorante' | 'alloggio' | 'shopping';
             time: string;
             title: string;
             location: string;
@@ -433,6 +451,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 const isTransport = item.type === 'trasporto';
                 const isTappa = item.type === 'tappa';
                 const isRistorante = item.type === 'ristorante';
+                const isShopping = item.type === 'shopping';
 
                 return (
                   <React.Fragment key={`${item.id}-${idx}`}>
@@ -536,7 +555,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         </div>
                       </div>
                     ) : (
-                      /* Card Normale di Itinerario: Trasporto, Tappa, Attività, Ristorante */
+                      /* Card Normale di Itinerario: Trasporto, Tappa, Attività, Ristorante, Shopping */
                       <div
                         onClick={() => {
                           const found = timeline.find(t => t.id === item.id);
@@ -550,15 +569,16 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               isTransport ? 'bg-sky-50 text-sky-700' :
                               isTappa ? 'bg-rose-50 text-rose-700' :
                               isRistorante ? 'bg-emerald-50 text-emerald-700' :
+                              isShopping ? 'bg-pink-50 text-pink-700' :
                               'bg-amber-50 text-amber-700'
                             }`}>
-                              {isTransport ? '✈️' : isTappa ? '📍' : isRistorante ? '🍽️' : '🌿'}
+                              {isTransport ? '✈️' : isTappa ? '📍' : isRistorante ? '🍽️' : isShopping ? '🛍️' : '🌿'}
                             </span>
                             <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-lg shrink-0">
                               {item.time}
                             </span>
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                              {isTransport ? 'Spostamento' : isTappa ? 'Tappa' : isRistorante ? 'Ristorante' : 'Attività'}
+                              {isTransport ? 'Spostamento' : isTappa ? 'Tappa' : isRistorante ? 'Ristorante' : isShopping ? 'Shopping' : 'Attività'}
                             </span>
                           </div>
 
@@ -772,6 +792,20 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           initialData={editingRistoranteItem}
           onSave={handleSaveRistorante}
           onCancel={() => setEditingRistoranteItem(null)}
+        />
+      </Modal>
+
+      {/* Modale Form Shopping */}
+      <Modal
+        isOpen={Boolean(editingShoppingItem)}
+        onClose={() => setEditingShoppingItem(null)}
+        title="Modifica Shopping"
+        accentVariant="rose"
+      >
+        <ShoppingForm
+          initialData={editingShoppingItem}
+          onSave={handleSaveShopping}
+          onCancel={() => setEditingShoppingItem(null)}
         />
       </Modal>
     </div>

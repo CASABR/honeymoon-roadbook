@@ -1,4 +1,4 @@
-import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Spesa } from '../types';
+import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Shopping, Spesa } from '../types';
 import {
   STORES,
   idbGetAll,
@@ -538,6 +538,75 @@ class StorageService {
     await idbDelete(STORES.RISTORANTI, id);
   }
 
+  // --- SHOPPING ---
+  async getShopping(): Promise<Shopping[]> {
+    try {
+      const items = await idbGetAll<Shopping>(STORES.SHOPPING);
+      return items.sort((a, b) => {
+        if (a.data && b.data) return a.data.localeCompare(b.data);
+        if (a.data) return -1;
+        if (b.data) return 1;
+        return a.nome.localeCompare(b.nome);
+      });
+    } catch (err) {
+      console.error('[StorageService] Errore lettura shopping:', err);
+      return [];
+    }
+  }
+
+  async getShoppingPerData(data: string): Promise<Shopping[]> {
+    try {
+      const all = await this.getShopping();
+      return all.filter(s => s.data === data);
+    } catch (err) {
+      console.error('[StorageService] Errore lettura shopping per data:', err);
+      return [];
+    }
+  }
+
+  async addShopping(shopping: Omit<Shopping, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<Shopping> {
+    const now = Date.now();
+    const newShopping: Shopping = {
+      ...shopping,
+      id: shopping.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'shopping_' + now),
+      createdAt: now,
+      updatedAt: now
+    };
+    await idbPut(STORES.SHOPPING, newShopping);
+    return newShopping;
+  }
+
+  async updateShopping(id: string, partial: Partial<Shopping>): Promise<void> {
+    try {
+      const existing = await idbGet<Shopping>(STORES.SHOPPING, id);
+      if (!existing) throw new Error(`Shopping con id ${id} non trovato`);
+      const updated: Shopping = {
+        ...existing,
+        ...partial,
+        id,
+        updatedAt: Date.now()
+      };
+      await idbPut(STORES.SHOPPING, updated);
+    } catch (err) {
+      console.error('[StorageService] Errore aggiornamento shopping:', err);
+      throw err;
+    }
+  }
+
+  async saveShopping(s: Shopping): Promise<void> {
+    const now = Date.now();
+    const item: Shopping = {
+      ...s,
+      createdAt: s.createdAt || now,
+      updatedAt: now
+    };
+    await idbPut(STORES.SHOPPING, item);
+  }
+
+  async deleteShopping(id: string): Promise<void> {
+    await idbDelete(STORES.SHOPPING, id);
+  }
+
   // --- SPESE & BUDGET ---
   async getSpese(): Promise<Spesa[]> {
     try {
@@ -567,7 +636,7 @@ class StorageService {
 
   /** Esporta tutti i dati in una stringa JSON con metadati. */
   async exportAllData(): Promise<string> {
-    const [giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, spese] = await Promise.all([
+    const [giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, shopping, spese] = await Promise.all([
       idbGetAll<Giorno>(STORES.GIORNI),
       idbGetAll<Attivita>(STORES.ATTIVITA),
       idbGetAll<Alloggio>(STORES.ALLOGGI),
@@ -575,12 +644,13 @@ class StorageService {
       idbGetAll<TravelDocument>(STORES.DOCUMENTI),
       idbGetAll<Tappa>(STORES.TAPPE),
       idbGetAll<Ristorante>(STORES.RISTORANTI),
+      idbGetAll<Shopping>(STORES.SHOPPING),
       idbGetAll<Spesa>(STORES.SPESE),
     ]);
     const backup = {
       version: 1,
       exportedAt: new Date().toISOString(),
-      data: { giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, spese },
+      data: { giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, shopping, spese },
     };
     return JSON.stringify(backup, null, 2);
   }
@@ -625,6 +695,7 @@ class StorageService {
       { key: 'documenti', store: STORES.DOCUMENTI },
       { key: 'tappe', store: STORES.TAPPE },
       { key: 'ristoranti', store: STORES.RISTORANTI },
+      { key: 'shopping', store: STORES.SHOPPING },
       { key: 'spese', store: STORES.SPESE },
     ] as const;
 
@@ -647,11 +718,12 @@ class StorageService {
   // --- TIMELINE OGGI ---
   async getTimelineForDate(dateStr: string): Promise<import('../types').TimelineItem[]> {
     try {
-      const [days, transports, tappe, ristoranti] = await Promise.all([
+      const [days, transports, tappe, ristoranti, shoppingList] = await Promise.all([
         this.getDays(),
         this.getTransports(),
         this.getTappe(),
-        this.getRistoranti()
+        this.getRistoranti(),
+        this.getShopping()
       ]);
       const day = days.find(d => d.date === dateStr);
       const activities = day ? await this.getActivities(day.id) : [];
@@ -659,6 +731,7 @@ class StorageService {
       const dayTransports = transports.filter(t => t.date === dateStr);
       const dayTappe = tappe.filter(t => t.data === dateStr);
       const dayRistoranti = ristoranti.filter(r => r.data === dateStr);
+      const dayShopping = shoppingList.filter(s => s.data === dateStr);
       
       const timeline: import('../types').TimelineItem[] = [];
       
@@ -722,6 +795,21 @@ class StorageService {
           copilota: r.copilota,
           coordinate: r.coordinate,
           originalData: r
+        });
+      });
+
+      // 5. Shopping & Acquisti
+      dayShopping.forEach(s => {
+        timeline.push({
+          id: s.id,
+          type: 'shopping',
+          time: s.orario || '16:00',
+          title: s.nome,
+          location: s.indirizzo || s.nome,
+          categoryOrType: 'shopping',
+          copilota: s.copilota,
+          coordinate: s.coordinate,
+          originalData: s
         });
       });
       

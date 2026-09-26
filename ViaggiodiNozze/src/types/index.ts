@@ -165,12 +165,27 @@ export interface RoutingCacheItem {
   updatedAt: number;
 }
 
+export interface Shopping {
+  id: string;
+  nome: string;
+  data?: string; // YYYY-MM-DD
+  orario?: string; // HH:mm
+  budget?: string; // es. 50 €
+  coordinate?: Coordinate;
+  indirizzo?: string;
+  link?: string;
+  nota?: string;
+  copilota?: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export type SectionTab = 'oggi' | 'categorie' | 'altro';
-export type CategoriaTab = 'tappe' | 'attivita' | 'ristoranti' | 'alloggi' | 'trasporti';
+export type CategoriaTab = 'tappe' | 'attivita' | 'ristoranti' | 'alloggi' | 'trasporti' | 'shopping';
 
 export interface TimelineItem {
   id: string;
-  type: 'attivita' | 'trasporto' | 'tappa' | 'ristorante' | 'alloggio';
+  type: 'attivita' | 'trasporto' | 'tappa' | 'ristorante' | 'alloggio' | 'shopping';
   time: string; // HH:mm or '23:59' if undefined
   title: string;
   location: string;

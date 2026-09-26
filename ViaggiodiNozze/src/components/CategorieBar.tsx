@@ -124,6 +124,21 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
         />
       </svg>
     )
+  },
+  {
+    id: 'shopping',
+    label: 'Shopping',
+    // 🛍️ Icona borsa della spesa elegante
+    icon: (active) => (
+      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={active ? "2" : "1.6"}
+          d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
+        />
+      </svg>
+    )
   }
 ];
 
@@ -151,10 +166,10 @@ export default function CategorieBar({
       />
 
       {/* Dock orizzontale a capsula fluttuante in stile Light Glassmorphism */}
-      <div className="fixed bottom-5 left-4 right-4 max-w-md mx-auto z-50 animate-slide-up">
-        <div className="relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-full px-4 py-2.5 flex items-center justify-between">
-          {/* I 5 elementi distribuiti orizzontalmente in modo uniforme */}
-          <div className="flex items-center justify-around w-full">
+      <div className="fixed bottom-5 left-3 right-3 max-w-lg mx-auto z-50 animate-slide-up">
+        <div className="relative bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl border border-white/60 dark:border-white/10 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-full px-2 sm:px-3 py-2 flex items-center justify-between">
+          {/* I 6 elementi distribuiti orizzontalmente in modo uniforme */}
+          <div className="flex items-center justify-around w-full gap-0.5">
             {CATEGORIE_ITEMS.map((item) => {
               const isActive = activeCategoria === item.id;
 
@@ -163,7 +178,7 @@ export default function CategorieBar({
                   key={item.id}
                   type="button"
                   onClick={() => onSelectCategoria(item.id)}
-                  className={`group relative flex-1 flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all duration-150 cursor-pointer min-h-[46px] hover:scale-105 active:scale-95 hover:bg-slate-900/10 dark:hover:bg-white/15 ${
+                  className={`group relative flex-1 flex flex-col items-center justify-center py-1 px-0.5 rounded-2xl transition-all duration-150 cursor-pointer min-h-[44px] hover:scale-105 active:scale-95 hover:bg-slate-900/10 dark:hover:bg-white/15 ${
                     isActive ? 'bg-slate-900/5 dark:bg-white/10' : ''
                   }`}
                 >
@@ -180,7 +195,7 @@ export default function CategorieBar({
 
                   {/* Micro-etichetta */}
                   <span
-                    className={`relative z-10 text-[11px] font-medium tracking-tight mt-1 transition-colors duration-150 ${
+                    className={`relative z-10 text-[10px] sm:text-[11px] font-medium tracking-tight mt-0.5 truncate transition-colors duration-150 ${
                       isActive
                         ? 'text-slate-900 dark:text-white font-semibold'
                         : 'text-slate-500 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-white'
