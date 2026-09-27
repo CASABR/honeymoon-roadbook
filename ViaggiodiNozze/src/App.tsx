@@ -13,7 +13,21 @@ import AltroView from './views/AltroView';
 import SettingsMenu from './components/common/SettingsMenu';
 import UpdateToast from './components/common/UpdateToast';
 
+import LiveView from './views/altro/LiveView';
+
 export default function App() {
+  // Rileva se il visitatore ha aperto il link condiviso esterno (es. ?live=1 oppure #live)
+  const [isExternalLive] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const urlParams = new URLSearchParams(window.location.search);
+    return (
+      urlParams.get('live') === '1' ||
+      urlParams.get('live') === 'true' ||
+      urlParams.get('view') === 'live' ||
+      window.location.hash.toLowerCase().includes('live')
+    );
+  });
+
   const [activeTab, setActiveTab] = useState<SectionTab>('oggi');
   const [activeCategoria, setActiveCategoria] = useState<CategoriaTab | null>(null);
   const [isCategorieOpen, setIsCategorieOpen] = useState(false);
@@ -41,6 +55,28 @@ export default function App() {
   const handleCloseCategorie = () => {
     setIsCategorieOpen(false);
   };
+
+  if (isExternalLive) {
+    return (
+      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col items-center selection:bg-rose-500 selection:text-white font-sans antialiased">
+        <header className="w-full max-w-md mx-auto flex items-center justify-between px-4 pt-4 pb-2">
+          <div className="flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-rose-500" />
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+              Honeymoon Roadbook • Live
+            </p>
+          </div>
+          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200/60">
+            Vista Ospiti
+          </span>
+        </header>
+
+        <main className="w-full max-w-md mx-auto flex-1 flex flex-col px-4 pt-1 pb-10">
+          <LiveView isStandaloneExternal={true} />
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col items-center selection:bg-rose-500 selection:text-white font-sans antialiased">

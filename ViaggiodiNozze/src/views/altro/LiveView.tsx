@@ -5,7 +5,8 @@ import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
 import { generateTripDays } from '../../utils/tripDates';
 
 interface LiveViewProps {
-  onBack: () => void;
+  onBack?: () => void;
+  isStandaloneExternal?: boolean;
 }
 
 interface DestinationTimezone {
@@ -28,7 +29,7 @@ const DEFAULT_STATUS_MESSAGE = "Siamo arrivati! Tutto bene ❤️ Ci stiamo gode
 const STATUS_MESSAGE_KEY = "live_travel_status_message";
 const STATUS_DATE_KEY = "live_travel_status_updated_at";
 
-export default function LiveView({ onBack }: LiveViewProps) {
+export default function LiveView({ onBack, isStandaloneExternal = false }: LiveViewProps) {
   const [now, setNow] = useState<Date>(new Date());
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
   const [days, setDays] = useState<Giorno[]>([]);
@@ -54,6 +55,52 @@ export default function LiveView({ onBack }: LiveViewProps) {
   // Modalità modifica messaggio (riservata e discreta per gli sposi)
   const [isEditingStatus, setIsEditingStatus] = useState(false);
   const [tempStatus, setTempStatus] = useState(statusMessage);
+
+  // Stato feedback copia/condivisione link
+  const [copiedLink, setCopiedLink] = useState(false);
+
+  const handleShareLiveLink = async () => {
+    if (typeof window === 'undefined') return;
+
+    // Genera l'URL diretto con il parametro live=1 e hash #live
+    const url = new URL(window.location.href);
+    url.searchParams.set('live', '1');
+    url.hash = 'live';
+    const liveShareUrl = url.toString();
+
+    const shareData = {
+      title: 'Viaggio di Nozze • Live',
+      text: 'Segui il nostro viaggio di nozze in tempo reale! 🌍💍',
+      url: liveShareUrl
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (err) {
+        // Se l'utente annulla la condivisione, non fare nulla
+        if ((err as Error).name === 'AbortError') return;
+      }
+    }
+
+    // Fallback: Copia link negli appunti
+    try {
+      await navigator.clipboard.writeText(liveShareUrl);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    } catch {
+      // In caso di problemi di permessi clipboard
+      const input = document.createElement('input');
+      input.value = liveShareUrl;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    }
+  };
 
   // Orologio sincronizzato al secondo
   useEffect(() => {
@@ -414,18 +461,28 @@ export default function LiveView({ onBack }: LiveViewProps) {
       {/* 1. HEADER MINIMALE E PULITO */}
       <header className="flex items-center justify-between px-1">
         <div className="flex items-center gap-2.5">
-          <button
-            onClick={onBack}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200/60 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-            title="Torna ad Altro"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
+          {!isStandaloneExternal && onBack && (
+            <button
+              onClick={onBack}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200/60 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+              title="Torna ad Altro"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
+          {isStandaloneExternal && (
+            <div className="w-8 h-8 flex items-center justify-center rounded-full bg-rose-50 border border-rose-200/60 text-base">
+              💍
+            </div>
+          )}
           <div>
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-              Live
+            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5">
+              <span>Live</span>
+              {isStandaloneExternal && (
+                <span className="text-xs font-semibold text-rose-500">• Viaggio di Nozze</span>
+              )}
             </h1>
             <p className="text-[11px] text-slate-500 font-medium">
               Segui il nostro viaggio in tempo reale
@@ -433,13 +490,30 @@ export default function LiveView({ onBack }: LiveViewProps) {
           </div>
         </div>
 
-        {/* Badge discreto con puntino verde/rosso pulsante */}
-        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-[10px] font-bold tracking-wider shadow-2xs">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-          </span>
-          <span>● LIVE</span>
+        {/* Badge e pulsante condividi */}
+        <div className="flex items-center gap-2">
+          {!isStandaloneExternal && (
+            <button
+              type="button"
+              onClick={handleShareLiveLink}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200/70 transition-all cursor-pointer shadow-2xs active:scale-95"
+              title="Condividi link Live con amici e parenti"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              <span>{copiedLink ? '✓ Link Copiato!' : 'Condividi Live'}</span>
+            </button>
+          )}
+
+          {/* Badge discreto con puntino verde pulsante */}
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-[10px] font-bold tracking-wider shadow-2xs">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+            </span>
+            <span>● LIVE</span>
+          </div>
         </div>
       </header>
 
@@ -544,18 +618,20 @@ export default function LiveView({ onBack }: LiveViewProps) {
             <span className="text-lg">💬</span>
             <h3 className="font-bold text-rose-950 text-sm">Messaggio da noi</h3>
           </div>
-          {/* Tocco discreto e minimale per gli sposi per modificare il testo */}
-          <button
-            type="button"
-            onClick={() => {
-              setTempStatus(statusMessage);
-              setIsEditingStatus(prev => !prev);
-            }}
-            className="text-[10px] font-semibold text-rose-700/60 hover:text-rose-800 transition-colors cursor-pointer px-1 py-0.5 rounded"
-            title="Modifica stato"
-          >
-            {isEditingStatus ? 'Annulla' : '•••'}
-          </button>
+          {/* Tocco discreto e minimale per gli sposi per modificare il testo (nascosto se esterno) */}
+          {!isStandaloneExternal && (
+            <button
+              type="button"
+              onClick={() => {
+                setTempStatus(statusMessage);
+                setIsEditingStatus(prev => !prev);
+              }}
+              className="text-[10px] font-semibold text-rose-700/60 hover:text-rose-800 transition-colors cursor-pointer px-1 py-0.5 rounded"
+              title="Modifica stato"
+            >
+              {isEditingStatus ? 'Annulla' : '•••'}
+            </button>
+          )}
         </div>
 
         {isEditingStatus ? (
