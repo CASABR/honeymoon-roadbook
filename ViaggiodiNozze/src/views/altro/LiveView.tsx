@@ -1,8 +1,15 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { storageService } from '../../storage/storageService';
 import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa } from '../../types';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
 import { generateTripDays } from '../../utils/tripDates';
+import {
+  updateRealLocation,
+  getSavedLiveLocation,
+  getCountryFlag,
+  getTimezoneFromCoordinates,
+  type GeolocationState
+} from '../../services/geolocationService';
 
 interface LiveViewProps {
   onBack?: () => void;
@@ -51,6 +58,28 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     }
     return 'Pochi minuti fa';
   });
+
+  // Posizione GPS Reale rilevata da dispositivo (persistita in localStorage)
+  const [liveGpsState, setLiveGpsState] = useState<GeolocationState | null>(() => getSavedLiveLocation());
+  const [isDetectingGps, setIsDetectingGps] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+
+  // Rileva posizione GPS reale su richiesta
+  const handleDetectGps = useCallback(async () => {
+    try {
+      setIsDetectingGps(true);
+      setGpsError(null);
+      const res = await updateRealLocation();
+      setLiveGpsState(res);
+    } catch (err: unknown) {
+      console.warn('[LiveView] Errore acquisizione GPS:', err);
+      const errMsg = (err as Error)?.message || 'Impossibile acquisire la posizione GPS';
+      setGpsError(errMsg);
+      setTimeout(() => setGpsError(null), 4000);
+    } finally {
+      setIsDetectingGps(false);
+    }
+  }, []);
 
   // Modalità modifica messaggio (riservata e discreta per gli sposi)
   const [isEditingStatus, setIsEditingStatus] = useState(false);
@@ -184,56 +213,128 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     return tappe.find(tp => tp.data === activeDate);
   }, [tappe, activeDate]);
 
-  // Località corrente elegante e pulita
+  // Località corrente: priorità a GPS reale salvato, poi alloggio/tappa/itinerario programmato come fallback
   const currentLocation = useMemo(() => {
+    // 1. Se è disponibile la posizione GPS reale acquisita dal dispositivo
+    if (liveGpsState && liveGpsState.isLiveGps && liveGpsState.coords) {
+      const timeAgo = (() => {
+        try {
+          const diffMs = Date.now() - new Date(liveGpsState.updatedAt).getTime();
+          const diffMin = Math.floor(diffMs / 60000);
+          if (diffMin < 1) return 'Pochi istanti fa (GPS)';
+          if (diffMin < 60) return `${diffMin} min fa (GPS)`;
+          const diffHours = Math.floor(diffMin / 60);
+          return `${diffHours} ore fa (GPS)`;
+        } catch {
+          return 'Posizione GPS';
+        }
+      })();
+
+      return {
+        title: liveGpsState.displayName || `${liveGpsState.city || ''}, ${liveGpsState.country || ''}`.trim() || 'Posizione Reale',
+        city: liveGpsState.city || 'Posizione Corrente',
+        country: liveGpsState.country || 'Reale',
+        countryCode: liveGpsState.countryCode || '',
+        flag: getCountryFlag(liveGpsState.countryCode),
+        coords: liveGpsState.coords,
+        isRealGps: true,
+        updateNotice: `Rilevamento GPS • ${timeAgo}`
+      };
+    }
+
+    // 2. Fallback su Alloggio programmato
     if (currentAccommodation) {
       return {
         title: currentAccommodation.location || currentAccommodation.name,
-        address: currentAccommodation.address || currentAccommodation.location,
-        name: currentAccommodation.name,
+        city: currentAccommodation.location || currentAccommodation.name,
         country: 'Nuova Zelanda',
-        coords: currentAccommodation.coordinate
+        countryCode: 'nz',
+        flag: '🇳🇿',
+        coords: currentAccommodation.coordinate,
+        isRealGps: false,
+        updateNotice: 'Tappa alloggio del giorno (programmato)'
       };
     }
+
+    // 3. Fallback su Tappa programmata
     if (currentTappa) {
       return {
         title: currentTappa.titolo,
-        address: currentTappa.titolo,
-        name: currentTappa.titolo,
+        city: currentTappa.titolo,
         country: 'Nuova Zelanda',
-        coords: currentTappa.coordinate
+        countryCode: 'nz',
+        flag: '🇳🇿',
+        coords: currentTappa.coordinate,
+        isRealGps: false,
+        updateNotice: 'Tappa programmata per oggi'
       };
     }
+
+    // 4. Fallback su Giornata
     if (currentDay) {
       return {
         title: currentDay.location || currentDay.title,
-        address: currentDay.location,
-        name: currentDay.title,
+        city: currentDay.location || currentDay.title,
         country: 'Nuova Zelanda',
-        coords: undefined
+        countryCode: 'nz',
+        flag: '🇳🇿',
+        coords: undefined,
+        isRealGps: false,
+        updateNotice: 'Itinerario programmato per oggi'
       };
     }
+
+    // 5. Fallback su Trasporto
     if (currentTransport) {
       return {
         title: currentTransport.arrivalLocation,
-        address: currentTransport.arrivalLocation,
-        name: `${currentTransport.carrier || currentTransport.type} verso ${currentTransport.arrivalLocation}`,
+        city: currentTransport.arrivalLocation,
         country: 'In Viaggio',
-        coords: currentTransport.coordinate
+        countryCode: '',
+        flag: '✈️',
+        coords: currentTransport.coordinate,
+        isRealGps: false,
+        updateNotice: 'Trasferimento programmato'
       };
     }
+
     return {
       title: 'Auckland, Nuova Zelanda',
-      address: 'Auckland, New Zealand',
-      name: 'Auckland City',
+      city: 'Auckland',
       country: 'Nuova Zelanda',
-      coords: { lat: -36.8485, lng: 174.7633 }
+      countryCode: 'nz',
+      flag: '🇳🇿',
+      coords: { lat: -36.8485, lng: 174.7633 },
+      isRealGps: false,
+      updateNotice: 'Posizione stimata (programmato)'
     };
-  }, [currentAccommodation, currentTappa, currentDay, currentTransport]);
+  }, [liveGpsState, currentAccommodation, currentTappa, currentDay, currentTransport]);
 
-  // Fuso orario della destinazione corrente
+  // Risoluzione scientifica del fuso orario di destinazione (Zero Improvvisazione)
   const activeTimezone = useMemo<DestinationTimezone>(() => {
-    const locLower = `${currentLocation.title} ${currentLocation.address} ${currentLocation.name}`.toLowerCase();
+    // 1. Se il GPS è attivo e ha determinato una timezone IANA
+    if (liveGpsState?.timeZone) {
+      return {
+        name: liveGpsState.city || liveGpsState.country || 'Posizione GPS',
+        country: liveGpsState.country || '',
+        flag: getCountryFlag(liveGpsState.countryCode),
+        timeZone: liveGpsState.timeZone
+      };
+    }
+
+    // 2. Se abbiamo coordinate GPS, ricava timezone scientificamente
+    if (currentLocation.coords && currentLocation.coords.lat && currentLocation.coords.lng) {
+      const tz = getTimezoneFromCoordinates(currentLocation.coords.lat, currentLocation.coords.lng, currentLocation.countryCode);
+      return {
+        name: currentLocation.city || currentLocation.title,
+        country: currentLocation.country,
+        flag: currentLocation.flag,
+        timeZone: tz
+      };
+    }
+
+    // 3. Fallback contestuale in base alla località del viaggio
+    const locLower = `${currentLocation.title} ${currentLocation.city}`.toLowerCase();
     
     if (locLower.includes('filippine') || locLower.includes('manila') || locLower.includes('palawan') || locLower.includes('coron') || locLower.includes('el nido') || locLower.includes('boracay') || locLower.includes('cebu')) {
       return DESTINATION_ZONES[4]; // Manila
@@ -252,7 +353,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     }
     // Default Nuova Zelanda (Auckland)
     return DESTINATION_ZONES[0];
-  }, [currentLocation]);
+  }, [liveGpsState, currentLocation]);
 
   // Formattatori orari
   const formatTimeInZone = (date: Date, timeZone: string) => {
@@ -287,7 +388,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   const italyTimeStr = useMemo(() => formatTimeInZone(now, 'Europe/Rome'), [now]);
   const italyDateStr = useMemo(() => formatDateInZone(now, 'Europe/Rome'), [now]);
 
-  // Calcolo differenza fuso orario precisa
+  // Calcolo matematico preciso del dislivello orario
   const offsetDiffLabel = useMemo(() => {
     try {
       const getOffsetMinutes = (tz: string, d: Date) => {
@@ -309,10 +410,10 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
       const italyMin = getOffsetMinutes('Europe/Rome', now);
       const diffMin = destMin - italyMin;
       const diffHours = Math.round(diffMin / 60);
-      const absDiff = Math.abs(diffHours);
-      return `${absDiff} ore di differenza (${diffHours >= 0 ? `+${absDiff}h` : `-${absDiff}h`})`;
+      const signStr = diffHours > 0 ? `+${diffHours}` : `${diffHours}`;
+      return `${signStr} ore di differenza rispetto all'Italia`;
     } catch {
-      return '11 ore di differenza (+11h)';
+      return '+11 ore di differenza rispetto all\'Italia';
     }
   }, [activeTimezone, now]);
 
@@ -321,12 +422,12 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     if (currentLocation.coords && currentLocation.coords.lat && currentLocation.coords.lng) {
       return `https://www.google.com/maps/search/?api=1&query=${currentLocation.coords.lat},${currentLocation.coords.lng}`;
     }
-    return resolveMapUrl(currentLocation.address || currentLocation.title);
+    return resolveMapUrl(currentLocation.title || currentLocation.city);
   }, [currentLocation]);
 
   // Foto d'ispirazione / copertina per la sezione foto
   const photoUpdateData = useMemo(() => {
-    const locLower = `${currentLocation.title} ${currentLocation.address}`.toLowerCase();
+    const locLower = `${currentLocation.title} ${currentLocation.city}`.toLowerCase();
     
     if (locLower.includes('filippine') || locLower.includes('coron') || locLower.includes('el nido') || locLower.includes('palawan')) {
       return {
@@ -557,29 +658,66 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
       </div>
 
       {/* 3. CARD EMOZIONALE "📍 SIAMO QUI" (Nessun Riquadro Mappa Grigio) */}
-      <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs flex items-center justify-between gap-3">
-        <div className="space-y-0.5 min-w-0">
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-            <span>📍</span>
-            <span>SIAMO QUI</span>
+      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="space-y-1 min-w-0">
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span>📍</span>
+              <span>SIAMO QUI</span>
+              {currentLocation.isRealGps && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  GPS Live
+                </span>
+              )}
+            </div>
+
+            <h2 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug break-words">
+              {currentLocation.title}
+            </h2>
+
+            <p className="text-[11px] text-slate-500 font-medium">
+              {currentLocation.updateNotice}
+            </p>
           </div>
-          <h2 className="text-base font-extrabold text-slate-900 truncate">
-            {currentLocation.title}
-          </h2>
-          <p className="text-[11px] text-slate-500">
-            Posizione aggiornata pochi minuti fa
-          </p>
+
+          {/* Link sottile ed elegante 'Vedi sulla mappa →' */}
+          <button
+            type="button"
+            onClick={() => openMapLink(mapSearchUrl)}
+            className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-2xl border border-indigo-100 transition-colors cursor-pointer"
+          >
+            <span>Vedi sulla mappa</span>
+            <span>→</span>
+          </button>
         </div>
 
-        {/* Link sottile ed elegante 'Vedi sulla mappa →' */}
-        <button
-          type="button"
-          onClick={() => openMapLink(mapSearchUrl)}
-          className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-2xl border border-indigo-100 transition-colors cursor-pointer"
-        >
-          <span>Vedi sulla mappa</span>
-          <span>→</span>
-        </button>
+        {/* Pulsante di acquisizione GPS reale riservato agli sposi */}
+        {!isStandaloneExternal && (
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={handleDetectGps}
+              disabled={isDetectingGps}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 transition-all cursor-pointer disabled:opacity-50 active:scale-95"
+            >
+              <span>{isDetectingGps ? '🛰️' : '📡'}</span>
+              <span>
+                {isDetectingGps ? 'Rilevamento satellitare in corso...' : 'Aggiorna posizione adesso'}
+              </span>
+            </button>
+
+            {gpsError ? (
+              <span className="text-[10px] text-rose-500 font-medium">
+                {gpsError}
+              </span>
+            ) : liveGpsState?.accuracy ? (
+              <span className="text-[10px] text-slate-400 font-mono">
+                Precisione: ±{Math.round(liveGpsState.accuracy)}m
+              </span>
+            ) : null}
+          </div>
+        )}
       </div>
 
       {/* 4. CARD "📸 Ultimo Aggiornamento" (La foto del momento) */}
