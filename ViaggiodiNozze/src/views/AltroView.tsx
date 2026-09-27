@@ -4,14 +4,16 @@ import DocumentiView from './altro/DocumentiView';
 import AssicurazioneView from './altro/AssicurazioneView';
 import DocumentiGalleriaView from './altro/DocumentiGalleriaView';
 import SpeseBudgetView from './altro/SpeseBudgetView';
+import LiveView from './altro/LiveView';
 
-type SubViewType = 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | null;
+type SubViewType = 'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | null;
 
 export default function AltroView() {
   const [activeSubView, setActiveSubView] = useState<SubViewType>(null);
 
   const handleBack = () => setActiveSubView(null);
 
+  if (activeSubView === 'live') return <LiveView onBack={handleBack} />;
   if (activeSubView === 'assicurazione') return <AssicurazioneView onBack={handleBack} />;
   if (activeSubView === 'documenti') return <DocumentiView onBack={handleBack} />;
   if (activeSubView === 'emergenza') return <PlaceholderView title="Numeri di Emergenza" icon="📞" onBack={handleBack} />;
@@ -33,6 +35,37 @@ export default function AltroView() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
+        {/* Card 0: Live Viaggio (Condividi & Segui il viaggio in tempo reale) */}
+        <button 
+          onClick={() => setActiveSubView('live')}
+          className="col-span-2 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-white rounded-2xl p-4 border border-emerald-200/90 shadow-xs hover:shadow-md hover:border-emerald-300 transition-all text-left flex items-center justify-between cursor-pointer"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="relative w-11 h-11 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-xl shadow-md shadow-emerald-500/20 shrink-0">
+              <span className="relative z-10">📡</span>
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400 border border-white" />
+              </span>
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-slate-900 text-sm leading-tight">Live Viaggio</h3>
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                  LIVE
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-1">
+                Condividi la posizione e segui il viaggio in tempo reale
+              </p>
+            </div>
+          </div>
+          <svg className="w-5 h-5 text-emerald-600 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+
         {/* Card 1: Assicurazione */}
         <button 
           onClick={() => setActiveSubView('assicurazione')}
