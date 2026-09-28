@@ -185,12 +185,29 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     return () => { isMounted = false; };
   }, [todayStr]);
 
+  // Verifica se il viaggio è già iniziato rispetto a oggi
+  const tripCountdown = useMemo(() => {
+    const tripDaysList = generateTripDays();
+    const firstDateStr = days[0]?.date || tripDaysList[0]?.dateStr || '2026-11-29';
+    const startDate = new Date(`${firstDateStr}T00:00:00`);
+    const today = new Date(`${todayStr}T00:00:00`);
+    const diffMs = startDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    const isPreTrip = diffDays > 0;
+    const isInTrip = tripDaysList.some(item => item.dateStr === todayStr);
+
+    return {
+      isPreTrip,
+      isInTrip,
+      diffDays,
+      firstDateStr
+    };
+  }, [todayStr, days]);
+
   // Data attiva del viaggio
   const activeDate = useMemo(() => {
-    const tripDaysList = generateTripDays();
-    const isInTrip = tripDaysList.some(item => item.dateStr === todayStr);
-    return isInTrip ? todayStr : (days[0]?.date || '2026-11-29');
-  }, [todayStr, days]);
+    return tripCountdown.isInTrip ? todayStr : tripCountdown.firstDateStr;
+  }, [tripCountdown, todayStr]);
 
   // Alloggio, tappa e trasporto del giorno corrente
   const currentAccommodation = useMemo(() => {
@@ -455,21 +472,21 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     return `~${dist.toLocaleString('it-IT')} km da casa`;
   }, [currentLocation.coords]);
 
-  // Tile statico per mini-mappa stile iOS Maps (CartoDB Voyager chiaro)
+  // Tile statico per mini-mappa (OpenStreetMap ufficiale gratuito, 0 API key, 0 watermark)
   const mapTileUrl = useMemo(() => {
     if (!currentLocation.coords || !currentLocation.coords.lat || !currentLocation.coords.lng) {
       return null;
     }
     const { lat, lng } = currentLocation.coords;
-    const zoom = 10;
+    const zoom = 11;
     // Conversione coordinate WGS84 -> coordinate slippy tile (x, y)
     const latRad = (lat * Math.PI) / 180;
     const n = Math.pow(2, zoom);
     const x = Math.floor(((lng + 180) / 360) * n);
     const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
     
-    // Server tile CartoDB Voyager pulito e chiaro (senza necessità di API key a pagamento)
-    return `https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png`;
+    // Server tile ufficiale OpenStreetMap: libero, senza registrazione né watermark
+    return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
   }, [currentLocation.coords]);
 
   // Link a Google Maps
@@ -561,9 +578,16 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
       return { item, minutes };
     });
 
-    // Trova l'indice dell'evento "ORA"
-    // L'evento corrente è l'ultimo evento iniziato la cui ora è <= currentLocalMinutes,
-    // oppure il primo evento futuro se tutti sono nel futuro.
+    // Se il viaggio non è ancora iniziato (oggi < data inizio) o stiamo visualizzando un giorno futuro:
+    // NESSUN evento deve avere lo stato "ORA" o "Fatto". Tutti gli eventi devono essere "upcoming" (Previsto).
+    if (tripCountdown.isPreTrip || activeDate !== todayStr) {
+      return parsed.map(p => ({
+        ...p.item,
+        status: 'upcoming' as const
+      }));
+    }
+
+    // Altrimenti (viaggio in corso e data di oggi): calcola evento corrente
     let activeIdx = -1;
     for (let i = 0; i < parsed.length; i++) {
       if (parsed[i].minutes <= currentLocalMinutes) {
@@ -590,7 +614,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
         status
       };
     });
-  }, [timelineItems, currentAccommodation, now, activeTimezone]);
+  }, [timelineItems, currentAccommodation, now, activeTimezone, tripCountdown.isPreTrip, activeDate, todayStr]);
 
   // Salva stato personalizzato
   const handleSaveStatus = () => {
@@ -738,12 +762,14 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
 
         {/* Mini-Mappa Cartografica con Tile Chiari e Radar Pulse Pin */}
         <div className="relative h-44 sm:h-48 w-full rounded-2xl overflow-hidden shadow-inner border border-slate-200/80 bg-slate-100 group select-none">
-          {/* Tile Cartografici Voyager / Positron o Fallback Vettoriale Topografico */}
+          {/* Tile Cartografici OpenStreetMap Ufficiali (0 API Key, 0 Watermark) */}
           {mapTileUrl ? (
             <div className="absolute inset-0 overflow-hidden">
               <img
                 src={mapTileUrl}
                 alt={`Mappa di ${currentLocation.city}`}
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
                 className="w-full h-full object-cover scale-105 transition-transform duration-700 group-hover:scale-110 filter contrast-[1.02] brightness-[0.99]"
                 onError={(e) => {
                   // Fallback immediato a griglia topografica/continente se tile fallisce
@@ -752,6 +778,10 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
               />
               {/* Effetto vignettatura leggera per dare profondità */}
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 via-transparent to-slate-900/10 pointer-events-none" />
+              {/* Micro attribution discreta OSM */}
+              <div className="absolute bottom-1 left-2 pointer-events-none text-[8px] text-slate-500/70 font-sans">
+                © OpenStreetMap
+              </div>
             </div>
           ) : (
             <div className="absolute inset-0 bg-gradient-to-br from-sky-50 via-slate-50 to-indigo-50/40 flex items-center justify-center">
@@ -939,15 +969,24 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
         )}
       </div>
 
-      {/* 6. TIMELINE "📅 OGGI" (Sintetica, Chiara e con Evento Attivo Automatico) */}
+      {/* 6. TIMELINE PROGRAMMA DEL GIORNO (Oggi durante il viaggio, Countdown prima della partenza) */}
       <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-base">📅</span>
-            <h3 className="font-bold text-slate-900 text-sm">Oggi</h3>
+            <span className="text-base">{tripCountdown.isPreTrip ? '⏳' : '📅'}</span>
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm">
+                {tripCountdown.isPreTrip ? `Mancano ${tripCountdown.diffDays} giorni alla partenza` : 'Oggi'}
+              </h3>
+              {tripCountdown.isPreTrip && (
+                <p className="text-[10px] text-slate-500 font-medium">
+                  Partenza prevista: {tripCountdown.firstDateStr}
+                </p>
+              )}
+            </div>
           </div>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            {activeDate}
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded-full">
+            {tripCountdown.isPreTrip ? 'Prima Tappa' : activeDate}
           </span>
         </div>
 

@@ -352,7 +352,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-              Itinerario del Giorno
+              {(() => {
+                const todayStr = new Date().toISOString().split('T')[0];
+                const startDateStr = tripDays[0]?.dateStr || '2026-11-29';
+                if (todayStr < startDateStr) {
+                  return selectedDate === startDateStr ? 'Prima Tappa in Programma' : 'Itinerario Programmato';
+                }
+                return selectedDate === todayStr ? 'Programma di Oggi' : 'Itinerario del Giorno';
+              })()}
             </span>
             <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
               {formatDateHuman(selectedDate)}
