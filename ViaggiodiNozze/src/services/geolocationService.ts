@@ -139,7 +139,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<{
 /**
  * Acquisisce la posizione GPS reale dal dispositivo del browser
  */
-export function getCurrentDevicePosition(): Promise<GeolocationPosition> {
+export function getCurrentDevicePosition(options?: PositionOptions): Promise<GeolocationPosition> {
   return new Promise((resolve, reject) => {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
       reject(new Error('Geolocalizzazione non supportata dal browser'));
@@ -149,10 +149,10 @@ export function getCurrentDevicePosition(): Promise<GeolocationPosition> {
     navigator.geolocation.getCurrentPosition(
       (pos) => resolve(pos),
       (err) => reject(err),
-      {
+      options || {
         enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 60000
+        timeout: 10000,
+        maximumAge: 30000
       }
     );
   });
@@ -175,8 +175,8 @@ export function getSavedLiveLocation(): GeolocationState | null {
 /**
  * Rileva la posizione GPS reale, esegue reverse geocoding e salva su localStorage
  */
-export async function updateRealLocation(): Promise<GeolocationState> {
-  const pos = await getCurrentDevicePosition();
+export async function updateRealLocation(options?: PositionOptions): Promise<GeolocationState> {
+  const pos = await getCurrentDevicePosition(options);
   const lat = pos.coords.latitude;
   const lng = pos.coords.longitude;
   const accuracy = pos.coords.accuracy;

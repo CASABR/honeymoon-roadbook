@@ -63,23 +63,38 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   const [liveGpsState, setLiveGpsState] = useState<GeolocationState | null>(() => getSavedLiveLocation());
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [tileLoadFailed, setTileLoadFailed] = useState(false);
 
-  // Rileva posizione GPS reale su richiesta
-  const handleDetectGps = useCallback(async () => {
+  // Rileva posizione GPS reale su richiesta o automaticamente all'apertura
+  const handleDetectGps = useCallback(async (isSilent = false) => {
     try {
-      setIsDetectingGps(true);
+      if (!isSilent) setIsDetectingGps(true);
       setGpsError(null);
-      const res = await updateRealLocation();
+      const res = await updateRealLocation({
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 30000
+      });
       setLiveGpsState(res);
     } catch (err: unknown) {
       console.warn('[LiveView] Errore acquisizione GPS:', err);
-      const errMsg = (err as Error)?.message || 'Impossibile acquisire la posizione GPS';
-      setGpsError(errMsg);
-      setTimeout(() => setGpsError(null), 4000);
+      if (!isSilent) {
+        const errMsg = (err as Error)?.message || 'Impossibile acquisire la posizione GPS';
+        setGpsError(errMsg);
+        setTimeout(() => setGpsError(null), 4000);
+      }
     } finally {
-      setIsDetectingGps(false);
+      if (!isSilent) setIsDetectingGps(false);
     }
   }, []);
+
+  // Richiesta automatica della geolocalizzazione all'accesso della pagina
+  useEffect(() => {
+    if (typeof navigator !== 'undefined' && navigator.geolocation) {
+      // Esegui la richiesta automatica in modalità non invasiva per scatenare il popup nativo dei permessi
+      handleDetectGps(true);
+    }
+  }, [handleDetectGps]);
 
   // Modalità modifica messaggio (riservata e discreta per gli sposi)
   const [isEditingStatus, setIsEditingStatus] = useState(false);
@@ -472,21 +487,21 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     return `~${dist.toLocaleString('it-IT')} km da casa`;
   }, [currentLocation.coords]);
 
-  // Tile statico per mini-mappa (OpenStreetMap ufficiale gratuito, 0 API key, 0 watermark)
+  // Tile statico per mini-mappa (Esri ArcGIS World Street Map: libero, affidabile, 0 blocchi di policy, 0 watermark)
   const mapTileUrl = useMemo(() => {
     if (!currentLocation.coords || !currentLocation.coords.lat || !currentLocation.coords.lng) {
       return null;
     }
     const { lat, lng } = currentLocation.coords;
-    const zoom = 11;
+    const zoom = 12;
     // Conversione coordinate WGS84 -> coordinate slippy tile (x, y)
     const latRad = (lat * Math.PI) / 180;
     const n = Math.pow(2, zoom);
     const x = Math.floor(((lng + 180) / 360) * n);
     const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
     
-    // Server tile ufficiale OpenStreetMap: libero, senza registrazione né watermark
-    return `https://tile.openstreetmap.org/${zoom}/${x}/${y}.png`;
+    // Server Esri ArcGIS World Street Map: ordine parametri ${zoom}/${y}/${x}
+    return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${zoom}/${y}/${x}`;
   }, [currentLocation.coords]);
 
   // Link a Google Maps
@@ -762,8 +777,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
 
         {/* Mini-Mappa Cartografica con Tile Chiari e Radar Pulse Pin */}
         <div className="relative h-44 sm:h-48 w-full rounded-2xl overflow-hidden shadow-inner border border-slate-200/80 bg-slate-100 group select-none">
-          {/* Tile Cartografici OpenStreetMap Ufficiali (0 API Key, 0 Watermark) */}
-          {mapTileUrl ? (
+          {/* Tile Cartografici Esri ArcGIS World Street Map (Senza blocco di policy né watermark) */}
+          {mapTileUrl && !tileLoadFailed ? (
             <div className="absolute inset-0 overflow-hidden">
               <img
                 src={mapTileUrl}
@@ -771,26 +786,45 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
                 referrerPolicy="no-referrer"
                 crossOrigin="anonymous"
                 className="w-full h-full object-cover scale-105 transition-transform duration-700 group-hover:scale-110 filter contrast-[1.02] brightness-[0.99]"
-                onError={(e) => {
-                  // Fallback immediato a griglia topografica/continente se tile fallisce
-                  (e.currentTarget as HTMLElement).style.display = 'none';
+                onError={() => {
+                  setTileLoadFailed(true);
                 }}
               />
               {/* Effetto vignettatura leggera per dare profondità */}
               <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 via-transparent to-slate-900/10 pointer-events-none" />
-              {/* Micro attribution discreta OSM */}
-              <div className="absolute bottom-1 left-2 pointer-events-none text-[8px] text-slate-500/70 font-sans">
-                © OpenStreetMap
+              {/* Micro attribution discreta Esri */}
+              <div className="absolute bottom-1 left-2 pointer-events-none text-[8px] text-slate-500/80 font-sans drop-shadow-2xs">
+                © Esri ArcGIS
               </div>
             </div>
           ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-sky-50 via-slate-50 to-indigo-50/40 flex items-center justify-center">
-              {/* Fallback Vettoriale Elegante Continente / Bussola */}
-              <svg className="w-32 h-32 text-indigo-200/50" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <circle cx="12" cy="12" r="9" strokeWidth="1" strokeDasharray="3 3" />
-                <path d="M12 2v20M2 12h20" strokeWidth="0.75" strokeDasharray="2 2" />
-                <circle cx="12" cy="12" r="4" strokeWidth="1" />
+            /* Fallback Cartografico Vettoriale Stile Apple Maps (Zero Rete / Offline) */
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-sky-50/40 to-indigo-50/50 flex items-center justify-center overflow-hidden">
+              {/* Curve di livello topografiche tenui e reticolo cartografico */}
+              <svg className="absolute inset-0 w-full h-full text-slate-200/70" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
+                    <path d="M 32 0 L 0 0 0 32" fill="none" stroke="currentColor" strokeWidth="0.5" strokeDasharray="2 2" />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grid)" />
+                {/* Curve topografiche stilizzate */}
+                <path d="M-20 80 Q 80 40 180 90 T 380 60 T 580 120" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.6" />
+                <path d="M-20 120 Q 90 80 200 130 T 400 90 T 600 150" fill="none" stroke="currentColor" strokeWidth="0.75" opacity="0.4" />
+                <path d="M-20 160 Q 110 130 220 170 T 420 140 T 620 190" fill="none" stroke="currentColor" strokeWidth="0.5" opacity="0.3" />
               </svg>
+
+              {/* Bussola e Coordinate WGS84 sottili in filigrana */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-40">
+                <div className="w-28 h-28 rounded-full border border-dashed border-indigo-300 flex items-center justify-center">
+                  <div className="w-16 h-16 rounded-full border border-indigo-200" />
+                </div>
+              </div>
+
+              {/* Etichetta di geolocalizzazione WGS84 in filigrana */}
+              <div className="absolute bottom-2 left-2 text-[9px] font-mono text-slate-400 pointer-events-none">
+                {formattedCoords}
+              </div>
             </div>
           )}
 
@@ -863,7 +897,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
             <button
               type="button"
-              onClick={handleDetectGps}
+              onClick={() => handleDetectGps(false)}
               disabled={isDetectingGps}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold border border-slate-200 transition-all cursor-pointer disabled:opacity-50 active:scale-95"
             >
