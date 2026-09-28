@@ -417,6 +417,61 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     }
   }, [activeTimezone, now]);
 
+  // Coordinate Geografiche Formattate (es. 36°51'S • 174°46'E)
+  const formattedCoords = useMemo(() => {
+    if (!currentLocation.coords || !currentLocation.coords.lat || !currentLocation.coords.lng) {
+      return '36°51\'S • 174°46\'E';
+    }
+    const { lat, lng } = currentLocation.coords;
+    const latDir = lat >= 0 ? 'N' : 'S';
+    const lngDir = lng >= 0 ? 'E' : 'W';
+    const latAbs = Math.abs(lat);
+    const lngAbs = Math.abs(lng);
+    const latDeg = Math.floor(latAbs);
+    const latMin = Math.round((latAbs - latDeg) * 60);
+    const lngDeg = Math.floor(lngAbs);
+    const lngMin = Math.round((lngAbs - lngDeg) * 60);
+    return `${latDeg}°${latMin.toString().padStart(2, '0')}'${latDir} • ${lngDeg}°${lngMin.toString().padStart(2, '0')}'${lngDir}`;
+  }, [currentLocation.coords]);
+
+  // Calcolo della distanza geodesica dall'Italia (Roma: 41.9028, 12.4964)
+  const distanceFromItalyLabel = useMemo(() => {
+    if (!currentLocation.coords || !currentLocation.coords.lat || !currentLocation.coords.lng) {
+      return '~18.400 km da casa';
+    }
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const lat1 = toRad(41.9028); // Roma
+    const lon1 = toRad(12.4964);
+    const lat2 = toRad(currentLocation.coords.lat);
+    const lon2 = toRad(currentLocation.coords.lng);
+    const R = 6371; // raggio Terra in km
+    const dLat = lat2 - lat1;
+    const dLon = lon2 - lon1;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1) * Math.cos(lat2) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const dist = Math.round(R * c);
+    return `~${dist.toLocaleString('it-IT')} km da casa`;
+  }, [currentLocation.coords]);
+
+  // Tile statico per mini-mappa stile iOS Maps (CartoDB Voyager chiaro)
+  const mapTileUrl = useMemo(() => {
+    if (!currentLocation.coords || !currentLocation.coords.lat || !currentLocation.coords.lng) {
+      return null;
+    }
+    const { lat, lng } = currentLocation.coords;
+    const zoom = 10;
+    // Conversione coordinate WGS84 -> coordinate slippy tile (x, y)
+    const latRad = (lat * Math.PI) / 180;
+    const n = Math.pow(2, zoom);
+    const x = Math.floor(((lng + 180) / 360) * n);
+    const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
+    
+    // Server tile CartoDB Voyager pulito e chiaro (senza necessità di API key a pagamento)
+    return `https://basemaps.cartocdn.com/rastertiles/voyager/${zoom}/${x}/${y}.png`;
+  }, [currentLocation.coords]);
+
   // Link a Google Maps
   const mapSearchUrl = useMemo(() => {
     if (currentLocation.coords && currentLocation.coords.lat && currentLocation.coords.lng) {
@@ -657,39 +712,120 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
         </div>
       </div>
 
-      {/* 3. CARD EMOZIONALE "📍 SIAMO QUI" (Nessun Riquadro Mappa Grigio) */}
-      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs space-y-3">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-1 min-w-0">
-            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <span>📍</span>
-              <span>SIAMO QUI</span>
-              {currentLocation.isRealGps && (
-                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  GPS Live
-                </span>
-              )}
-            </div>
-
-            <h2 className="text-base sm:text-lg font-extrabold text-slate-900 leading-snug break-words">
-              {currentLocation.title}
-            </h2>
-
-            <p className="text-[11px] text-slate-500 font-medium">
-              {currentLocation.updateNotice}
-            </p>
+      {/* 3. CARD GRAFICA CARTOGRAFICA "📍 SIAMO QUI" (Mini-Mappa + Dati di Navigazione) */}
+      <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/80 shadow-xs space-y-3.5 overflow-hidden">
+        {/* Intestazione Sezione */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <span>📍</span>
+            <span>SIAMO QUI</span>
+            {currentLocation.isRealGps ? (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                GPS Satellitare
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200/80">
+                Itinerario
+              </span>
+            )}
           </div>
 
-          {/* Link sottile ed elegante 'Vedi sulla mappa →' */}
-          <button
-            type="button"
-            onClick={() => openMapLink(mapSearchUrl)}
-            className="shrink-0 inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-2xl border border-indigo-100 transition-colors cursor-pointer"
-          >
-            <span>Vedi sulla mappa</span>
-            <span>→</span>
-          </button>
+          <span className="text-[11px] text-slate-400 font-medium">
+            {currentLocation.updateNotice}
+          </span>
+        </div>
+
+        {/* Mini-Mappa Cartografica con Tile Chiari e Radar Pulse Pin */}
+        <div className="relative h-44 sm:h-48 w-full rounded-2xl overflow-hidden shadow-inner border border-slate-200/80 bg-slate-100 group select-none">
+          {/* Tile Cartografici Voyager / Positron o Fallback Vettoriale Topografico */}
+          {mapTileUrl ? (
+            <div className="absolute inset-0 overflow-hidden">
+              <img
+                src={mapTileUrl}
+                alt={`Mappa di ${currentLocation.city}`}
+                className="w-full h-full object-cover scale-105 transition-transform duration-700 group-hover:scale-110 filter contrast-[1.02] brightness-[0.99]"
+                onError={(e) => {
+                  // Fallback immediato a griglia topografica/continente se tile fallisce
+                  (e.currentTarget as HTMLElement).style.display = 'none';
+                }}
+              />
+              {/* Effetto vignettatura leggera per dare profondità */}
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 via-transparent to-slate-900/10 pointer-events-none" />
+            </div>
+          ) : (
+            <div className="absolute inset-0 bg-gradient-to-br from-sky-50 via-slate-50 to-indigo-50/40 flex items-center justify-center">
+              {/* Fallback Vettoriale Elegante Continente / Bussola */}
+              <svg className="w-32 h-32 text-indigo-200/50" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <circle cx="12" cy="12" r="9" strokeWidth="1" strokeDasharray="3 3" />
+                <path d="M12 2v20M2 12h20" strokeWidth="0.75" strokeDasharray="2 2" />
+                <circle cx="12" cy="12" r="4" strokeWidth="1" />
+              </svg>
+            </div>
+          )}
+
+          {/* Pin Radar Pulsante Centrale */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="relative flex items-center justify-center">
+              {/* Onde concentriche animate */}
+              <span className="absolute w-12 h-12 rounded-full bg-indigo-500/25 animate-ping opacity-75 duration-1000" />
+              <span className="absolute w-7 h-7 rounded-full bg-indigo-500/35 animate-pulse" />
+              {/* Punto radar centrale */}
+              <span className="relative w-4 h-4 rounded-full bg-indigo-600 border-2 border-white shadow-md flex items-center justify-center">
+                <span className="w-1.5 h-1.5 rounded-full bg-white" />
+              </span>
+            </div>
+          </div>
+
+          {/* Badge Top/Floating: Località e Bandiera */}
+          <div className="absolute top-2.5 left-2.5 max-w-[70%]">
+            <div className="inline-flex items-center gap-1.5 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-slate-800 shadow-sm border border-white/60 truncate">
+              <span>{currentLocation.flag}</span>
+              <span className="truncate">{currentLocation.city}, {currentLocation.country}</span>
+            </div>
+          </div>
+
+          {/* Micro-tasto Floating in basso a destra "Apri su Maps ↗" */}
+          <div className="absolute bottom-2.5 right-2.5">
+            <button
+              type="button"
+              onClick={() => openMapLink(mapSearchUrl)}
+              className="inline-flex items-center gap-1 bg-slate-900/85 hover:bg-slate-900 text-white backdrop-blur-md px-3 py-1.5 rounded-xl text-[11px] font-bold shadow-md hover:shadow-lg transition-all cursor-pointer active:scale-95 border border-white/20"
+              title="Apri le coordinate su Google Maps"
+            >
+              <span>Apri su Maps</span>
+              <span className="text-[10px]">↗</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Dati di Navigazione & Contesto Emozionale */}
+        <div className="grid grid-cols-2 gap-2 pt-0.5">
+          {/* Coordinate Geografiche */}
+          <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
+            <span className="text-sm">🧭</span>
+            <div className="min-w-0">
+              <div className="text-[9px] uppercase tracking-wider font-bold text-slate-400">
+                Coordinate GPS
+              </div>
+              <div className="text-[11px] font-bold text-slate-800 font-mono truncate">
+                {formattedCoords}
+              </div>
+            </div>
+          </div>
+
+          {/* Distanza da Casa / Italia */}
+          <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
+            <span className="text-sm">🌍</span>
+            <div className="min-w-0">
+              <div className="text-[9px] uppercase tracking-wider font-bold text-slate-400">
+                Distanza dall'Italia
+              </div>
+              <div className="text-[11px] font-bold text-indigo-700 truncate">
+                {distanceFromItalyLabel}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Pulsante di acquisizione GPS reale riservato agli sposi */}
