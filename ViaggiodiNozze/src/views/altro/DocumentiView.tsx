@@ -107,20 +107,20 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
         
         <button
           onClick={handleAddNew}
-          className="text-xs font-bold text-sky-600 bg-sky-50 px-3 py-1.5 rounded-xl border border-sky-100"
+          className="text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 active:scale-95 px-3.5 py-1.5 rounded-xl border border-sky-200 transition-all cursor-pointer shadow-2xs"
         >
           + Nuovo
         </button>
       </header>
       
       {loading ? (
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center min-h-[200px]">
           <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : documents.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-center px-4">
+        <div className="flex-1 flex flex-col items-center justify-center text-center px-4 py-12">
           <span className="text-4xl mb-3">🪪</span>
-          <p className="text-sm text-slate-500">Nessun documento inserito.</p>
+          <p className="text-sm font-semibold text-slate-500">Nessun documento inserito.</p>
         </div>
       ) : (
         <div className="grid gap-3">
@@ -128,22 +128,22 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
             <div
               key={doc.id}
               onClick={() => setSelectedDoc(doc)}
-              className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm cursor-pointer flex flex-col gap-2 hover:border-sky-300 transition-colors"
+              className="bg-white rounded-3xl p-4.5 border border-slate-200/90 shadow-sm cursor-pointer flex flex-col gap-2 hover:border-sky-300 hover:shadow-md transition-all active:scale-[0.99]"
             >
-              <div className="flex justify-between items-start">
-                <h3 className="font-bold text-slate-900 text-[15px]">{doc.title}</h3>
+              <div className="flex justify-between items-start gap-2">
+                <h3 className="font-extrabold text-slate-900 text-[15px]">{doc.title}</h3>
                 {getStatusBadge(doc.status)}
               </div>
-              <p className="text-xs text-slate-500 line-clamp-2">{doc.description || 'Nessuna descrizione.'}</p>
+              <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{doc.description || 'Nessuna descrizione.'}</p>
               
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
                 {doc.validity && (
-                  <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200/60">
                     Rilascio: {doc.validity}
                   </span>
                 )}
                 {doc.expiresAt && (
-                  <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] font-semibold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200/60">
                     Scadenza: {doc.expiresAt}
                   </span>
                 )}
