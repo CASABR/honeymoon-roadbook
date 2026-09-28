@@ -66,38 +66,46 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
       </header>
 
       {loading ? (
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center min-h-[200px]">
           <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : (
         <div className="px-1 space-y-4">
-          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/60">
-            <div className="flex justify-between items-start mb-3">
-              <h2 className="text-lg font-bold text-slate-900">{doc?.title || 'Assicurazione di Viaggio'}</h2>
-              <button onClick={() => setIsEditing(true)} className="text-xs text-sky-600 font-bold bg-sky-50 px-3 py-1.5 rounded-full">
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/90">
+            <div className="flex justify-between items-start gap-2 mb-3">
+              <div>
+                <h2 className="text-lg font-extrabold text-slate-900">{doc?.title || 'Assicurazione di Viaggio'}</h2>
+                <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 mt-1">
+                  ✓ Copertura H24
+                </span>
+              </div>
+              <button 
+                onClick={() => setIsEditing(true)} 
+                className="text-xs text-sky-700 font-bold bg-sky-50 hover:bg-sky-100 active:scale-95 px-3.5 py-1.5 rounded-xl border border-sky-200 transition-all cursor-pointer shadow-2xs"
+              >
                 Modifica
               </button>
             </div>
 
-            <div className="space-y-3 mt-4">
-              <div>
+            <div className="space-y-3.5 mt-4">
+              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
                 <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Stato / Polizza</p>
-                <p className="font-medium text-sm text-slate-800">{doc?.status || 'Nessun dettaglio'}</p>
+                <p className="font-bold text-sm text-slate-900 mt-0.5">{doc?.status || 'Valida'}</p>
               </div>
               
               <div>
-                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Dettagli / Contatti</p>
-                <p className="font-medium text-sm text-slate-800 whitespace-pre-wrap">{doc?.description || 'Nessuna informazione aggiunta.'}</p>
+                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Dettagli / Contatti Emergenza</p>
+                <p className="font-medium text-xs sm:text-sm text-slate-700 whitespace-pre-wrap leading-relaxed mt-1">{doc?.description || 'Nessuna informazione aggiunta.'}</p>
               </div>
 
-              <div className="flex gap-4">
-                <div>
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                   <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Inizio Copertura</p>
-                  <p className="font-medium text-sm text-slate-800">{doc?.validity || '-'}</p>
+                  <p className="font-semibold text-xs text-slate-800 mt-0.5">{doc?.validity || '-'}</p>
                 </div>
-                <div>
+                <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                   <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Fine Copertura</p>
-                  <p className="font-medium text-sm text-slate-800">{doc?.expiresAt || '-'}</p>
+                  <p className="font-semibold text-xs text-slate-800 mt-0.5">{doc?.expiresAt || '-'}</p>
                 </div>
               </div>
             </div>

@@ -61,7 +61,7 @@ export default function NavBar({
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 flex justify-center bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-1.5 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex justify-center bg-white/95 backdrop-blur-xl border-t border-slate-200/80 px-4 pt-1.5 safe-bottom shadow-[0_-4px_24px_rgba(0,0,0,0.06)]">
       <div className="w-full max-w-md mx-auto flex items-center justify-around gap-2">
         {tabs.map((tab) => {
           const isSelected = tab.id === 'categorie' 
@@ -71,11 +71,11 @@ export default function NavBar({
           let activeClasses = 'text-slate-400 hover:text-slate-700 font-medium';
           if (isSelected) {
             if (tab.id === 'oggi') {
-              activeClasses = 'text-rose-600 bg-rose-50/80 font-bold';
+              activeClasses = 'text-rose-600 bg-rose-50/90 font-bold shadow-2xs';
             } else if (tab.id === 'categorie') {
-              activeClasses = 'text-amber-600 bg-amber-50/80 font-bold';
+              activeClasses = 'text-amber-600 bg-amber-50/90 font-bold shadow-2xs';
             } else if (tab.id === 'altro') {
-              activeClasses = 'text-slate-900 bg-slate-100 font-bold';
+              activeClasses = 'text-slate-900 bg-slate-100 font-bold shadow-2xs';
             }
           }
 
@@ -86,7 +86,7 @@ export default function NavBar({
               key={tab.id}
               type="button"
               onClick={() => handleClick(tab.id)}
-              className={"flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-2xl transition-all duration-200 cursor-pointer flex-1 min-h-[46px] " + activeClasses}
+              className={"flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-2xl transition-all duration-200 cursor-pointer flex-1 min-h-[48px] active:scale-95 " + activeClasses}
             >
               <div className={"transition-transform duration-200 " + iconScale}>
                 {tab.icon}

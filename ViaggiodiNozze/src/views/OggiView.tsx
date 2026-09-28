@@ -602,19 +602,19 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                           const found = timeline.find(t => t.id === item.id);
                           if (found) setDetailItem(found);
                         }}
-                        className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs hover:border-slate-300 hover:shadow-sm transition-all flex flex-col gap-2 cursor-pointer"
+                        className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-slate-300 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 cursor-pointer active:scale-[0.99]"
                       >
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex items-center gap-2">
-                            <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${
-                              isTappa ? 'bg-rose-50 text-rose-700' :
-                              isRistorante ? 'bg-emerald-50 text-emerald-700' :
-                              isShopping ? 'bg-pink-50 text-pink-700' :
-                              'bg-amber-50 text-amber-700'
+                            <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 shadow-2xs ${
+                              isTappa ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+                              isRistorante ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                              isShopping ? 'bg-pink-50 text-pink-700 border border-pink-100' :
+                              'bg-amber-50 text-amber-700 border border-amber-100'
                             }`}>
                               {isTappa ? '📍' : isRistorante ? '🍽️' : isShopping ? '🛍️' : '🌿'}
                             </span>
-                            <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-lg shrink-0">
+                            <span className="text-xs font-mono font-bold text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg shrink-0">
                               {item.time}
                             </span>
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -624,7 +624,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
                           <div className="flex items-center gap-1.5 shrink-0">
                             {item.copilota && (
-                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
                                 🧭 Co-pilota
                               </span>
                             )}
@@ -635,7 +635,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                 const found = timeline.find(t => t.id === item.id);
                                 if (found) setDetailItem(found);
                               }}
-                              className="w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
                               title="Dettagli e Modifica"
                             >
                               ℹ️
@@ -644,11 +644,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         </div>
 
                         <div>
-                          <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">
                             {item.title}
                           </h3>
-                          <div className="flex items-center justify-between gap-2 mt-1">
-                            <p className="text-[11px] text-slate-500 font-medium truncate">
+                          <div className="flex items-center justify-between gap-2 mt-1.5">
+                            <p className="text-xs text-slate-500 font-medium truncate">
                               📍 {item.location}
                             </p>
                             {item.location && (
@@ -657,9 +657,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
-                                className="text-[10px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2 py-0.5 rounded-lg transition-colors shrink-0"
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-xl transition-colors shrink-0 border border-sky-100 shadow-2xs"
                               >
-                                Maps ↗
+                                <span>Maps</span>
+                                <svg className="w-3 h-3 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
                               </a>
                             )}
                           </div>
@@ -696,16 +699,16 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       )}
 
       {/* 4. RIQUADRO RAPIDO "EMERGENZE" */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-3.5 shadow-sm flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-sm font-bold shrink-0">
+      <div className="bg-white rounded-3xl border border-slate-200/90 p-4 shadow-sm flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="w-9 h-9 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center text-base font-bold shrink-0 shadow-2xs border border-rose-100">
             ⚠️
           </span>
           <div className="min-w-0">
-            <h3 className="text-xs font-bold text-slate-900 leading-tight">
+            <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight">
               Numeri di Emergenza
             </h3>
-            <p className="text-[11px] text-slate-500 truncate">
+            <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
               NZ 111 • AU 000 • Polizza Sanitaria H24
             </p>
           </div>
@@ -714,14 +717,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           <button
             type="button"
             onClick={() => onNavigateTab('altro')}
-            className="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold transition-all shrink-0 cursor-pointer active:scale-95"
+            className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all shrink-0 cursor-pointer active:scale-95 border border-rose-200/60 shadow-2xs"
           >
             Apri ➔
           </button>
         ) : (
           <a
             href="tel:111"
-            className="px-3 py-1.5 rounded-xl bg-rose-50 text-rose-700 hover:bg-rose-100 text-xs font-bold transition-all shrink-0"
+            className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all shrink-0 border border-rose-200/60 shadow-2xs"
           >
             Chiama 111
           </a>

@@ -347,7 +347,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
       </div>
 
       {/* 2. BREAKDOWN PER CATEGORIA CON PROGRESS BAR */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs mb-4">
+      <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm mb-4">
         <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3 flex items-center justify-between">
           <span>Ripartizione Spese per Categoria</span>
           <span className="text-[10px] font-normal lowercase text-slate-400">
@@ -473,7 +473,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
             return (
               <div
                 key={s.id}
-                className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs hover:border-slate-300 transition-all flex items-center justify-between gap-3"
+                className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs hover:shadow-sm hover:border-slate-300 transition-all flex items-center justify-between gap-3 active:scale-[0.99]"
               >
                 <div className="flex items-center gap-3 min-w-0">
                   <div

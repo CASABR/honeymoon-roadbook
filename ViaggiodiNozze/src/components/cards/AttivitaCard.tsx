@@ -39,7 +39,7 @@ export default function AttivitaCard({ activity, onEdit, onDelete, onUpdate }: A
 
   return (
     <>
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between">
+      <div className="rounded-3xl border border-slate-200/90 bg-white p-4.5 shadow-xs hover:shadow-md hover:border-slate-300 transition-all flex flex-col justify-between">
         <div className="flex items-start justify-between gap-2.5">
           <div className="flex-1 min-w-0">
             {/* Badges riga */}
