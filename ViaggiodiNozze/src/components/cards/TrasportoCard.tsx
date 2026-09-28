@@ -3,7 +3,6 @@ import type { Trasporto, TipoTrasporto } from '../../types';
 import Badge from '../common/Badge';
 import TrasportoInfoModal from '../modals/TrasportoInfoModal';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
-import RouteBadge from '../common/RouteBadge';
 import { getTransportMapTargets } from '../../utils/mapsHelper';
 
 interface TrasportoCardProps {
@@ -20,7 +19,7 @@ export default function TrasportoCard({
   onUpdate
 }: TrasportoCardProps) {
   const [transport, setTransport] = useState<Trasporto>(initialTransport);
-  const [copied, setCopied] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
 
@@ -38,40 +37,100 @@ export default function TrasportoCard({
     }
   };
 
-  // Stili cromatici distintivi per categoria di trasporto
+  const handleCopyBookingCode = async () => {
+    if (!transport.bookingCode) return;
+    try {
+      await navigator.clipboard.writeText(transport.bookingCode);
+      setIsCopied(true);
+      setTimeout(() => setIsCopied(false), 2000);
+    } catch (err) {
+      console.error('Errore durante la copia:', err);
+    }
+  };
+
+  // Helper per estrarre codice aeroportuale o nome breve della città
+  const extractCodeOrCity = (locationStr: string): { code: string; name: string } => {
+    if (!locationStr) return { code: 'LOC', name: 'Destinazione' };
+    const match = locationStr.match(/\(([A-Z]{3})\)/i);
+    if (match && match[1]) {
+      const code = match[1].toUpperCase();
+      const name = locationStr.split('(')[0].trim();
+      return { code, name };
+    }
+    // Cerca se contiene codici noti o parole chiave
+    const l = locationStr.toLowerCase();
+    if (l.includes('malpensa') || l.includes('milano')) return { code: 'MXP', name: 'Milano' };
+    if (l.includes('pechino') || l.includes('beijing')) return { code: 'PEK', name: 'Pechino' };
+    if (l.includes('auckland')) return { code: 'AKL', name: 'Auckland' };
+    if (l.includes('christchurch')) return { code: 'CHC', name: 'Christchurch' };
+    if (l.includes('wellington')) return { code: 'WLG', name: 'Wellington' };
+    if (l.includes('picton')) return { code: 'PCN', name: 'Picton' };
+    if (l.includes('adelaide')) return { code: 'ADL', name: 'Adelaide' };
+    if (l.includes('melbourne')) return { code: 'MEL', name: 'Melbourne' };
+    if (l.includes('sydney')) return { code: 'SYD', name: 'Sydney' };
+    if (l.includes('manila')) return { code: 'MNL', name: 'Manila' };
+    if (l.includes('caticlan') || l.includes('boracay')) return { code: 'MPH', name: 'Boracay' };
+    if (l.includes('el nido')) return { code: 'ENI', name: 'El Nido' };
+    if (l.includes('coron') || l.includes('busuanga')) return { code: 'USU', name: 'Coron' };
+    if (l.includes('cebu')) return { code: 'CEB', name: 'Cebu' };
+    if (l.includes('penneshaw')) return { code: 'KGC', name: 'Kangaroo Island' };
+    if (l.includes('cape jervis')) return { code: 'CJV', name: 'Cape Jervis' };
+
+    // Fallback: prime 3-4 lettere maiuscole
+    const parts = locationStr.split(/[,\-–\s]+/);
+    const firstWord = parts[0] || 'LOC';
+    return {
+      code: firstWord.slice(0, 4).toUpperCase(),
+      name: locationStr.length > 25 ? locationStr.slice(0, 22) + '...' : locationStr
+    };
+  };
+
+  const originInfo = extractCodeOrCity(transport.departureLocation);
+  const destInfo = extractCodeOrCity(transport.dropoffLocation || transport.arrivalLocation);
+
   const typeConfig: Record<
     TipoTrasporto,
-    { label: string; icon: string; borderAccent: string; badgeStyle: string }
+    { label: string; icon: string; themeColor: string; bgSoft: string; textAccent: string; modeIcon: string }
   > = {
     volo: {
       label: 'Volo',
       icon: '✈️',
-      borderAccent: 'border-l-4 border-l-blue-600',
-      badgeStyle: 'bg-blue-50 text-blue-800 border border-blue-200'
+      themeColor: 'from-blue-600 to-indigo-600',
+      bgSoft: 'bg-blue-50/80 border-blue-200/80',
+      textAccent: 'text-blue-700',
+      modeIcon: '✈️'
     },
     traghetto: {
-      label: 'Traghetto / Barca',
+      label: 'Traghetto',
       icon: '⛴️',
-      borderAccent: 'border-l-4 border-l-cyan-600',
-      badgeStyle: 'bg-cyan-50 text-cyan-800 border border-cyan-200'
+      themeColor: 'from-cyan-600 to-teal-600',
+      bgSoft: 'bg-cyan-50/80 border-cyan-200/80',
+      textAccent: 'text-cyan-800',
+      modeIcon: '🚢'
     },
     camper: {
-      label: 'Noleggio Campervan',
+      label: 'Campervan',
       icon: '🚐',
-      borderAccent: 'border-l-4 border-l-amber-600',
-      badgeStyle: 'bg-amber-50 text-amber-800 border border-amber-200'
+      themeColor: 'from-amber-600 to-orange-600',
+      bgSoft: 'bg-amber-50/80 border-amber-200/80',
+      textAccent: 'text-amber-800',
+      modeIcon: '🚐'
     },
     auto: {
-      label: 'Noleggio Auto',
+      label: 'Auto a Noleggio',
       icon: '🚗',
-      borderAccent: 'border-l-4 border-l-amber-600',
-      badgeStyle: 'bg-amber-50 text-amber-800 border border-amber-200'
+      themeColor: 'from-amber-600 to-yellow-600',
+      bgSoft: 'bg-amber-50/80 border-amber-200/80',
+      textAccent: 'text-amber-800',
+      modeIcon: '🚗'
     },
     transfer: {
       label: 'Transfer / Taxi',
       icon: '🚕',
-      borderAccent: 'border-l-4 border-l-emerald-600',
-      badgeStyle: 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+      themeColor: 'from-emerald-600 to-teal-600',
+      bgSoft: 'bg-emerald-50/80 border-emerald-200/80',
+      textAccent: 'text-emerald-800',
+      modeIcon: '🚕'
     }
   };
 
@@ -104,69 +163,6 @@ export default function TrasportoCard({
     }
   };
 
-  const handleCopyBookingCode = async () => {
-    if (!transport.bookingCode) return;
-    try {
-      await navigator.clipboard.writeText(transport.bookingCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error('Errore durante la copia:', err);
-    }
-  };
-
-  // Rendering del Prezzo / Costo Sempre Visibile con Codice Colore Immediato
-  const renderCostBadge = () => {
-    if (!transport.cost || !transport.cost.trim()) {
-      return (
-        <span className="inline-flex items-center text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded-lg bg-slate-100 text-slate-500 border border-slate-200">
-          Costo n/d
-        </span>
-      );
-    }
-
-    const rawCost = transport.cost.trim();
-    const lower = rawCost.toLowerCase();
-
-    const isPaid =
-      lower.includes('saldato') ||
-      lower.includes('incluso') ||
-      lower.includes('confermato') ||
-      lower.includes('acquistato') ||
-      (transport.status === 'prenotato' &&
-        !lower.includes('da saldare') &&
-        !lower.includes('attesa') &&
-        !lower.includes('stimato') &&
-        !lower.includes('definizione'));
-
-    const isPending =
-      lower.includes('da saldare') ||
-      lower.includes('attesa') ||
-      lower.includes('stimato') ||
-      lower.includes('definizione') ||
-      lower.includes('da finalizzare') ||
-      lower.includes('posto') ||
-      transport.status === 'da_prenotare';
-
-    if (isPaid && !isPending) {
-      // 🟢 VERDE (Smeraldo)
-      const label = rawCost.startsWith('✓') ? rawCost : `✓ ${rawCost}`;
-      return (
-        <span className="inline-flex items-center text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
-          {label}
-        </span>
-      );
-    }
-
-    // 🔴 ROSSO (Rose/Rosso)
-    const label = rawCost.startsWith('⏳') ? rawCost : `⏳ ${rawCost}`;
-    return (
-      <span className="inline-flex items-center text-[10px] sm:text-xs font-bold px-2 py-0.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 shadow-sm">
-        {label}
-      </span>
-    );
-  };
-
   const hasInfo = Boolean(transport.notes?.trim() || transport.layover);
   const canHaveTickets =
     transport.type === 'volo' ||
@@ -175,296 +171,226 @@ export default function TrasportoCard({
     transport.type === 'camper' ||
     Boolean(transport.bookingCode || transport.ticketUrl || attachmentsCount > 0);
 
+  // Determina quale link Google Maps ha la massima pertinenza (partenza prima del viaggio, arrivo se concluso)
+  const activeMapUrl = transport.status === 'completato' 
+    ? (mapTargets.arrivalUrl || mapTargets.dropoffUrl || mapTargets.primaryUrl)
+    : (mapTargets.departureUrl || mapTargets.pickupUrl || mapTargets.primaryUrl);
+
+  const activeMapLabel = transport.status === 'completato' ? 'Arrivo' : 'Partenza';
+
   return (
     <>
       <article
-        className={`w-full rounded-3xl border border-slate-200/80 ${currentType.borderAccent} bg-white p-4 shadow-sm transition-all duration-200 hover:border-slate-300`}
+        className="w-full bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md hover:border-slate-300"
       >
-        {/* 1. HEADER CARD: Categoria, Vettore e Prezzo in Euro Sempre in Primo Piano */}
-        <div className="flex items-start sm:items-center justify-between gap-2.5 pb-2.5 border-b border-slate-100 flex-wrap sm:flex-nowrap">
-          <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
-            {/* Badge Categoria */}
-            <span
-              className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md shadow-2xs shrink-0 ${currentType.badgeStyle}`}
-            >
-              <span>{currentType.icon}</span>
-              <span>{currentType.label}</span>
+        {/* Decorazione tacche laterali stile Boarding Pass Wallet (cerchietti ritagliati) */}
+        <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-100 border border-slate-200/60 pointer-events-none" />
+        <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-100 border border-slate-200/60 pointer-events-none" />
+
+        {/* 1. HEADER BOARDING PASS */}
+        <header className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-8 h-8 rounded-xl bg-slate-100 flex items-center justify-center text-base shrink-0 shadow-2xs">
+              {currentType.icon}
             </span>
-
-            {/* Vettore / Compagnia */}
-            {transport.carrier && !isRental && (
-              <span className="text-[11px] font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 truncate max-w-[150px] sm:max-w-none">
-                {transport.carrier}
-              </span>
-            )}
-
-            {/* Badge Stato compatto */}
-            <Badge label={statusLabel} variant={statusVariant} />
-
-            {/* Badge Co-pilota */}
-            {transport.copilota && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                <span>🧭</span>
-                <span>Co-pilota</span>
-              </span>
-            )}
-          </div>
-
-          {/* PREZZO IN EURO ED EVENTUALE ACCONTO IN ALTO A DESTRA */}
-          <div className="shrink-0 flex flex-col items-end gap-1 ml-auto">
-            {renderCostBadge()}
-            {(transport.depositPaid || transport.acconto) && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
-                <span>✓ Acconto:</span>
-                <span className="font-extrabold">{transport.depositPaid || transport.acconto}</span>
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* 2. CORPO DELLA CARD: TRATTA O TIMELINE ESSENZIALE */}
-        <div className="pt-2.5 pb-1">
-          {isRental ? (
-            /* ================= LAYOUT DEDICATO NOLEGGI (AUTO & CAMPER) ================= */
-            <div className="space-y-2">
-              {transport.carrier && (
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-900 break-words">
-                  <span className="text-amber-500">🔑</span>
-                  <span>{transport.carrier}</span>
-                </div>
-              )}
-
-              {/* Box Ritiro & Riconsegna essenziale */}
-              <div className="space-y-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                {/* Ritiro */}
-                <div className="flex items-start gap-2.5">
-                  <div className="w-5 h-5 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-800 shrink-0 text-[10px] mt-0.5">
-                    🔑
-                  </div>
-                  <div className="text-xs leading-tight min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                      <span className="font-bold text-amber-800 uppercase tracking-wider text-[10px]">
-                        Ritiro (Pick-up)
-                      </span>
-                      <span className="font-mono text-slate-900 font-bold text-[11px] shrink-0">
-                        {formatDate(transport.date)}
-                        {transport.departureTime ? ` • h ${transport.departureTime}` : ''}
-                      </span>
-                    </div>
-                    <div className="text-slate-700 mt-1 font-medium text-xs break-words leading-relaxed">
-                      {transport.departureLocation}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="pl-7 py-0.5">
-                  <RouteBadge 
-                    from={transport.departureLocation} 
-                    to={transport.dropoffLocation || transport.arrivalLocation} 
-                  />
-                </div>
-
-                {/* Riconsegna */}
-                <div className="flex items-start gap-2.5 pt-2 border-t border-slate-200/60">
-                  <div className="w-5 h-5 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-800 shrink-0 text-[10px] mt-0.5">
-                    🏁
-                  </div>
-                  <div className="text-xs leading-tight min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
-                      <span className="font-bold text-amber-800 uppercase tracking-wider text-[10px]">
-                        Riconsegna (Drop-off)
-                      </span>
-                      <span className="font-mono text-slate-900 font-bold text-[11px] shrink-0">
-                        {formatDate(transport.dropoffDate || transport.date)}
-                        {transport.dropoffTime ? ` • h ${transport.dropoffTime}` : ''}
-                      </span>
-                    </div>
-                    <div className="text-slate-700 mt-1 font-medium text-xs break-words leading-relaxed">
-                      {transport.dropoffLocation || transport.arrivalLocation}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Dettaglio Acconto già versato */}
-                {(transport.depositPaid || transport.acconto) && (
-                  <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-[11px] gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
-                      <span>💰</span>
-                      <span>Acconto già versato:</span>
-                    </div>
-                    <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                      ✓ {transport.depositPaid || transport.acconto}
-                    </span>
-                  </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  {currentType.label}
+                </span>
+                {transport.copilota && (
+                  <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-full border border-emerald-200">
+                    🧭 Co-pilota
+                  </span>
                 )}
               </div>
+              <h2 className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
+                {transport.carrier || 'Tratta programmata'}
+              </h2>
             </div>
-          ) : (
-            /* ================= LAYOUT VOLI, TRAGHETTI E TRANSFER ================= */
-            <div className="relative pl-5 py-0.5 space-y-3">
-              {/* Linea verticale grafica continua */}
-              <div className="absolute left-[6px] top-2.5 bottom-2.5 w-0.5 border-l-2 border-dashed border-slate-200" />
+          </div>
 
-              {/* 1. PUNTO PARTENZA */}
-              <div className="relative flex items-start gap-2.5">
-                <div className="absolute -left-5 top-1 w-3 h-3 rounded-full bg-blue-600 ring-4 ring-blue-100 flex items-center justify-center shrink-0">
-                  <div className="w-1 h-1 rounded-full bg-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="text-xs font-mono font-extrabold text-slate-900 tracking-wide">
-                      {transport.departureTime || 'Orario n/d'}
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
-                      Partenza
-                    </span>
-                  </div>
-                  <div className="text-xs font-bold text-slate-800 break-words mt-0.5 leading-snug">
-                    {transport.departureLocation}
-                  </div>
-                </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Badge label={statusLabel} variant={statusVariant} />
+            <div className="text-right">
+              <span className="text-xs font-mono font-extrabold text-slate-900">
+                {transport.departureTime || '--:--'}
+              </span>
+              <p className="text-[9px] text-slate-400 font-medium">Partenza</p>
+            </div>
+          </div>
+        </header>
+
+        {/* 2. DIAGRAMMA VISIVO DELLA TRATTA (Boarding Pass Departure -> Route -> Arrival) */}
+        <div className="py-4">
+          <div className="flex items-center justify-between gap-3">
+            {/* ORIGINE / PARTENZA */}
+            <div className="flex-1 min-w-0 text-left">
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-mono">
+                {originInfo.code}
+              </div>
+              <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5" title={transport.departureLocation}>
+                {originInfo.name}
+              </p>
+              <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                {formatDate(transport.date)} {transport.departureTime ? `• ${transport.departureTime}` : ''}
+              </p>
+            </div>
+
+            {/* TRATTA CENTRALE GRAFICA CON SCALO O ICONA MEZZO */}
+            <div className="flex-1 flex flex-col items-center justify-center px-1">
+              <div className="relative w-full flex items-center justify-center">
+                <div className="w-full border-t-2 border-dashed border-slate-300" />
+                <span className="absolute p-1.5 bg-white rounded-full border border-slate-200 shadow-2xs text-xs">
+                  {currentType.modeIcon}
+                </span>
               </div>
 
-              {/* 2. PUNTO SCALO COMPATTO (SE PRESENTE) */}
-              {transport.layover && (
-                <div className="relative flex items-start gap-2 my-1">
-                  <div className="absolute -left-5 top-2 w-3 h-3 rounded-full bg-amber-500 ring-4 ring-amber-100 flex items-center justify-center shrink-0">
-                    <div className="w-1 h-1 rounded-full bg-white" />
-                  </div>
-
-                  <div className="min-w-0 flex-1 p-2 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-1.5 flex-wrap">
-                    <span className="text-[11px] font-bold text-amber-900 flex items-center gap-1 break-words">
-                      <span>🛑</span>
-                      <span>Scalo: {transport.layover.airport}</span>
-                    </span>
-                    {transport.layover.duration && (
-                      <span className="text-[10px] font-bold font-mono text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded shrink-0">
-                        ⏳ {transport.layover.duration}
-                      </span>
-                    )}
-                  </div>
+              {/* Scalo o durata se presenti */}
+              {transport.layover ? (
+                <div className="mt-2 text-center">
+                  <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                    <span>🛑 Scalo {transport.layover.airport.split(' ')[0]}</span>
+                    {transport.layover.duration && <span>({transport.layover.duration})</span>}
+                  </span>
+                </div>
+              ) : isRental ? (
+                <div className="mt-2 text-center">
+                  <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                    {transport.dropoffDate ? `Fino al ${formatDate(transport.dropoffDate)}` : 'Noleggio'}
+                  </span>
+                </div>
+              ) : (
+                <div className="mt-2 text-center">
+                  <span className="text-[9px] font-semibold text-slate-400">
+                    Tratta Diretta
+                  </span>
                 </div>
               )}
-
-              {/* 3. PUNTO ARRIVO FINALE */}
-              <div className="relative flex items-start gap-2.5">
-                <div className="absolute -left-5 top-1 w-3 h-3 rounded-full bg-emerald-600 ring-4 ring-emerald-100 flex items-center justify-center shrink-0">
-                  <div className="w-1 h-1 rounded-full bg-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="text-xs font-mono font-extrabold text-slate-900 tracking-wide">
-                      {transport.arrivalTime || 'Orario n/d'}
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                      Arrivo
-                    </span>
-                  </div>
-                  <div className="text-xs font-bold text-slate-800 break-words mt-0.5 leading-snug">
-                    {transport.arrivalLocation}
-                  </div>
-                </div>
-              </div>
             </div>
-          )}
+
+            {/* DESTINAZIONE / ARRIVO */}
+            <div className="flex-1 min-w-0 text-right">
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-mono">
+                {destInfo.code}
+              </div>
+              <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5" title={transport.dropoffLocation || transport.arrivalLocation}>
+                {destInfo.name}
+              </p>
+              <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+                {transport.arrivalTime ? `${transport.arrivalTime}` : (transport.dropoffTime ? `h ${transport.dropoffTime}` : 'Arrivo')}
+              </p>
+            </div>
+          </div>
+
+          {/* Dettagli Indirizzi Estesi in pillole chiare */}
+          <div className="mt-3.5 pt-2.5 border-t border-slate-100 flex flex-col gap-1.5 text-xs text-slate-600 bg-slate-50/80 p-2.5 rounded-2xl">
+            <div className="flex items-start gap-1.5">
+              <span className="text-slate-400 font-bold shrink-0 text-[10px] uppercase w-14">Da:</span>
+              <span className="text-slate-800 font-medium text-[11px] leading-tight break-words flex-1">
+                {transport.departureLocation}
+              </span>
+            </div>
+            <div className="flex items-start gap-1.5">
+              <span className="text-slate-400 font-bold shrink-0 text-[10px] uppercase w-14">A:</span>
+              <span className="text-slate-800 font-medium text-[11px] leading-tight break-words flex-1">
+                {transport.dropoffLocation || transport.arrivalLocation}
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Dettagli Acconto già versato (per voli, treni, transfer ecc.) */}
-        {!isRental && (transport.depositPaid || transport.acconto) && (
-          <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] gap-2 flex-wrap">
-            <div className="flex items-center gap-1.5 text-slate-600 font-semibold">
-              <span>💰</span>
-              <span>Acconto / Già pagato:</span>
-            </div>
-            <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-              ✓ {transport.depositPaid || transport.acconto}
-            </span>
-          </div>
-        )}
-
-        {/* 3. RIGA INFERIORE PULITA: PNR + AZIONI MIRATE */}
-        <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-          {/* Sezione Sinistra: PNR Rapido (se presente) */}
-          <div className="flex items-center gap-1.5 min-w-0">
+        {/* 3. BANDA INFERIORE "DETTAGLI OPERATIVI" (Stile strappo coupon Wallet) */}
+        <footer className="pt-3 border-t border-dashed border-slate-200 flex flex-wrap items-center justify-between gap-2.5">
+          {/* Sezione Chip: PNR, Prezzo / Acconto */}
+          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+            {/* Chip PNR con click per copiare */}
             {transport.bookingCode ? (
-              <div className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-100 border border-slate-200 min-w-0">
-                <span className="text-[10px] text-slate-500 font-medium">PNR:</span>
-                <span className="text-xs font-mono text-blue-700 font-bold tracking-wider truncate">
+              <button
+                type="button"
+                onClick={handleCopyBookingCode}
+                title="Tocca per copiare il codice prenotazione"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/90 text-slate-900 transition-all cursor-pointer active:scale-95"
+              >
+                <span className="text-[10px] font-bold text-slate-500 uppercase">PNR</span>
+                <span className="text-xs font-mono font-bold text-blue-700 tracking-wider">
                   {transport.bookingCode}
                 </span>
-                <button
-                  type="button"
-                  onClick={handleCopyBookingCode}
-                  title="Copia PNR"
-                  className="ml-0.5 p-1 text-[11px] text-blue-600 hover:text-blue-800 transition-colors cursor-pointer active:scale-95 min-w-[24px] flex items-center justify-center shrink-0"
-                >
-                  {copied ? (
-                    <span className="text-emerald-600 font-bold text-[11px]">✓</span>
-                  ) : (
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2"
-                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-                      />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            ) : (
-              <span className="text-[11px] font-mono text-slate-400 font-medium">
-                {formatDate(transport.date)}
+                {isCopied ? (
+                  <span className="text-emerald-600 font-bold text-xs ml-0.5">✓</span>
+                ) : (
+                  <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )}
+              </button>
+            ) : null}
+
+            {/* Chip Costo in Euro */}
+            {transport.cost && transport.cost.trim() && (
+              <span className={`inline-flex items-center text-[11px] font-bold px-2 py-0.8 rounded-xl border ${
+                transport.cost.toLowerCase().includes('incluso') || transport.cost.toLowerCase().includes('saldato')
+                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : 'bg-rose-50 text-rose-800 border-rose-200'
+              }`}>
+                {transport.cost}
+              </span>
+            )}
+
+            {/* Chip Acconto */}
+            {(transport.depositPaid || transport.acconto) && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.8 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200">
+                <span>Acconto: {transport.depositPaid || transport.acconto}</span>
               </span>
             )}
           </div>
 
-          {/* Sezione Destra: Pulsanti Mirati (Naviga se Maps, Info se note, Pass se accessibile) */}
-          <div className="flex items-center gap-1.5 ml-auto flex-wrap sm:flex-nowrap justify-end">
-            {/* 1. Pulsante Naviga Google Maps (Solo se presente) */}
-            {mapTargets.primaryUrl && (
+          {/* Azioni Rapide: Mappe Rapido, Info, Pass, Modifica, Elimina */}
+          <div className="flex items-center gap-1.5 ml-auto flex-wrap justify-end">
+            {/* Tasto Mappe Rapido */}
+            {activeMapUrl && (
               <a
-                href={mapTargets.primaryUrl}
+                href={activeMapUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                title={`Naviga su Google Maps verso ${mapTargets.primaryLabel}`}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all cursor-pointer active:scale-95 min-h-[38px] shrink-0"
+                title={`Apri su Google Maps (${activeMapLabel})`}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all cursor-pointer active:scale-95"
               >
                 <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                <span className="text-[11px]">Naviga</span>
+                <span>Maps</span>
               </a>
             )}
 
-            {/* 2. Pulsante Info "i" (Solo se presenti note operative o scali) */}
+            {/* Pulsante Info */}
             {hasInfo && (
               <button
                 type="button"
                 onClick={() => setIsInfoOpen(true)}
                 title="Dettagli e istruzioni operative"
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-all cursor-pointer active:scale-95 min-h-[38px]"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-all cursor-pointer active:scale-95"
               >
-                <span className="font-bold text-[13px] leading-none">ℹ</span>
-                <span className="text-[11px]">Info</span>
+                <span>ℹ️</span>
+                <span>Info</span>
               </button>
             )}
 
-            {/* 3. Pulsante Biglietti & QR Code (Solo per tratte con titolo o allegati) */}
+            {/* Pulsante Pass / Biglietti */}
             {canHaveTickets && (
               <button
                 type="button"
                 onClick={() => setIsTicketsOpen(true)}
                 title="Biglietti, Pass e QR Code offline"
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 min-h-[38px] border ${
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer active:scale-95 border ${
                   attachmentsCount > 0
                     ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
                     : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
                 }`}
               >
-                <span className="text-xs">🎟️</span>
-                <span className="text-[11px]">Pass</span>
+                <span>🎟️</span>
+                <span>Pass</span>
                 {attachmentsCount > 0 && (
                   <span className="ml-0.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-purple-600 text-white">
                     {attachmentsCount}
@@ -473,12 +399,12 @@ export default function TrasportoCard({
               </button>
             )}
 
-            {/* 4. Pulsante Modifica */}
+            {/* Pulsante Modifica */}
             <button
               type="button"
               onClick={onEdit}
               title="Modifica trasporto"
-              className="w-9 h-9 min-h-[38px] min-w-[38px] rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer active:scale-95 flex items-center justify-center border border-slate-200"
+              className="w-8 h-8 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer active:scale-95 flex items-center justify-center border border-slate-200"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -490,12 +416,12 @@ export default function TrasportoCard({
               </svg>
             </button>
 
-            {/* 5. Pulsante Elimina */}
+            {/* Pulsante Elimina */}
             <button
               type="button"
               onClick={onDelete}
               title="Elimina trasporto"
-              className="w-9 h-9 min-h-[38px] min-w-[38px] rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer active:scale-95 flex items-center justify-center border border-slate-200"
+              className="w-8 h-8 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer active:scale-95 flex items-center justify-center border border-slate-200"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -507,7 +433,7 @@ export default function TrasportoCard({
               </svg>
             </button>
           </div>
-        </div>
+        </footer>
       </article>
 
       {/* MODAL DETTAGLI / INFO "i" */}

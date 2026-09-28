@@ -11,6 +11,7 @@ import AlloggioForm from '../components/forms/AlloggioForm';
 import RistoranteForm from '../components/forms/RistoranteForm';
 import ShoppingForm from '../components/forms/ShoppingForm';
 import RouteBadge from '../components/common/RouteBadge';
+import TrasportoCard from '../components/cards/TrasportoCard';
 
 interface OggiViewProps {
   onNavigateTab?: (tab: SectionTab, categoria?: CategoriaTab) => void;
@@ -420,7 +421,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             if (item.type === 'trasporto') {
               const tr = item.originalData as Trasporto;
               departurePoint = tr.departureLocation || item.location;
-              arrivalPoint = tr.arrivalLocation || item.location;
+              arrivalPoint = tr.dropoffLocation || tr.arrivalLocation || item.location;
             }
 
             dayItems.push({
@@ -465,11 +466,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           }
 
           return (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {dayItems.map((item, idx) => {
                 const nextItem = dayItems[idx + 1];
 
                 // Punti di routing punto-a-punto verso il prossimo elemento
+                // DALL'ARRIVO di questo elemento -> ALLA PARTENZA del prossimo
                 const fromLoc = item.arrivalPoint || item.location;
                 const toLoc = nextItem ? (nextItem.departurePoint || nextItem.location) : '';
                 const fromCoord = item.coordinate;
@@ -484,7 +486,18 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 return (
                   <React.Fragment key={`${item.id}-${idx}`}>
                     {/* CARD DELL'ELEMENTO NELLA SEQUENZA */}
-                    {isLodging ? (
+                    {isTransport ? (
+                      /* Card Biglietto di Viaggio / Boarding Pass per i Trasporti */
+                      <TrasportoCard
+                        transport={item.originalData as Trasporto}
+                        onEdit={() => setEditingTransportItem(item.originalData as Trasporto)}
+                        onDelete={async () => {
+                          await storageService.deleteTransport(item.id);
+                          await fetchTimeline();
+                        }}
+                        onUpdate={() => fetchTimeline()}
+                      />
+                    ) : isLodging ? (
                       /* Card Tappa Finale: Alloggio Notturno */
                       <div className="bg-gradient-to-br from-purple-50/80 via-white to-indigo-50/50 rounded-3xl border border-purple-200/90 p-4 shadow-sm relative overflow-hidden">
                         <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-purple-100">
@@ -583,7 +596,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         </div>
                       </div>
                     ) : (
-                      /* Card Normale di Itinerario: Trasporto, Tappa, Attività, Ristorante, Shopping */
+                      /* Card Normale di Itinerario: Tappa, Attività, Ristorante, Shopping */
                       <div
                         onClick={() => {
                           const found = timeline.find(t => t.id === item.id);
@@ -594,19 +607,18 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         <div className="flex justify-between items-start gap-2">
                           <div className="flex items-center gap-2">
                             <span className={`w-7 h-7 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 ${
-                              isTransport ? 'bg-sky-50 text-sky-700' :
                               isTappa ? 'bg-rose-50 text-rose-700' :
                               isRistorante ? 'bg-emerald-50 text-emerald-700' :
                               isShopping ? 'bg-pink-50 text-pink-700' :
                               'bg-amber-50 text-amber-700'
                             }`}>
-                              {isTransport ? '✈️' : isTappa ? '📍' : isRistorante ? '🍽️' : isShopping ? '🛍️' : '🌿'}
+                              {isTappa ? '📍' : isRistorante ? '🍽️' : isShopping ? '🛍️' : '🌿'}
                             </span>
                             <span className="text-xs font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-lg shrink-0">
                               {item.time}
                             </span>
                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                              {isTransport ? 'Spostamento' : isTappa ? 'Tappa' : isRistorante ? 'Ristorante' : isShopping ? 'Shopping' : 'Attività'}
+                              {isTappa ? 'Tappa' : isRistorante ? 'Ristorante' : isShopping ? 'Shopping' : 'Attività'}
                             </span>
                           </div>
 
