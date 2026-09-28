@@ -1,4 +1,4 @@
-import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Shopping, Spesa } from '../types';
+import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Shopping, Spesa, DeviceRole } from '../types';
 import {
   STORES,
   idbGetAll,
@@ -821,6 +821,32 @@ class StorageService {
       return [];
     }
   }
+
+  // Device Role Management ('guida' | 'copilota' | 'viewer')
+  getDeviceRole(): DeviceRole {
+    if (typeof window === 'undefined') return 'viewer';
+    try {
+      const role = localStorage.getItem('app_device_role') as DeviceRole | null;
+      if (role === 'guida' || role === 'copilota' || role === 'viewer') {
+        return role;
+      }
+      return 'viewer';
+    } catch {
+      return 'viewer';
+    }
+  }
+
+  setDeviceRole(role: DeviceRole): void {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.setItem('app_device_role', role);
+      // Dispatch custom event to notify listeners across the app
+      window.dispatchEvent(new CustomEvent('device_role_changed', { detail: { role } }));
+    } catch (e) {
+      console.error('[StorageService] Errore salvataggio device role:', e);
+    }
+  }
 }
 
 export const storageService = new StorageService();
+
