@@ -8,6 +8,8 @@ import {
 } from './indexedDB';
 import { SEED_TRANSPORTS } from './seedTransports';
 
+export const SEED_FLAG_KEY = 'honeymoon_roadbook_seeded_v1';
+
 export const DEFAULT_DOCUMENTS: TravelDocument[] = [
   {
     id: 'doc_assicurazione',
@@ -125,81 +127,104 @@ class StorageService {
     }
   }
 
-  async seedMockActivities(): Promise<void> {
-    if (!import.meta.env.DEV) return;
+  /**
+   * Seeding iniziale dei dati mock/default (tappe, attività, trasporti, documenti).
+   * Viene eseguito ESCLUSIVAMENTE se e solo se l'app non è mai stata seedata
+   * (verifica tramite SEED_FLAG_KEY in localStorage) o se lo store è TOTALMENTE VUOTO.
+   */
+  async initInitialSeedData(): Promise<void> {
+    if (typeof localStorage === 'undefined') return;
+    if (localStorage.getItem(SEED_FLAG_KEY)) {
+      return; // Già seedato in precedenza, non toccare assolutamente nulla!
+    }
+
     try {
-      const MOCK_VERSION = 'v1_mock_milano';
-      const migrationVersion = typeof localStorage !== 'undefined' ? localStorage.getItem('mock_seed_ver') : null;
-      if (migrationVersion === MOCK_VERSION) return;
+      const [days, activities, transports] = await Promise.all([
+        idbGetAll<Giorno>(STORES.GIORNI),
+        idbGetAll<Attivita>(STORES.ATTIVITA),
+        idbGetAll<Trasporto>(STORES.TRASPORTI)
+      ]);
 
-      const dateStr = '2026-11-28';
-      const days = await idbGetAll<Giorno>(STORES.GIORNI);
-      let day = days.find(d => d.date === dateStr);
-      
-      if (!day) {
-        day = {
-          id: `day_${dateStr}`,
-          date: dateStr,
-          title: 'Milano Test',
-          location: 'Milano',
-          notes: 'Giornata di test routing',
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        };
-        await idbPut(STORES.GIORNI, day);
+      // Se esiste già un qualsiasi dato salvato in IndexedDB, consideriamo l'app inizializzata
+      if (days.length > 0 || activities.length > 0 || transports.length > 0) {
+        localStorage.setItem(SEED_FLAG_KEY, 'true');
+        return;
       }
 
-      const activities = await idbGetAll<Attivita>(STORES.ATTIVITA);
-      const hasMock = activities.some(a => a.id === 'mock_novecento' || a.id === 'mock_starita');
-      if (!hasMock) {
-        const novecento: Attivita = {
-          id: 'mock_novecento',
-          dayId: day.id,
-          title: 'Museo del Novecento',
-          time: '14:00',
-          location: 'Piazza del Duomo, 8, 20123 Milano MI',
-          category: 'cultura',
-          link: 'https://share.google/8yp7aQiQ1NeI9yQVx',
-          notes: '',
-          status: 'completata',
-          copilota: true,
-          coordinate: { lat: 45.4637, lng: 9.1905 },
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        };
+      // Procedi al primissimo seeding iniziale assoluto
+      // 1. Giorno 29 Novembre 2026 e attività di partenza
+      const dateStr = '2026-11-29';
+      const day: Giorno = {
+        id: `day_${dateStr}`,
+        date: dateStr,
+        title: 'Milano',
+        location: 'Milano',
+        notes: 'Partenza viaggio di nozze',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await idbPut(STORES.GIORNI, day);
 
-        const starita: Attivita = {
-          id: 'mock_starita',
-          dayId: day.id,
-          title: 'Starita Milano',
-          time: '20:00',
-          location: 'Via Gherardini, 1, 20145 Milano MI',
-          category: 'cibo',
-          link: 'https://share.google/2zCF6CNMyE5xhpnG8',
-          notes: '',
-          status: 'completata',
-          copilota: true,
-          coordinate: { lat: 45.4789, lng: 9.1724 },
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        };
+      const novecento: Attivita = {
+        id: 'real_novecento_nov29',
+        dayId: day.id,
+        date: dateStr,
+        title: 'Museo del Novecento',
+        time: '17:00',
+        location: 'Piazza del Duomo, 8, Milano',
+        category: 'cultura',
+        status: 'completata',
+        copilota: true,
+        coordinate: { lat: 45.4637, lng: 9.1905 },
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      const starita: Attivita = {
+        id: 'real_starita_nov29',
+        dayId: day.id,
+        date: dateStr,
+        title: 'Starita Milano',
+        time: '20:00',
+        location: 'Via Gherardini, 1, Milano',
+        category: 'cibo',
+        status: 'completata',
+        copilota: true,
+        coordinate: { lat: 45.4789, lng: 9.1724 },
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await idbPut(STORES.ATTIVITA, novecento);
+      await idbPut(STORES.ATTIVITA, starita);
 
-        await idbPut(STORES.ATTIVITA, novecento);
-        await idbPut(STORES.ATTIVITA, starita);
+      // 2. Trasporti certificati iniziali
+      const now = Date.now();
+      for (const item of SEED_TRANSPORTS) {
+        await idbPut(STORES.TRASPORTI, {
+          ...item,
+          attachments: item.attachments || [],
+          copilota: item.copilota,
+          depositPaid: item.depositPaid,
+          createdAt: now,
+          updatedAt: now
+        });
       }
 
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('mock_seed_ver', MOCK_VERSION);
+      // 3. Documenti predefiniti
+      for (const doc of DEFAULT_DOCUMENTS) {
+        await idbPut(STORES.DOCUMENTI, doc);
       }
+
+      // Segna il flag definitivo di avvenuto seeding iniziale
+      localStorage.setItem(SEED_FLAG_KEY, 'true');
+      notifyDataChanged('all', 'save');
     } catch (err) {
-      console.error('[StorageService] Errore seeding mock:', err);
+      console.error('[StorageService] Errore initInitialSeedData:', err);
     }
   }
 
   // --- ATTIVITA ---
   async getActivities(dayId?: string): Promise<Attivita[]> {
     try {
-      await this.seedMockActivities();
       const items = await idbGetAll<Attivita>(STORES.ATTIVITA);
       const filtered = dayId ? items.filter(a => a.dayId === dayId) : items;
       return filtered.sort((a, b) => {
@@ -273,19 +298,12 @@ class StorageService {
   async seedTransports(force = false): Promise<void> {
     try {
       const existing = await idbGetAll<Trasporto>(STORES.TRASPORTI);
-      const SEED_VERSION = 'v6_acconto_trasporti';
-      const migrationVersion = typeof localStorage !== 'undefined' ? localStorage.getItem('trasporti_seed_ver') : null;
-      const needsMigration = migrationVersion !== SEED_VERSION;
+      const isAlreadySeeded = typeof localStorage !== 'undefined' && localStorage.getItem(SEED_FLAG_KEY);
 
-      // Rileva automaticamente se sono presenti dati mockup o versioni obsolete
-      const hasMockData = existing.some(t =>
-        t.date?.startsWith('2026-10') ||
-        (t.carrier && (t.carrier.includes('Qatar') || t.carrier.includes('Apex'))) ||
-        (t.notes && t.notes.includes('Doha')) ||
-        existing.length !== SEED_TRANSPORTS.length
-      );
-
-      if (existing.length === SEED_TRANSPORTS.length && !force && !hasMockData && !needsMigration) return;
+      // Se non è forzato dall'utente e abbiamo già fatto il seed iniziale o ci sono trasporti, non toccare nulla
+      if (!force && (isAlreadySeeded || existing.length > 0)) {
+        return;
+      }
 
       const existingMap = new Map(existing.map(t => [t.id, t]));
       const now = Date.now();
@@ -302,8 +320,9 @@ class StorageService {
       }
 
       if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('trasporti_seed_ver', SEED_VERSION);
+        localStorage.setItem(SEED_FLAG_KEY, 'true');
       }
+      notifyDataChanged('trasporti', 'save');
     } catch (err) {
       console.error('[StorageService] Errore durante il seeding dei trasporti:', err);
     }
@@ -311,7 +330,6 @@ class StorageService {
 
   async getTransports(): Promise<Trasporto[]> {
     try {
-      await this.seedTransports();
       const items = await idbGetAll<Trasporto>(STORES.TRASPORTI);
       return items.sort((a, b) => {
         const dateCompare = a.date.localeCompare(b.date);
