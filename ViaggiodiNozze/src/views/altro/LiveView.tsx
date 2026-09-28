@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { storageService } from '../../storage/storageService';
 import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa } from '../../types';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
@@ -64,6 +64,14 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [tileLoadFailed, setTileLoadFailed] = useState(false);
+  // Toggle per visualizzare la posizione attuale del dispositivo durante la fase pre-partenza
+  const [showMyCurrentGps, setShowMyCurrentGps] = useState(false);
+
+  // Stato interattivo della mappa (pan, drag, zoom)
+  const [mapZoom, setMapZoom] = useState(12);
+  const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
+  const [isDraggingMap, setIsDraggingMap] = useState(false);
+  const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Rileva posizione GPS reale su richiesta o automaticamente all'apertura
   const handleDetectGps = useCallback(async (isSilent = false) => {
@@ -245,9 +253,29 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     return tappe.find(tp => tp.data === activeDate);
   }, [tappe, activeDate]);
 
-  // Località corrente: priorità a GPS reale salvato, poi alloggio/tappa/itinerario programmato come fallback
+  // Località corrente: ancoraggio a destinazione del viaggio se pre-partenza, oppure GPS/tappa odierna se in viaggio
   const currentLocation = useMemo(() => {
-    // 1. Se è disponibile la posizione GPS reale acquisita dal dispositivo
+    // 1. Se il viaggio non è ancora iniziato e l'utente NON ha attivato il toggle "Visualizza mia posizione attuale":
+    // Ancoriamo tassativamente la mappa e il radar pulse pin alla prima tappa ufficiale del viaggio (Auckland AKL)
+    if (tripCountdown.isPreTrip && !showMyCurrentGps) {
+      // Cerca la prima destinazione tra trasporti, alloggi o default Auckland
+      const firstDestCity = currentTransport?.arrivalLocation || currentAccommodation?.location || currentTappa?.titolo || 'Auckland';
+      const firstDestCoords = currentTransport?.coordinate || currentAccommodation?.coordinate || currentTappa?.coordinate || { lat: -37.0082, lng: 174.7850 };
+      
+      return {
+        title: `${firstDestCity}, Nuova Zelanda`,
+        city: firstDestCity,
+        country: 'Nuova Zelanda',
+        countryCode: 'nz',
+        flag: '🇳🇿',
+        coords: firstDestCoords,
+        isRealGps: false,
+        updateNotice: 'Tappa di partenza (programmato)',
+        badgeLabel: `📍 ${firstDestCity}, Nuova Zelanda • Tappa di partenza`
+      };
+    }
+
+    // 2. Se è disponibile la posizione GPS reale acquisita dal dispositivo (durante il viaggio o con toggle attivo)
     if (liveGpsState && liveGpsState.isLiveGps && liveGpsState.coords) {
       const timeAgo = (() => {
         try {
@@ -270,7 +298,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
         flag: getCountryFlag(liveGpsState.countryCode),
         coords: liveGpsState.coords,
         isRealGps: true,
-        updateNotice: `Rilevamento GPS • ${timeAgo}`
+        updateNotice: `Rilevamento GPS • ${timeAgo}`,
+        badgeLabel: `📍 ${liveGpsState.city || 'Posizione Rilevata'}, ${liveGpsState.country || ''}`
       };
     }
 
@@ -338,9 +367,10 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
       flag: '🇳🇿',
       coords: { lat: -36.8485, lng: 174.7633 },
       isRealGps: false,
-      updateNotice: 'Posizione stimata (programmato)'
+      updateNotice: 'Posizione stimata (programmato)',
+      badgeLabel: '📍 Auckland, Nuova Zelanda • Inizio del Viaggio'
     };
-  }, [liveGpsState, currentAccommodation, currentTappa, currentDay, currentTransport]);
+  }, [tripCountdown.isPreTrip, showMyCurrentGps, liveGpsState, currentAccommodation, currentTappa, currentDay, currentTransport]);
 
   // Risoluzione scientifica del fuso orario di destinazione (Zero Improvvisazione)
   const activeTimezone = useMemo<DestinationTimezone>(() => {
@@ -487,22 +517,53 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     return `~${dist.toLocaleString('it-IT')} km da casa`;
   }, [currentLocation.coords]);
 
-  // Tile statico per mini-mappa (Esri ArcGIS World Street Map: libero, affidabile, 0 blocchi di policy, 0 watermark)
-  const mapTileUrl = useMemo(() => {
+  // Griglia dinamica 3x3 di Tile per la mappa interattiva (Esri ArcGIS World Street Map)
+  const tileGrid = useMemo(() => {
     if (!currentLocation.coords || !currentLocation.coords.lat || !currentLocation.coords.lng) {
       return null;
     }
     const { lat, lng } = currentLocation.coords;
-    const zoom = 12;
-    // Conversione coordinate WGS84 -> coordinate slippy tile (x, y)
+    const zoom = mapZoom;
     const latRad = (lat * Math.PI) / 180;
     const n = Math.pow(2, zoom);
-    const x = Math.floor(((lng + 180) / 360) * n);
-    const y = Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n);
     
-    // Server Esri ArcGIS World Street Map: ordine parametri ${zoom}/${y}/${x}
-    return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${zoom}/${y}/${x}`;
-  }, [currentLocation.coords]);
+    // Posizione floating (xFloat, yFloat) in unità di tile da 256px
+    const xFloat = ((lng + 180) / 360) * n;
+    const yFloat = (1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * n;
+    
+    // Tile centrale
+    const centerTileX = Math.floor(xFloat);
+    const centerTileY = Math.floor(yFloat);
+    
+    // Offset in pixel dal centro del tile centrale (da -128 a +128px circa)
+    const pixelOffsetX = (xFloat - centerTileX - 0.5) * 256;
+    const pixelOffsetY = (yFloat - centerTileY - 0.5) * 256;
+
+    // Genera 3x3 tessere attorno al centro per consentire pan fluido
+    const tiles: { key: string; x: number; y: number; url: string }[] = [];
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const tx = centerTileX + dx;
+        const ty = centerTileY + dy;
+        const maxTiles = Math.pow(2, zoom);
+        // Wrap orizzontale e clamp verticale
+        const wrappedX = ((tx % maxTiles) + maxTiles) % maxTiles;
+        const clampedY = Math.max(0, Math.min(ty, maxTiles - 1));
+        const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${zoom}/${clampedY}/${wrappedX}`;
+        tiles.push({
+          key: `${zoom}-${clampedY}-${wrappedX}`,
+          x: tx,
+          y: ty,
+          url
+        });
+      }
+    }
+
+    return {
+      tiles,
+      pixelOffset: { x: pixelOffsetX, y: pixelOffsetY }
+    };
+  }, [currentLocation.coords, mapZoom]);
 
   // Link a Google Maps
   const mapSearchUrl = useMemo(() => {
@@ -775,32 +836,73 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
           </span>
         </div>
 
-        {/* Mini-Mappa Cartografica con Tile Chiari e Radar Pulse Pin */}
-        <div className="relative h-44 sm:h-48 w-full rounded-2xl overflow-hidden shadow-inner border border-slate-200/80 bg-slate-100 group select-none">
-          {/* Tile Cartografici Esri ArcGIS World Street Map (Senza blocco di policy né watermark) */}
-          {mapTileUrl && !tileLoadFailed ? (
-            <div className="absolute inset-0 overflow-hidden">
-              <img
-                src={mapTileUrl}
-                alt={`Mappa di ${currentLocation.city}`}
-                referrerPolicy="no-referrer"
-                crossOrigin="anonymous"
-                className="w-full h-full object-cover scale-105 transition-transform duration-700 group-hover:scale-110 filter contrast-[1.02] brightness-[0.99]"
-                onError={() => {
-                  setTileLoadFailed(true);
-                }}
-              />
-              {/* Effetto vignettatura leggera per dare profondità */}
-              <div className="absolute inset-0 bg-gradient-to-t from-slate-900/20 via-transparent to-slate-900/10 pointer-events-none" />
-              {/* Micro attribution discreta Esri */}
-              <div className="absolute bottom-1 left-2 pointer-events-none text-[8px] text-slate-500/80 font-sans drop-shadow-2xs">
-                © Esri ArcGIS
+        {/* Mini-Mappa Cartografica Interattiva con Pan, Zoom e Radar Pulse Pin */}
+        <div 
+          className="relative h-48 sm:h-52 w-full rounded-2xl overflow-hidden shadow-inner border border-slate-200/80 bg-slate-100 group select-none touch-none cursor-grab active:cursor-grabbing"
+          onPointerDown={(e) => {
+            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+            setIsDraggingMap(true);
+            dragStartRef.current = { x: e.clientX - mapPan.x, y: e.clientY - mapPan.y };
+          }}
+          onPointerMove={(e) => {
+            if (!isDraggingMap || !dragStartRef.current) return;
+            setMapPan({
+              x: e.clientX - dragStartRef.current.x,
+              y: e.clientY - dragStartRef.current.y
+            });
+          }}
+          onPointerUp={(e) => {
+            try {
+              (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+            } catch {
+              // Ignore
+            }
+            setIsDraggingMap(false);
+            dragStartRef.current = null;
+          }}
+          onPointerCancel={() => {
+            setIsDraggingMap(false);
+            dragStartRef.current = null;
+          }}
+          onWheel={(e) => {
+            e.preventDefault();
+            if (e.deltaY < 0) {
+              setMapZoom(z => Math.min(z + 1, 16));
+            } else {
+              setMapZoom(z => Math.max(z - 1, 4));
+            }
+          }}
+        >
+          {/* Griglia di Tile Esri ArcGIS World Street Map reattiva al pan e allo zoom */}
+          {tileGrid && !tileLoadFailed ? (
+            <div 
+              className="absolute pointer-events-none transition-transform duration-75"
+              style={{
+                width: 3 * 256,
+                height: 3 * 256,
+                left: '50%',
+                top: '50%',
+                transform: `translate(calc(-50% + ${mapPan.x - tileGrid.pixelOffset.x}px), calc(-50% + ${mapPan.y - tileGrid.pixelOffset.y}px))`
+              }}
+            >
+              <div className="grid grid-cols-3 w-full h-full">
+                {tileGrid.tiles.map((t) => (
+                  <img
+                    key={t.key}
+                    src={t.url}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    crossOrigin="anonymous"
+                    className="w-[256px] h-[256px] object-cover filter contrast-[1.02] brightness-[0.99] block"
+                    onError={() => setTileLoadFailed(true)}
+                    draggable={false}
+                  />
+                ))}
               </div>
             </div>
           ) : (
             /* Fallback Cartografico Vettoriale Stile Apple Maps (Zero Rete / Offline) */
             <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-sky-50/40 to-indigo-50/50 flex items-center justify-center overflow-hidden">
-              {/* Curve di livello topografiche tenui e reticolo cartografico */}
               <svg className="absolute inset-0 w-full h-full text-slate-200/70" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
@@ -808,33 +910,26 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
                   </pattern>
                 </defs>
                 <rect width="100%" height="100%" fill="url(#grid)" />
-                {/* Curve topografiche stilizzate */}
                 <path d="M-20 80 Q 80 40 180 90 T 380 60 T 580 120" fill="none" stroke="currentColor" strokeWidth="1" opacity="0.6" />
                 <path d="M-20 120 Q 90 80 200 130 T 400 90 T 600 150" fill="none" stroke="currentColor" strokeWidth="0.75" opacity="0.4" />
                 <path d="M-20 160 Q 110 130 220 170 T 420 140 T 620 190" fill="none" stroke="currentColor" strokeWidth="0.5" opacity="0.3" />
               </svg>
-
-              {/* Bussola e Coordinate WGS84 sottili in filigrana */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-40">
-                <div className="w-28 h-28 rounded-full border border-dashed border-indigo-300 flex items-center justify-center">
-                  <div className="w-16 h-16 rounded-full border border-indigo-200" />
-                </div>
-              </div>
-
-              {/* Etichetta di geolocalizzazione WGS84 in filigrana */}
-              <div className="absolute bottom-2 left-2 text-[9px] font-mono text-slate-400 pointer-events-none">
-                {formattedCoords}
-              </div>
             </div>
           )}
 
-          {/* Pin Radar Pulsante Centrale */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {/* Effetto vignettatura leggera per profondità */}
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/15 via-transparent to-slate-900/10 pointer-events-none" />
+
+          {/* Pin Radar Pulsante ancorato alla posizione esatta (si muove con il pan) */}
+          <div 
+            className="absolute left-1/2 top-1/2 pointer-events-none"
+            style={{
+              transform: `translate(calc(-50% + ${mapPan.x}px), calc(-50% + ${mapPan.y}px))`
+            }}
+          >
             <div className="relative flex items-center justify-center">
-              {/* Onde concentriche animate */}
               <span className="absolute w-12 h-12 rounded-full bg-indigo-500/25 animate-ping opacity-75 duration-1000" />
               <span className="absolute w-7 h-7 rounded-full bg-indigo-500/35 animate-pulse" />
-              {/* Punto radar centrale */}
               <span className="relative w-4 h-4 rounded-full bg-indigo-600 border-2 border-white shadow-md flex items-center justify-center">
                 <span className="w-1.5 h-1.5 rounded-full bg-white" />
               </span>
@@ -842,15 +937,53 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
           </div>
 
           {/* Badge Top/Floating: Località e Bandiera */}
-          <div className="absolute top-2.5 left-2.5 max-w-[70%]">
+          <div className="absolute top-2.5 left-2.5 max-w-[65%] pointer-events-none">
             <div className="inline-flex items-center gap-1.5 bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold text-slate-800 shadow-sm border border-white/60 truncate">
               <span>{currentLocation.flag}</span>
-              <span className="truncate">{currentLocation.city}, {currentLocation.country}</span>
+              <span className="truncate">{currentLocation.badgeLabel || `${currentLocation.city}, ${currentLocation.country}`}</span>
             </div>
           </div>
 
+          {/* Controlli Mappa Micro-Minimali Stile iOS: Zoom In, Zoom Out, Ricentra */}
+          <div className="absolute top-2.5 right-2.5 flex flex-col gap-1.5 z-10">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMapZoom(z => Math.min(z + 1, 16));
+              }}
+              className="w-7 h-7 rounded-xl bg-white/90 hover:bg-white text-slate-800 backdrop-blur-md shadow-xs border border-white/80 flex items-center justify-center text-xs font-black transition-all cursor-pointer active:scale-90"
+              title="Ingrandisci"
+            >
+              +
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMapZoom(z => Math.max(z - 1, 4));
+              }}
+              className="w-7 h-7 rounded-xl bg-white/90 hover:bg-white text-slate-800 backdrop-blur-md shadow-xs border border-white/80 flex items-center justify-center text-xs font-black transition-all cursor-pointer active:scale-90"
+              title="Rimpicciolisci"
+            >
+              −
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMapPan({ x: 0, y: 0 });
+                setMapZoom(12);
+              }}
+              className="w-7 h-7 rounded-xl bg-white/90 hover:bg-white text-indigo-600 backdrop-blur-md shadow-xs border border-white/80 flex items-center justify-center text-xs font-black transition-all cursor-pointer active:scale-90"
+              title="Ricentra su tappa"
+            >
+              ⌖
+            </button>
+          </div>
+
           {/* Micro-tasto Floating in basso a destra "Apri su Maps ↗" */}
-          <div className="absolute bottom-2.5 right-2.5">
+          <div className="absolute bottom-2.5 right-2.5 z-10">
             <button
               type="button"
               onClick={() => openMapLink(mapSearchUrl)}
@@ -861,7 +994,46 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
               <span className="text-[10px]">↗</span>
             </button>
           </div>
+
+          {/* Micro attribution discreta Esri */}
+          <div className="absolute bottom-1 left-2 pointer-events-none text-[8px] text-slate-500/80 font-sans drop-shadow-2xs">
+            © Esri ArcGIS
+          </div>
         </div>
+
+        {/* Toggle Esclusivo Pre-Partenza: Visualizza mia posizione attuale vs Prima Tappa */}
+        {tripCountdown.isPreTrip && (
+          <div className="px-1 py-1 flex items-center justify-between gap-2 bg-slate-50/80 rounded-2xl p-2.5 border border-slate-100">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm">🧭</span>
+              <div className="min-w-0">
+                <span className="text-xs font-bold text-slate-800 block truncate">
+                  Visualizza la mia posizione attuale
+                </span>
+                <span className="text-[10px] text-slate-500 block truncate">
+                  {showMyCurrentGps ? 'Attivo (mostra segnale GPS reale)' : 'Disattivo (ancorato alla 1ª tappa ad Auckland)'}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowMyCurrentGps(prev => !prev);
+                setMapPan({ x: 0, y: 0 });
+              }}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                showMyCurrentGps ? 'bg-indigo-600' : 'bg-slate-300'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                  showMyCurrentGps ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+        )}
 
         {/* Dati di Navigazione & Contesto Emozionale */}
         <div className="grid grid-cols-2 gap-2 pt-0.5">
