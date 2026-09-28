@@ -1,15 +1,36 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PlaceholderView from './altro/PlaceholderView';
 import DocumentiView from './altro/DocumentiView';
 import AssicurazioneView from './altro/AssicurazioneView';
 import DocumentiGalleriaView from './altro/DocumentiGalleriaView';
 import SpeseBudgetView from './altro/SpeseBudgetView';
 import LiveView from './altro/LiveView';
+import DeviceRoleModal from '../components/common/DeviceRoleModal';
+import { storageService } from '../storage/storageService';
+import type { DeviceRole } from '../types';
 
 type SubViewType = 'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | null;
 
 export default function AltroView() {
   const [activeSubView, setActiveSubView] = useState<SubViewType>(null);
+  const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
+  const [showRoleModal, setShowRoleModal] = useState(false);
+
+  useEffect(() => {
+    const handleRoleChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<{ role: DeviceRole }>;
+      if (customEvent.detail?.role) {
+        setDeviceRole(customEvent.detail.role);
+      }
+    };
+    window.addEventListener('device_role_changed', handleRoleChanged);
+    return () => window.removeEventListener('device_role_changed', handleRoleChanged);
+  }, []);
+
+  const handleSelectRole = (newRole: DeviceRole) => {
+    storageService.setDeviceRole(newRole);
+    setDeviceRole(newRole);
+  };
 
   const handleBack = () => setActiveSubView(null);
 
@@ -64,6 +85,41 @@ export default function AltroView() {
           <svg className="w-5 h-5 text-emerald-600 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
           </svg>
+        </button>
+
+        {/* Card Ruolo Dispositivo (Guida / Copilota / Viewer) */}
+        <button
+          type="button"
+          onClick={() => setShowRoleModal(true)}
+          className="col-span-2 bg-white rounded-2xl p-3.5 border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all text-left flex items-center justify-between cursor-pointer"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
+              {deviceRole === 'guida' ? '🟢' : deviceRole === 'copilota' ? '🟡' : '💻'}
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-bold text-slate-900 text-xs leading-tight">Ruolo Dispositivo</h3>
+                <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                  deviceRole === 'guida'
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : deviceRole === 'copilota'
+                    ? 'bg-amber-100 text-amber-800'
+                    : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {deviceRole === 'guida' ? 'Telefono Guida' : deviceRole === 'copilota' ? 'Co-pilota' : 'Viewer / PC'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">
+                {deviceRole === 'guida'
+                  ? 'Invia GPS reale e foto a chi segue da casa'
+                  : deviceRole === 'copilota'
+                  ? 'Modifica note e spese (GPS ancorato alla Guida)'
+                  : 'Nessun accesso GPS (visualizzazione passiva)'}
+              </p>
+            </div>
+          </div>
+          <span className="text-slate-400 text-sm font-bold ml-2">›</span>
         </button>
 
         {/* Card 1: Assicurazione */}
@@ -169,6 +225,14 @@ export default function AltroView() {
           </svg>
         </button>
       </div>
+
+      {/* Modal Selezione Ruolo Dispositivo */}
+      <DeviceRoleModal
+        isOpen={showRoleModal}
+        onClose={() => setShowRoleModal(false)}
+        currentRole={deviceRole}
+        onSelectRole={handleSelectRole}
+      />
     </div>
   );
 }

@@ -210,3 +210,6 @@ export interface Spesa {
   updatedAt?: number;
 }
 
+export type DeviceRole = 'guida' | 'copilota' | 'viewer';
+
+

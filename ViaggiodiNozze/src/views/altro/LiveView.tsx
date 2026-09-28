@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { storageService } from '../../storage/storageService';
-import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa } from '../../types';
+import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa, DeviceRole } from '../../types';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
 import { generateTripDays } from '../../utils/tripDates';
 import {
@@ -105,16 +105,31 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     }
   }, []);
 
-  // Richiesta automatica della geolocalizzazione all'accesso della pagina
+  // Ruolo del dispositivo: 'guida' | 'copilota' | 'viewer' (default 'viewer')
+  const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
+
   useEffect(() => {
-    if (typeof navigator !== 'undefined' && navigator.geolocation) {
-      // Esegui la richiesta automatica in modalità non invasiva per scatenare il popup nativo dei permessi
+    const handleRoleChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<{ role: DeviceRole }>;
+      if (customEvent.detail?.role) {
+        setDeviceRole(customEvent.detail.role);
+      }
+    };
+    window.addEventListener('device_role_changed', handleRoleChanged);
+    return () => window.removeEventListener('device_role_changed', handleRoleChanged);
+  }, []);
+
+  // Richiesta automatica della geolocalizzazione SOLO se il ruolo è 'guida' (mai per viewer o copilota)
+  useEffect(() => {
+    if (deviceRole === 'guida' && typeof navigator !== 'undefined' && navigator.geolocation) {
+      // Esegui la richiesta automatica in modalità non invasiva per sincronizzare la posizione reale
       handleDetectGps(true);
     }
-  }, [handleDetectGps]);
+  }, [deviceRole, handleDetectGps]);
 
-  // Modalità Sposi (Admin / Master) sbloccabile con PIN o salvata in localStorage
-  const [isSposiAdmin, setIsSposiAdmin] = useState<boolean>(() => {
+  // Modalità Sposi (Admin / Master)
+  // Se il ruolo è 'guida' o 'copilota', i controlli sono abilitati; altrimenti solo se sbloccato con PIN e non viewer
+  const [isSposiAdminManual, setIsSposiAdminManual] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem(SPOSI_ADMIN_KEY) === 'true';
     }
@@ -123,6 +138,13 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+
+  // In modalità viewer i comandi sposi rimangono nascosti a prescindere
+  const isSposiAdmin = useMemo(() => {
+    if (deviceRole === 'viewer') return false;
+    if (deviceRole === 'guida' || deviceRole === 'copilota') return true;
+    return isSposiAdminManual;
+  }, [deviceRole, isSposiAdminManual]);
 
   // Foto personalizzata per "Ultimo aggiornamento"
   const [customPhoto, setCustomPhoto] = useState<CustomLivePhoto | null>(() => {
@@ -222,7 +244,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   // Verifica PIN Sposi
   const handleVerifyPin = () => {
     if (pinInput.trim() === SPOSI_PIN) {
-      setIsSposiAdmin(true);
+      setIsSposiAdminManual(true);
       if (typeof window !== 'undefined') {
         localStorage.setItem(SPOSI_ADMIN_KEY, 'true');
       }
@@ -235,7 +257,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   };
 
   const handleLogoutSposi = () => {
-    setIsSposiAdmin(false);
+    setIsSposiAdminManual(false);
     if (typeof window !== 'undefined') {
       localStorage.removeItem(SPOSI_ADMIN_KEY);
     }
@@ -1190,8 +1212,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
           </div>
         </div>
 
-        {/* Toggle Esclusivo Pre-Partenza: Visualizza mia posizione attuale vs Prima Tappa */}
-        {tripCountdown.isPreTrip && (
+        {/* Toggle Esclusivo Pre-Partenza: Visualizza mia posizione attuale vs Prima Tappa (solo per Telefono Guida) */}
+        {tripCountdown.isPreTrip && deviceRole === 'guida' && (
           <div className="px-1 py-1 flex items-center justify-between gap-2 bg-slate-50/80 rounded-2xl p-2.5 border border-slate-100">
             <div className="flex items-center gap-2 min-w-0">
               <span className="text-sm">🧭</span>
@@ -1253,8 +1275,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
           </div>
         </div>
 
-        {/* Pulsante di acquisizione GPS reale (riservato esclusivamente agli sposi in modalità Sposi) */}
-        {!isStandaloneExternal && isSposiAdmin && (
+        {/* Pulsante di acquisizione GPS reale (riservato al Telefono Guida per non sovrascrivere dal co-pilota o da PC) */}
+        {!isStandaloneExternal && (deviceRole === 'guida' || (deviceRole !== 'copilota' && deviceRole !== 'viewer' && isSposiAdmin)) && (
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
             <button
               type="button"
@@ -1292,8 +1314,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
               {photoUpdateData.tag}
             </span>
-            {/* Pulsanti gestione foto per Sposi */}
-            {!isStandaloneExternal && isSposiAdmin && (
+            {/* Pulsanti gestione foto per Sposi (Guida o sbloccato) */}
+            {!isStandaloneExternal && isSposiAdmin && deviceRole !== 'viewer' && (
               <div className="flex items-center gap-1">
                 <input
                   type="file"

@@ -1,5 +1,7 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { storageService } from '../../storage/storageService';
+import type { DeviceRole } from '../../types';
+import DeviceRoleModal from './DeviceRoleModal';
 
 /**
  * Menu impostazioni discreto (icona in alto a destra nell'\u2019App).
@@ -10,7 +12,31 @@ export default function SettingsMenu() {
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null);
+  const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
+  const [showRoleModal, setShowRoleModal] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const handleRoleChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<{ role: DeviceRole }>;
+      if (customEvent.detail?.role) {
+        setDeviceRole(customEvent.detail.role);
+      }
+    };
+    window.addEventListener('device_role_changed', handleRoleChanged);
+    return () => window.removeEventListener('device_role_changed', handleRoleChanged);
+  }, []);
+
+  const handleSelectRole = (newRole: DeviceRole) => {
+    storageService.setDeviceRole(newRole);
+    setDeviceRole(newRole);
+    const roleLabels: Record<DeviceRole, string> = {
+      guida: 'Telefono Guida (GPS Attivo)',
+      copilota: 'Telefono Co-pilota',
+      viewer: 'Computer / Ospite (Viewer)'
+    };
+    showToast('ok', `Ruolo aggiornato: ${roleLabels[newRole]}`);
+  };
 
   const showToast = (type: 'ok' | 'error', msg: string) => {
     setToast({ type, msg });
@@ -78,8 +104,34 @@ export default function SettingsMenu() {
         {open && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <div className="absolute right-0 top-11 z-50 w-56 rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
+            <div className="absolute right-0 top-11 z-50 w-64 rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-b border-slate-100">
+                Dispositivo
+              </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  setShowRoleModal(true);
+                }}
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">
+                    {deviceRole === 'guida' ? '🟢' : deviceRole === 'copilota' ? '🟡' : '💻'}
+                  </span>
+                  <div className="text-left">
+                    <span className="block text-xs font-bold text-slate-800">Ruolo Dispositivo</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">
+                      {deviceRole === 'guida' ? 'Telefono Guida (GPS)' : deviceRole === 'copilota' ? 'Telefono Co-pilota' : 'Computer / Viewer'}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-slate-400 text-xs">›</span>
+              </button>
+
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-b border-slate-100">
                 Backup & Ripristino
               </p>
 
@@ -118,6 +170,14 @@ export default function SettingsMenu() {
           </>
         )}
       </div>
+
+      {/* Modal Ruolo Dispositivo */}
+      <DeviceRoleModal
+        isOpen={showRoleModal}
+        onClose={() => setShowRoleModal(false)}
+        currentRole={deviceRole}
+        onSelectRole={handleSelectRole}
+      />
 
       {/* Toast Feedback */}
       {toast && (
