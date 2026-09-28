@@ -3,12 +3,14 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
-import { seedMilano29Dic } from "./data/seedMilano29Dic";
+import { storageService } from "./storage/storageService";
 
 const basename = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-// Seed initial real data
-seedMilano29Dic();
+// Inizializza i dati di default esclusivamente al primissimo avvio assoluto
+storageService.initInitialSeedData().catch((err) => {
+  console.error("Errore inizializzazione seed:", err);
+});
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

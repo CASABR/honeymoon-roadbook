@@ -1,16 +1,15 @@
 import { storageService } from '../storage/storageService';
 import type { Attivita } from '../types';
 
+const SEED_FLAG_KEY = 'honeymoon_roadbook_seeded_v1';
+
 export async function seedMilano29Dic() {
   try {
-    // 1. Pulizia vecchi dati per il 29/12 se presenti
-    const days = await storageService.getDays();
-    const oldDay = days.find(d => d.date === '2026-12-29');
-    if (oldDay) {
-      await storageService.deleteDay(oldDay.id);
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(SEED_FLAG_KEY)) {
+      return;
     }
 
-    // 2. Creazione/recupero giorno 29 Novembre 2026
+    const days = await storageService.getDays();
     let targetDay = days.find(d => d.date === '2026-11-29');
 
     if (!targetDay) {
