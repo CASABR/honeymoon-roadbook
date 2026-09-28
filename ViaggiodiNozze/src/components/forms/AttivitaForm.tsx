@@ -32,7 +32,13 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
     if (initialData) {
       setDayId(initialData.dayId);
       const matchedDay = days.find(d => d.id === initialData.dayId);
-      if (matchedDay) setCustomDate(matchedDay.date);
+      if (matchedDay) {
+        setCustomDate(matchedDay.date);
+      } else if (initialData.date) {
+        setCustomDate(initialData.date);
+      } else if (initialData.dayId.startsWith('day_')) {
+        setCustomDate(initialData.dayId.replace('day_', ''));
+      }
       setTitle(initialData.title);
       setTime(initialData.time || '');
       setCost(initialData.cost || '');
@@ -95,6 +101,7 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
     onSave({
       id: initialData?.id,
       dayId: finalDayId,
+      date: customDate || undefined,
       title: title.trim(),
       time: time || undefined,
       cost: cost.trim() || undefined,

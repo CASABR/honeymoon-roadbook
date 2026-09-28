@@ -59,8 +59,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [editingRistoranteItem, setEditingRistoranteItem] = useState<Ristorante | null>(null);
   const [editingShoppingItem, setEditingShoppingItem] = useState<Shopping | null>(null);
 
-  const fetchTimeline = useCallback(async () => {
-    const items = await storageService.getTimelineForDate(selectedDate);
+  const fetchTimeline = useCallback(async (dateToFetch?: string) => {
+    const target = dateToFetch || selectedDate;
+    const items = await storageService.getTimelineForDate(target);
     setTimeline(items);
   }, [selectedDate]);
 
@@ -83,6 +84,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       const allDates: (string | undefined)[] = [
         ...days.map(d => d.date),
         ...activities.map(a => {
+          if (a.date) return a.date;
           const match = days.find(d => d.id === a.dayId);
           if (match?.date) return match.date;
           if (a.dayId.startsWith('day_')) return a.dayId.replace('day_', '');
@@ -127,6 +129,22 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     fetchTimeline();
   }, [fetchTimeline]);
 
+  // Ascolta eventi globali di aggiornamento attività (es. da altri componenti o viste)
+  useEffect(() => {
+    const handleActivityUpdated = (e: Event) => {
+      const customEvt = e as CustomEvent<{ date?: string; dayId?: string }>;
+      if (customEvt.detail?.date) {
+        setSelectedDate(customEvt.detail.date);
+        fetchTimeline(customEvt.detail.date);
+      } else {
+        fetchTimeline();
+      }
+      loadData();
+    };
+    window.addEventListener('activity_updated', handleActivityUpdated);
+    return () => window.removeEventListener('activity_updated', handleActivityUpdated);
+  }, [fetchTimeline, loadData]);
+
   const handleOpenEditFromDetail = (item: TimelineItem) => {
     setDetailItem(null);
     if (item.type === 'attivita') {
@@ -154,15 +172,23 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     await storageService.saveActivity(activityToSave);
     setEditingActivityItem(null);
 
-    // Se l'attività è stata spostata su un altro giorno, aggiorna selectedDate sul nuovo giorno
+    // Se l'attività è stata spostata su un altro giorno (es. dal 29 al 28), imposta automaticamente selectedDate sul nuovo giorno
     const matchedDay = daysData.find(d => d.id === activityToSave.dayId);
-    const targetDate = matchedDay?.date || (activityToSave.dayId.startsWith('day_') ? activityToSave.dayId.replace('day_', '') : null);
+    const targetDate = activityToSave.date || matchedDay?.date || (activityToSave.dayId.startsWith('day_') ? activityToSave.dayId.replace('day_', '') : null);
+
     if (targetDate && targetDate !== selectedDate) {
       setSelectedDate(targetDate);
     }
 
+    // Invia evento custom per notificare il sistema
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('activity_updated', {
+        detail: { activity: activityToSave, date: targetDate, dayId: activityToSave.dayId }
+      }));
+    }
+
     await loadData();
-    await fetchTimeline();
+    await fetchTimeline(targetDate || selectedDate);
   };
 
   const handleSaveTransport = async (data: Omit<Trasporto, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {

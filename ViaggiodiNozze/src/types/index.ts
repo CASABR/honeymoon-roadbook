@@ -19,6 +19,7 @@ export interface Coordinate {
 export interface Attivita {
   id: string;
   dayId: string;
+  date?: string; // YYYY-MM-DD
   title: string;
   time?: string; // HH:mm
   location: string;
