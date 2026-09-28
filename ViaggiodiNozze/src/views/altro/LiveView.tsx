@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { storageService } from '../../storage/storageService';
 import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa, DeviceRole } from '../../types';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
-import { generateTripDays } from '../../utils/tripDates';
+import { generateTripDays, getTripDateRange } from '../../utils/tripDates';
 import {
   updateRealLocation,
   getSavedLiveLocation,
@@ -329,48 +329,59 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     return `${y}-${m}-${d}`;
   }, [now]);
 
+  // Intervallo date reale calcolato dal DB
+  const [tripRange, setTripRange] = useState<{ minTripDate: string; maxTripDate: string } | null>(null);
+
   // Caricamento dati da IndexedDB
-  useEffect(() => {
-    let isMounted = true;
-    async function loadData() {
-      try {
-        setLoading(true);
-        const [dList, accList, trList, tpList] = await Promise.all([
-          storageService.getDays(),
-          storageService.getAccommodations(),
-          storageService.getTransports(),
-          storageService.getTappe(),
-        ]);
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [dList, accList, trList, tpList, range] = await Promise.all([
+        storageService.getDays(),
+        storageService.getAccommodations(),
+        storageService.getTransports(),
+        storageService.getTappe(),
+        getTripDateRange()
+      ]);
 
-        if (!isMounted) return;
-        setDays(dList);
-        setAccommodations(accList);
-        setTransports(trList);
-        setTappe(tpList);
+      setDays(dList);
+      setAccommodations(accList);
+      setTransports(trList);
+      setTappe(tpList);
+      setTripRange(range);
 
-        // Se la data odierna rientra nel viaggio usa todayStr, altrimenti usa la prima data programmata
-        const tripDaysList = generateTripDays();
-        const isInTrip = tripDaysList.some(item => item.dateStr === todayStr);
-        const targetDate = isInTrip ? todayStr : (dList[0]?.date || '2026-11-29');
+      // Se la data odierna rientra nel viaggio usa todayStr, altrimenti usa la prima data programmata
+      const tripDaysList = range.tripDays;
+      const isInTrip = tripDaysList.some(item => item.dateStr === todayStr);
+      const targetDate = isInTrip ? todayStr : range.minTripDate;
 
-        const items = await storageService.getTimelineForDate(targetDate);
-        if (isMounted) {
-          setTimelineItems(items);
-        }
-      } catch (err) {
-        console.error('Errore nel caricamento dei dati Live:', err);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
+      const items = await storageService.getTimelineForDate(targetDate);
+      setTimelineItems(items);
+    } catch (err) {
+      console.error('Errore nel caricamento dei dati Live:', err);
+    } finally {
+      setLoading(false);
     }
-    loadData();
-    return () => { isMounted = false; };
   }, [todayStr]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // Ascolta l'evento unificato di mutazione dati per ricaricare istantaneamente LiveView
+  useEffect(() => {
+    const handleDataMutated = () => {
+      loadData();
+    };
+    window.addEventListener('roadbook_data_mutated', handleDataMutated);
+    return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
+  }, [loadData]);
 
   // Verifica se il viaggio è già iniziato rispetto a oggi
   const tripCountdown = useMemo(() => {
-    const tripDaysList = generateTripDays();
-    const firstDateStr = days[0]?.date || tripDaysList[0]?.dateStr || '2026-11-29';
+    const minDate = tripRange?.minTripDate || days[0]?.date || '2026-11-29';
+    const tripDaysList = generateTripDays(minDate);
+    const firstDateStr = minDate;
     const startDate = new Date(`${firstDateStr}T00:00:00`);
     const today = new Date(`${todayStr}T00:00:00`);
     const diffMs = startDate.getTime() - today.getTime();
@@ -384,7 +395,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
       diffDays,
       firstDateStr
     };
-  }, [todayStr, days]);
+  }, [todayStr, days, tripRange]);
 
   // Data attiva del viaggio
   const activeDate = useMemo(() => {

@@ -71,6 +71,18 @@ export const DEFAULT_DOCUMENTS: TravelDocument[] = [
   }
 ];
 
+export function notifyDataChanged(entityType: string, action: 'save' | 'delete', data?: any): void {
+  if (typeof window === 'undefined') return;
+  try {
+    // 1. Evento specifico retrocompatibile
+    window.dispatchEvent(new CustomEvent(`${entityType}_updated`, { detail: { action, data } }));
+    // 2. Evento globale unificato per tutte le viste
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { entityType, action, data } }));
+  } catch (err) {
+    console.error('[StorageService] Errore dispatching notifyDataChanged:', err);
+  }
+}
+
 /**
  * Servizio di persistenza locale astratto.
  * La UI interagisce esclusivamente con questa interfaccia asincrona,
@@ -97,10 +109,12 @@ class StorageService {
       updatedAt: now
     };
     await idbPut(STORES.GIORNI, item);
+    notifyDataChanged('giorni', 'save', item);
   }
 
   async deleteDay(id: string): Promise<void> {
     await idbDelete(STORES.GIORNI, id);
+    notifyDataChanged('giorni', 'delete', { id });
     try {
       const activities = await this.getActivities(id);
       for (const act of activities) {
@@ -220,10 +234,12 @@ class StorageService {
       updatedAt: now
     };
     await idbPut(STORES.ATTIVITA, item);
+    notifyDataChanged('attivita', 'save', item);
   }
 
   async deleteActivity(id: string): Promise<void> {
     await idbDelete(STORES.ATTIVITA, id);
+    notifyDataChanged('attivita', 'delete', { id });
   }
 
   // --- ALLOGGI ---
@@ -245,10 +261,12 @@ class StorageService {
       updatedAt: now
     };
     await idbPut(STORES.ALLOGGI, item);
+    notifyDataChanged('alloggi', 'save', item);
   }
 
   async deleteAccommodation(id: string): Promise<void> {
     await idbDelete(STORES.ALLOGGI, id);
+    notifyDataChanged('alloggi', 'delete', { id });
   }
 
   // --- TRASPORTI ---
@@ -315,10 +333,12 @@ class StorageService {
       updatedAt: now
     };
     await idbPut(STORES.TRASPORTI, item);
+    notifyDataChanged('trasporti', 'save', item);
   }
 
   async deleteTransport(id: string): Promise<void> {
     await idbDelete(STORES.TRASPORTI, id);
+    notifyDataChanged('trasporti', 'delete', { id });
   }
 
   // --- DOCUMENTI ---
@@ -440,13 +460,19 @@ class StorageService {
 
   async addTappa(tappa: Omit<Tappa, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<Tappa> {
     const now = Date.now();
+    const cleanDate = tappa.data || tappa.date || '';
+    const dayId = tappa.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
     const newTappa: Tappa = {
       ...tappa,
+      data: cleanDate,
+      date: cleanDate,
+      dayId,
       id: tappa.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'tappa_' + now),
       createdAt: now,
       updatedAt: now
     };
     await idbPut(STORES.TAPPE, newTappa);
+    notifyDataChanged('tappe', 'save', newTappa);
     return newTappa;
   }
 
@@ -454,13 +480,19 @@ class StorageService {
     try {
       const existing = await idbGet<Tappa>(STORES.TAPPE, id);
       if (!existing) throw new Error(`Tappa con id ${id} non trovata`);
+      const cleanDate = partial.data !== undefined ? partial.data : (partial.date !== undefined ? partial.date : existing.data);
+      const dayId = partial.dayId || (cleanDate ? `day_${cleanDate}` : existing.dayId);
       const updated: Tappa = {
         ...existing,
         ...partial,
-        id,
+        data: cleanDate,
+        date: cleanDate,
+        dayId,
+        id, // Garantisce che l'ID primario non venga alterato
         updatedAt: Date.now()
       };
       await idbPut(STORES.TAPPE, updated);
+      notifyDataChanged('tappe', 'save', updated);
     } catch (err) {
       console.error('[StorageService] Errore aggiornamento tappa:', err);
       throw err;
@@ -469,16 +501,23 @@ class StorageService {
 
   async saveTappa(tappa: Tappa): Promise<void> {
     const now = Date.now();
+    const cleanDate = tappa.data || tappa.date || '';
+    const dayId = tappa.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
     const item: Tappa = {
       ...tappa,
+      data: cleanDate,
+      date: cleanDate,
+      dayId,
       createdAt: tappa.createdAt || now,
       updatedAt: now
     };
     await idbPut(STORES.TAPPE, item);
+    notifyDataChanged('tappe', 'save', item);
   }
 
   async deleteTappa(id: string): Promise<void> {
     await idbDelete(STORES.TAPPE, id);
+    notifyDataChanged('tappe', 'delete', { id });
   }
 
   // --- RISTORANTI ---
@@ -500,7 +539,7 @@ class StorageService {
   async getRistorantiPerData(data: string): Promise<Ristorante[]> {
     try {
       const all = await this.getRistoranti();
-      return all.filter(r => r.data === data);
+      return all.filter(r => r.data === data || r.date === data || r.dayId === `day_${data}`);
     } catch (err) {
       console.error('[StorageService] Errore lettura ristoranti per data:', err);
       return [];
@@ -509,13 +548,19 @@ class StorageService {
 
   async addRistorante(ristorante: Omit<Ristorante, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<Ristorante> {
     const now = Date.now();
+    const cleanDate = ristorante.data || ristorante.date || '';
+    const dayId = ristorante.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
     const newRistorante: Ristorante = {
       ...ristorante,
+      data: cleanDate,
+      date: cleanDate,
+      dayId,
       id: ristorante.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'ristorante_' + now),
       createdAt: now,
       updatedAt: now
     };
     await idbPut(STORES.RISTORANTI, newRistorante);
+    notifyDataChanged('ristoranti', 'save', newRistorante);
     return newRistorante;
   }
 
@@ -523,13 +568,19 @@ class StorageService {
     try {
       const existing = await idbGet<Ristorante>(STORES.RISTORANTI, id);
       if (!existing) throw new Error(`Ristorante con id ${id} non trovato`);
+      const cleanDate = partial.data !== undefined ? partial.data : (partial.date !== undefined ? partial.date : existing.data);
+      const dayId = partial.dayId || (cleanDate ? `day_${cleanDate}` : existing.dayId);
       const updated: Ristorante = {
         ...existing,
         ...partial,
-        id,
+        data: cleanDate,
+        date: cleanDate,
+        dayId,
+        id, // ID primario preservato
         updatedAt: Date.now()
       };
       await idbPut(STORES.RISTORANTI, updated);
+      notifyDataChanged('ristoranti', 'save', updated);
     } catch (err) {
       console.error('[StorageService] Errore aggiornamento ristorante:', err);
       throw err;
@@ -538,16 +589,23 @@ class StorageService {
 
   async saveRistorante(r: Ristorante): Promise<void> {
     const now = Date.now();
+    const cleanDate = r.data || r.date || '';
+    const dayId = r.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
     const item: Ristorante = {
       ...r,
+      data: cleanDate,
+      date: cleanDate,
+      dayId,
       createdAt: r.createdAt || now,
       updatedAt: now
     };
     await idbPut(STORES.RISTORANTI, item);
+    notifyDataChanged('ristoranti', 'save', item);
   }
 
   async deleteRistorante(id: string): Promise<void> {
     await idbDelete(STORES.RISTORANTI, id);
+    notifyDataChanged('ristoranti', 'delete', { id });
   }
 
   // --- SHOPPING ---
@@ -569,7 +627,7 @@ class StorageService {
   async getShoppingPerData(data: string): Promise<Shopping[]> {
     try {
       const all = await this.getShopping();
-      return all.filter(s => s.data === data);
+      return all.filter(s => s.data === data || s.date === data || s.dayId === `day_${data}`);
     } catch (err) {
       console.error('[StorageService] Errore lettura shopping per data:', err);
       return [];
@@ -578,13 +636,19 @@ class StorageService {
 
   async addShopping(shopping: Omit<Shopping, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<Shopping> {
     const now = Date.now();
+    const cleanDate = shopping.data || shopping.date || '';
+    const dayId = shopping.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
     const newShopping: Shopping = {
       ...shopping,
+      data: cleanDate,
+      date: cleanDate,
+      dayId,
       id: shopping.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'shopping_' + now),
       createdAt: now,
       updatedAt: now
     };
     await idbPut(STORES.SHOPPING, newShopping);
+    notifyDataChanged('shopping', 'save', newShopping);
     return newShopping;
   }
 
@@ -592,13 +656,19 @@ class StorageService {
     try {
       const existing = await idbGet<Shopping>(STORES.SHOPPING, id);
       if (!existing) throw new Error(`Shopping con id ${id} non trovato`);
+      const cleanDate = partial.data !== undefined ? partial.data : (partial.date !== undefined ? partial.date : existing.data);
+      const dayId = partial.dayId || (cleanDate ? `day_${cleanDate}` : existing.dayId);
       const updated: Shopping = {
         ...existing,
         ...partial,
-        id,
+        data: cleanDate,
+        date: cleanDate,
+        dayId,
+        id, // ID primario preservato
         updatedAt: Date.now()
       };
       await idbPut(STORES.SHOPPING, updated);
+      notifyDataChanged('shopping', 'save', updated);
     } catch (err) {
       console.error('[StorageService] Errore aggiornamento shopping:', err);
       throw err;
@@ -607,16 +677,23 @@ class StorageService {
 
   async saveShopping(s: Shopping): Promise<void> {
     const now = Date.now();
+    const cleanDate = s.data || s.date || '';
+    const dayId = s.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
     const item: Shopping = {
       ...s,
+      data: cleanDate,
+      date: cleanDate,
+      dayId,
       createdAt: s.createdAt || now,
       updatedAt: now
     };
     await idbPut(STORES.SHOPPING, item);
+    notifyDataChanged('shopping', 'save', item);
   }
 
   async deleteShopping(id: string): Promise<void> {
     await idbDelete(STORES.SHOPPING, id);
+    notifyDataChanged('shopping', 'delete', { id });
   }
 
   // --- SPESE & BUDGET ---
@@ -638,17 +715,19 @@ class StorageService {
       updatedAt: now
     };
     await idbPut(STORES.SPESE, item);
+    notifyDataChanged('spese', 'save', item);
   }
 
   async deleteSpesa(id: string): Promise<void> {
     await idbDelete(STORES.SPESE, id);
+    notifyDataChanged('spese', 'delete', { id });
   }
 
   // --- BACKUP & RIPRISTINO ---
 
   /** Esporta tutti i dati in una stringa JSON con metadati. */
   async exportAllData(): Promise<string> {
-    const [giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, shopping, spese] = await Promise.all([
+    const [giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, shopping, spese, routes] = await Promise.all([
       idbGetAll<Giorno>(STORES.GIORNI),
       idbGetAll<Attivita>(STORES.ATTIVITA),
       idbGetAll<Alloggio>(STORES.ALLOGGI),
@@ -658,11 +737,30 @@ class StorageService {
       idbGetAll<Ristorante>(STORES.RISTORANTI),
       idbGetAll<Shopping>(STORES.SHOPPING),
       idbGetAll<Spesa>(STORES.SPESE),
+      idbGetAll<RoutingCacheItem>(STORES.ROUTES),
     ]);
+
+    // Include live_status e preferenze da localStorage per un backup a 360 gradi
+    let liveStatus: Record<string, any> = {};
+    if (typeof localStorage !== 'undefined') {
+      try {
+        liveStatus = {
+          live_travel_status_message: localStorage.getItem('live_travel_status_message'),
+          live_travel_status_updated_at: localStorage.getItem('live_travel_status_updated_at'),
+          live_last_photo: localStorage.getItem('live_last_photo'),
+          live_current_location: localStorage.getItem('live_current_location'),
+          app_device_role: localStorage.getItem('app_device_role')
+        };
+      } catch (e) {
+        console.warn('[StorageService] Errore lettura local storage per backup live:', e);
+      }
+    }
+
     const backup = {
       version: 1,
       exportedAt: new Date().toISOString(),
-      data: { giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, shopping, spese },
+      data: { giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, shopping, spese, routes },
+      live_status: liveStatus
     };
     return JSON.stringify(backup, null, 2);
   }
@@ -688,12 +786,12 @@ class StorageService {
       throw new Error('Formato backup non riconosciuto (campi version/data mancanti).');
     }
 
-    const backup = parsed as { version: number; data: Record<string, unknown[]> };
+    const backup = parsed as { version: number; data: Record<string, unknown[]>; live_status?: Record<string, any> };
     if (backup.version !== 1) {
       throw new Error(`Versione backup non supportata (trovata: ${backup.version}, attesa: 1).`);
     }
 
-    const { data } = backup;
+    const { data, live_status } = backup;
     if (!data || typeof data !== 'object') {
       throw new Error('Struttura dati del backup non valida.');
     }
@@ -709,6 +807,7 @@ class StorageService {
       { key: 'ristoranti', store: STORES.RISTORANTI },
       { key: 'shopping', store: STORES.SHOPPING },
       { key: 'spese', store: STORES.SPESE },
+      { key: 'routes', store: STORES.ROUTES },
     ] as const;
 
     for (const { key, store } of stores) {
@@ -724,23 +823,38 @@ class StorageService {
       }
     }
 
+    // Ripristina live status se presente
+    if (live_status && typeof localStorage !== 'undefined') {
+      try {
+        if (live_status.live_travel_status_message) localStorage.setItem('live_travel_status_message', live_status.live_travel_status_message);
+        if (live_status.live_travel_status_updated_at) localStorage.setItem('live_travel_status_updated_at', live_status.live_travel_status_updated_at);
+        if (live_status.live_last_photo) localStorage.setItem('live_last_photo', live_status.live_last_photo);
+        if (live_status.live_current_location) localStorage.setItem('live_current_location', live_status.live_current_location);
+        if (live_status.app_device_role) localStorage.setItem('app_device_role', live_status.app_device_role);
+      } catch (e) {
+        console.warn('[StorageService] Errore ripristino live_status in local storage:', e);
+      }
+    }
+
+    notifyDataChanged('all', 'save');
     return true;
   }
 
   // --- TIMELINE OGGI ---
   async getTimelineForDate(dateStr: string): Promise<import('../types').TimelineItem[]> {
     try {
-      const [days, allActivities, transports, tappe, ristoranti, shoppingList] = await Promise.all([
+      const [days, allActivities, transports, tappe, ristoranti, shoppingList, accommodations] = await Promise.all([
         this.getDays(),
         this.getActivities(), // Prendi tutte le attività per filtraggio tollerante
         this.getTransports(),
         this.getTappe(),
         this.getRistoranti(),
-        this.getShopping()
+        this.getShopping(),
+        this.getAccommodations()
       ]);
       const day = days.find(d => d.date === dateStr);
       
-      // Filtra le attività includendo tutti gli elementi che soddisfano:
+      // 1. Filtra le attività includendo tutti gli elementi che soddisfano:
       // item.dayId === day?.id || item.dayId === 'day_' + dateStr || item.date === dateStr
       const activities = allActivities.filter(a => {
         if (day && a.dayId === day.id) return true;
@@ -749,14 +863,52 @@ class StorageService {
         return false;
       });
       
-      const dayTransports = transports.filter(t => t.date === dateStr);
-      const dayTappe = tappe.filter(t => t.data === dateStr);
-      const dayRistoranti = ristoranti.filter(r => r.data === dateStr);
-      const dayShopping = shoppingList.filter(s => s.data === dateStr);
+      // 2. Filtra Trasporti: data di partenza corrispondente a targetDate
+      // oppure volo notturno / noleggio continuativo che include targetDate
+      const dayTransports = transports.filter(t => {
+        if (t.date === dateStr) return true;
+        // Gestione noleggi e tratte con dropoffDate o arrivo trans-data
+        if (t.dropoffDate && t.date && t.date <= dateStr && t.dropoffDate >= dateStr) return true;
+        return false;
+      });
+
+      // 3. Filtra Tappe: data corrispondente o dayId 'day_' + dateStr
+      const dayTappe = tappe.filter(t => {
+        if (t.data === dateStr || t.date === dateStr) return true;
+        if (t.dayId === `day_${dateStr}`) return true;
+        if (day && t.dayId === day.id) return true;
+        return false;
+      });
+
+      // 4. Filtra Ristoranti: data corrispondente o dayId 'day_' + dateStr
+      const dayRistoranti = ristoranti.filter(r => {
+        if (r.data === dateStr || r.date === dateStr) return true;
+        if (r.dayId === `day_${dateStr}`) return true;
+        if (day && r.dayId === day.id) return true;
+        return false;
+      });
+
+      // 5. Filtra Shopping: data corrispondente o dayId 'day_' + dateStr
+      const dayShopping = shoppingList.filter(s => {
+        if (s.data === dateStr || s.date === dateStr) return true;
+        if (s.dayId === `day_${dateStr}`) return true;
+        if (day && s.dayId === day.id) return true;
+        return false;
+      });
+
+      // 6. Alloggi Notturni: l'alloggio deve comparire nella serata se targetDate >= checkIn && targetDate < checkOut
+      // oppure se checkIn === targetDate (checkIn day)
+      const dayAccommodations = accommodations.filter(acc => {
+        if (!acc.checkIn) return false;
+        if (acc.checkOut) {
+          return dateStr >= acc.checkIn && dateStr < acc.checkOut;
+        }
+        return acc.checkIn === dateStr;
+      });
       
       const timeline: import('../types').TimelineItem[] = [];
       
-      // 1. Spostamenti / Trasporti del giorno
+      // Trasporti del giorno
       dayTransports.forEach(t => {
         const time = t.departureTime || '08:00';
         const title = t.carrier ? `${t.type.toUpperCase()} • ${t.carrier}` : t.type.toUpperCase();
@@ -774,7 +926,7 @@ class StorageService {
         });
       });
 
-      // 2. Tappe programmate per la data
+      // Tappe programmate per la data
       dayTappe.forEach(t => {
         timeline.push({
           id: t.id,
@@ -789,7 +941,7 @@ class StorageService {
         });
       });
 
-      // 3. Attività
+      // Attività
       activities.forEach(a => {
         timeline.push({
           id: a.id,
@@ -804,7 +956,7 @@ class StorageService {
         });
       });
 
-      // 4. Prenotazioni Ristoranti
+      // Prenotazioni Ristoranti
       dayRistoranti.forEach(r => {
         timeline.push({
           id: r.id,
@@ -819,7 +971,7 @@ class StorageService {
         });
       });
 
-      // 5. Shopping & Acquisti
+      // Shopping & Acquisti
       dayShopping.forEach(s => {
         timeline.push({
           id: s.id,
@@ -831,6 +983,20 @@ class StorageService {
           copilota: s.copilota,
           coordinate: s.coordinate,
           originalData: s
+        });
+      });
+
+      // Alloggi notturni (posizionati a fine giornata alle 21:00)
+      dayAccommodations.forEach(acc => {
+        timeline.push({
+          id: acc.id,
+          type: 'alloggio',
+          time: '21:00',
+          title: `Pernottamento: ${acc.name}`,
+          location: acc.address || acc.location,
+          categoryOrType: 'alloggio',
+          coordinate: undefined,
+          originalData: acc
         });
       });
       

@@ -16,7 +16,7 @@ interface OggiViewProps {
   onNavigateTab?: (tab: SectionTab, categoria?: CategoriaTab) => void;
 }
 
-import { generateTripDays, calculateEarliestTripDate, type TripDayItem } from '../utils/tripDates';
+import { generateTripDays, getTripDateRange, type TripDayItem } from '../utils/tripDates';
 
 export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [tripDays, setTripDays] = useState<TripDayItem[]>(() => generateTripDays());
@@ -68,37 +68,15 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [accs, days, activities, transports, tappe, ristoranti, shoppingList] = await Promise.all([
+      const [accs, days, range] = await Promise.all([
         storageService.getAccommodations(),
         storageService.getDays(),
-        storageService.getActivities(),
-        storageService.getTransports(),
-        storageService.getTappe(),
-        storageService.getRistoranti(),
-        storageService.getShopping()
+        getTripDateRange()
       ]);
       setAccommodations(accs);
       setDaysData(days);
 
-      // Raccogli tutte le date presenti nel DB per calcolare l'inizio dinamico del viaggio
-      const allDates: (string | undefined)[] = [
-        ...days.map(d => d.date),
-        ...activities.map(a => {
-          if (a.date) return a.date;
-          const match = days.find(d => d.id === a.dayId);
-          if (match?.date) return match.date;
-          if (a.dayId.startsWith('day_')) return a.dayId.replace('day_', '');
-          return undefined;
-        }),
-        ...transports.map(t => t.date),
-        ...tappe.map(t => t.data),
-        ...ristoranti.map(r => r.data),
-        ...shoppingList.map(s => s.data),
-        ...accs.map(a => a.checkIn)
-      ];
-
-      const dynamicStartDate = calculateEarliestTripDate(allDates);
-      const dynamicDays = generateTripDays(dynamicStartDate);
+      const dynamicDays = range.tripDays;
       setTripDays(dynamicDays);
 
       // Se oggi ricade all'interno del viaggio, seleziona la data odierna al primissimo mount
@@ -110,7 +88,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         }
         // Se la data precedente non è valida nel nuovo intervallo, imposta la prima
         if (!dynamicDays.some(d => d.dateStr === prev) && prev === '2026-11-29') {
-          return dynamicStartDate;
+          return range.minTripDate;
         }
         return prev;
       });
@@ -129,8 +107,20 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     fetchTimeline();
   }, [fetchTimeline]);
 
-  // Ascolta eventi globali di aggiornamento attività (es. da altri componenti o viste)
+  // Ascolta eventi globali di mutazione dati (roadbook_data_mutated) e aggiornamento attività
   useEffect(() => {
+    const handleDataMutated = (e: Event) => {
+      const customEvt = e as CustomEvent<{ entityType?: string; action?: string; data?: any }>;
+      const targetDate = customEvt.detail?.data?.date || customEvt.detail?.data?.data;
+      if (targetDate) {
+        setSelectedDate(targetDate);
+        fetchTimeline(targetDate);
+      } else {
+        fetchTimeline();
+      }
+      loadData();
+    };
+
     const handleActivityUpdated = (e: Event) => {
       const customEvt = e as CustomEvent<{ date?: string; dayId?: string }>;
       if (customEvt.detail?.date) {
@@ -141,8 +131,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       }
       loadData();
     };
+
+    window.addEventListener('roadbook_data_mutated', handleDataMutated);
     window.addEventListener('activity_updated', handleActivityUpdated);
-    return () => window.removeEventListener('activity_updated', handleActivityUpdated);
+    return () => {
+      window.removeEventListener('roadbook_data_mutated', handleDataMutated);
+      window.removeEventListener('activity_updated', handleActivityUpdated);
+    };
   }, [fetchTimeline, loadData]);
 
   const handleOpenEditFromDetail = (item: TimelineItem) => {
