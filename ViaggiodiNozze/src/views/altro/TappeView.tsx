@@ -49,6 +49,14 @@ export default function TappeView({ onBack }: TappeViewProps) {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    const handleDataMutated = () => {
+      loadData();
+    };
+    window.addEventListener('roadbook_data_mutated', handleDataMutated);
+    return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
+  }, [loadData]);
+
   const handleOpenAdd = () => {
     setEditingTappa(null);
     setIsModalOpen(true);

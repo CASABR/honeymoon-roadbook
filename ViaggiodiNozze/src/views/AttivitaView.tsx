@@ -79,6 +79,14 @@ export default function AttivitaView() {
     loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    const handleDataMutated = () => {
+      loadData();
+    };
+    window.addEventListener('roadbook_data_mutated', handleDataMutated);
+    return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
+  }, [loadData]);
+
   // --- Handlers Giorno ---
   const handleOpenAddDay = () => {
     setEditingDay(null);

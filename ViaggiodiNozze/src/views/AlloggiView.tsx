@@ -33,6 +33,14 @@ export default function AlloggiView() {
     loadData();
   }, []);
 
+  useEffect(() => {
+    const handleDataMutated = () => {
+      loadData();
+    };
+    window.addEventListener('roadbook_data_mutated', handleDataMutated);
+    return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
+  }, []);
+
   const handleOpenAdd = () => {
     setEditingAccommodation(null);
     setIsModalOpen(true);

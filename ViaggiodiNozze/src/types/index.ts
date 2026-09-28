@@ -41,6 +41,8 @@ export interface Tappa {
   id: string;
   titolo: string;
   data?: string; // YYYY-MM-DD
+  date?: string; // Alias di data YYYY-MM-DD
+  dayId?: string;
   coordinate?: Coordinate;
   mapsUrl?: string; // Link o indirizzo Maps
   nota?: string;
@@ -53,6 +55,8 @@ export interface Ristorante {
   id: string;
   nome: string;
   data?: string; // YYYY-MM-DD
+  date?: string; // Alias di data YYYY-MM-DD
+  dayId?: string;
   orario?: string; // HH:mm
   budget?: string; // es. 45 €
   coordinate?: Coordinate;
@@ -170,6 +174,8 @@ export interface Shopping {
   id: string;
   nome: string;
   data?: string; // YYYY-MM-DD
+  date?: string; // Alias di data YYYY-MM-DD
+  dayId?: string;
   orario?: string; // HH:mm
   budget?: string; // es. 50 €
   coordinate?: Coordinate;

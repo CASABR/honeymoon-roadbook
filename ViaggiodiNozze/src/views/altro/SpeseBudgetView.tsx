@@ -104,6 +104,14 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
     loadAllData();
   }, []);
 
+  useEffect(() => {
+    const handleDataMutated = () => {
+      loadAllData();
+    };
+    window.addEventListener('roadbook_data_mutated', handleDataMutated);
+    return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
+  }, []);
+
   // Aggregated Cost Computations
   const stats = useMemo(() => {
     // 1. Spese manuali
