@@ -35,6 +35,15 @@ const DESTINATION_ZONES: DestinationTimezone[] = [
 const DEFAULT_STATUS_MESSAGE = "Siamo arrivati! Tutto bene ❤️ Ci stiamo godendo ogni momento di questa avventura incredibile!";
 const STATUS_MESSAGE_KEY = "live_travel_status_message";
 const STATUS_DATE_KEY = "live_travel_status_updated_at";
+const SPOSI_ADMIN_KEY = "is_sposi_admin";
+const SPOSI_PIN = "2026";
+const LAST_PHOTO_KEY = "live_last_photo";
+
+interface CustomLivePhoto {
+  dataUrl: string;
+  caption: string;
+  timestamp: string;
+}
 
 export default function LiveView({ onBack, isStandaloneExternal = false }: LiveViewProps) {
   const [now, setNow] = useState<Date>(new Date());
@@ -103,6 +112,134 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
       handleDetectGps(true);
     }
   }, [handleDetectGps]);
+
+  // Modalità Sposi (Admin / Master) sbloccabile con PIN o salvata in localStorage
+  const [isSposiAdmin, setIsSposiAdmin] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(SPOSI_ADMIN_KEY) === 'true';
+    }
+    return false;
+  });
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState(false);
+
+  // Foto personalizzata per "Ultimo aggiornamento"
+  const [customPhoto, setCustomPhoto] = useState<CustomLivePhoto | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem(LAST_PHOTO_KEY);
+        if (raw) return JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [photoCaptionInput, setPhotoCaptionInput] = useState('');
+  const [showCaptionModal, setShowCaptionModal] = useState(false);
+  const [pendingPhotoUrl, setPendingPhotoUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Compressione immagine su canvas (max 1200px, JPEG 0.75)
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1200;
+          let { width, height } = img;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Canvas context non disponibile'));
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.75);
+          resolve(compressed);
+        };
+        img.onerror = () => reject(new Error('Errore nel caricamento immagine'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Errore lettura file'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setIsUploadingPhoto(true);
+      const dataUrl = await compressImage(file);
+      setPendingPhotoUrl(dataUrl);
+      setPhotoCaptionInput('');
+      setShowCaptionModal(true);
+    } catch (err) {
+      console.error('Errore compressione foto:', err);
+    } finally {
+      setIsUploadingPhoto(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleSaveCustomPhoto = () => {
+    if (!pendingPhotoUrl) return;
+    const photoObj: CustomLivePhoto = {
+      dataUrl: pendingPhotoUrl,
+      caption: photoCaptionInput.trim() || 'Foto scattata dagli sposi ❤️',
+      timestamp: new Date().toISOString()
+    };
+    setCustomPhoto(photoObj);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(LAST_PHOTO_KEY, JSON.stringify(photoObj));
+    }
+    setShowCaptionModal(false);
+    setPendingPhotoUrl(null);
+  };
+
+  const handleResetPhoto = () => {
+    setCustomPhoto(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(LAST_PHOTO_KEY);
+    }
+  };
+
+  // Verifica PIN Sposi
+  const handleVerifyPin = () => {
+    if (pinInput.trim() === SPOSI_PIN) {
+      setIsSposiAdmin(true);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(SPOSI_ADMIN_KEY, 'true');
+      }
+      setShowPinModal(false);
+      setPinInput('');
+      setPinError(false);
+    } else {
+      setPinError(true);
+    }
+  };
+
+  const handleLogoutSposi = () => {
+    setIsSposiAdmin(false);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(SPOSI_ADMIN_KEY);
+    }
+  };
 
   // Modalità modifica messaggio (riservata e discreta per gli sposi)
   const [isEditingStatus, setIsEditingStatus] = useState(false);
@@ -573,8 +710,32 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     return resolveMapUrl(currentLocation.title || currentLocation.city);
   }, [currentLocation]);
 
-  // Foto d'ispirazione / copertina per la sezione foto
+  // Foto d'ispirazione / copertina per la sezione foto (priorità a foto reale caricata dagli sposi)
   const photoUpdateData = useMemo(() => {
+    if (customPhoto) {
+      const timeAgo = (() => {
+        try {
+          const diffMs = Date.now() - new Date(customPhoto.timestamp).getTime();
+          const diffMin = Math.floor(diffMs / 60000);
+          if (diffMin < 1) return 'Pochi istanti fa';
+          if (diffMin < 60) return `${diffMin} min fa`;
+          const diffHours = Math.floor(diffMin / 60);
+          if (diffHours < 24) return `${diffHours} ore fa`;
+          const diffDays = Math.floor(diffHours / 24);
+          return `${diffDays} giorni fa`;
+        } catch {
+          return 'Recente';
+        }
+      })();
+
+      return {
+        url: customPhoto.dataUrl,
+        caption: customPhoto.caption,
+        tag: `📸 Sposi • ${timeAgo}`,
+        isCustom: true
+      };
+    }
+
     const locLower = `${currentLocation.title} ${currentLocation.city}`.toLowerCase();
     
     if (locLower.includes('filippine') || locLower.includes('coron') || locLower.includes('el nido') || locLower.includes('palawan')) {
@@ -611,7 +772,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
       caption: 'Inizio del viaggio on the road • Verso la baia di Auckland',
       tag: '🇳🇿 Nuova Zelanda'
     };
-  }, [currentLocation]);
+  }, [currentLocation, customPhoto]);
 
   // Calcolo stato temporale per la timeline (Completato, ORA, Previsto)
   const evaluatedTimeline = useMemo(() => {
@@ -760,6 +921,34 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
               </svg>
               <span>{copiedLink ? '✓ Link Copiato!' : 'Condividi Live'}</span>
             </button>
+          )}
+
+          {/* Pulsante discreto Modalità Sposi (Luchetto / Cuore) */}
+          {!isStandaloneExternal && (
+            isSposiAdmin ? (
+              <button
+                type="button"
+                onClick={handleLogoutSposi}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-100 hover:bg-rose-200 text-rose-800 text-[10px] font-bold border border-rose-300 transition-all cursor-pointer shadow-2xs active:scale-95"
+                title="Sei in modalità Sposi • Tocca per uscire"
+              >
+                <span>💍 Sposi</span>
+                <span className="text-[9px] text-rose-600">✕</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setPinInput('');
+                  setPinError(false);
+                  setShowPinModal(true);
+                }}
+                className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-all cursor-pointer text-xs"
+                title="Accesso riservato Sposi"
+              >
+                🔒
+              </button>
+            )
           )}
 
           {/* Badge discreto con puntino verde pulsante */}
@@ -1064,8 +1253,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
           </div>
         </div>
 
-        {/* Pulsante di acquisizione GPS reale riservato agli sposi */}
-        {!isStandaloneExternal && (
+        {/* Pulsante di acquisizione GPS reale (riservato esclusivamente agli sposi in modalità Sposi) */}
+        {!isStandaloneExternal && isSposiAdmin && (
           <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
             <button
               type="button"
@@ -1075,7 +1264,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
             >
               <span>{isDetectingGps ? '🛰️' : '📡'}</span>
               <span>
-                {isDetectingGps ? 'Rilevamento satellitare in corso...' : 'Aggiorna posizione adesso'}
+                {isDetectingGps ? 'Rilevamento satellitare in corso...' : 'Aggiorna GPS da questo telefono'}
               </span>
             </button>
 
@@ -1092,16 +1281,50 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
         )}
       </div>
 
-      {/* 4. CARD "📸 Ultimo Aggiornamento" (La foto del momento) */}
+      {/* 4. CARD "📸 Ultimo Aggiornamento" (La foto del momento con upload per Sposi) */}
       <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs space-y-2.5">
         <div className="flex items-center justify-between text-xs">
           <span className="font-bold text-slate-900 flex items-center gap-1.5">
             <span>📸</span>
             <span>Ultimo Aggiornamento</span>
           </span>
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-            {photoUpdateData.tag}
-          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
+              {photoUpdateData.tag}
+            </span>
+            {/* Pulsanti gestione foto per Sposi */}
+            {!isStandaloneExternal && isSposiAdmin && (
+              <div className="flex items-center gap-1">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handlePhotoSelect}
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingPhoto}
+                  className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
+                  title="Scatta o carica una nuova foto dallo smartphone"
+                >
+                  {isUploadingPhoto ? 'Caricamento...' : '📷 Cambia Foto'}
+                </button>
+                {photoUpdateData.isCustom && (
+                  <button
+                    type="button"
+                    onClick={handleResetPhoto}
+                    className="text-[10px] font-medium text-slate-400 hover:text-slate-600 px-1 py-0.5"
+                    title="Ripristina foto predefinita"
+                  >
+                    ↺
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Riquadro fotografico immersivo */}
@@ -1113,7 +1336,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
             loading="lazy"
           />
           {/* Gradiente scuro sul fondo per leggibilità micro-didascalia */}
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent p-3 pt-6">
+          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent p-3 pt-6 flex items-center justify-between gap-2">
             <p className="text-white text-xs font-semibold drop-shadow-xs line-clamp-1">
               📷 {photoUpdateData.caption}
             </p>
@@ -1128,18 +1351,18 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
             <span className="text-lg">💬</span>
             <h3 className="font-bold text-rose-950 text-sm">Messaggio da noi</h3>
           </div>
-          {/* Tocco discreto e minimale per gli sposi per modificare il testo (nascosto se esterno) */}
-          {!isStandaloneExternal && (
+          {/* Tocco discreto per gli sposi per modificare il testo (solo se in modalità Sposi) */}
+          {!isStandaloneExternal && isSposiAdmin && (
             <button
               type="button"
               onClick={() => {
                 setTempStatus(statusMessage);
                 setIsEditingStatus(prev => !prev);
               }}
-              className="text-[10px] font-semibold text-rose-700/60 hover:text-rose-800 transition-colors cursor-pointer px-1 py-0.5 rounded"
-              title="Modifica stato"
+              className="text-[10px] font-bold text-rose-700 bg-rose-100 hover:bg-rose-200 transition-colors cursor-pointer px-2 py-0.5 rounded-full"
+              title="Modifica messaggio per la famiglia"
             >
-              {isEditingStatus ? 'Annulla' : '•••'}
+              {isEditingStatus ? 'Annulla' : '✏️ Modifica'}
             </button>
           )}
         </div>
@@ -1271,6 +1494,118 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
           </div>
         )}
       </div>
+
+      {/* MODAL PIN SPOSI */}
+      {showPinModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl p-6 max-w-xs w-full shadow-2xl border border-slate-100 text-center animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-2xl mx-auto mb-3">
+              🔒
+            </div>
+            <h3 className="font-extrabold text-slate-800 text-base">Accesso Sposi</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-4">
+              Inserisci il PIN per sbloccare le funzioni di aggiornamento e upload foto.
+            </p>
+            <form onSubmit={handleVerifyPin} className="space-y-3">
+              <input
+                type="password"
+                inputMode="numeric"
+                maxLength={8}
+                value={pinInput}
+                onChange={(e) => {
+                  setPinInput(e.target.value);
+                  setPinError(false);
+                }}
+                placeholder="PIN (es. 2026)"
+                autoFocus
+                className="w-full text-center text-lg tracking-widest font-mono py-2.5 px-3 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+              />
+              {pinError && (
+                <p className="text-[11px] text-red-600 font-semibold">PIN non corretto. Riprova.</p>
+              )}
+              <div className="flex gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPinModal(false)}
+                  className="flex-1 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-black rounded-xl transition-colors cursor-pointer"
+                >
+                  Sblocca
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DIDASCALIA FOTO */}
+      {showCaptionModal && pendingPhotoUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between">
+              <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
+                <span>📷</span> Conferma Nuova Foto
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCaptionModal(false);
+                  setPendingPhotoUrl(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 text-sm cursor-pointer p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="rounded-xl overflow-hidden aspect-video border border-slate-200 bg-slate-100 shadow-inner">
+              <img
+                src={pendingPhotoUrl}
+                alt="Anteprima"
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 mb-1">
+                Didascalia o Luogo
+              </label>
+              <input
+                type="text"
+                value={photoCaptionInput}
+                onChange={(e) => setPhotoCaptionInput(e.target.value)}
+                placeholder="es. Spiaggia di Muri • Rarotonga"
+                className="w-full text-xs py-2 px-3 rounded-xl border border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCaptionModal(false);
+                  setPendingPhotoUrl(null);
+                }}
+                className="flex-1 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCustomPhoto}
+                className="flex-1 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer shadow-xs"
+              >
+                Salva e Pubblica
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
