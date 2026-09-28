@@ -202,8 +202,20 @@ class StorageService {
 
   async saveActivity(activity: Attivita): Promise<void> {
     const now = Date.now();
+    let finalDayId = activity.dayId;
+    let finalDate = activity.date;
+
+    // Se l'attività ha una proprietà date valida, assicurati che dayId sia coerente
+    if (finalDate && (!finalDayId || finalDayId.startsWith('day_'))) {
+      finalDayId = `day_${finalDate}`;
+    } else if (!finalDate && finalDayId && finalDayId.startsWith('day_')) {
+      finalDate = finalDayId.replace('day_', '');
+    }
+
     const item: Attivita = {
       ...activity,
+      dayId: finalDayId,
+      date: finalDate,
       createdAt: activity.createdAt || now,
       updatedAt: now
     };
@@ -718,15 +730,24 @@ class StorageService {
   // --- TIMELINE OGGI ---
   async getTimelineForDate(dateStr: string): Promise<import('../types').TimelineItem[]> {
     try {
-      const [days, transports, tappe, ristoranti, shoppingList] = await Promise.all([
+      const [days, allActivities, transports, tappe, ristoranti, shoppingList] = await Promise.all([
         this.getDays(),
+        this.getActivities(), // Prendi tutte le attività per filtraggio tollerante
         this.getTransports(),
         this.getTappe(),
         this.getRistoranti(),
         this.getShopping()
       ]);
       const day = days.find(d => d.date === dateStr);
-      const activities = day ? await this.getActivities(day.id) : [];
+      
+      // Filtra le attività includendo tutti gli elementi che soddisfano:
+      // item.dayId === day?.id || item.dayId === 'day_' + dateStr || item.date === dateStr
+      const activities = allActivities.filter(a => {
+        if (day && a.dayId === day.id) return true;
+        if (a.dayId === `day_${dateStr}`) return true;
+        if (a.date === dateStr) return true;
+        return false;
+      });
       
       const dayTransports = transports.filter(t => t.date === dateStr);
       const dayTappe = tappe.filter(t => t.data === dateStr);

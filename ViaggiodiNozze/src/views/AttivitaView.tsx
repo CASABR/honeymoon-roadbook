@@ -146,6 +146,8 @@ export default function AttivitaView() {
     setEditingActivity(null);
 
     const matchedDay = days.find(d => d.id === activityToSave.dayId);
+    const targetDate = activityToSave.date || matchedDay?.date || (activityToSave.dayId.startsWith('day_') ? activityToSave.dayId.replace('day_', '') : null);
+
     if (matchedDay?.date) {
       setSelectedDate(matchedDay.date);
       setSelectedDayId(matchedDay.id);
@@ -153,6 +155,12 @@ export default function AttivitaView() {
       const freeDate = activityToSave.dayId.replace('day_', '');
       setSelectedDate(freeDate);
       setSelectedDayId(activityToSave.dayId);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('activity_updated', {
+        detail: { activity: activityToSave, date: targetDate, dayId: activityToSave.dayId }
+      }));
     }
 
     await loadData();
