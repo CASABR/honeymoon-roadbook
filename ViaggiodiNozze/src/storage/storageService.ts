@@ -139,14 +139,17 @@ class StorageService {
     }
 
     try {
-      const [days, activities, transports] = await Promise.all([
+      const [days, activities, transports, tappe, docs] = await Promise.all([
         idbGetAll<Giorno>(STORES.GIORNI),
         idbGetAll<Attivita>(STORES.ATTIVITA),
-        idbGetAll<Trasporto>(STORES.TRASPORTI)
+        idbGetAll<Trasporto>(STORES.TRASPORTI),
+        idbGetAll<Tappa>(STORES.TAPPE),
+        idbGetAll<TravelDocument>(STORES.DOCUMENTI)
       ]);
 
       // Se esiste già un qualsiasi dato salvato in IndexedDB, consideriamo l'app inizializzata
-      if (days.length > 0 || activities.length > 0 || transports.length > 0) {
+      // e NON TOCCARE MAI PIÙ NESSUN DATO per evitare di ripristinare il 29 al posto del 28
+      if (days.length > 0 || activities.length > 0 || transports.length > 0 || tappe.length > 0 || docs.length > 0) {
         localStorage.setItem(SEED_FLAG_KEY, 'true');
         return;
       }

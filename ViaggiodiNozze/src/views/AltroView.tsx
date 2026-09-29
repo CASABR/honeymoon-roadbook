@@ -130,23 +130,11 @@ export default function AltroView() {
           <span className="text-2xl">🛡️</span>
           <div>
             <h3 className="font-extrabold text-slate-900 text-sm leading-tight">Assicurazione</h3>
-            <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">Polizza, contatti, copertura h24 con chiamata rapida</p>
+            <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">Polizza, H24, massimali, emergenze</p>
           </div>
         </button>
 
-        {/* Card 2: Documenti */}
-        <button 
-          onClick={() => setActiveSubView('documenti')}
-          className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:shadow-md hover:border-slate-300 transition-all text-left flex flex-col gap-2 min-h-[105px] cursor-pointer active:scale-[0.98]"
-        >
-          <span className="text-2xl">📑</span>
-          <div>
-            <h3 className="font-extrabold text-slate-900 text-sm leading-tight">Documenti</h3>
-            <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">Passaporti, visti, patenti, scadenze</p>
-          </div>
-        </button>
-
-        {/* Card 3: Numeri Emergenza */}
+        {/* Card 2: Numeri Emergenza */}
         <button 
           onClick={() => setActiveSubView('emergenza')}
           className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:shadow-md hover:border-slate-300 transition-all text-left flex flex-col gap-2 min-h-[105px] cursor-pointer active:scale-[0.98]"
@@ -158,7 +146,7 @@ export default function AltroView() {
           </div>
         </button>
 
-        {/* Card 4: Info utili */}
+        {/* Card 3: Info utili */}
         <button 
           onClick={() => setActiveSubView('info')}
           className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:shadow-md hover:border-slate-300 transition-all text-left flex flex-col gap-2 min-h-[105px] cursor-pointer active:scale-[0.98]"
@@ -170,7 +158,7 @@ export default function AltroView() {
           </div>
         </button>
 
-        {/* Card 5: Spese & Budget */}
+        {/* Card 4: Spese & Budget */}
         <button 
           onClick={() => setActiveSubView('spese')}
           className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:shadow-md hover:border-slate-300 transition-all text-left flex flex-col gap-2 min-h-[105px] cursor-pointer active:scale-[0.98]"
@@ -182,7 +170,7 @@ export default function AltroView() {
           </div>
         </button>
 
-        {/* Card 6: Lista bagagli */}
+        {/* Card 5: Lista bagagli */}
         <button 
           onClick={() => setActiveSubView('bagagli')}
           className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:shadow-md hover:border-slate-300 transition-all text-left flex flex-col gap-2 min-h-[105px] cursor-pointer active:scale-[0.98]"
@@ -194,7 +182,7 @@ export default function AltroView() {
           </div>
         </button>
 
-        {/* Card 7: Note di viaggio */}
+        {/* Card 6: Note di viaggio */}
         <button 
           onClick={() => setActiveSubView('note')}
           className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:shadow-md hover:border-slate-300 transition-all text-left flex flex-col gap-2 min-h-[105px] cursor-pointer active:scale-[0.98]"
@@ -206,21 +194,21 @@ export default function AltroView() {
           </div>
         </button>
 
-        {/* Card Full Width: Documenti del Viaggio */}
+        {/* Card Full Width Unificata: Documenti del Viaggio */}
         <button 
-          onClick={() => setActiveSubView('galleria')}
-          className="col-span-2 bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:shadow-md hover:border-slate-300 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
+          onClick={() => setActiveSubView('documenti')}
+          className="col-span-2 bg-gradient-to-r from-indigo-50/70 via-white to-sky-50/60 rounded-3xl p-4.5 border border-indigo-200/90 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
         >
           <div className="flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 text-xl shrink-0 shadow-2xs border border-indigo-100">
-              📂
+            <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white text-2xl shrink-0 shadow-md shadow-indigo-600/20">
+              📑
             </div>
             <div className="text-left">
-              <h3 className="font-extrabold text-slate-900 text-sm">Documenti del viaggio</h3>
-              <p className="text-[11px] text-slate-500 mt-0.5">Galleria allegati e PDF caricati</p>
+              <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">Documenti del Viaggio</h3>
+              <p className="text-xs text-slate-600 mt-0.5">Passaporti, visti NZeTA, patenti, voucher e file salvati</p>
             </div>
           </div>
-          <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-indigo-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
           </svg>
         </button>

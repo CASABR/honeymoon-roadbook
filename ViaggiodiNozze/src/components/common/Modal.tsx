@@ -56,8 +56,8 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
           </button>
         </div>
 
-        {/* Scrollable Body con padding inferiore per non nascondere azioni */}
-        <div className="p-6 pb-24 overflow-y-auto space-y-4">
+        {/* Scrollable Body con max-h-[80vh] e padding inferiore */}
+        <div className="p-6 max-h-[80vh] overflow-y-auto pb-20 space-y-4">
           {children}
         </div>
       </div>

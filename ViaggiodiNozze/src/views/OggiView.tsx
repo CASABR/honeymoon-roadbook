@@ -768,8 +768,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         </div>
       )}
 
-      {/* Spacer di sicurezza finale per non coprire card con barra dock */}
-      <div className="h-6" aria-hidden="true" />
+      {/* Spacer invisibile a fine pagina per consentire di scrollare l'ultima card interamente sopra la dock */}
+      <div className="h-36 w-full shrink-0" aria-hidden="true" />
 
       {/* Modale Dettaglio Timeline */}
       <TimelineItemDetailModal
