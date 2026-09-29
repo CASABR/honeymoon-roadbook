@@ -138,8 +138,10 @@ export interface Trasporto {
   layover?: {
     airport: string;
     duration?: string;
-    arrivalTime?: string;
-    departureTime?: string;
+    arrivalTime?: string; // Arrivo allo scalo (Tratta 1)
+    departureTime?: string; // Partenza dallo scalo (Tratta 2)
+    departureDate?: string; // Data di ripartenza (se diversa dal giorno di arrivo)
+    carrier?: string; // Compagnia/Numero volo Tratta 2
     notes?: string;
   };
   notes?: string;

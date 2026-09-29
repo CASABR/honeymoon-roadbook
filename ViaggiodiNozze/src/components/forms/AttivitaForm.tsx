@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Attivita, CategoriaAttivita, StatoAttivita } from '../../types';
+import { storageService } from '../../storage/storageService';
 
 interface AttivitaFormProps {
   days: any[]; // mantenuto per retrocompatibilità prop, ma non usato logicamente
@@ -27,6 +28,8 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
   const [status, setStatus] = useState<StatoAttivita>('pianificata');
   
   const [error, setError] = useState('');
+  const [conflictWarning, setConflictWarning] = useState('');
+  const [isConflictConfirmed, setIsConflictConfirmed] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -75,7 +78,12 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
     }
   }, [initialData, selectedDayId]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    setIsConflictConfirmed(false);
+    setConflictWarning('');
+  }, [time, customDate]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!customDate) {
@@ -86,7 +94,24 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       setError('Il titolo dell\'attività è obbligatorio.');
       return;
     }
+
+    // Validazione Sovrapposizione
+    if (!isConflictConfirmed && time && customDate) {
+      try {
+        const timeline = await storageService.getTimelineForDate(customDate);
+        const conflict = timeline.find(item => item.time === time && item.id !== initialData?.id);
+        if (conflict) {
+          setConflictWarning(`⚠️ Attenzione: hai già programmato "${conflict.title}" alle ${time}.`);
+          setIsConflictConfirmed(true);
+          return;
+        }
+      } catch (err) {
+        console.error('Errore validazione sovrapposizione:', err);
+      }
+    }
+
     setError('');
+    setConflictWarning('');
 
     const finalDayId = `day_${customDate}`;
 
@@ -114,6 +139,13 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       {error && (
         <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
           {error}
+        </div>
+      )}
+      
+      {conflictWarning && (
+        <div className="p-3 text-xs rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
+          {conflictWarning}
+          <div className="mt-1 font-semibold">Clicca di nuovo Salva per confermare comunque.</div>
         </div>
       )}
 
