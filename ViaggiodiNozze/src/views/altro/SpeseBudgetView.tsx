@@ -5,7 +5,7 @@ import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 
 interface SpeseBudgetViewProps {
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 const CATEGORIE_CONFIG: Record<
@@ -813,13 +813,29 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
                           <span className="text-xs font-black text-slate-900 font-mono block">
                             € {item.amount.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span>
-                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-block ${
-                            isPaid
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-rose-50 text-rose-700 border border-rose-200'
-                          }`}>
-                            {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
-                          </span>
+                          
+                          {/* Toggle interattivo Saldato / Da saldare con persistenza immediata */}
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const newStatus = isPaid ? 'da_saldare' : 'saldato';
+                              const updated: Spesa = {
+                                ...item,
+                                status: newStatus,
+                                updatedAt: Date.now()
+                              };
+                              await storageService.saveSpesa(updated);
+                              await loadAllData();
+                            }}
+                            className={`text-[9px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 transition-all cursor-pointer active:scale-95 border ${
+                              isPaid
+                                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 shadow-2xs'
+                                : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 shadow-2xs'
+                            }`}
+                            title="Tocca per cambiare stato pagamento"
+                          >
+                            <span>{isPaid ? '🟢 Saldato' : '🟡 Da saldare'}</span>
+                          </button>
                         </div>
 
                         {canEdit && (

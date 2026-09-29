@@ -188,7 +188,7 @@ export interface Shopping {
 }
 
 export type SectionTab = 'oggi' | 'categorie' | 'altro';
-export type CategoriaTab = 'tappe' | 'attivita' | 'ristoranti' | 'alloggi' | 'trasporti' | 'shopping';
+export type CategoriaTab = 'tappe' | 'attivita' | 'ristoranti' | 'alloggi' | 'trasporti' | 'shopping' | 'spese';
 
 export interface TimelineItem {
   id: string;

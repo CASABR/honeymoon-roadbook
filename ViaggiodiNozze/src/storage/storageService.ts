@@ -1007,21 +1007,33 @@ class StorageService {
         });
       });
 
-      // Alloggi notturni (posizionati a fine giornata alle 21:00)
+      // Alloggi notturni (singolo promemoria a fine giornata alle 21:00)
+      const seenAccIds = new Set<string>();
       dayAccommodations.forEach(acc => {
-        timeline.push({
-          id: acc.id,
-          type: 'alloggio',
-          time: '21:00',
-          title: `Pernottamento: ${acc.name}`,
-          location: acc.address || acc.location,
-          categoryOrType: 'alloggio',
-          coordinate: undefined,
-          originalData: acc
-        });
+        if (!seenAccIds.has(acc.id)) {
+          seenAccIds.add(acc.id);
+          timeline.push({
+            id: acc.id,
+            type: 'alloggio',
+            time: '21:00',
+            title: `Pernottamento presso: ${acc.name}`,
+            location: acc.address || acc.location,
+            categoryOrType: 'alloggio',
+            coordinate: undefined,
+            originalData: acc
+          });
+        }
       });
       
-      const merged = timeline.sort((a, b) => a.time.localeCompare(b.time));
+      // Deduplicazione stringente per item.id complessivo
+      const uniqueMap = new Map<string, import('../types').TimelineItem>();
+      timeline.forEach(item => {
+        if (!uniqueMap.has(item.id)) {
+          uniqueMap.set(item.id, item);
+        }
+      });
+
+      const merged = Array.from(uniqueMap.values()).sort((a, b) => a.time.localeCompare(b.time));
       
       return merged;
     } catch (err) {

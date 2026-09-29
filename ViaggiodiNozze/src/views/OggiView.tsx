@@ -50,6 +50,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   };
 
   const [timeline, setTimeline] = useState<import('../types').TimelineItem[]>([]);
+  const [tomorrowTimeline, setTomorrowTimeline] = useState<import('../types').TimelineItem[]>([]);
+  const [dynamicCountries, setDynamicCountries] = useState<string>('Nuova Zelanda, Australia & Filippine');
+
+  const calendarContainerRef = React.useRef<HTMLDivElement>(null);
+  const selectedDayBtnRef = React.useRef<HTMLButtonElement>(null);
 
   // Modali Dettaglio e Modifica
   const [detailItem, setDetailItem] = useState<TimelineItem | null>(null);
@@ -60,22 +65,98 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [editingRistoranteItem, setEditingRistoranteItem] = useState<Ristorante | null>(null);
   const [editingShoppingItem, setEditingShoppingItem] = useState<Shopping | null>(null);
 
+  const getTomorrowDateStr = (dateStr: string): string => {
+    try {
+      const d = new Date(`${dateStr}T12:00:00`);
+      d.setDate(d.getDate() + 1);
+      return d.toISOString().split('T')[0];
+    } catch {
+      return '';
+    }
+  };
+
   const fetchTimeline = useCallback(async (dateToFetch?: string) => {
     const target = dateToFetch || selectedDate;
     const items = await storageService.getTimelineForDate(target);
     setTimeline(items);
+
+    // Carica anche la timeline di domani
+    const tomorrowStr = getTomorrowDateStr(target);
+    if (tomorrowStr) {
+      const tItems = await storageService.getTimelineForDate(tomorrowStr);
+      setTomorrowTimeline(tItems);
+    } else {
+      setTomorrowTimeline([]);
+    }
   }, [selectedDate]);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [accs, days, range] = await Promise.all([
+      const [accs, days, range, transports, tappe] = await Promise.all([
         storageService.getAccommodations(),
         storageService.getDays(),
-        getTripDateRange()
+        getTripDateRange(),
+        storageService.getTransports(),
+        storageService.getTappe()
       ]);
       setAccommodations(accs);
       setDaysData(days);
+
+      // Calcolo dinamico paesi visitati aggregando dai dati del DB
+      const countrySet = new Set<string>();
+      const detectCountry = (text?: string) => {
+        if (!text) return;
+        const lower = text.toLowerCase();
+        if (lower.includes('zealand') || lower.includes('zelanda') || lower.includes('auckland') || lower.includes('rotorua') || lower.includes('queenstown') || lower.includes('christchurch') || lower.includes('wellington')) {
+          countrySet.add('Nuova Zelanda');
+        }
+        if (lower.includes('australia') || lower.includes('sydney') || lower.includes('melbourne') || lower.includes('cairns') || lower.includes('brisbane')) {
+          countrySet.add('Australia');
+        }
+        if (lower.includes('filippine') || lower.includes('philippines') || lower.includes('manila') || lower.includes('el nido') || lower.includes('coron') || lower.includes('boracay') || lower.includes('cebu')) {
+          countrySet.add('Filippine');
+        }
+        if (lower.includes('cook') || lower.includes('rarotonga') || lower.includes('aitutaki')) {
+          countrySet.add('Isole Cook');
+        }
+        if (lower.includes('italia') || lower.includes('italy') || lower.includes('milano') || lower.includes('roma')) {
+          countrySet.add('Italia');
+        }
+      };
+
+      transports.forEach(t => {
+        detectCountry(t.departureLocation);
+        detectCountry(t.arrivalLocation);
+      });
+      tappe.forEach(tp => {
+        detectCountry(tp.titolo);
+        detectCountry(tp.nota);
+      });
+      accs.forEach(a => {
+        detectCountry(a.location);
+        detectCountry(a.address);
+      });
+      days.forEach(d => {
+        detectCountry(d.location);
+        detectCountry(d.title);
+      });
+
+      if (countrySet.size > 0) {
+        // Ordina mettendo Nuova Zelanda, Australia, Filippine prima se presenti
+        const order = ['Nuova Zelanda', 'Australia', 'Filippine', 'Isole Cook', 'Italia'];
+        const sorted = Array.from(countrySet).sort((a, b) => {
+          const idxA = order.indexOf(a);
+          const idxB = order.indexOf(b);
+          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+          if (idxA !== -1) return -1;
+          if (idxB !== -1) return 1;
+          return a.localeCompare(b);
+        });
+        setDynamicCountries(sorted.join(', '));
+      } else {
+        setDynamicCountries('Nuova Zelanda, Australia & Filippine');
+      }
 
       const dynamicDays = range.tripDays;
       setTripDays(dynamicDays);
@@ -107,6 +188,22 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   useEffect(() => {
     fetchTimeline();
   }, [fetchTimeline]);
+
+  // Centratura automatica del selettore orizzontale dei giorni su selectedDate
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (selectedDayBtnRef.current && calendarContainerRef.current) {
+        const container = calendarContainerRef.current;
+        const btn = selectedDayBtnRef.current;
+        const scrollPosition = btn.offsetLeft - (container.offsetWidth / 2) + (btn.offsetWidth / 2);
+        container.scrollTo({
+          left: Math.max(0, scrollPosition),
+          behavior: 'smooth'
+        });
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [selectedDate, tripDays]);
 
   // Ascolta eventi globali di mutazione dati (roadbook_data_mutated) e aggiornamento attività
   useEffect(() => {
@@ -288,7 +385,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight text-white leading-tight">
-              Nuova Zelanda, Australia & Filippine
+              {dynamicCountries}
             </h1>
             <p className="text-xs text-slate-300 font-medium mt-1">
               28 nov 2026 – 10 gen 2027 • 44 giorni di avventura
@@ -343,12 +440,16 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           </div>
         </div>
 
-        <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 px-0.5 -mx-1 snap-x">
+        <div 
+          ref={calendarContainerRef}
+          className="flex gap-2 overflow-x-auto no-scrollbar py-1 px-0.5 -mx-1 snap-x"
+        >
           {tripDays.map((item) => {
             const isSelected = item.dateStr === selectedDate;
             return (
               <button
                 key={item.dateStr}
+                ref={isSelected ? selectedDayBtnRef : undefined}
                 type="button"
                 onClick={() => setSelectedDate(item.dateStr)}
                 className={`snap-start shrink-0 flex flex-col items-center justify-center w-14 py-2.5 rounded-2xl transition-all duration-200 cursor-pointer ${
@@ -448,21 +549,24 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             });
           });
 
-          // Aggiungi alloggio notturno come ultima tappa fissa della sequenza se presente
+          // Aggiungi alloggio notturno come ultima tappa fissa della sequenza se presente (evitando duplicazioni se già presente con stesso id)
           if (tonightsAccommodation) {
             const accLoc = tonightsAccommodation.address || tonightsAccommodation.location || tonightsAccommodation.name;
-            dayItems.push({
-              id: `lodging_${tonightsAccommodation.id}`,
-              type: 'alloggio',
-              time: tonightsAccommodation.checkInTime || '21:00',
-              title: tonightsAccommodation.name,
-              location: accLoc,
-              departurePoint: accLoc,
-              arrivalPoint: accLoc,
-              coordinate: tonightsAccommodation.coordinate,
-              originalData: tonightsAccommodation,
-              copilota: tonightsAccommodation.copilota
-            });
+            const alreadyIn = dayItems.some(item => item.id === tonightsAccommodation.id || item.id === `lodging_${tonightsAccommodation.id}` || item.originalData?.id === tonightsAccommodation.id);
+            if (!alreadyIn) {
+              dayItems.push({
+                id: `lodging_${tonightsAccommodation.id}`,
+                type: 'alloggio',
+                time: tonightsAccommodation.checkInTime || '21:00',
+                title: tonightsAccommodation.name,
+                location: accLoc,
+                departurePoint: accLoc,
+                arrivalPoint: accLoc,
+                coordinate: tonightsAccommodation.coordinate,
+                originalData: tonightsAccommodation,
+                copilota: tonightsAccommodation.copilota
+              });
+            }
           }
 
           if (dayItems.length === 0) {
@@ -741,32 +845,98 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         )}
       </div>
 
-      {/* 5. SEZIONE "COSA FARAI DOMANI" (GIORNO SUCCESSIVO) */}
-      {nextDayMeta && (
-        <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-sm">
-          <div className="flex items-center gap-2 mb-2">
-            <span className="w-6 h-6 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold">
+      {/* 5. SEZIONE "COSA FARAI DOMANI" (GIORNO SUCCESSIVO) CON CAROSELLO A SCORRIMENTO ORIZZONTALE */}
+      <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-bold shadow-2xs border border-blue-100">
               🌅
             </span>
-            <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-              Cosa farai domani
-            </span>
-          </div>
-
-          <div className="space-y-1 pl-1">
-            <div className="text-sm font-bold text-slate-800">
-              {formatDateHuman(nextDayMeta.dateStr)} (Tappa {nextDayMeta.dayNum})
+            <div>
+              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+                Cosa farai domani
+              </h2>
+              {nextDayMeta && (
+                <p className="text-[11px] text-slate-500 font-medium">
+                  {formatDateHuman(nextDayMeta.dateStr)} • Tappa {nextDayMeta.dayNum}
+                </p>
+              )}
             </div>
-            <p className="text-xs text-slate-500 leading-relaxed">
+          </div>
+          {nextDayMeta && (
+            <button
+              type="button"
+              onClick={() => setSelectedDate(nextDayMeta.dateStr)}
+              className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer px-2.5 py-1 rounded-xl bg-blue-50 hover:bg-blue-100"
+            >
+              Vedi giornata ➔
+            </button>
+          )}
+        </div>
+
+        {/* Carosello orizzontale eventi di domani */}
+        {tomorrowTimeline && tomorrowTimeline.length > 0 ? (
+          <div className="flex gap-3 overflow-x-auto snap-x no-scrollbar pb-2 pt-1">
+            {tomorrowTimeline.map((item, idx) => {
+              const isLodging = item.type === 'alloggio';
+              const isTransport = item.type === 'trasporto';
+              const isTappa = item.type === 'tappa';
+              const isRistorante = item.type === 'ristorante';
+              const isShopping = item.type === 'shopping';
+
+              const icon = isLodging ? '🛏️' : isTransport ? '✈️' : isTappa ? '📍' : isRistorante ? '🍽️' : isShopping ? '🛍️' : '🌿';
+              const badgeBg = isLodging ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                              isTransport ? 'bg-sky-50 text-sky-700 border-sky-100' :
+                              isTappa ? 'bg-rose-50 text-rose-700 border-rose-100' :
+                              isRistorante ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                              isShopping ? 'bg-pink-50 text-pink-700 border-pink-100' :
+                              'bg-amber-50 text-amber-700 border-amber-100';
+
+              return (
+                <div
+                  key={`${item.id}-${idx}`}
+                  onClick={() => {
+                    if (nextDayMeta) setSelectedDate(nextDayMeta.dateStr);
+                  }}
+                  className="min-w-[200px] max-w-[240px] bg-white rounded-xl p-3 border border-slate-200/80 shadow-sm shrink-0 snap-start flex flex-col justify-between hover:border-slate-300 transition-all cursor-pointer active:scale-[0.98]"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-1.5 mb-1.5">
+                      <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold border ${badgeBg}`}>
+                        {icon}
+                      </span>
+                      <span className="text-[11px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                        {item.time || '12:00'}
+                      </span>
+                    </div>
+                    <h4 className="text-xs font-bold text-slate-900 line-clamp-2 leading-snug">
+                      {item.title}
+                    </h4>
+                  </div>
+                  {item.location && (
+                    <p className="text-[11px] text-slate-500 font-medium truncate mt-2">
+                      📍 {item.location}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="bg-slate-50 rounded-2xl border border-slate-200/70 p-3.5 text-center">
+            <p className="text-xs font-semibold text-slate-600">
+              Nessuna attività programmata per domani
+            </p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
               {nextDayData?.title
                 ? nextDayData.title
-                : nextDayAccommodation
-                ? `Proseguimento itinerario e pernottamento a ${nextDayAccommodation.name} (${nextDayAccommodation.location}).`
-                : 'Tappa di viaggio e spostamento programmato.'}
+                : nextDayAccommodation 
+                ? `Pernottamento previsto presso ${nextDayAccommodation.name}.` 
+                : 'Giornata libera o da pianificare.'}
             </p>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Spacer invisibile a fine pagina per consentire di scrollare l'ultima card interamente sopra la dock */}
       <div className="h-36 w-full shrink-0" aria-hidden="true" />
