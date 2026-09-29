@@ -34,7 +34,11 @@ export default function TrasportiView() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const items = await storageService.getTransports();
+      let items = await storageService.getTransports();
+      if (items.length === 0) {
+        await storageService.initInitialSeedData();
+        items = await storageService.getTransports();
+      }
       setTransports(items);
     } catch (err) {
       console.error('Errore caricamento trasporti:', err);

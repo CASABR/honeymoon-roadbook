@@ -638,8 +638,45 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             );
           }
 
+          // Genera URL multi-tappa per l'intero percorso della giornata su Google Maps
+          const locationsForMap: string[] = [];
+          dayItems.forEach(it => {
+            const loc = it.arrivalPoint || it.location || it.departurePoint || it.title;
+            if (loc && loc.trim()) {
+              const clean = loc.trim();
+              if (locationsForMap.length === 0 || locationsForMap[locationsForMap.length - 1] !== clean) {
+                locationsForMap.push(clean);
+              }
+            }
+          });
+
+          let fullDayMapUrl: string | null = null;
+          if (locationsForMap.length === 1) {
+            fullDayMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationsForMap[0])}`;
+          } else if (locationsForMap.length >= 2) {
+            const origin = locationsForMap[0];
+            const destination = locationsForMap[locationsForMap.length - 1];
+            const waypoints = locationsForMap.slice(1, -1).join('|');
+            if (waypoints) {
+              fullDayMapUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&waypoints=${encodeURIComponent(waypoints)}`;
+            } else {
+              fullDayMapUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`;
+            }
+          }
+
           return (
             <div className="space-y-3">
+              {fullDayMapUrl && (
+                <a
+                  href={fullDayMapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 hover:from-emerald-700 hover:to-indigo-800 text-white text-xs font-extrabold shadow-sm hover:shadow-md transition-all active:scale-[0.99] border border-white/20 mb-1"
+                >
+                  <span>🗺️ Apri Itinerario Giornata su Maps</span>
+                  <span className="text-[10px]">↗</span>
+                </a>
+              )}
               {dayItems.map((item, idx) => {
                 const nextItem = dayItems[idx + 1];
 

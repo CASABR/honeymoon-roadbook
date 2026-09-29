@@ -47,25 +47,28 @@ export default function AttivitaView() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [loadedDays, loadedActivities, range] = await Promise.all([
+      let [loadedDays, loadedActivities, range] = await Promise.all([
         storageService.getDays(),
         storageService.getActivities(),
         getTripDateRange()
       ]);
+
+      // Se il DB è vuoto, invoca il seed automatico di ripristino
+      if (loadedActivities.length === 0 && loadedDays.length === 0) {
+        await storageService.initInitialSeedData();
+        [loadedDays, loadedActivities, range] = await Promise.all([
+          storageService.getDays(),
+          storageService.getActivities(),
+          getTripDateRange()
+        ]);
+      }
+
       setDays(loadedDays);
       setActivities(loadedActivities);
       setTripDays(range.tripDays);
 
-      // Auto-selezione intelligente della data:
-      const todayStr = new Date().toISOString().split('T')[0];
-      const isInTrip = range.tripDays.some((d) => d.dateStr === todayStr);
-
-      setSelectedDate((prev) => {
-        if (prev !== 'tutte') return prev;
-        if (isInTrip) return todayStr;
-        return 'tutte';
-      });
-
+      // Filtro data predefinito: SEMPRE 'tutte' per visualizzazione immediata
+      setSelectedDate('tutte');
       setSelectedDayId((prev) => (prev ? prev : (loadedDays[0]?.id || null)));
     } catch (err) {
       console.error('Errore nel caricamento dei dati:', err);

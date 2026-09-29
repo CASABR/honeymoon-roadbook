@@ -33,23 +33,24 @@ export default function TappeView({ onBack }: TappeViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [loadedTappe, routes, range] = await Promise.all([
+      let [loadedTappe, routes, range] = await Promise.all([
         storageService.getTappe(),
         storageService.getAllRouteCaches(),
         getTripDateRange()
       ]);
+
+      if (loadedTappe.length === 0) {
+        await storageService.initInitialSeedData();
+        [loadedTappe, routes, range] = await Promise.all([
+          storageService.getTappe(),
+          storageService.getAllRouteCaches(),
+          getTripDateRange()
+        ]);
+      }
+
       setTappe(loadedTappe);
       setTripDays(range.tripDays);
-
-      // Auto-selezione data intelligente
-      const todayStr = new Date().toISOString().split('T')[0];
-      const isInTrip = range.tripDays.some((d) => d.dateStr === todayStr);
-
-      setSelectedDate((prev) => {
-        if (prev !== 'tutte') return prev;
-        if (isInTrip) return todayStr;
-        return 'tutte';
-      });
+      setSelectedDate('tutte');
 
       // Calcola i km complessivi salvati in cache
       const kmSum = routes.reduce((sum, r) => sum + (r.route?.distanceKm || 0), 0);

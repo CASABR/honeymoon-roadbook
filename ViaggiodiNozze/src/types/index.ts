@@ -108,7 +108,7 @@ export interface TransportAttachment {
 
 export interface TravelDocument {
   id: string;
-  category: 'passaporto' | 'visto' | 'assicurazione' | 'patente' | 'altro';
+  category: 'passaporto' | 'visto' | 'assicurazione' | 'patente' | 'alloggi' | 'attivita' | 'altro';
   title: string;
   description?: string;
   status?: string;
@@ -228,6 +228,23 @@ export interface NotaViaggio {
   title?: string;
   content: string;
   color: ColorNota;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type TipoBagaglio = 'stiva' | 'mano' | 'borsa';
+export type PasseggeroBagaglio = 'sposo' | 'sposa' | 'entrambi';
+
+export interface Bagaglio {
+  id: string;
+  voloId?: string;
+  voloTitle?: string;
+  tipo: TipoBagaglio;
+  pesoKg: number;
+  descrizione: string;
+  note?: string;
+  passeggero: PasseggeroBagaglio;
+  verificato: boolean;
   createdAt: number;
   updatedAt: number;
 }
