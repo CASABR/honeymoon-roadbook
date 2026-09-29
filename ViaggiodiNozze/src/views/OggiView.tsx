@@ -278,7 +278,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   };
 
   return (
-    <div className="space-y-4 pt-1 animate-fade-in">
+    <div className="space-y-4 pt-1 animate-fade-in pb-32 sm:pb-36">
       {/* 1. HEADER HERO / COPERTINA */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-5 shadow-sm border border-slate-800">
         <div className="relative z-10 space-y-2.5">
@@ -767,6 +767,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           </div>
         </div>
       )}
+
+      {/* Spacer di sicurezza finale per non coprire card con barra dock */}
+      <div className="h-6" aria-hidden="true" />
 
       {/* Modale Dettaglio Timeline */}
       <TimelineItemDetailModal
