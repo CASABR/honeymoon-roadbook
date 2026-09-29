@@ -94,7 +94,7 @@ export interface Alloggio {
   updatedAt: number;
 }
 
-export type TipoTrasporto = 'volo' | 'traghetto' | 'auto' | 'camper' | 'transfer';
+export type TipoTrasporto = 'volo' | 'traghetto' | 'auto' | 'camper' | 'transfer' | 'treno';
 export type StatoTrasporto = 'pianificato' | 'prenotato' | 'da_prenotare' | 'completato' | 'annullato';
 
 export interface TransportAttachment {
@@ -221,4 +221,13 @@ export interface Spesa {
 
 export type DeviceRole = 'guida' | 'copilota' | 'viewer';
 
+export type ColorNota = 'amber' | 'sky' | 'emerald' | 'rose';
 
+export interface NotaViaggio {
+  id: string;
+  title?: string;
+  content: string;
+  color: ColorNota;
+  createdAt: number;
+  updatedAt: number;
+}

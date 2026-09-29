@@ -1,4 +1,4 @@
-import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Shopping, Spesa, DeviceRole } from '../types';
+import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Shopping, Spesa, DeviceRole, NotaViaggio } from '../types';
 import {
   STORES,
   idbGetAll,
@@ -742,6 +742,33 @@ class StorageService {
   async deleteSpesa(id: string): Promise<void> {
     await idbDelete(STORES.SPESE, id);
     notifyDataChanged('spese', 'delete', { id });
+  }
+
+  // --- NOTE DI VIAGGIO (Post-it) ---
+  async getNote(): Promise<NotaViaggio[]> {
+    try {
+      const items = await idbGetAll<NotaViaggio>(STORES.NOTE);
+      return items.sort((a, b) => b.updatedAt - a.updatedAt);
+    } catch (err) {
+      console.error('[StorageService] Errore lettura note:', err);
+      return [];
+    }
+  }
+
+  async saveNota(nota: NotaViaggio): Promise<void> {
+    const now = Date.now();
+    const item: NotaViaggio = {
+      ...nota,
+      createdAt: nota.createdAt || now,
+      updatedAt: now
+    };
+    await idbPut(STORES.NOTE, item);
+    notifyDataChanged('note', 'save', item);
+  }
+
+  async deleteNota(id: string): Promise<void> {
+    await idbDelete(STORES.NOTE, id);
+    notifyDataChanged('note', 'delete', { id });
   }
 
   // --- BACKUP & RIPRISTINO ---

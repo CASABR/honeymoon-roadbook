@@ -134,6 +134,14 @@ export default function TrasportoCard({
       bgSoft: 'bg-emerald-50/80 border-emerald-200/80',
       textAccent: 'text-emerald-800',
       modeIcon: '🚕'
+    },
+    treno: {
+      label: 'Treno',
+      icon: '🚆',
+      themeColor: 'from-violet-600 to-purple-600',
+      bgSoft: 'bg-violet-50/80 border-violet-200/80',
+      textAccent: 'text-violet-800',
+      modeIcon: '🚆'
     }
   };
 
@@ -170,6 +178,7 @@ export default function TrasportoCard({
   const canHaveTickets =
     transport.type === 'volo' ||
     transport.type === 'traghetto' ||
+    transport.type === 'treno' ||
     transport.type === 'auto' ||
     transport.type === 'camper' ||
     Boolean(transport.bookingCode || transport.ticketUrl || attachmentsCount > 0);

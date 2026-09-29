@@ -5,6 +5,7 @@ import AssicurazioneView from './altro/AssicurazioneView';
 import DocumentiGalleriaView from './altro/DocumentiGalleriaView';
 import SpeseBudgetView from './altro/SpeseBudgetView';
 import LiveView from './altro/LiveView';
+import NoteViaggioView from './altro/NoteViaggioView';
 import DeviceRoleModal from '../components/common/DeviceRoleModal';
 import { storageService } from '../storage/storageService';
 import type { DeviceRole } from '../types';
@@ -62,7 +63,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   if (activeSubView === 'info') return <PlaceholderView title="Info Utili" icon="ℹ️" onBack={handleBack} />;
   if (activeSubView === 'spese') return <SpeseBudgetView onBack={handleBack} />;
   if (activeSubView === 'bagagli') return <PlaceholderView title="Lista Bagagli" icon="🧳" onBack={handleBack} />;
-  if (activeSubView === 'note') return <PlaceholderView title="Note di Viaggio" icon="📝" onBack={handleBack} />;
+  if (activeSubView === 'note') return <NoteViaggioView onBack={handleBack} />;
   if (activeSubView === 'galleria') return <DocumentiGalleriaView onBack={handleBack} />;
 
   return (

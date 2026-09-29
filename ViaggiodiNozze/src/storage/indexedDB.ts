@@ -3,7 +3,7 @@
  * Isolato all'interno del layer di storage.
  */
 const DB_NAME = 'ViaggiodiNozzeDB';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 export const STORES = {
   GIORNI: 'giorni',
@@ -15,7 +15,8 @@ export const STORES = {
   TAPPE: 'tappe',
   RISTORANTI: 'ristoranti',
   SHOPPING: 'shopping',
-  SPESE: 'spese'
+  SPESE: 'spese',
+  NOTE: 'note'
 } as const;
 
 export type StoreName = typeof STORES[keyof typeof STORES];
@@ -86,6 +87,11 @@ function openDatabase(): Promise<IDBDatabase> {
         store.createIndex('date', 'date', { unique: false });
         store.createIndex('category', 'category', { unique: false });
         store.createIndex('status', 'status', { unique: false });
+      }
+
+      if (!db.objectStoreNames.contains(STORES.NOTE)) {
+        const store = db.createObjectStore(STORES.NOTE, { keyPath: 'id' });
+        store.createIndex('updatedAt', 'updatedAt', { unique: false });
       }
     };
 
