@@ -22,6 +22,7 @@ export default function TrasportoCard({
   const [isCopied, setIsCopied] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
+  const [isPNROpen, setIsPNROpen] = useState(false);
 
   useEffect(() => {
     setTransport(initialTransport);
@@ -295,25 +296,16 @@ export default function TrasportoCard({
         <footer className="pt-2.5 border-t border-dashed border-slate-200 flex items-center justify-between gap-2">
           {/* Sezione Chip: PNR, Prezzo / Acconto */}
           <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-x-auto no-scrollbar">
-            {/* Chip PNR con click per copiare */}
+            {/* Micro-pillola PNR con popover modale */}
             {transport.bookingCode ? (
               <button
                 type="button"
-                onClick={handleCopyBookingCode}
-                title="Tocca per copiare il codice prenotazione"
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-900 transition-all cursor-pointer active:scale-95 shrink-0"
+                onClick={() => setIsPNROpen(true)}
+                title="Visualizza codice prenotazione / PNR"
+                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-950 transition-all cursor-pointer active:scale-95 shrink-0 shadow-2xs font-bold text-[10px]"
               >
-                <span className="text-[9px] font-bold text-slate-500 uppercase">PNR</span>
-                <span className="text-[11px] font-mono font-bold text-blue-700 tracking-wider">
-                  {transport.bookingCode}
-                </span>
-                {isCopied ? (
-                  <span className="text-emerald-600 font-bold text-xs ml-0.5">✓</span>
-                ) : (
-                  <svg className="w-2.5 h-2.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                )}
+                <span>🎟️</span>
+                <span>PNR</span>
               </button>
             ) : null}
 
@@ -440,6 +432,67 @@ export default function TrasportoCard({
         transport={transport}
         onUpdateTransport={handleUpdateTransport}
       />
+
+      {/* MICRO-MODALE / POPOVER PNR ELEGANTE STILE IOS */}
+      {isPNROpen && transport.bookingCode && (
+        <div 
+          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          onClick={() => setIsPNROpen(false)}
+        >
+          <div 
+            className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-slate-200 text-center relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center text-2xl mx-auto mb-3 shadow-2xs">
+              🎟️
+            </div>
+            
+            <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-500">
+              Codice Prenotazione (PNR)
+            </h3>
+            
+            <p className="text-xs text-slate-400 mt-0.5">
+              {transport.carrier || 'Trasporto'} • {originInfo.code} ➔ {destInfo.code}
+            </p>
+
+            <div className="my-4 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
+              <span className="font-mono text-xl sm:text-2xl font-black text-slate-900 tracking-wider select-all break-all">
+                {transport.bookingCode}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handleCopyBookingCode}
+                className="flex-1 py-3 px-4 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white transition-all shadow-md shadow-indigo-600/20 cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                {isCopied ? (
+                  <>
+                    <span className="text-sm">✓</span>
+                    <span>Copiato negli appunti!</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <span>Copia Codice</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsPNROpen(false)}
+                className="py-3 px-4 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

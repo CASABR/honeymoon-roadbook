@@ -101,13 +101,13 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
             </svg>
           </button>
           <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-            <span>📑</span> Documenti
+            <span>📑</span> Documenti del Viaggio
           </h1>
         </div>
         
         <button
           onClick={handleAddNew}
-          className="text-xs font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 active:scale-95 px-3.5 py-1.5 rounded-xl border border-sky-200 transition-all cursor-pointer shadow-2xs"
+          className="text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 active:scale-95 px-3.5 py-1.5 rounded-xl border border-indigo-200 transition-all cursor-pointer shadow-2xs"
         >
           + Nuovo
         </button>
