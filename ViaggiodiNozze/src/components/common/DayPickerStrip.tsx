@@ -5,6 +5,7 @@ interface DayPickerStripProps {
   onSelectDate: (date: string | 'tutte') => void;
   /** Opzionale: lista personalizzata dei giorni calcolati dinamicamente */
   tripDays?: TripDayItem[];
+  days?: TripDayItem[];
   /** Opzionale: conteggio elementi per data { 'YYYY-MM-DD': number } */
   itemCounts?: Record<string, number>;
   totalCount?: number;
@@ -14,11 +15,12 @@ export default function DayPickerStrip({
   selectedDate,
   onSelectDate,
   tripDays: propTripDays,
+  days: propDays,
   itemCounts,
   totalCount
 }: DayPickerStripProps) {
   // Se non fornito, calcola dinamicamente l'inizio considerando le date presenti in itemCounts
-  const dynamicDays = propTripDays || (itemCounts ? generateTripDays(calculateEarliestTripDate(Object.keys(itemCounts))) : TRIP_DAYS);
+  const dynamicDays = propTripDays || propDays || (itemCounts ? generateTripDays(calculateEarliestTripDate(Object.keys(itemCounts))) : TRIP_DAYS);
   return (
     <div className="-mx-1 mb-4">
       <div className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-none snap-x items-center">

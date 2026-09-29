@@ -1,6 +1,7 @@
 import type { TimelineItem, Attivita, Trasporto } from '../../types';
 import Modal from '../common/Modal';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
+import { useDeviceRole } from '../../utils/useDeviceRole';
 
 interface TimelineItemDetailModalProps {
   isOpen: boolean;
@@ -15,6 +16,7 @@ export default function TimelineItemDetailModal({
   item,
   onEdit
 }: TimelineItemDetailModalProps) {
+  const { canEdit } = useDeviceRole();
   if (!item) return null;
 
   const isAttivita = item.type === 'attivita';
@@ -522,16 +524,18 @@ export default function TimelineItemDetailModal({
           >
             Chiudi
           </button>
-          <button
-            type="button"
-            onClick={() => onEdit(item)}
-            className="min-h-[44px] px-5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-            </svg>
-            <span>Modifica</span>
-          </button>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(item)}
+              className="min-h-[44px] px-5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+              <span>Modifica</span>
+            </button>
+          )}
         </div>
       </div>
     </Modal>

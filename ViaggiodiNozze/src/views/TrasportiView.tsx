@@ -6,6 +6,7 @@ import TrasportoForm from '../components/forms/TrasportoForm';
 import Modal from '../components/common/Modal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
+import { useDeviceRole } from '../utils/useDeviceRole';
 
 const detectCountry = (t: Trasporto): string => {
   const text = `${t.departureLocation} ${t.arrivalLocation} ${t.layover?.airport || ''} ${t.carrier || ''} ${t.notes || ''}`.toLowerCase();
@@ -20,6 +21,7 @@ type FilterType = 'tutti' | 'volo' | 'traghetto' | 'auto_camper' | 'transfer';
 type CountryFilterType = 'tutti' | '🇳🇿 Nuova Zelanda' | '🇦🇺 Australia' | '🇵🇭 Filippine' | '✈️ Intercontinentali' | '🌍 Altro';
 
 export default function TrasportiView() {
+  const { canEdit } = useDeviceRole();
   const [transports, setTransports] = useState<Trasporto[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>('tutti');
@@ -206,25 +208,29 @@ export default function TrasportiView() {
         </div>
 
         <div className="flex items-center gap-1.5 ml-auto">
-          <button
-            type="button"
-            onClick={handleReloadSeedData}
-            title="Carica o ripristina le tratte certificate del viaggio di nozze"
-            className="inline-flex items-center gap-1 min-h-[36px] px-2.5 bg-white hover:bg-slate-50 active:scale-95 text-sky-700 font-semibold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer shadow-sm"
-          >
-            <span>🔄 Ripristina</span>
-          </button>
+          {canEdit && (
+            <>
+              <button
+                type="button"
+                onClick={handleReloadSeedData}
+                title="Carica o ripristina le tratte certificate del viaggio di nozze"
+                className="inline-flex items-center gap-1 min-h-[36px] px-2.5 bg-blue-50 hover:bg-blue-100 active:scale-95 text-blue-700 font-semibold text-xs rounded-xl border border-blue-200 transition-all cursor-pointer shadow-sm"
+              >
+                <span>🔄 Ripristina</span>
+              </button>
 
-          <button
-            type="button"
-            onClick={handleOpenAdd}
-            className="inline-flex items-center gap-1 min-h-[36px] px-3 bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-semibold text-xs rounded-xl shadow-lg shadow-sky-500/20 transition-all cursor-pointer"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-            </svg>
-            <span>Nuovo</span>
-          </button>
+              <button
+                type="button"
+                onClick={handleOpenAdd}
+                className="inline-flex items-center gap-1 min-h-[36px] px-3 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>Nuovo</span>
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -241,7 +247,7 @@ export default function TrasportiView() {
                   onClick={() => setActiveFilter(chip.id)}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all snap-start cursor-pointer border ${
                     isActive
-                      ? 'bg-sky-500 text-slate-900 border-sky-500 shadow-md shadow-sky-500/20'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
                       : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
@@ -249,7 +255,7 @@ export default function TrasportiView() {
                   <span>{chip.label}</span>
                   <span
                     className={`ml-0.5 px-1.5 py-0.2 text-[10px] rounded-full font-mono ${
-                      isActive ? 'bg-slate-900/10 text-slate-900 font-bold' : 'bg-slate-100 text-slate-600'
+                      isActive ? 'bg-white/20 text-white font-bold' : 'bg-slate-100 text-slate-600'
                     }`}
                   >
                     {chip.count}
