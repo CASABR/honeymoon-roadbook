@@ -12,14 +12,20 @@ import RistoranteForm from '../components/forms/RistoranteForm';
 import ShoppingForm from '../components/forms/ShoppingForm';
 import RouteBadge from '../components/common/RouteBadge';
 import TrasportoCard from '../components/cards/TrasportoCard';
+import { useDeviceRole } from '../utils/useDeviceRole';
 
 interface OggiViewProps {
-  onNavigateTab?: (tab: SectionTab, categoria?: CategoriaTab) => void;
+  onNavigateTab?: (tab: SectionTab, categoria?: CategoriaTab, subView?: any) => void;
 }
 
 import { generateTripDays, getTripDateRange, type TripDayItem } from '../utils/tripDates';
 
 export default function OggiView({ onNavigateTab }: OggiViewProps) {
+  const { canEdit } = useDeviceRole();
+  const [copilotPopoverActivity, setCopilotPopoverActivity] = useState<Attivita | null>(null);
+  const [copilotPopoverText, setCopilotPopoverText] = useState('');
+  const [isSavingCopilotNote, setIsSavingCopilotNote] = useState(false);
+
   const [tripDays, setTripDays] = useState<TripDayItem[]>(() => generateTripDays());
   const [selectedDate, setSelectedDate] = useState<string>('2026-11-28');
   const [accommodations, setAccommodations] = useState<Alloggio[]>([]);
@@ -516,6 +522,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             coordinate?: import('../types').Coordinate;
             originalData?: any;
             copilota?: boolean;
+            copilotNotes?: string;
           }[] = [];
 
           // Ordina rigorosamente per orario (HH:mm)
@@ -545,7 +552,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               arrivalPoint,
               coordinate: item.coordinate,
               originalData: item.originalData,
-              copilota: item.copilota
+              copilota: item.copilota,
+              copilotNotes: item.copilotNotes || (item.originalData as any)?.copilotNotes
             });
           });
 
@@ -612,103 +620,71 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         onUpdate={() => fetchTimeline()}
                       />
                     ) : isLodging ? (
-                      /* Card Tappa Finale: Alloggio Notturno Redesigned */
-                      <div className="bg-white rounded-3xl border border-indigo-100 p-4.5 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
-                        <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-indigo-50">
-                          <div className="flex items-center gap-2">
-                            <span className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 border border-purple-100 flex items-center justify-center text-sm font-bold shadow-2xs">
+                      /* Hotel Pass / Voucher Ultra-Compatto */
+                      <div className="bg-white rounded-2xl border border-indigo-100 p-3 shadow-xs hover:shadow-sm transition-all">
+                        {/* Header a riga singola */}
+                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-indigo-50/80">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="w-6 h-6 rounded-full bg-purple-50 text-purple-700 border border-purple-100 flex items-center justify-center text-xs shrink-0">
                               🛏️
                             </span>
-                            <div>
-                              <div className="flex items-center gap-1.5">
-                                <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                                  Dove dormirai stanotte
-                                </h2>
-                                <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
-                                  Check-in dalle {tonightsAccommodation?.checkInTime || '14:00'}
-                                </span>
-                              </div>
-                              <p className="text-[11px] text-slate-500 font-medium">
-                                Notte del {formatDateHuman(selectedDate)}
-                              </p>
-                            </div>
+                            <span className="text-xs font-bold text-slate-800 tracking-tight truncate">
+                              Pernottamento
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium shrink-0">
+                              • {formatDateHuman(selectedDate)}
+                            </span>
                           </div>
+
                           <div className="flex items-center gap-1.5 shrink-0">
-                            {tonightsAccommodation && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingAlloggioItem(tonightsAccommodation);
-                                }}
-                                className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                                title="Modifica alloggio"
-                              >
-                                ✏️
-                              </button>
-                            )}
+                            <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100/70">
+                              Check-in {tonightsAccommodation?.checkInTime || '14:00'}
+                            </span>
                             {onNavigateTab && (
                               <button
                                 type="button"
                                 onClick={() => onNavigateTab('categorie', 'alloggi')}
-                                className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors cursor-pointer"
+                                className="text-[11px] font-semibold text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer ml-0.5"
+                                title="Visualizza tutti gli alloggi"
                               >
-                                Alloggi ➔
+                                Alloggi ↗
                               </button>
                             )}
                           </div>
                         </div>
 
-                        <div className="space-y-2.5">
-                          <div className="flex items-start justify-between gap-2">
-                            <div>
-                              <h3 className="text-base font-extrabold text-slate-900 leading-snug">
+                        {/* Corpo Centrale Compatto: Flex Orizzontale */}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <h3 className="text-sm font-semibold text-slate-800 leading-snug truncate">
                                 {tonightsAccommodation?.name}
                               </h3>
-                              <p className="text-xs text-slate-500 mt-0.5 font-medium flex items-center gap-1">
-                                <span>📍</span>
-                                <span>{tonightsAccommodation?.location}</span>
-                              </p>
+                              {tonightsAccommodation?.copilota && (
+                                <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-full border border-emerald-200 shrink-0">
+                                  🧭 Co-pilota
+                                </span>
+                              )}
                             </div>
-                            {tonightsAccommodation?.copilota && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                                🧭 Co-pilota
+                            <p className="text-[11px] text-slate-500 font-normal truncate mt-0.5 flex items-center gap-1">
+                              <span className="text-slate-400">📍</span>
+                              <span className="truncate">
+                                {tonightsAccommodation?.address || tonightsAccommodation?.location || 'Indirizzo registrato'}
                               </span>
-                            )}
+                            </p>
                           </div>
 
-                          {tonightsAccommodation?.address && (
-                            <div className="flex items-start gap-1.5 text-xs text-slate-600 bg-slate-50/80 p-2.5 rounded-2xl border border-slate-100">
-                              <span className="text-slate-400 mt-0.5">🏢</span>
-                              <span className="leading-relaxed">{tonightsAccommodation.address}</span>
-                            </div>
+                          {/* Pulsante pillola compatta Maps sulla stessa riga a destra */}
+                          {(tonightsAccommodation?.address || tonightsAccommodation?.location) && (
+                            <a
+                              href={resolveMapUrl(tonightsAccommodation.address || tonightsAccommodation.location)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors active:scale-95 border border-indigo-100"
+                            >
+                              <span>📍 Maps ↗</span>
+                            </a>
                           )}
-
-                          <div className="flex items-center justify-between pt-1 text-xs flex-wrap gap-2">
-                            <div className="flex items-center gap-2">
-                              {tonightsAccommodation?.bookingCode && (
-                                <span className="font-mono text-[11px] font-bold bg-slate-100 border border-slate-200 px-2 py-1 rounded-xl text-slate-700">
-                                  Cod: {tonightsAccommodation.bookingCode}
-                                </span>
-                              )}
-                              {tonightsAccommodation?.cost && (
-                                <span className="text-[11px] font-bold text-slate-700 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-xl">
-                                  € {tonightsAccommodation.cost}
-                                </span>
-                              )}
-                            </div>
-
-                            {(tonightsAccommodation?.address || tonightsAccommodation?.location) && (
-                              <a
-                                href={resolveMapUrl(tonightsAccommodation.address || tonightsAccommodation.location)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-700 font-bold text-xs shadow-2xs transition-all active:scale-95 ml-auto"
-                              >
-                                <span>Apri in Maps ↗</span>
-                              </a>
-                            )}
-                          </div>
                         </div>
                       </div>
                     ) : (
@@ -739,11 +715,29 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                           </div>
 
                           <div className="flex items-center gap-1.5 shrink-0">
-                            {item.copilota && (
-                              <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                                🧭 Co-pilota
-                              </span>
-                            )}
+                            {/* Icona Co-pilota compatta circolare [ 🧭 ] interattiva */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (item.type === 'attivita' && item.originalData) {
+                                  setCopilotPopoverActivity(item.originalData as Attivita);
+                                  setCopilotPopoverText((item.originalData as Attivita).copilotNotes || '');
+                                } else {
+                                  // Per altri tipi, se ha copilota apri dettaglio
+                                  const found = timeline.find(t => t.id === item.id);
+                                  if (found) setDetailItem(found);
+                                }
+                              }}
+                              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all cursor-pointer shrink-0 active:scale-90 ${
+                                Boolean(item.copilotNotes?.trim() || (item.originalData as any)?.copilotNotes?.trim())
+                                  ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-400 shadow-2xs'
+                                  : 'bg-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-200'
+                              }`}
+                              title={Boolean(item.copilotNotes?.trim() || (item.originalData as any)?.copilotNotes?.trim()) ? 'Note Co-pilota presenti' : 'Co-pilota'}
+                            >
+                              🧭
+                            </button>
                             <button
                               type="button"
                               onClick={(e) => {
@@ -814,8 +808,16 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         </div>
       )}
 
-      {/* 4. RIQUADRO RAPIDO "EMERGENZE" */}
-      <div className="bg-white rounded-3xl border border-slate-200/90 p-4 shadow-sm flex items-center justify-between gap-3">
+      {/* 4. RIQUADRO RAPIDO "EMERGENZE" -> Naviga direttamente ad AssicurazioneView */}
+      <div 
+        onClick={() => {
+          if (onNavigateTab) {
+            onNavigateTab('altro', undefined, 'assicurazione');
+          }
+          window.dispatchEvent(new CustomEvent('navigate_subview', { detail: { subView: 'assicurazione' } }));
+        }}
+        className="bg-white rounded-3xl border border-rose-200/80 p-4 shadow-sm flex items-center justify-between gap-3 cursor-pointer hover:border-rose-300 hover:shadow-md transition-all active:scale-[0.99]"
+      >
         <div className="flex items-center gap-3 min-w-0">
           <span className="w-9 h-9 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center text-base font-bold shrink-0 shadow-2xs border border-rose-100">
             ⚠️
@@ -825,26 +827,23 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               Numeri di Emergenza
             </h3>
             <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
-              NZ 111 • AU 000 • Polizza Sanitaria H24
+              NZ 111 • AU 000 • PH 911 • Polizza Sanitaria H24
             </p>
           </div>
         </div>
-        {onNavigateTab ? (
-          <button
-            type="button"
-            onClick={() => onNavigateTab('altro')}
-            className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all shrink-0 cursor-pointer active:scale-95 border border-rose-200/60 shadow-2xs"
-          >
-            Apri ➔
-          </button>
-        ) : (
-          <a
-            href="tel:111"
-            className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all shrink-0 border border-rose-200/60 shadow-2xs"
-          >
-            Chiama 111
-          </a>
-        )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (onNavigateTab) {
+              onNavigateTab('altro', undefined, 'assicurazione');
+            }
+            window.dispatchEvent(new CustomEvent('navigate_subview', { detail: { subView: 'assicurazione' } }));
+          }}
+          className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all shrink-0 cursor-pointer active:scale-95 border border-rose-200/60 shadow-2xs"
+        >
+          Apri ➔
+        </button>
       </div>
 
       {/* 5. SEZIONE "COSA FARAI DOMANI" (GIORNO SUCCESSIVO) CON CAROSELLO A SCORRIMENTO ORIZZONTALE */}
@@ -1036,6 +1035,111 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           onCancel={() => setEditingShoppingItem(null)}
         />
       </Modal>
+
+      {/* Popover / Modale Note del Co-pilota (Stile iOS con modifica diretta) */}
+      {copilotPopoverActivity && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in"
+          onClick={(e) => {
+            e.stopPropagation();
+            setCopilotPopoverActivity(null);
+          }}
+        >
+          <div 
+            className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-emerald-200/80 animate-scale-up space-y-3.5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-emerald-100">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-sm font-bold">
+                  🧭
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 leading-tight">
+                    Note Co-pilota • {copilotPopoverActivity.title}
+                  </h3>
+                  <p className="text-[10px] text-emerald-700 font-semibold truncate max-w-[190px]">
+                    Promemoria e raccomandazioni
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCopilotPopoverActivity(null)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Area di testo per lettura / modifica immediata */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-600">
+                {canEdit ? 'Note & Suggerimenti di viaggio:' : 'Note consultabili:'}
+              </label>
+              {canEdit ? (
+                <textarea
+                  rows={4}
+                  value={copilotPopoverText}
+                  onChange={(e) => setCopilotPopoverText(e.target.value)}
+                  placeholder="Inserisci note, consigli parcheggio, orari migliori, promemoria per la guida..."
+                  className="w-full rounded-2xl bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 p-3 text-xs text-slate-800 leading-relaxed outline-none transition-all resize-none"
+                />
+              ) : (
+                <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-100 text-xs text-slate-700 leading-relaxed font-medium min-h-[80px]">
+                  {copilotPopoverActivity.copilotNotes?.trim() ? (
+                    copilotPopoverActivity.copilotNotes
+                  ) : (
+                    <p className="text-slate-400 italic">
+                      Nessuna raccomandazione inserita.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setCopilotPopoverActivity(null)}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+              >
+                Chiudi
+              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  disabled={isSavingCopilotNote}
+                  onClick={async () => {
+                    try {
+                      setIsSavingCopilotNote(true);
+                      const updated: Attivita = {
+                        ...copilotPopoverActivity,
+                        copilotNotes: copilotPopoverText.trim(),
+                        copilota: Boolean(copilotPopoverText.trim()) || copilotPopoverActivity.copilota,
+                        updatedAt: Date.now()
+                      };
+                      await storageService.saveActivity(updated);
+                      await fetchTimeline();
+                      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+                        detail: { entityType: 'activity', action: 'update', data: updated }
+                      }));
+                      setCopilotPopoverActivity(null);
+                    } catch (err) {
+                      console.error('Errore salvataggio nota copilota:', err);
+                    } finally {
+                      setIsSavingCopilotNote(false);
+                    }
+                  }}
+                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  {isSavingCopilotNote ? 'Salvataggio...' : 'Salva Nota'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

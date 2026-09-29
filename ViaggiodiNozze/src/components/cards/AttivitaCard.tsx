@@ -5,6 +5,7 @@ import { resolveMapUrl } from '../../utils/mapsHelper';
 import AttivitaTicketsModal from '../modals/AttivitaTicketsModal';
 import QRCodeModal from '../modals/QRCodeModal';
 import { useDeviceRole } from '../../utils/useDeviceRole';
+import { storageService } from '../../storage/storageService';
 
 interface AttivitaCardProps {
   activity: Attivita;
@@ -40,6 +41,8 @@ export default function AttivitaCard({ activity, onEdit, onDelete, onUpdate }: A
   const canHavePass = hasQRCode || attachmentsCount > 0;
 
   const [isCopilotPopoverOpen, setIsCopilotPopoverOpen] = useState(false);
+  const [editingCopilotNotes, setEditingCopilotNotes] = useState(activity.copilotNotes || '');
+  const [isSavingCopilot, setIsSavingCopilot] = useState(false);
   const hasCopilotNotes = Boolean(activity.copilotNotes?.trim());
 
   return (
@@ -57,28 +60,23 @@ export default function AttivitaCard({ activity, onEdit, onDelete, onUpdate }: A
               <Badge label={categoryLabels[activity.category] || activity.category} variant="slate" />
               <Badge label={activity.status} variant={statusVariant} />
               
-              {/* Pillola Co-pilota: Stato Dinamico e Popover Note */}
-              {hasCopilotNotes ? (
-                <button
-                  type="button"
-                  onClick={() => setIsCopilotPopoverOpen(true)}
-                  className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100/90 hover:bg-emerald-200 px-2 py-0.5 rounded-full border border-emerald-300 transition-all cursor-pointer shadow-2xs active:scale-95"
-                  title="Note del Co-pilota (clicca per leggere)"
-                >
-                  <span>🧭</span>
-                  <span>Co-pilota</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                </button>
-              ) : activity.copilota ? (
-                <button
-                  type="button"
-                  onClick={() => (canEdit ? onEdit() : setIsCopilotPopoverOpen(true))}
-                  className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-all cursor-pointer text-[10px]"
-                  title="Co-pilota (nessuna nota aggiuntiva)"
-                >
-                  🧭
-                </button>
-              ) : null}
+              {/* Pillola Co-pilota: Mostra SOLO l'icona circolare compatta [ 🧭 ] */}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingCopilotNotes(activity.copilotNotes || '');
+                  setIsCopilotPopoverOpen(true);
+                }}
+                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all cursor-pointer shrink-0 active:scale-90 ${
+                  hasCopilotNotes
+                    ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-400 shadow-2xs'
+                    : 'bg-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-200'
+                }`}
+                title={hasCopilotNotes ? 'Note Co-pilota presenti (clicca per leggere/modificare)' : 'Aggiungi note Co-pilota'}
+              >
+                🧭
+              </button>
 
               {activity.duration && (
                 <span className="text-[11px] text-slate-400 font-medium">⏱ {activity.duration}</span>
@@ -221,11 +219,14 @@ export default function AttivitaCard({ activity, onEdit, onDelete, onUpdate }: A
         />
       )}
 
-      {/* Popover / Modale Note del Co-pilota */}
+      {/* Popover / Modale Note del Co-pilota (Stile iOS con modifica diretta) */}
       {isCopilotPopoverOpen && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in"
-          onClick={() => setIsCopilotPopoverOpen(false)}
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsCopilotPopoverOpen(false);
+          }}
         >
           <div 
             className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-emerald-200/80 animate-scale-up space-y-3.5"
@@ -238,10 +239,10 @@ export default function AttivitaCard({ activity, onEdit, onDelete, onUpdate }: A
                 </span>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 leading-tight">
-                    Note del Co-pilota
+                    Note Co-pilota • {activity.title}
                   </h3>
                   <p className="text-[10px] text-emerald-700 font-semibold truncate max-w-[190px]">
-                    {activity.title}
+                    Promemoria e raccomandazioni
                   </p>
                 </div>
               </div>
@@ -254,29 +255,33 @@ export default function AttivitaCard({ activity, onEdit, onDelete, onUpdate }: A
               </button>
             </div>
 
-            <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-100/90 text-xs text-slate-700 leading-relaxed font-medium">
-              {activity.copilotNotes?.trim() ? (
-                activity.copilotNotes
+            {/* Area di testo per lettura / modifica immediata */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-slate-600">
+                {canEdit ? 'Note & Suggerimenti di viaggio:' : 'Note consultabili:'}
+              </label>
+              {canEdit ? (
+                <textarea
+                  rows={4}
+                  value={editingCopilotNotes}
+                  onChange={(e) => setEditingCopilotNotes(e.target.value)}
+                  placeholder="Inserisci note, consigli parcheggio, orari migliori, promemoria per la guida..."
+                  className="w-full rounded-2xl bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 p-3 text-xs text-slate-800 leading-relaxed outline-none transition-all resize-none"
+                />
               ) : (
-                <p className="text-slate-400 italic">
-                  Nessuna raccomandazione specifica inserita.
-                </p>
+                <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-100 text-xs text-slate-700 leading-relaxed font-medium min-h-[80px]">
+                  {activity.copilotNotes?.trim() ? (
+                    activity.copilotNotes
+                  ) : (
+                    <p className="text-slate-400 italic">
+                      Nessuna raccomandazione inserita.
+                    </p>
+                  )}
+                </div>
               )}
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-1">
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsCopilotPopoverOpen(false);
-                    onEdit();
-                  }}
-                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
-                >
-                  ✏️ Modifica Nota
-                </button>
-              )}
               <button
                 type="button"
                 onClick={() => setIsCopilotPopoverOpen(false)}
@@ -284,6 +289,36 @@ export default function AttivitaCard({ activity, onEdit, onDelete, onUpdate }: A
               >
                 Chiudi
               </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  disabled={isSavingCopilot}
+                  onClick={async () => {
+                    try {
+                      setIsSavingCopilot(true);
+                      const updated: Attivita = {
+                        ...activity,
+                        copilotNotes: editingCopilotNotes.trim(),
+                        copilota: Boolean(editingCopilotNotes.trim()) || activity.copilota,
+                        updatedAt: Date.now()
+                      };
+                      await storageService.saveActivity(updated);
+                      if (onUpdate) onUpdate(updated);
+                      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+                        detail: { entityType: 'activity', action: 'update', data: updated }
+                      }));
+                      setIsCopilotPopoverOpen(false);
+                    } catch (err) {
+                      console.error('Errore salvataggio nota copilota:', err);
+                    } finally {
+                      setIsSavingCopilot(false);
+                    }
+                  }}
+                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                >
+                  {isSavingCopilot ? 'Salvataggio...' : 'Salva Nota'}
+                </button>
+              )}
             </div>
           </div>
         </div>
