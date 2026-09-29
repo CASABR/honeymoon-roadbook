@@ -486,24 +486,24 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
         flag: '✈️',
         coords: currentTransport.coordinate || lookupKnownCoordinate(currentTransport.arrivalLocation) || { lat: -36.8485, lng: 174.7633 },
         isRealGps: false,
-        updateNotice: 'Trasferimento programmato',
-        badgeLabel: `✈️ ${currentTransport.arrivalLocation}`
+        updateNotice: tripCountdown.isPreTrip ? 'Viaggio non ancora iniziato (Inizio: 29 Nov 2026)' : 'Trasferimento programmato',
+        badgeLabel: tripCountdown.isPreTrip ? 'Viaggio non ancora iniziato (Inizio: 29 Nov 2026)' : `✈️ ${currentTransport.arrivalLocation}`
       };
     }
     const defaultTitle = currentDay?.title || 'Auckland, Nuova Zelanda';
     const defaultCity = currentDay?.location || 'Auckland';
     return {
-      title: defaultTitle,
+      title: tripCountdown.isPreTrip ? '1ª Tappa Programmata (Auckland)' : defaultTitle,
       city: defaultCity,
       country: 'Nuova Zelanda',
       countryCode: 'nz',
       flag: '🇳🇿',
       coords: lookupKnownCoordinate(defaultCity) || { lat: -36.8485, lng: 174.7633 },
       isRealGps: false,
-      updateNotice: 'Partenza programmata',
-      badgeLabel: `🗓️ ${defaultCity}`
+      updateNotice: tripCountdown.isPreTrip ? 'Viaggio non ancora iniziato (Inizio: 29 Nov 2026)' : 'Partenza programmata',
+      badgeLabel: tripCountdown.isPreTrip ? 'Viaggio non ancora iniziato (Inizio: 29 Nov 2026)' : `🗓️ ${defaultCity}`
     };
-  }, [currentAccommodation, currentTappa, currentTransport, currentDay]);
+  }, [currentAccommodation, currentTappa, currentTransport, currentDay, tripCountdown.isPreTrip]);
 
   // Posizione GPS Reale
   const realLocation = useMemo(() => {
@@ -536,18 +536,32 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     return null;
   }, [liveGpsState]);
 
-  // Località attiva sulla mappa in base al toggle dell'utente
-  // Se siamo prima della partenza (isPreTrip), per tutti gli ospiti 'Dove siamo ora' e 'Dove dovremmo essere'
-  // coincidono perfettamente sulla prima tappa programmata per evitare falsi allarmi o discrepanze
+  // Località attiva sulla mappa in base al toggle dell'utente (reale vs programmato) per qualsiasi ruolo
   const currentLocation = useMemo(() => {
-    if (tripCountdown.isPreTrip && deviceRole !== 'guida') {
-      return plannedLocation;
-    }
     if (mapLocationMode === 'reale' && realLocation) {
       return realLocation;
     }
     return plannedLocation;
-  }, [mapLocationMode, realLocation, plannedLocation, tripCountdown.isPreTrip, deviceRole]);
+  }, [mapLocationMode, realLocation, plannedLocation]);
+
+  // Calcolo distanza (in km) tra la posizione GPS reale e la posizione programmata durante il viaggio
+  const distanceToPlannedKm = useMemo(() => {
+    if (!realLocation?.coords || !plannedLocation?.coords) return null;
+    const lat1 = realLocation.coords.lat;
+    const lon1 = realLocation.coords.lng;
+    const lat2 = plannedLocation.coords.lat;
+    const lon2 = plannedLocation.coords.lng;
+    
+    const R = 6371; // Raggio terra in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return Math.round(R * c);
+  }, [realLocation, plannedLocation]);
 
   // Chiamata leggera Open-Meteo per meteo locale e prossima tappa
   useEffect(() => {
@@ -1387,7 +1401,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
         )}
 
         {/* Dati di Navigazione & Contesto Emozionale */}
-        <div className="grid grid-cols-2 gap-2 pt-0.5">
+        <div className={`grid ${distanceToPlannedKm !== null ? 'grid-cols-3' : 'grid-cols-2'} gap-2 pt-0.5`}>
           {/* Coordinate Geografiche */}
           <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
             <span className="text-sm">🧭</span>
@@ -1413,6 +1427,21 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
               </div>
             </div>
           </div>
+
+          {/* Distanza dalla Tappa Programmata (durante il viaggio) */}
+          {distanceToPlannedKm !== null && (
+            <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-emerald-50/80 border border-emerald-100">
+              <span className="text-sm">🎯</span>
+              <div className="min-w-0">
+                <div className="text-[9px] uppercase tracking-wider font-bold text-emerald-600">
+                  Distanza Tappa
+                </div>
+                <div className="text-[11px] font-bold text-emerald-800 truncate">
+                  ~{distanceToPlannedKm.toLocaleString('it-IT')} km
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Pulsante di acquisizione GPS reale (riservato al Telefono Guida per non sovrascrivere dal co-pilota o da PC) */}

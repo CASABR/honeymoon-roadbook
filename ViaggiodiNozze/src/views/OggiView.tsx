@@ -61,6 +61,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   const calendarContainerRef = React.useRef<HTMLDivElement>(null);
   const selectedDayBtnRef = React.useRef<HTMLButtonElement>(null);
+  const timelineItemRefs = React.useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   // Modali Dettaglio e Modifica
   const [detailItem, setDetailItem] = useState<TimelineItem | null>(null);
@@ -70,6 +71,35 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [editingAlloggioItem, setEditingAlloggioItem] = useState<Alloggio | null>(null);
   const [editingRistoranteItem, setEditingRistoranteItem] = useState<Ristorante | null>(null);
   const [editingShoppingItem, setEditingShoppingItem] = useState<Shopping | null>(null);
+
+  const scrollToCurrentEvent = useCallback(() => {
+    if (!timeline || timeline.length === 0) return;
+    const now = new Date();
+    const currentMin = now.getHours() * 60 + now.getMinutes();
+
+    let closestId = timeline[0]?.id;
+    let minDiff = Infinity;
+
+    timeline.forEach(item => {
+      const timeStr = item.time || '12:00';
+      const [h, m] = timeStr.split(':').map(Number);
+      if (!isNaN(h) && !isNaN(m)) {
+        const itemMin = h * 60 + m;
+        const diff = Math.abs(itemMin - currentMin);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestId = item.id;
+        }
+      }
+    });
+
+    if (closestId && timelineItemRefs.current[closestId]) {
+      timelineItemRefs.current[closestId]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+  }, [timeline]);
 
   const getTomorrowDateStr = (dateStr: string): string => {
     try {
@@ -95,6 +125,17 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       setTomorrowTimeline([]);
     }
   }, [selectedDate]);
+
+  // Auto-scroll cronologico alla tappa/evento più vicino all'orario attuale
+  useEffect(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (selectedDate === todayStr || selectedDate === (tripDays[0]?.dateStr || '2026-11-29')) {
+      const timer = setTimeout(() => {
+        scrollToCurrentEvent();
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [selectedDate, timeline, scrollToCurrentEvent, tripDays]);
 
   const loadData = useCallback(async () => {
     try {
@@ -497,15 +538,25 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               {formatDateHuman(selectedDate)}
             </span>
           </div>
-          {onNavigateTab && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => onNavigateTab('categorie', 'tappe')}
-              className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors cursor-pointer"
+              onClick={scrollToCurrentEvent}
+              className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-full border border-indigo-200/80 transition-all cursor-pointer active:scale-95 shadow-2xs"
+              title="Ri-centra la schermata sull'evento più vicino all'orario attuale"
             >
-              Tappe ➔
+              <span>🕒 Adesso</span>
             </button>
-          )}
+            {onNavigateTab && (
+              <button
+                type="button"
+                onClick={() => onNavigateTab('categorie', 'tappe')}
+                className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors cursor-pointer"
+              >
+                Tappe ➔
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Sequenza Unificata: timeline + eventuale alloggio notturno */}
@@ -606,7 +657,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 const isShopping = item.type === 'shopping';
 
                 return (
-                  <React.Fragment key={`${item.id}-${idx}`}>
+                  <div key={`${item.id}-${idx}`} ref={(el) => { timelineItemRefs.current[item.id] = el; }}>
                     {/* CARD DELL'ELEMENTO NELLA SEQUENZA */}
                     {isTransport ? (
                       /* Card Biglietto di Viaggio / Boarding Pass per i Trasporti */
@@ -792,7 +843,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         />
                       </div>
                     )}
-                  </React.Fragment>
+                  </div>
                 );
               })}
             </div>

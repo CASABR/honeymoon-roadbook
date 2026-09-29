@@ -141,42 +141,42 @@ class StorageService {
     const flagPresent = !!localStorage.getItem(SEED_FLAG_KEY);
 
     if (flagPresent) {
-      // Verifica di integrità: anche se il flag è presente, controlla che il DB contenga dati.
-      // Se il DB è completamente vuoto (es. dopo upgrade IndexedDB o wipe browser), ri-esegui il seed.
+      // VERIFICA DI INTEGRITÀ FAIL-SAFE: controlla che IndexedDB non sia stato wippato (v6 upgrade).
       try {
-        const [activities, transports] = await Promise.all([
+        const [activities, transports, tappe, alloggi, spese] = await Promise.all([
           idbGetAll<Attivita>(STORES.ATTIVITA),
-          idbGetAll<Trasporto>(STORES.TRASPORTI)
+          idbGetAll<Trasporto>(STORES.TRASPORTI),
+          idbGetAll<Tappa>(STORES.TAPPE),
+          idbGetAll<Alloggio>(STORES.ALLOGGI),
+          idbGetAll<Spesa>(STORES.SPESE)
         ]);
-        if (activities.length > 0 || transports.length > 0) {
-          return; // DB integro, tutto ok
+        if (activities.length > 0 || transports.length > 0 || tappe.length > 0 || alloggi.length > 0 || spese.length > 0) {
+          return; // DB integro e popolato
         }
-        // DB vuoto nonostante il flag → re-seed di emergenza, flag reset
-        console.warn('[StorageService] DB svuotato nonostante il flag seed! Esecuzione re-seed di emergenza...');
+        // IndexedDB vuoto nonostante il flag in localStorage → esegui re-seed di emergenza
+        console.warn('[StorageService] IndexedDB risulta vuoto (wipe v6). Avvio re-seeding di emergenza...');
         localStorage.removeItem(SEED_FLAG_KEY);
       } catch (err) {
-        console.warn('[StorageService] Impossibile leggere il DB per verifica integrità:', err);
+        console.warn('[StorageService] Impossibile leggere IndexedDB per verifica integrità:', err);
         return;
       }
     }
 
     try {
-      const [days, activities, transports, tappe, docs] = await Promise.all([
+      const [days, activities, transports, tappe, docs, alloggi] = await Promise.all([
         idbGetAll<Giorno>(STORES.GIORNI),
         idbGetAll<Attivita>(STORES.ATTIVITA),
         idbGetAll<Trasporto>(STORES.TRASPORTI),
         idbGetAll<Tappa>(STORES.TAPPE),
-        idbGetAll<TravelDocument>(STORES.DOCUMENTI)
+        idbGetAll<TravelDocument>(STORES.DOCUMENTI),
+        idbGetAll<Alloggio>(STORES.ALLOGGI)
       ]);
 
-      // Se esiste già un qualsiasi dato salvato in IndexedDB, consideriamo l'app inizializzata
-      // e NON TOCCARE MAI PIÙ NESSUN DATO per evitare di ripristinare il 29 al posto del 28
-      if (days.length > 0 || activities.length > 0 || transports.length > 0 || tappe.length > 0 || docs.length > 0) {
+      if (days.length > 0 || activities.length > 0 || transports.length > 0 || tappe.length > 0 || docs.length > 0 || alloggi.length > 0) {
         localStorage.setItem(SEED_FLAG_KEY, 'true');
         return;
       }
 
-      // Procedi al primissimo seeding iniziale assoluto
       // 1. Giorno 29 Novembre 2026 e attività di partenza
       const dateStr = '2026-11-29';
       const day: Giorno = {
@@ -220,6 +220,82 @@ class StorageService {
       };
       await idbPut(STORES.ATTIVITA, novecento);
       await idbPut(STORES.ATTIVITA, starita);
+
+      // 2. Tappe di partenza
+      const defaultTappe: Tappa[] = [
+        {
+          id: 'tappa_01_auckland',
+          titolo: 'Auckland CBD & Baia',
+          data: '2026-12-01',
+          nota: 'Arrivo ad Auckland, transfer alloggio e prima passeggiata sul lungomare.',
+          coordinate: { lat: -36.8485, lng: 174.7633 },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        },
+        {
+          id: 'tappa_02_rotorua',
+          titolo: 'Rotorua Terme & Geyser',
+          data: '2026-12-03',
+          nota: 'Parco geotermico Te Puia e cultura Maori.',
+          coordinate: { lat: -38.1368, lng: 176.2497 },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        },
+        {
+          id: 'tappa_03_tekapo',
+          titolo: 'Lago Tekapo & Good Shepherd',
+          data: '2026-12-08',
+          nota: 'Chiesetta del Buon Pastore e osservazione stelle Mt John.',
+          coordinate: { lat: -44.0047, lng: 170.4771 },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        },
+        {
+          id: 'tappa_04_queenstown',
+          titolo: 'Queenstown & Fiordland',
+          data: '2026-12-11',
+          nota: 'Capitale dell\'avventura e partenza per Milford Sound.',
+          coordinate: { lat: -45.0312, lng: 168.6626 },
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        }
+      ];
+      for (const t of defaultTappe) {
+        await idbPut(STORES.TAPPE, t);
+      }
+
+      // 3. Alloggio iniziale
+      const defaultAlloggio: Alloggio = {
+        id: 'acc_01_auckland',
+        name: 'Hotel Noa Auckland',
+        location: 'Queen Street, Auckland CBD',
+        address: 'Queen Street 120, Auckland CBD, Nuova Zelanda',
+        checkIn: '2026-12-01',
+        checkOut: '2026-12-02',
+        checkInTime: '14:00',
+        checkOutTime: '10:00',
+        status: 'prenotato',
+        coordinate: { lat: -36.8485, lng: 174.7633 },
+        notes: 'Pernottamento serale pre-ritiro auto Snap Rentals',
+        copilota: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await idbPut(STORES.ALLOGGI, defaultAlloggio);
+
+      // 4. Spesa iniziale
+      const defaultSpesa: Spesa = {
+        id: 'spesa_01_snap',
+        title: 'Acconto Snap Rentals Auto NZ',
+        category: 'trasporti',
+        amount: 282,
+        status: 'saldato',
+        date: '2026-11-20',
+        notes: 'Acconto 518 NZD già saldato',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      };
+      await idbPut(STORES.SPESE, defaultSpesa);
 
       // 2. Trasporti certificati iniziali
       const now = Date.now();
