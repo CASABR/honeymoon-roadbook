@@ -131,11 +131,33 @@ class StorageService {
    * Seeding iniziale dei dati mock/default (tappe, attività, trasporti, documenti).
    * Viene eseguito ESCLUSIVAMENTE se e solo se l'app non è mai stata seedata
    * (verifica tramite SEED_FLAG_KEY in localStorage) o se lo store è TOTALMENTE VUOTO.
+   *
+   * VERIFICA DI INTEGRITÀ (fail-safe): se il flag è presente ma il DB è vuoto
+   * (es. wipe dopo upgrade IndexedDB), esegue il re-seed di emergenza.
    */
   async initInitialSeedData(): Promise<void> {
     if (typeof localStorage === 'undefined') return;
-    if (localStorage.getItem(SEED_FLAG_KEY)) {
-      return; // Già seedato in precedenza, non toccare assolutamente nulla!
+
+    const flagPresent = !!localStorage.getItem(SEED_FLAG_KEY);
+
+    if (flagPresent) {
+      // Verifica di integrità: anche se il flag è presente, controlla che il DB contenga dati.
+      // Se il DB è completamente vuoto (es. dopo upgrade IndexedDB o wipe browser), ri-esegui il seed.
+      try {
+        const [activities, transports] = await Promise.all([
+          idbGetAll<Attivita>(STORES.ATTIVITA),
+          idbGetAll<Trasporto>(STORES.TRASPORTI)
+        ]);
+        if (activities.length > 0 || transports.length > 0) {
+          return; // DB integro, tutto ok
+        }
+        // DB vuoto nonostante il flag → re-seed di emergenza, flag reset
+        console.warn('[StorageService] DB svuotato nonostante il flag seed! Esecuzione re-seed di emergenza...');
+        localStorage.removeItem(SEED_FLAG_KEY);
+      } catch (err) {
+        console.warn('[StorageService] Impossibile leggere il DB per verifica integrità:', err);
+        return;
+      }
     }
 
     try {
