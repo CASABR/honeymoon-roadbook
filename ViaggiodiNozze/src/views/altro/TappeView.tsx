@@ -33,27 +33,25 @@ export default function TappeView({ onBack }: TappeViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      let [loadedTappe, routes, range] = await Promise.all([
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout caricamento dati (1.5s)')), 1500)
+      );
+
+      const dataPromise = Promise.all([
         storageService.getTappe(),
         storageService.getAllRouteCaches(),
         getTripDateRange()
       ]);
 
-      if (loadedTappe.length === 0) {
-        await storageService.initInitialSeedData();
-        [loadedTappe, routes, range] = await Promise.all([
-          storageService.getTappe(),
-          storageService.getAllRouteCaches(),
-          getTripDateRange()
-        ]);
-      }
+      const [loadedTappe, routes, range] = await Promise.race([dataPromise, timeoutPromise]) as [Tappa[], any[], any];
 
-      setTappe(loadedTappe);
-      setTripDays(range.tripDays);
+      setTappe(loadedTappe || []);
+      if (range) setTripDays(range.tripDays);
       setSelectedDate('tutte');
 
       // Calcola i km complessivi salvati in cache
-      const kmSum = routes.reduce((sum, r) => sum + (r.route?.distanceKm || 0), 0);
+      const kmSum = (routes || []).reduce((sum, r) => sum + (r.route?.distanceKm || 0), 0);
       setTotalKm(Math.round(kmSum * 10) / 10);
     } catch (err) {
       console.error('Errore nel caricamento delle tappe:', err);

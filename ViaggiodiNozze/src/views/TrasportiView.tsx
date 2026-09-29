@@ -34,12 +34,17 @@ export default function TrasportiView() {
   const loadData = async () => {
     try {
       setLoading(true);
-      let items = await storageService.getTransports();
-      if (items.length === 0) {
-        await storageService.initInitialSeedData();
-        items = await storageService.getTransports();
-      }
-      setTransports(items);
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout caricamento dati (1.5s)')), 1500)
+      );
+
+      const items = await Promise.race([
+        storageService.getTransports(),
+        timeoutPromise
+      ]) as Trasporto[];
+
+      setTransports(items || []);
     } catch (err) {
       console.error('Errore caricamento trasporti:', err);
     } finally {

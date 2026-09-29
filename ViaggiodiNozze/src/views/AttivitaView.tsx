@@ -1,9 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
-import type { Giorno, Attivita, CategoriaAttivita } from '../types';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import type { Attivita, CategoriaAttivita } from '../types';
 import { storageService } from '../storage/storageService';
-import GiornoCard from '../components/cards/GiornoCard';
 import AttivitaCard from '../components/cards/AttivitaCard';
-import GiornoForm from '../components/forms/GiornoForm';
 import AttivitaForm from '../components/forms/AttivitaForm';
 import Modal from '../components/common/Modal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
@@ -16,7 +14,6 @@ import { useDeviceRole } from '../utils/useDeviceRole';
 export default function AttivitaView() {
   const { canEdit } = useDeviceRole();
   const [tripDays, setTripDays] = useState<TripDayItem[]>([]);
-  const [days, setDays] = useState<Giorno[]>([]);
   const [activities, setActivities] = useState<Attivita[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,20 +23,13 @@ export default function AttivitaView() {
   // Filtro categoria attività
   const [categoryFilter, setCategoryFilter] = useState<CategoriaAttivita | 'tutte'>('tutte');
 
-  // Giorno selezionato per visualizzare/filtrare le attività
-  const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
-
-  // Modali Form
-  const [isDayModalOpen, setIsDayModalOpen] = useState(false);
-  const [editingDay, setEditingDay] = useState<Giorno | null>(null);
-
+  // Modale Form
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [editingActivity, setEditingActivity] = useState<Attivita | null>(null);
   const [targetDayForActivity, setTargetDayForActivity] = useState<string | undefined>(undefined);
 
   // Dialog di Conferma Eliminazione
   const [deleteTarget, setDeleteTarget] = useState<{
-    type: 'day' | 'activity';
     id: string;
     title: string;
   } | null>(null);
@@ -47,31 +37,25 @@ export default function AttivitaView() {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      let [loadedDays, loadedActivities, range] = await Promise.all([
-        storageService.getDays(),
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout caricamento dati (1.5s)')), 1500)
+      );
+
+      const dataPromise = Promise.all([
         storageService.getActivities(),
         getTripDateRange()
       ]);
 
-      // Se il DB è vuoto, invoca il seed automatico di ripristino
-      if (loadedActivities.length === 0 && loadedDays.length === 0) {
-        await storageService.initInitialSeedData();
-        [loadedDays, loadedActivities, range] = await Promise.all([
-          storageService.getDays(),
-          storageService.getActivities(),
-          getTripDateRange()
-        ]);
-      }
+      const [loadedActivities, range] = await Promise.race([dataPromise, timeoutPromise]) as [Attivita[], any];
 
-      setDays(loadedDays);
-      setActivities(loadedActivities);
-      setTripDays(range.tripDays);
+      setActivities(loadedActivities || []);
+      if (range) setTripDays(range.tripDays);
 
-      // Filtro data predefinito: SEMPRE 'tutte' per visualizzazione immediata
-      setSelectedDate('tutte');
-      setSelectedDayId((prev) => (prev ? prev : (loadedDays[0]?.id || null)));
+      // Manteniamo la data selezionata se ancora valida, altrimenti 'tutte'
+      setSelectedDate(prev => prev);
     } catch (err) {
-      console.error('Errore nel caricamento dei dati:', err);
+      console.error('Errore nel caricamento dei dati in AttivitaView:', err);
     } finally {
       setLoading(false);
     }
@@ -89,58 +73,24 @@ export default function AttivitaView() {
     return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
   }, [loadData]);
 
-  // --- Handlers Giorno ---
-  const handleOpenAddDay = () => {
-    setEditingDay(null);
-    setIsDayModalOpen(true);
-  };
-
-  const handleOpenEditDay = (day: Giorno) => {
-    setEditingDay(day);
-    setIsDayModalOpen(true);
-  };
-
-  const handleSaveDay = async (data: Omit<Giorno, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
-    const dayToSave: Giorno = {
-      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'day_' + Date.now()),
-      date: data.date,
-      title: data.title,
-      location: data.location,
-      notes: data.notes,
-      createdAt: editingDay?.createdAt || Date.now(),
-      updatedAt: Date.now()
-    };
-    await storageService.saveDay(dayToSave);
-    setIsDayModalOpen(false);
-    setEditingDay(null);
-    await loadData();
-    setSelectedDayId(dayToSave.id);
-  };
 
   const handleConfirmDelete = async () => {
     if (!deleteTarget) return;
-    if (deleteTarget.type === 'day') {
-      await storageService.deleteDay(deleteTarget.id);
-      if (selectedDayId === deleteTarget.id) {
-        setSelectedDayId(null);
-      }
-    } else {
-      await storageService.deleteActivity(deleteTarget.id);
-    }
+    await storageService.deleteActivity(deleteTarget.id);
     setDeleteTarget(null);
     await loadData();
   };
 
   // --- Handlers Attività ---
-  const handleOpenAddActivity = (dayId?: string) => {
-    setTargetDayForActivity(dayId || selectedDayId || days[0]?.id);
+  const handleOpenAddActivity = (date?: string) => {
+    setTargetDayForActivity(date ? `day_${date}` : (selectedDate !== 'tutte' ? `day_${selectedDate}` : undefined));
     setEditingActivity(null);
     setIsActivityModalOpen(true);
   };
 
   const handleOpenEditActivity = (activity: Attivita) => {
     setEditingActivity(activity);
-    setTargetDayForActivity(activity.dayId);
+    setTargetDayForActivity(activity.dayId || (activity.date ? `day_${activity.date}` : undefined));
     setIsActivityModalOpen(true);
   };
 
@@ -155,16 +105,10 @@ export default function AttivitaView() {
     setIsActivityModalOpen(false);
     setEditingActivity(null);
 
-    const matchedDay = days.find(d => d.id === activityToSave.dayId);
-    const targetDate = activityToSave.date || matchedDay?.date || (activityToSave.dayId.startsWith('day_') ? activityToSave.dayId.replace('day_', '') : null);
+    const targetDate = activityToSave.date || (activityToSave.dayId.startsWith('day_') ? activityToSave.dayId.replace('day_', '') : null);
 
-    if (matchedDay?.date) {
-      setSelectedDate(matchedDay.date);
-      setSelectedDayId(matchedDay.id);
-    } else if (activityToSave.dayId.startsWith('day_')) {
-      const freeDate = activityToSave.dayId.replace('day_', '');
-      setSelectedDate(freeDate);
-      setSelectedDayId(activityToSave.dayId);
+    if (targetDate) {
+      setSelectedDate(targetDate);
     }
 
     if (typeof window !== 'undefined') {
@@ -175,6 +119,45 @@ export default function AttivitaView() {
 
     await loadData();
   };
+
+  const filteredActivities = useMemo(() => {
+    let filtered = activities;
+    
+    // Filter by category
+    if (categoryFilter !== 'tutte') {
+      filtered = filtered.filter(a => a.category === categoryFilter);
+    }
+    
+    // Filter by date
+    if (selectedDate !== 'tutte') {
+      filtered = filtered.filter(a => {
+        const d = a.date || (a.dayId.startsWith('day_') ? a.dayId.replace('day_', '') : null);
+        return d === selectedDate;
+      });
+    }
+    
+    return filtered.sort((a, b) => {
+      const dateA = a.date || (a.dayId.startsWith('day_') ? a.dayId.replace('day_', '') : '');
+      const dateB = b.date || (b.dayId.startsWith('day_') ? b.dayId.replace('day_', '') : '');
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      
+      const timeA = a.time || '23:59';
+      const timeB = b.time || '23:59';
+      return timeA.localeCompare(timeB);
+    });
+  }, [activities, categoryFilter, selectedDate]);
+
+  const groupedActivities = useMemo(() => {
+    const groups: Record<string, Attivita[]> = {};
+    filteredActivities.forEach(a => {
+      const d = a.date || (a.dayId.startsWith('day_') ? a.dayId.replace('day_', '') : 'Data non specificata');
+      if (!groups[d]) groups[d] = [];
+      groups[d].push(a);
+    });
+    // Sort keys
+    const sortedKeys = Object.keys(groups).sort();
+    return sortedKeys.map(k => ({ date: k, items: groups[k] }));
+  }, [filteredActivities]);
 
   if (loading) {
     return (
@@ -193,9 +176,7 @@ export default function AttivitaView() {
             Attività
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            {days.length === 0
-              ? 'Nessun giorno programmato'
-              : days.length + ' ' + (days.length === 1 ? 'giorno' : 'giorni') + ' • ' + activities.length + ' attività'}
+            {activities.length} attività in programma
           </p>
         </div>
 
@@ -203,21 +184,13 @@ export default function AttivitaView() {
           <div className="flex items-center gap-1.5 ml-auto">
             <button
               type="button"
-              onClick={() => handleOpenAddActivity(days[0]?.id)}
-              className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-semibold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+              onClick={() => handleOpenAddActivity()}
+              className="inline-flex items-center gap-1.5 min-h-[40px] px-4 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-sm rounded-2xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" />
               </svg>
-              <span>+ Attività</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleOpenAddDay}
-              className="inline-flex items-center gap-1 min-h-[40px] px-3 bg-white hover:bg-slate-50 active:scale-95 text-slate-700 font-semibold text-xs rounded-xl border border-slate-200 transition-all cursor-pointer shadow-sm"
-              title="Aggiungi tappa/giorno specifico"
-            >
-              <span>+ Giorno</span>
+              <span>Nuova Attività</span>
             </button>
           </div>
         )}
@@ -228,11 +201,10 @@ export default function AttivitaView() {
         selectedDate={selectedDate}
         onSelectDate={setSelectedDate}
         tripDays={tripDays}
-        days={tripDays}
+        days={tripDays as any}
         totalCount={activities.length}
         itemCounts={activities.reduce<Record<string, number>>((acc, a) => {
-          const matchingDay = days.find(d => d.id === a.dayId);
-          const actDate = a.date || matchingDay?.date || (a.dayId.startsWith('day_') ? a.dayId.replace('day_', '') : null);
+          const actDate = a.date || (a.dayId.startsWith('day_') ? a.dayId.replace('day_', '') : null);
           if (actDate) {
             acc[actDate] = (acc[actDate] || 0) + 1;
           }
@@ -278,219 +250,85 @@ export default function AttivitaView() {
         </div>
       )}
 
-      {/* Stato Vuoto se 0 Giorni */}
-      {days.length === 0 ? (
+      {/* 3. Elenco Attività (Puro Card-First) */}
+      {activities.length === 0 ? (
         <EmptyState
           title="Nessuna attività inserita"
-          description="Inizia aggiungendo il primo giorno dell'itinerario e le attività collegate."
-          actionLabel="Aggiungi Primo Giorno"
+          description="Inizia ad aggiungere le attività che farai durante il viaggio (musei, escursioni, cene)."
+          actionLabel="Aggiungi Attività"
           accentVariant="amber"
-          onAction={handleOpenAddDay}
+          onAction={() => handleOpenAddActivity()}
           icon={
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
           }
         />
-      ) : (() => {
-        // Raccogli sia i giorni espliciti che le attività orfane di giorno rigido
-        const filteredDays = days.filter(d => selectedDate === 'tutte' || d.date === selectedDate);
-        
-        // Attività che appartengono direttamente alla data selezionata (anche senza record Giorno esplicito nel DB)
-        const orphanActivitiesForDate = selectedDate === 'tutte' 
-          ? [] 
-          : activities.filter(a => {
-              const matchedDay = days.find(d => d.id === a.dayId);
-              const actDate = a.date || matchedDay?.date || (a.dayId.startsWith('day_') ? a.dayId.replace('day_', '') : null);
-              return actDate === selectedDate && !days.some(d => d.id === a.dayId);
-            });
-
-        if (filteredDays.length === 0 && orphanActivitiesForDate.length === 0) {
-          // Giorno selezionato non ha ancora attività o giorni
-          return (
-            <div className="p-8 rounded-3xl bg-white border border-slate-200/80 text-center shadow-sm flex flex-col items-center justify-center gap-3">
-              <span className="text-3xl">🗓️</span>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900">
-                  Nessun elemento programmato per questo giorno
-                </h3>
-                <p className="text-xs text-slate-500 mt-1 max-w-xs">
-                  Non ci sono attività registrate per la data {selectedDate}.
-                </p>
-              </div>
-              {canEdit && (
-                <div className="flex items-center gap-2 mt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTargetDayForActivity(`day_${selectedDate}`);
-                      setEditingActivity(null);
-                      setIsActivityModalOpen(true);
-                    }}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all cursor-pointer"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-                    </svg>
-                    <span>+ Aggiungi Attività per questa Data</span>
-                  </button>
-                </div>
-              )}
+      ) : filteredActivities.length === 0 ? (
+        <div className="p-8 rounded-3xl bg-white border border-slate-200/80 text-center shadow-sm flex flex-col items-center justify-center gap-3 mt-4">
+          <span className="text-3xl">🗓️</span>
+          <div>
+            <h3 className="text-sm font-bold text-slate-900">
+              Nessuna attività
+            </h3>
+            <p className="text-xs text-slate-500 mt-1 max-w-xs">
+              Non ci sono attività corrispondenti ai filtri attivi.
+            </p>
+          </div>
+          {canEdit && (
+            <div className="flex items-center gap-2 mt-1">
+              <button
+                type="button"
+                onClick={() => handleOpenAddActivity(selectedDate !== 'tutte' ? selectedDate : undefined)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>+ Aggiungi per questa Data</span>
+              </button>
             </div>
-          );
-        }
-
-        return (
-          <div className="space-y-4">
-            {/* Se ci sono attività associate direttamente alla data senza record Giorno formale */}
-            {orphanActivitiesForDate.length > 0 && (
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between px-1">
-                  <h3 className="text-xs font-bold text-amber-900 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200/70 inline-flex items-center gap-1.5">
-                    <span>📅</span>
-                    <span>Attività del {selectedDate}</span>
-                  </h3>
-                  {canEdit && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setTargetDayForActivity(`day_${selectedDate}`);
-                        setEditingActivity(null);
-                        setIsActivityModalOpen(true);
-                      }}
-                      className="text-xs font-bold text-amber-700 hover:text-amber-800 cursor-pointer"
-                    >
-                      + Aggiungi
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  {orphanActivitiesForDate
-                    .filter((a) => categoryFilter === 'tutte' || a.category === categoryFilter)
-                    .map((activity, index) => {
-                      const nextActivity = orphanActivitiesForDate[index + 1];
-                      return (
-                        <div key={activity.id} className="flex flex-col gap-2">
-                          <AttivitaCard
-                            activity={activity}
-                            onEdit={() => handleOpenEditActivity(activity)}
-                            onDelete={() =>
-                              setDeleteTarget({
-                                type: 'activity',
-                                id: activity.id,
-                                title: activity.title
-                              })
-                            }
-                            onUpdate={loadData}
-                          />
-                          {nextActivity && activity.location && nextActivity.location && (
-                            <div className="pl-6 py-0.5">
-                              <RouteBadge 
-                                from={activity.location} 
-                                to={nextActivity.location} 
-                              />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
-            )}
-            {filteredDays.map((day) => {
-              const dayActivities = activities
-                .filter((a) => a.dayId === day.id)
-                .filter((a) => categoryFilter === 'tutte' || a.category === categoryFilter);
-              const isSelected = selectedDate !== 'tutte' || selectedDayId === day.id;
-
-            return (
-              <div key={day.id} className="space-y-2.5">
-                <GiornoCard
-                  day={day}
-                  activityCount={dayActivities.length}
-                  isSelected={isSelected}
-                  onSelect={() => setSelectedDayId(isSelected ? null : day.id)}
-                  onEdit={() => handleOpenEditDay(day)}
-                  onDelete={() =>
-                    setDeleteTarget({
-                      type: 'day',
-                      id: day.id,
-                      title: 'il ' + day.title + ' (e tutte le sue attività)'
-                    })
-                  }
-                  onAddActivity={() => handleOpenAddActivity(day.id)}
-                />
-
-                {/* Lista Attività Collegate al Giorno */}
-                {isSelected && (
-                  <div className="pl-3 sm:pl-4 border-l-2 border-amber-500/40 space-y-2 mt-2">
-                    {dayActivities.length === 0 ? (
-                      <div className="p-4 rounded-2xl bg-white border border-dashed border-slate-300 text-center shadow-sm">
-                        <p className="text-xs text-slate-500 mb-2">
-                          Nessuna attività programmata per questo giorno.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenAddActivity(day.id)}
-                          className="text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors inline-flex items-center gap-1 cursor-pointer"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4" />
-                          </svg>
-                          <span>Inserisci prima attività</span>
-                        </button>
-                      </div>
-                    ) : (
-                      dayActivities.map((activity, index) => {
-                        const nextActivity = dayActivities[index + 1];
-                        return (
-                          <div key={activity.id} className="flex flex-col gap-2">
-                            <AttivitaCard
-                              activity={activity}
-                              onEdit={() => handleOpenEditActivity(activity)}
-                              onDelete={() =>
-                                setDeleteTarget({
-                                  type: 'activity',
-                                  id: activity.id,
-                                  title: activity.title
-                                })
-                              }
-                              onUpdate={loadData}
-                            />
-                            {nextActivity && activity.location && nextActivity.location && (
-                              <div className="pl-6 py-0.5">
-                                <RouteBadge 
-                                  from={activity.location} 
-                                  to={nextActivity.location} 
-                                />
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+          )}
         </div>
-      );
-    })()}
-
-      {/* Modale Giorno */}
-      <Modal
-        isOpen={isDayModalOpen}
-        onClose={() => setIsDayModalOpen(false)}
-        title={editingDay ? 'Modifica Giorno' : 'Nuovo Giorno'}
-        accentVariant="amber"
-      >
-        <GiornoForm
-          initialData={editingDay}
-          onSave={handleSaveDay}
-          onCancel={() => setIsDayModalOpen(false)}
-        />
-      </Modal>
+      ) : (
+        <div className="space-y-6 mt-2">
+          {groupedActivities.map(group => (
+            <div key={group.date} className="space-y-3">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1 border-b border-slate-200/60 pb-1">
+                {group.date}
+              </h3>
+              <div className="space-y-2">
+                {group.items.map((activity, index) => {
+                  const nextActivity = group.items[index + 1];
+                  return (
+                    <div key={activity.id} className="flex flex-col gap-2">
+                      <AttivitaCard
+                        activity={activity}
+                        onEdit={() => handleOpenEditActivity(activity)}
+                        onDelete={() =>
+                          setDeleteTarget({
+                            id: activity.id,
+                            title: activity.title
+                          })
+                        }
+                        onUpdate={loadData}
+                      />
+                      {nextActivity && activity.location && nextActivity.location && (
+                        <div className="pl-6 py-0.5">
+                          <RouteBadge 
+                            from={activity.location} 
+                            to={nextActivity.location} 
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Modale Attività */}
       <Modal
@@ -500,7 +338,7 @@ export default function AttivitaView() {
         accentVariant="amber"
       >
         <AttivitaForm
-          days={days}
+          days={[]}
           selectedDayId={targetDayForActivity}
           initialData={editingActivity}
           onSave={handleSaveActivity}

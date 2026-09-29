@@ -1,98 +1,85 @@
 import { useState, useEffect } from 'react';
-import type { Attivita, Giorno, CategoriaAttivita, StatoAttivita } from '../../types';
+import type { Attivita, CategoriaAttivita, StatoAttivita } from '../../types';
 
 interface AttivitaFormProps {
-  days: Giorno[];
+  days: any[]; // mantenuto per retrocompatibilità prop, ma non usato logicamente
   selectedDayId?: string;
   initialData?: Attivita | null;
   onSave: (data: Omit<Attivita, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   onCancel: () => void;
 }
 
-export default function AttivitaForm({ days, selectedDayId, initialData, onSave, onCancel }: AttivitaFormProps) {
-  const [dayId, setDayId] = useState(selectedDayId || (days[0]?.id || ''));
+export default function AttivitaForm({ selectedDayId, initialData, onSave, onCancel }: AttivitaFormProps) {
   const [title, setTitle] = useState('');
+  const [customDate, setCustomDate] = useState('');
   const [time, setTime] = useState('');
-  const [cost, setCost] = useState('');
-  const [category, setCategory] = useState<CategoriaAttivita>('cultura');
   const [location, setLocation] = useState('');
-  const [status, setStatus] = useState<StatoAttivita>('pianificata');
   
-  // Campi secondari
+  // Livello 2
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [category, setCategory] = useState<CategoriaAttivita>('cultura');
+  const [cost, setCost] = useState('');
+  const [notes, setNotes] = useState('');
+  const [link, setLink] = useState('');
+  const [qrCode, setQrCode] = useState('');
   const [copilota, setCopilota] = useState(false);
   const [copilotNotes, setCopilotNotes] = useState('');
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [qrCode, setQrCode] = useState('');
-  const [link, setLink] = useState('');
-  const [notes, setNotes] = useState('');
+  const [status, setStatus] = useState<StatoAttivita>('pianificata');
+  
   const [error, setError] = useState('');
-
-  const [customDate, setCustomDate] = useState('');
 
   useEffect(() => {
     if (initialData) {
-      setDayId(initialData.dayId);
-      const matchedDay = days.find(d => d.id === initialData.dayId);
-      if (matchedDay) {
-        setCustomDate(matchedDay.date);
-      } else if (initialData.date) {
-        setCustomDate(initialData.date);
-      } else if (initialData.dayId.startsWith('day_')) {
-        setCustomDate(initialData.dayId.replace('day_', ''));
-      }
       setTitle(initialData.title);
+      const dateVal = initialData.date || (initialData.dayId.startsWith('day_') ? initialData.dayId.replace('day_', '') : '');
+      setCustomDate(dateVal);
       setTime(initialData.time || '');
-      setCost(initialData.cost || '');
       setLocation(initialData.location);
+      
       setCategory(initialData.category || 'cultura');
-      setStatus(initialData.status);
+      setCost(initialData.cost || '');
+      setNotes(initialData.notes || '');
+      setLink(initialData.link || '');
+      setQrCode(initialData.qrCode || '');
       setCopilota(initialData.copilota || false);
       setCopilotNotes(initialData.copilotNotes || '');
-      setQrCode(initialData.qrCode || '');
-      setLink(initialData.link || '');
-      setNotes(initialData.notes || '');
-      if (initialData.qrCode || initialData.link || initialData.copilota || initialData.copilotNotes) {
+      setStatus(initialData.status);
+
+      if (initialData.cost || initialData.notes || initialData.link || initialData.qrCode || initialData.copilotNotes) {
         setShowAdvanced(true);
       }
     } else {
-      if (selectedDayId) {
-        setDayId(selectedDayId);
-        const matched = days.find(d => d.id === selectedDayId);
-        if (matched) setCustomDate(matched.date);
-      } else if (days[0]) {
-        setDayId(days[0].id);
-        setCustomDate(days[0].date);
+      if (selectedDayId && selectedDayId.startsWith('day_')) {
+        setCustomDate(selectedDayId.replace('day_', ''));
+      } else if (selectedDayId && selectedDayId !== 'tutte') {
+        setCustomDate(selectedDayId);
+      } else {
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        setCustomDate(`${yyyy}-${mm}-${dd}`);
       }
       setTitle('');
       setTime('');
-      setCost('');
       setLocation('');
       setCategory('cultura');
-      setStatus('pianificata');
-      setCopilota(false);
-      setQrCode('');
-      setLink('');
+      setCost('');
       setNotes('');
+      setLink('');
+      setQrCode('');
+      setCopilota(false);
+      setCopilotNotes('');
+      setStatus('pianificata');
       setShowAdvanced(false);
     }
-  }, [initialData, selectedDayId, days]);
+  }, [initialData, selectedDayId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    let finalDayId = dayId;
 
-    // Se l'utente ha inserito una data libera che non corrisponde a un giorno esistente
-    if (customDate) {
-      const existing = days.find(d => d.date === customDate);
-      if (existing) {
-        finalDayId = existing.id;
-      } else {
-        finalDayId = `day_${customDate}`;
-      }
-    }
-
-    if (!finalDayId) {
-      setError('Seleziona una data o un giorno per l\'attività.');
+    if (!customDate) {
+      setError('Seleziona una data per l\'attività.');
       return;
     }
     if (!title.trim()) {
@@ -100,22 +87,25 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       return;
     }
     setError('');
+
+    const finalDayId = `day_${customDate}`;
+
     onSave({
       id: initialData?.id,
       dayId: finalDayId,
-      date: customDate || undefined,
+      date: customDate,
       title: title.trim(),
       time: time || undefined,
-      cost: cost.trim() || undefined,
-      location: location.trim() || title.trim(),
+      location: location.trim(),
       category,
-      status,
+      cost: cost.trim() || undefined,
+      notes: notes.trim() || undefined,
+      link: link.trim() || undefined,
+      qrCode: qrCode.trim() || undefined,
       copilota: (copilota || Boolean(copilotNotes.trim())) || undefined,
       copilotNotes: copilotNotes.trim() || undefined,
-      qrCode: qrCode.trim() || undefined,
-      attachments: initialData?.attachments,
-      notes: notes.trim() || undefined,
-      link: link.trim() || undefined
+      status,
+      attachments: initialData?.attachments
     });
   };
 
@@ -127,130 +117,130 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
         </div>
       )}
 
-      {/* Titolo Attività */}
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Titolo Attività *
-        </label>
-        <input
-          type="text"
-          placeholder="es. Visita al Museo del Novecento, Gita in barca"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
-          required
-        />
-      </div>
-
-      {/* Data e Orario */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Livello 1: Essenziale */}
+      <div className="space-y-4">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Data Attività *
-          </label>
-          <input
-            type="date"
-            value={customDate}
-            onChange={(e) => {
-              const val = e.target.value;
-              setCustomDate(val);
-              const found = days.find(d => d.date === val);
-              if (found) setDayId(found.id);
-            }}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs sm:text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
-            required
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Orario (opzionale)
-          </label>
-          <input
-            type="time"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
-          />
-        </div>
-      </div>
-
-      {/* Categoria e Costo */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Categoria *
-          </label>
-          <select
-            value={category}
-            onChange={(e) => setCategory(e.target.value as CategoriaAttivita)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
-          >
-            <option value="cultura">🏛️ Cultura & Musei</option>
-            <option value="natura">🌿 Natura & Parchi</option>
-            <option value="visita">🧭 Avventura & Tour</option>
-            <option value="cibo">🍽️ Cibo & Degustazioni</option>
-            <option value="relax">💆 Relax & Spiaggia</option>
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Costo in € (opzionale)
+            Titolo Attività *
           </label>
           <input
             type="text"
-            placeholder="es. 40 € / Gratuito"
-            value={cost}
-            onChange={(e) => setCost(e.target.value)}
+            placeholder="es. Visita al Museo del Novecento"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
+            required
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Data *
+            </label>
+            <input
+              type="date"
+              value={customDate}
+              onChange={(e) => setCustomDate(e.target.value)}
+              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Orario (opzionale)
+            </label>
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            📍 Indirizzo / Luogo
+          </label>
+          <input
+            type="text"
+            placeholder="es. Piazza del Duomo 8, Milano"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
           />
         </div>
       </div>
 
-      {/* Località / Indirizzo */}
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Località / Luogo
-        </label>
-        <input
-          type="text"
-          placeholder="es. Piazza del Duomo 8, Milano"
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
-        />
-      </div>
-
-      {/* Note */}
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Note o dettagli (opzionale)
-        </label>
-        <textarea
-          rows={2}
-          placeholder="Dettagli biglietti, ingressi, prenotazioni..."
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-amber-500 placeholder:text-slate-400 resize-none"
-        />
-      </div>
-
-      {/* Sezione Voucher / Link / Co-pilota (Richiudibile) */}
-      <div className="pt-1">
+      {/* Livello 2: Dettagli Aggiuntivi (Richiudibile) */}
+      <div className="pt-2">
         <button
           type="button"
           onClick={() => setShowAdvanced(!showAdvanced)}
-          className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer py-1"
+          className="flex items-center gap-1.5 text-xs font-bold text-amber-600 hover:text-amber-800 transition-colors cursor-pointer py-1 w-full justify-center bg-amber-50 rounded-xl h-10 border border-amber-200/60"
         >
-          <svg className={"w-4 h-4 transition-transform " + (showAdvanced ? 'rotate-90' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+          <span>{showAdvanced ? 'Nascondi Dettagli' : '+ Altri Dettagli (Costo, Note, Biglietti)'}</span>
+          <svg className={"w-4 h-4 transition-transform " + (showAdvanced ? 'rotate-180' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
           </svg>
-          <span>{showAdvanced ? 'Meno opzioni (link, voucher QR)' : 'Aggiungi link/voucher o QR code'}</span>
         </button>
 
         {showAdvanced && (
-          <div className="mt-2.5 space-y-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 animate-fade-in">
+          <div className="mt-3 space-y-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 animate-fade-in">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Categoria
+                </label>
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value as CategoriaAttivita)}
+                  className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors"
+                >
+                  <option value="cultura">🏛️ Cultura & Musei</option>
+                  <option value="natura">🌿 Natura & Parchi</option>
+                  <option value="visita">🧭 Avventura & Tour</option>
+                  <option value="cibo">🍽️ Cibo & Degustazioni</option>
+                  <option value="relax">💆 Relax & Spiaggia</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Costo in €
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  pattern="[0-9]*"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={cost}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d*\.?\d*$/.test(val)) setCost(val);
+                  }}
+                  className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Note Operative
+              </label>
+              <textarea
+                rows={2}
+                placeholder="Dettagli biglietti, raccomandazioni..."
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400 resize-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Link o voucher web
               </label>
               <input
@@ -263,57 +253,26 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1 flex items-center justify-between">
-                <span>Codice Biglietto / Testo per QR Code</span>
-                <span className="text-[10px] text-amber-700 font-semibold lowercase">genera QR code scansionabile</span>
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="es. TICKET-12345 o codice a barre"
-                  value={qrCode}
-                  onChange={(e) => setQrCode(e.target.value)}
-                  className="w-full h-10 pl-9 pr-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400 font-mono"
-                />
-                <span className="absolute left-3 top-2.5 text-xs text-amber-600">📱</span>
-              </div>
-            </div>
-
-            <div className="pt-1 flex items-center justify-between gap-3">
-              <label htmlFor="copilota-att-toggle" className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1.5">
-                <span>🧭</span>
-                <span>Visibile al co-pilota</span>
-              </label>
-              <input
-                id="copilota-att-toggle"
-                type="checkbox"
-                checked={copilota || Boolean(copilotNotes.trim())}
-                onChange={(e) => setCopilota(e.target.checked)}
-                className="w-4 h-4 rounded text-emerald-600 bg-white border-slate-300 focus:ring-emerald-500 cursor-pointer"
-              />
-            </div>
-
-            <div>
               <label className="block text-xs font-bold text-emerald-800 mb-1 flex items-center gap-1">
                 <span>🧭</span>
-                <span>Note del Co-pilota (reminder, orari, raccomandazioni)</span>
+                <span>Note del Co-pilota</span>
               </label>
               <textarea
-                placeholder="es. Portare contanti per la guida, arrivare 15 min prima..."
+                placeholder="Promemoria in tempo reale per il co-pilota..."
                 value={copilotNotes}
                 onChange={(e) => {
                   setCopilotNotes(e.target.value);
                   if (e.target.value.trim()) setCopilota(true);
                 }}
                 rows={2}
-                className="w-full p-2.5 bg-emerald-50/40 border border-emerald-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-emerald-500 placeholder:text-slate-400 leading-relaxed"
+                className="w-full p-2.5 bg-emerald-50/40 border border-emerald-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-emerald-500 placeholder:text-emerald-600/60 leading-relaxed"
               />
             </div>
           </div>
         )}
       </div>
 
-      <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+      <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
         <button
           type="button"
           onClick={onCancel}
@@ -325,7 +284,7 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
           type="submit"
           className="min-h-[44px] px-6 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
         >
-          {initialData ? 'Aggiorna Attività' : 'Salva Attività'}
+          {initialData ? 'Aggiorna' : 'Salva Attività'}
         </button>
       </div>
     </form>

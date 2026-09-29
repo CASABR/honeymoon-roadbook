@@ -140,15 +140,22 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [accs, days, range, transports, tappe] = await Promise.all([
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout caricamento dati (1.5s)')), 1500)
+      );
+
+      const dataPromise = Promise.all([
         storageService.getAccommodations(),
         storageService.getDays(),
         getTripDateRange(),
         storageService.getTransports(),
         storageService.getTappe()
       ]);
-      setAccommodations(accs);
-      setDaysData(days);
+
+      const [accs, days, range, transports, tappe] = await Promise.race([dataPromise, timeoutPromise]) as [Alloggio[], Giorno[], any, Trasporto[], Tappa[]];
+
+      setAccommodations(accs || []);
+      setDaysData(days || []);
 
       // Calcolo dinamico paesi visitati aggregando dai dati del DB
       const countrySet = new Set<string>();
@@ -205,19 +212,19 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         setDynamicCountries('Nuova Zelanda, Australia & Filippine');
       }
 
-      const dynamicDays = range.tripDays;
+      const dynamicDays = range?.tripDays || [];
       setTripDays(dynamicDays);
 
       // Se oggi ricade all'interno del viaggio, seleziona la data odierna al primissimo mount
       const todayStr = new Date().toISOString().split('T')[0];
-      const isInTrip = dynamicDays.some((d) => d.dateStr === todayStr);
+      const isInTrip = dynamicDays.some((d: any) => d.dateStr === todayStr);
       setSelectedDate(prev => {
         if (isInTrip && (prev === '2026-11-28' || prev === '2026-11-29' || prev === dynamicDays[0]?.dateStr)) {
           return todayStr;
         }
         // Se la data precedente era il default o non è presente, imposta la prima data reale del viaggio
-        if (prev === '2026-11-28' || prev === '2026-11-29' || !dynamicDays.some(d => d.dateStr === prev)) {
-          return range.minTripDate;
+        if (prev === '2026-11-28' || prev === '2026-11-29' || !dynamicDays.some((d: any) => d.dateStr === prev)) {
+          return range?.minTripDate || '2026-11-28';
         }
         return prev;
       });
@@ -539,14 +546,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={scrollToCurrentEvent}
-              className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-full border border-indigo-200/80 transition-all cursor-pointer active:scale-95 shadow-2xs"
-              title="Ri-centra la schermata sull'evento più vicino all'orario attuale"
-            >
-              <span>🕒 Adesso</span>
-            </button>
             {onNavigateTab && (
               <button
                 type="button"

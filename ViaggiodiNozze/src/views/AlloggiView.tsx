@@ -25,21 +25,20 @@ export default function AlloggiView() {
   const loadData = async () => {
     try {
       setLoading(true);
-      let [items, range] = await Promise.all([
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout caricamento dati (1.5s)')), 1500)
+      );
+
+      const dataPromise = Promise.all([
         storageService.getAccommodations(),
         getTripDateRange()
       ]);
 
-      if (items.length === 0) {
-        await storageService.initInitialSeedData();
-        [items, range] = await Promise.all([
-          storageService.getAccommodations(),
-          getTripDateRange()
-        ]);
-      }
+      const [items, range] = await Promise.race([dataPromise, timeoutPromise]) as [Alloggio[], any];
 
-      setAccommodations(items);
-      setTripDays(range.tripDays);
+      setAccommodations(items || []);
+      if (range) setTripDays(range.tripDays);
       setSelectedDate('tutte');
     } catch (err) {
       console.error('Errore caricamento alloggi:', err);
