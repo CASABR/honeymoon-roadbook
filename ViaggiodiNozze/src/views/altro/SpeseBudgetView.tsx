@@ -514,7 +514,10 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
                 key={s.id}
                 className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs hover:shadow-sm hover:border-slate-300 transition-all flex items-center justify-between gap-3 active:scale-[0.99]"
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <div 
+                  className="flex items-center gap-3 min-w-0 cursor-pointer"
+                  onClick={() => { if (canEdit) handleOpenEdit(s); }}
+                >
                   <div
                     className={`w-10 h-10 rounded-2xl ${config.bg} ${config.text} ${config.border} border flex items-center justify-center text-lg shrink-0`}
                   >
@@ -812,7 +815,15 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
                       key={`manual_${item.id}`}
                       className="p-3 bg-white rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2.5"
                     >
-                      <div className="min-w-0 flex-1">
+                      <div 
+                        className="min-w-0 flex-1 cursor-pointer"
+                        onClick={() => {
+                          if (canEdit) {
+                            setDrillDownCategory(null);
+                            handleOpenEdit(item);
+                          }
+                        }}
+                      >
                         <div className="flex items-center gap-2">
                           <h4 className="text-xs font-bold text-slate-900 truncate">
                             {item.title}

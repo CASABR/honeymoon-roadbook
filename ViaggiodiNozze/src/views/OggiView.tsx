@@ -59,6 +59,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [tomorrowTimeline, setTomorrowTimeline] = useState<import('../types').TimelineItem[]>([]);
   const [dynamicCountries, setDynamicCountries] = useState<string>('Nuova Zelanda, Australia & Filippine');
 
+  const [dayMapLink, setDayMapLink] = useState<string | null>(null);
+  const [isMapLinkModalOpen, setIsMapLinkModalOpen] = useState(false);
+  const [editMapLinkUrl, setEditMapLinkUrl] = useState('');
+
   const calendarContainerRef = React.useRef<HTMLDivElement>(null);
   const selectedDayBtnRef = React.useRef<HTMLButtonElement>(null);
   const timelineItemRefs = React.useRef<{ [key: string]: HTMLDivElement | null }>({});
@@ -115,6 +119,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     const target = dateToFetch || selectedDate;
     const items = await storageService.getTimelineForDate(target);
     setTimeline(items);
+    
+    // Day map link
+    const link = storageService.getDayMapLink(target);
+    setDayMapLink(link);
 
     // Carica anche la timeline di domani
     const tomorrowStr = getTomorrowDateStr(target);
@@ -399,6 +407,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     await fetchTimeline();
   };
 
+  const handleSaveDayMapLink = () => {
+    storageService.saveDayMapLink(selectedDate, editMapLinkUrl);
+    setDayMapLink(editMapLinkUrl || null);
+    setIsMapLinkModalOpen(false);
+  };
+
   // Informazioni del giorno selezionato
   const currentDayMeta = tripDays.find((d) => d.dateStr === selectedDate);
   const currentDayData = daysData.find((d) => d.date === selectedDate);
@@ -554,6 +568,47 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               >
                 Tappe ➔
               </button>
+            )}
+          </div>
+        </div>
+
+        {/* Card Link Google Maps Giornata */}
+        <div className="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-3 flex items-center justify-between shadow-sm mx-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🗺️</span>
+            <span className="text-xs font-bold text-blue-900 leading-tight w-24 sm:w-auto">Itinerario Giornata su Maps</span>
+          </div>
+          <div>
+            {!dayMapLink ? (
+              canEdit ? (
+                <button
+                  type="button"
+                  onClick={() => { setEditMapLinkUrl(''); setIsMapLinkModalOpen(true); }}
+                  className="px-3 py-1.5 bg-white text-blue-700 text-[11px] font-bold rounded-xl shadow-sm border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer active:scale-95 whitespace-nowrap"
+                >
+                  + Inserisci Link Maps
+                </button>
+              ) : null
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => window.open(dayMapLink, '_blank')}
+                  className="px-3 py-1.5 bg-blue-600 text-white text-[11px] font-bold rounded-xl shadow-sm hover:bg-blue-500 transition-colors cursor-pointer active:scale-95 flex items-center gap-1"
+                >
+                  <span>↗</span> Apri Maps
+                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => { setEditMapLinkUrl(dayMapLink); setIsMapLinkModalOpen(true); }}
+                    className="w-7 h-7 flex items-center justify-center bg-white text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer active:scale-95 shadow-sm"
+                    title="Modifica link"
+                  >
+                    ✏️
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -1227,6 +1282,44 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           </div>
         </div>
       )}
+
+      {/* Modal Inserimento Link Maps Giornata */}
+      <Modal
+        isOpen={isMapLinkModalOpen}
+        onClose={() => setIsMapLinkModalOpen(false)}
+        title="Link Google Maps della Giornata"
+        accentVariant="sky"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            Incolla qui il link dell'itinerario Google Maps creato per questa giornata. Sarà accessibile rapidamente dalla timeline.
+          </p>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">URL Google Maps</label>
+            <input
+              type="url"
+              placeholder="https://maps.app.goo.gl/..."
+              value={editMapLinkUrl}
+              onChange={(e) => setEditMapLinkUrl(e.target.value)}
+              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-blue-500 transition-colors"
+            />
+          </div>
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+            <button
+              onClick={() => setIsMapLinkModalOpen(false)}
+              className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+            >
+              Annulla
+            </button>
+            <button
+              onClick={handleSaveDayMapLink}
+              className="px-6 py-2 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-500 shadow-md transition-colors"
+            >
+              Salva Link
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
