@@ -127,6 +127,23 @@ class StorageService {
     }
   }
 
+  // --- DAY MAPS LINKS ---
+  getDayMapLink(date: string): string | null {
+    if (typeof localStorage === 'undefined') return null;
+    return localStorage.getItem(`day_maps_link_${date}`);
+  }
+
+  saveDayMapLink(date: string, link: string): void {
+    if (typeof localStorage !== 'undefined') {
+      if (link) {
+        localStorage.setItem(`day_maps_link_${date}`, link);
+      } else {
+        localStorage.removeItem(`day_maps_link_${date}`);
+      }
+      notifyDataChanged('dayMapsLink', 'save', { date, link });
+    }
+  }
+
   /**
    * Seeding iniziale dei dati mock/default (tappe, attività, trasporti, documenti).
    * Viene eseguito ESCLUSIVAMENTE se e solo se l'app non è mai stata seedata

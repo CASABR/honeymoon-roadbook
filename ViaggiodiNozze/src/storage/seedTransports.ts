@@ -19,7 +19,7 @@ export const SEED_TRANSPORTS: Omit<Trasporto, 'createdAt' | 'updatedAt'>[] = [
     },
     bookingCode: '1688897340550151',
     status: 'prenotato',
-    cost: 'Incluso nel pacchetto',
+    cost: '1800',
     notes: 'Scalo a Pechino con camera day-use / uscita in città. Franchigia: 2 colli da 23 kg in stiva + 8 kg cabina a testa. All\'arrivo controlli biosicurezza NZ: dichiarare scarpe da trekking pulite.'
   },
   // [TRATTA 2: Transfer Serale ad Auckland]
@@ -65,7 +65,7 @@ export const SEED_TRANSPORTS: Omit<Trasporto, 'createdAt' | 'updatedAt'>[] = [
     departureTime: '08:00',
     arrivalTime: '11:30',
     status: 'prenotato',
-    cost: '175,00 € Saldato',
+    cost: '140',
     notes: '1 Auto + 2 Adulti. Check-in veicoli TASSATIVO entro le ore 07:00 al terminal di Wellington.'
   },
   // [TRATTA 5: Volo Christchurch - Adelaide]
@@ -80,7 +80,7 @@ export const SEED_TRANSPORTS: Omit<Trasporto, 'createdAt' | 'updatedAt'>[] = [
     arrivalTime: '17:35',
     bookingCode: 'XLY76H',
     status: 'prenotato',
-    cost: 'Incluso nel pacchetto',
+    cost: '290',
     notes: 'Volo trans-tasmanico diretto (3h 40m).'
   },
   // [TRATTA 6: Noleggio Auto Bargain Adelaide]
@@ -172,7 +172,7 @@ export const SEED_TRANSPORTS: Omit<Trasporto, 'createdAt' | 'updatedAt'>[] = [
     arrivalTime: '18:10',
     bookingCode: '1688897853414407',
     status: 'prenotato',
-    cost: 'Incluso nel pacchetto',
+    cost: '450',
     notes: 'Terminal 1 Internazionale SYD (arrivo entro le ore 10:00). Transito notturno autonomo a Manila T3.'
   },
   // [TRATTA 12: Volo Manila - Caticlan/Boracay]
@@ -187,7 +187,7 @@ export const SEED_TRANSPORTS: Omit<Trasporto, 'createdAt' | 'updatedAt'>[] = [
     arrivalTime: '10:00',
     bookingCode: 'Incluso nella prenotazione SYD-MPH',
     status: 'prenotato',
-    cost: 'Incluso nel pacchetto',
+    cost: '180',
     notes: 'Partenza da Manila T3. All\'arrivo transfer al molo di Caticlan per imbarco su barca verso Boracay.'
   },
   // [TRATTA 13: Volo Caticlan - El Nido Lio]
@@ -202,7 +202,7 @@ export const SEED_TRANSPORTS: Omit<Trasporto, 'createdAt' | 'updatedAt'>[] = [
     arrivalTime: '16:45',
     bookingCode: 'TENLHL',
     status: 'prenotato',
-    cost: 'Incluso nel pacchetto',
+    cost: '210',
     notes: 'Volo con aeromobile ATR 72 diretto a El Nido Lio. Rigida franchigia bagaglio cabina (max 7 kg).'
   },
   // [TRATTA 14: Spedizione Marittima Tao Philippines El Nido - Coron]
@@ -231,7 +231,7 @@ export const SEED_TRANSPORTS: Omit<Trasporto, 'createdAt' | 'updatedAt'>[] = [
     arrivalTime: '18:15',
     bookingCode: 'ZUT8YF',
     status: 'prenotato',
-    cost: 'Incluso nel pacchetto',
+    cost: '190',
     notes: 'Bagaglio da stiva 15 kg prepagato.'
   },
   // [TRATTA 16: Volo Ritorno Intercontinentale Cebu - Taipei - Roma FCO]
@@ -252,7 +252,7 @@ export const SEED_TRANSPORTS: Omit<Trasporto, 'createdAt' | 'updatedAt'>[] = [
     },
     bookingCode: 'X8KORM',
     status: 'prenotato',
-    cost: 'Incluso nel pacchetto',
+    cost: '1600',
     notes: '2 colli da 23 kg a testa inclusi fino a Roma. Scalo a Taipei 8h 25m.'
   }
 ];
