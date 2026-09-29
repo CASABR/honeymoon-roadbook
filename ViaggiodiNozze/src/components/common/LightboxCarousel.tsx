@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { TransportAttachment } from '../../types';
 
 interface LightboxCarouselProps {
@@ -88,9 +89,14 @@ export default function LightboxCarousel({
 
   const currentItem = imageItems[currentIndex] || imageItems[0];
 
-  return (
+  const lightboxNode = (
     <div
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-between bg-black/95 p-4 sm:p-6 backdrop-blur-md select-none animate-fade-in"
+      className="fixed inset-0 flex flex-col items-center justify-between bg-black/95 p-4 sm:p-6 backdrop-blur-md select-none animate-fade-in"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 999999,
+      }}
       onClick={onClose}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -183,4 +189,11 @@ export default function LightboxCarousel({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(lightboxNode, document.body);
+  }
+
+  return lightboxNode;
 }
+

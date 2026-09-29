@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 
 interface ModalProps {
   isOpen: boolean;
@@ -31,18 +32,47 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
     emerald: 'border-emerald-200'
   }[accentVariant];
 
-  return (
-    <div className="modal-backdrop-layer">
+  const modalNode = (
+    <div 
+      className="modal-backdrop-layer"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 99999,
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(15, 23, 42, 0.65)',
+        backdropFilter: 'blur(8px)',
+        WebkitBackdropFilter: 'blur(8px)',
+      }}
+    >
       {/* Click outside to close */}
-      <div className="fixed inset-0 cursor-pointer" onClick={onClose} aria-hidden="true" />
+      <div 
+        style={{ position: 'fixed', inset: 0, cursor: 'pointer' }} 
+        onClick={onClose} 
+        aria-hidden="true" 
+      />
 
       {/* Modal / Sheet Container */}
       <div 
         className={"modal-sheet-container border-t sm:border rounded-t-3xl sm:rounded-3xl " + accentBorder + " text-slate-900"}
+        style={{
+          position: 'relative',
+          zIndex: 100000,
+          width: '100%',
+          maxWidth: '32rem',
+          maxHeight: '85dvh',
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          backgroundColor: '#ffffff',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* iOS Drag Handle Pill on Mobile */}
-        <div className="w-full flex justify-center pt-2.5 pb-1 sm:hidden">
+        <div className="w-full flex justify-center pt-2.5 pb-1 sm:hidden shrink-0">
           <div className="w-10 h-1.5 rounded-full bg-slate-300" />
         </div>
 
@@ -61,11 +91,27 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
           </button>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="modal-sheet-body space-y-4">
+        {/* Scrollable Body con safe area scrolling */}
+        <div 
+          className="modal-sheet-body space-y-4"
+          style={{
+            flex: '1 1 auto',
+            minHeight: 0,
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            padding: '1.25rem 1.5rem 5.5rem 1.5rem',
+          }}
+        >
           {children}
         </div>
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalNode, document.body);
+  }
+
+  return modalNode;
 }
+
