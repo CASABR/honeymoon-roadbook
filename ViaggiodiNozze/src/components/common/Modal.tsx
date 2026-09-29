@@ -32,13 +32,13 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
   }[accentVariant];
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-end sm:items-center justify-center bg-slate-900/40 backdrop-blur-sm sm:p-4">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-sm sm:p-4">
       {/* Click outside to close */}
       <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
 
       {/* Modal / Sheet Container */}
       <div 
-        className={"relative z-10 w-full max-w-lg bg-white border-t sm:border rounded-t-3xl sm:rounded-3xl " + accentBorder + " shadow-2xl max-h-[90vh] flex flex-col overflow-hidden text-slate-900"}
+        className={"relative z-10 w-full max-w-lg bg-white border-t sm:border rounded-t-3xl sm:rounded-3xl " + accentBorder + " shadow-2xl max-h-[85vh] flex flex-col overflow-hidden text-slate-900"}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -56,8 +56,8 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
           </button>
         </div>
 
-        {/* Scrollable Body */}
-        <div className="p-6 overflow-y-auto space-y-4">
+        {/* Scrollable Body con padding inferiore per non nascondere azioni */}
+        <div className="p-6 pb-24 overflow-y-auto space-y-4">
           {children}
         </div>
       </div>

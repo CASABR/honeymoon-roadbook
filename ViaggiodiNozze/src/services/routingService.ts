@@ -78,10 +78,17 @@ export const KNOWN_COORDINATES: Record<string, Coordinate> = {
   siargao: { lat: 9.8576, lng: 126.0469 },
   iaq: { lat: 9.8589, lng: 126.0133 }, // Sayak Airport Siargao
 
-  // Hub e Italia
+  // Hub e Italia / Milano specifico
   pechino: { lat: 40.0799, lng: 116.6031 },
   pek: { lat: 40.0799, lng: 116.6031 }, // Aeroporto Pechino Capitale
   milano: { lat: 45.4642, lng: 9.1900 },
+  duomo: { lat: 45.4641, lng: 9.1896 }, // Piazza del Duomo, Milano
+  novecento: { lat: 45.4637, lng: 9.1905 }, // Museo del Novecento, Piazza del Duomo 8
+  gherardini: { lat: 45.4765, lng: 9.1685 }, // Via Gherardini 1, Milano (Arco della Pace / Sempione)
+  starita: { lat: 45.4765, lng: 9.1685 }, // Starita Milano, Via Gherardini 1
+  arco_della_pace: { lat: 45.4758, lng: 9.1718 },
+  sempione: { lat: 45.4758, lng: 9.1718 },
+  malpensa: { lat: 45.6301, lng: 8.7255 }, // Aeroporto Malpensa
   mxp: { lat: 45.6301, lng: 8.7255 }, // Milano Malpensa
   roma: { lat: 41.9028, lng: 12.4964 },
   fco: { lat: 41.8003, lng: 12.2389 } // Roma Fiumicino
@@ -95,14 +102,22 @@ export function lookupKnownCoordinate(text: string): Coordinate | null {
   const clean = text.toLowerCase().replace(/[^a-z0-9]/g, ' ');
   const words = clean.split(/\s+/).filter(Boolean);
 
-  // 1. Priorità: match esatto con una delle parole (ottimo per codici IATA aeroporti es. 'akl', 'chc', 'syd', 'mxp')
+  // 1. Priorità assoluta: specifici toponimi/vie/piazze prima dei nomi generici di città (es. 'duomo', 'gherardini', 'starita', 'novecento' prima di 'milano')
+  const specificMilanoKeys = ['gherardini', 'starita', 'novecento', 'duomo', 'arco_della_pace', 'sempione', 'malpensa', 'mxp'];
+  for (const key of specificMilanoKeys) {
+    if (clean.includes(key.replace(/_/g, ' ')) || words.includes(key)) {
+      return KNOWN_COORDINATES[key];
+    }
+  }
+
+  // 2. Match esatto con una delle parole
   for (const w of words) {
     if (KNOWN_COORDINATES[w]) {
       return KNOWN_COORDINATES[w];
     }
   }
 
-  // 2. Match parziale o sottostringa per nomi composti (es. 'queenstown', 'milford sound', 'lake tekapo')
+  // 3. Match parziale o sottostringa per nomi composti (es. 'queenstown', 'milford sound', 'lake tekapo')
   for (const [key, coord] of Object.entries(KNOWN_COORDINATES)) {
     if (key.length <= 3) continue; // evita falsi positivi con codici IATA corti in substring
     const keySpaced = key.replace(/_/g, ' ');
@@ -180,11 +195,14 @@ function calculateFallbackRoute(
       };
     }
 
-    const windingFactor = profile === 'driving-car' ? 1.35 : 1.2;
-    const distanceKm = Math.max(0.5, Math.round(directKm * windingFactor * 10) / 10);
+    const isUrban = directKm < 15;
+    const windingFactor = profile === 'driving-car' ? (isUrban ? 1.45 : 1.35) : (isUrban ? 1.3 : 1.2);
+    const distanceKm = Math.max(0.3, Math.round(directKm * windingFactor * 10) / 10);
     
-    // Velocità media stimata: auto 70 km/h, a piedi 4.5 km/h
-    const avgSpeed = profile === 'driving-car' ? 70 : 4.5;
+    // Velocità media stimata:
+    // a piedi: 4.5 km/h (~13.3 min/km)
+    // auto urbana: 25 km/h se < 15 km, altrimenti 70 km/h
+    const avgSpeed = profile === 'driving-car' ? (isUrban ? 25 : 70) : 4.5;
     const durationSeconds = Math.round((distanceKm / avgSpeed) * 3600);
 
     return {
@@ -277,8 +295,17 @@ export async function getRoute(
 
   try {
     const cached = await storageService.getRouteCache(cacheKey);
+    // Se la cache ha una distanza 0 o un vecchio calcolo errato tra punti urbani distinti (es. Duomo e Starita), scartala e ricalcola
+    const isMilanRoute = (cleanFrom.includes('duomo') || cleanFrom.includes('novecento')) && (cleanTo.includes('gherardini') || cleanTo.includes('starita'));
+    const isReverseMilanRoute = (cleanTo.includes('duomo') || cleanTo.includes('novecento')) && (cleanFrom.includes('gherardini') || cleanFrom.includes('starita'));
     if (cached && cached.route) {
-      return cached.route;
+      if ((isMilanRoute || isReverseMilanRoute) && (cached.route.distanceKm < 1 || cached.route.distanceKm > 10)) {
+        // Forza ricalcolo con coordinate reali
+      } else if (cached.route.distanceKm === 0 && cleanFrom !== cleanTo) {
+        // Cache non valida
+      } else {
+        return cached.route;
+      }
     }
   } catch (e) {
     console.warn('[RoutingService] Cache read error:', e);
