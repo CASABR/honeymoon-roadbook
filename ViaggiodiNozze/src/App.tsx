@@ -9,6 +9,7 @@ import RistorantiView from './views/altro/RistorantiView';
 import AlloggiView from './views/AlloggiView';
 import TrasportiView from './views/TrasportiView';
 import ShoppingView from './views/altro/ShoppingView';
+import SpeseBudgetView from './views/altro/SpeseBudgetView';
 import AltroView from './views/AltroView';
 import SettingsMenu from './components/common/SettingsMenu';
 import UpdateToast from './components/common/UpdateToast';
@@ -103,6 +104,7 @@ export default function App() {
             {activeCategoria === 'alloggi' && <AlloggiView />}
             {activeCategoria === 'trasporti' && <TrasportiView />}
             {activeCategoria === 'shopping' && <ShoppingView />}
+            {activeCategoria === 'spese' && <SpeseBudgetView />}
             {!activeCategoria && <TappeView />}
           </>
         )}

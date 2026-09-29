@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { TRIP_DAYS, type TripDayItem, generateTripDays, calculateEarliestTripDate } from '../../utils/tripDates';
 
 interface DayPickerStripProps {
@@ -19,12 +20,41 @@ export default function DayPickerStrip({
   itemCounts,
   totalCount
 }: DayPickerStripProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const selectedBtnRef = useRef<HTMLButtonElement>(null);
+
   // Se non fornito, calcola dinamicamente l'inizio considerando le date presenti in itemCounts
   const dynamicDays = propTripDays || propDays || (itemCounts ? generateTripDays(calculateEarliestTripDate(Object.keys(itemCounts))) : TRIP_DAYS);
+
+  // Auto-centratura automatica dello scroll sul giorno selezionato
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (selectedDate !== 'tutte' && selectedBtnRef.current && containerRef.current) {
+        const container = containerRef.current;
+        const element = selectedBtnRef.current;
+        const elementOffset = element.offsetLeft;
+        const elementWidth = element.offsetWidth;
+        const containerWidth = container.offsetWidth;
+        
+        const scrollPosition = elementOffset - (containerWidth / 2) + (elementWidth / 2);
+        container.scrollTo({
+          left: Math.max(0, scrollPosition),
+          behavior: 'smooth'
+        });
+      } else if (selectedDate === 'tutte' && containerRef.current) {
+        containerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [selectedDate, dynamicDays]);
+
   return (
     <div className="-mx-1 mb-4">
-      <div className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-none snap-x items-center">
-        {/* Chip compatta 'Tutti' fissa a sinistra */}
+      <div 
+        ref={containerRef}
+        className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-none snap-x items-center"
+      >
+        {/* Chip compatta 'Tutti' fissa a sinistra come UNICO primo elemento */}
         <button
           type="button"
           onClick={() => onSelectDate('tutte')}
@@ -45,37 +75,7 @@ export default function DayPickerStrip({
           </span>
         </button>
 
-        {/* Pulsante rapido selezione data da calendario */}
-        <label
-          className={`snap-start shrink-0 relative flex flex-col items-center justify-center w-11 sm:w-12 py-1.5 px-1 rounded-2xl transition-all duration-150 cursor-pointer ${
-            selectedDate !== 'tutte' && !dynamicDays.some(d => d.dateStr === selectedDate)
-              ? 'bg-slate-900 text-white font-bold shadow-md shadow-slate-900/20 scale-105'
-              : 'bg-white border border-slate-200/80 text-slate-600 hover:border-slate-300 hover:text-slate-900 shadow-2xs'
-          }`}
-          title="Seleziona data dal calendario"
-        >
-          <input
-            type="date"
-            value={selectedDate === 'tutte' ? '' : selectedDate}
-            onChange={(e) => {
-              if (e.target.value) onSelectDate(e.target.value);
-            }}
-            className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-          />
-          <span className="text-[10px] uppercase font-medium tracking-tight text-slate-400">
-            CAL
-          </span>
-          <span className="text-sm my-0.5 leading-none">
-            📅
-          </span>
-          <span className="text-[9px] font-semibold text-slate-500 truncate max-w-full px-0.5">
-            {selectedDate !== 'tutte' && !dynamicDays.some(d => d.dateStr === selectedDate)
-              ? selectedDate.slice(5)
-              : 'DATA'}
-          </span>
-        </label>
-
-        {/* Card/Pill dei Singoli Giorni (layout compatto verticale a densità elevata) */}
+        {/* Card/Pill dei Singoli Giorni subito dopo 'Tutti' */}
         {dynamicDays.map((day: TripDayItem) => {
           const isSelected = selectedDate === day.dateStr;
           const count = itemCounts ? itemCounts[day.dateStr] || 0 : undefined;
@@ -84,6 +84,7 @@ export default function DayPickerStrip({
           return (
             <button
               key={day.dateStr}
+              ref={isSelected ? selectedBtnRef : undefined}
               type="button"
               onClick={() => onSelectDate(day.dateStr)}
               className={`snap-start shrink-0 w-11 sm:w-12 flex flex-col items-center justify-center py-1.5 px-1 rounded-2xl transition-all duration-150 cursor-pointer ${

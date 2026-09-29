@@ -3,6 +3,7 @@ import { storageService } from '../../storage/storageService';
 import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa, DeviceRole } from '../../types';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
 import { generateTripDays, getTripDateRange } from '../../utils/tripDates';
+import { lookupKnownCoordinate } from '../../services/routingService';
 import {
   updateRealLocation,
   getSavedLiveLocation,
@@ -10,6 +11,25 @@ import {
   getTimezoneFromCoordinates,
   type GeolocationState
 } from '../../services/geolocationService';
+
+interface WeatherData {
+  temperature: number;
+  weatherCode: number;
+  description: string;
+  icon: string;
+}
+
+const getWeatherDescription = (code: number): { description: string; icon: string } => {
+  if (code === 0) return { description: 'Sereno / Soleggiato', icon: '☀️' };
+  if (code === 1 || code === 2) return { description: 'Poco nuvoloso', icon: '🌤️' };
+  if (code === 3) return { description: 'Nuvoloso', icon: '☁️' };
+  if (code >= 45 && code <= 48) return { description: 'Nebbia', icon: '🌫️' };
+  if (code >= 51 && code <= 67) return { description: 'Pioggia leggera', icon: '🌦️' };
+  if (code >= 71 && code <= 77) return { description: 'Neve', icon: '🌨️' };
+  if (code >= 80 && code <= 82) return { description: 'Rovesci di pioggia', icon: '🌧️' };
+  if (code >= 95) return { description: 'Temporale', icon: '⛈️' };
+  return { description: 'Variabile', icon: '⛅' };
+};
 
 interface LiveViewProps {
   onBack?: () => void;
@@ -72,14 +92,20 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   const [liveGpsState, setLiveGpsState] = useState<GeolocationState | null>(() => getSavedLiveLocation());
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
-  const [tileLoadFailed, setTileLoadFailed] = useState(false);
-  // Toggle per visualizzare la posizione attuale del dispositivo durante la fase pre-partenza
-  const [showMyCurrentGps, setShowMyCurrentGps] = useState(false);
+  // Toggle chiara visualizzazione: 'reale' (Dove siamo ora) vs 'programmato' (Dove dovremmo essere)
+  const [mapLocationMode, setMapLocationMode] = useState<'reale' | 'programmato'>('reale');
+
+  // Widget Meteo Open-Meteo
+  const [weatherCurrent, setWeatherCurrent] = useState<WeatherData | null>(null);
+  const [weatherNext, setWeatherNext] = useState<WeatherData | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
 
   // Stato interattivo della mappa (pan, drag, zoom)
   const [mapZoom, setMapZoom] = useState(12);
   const [mapPan, setMapPan] = useState({ x: 0, y: 0 });
   const [isDraggingMap, setIsDraggingMap] = useState(false);
+  const [tileLoadFailed, setTileLoadFailed] = useState(false);
+  const [showMyCurrentGps, setShowMyCurrentGps] = useState(true);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Rileva posizione GPS reale su richiesta o automaticamente all'apertura
@@ -423,29 +449,64 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     return tappe.find(tp => tp.data === activeDate);
   }, [tappe, activeDate]);
 
-  // Località corrente: ancoraggio a destinazione del viaggio se pre-partenza, oppure GPS/tappa odierna se in viaggio
-  const currentLocation = useMemo(() => {
-    // 1. Se il viaggio non è ancora iniziato e l'utente NON ha attivato il toggle "Visualizza mia posizione attuale":
-    // Ancoriamo tassativamente la mappa e il radar pulse pin alla prima tappa ufficiale del viaggio (Auckland AKL)
-    if (tripCountdown.isPreTrip && !showMyCurrentGps) {
-      // Cerca la prima destinazione tra trasporti, alloggi o default Auckland
-      const firstDestCity = currentTransport?.arrivalLocation || currentAccommodation?.location || currentTappa?.titolo || 'Auckland';
-      const firstDestCoords = currentTransport?.coordinate || currentAccommodation?.coordinate || currentTappa?.coordinate || { lat: -37.0082, lng: 174.7850 };
-      
+  // Posizione programmata dall'itinerario per la data odierna
+  const plannedLocation = useMemo(() => {
+    if (currentAccommodation) {
       return {
-        title: `${firstDestCity}, Nuova Zelanda`,
-        city: firstDestCity,
+        title: currentAccommodation.location || currentAccommodation.name,
+        city: currentAccommodation.location || currentAccommodation.name,
         country: 'Nuova Zelanda',
         countryCode: 'nz',
         flag: '🇳🇿',
-        coords: firstDestCoords,
+        coords: currentAccommodation.coordinate || lookupKnownCoordinate(currentAccommodation.location || currentAccommodation.name) || { lat: -36.8485, lng: 174.7633 },
         isRealGps: false,
-        updateNotice: 'Tappa di partenza (programmato)',
-        badgeLabel: `📍 ${firstDestCity}, Nuova Zelanda • Tappa di partenza`
+        updateNotice: 'Tappa alloggio programmata',
+        badgeLabel: `🗓️ ${currentAccommodation.name}`
       };
     }
+    if (currentTappa) {
+      return {
+        title: currentTappa.titolo,
+        city: currentTappa.titolo,
+        country: 'Nuova Zelanda',
+        countryCode: 'nz',
+        flag: '🇳🇿',
+        coords: currentTappa.coordinate || lookupKnownCoordinate(currentTappa.titolo) || { lat: -36.8485, lng: 174.7633 },
+        isRealGps: false,
+        updateNotice: 'Tappa itinerario programmata',
+        badgeLabel: `🗓️ ${currentTappa.titolo}`
+      };
+    }
+    if (currentTransport) {
+      return {
+        title: currentTransport.arrivalLocation,
+        city: currentTransport.arrivalLocation,
+        country: 'In Viaggio',
+        countryCode: '',
+        flag: '✈️',
+        coords: currentTransport.coordinate || lookupKnownCoordinate(currentTransport.arrivalLocation) || { lat: -36.8485, lng: 174.7633 },
+        isRealGps: false,
+        updateNotice: 'Trasferimento programmato',
+        badgeLabel: `✈️ ${currentTransport.arrivalLocation}`
+      };
+    }
+    const defaultTitle = currentDay?.title || 'Auckland, Nuova Zelanda';
+    const defaultCity = currentDay?.location || 'Auckland';
+    return {
+      title: defaultTitle,
+      city: defaultCity,
+      country: 'Nuova Zelanda',
+      countryCode: 'nz',
+      flag: '🇳🇿',
+      coords: lookupKnownCoordinate(defaultCity) || { lat: -36.8485, lng: 174.7633 },
+      isRealGps: false,
+      updateNotice: 'Partenza programmata',
+      badgeLabel: `🗓️ ${defaultCity}`
+    };
+  }, [currentAccommodation, currentTappa, currentTransport, currentDay]);
 
-    // 2. Se è disponibile la posizione GPS reale acquisita dal dispositivo (durante il viaggio o con toggle attivo)
+  // Posizione GPS Reale
+  const realLocation = useMemo(() => {
     if (liveGpsState && liveGpsState.isLiveGps && liveGpsState.coords) {
       const timeAgo = (() => {
         try {
@@ -469,78 +530,70 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
         coords: liveGpsState.coords,
         isRealGps: true,
         updateNotice: `Rilevamento GPS • ${timeAgo}`,
-        badgeLabel: `📍 ${liveGpsState.city || 'Posizione Rilevata'}, ${liveGpsState.country || ''}`
+        badgeLabel: `📍 ${liveGpsState.city || 'Posizione Reale'}`
       };
     }
+    return null;
+  }, [liveGpsState]);
 
-    // 2. Fallback su Alloggio programmato
-    if (currentAccommodation) {
-      return {
-        title: currentAccommodation.location || currentAccommodation.name,
-        city: currentAccommodation.location || currentAccommodation.name,
-        country: 'Nuova Zelanda',
-        countryCode: 'nz',
-        flag: '🇳🇿',
-        coords: currentAccommodation.coordinate,
-        isRealGps: false,
-        updateNotice: 'Tappa alloggio del giorno (programmato)'
-      };
+  // Località attiva sulla mappa in base al toggle dell'utente
+  const currentLocation = useMemo(() => {
+    if (mapLocationMode === 'reale' && realLocation) {
+      return realLocation;
     }
+    return plannedLocation;
+  }, [mapLocationMode, realLocation, plannedLocation]);
 
-    // 3. Fallback su Tappa programmata
-    if (currentTappa) {
-      return {
-        title: currentTappa.titolo,
-        city: currentTappa.titolo,
-        country: 'Nuova Zelanda',
-        countryCode: 'nz',
-        flag: '🇳🇿',
-        coords: currentTappa.coordinate,
-        isRealGps: false,
-        updateNotice: 'Tappa programmata per oggi'
-      };
-    }
+  // Chiamata leggera Open-Meteo per meteo locale e prossima tappa
+  useEffect(() => {
+    const fetchWeather = async () => {
+      const coords = currentLocation.coords;
+      if (!coords?.lat || !coords?.lng) return;
+      try {
+        setWeatherLoading(true);
+        const res = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${coords.lat}&longitude=${coords.lng}&current_weather=true`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.current_weather) {
+            const desc = getWeatherDescription(data.current_weather.weathercode);
+            setWeatherCurrent({
+              temperature: Math.round(data.current_weather.temperature),
+              weatherCode: data.current_weather.weathercode,
+              description: desc.description,
+              icon: desc.icon
+            });
+          }
+        }
 
-    // 4. Fallback su Giornata
-    if (currentDay) {
-      return {
-        title: currentDay.location || currentDay.title,
-        city: currentDay.location || currentDay.title,
-        country: 'Nuova Zelanda',
-        countryCode: 'nz',
-        flag: '🇳🇿',
-        coords: undefined,
-        isRealGps: false,
-        updateNotice: 'Itinerario programmato per oggi'
-      };
-    }
-
-    // 5. Fallback su Trasporto
-    if (currentTransport) {
-      return {
-        title: currentTransport.arrivalLocation,
-        city: currentTransport.arrivalLocation,
-        country: 'In Viaggio',
-        countryCode: '',
-        flag: '✈️',
-        coords: currentTransport.coordinate,
-        isRealGps: false,
-        updateNotice: 'Trasferimento programmato'
-      };
-    }
-
-    return {
-      title: 'Auckland, Nuova Zelanda',
-      city: 'Auckland',
-      country: 'Nuova Zelanda',
-      countryCode: 'nz',
-      flag: '🇳🇿',
-      coords: { lat: -36.8485, lng: 174.7633 },
-      isRealGps: false,
-      updateNotice: 'Posizione stimata (programmato)',
-      badgeLabel: '📍 Auckland, Nuova Zelanda • Inizio del Viaggio'
+        // Recupera meteo della prossima tappa programmata (se diversa dalla corrente)
+        if (plannedLocation.coords && (plannedLocation.coords.lat !== coords.lat || plannedLocation.coords.lng !== coords.lng)) {
+          const resNext = await fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${plannedLocation.coords.lat}&longitude=${plannedLocation.coords.lng}&current_weather=true`
+          );
+          if (resNext.ok) {
+            const dataNext = await resNext.json();
+            if (dataNext.current_weather) {
+              const descNext = getWeatherDescription(dataNext.current_weather.weathercode);
+              setWeatherNext({
+                temperature: Math.round(dataNext.current_weather.temperature),
+                weatherCode: dataNext.current_weather.weathercode,
+                description: descNext.description,
+                icon: descNext.icon
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[LiveView] Errore Open-Meteo:', err);
+      } finally {
+        setWeatherLoading(false);
+      }
     };
-  }, [tripCountdown.isPreTrip, showMyCurrentGps, liveGpsState, currentAccommodation, currentTappa, currentDay, currentTransport]);
+
+    fetchWeather();
+  }, [currentLocation.coords, plannedLocation.coords]);
 
   // Risoluzione scientifica del fuso orario di destinazione (Zero Improvvisazione)
   const activeTimezone = useMemo<DestinationTimezone>(() => {
@@ -1040,11 +1093,11 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
             <span>📍</span>
-            <span>SIAMO QUI</span>
+            <span>POSIZIONE</span>
             {currentLocation.isRealGps ? (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                GPS Satellitare
+                GPS Reale
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200/80">
@@ -1056,6 +1109,77 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
           <span className="text-[11px] text-slate-400 font-medium">
             {currentLocation.updateNotice}
           </span>
+        </div>
+
+        {/* Toggle Esplicito: Dove siamo ora (GPS) vs Dove dovremmo essere (Itinerario) */}
+        <div className="flex items-center p-1 bg-slate-100 rounded-2xl gap-1">
+          <button
+            type="button"
+            onClick={() => {
+              setMapLocationMode('reale');
+              setMapPan({ x: 0, y: 0 });
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              mapLocationMode === 'reale'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span>📍</span>
+            <span>Dove siamo ora</span>
+            {realLocation && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMapLocationMode('programmato');
+              setMapPan({ x: 0, y: 0 });
+            }}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              mapLocationMode === 'programmato'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <span>🗓️</span>
+            <span>Dove dovremmo essere</span>
+          </button>
+        </div>
+
+        {/* Widget Meteo Compatto Open-Meteo */}
+        <div className="grid grid-cols-2 gap-2 bg-gradient-to-r from-sky-50/60 to-indigo-50/60 rounded-2xl p-2.5 border border-sky-100">
+          <div className="flex items-center gap-2">
+            <span className="text-2xl">{weatherCurrent?.icon || '🌤️'}</span>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                {mapLocationMode === 'reale' ? 'Meteo Attuale' : 'Meteo Tappa'}
+              </span>
+              <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                <span>{weatherLoading ? '...' : weatherCurrent ? `${weatherCurrent.temperature}°C` : '–'}</span>
+                <span className="text-[10px] font-medium text-slate-500 truncate">
+                  {weatherCurrent?.description || 'Locale'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 pl-2 border-l border-sky-100">
+            <span className="text-2xl">{weatherNext?.icon || '⛅'}</span>
+            <div className="min-w-0">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block truncate">
+                Tappa Programmata
+              </span>
+              <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                <span>{weatherNext ? `${weatherNext.temperature}°C` : weatherCurrent ? `${weatherCurrent.temperature}°C` : '–'}</span>
+                <span className="text-[10px] font-medium text-slate-500 truncate">
+                  {weatherNext?.description || weatherCurrent?.description || 'Previsto'}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Mini-Mappa Cartografica Interattiva con Pan, Zoom e Radar Pulse Pin */}
