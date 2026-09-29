@@ -20,6 +20,7 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
   
   // Campi secondari
   const [copilota, setCopilota] = useState(false);
+  const [copilotNotes, setCopilotNotes] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [qrCode, setQrCode] = useState('');
   const [link, setLink] = useState('');
@@ -46,10 +47,11 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       setCategory(initialData.category || 'cultura');
       setStatus(initialData.status);
       setCopilota(initialData.copilota || false);
+      setCopilotNotes(initialData.copilotNotes || '');
       setQrCode(initialData.qrCode || '');
       setLink(initialData.link || '');
       setNotes(initialData.notes || '');
-      if (initialData.qrCode || initialData.link || initialData.copilota) {
+      if (initialData.qrCode || initialData.link || initialData.copilota || initialData.copilotNotes) {
         setShowAdvanced(true);
       }
     } else {
@@ -108,7 +110,8 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
       location: location.trim() || title.trim(),
       category,
       status,
-      copilota: copilota || undefined,
+      copilota: (copilota || Boolean(copilotNotes.trim())) || undefined,
+      copilotNotes: copilotNotes.trim() || undefined,
       qrCode: qrCode.trim() || undefined,
       attachments: initialData?.attachments,
       notes: notes.trim() || undefined,
@@ -279,14 +282,31 @@ export default function AttivitaForm({ days, selectedDayId, initialData, onSave,
             <div className="pt-1 flex items-center justify-between gap-3">
               <label htmlFor="copilota-att-toggle" className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1.5">
                 <span>🧭</span>
-                <span>Mostra al co-pilota</span>
+                <span>Visibile al co-pilota</span>
               </label>
               <input
                 id="copilota-att-toggle"
                 type="checkbox"
-                checked={copilota}
+                checked={copilota || Boolean(copilotNotes.trim())}
                 onChange={(e) => setCopilota(e.target.checked)}
                 className="w-4 h-4 rounded text-emerald-600 bg-white border-slate-300 focus:ring-emerald-500 cursor-pointer"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-emerald-800 mb-1 flex items-center gap-1">
+                <span>🧭</span>
+                <span>Note del Co-pilota (reminder, orari, raccomandazioni)</span>
+              </label>
+              <textarea
+                placeholder="es. Portare contanti per la guida, arrivare 15 min prima..."
+                value={copilotNotes}
+                onChange={(e) => {
+                  setCopilotNotes(e.target.value);
+                  if (e.target.value.trim()) setCopilota(true);
+                }}
+                rows={2}
+                className="w-full p-2.5 bg-emerald-50/40 border border-emerald-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-emerald-500 placeholder:text-slate-400 leading-relaxed"
               />
             </div>
           </div>

@@ -96,36 +96,32 @@ export default function AlloggioCard({ accommodation, onEdit, onDelete }: Allogg
             )}
           </div>
 
-          {/* Location → Google Maps */}
-          {accommodation.location && (
-            <a
-              href={resolveMapUrl(accommodation.location)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-purple-700 transition-colors group font-medium"
-            >
-              <svg className="w-3.5 h-3.5 text-slate-400 group-hover:text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              <span>{accommodation.location}</span>
-            </a>
-          )}
+          {/* Location & Indirizzo */}
+          <div className="mt-2 space-y-1.5">
+            {accommodation.location && (
+              <p className="text-xs text-slate-500 font-medium flex items-center gap-1">
+                <span>📍</span>
+                <span>{accommodation.location}</span>
+              </p>
+            )}
 
-          {/* Indirizzo → Google Maps */}
-          {accommodation.address && (
-            <a
-              href={resolveMapUrl(accommodation.address)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-start gap-1 text-xs text-slate-600 hover:text-purple-700 transition-colors group mt-1"
-            >
-              <svg className="w-3.5 h-3.5 text-slate-400 group-hover:text-purple-600 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-              </svg>
-              <span className="leading-snug">{accommodation.address}</span>
-            </a>
-          )}
+            {accommodation.address && (
+              <div className="flex items-start justify-between gap-2 p-2.5 rounded-2xl bg-slate-50/80 border border-slate-100 text-xs text-slate-600">
+                <div className="flex items-start gap-1.5 min-w-0">
+                  <span className="text-slate-400 mt-0.5">🏢</span>
+                  <span className="leading-relaxed break-words">{accommodation.address}</span>
+                </div>
+                <a
+                  href={resolveMapUrl(accommodation.address || accommodation.location)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-700 font-bold text-[11px] shadow-2xs transition-all active:scale-95"
+                >
+                  <span>Apri in Maps ↗</span>
+                </a>
+              </div>
+            )}
+          </div>
 
           {/* Codice prenotazione + telefono */}
           {(accommodation.bookingCode || accommodation.phone) && (

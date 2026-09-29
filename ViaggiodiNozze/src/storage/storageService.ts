@@ -972,6 +972,7 @@ class StorageService {
           location: a.location,
           categoryOrType: a.category,
           copilota: a.copilota,
+          copilotNotes: a.copilotNotes,
           coordinate: a.coordinate,
           originalData: a
         });

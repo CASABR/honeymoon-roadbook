@@ -88,6 +88,9 @@ export const KNOWN_COORDINATES: Record<string, Coordinate> = {
   starita: { lat: 45.4765, lng: 9.1685 }, // Starita Milano, Via Gherardini 1
   arco_della_pace: { lat: 45.4758, lng: 9.1718 },
   sempione: { lat: 45.4758, lng: 9.1718 },
+  suzzani: { lat: 45.5085, lng: 9.2045 }, // Viale Suzzani 13/15, Bicocca, Milano (a&o Hostel)
+  bicocca: { lat: 45.5085, lng: 9.2045 },
+  ao_hostel: { lat: 45.5085, lng: 9.2045 }, // a&o Hostel Milano Ca' Granda
   malpensa: { lat: 45.6301, lng: 8.7255 }, // Aeroporto Malpensa
   mxp: { lat: 45.6301, lng: 8.7255 }, // Milano Malpensa
   roma: { lat: 41.9028, lng: 12.4964 },
@@ -102,8 +105,8 @@ export function lookupKnownCoordinate(text: string): Coordinate | null {
   const clean = text.toLowerCase().replace(/[^a-z0-9]/g, ' ');
   const words = clean.split(/\s+/).filter(Boolean);
 
-  // 1. Priorità assoluta: specifici toponimi/vie/piazze prima dei nomi generici di città (es. 'duomo', 'gherardini', 'starita', 'novecento' prima di 'milano')
-  const specificMilanoKeys = ['gherardini', 'starita', 'novecento', 'duomo', 'arco_della_pace', 'sempione', 'malpensa', 'mxp'];
+  // 1. Priorità assoluta: specifici toponimi/vie/piazze prima dei nomi generici di città (es. 'suzzani', 'starita', 'duomo' prima di 'milano')
+  const specificMilanoKeys = ['suzzani', 'bicocca', 'ao_hostel', 'gherardini', 'starita', 'novecento', 'duomo', 'arco_della_pace', 'sempione', 'malpensa', 'mxp'];
   for (const key of specificMilanoKeys) {
     if (clean.includes(key.replace(/_/g, ' ')) || words.includes(key)) {
       return KNOWN_COORDINATES[key];
@@ -298,9 +301,13 @@ export async function getRoute(
     // Se la cache ha una distanza 0 o un vecchio calcolo errato tra punti urbani distinti (es. Duomo e Starita), scartala e ricalcola
     const isMilanRoute = (cleanFrom.includes('duomo') || cleanFrom.includes('novecento')) && (cleanTo.includes('gherardini') || cleanTo.includes('starita'));
     const isReverseMilanRoute = (cleanTo.includes('duomo') || cleanTo.includes('novecento')) && (cleanFrom.includes('gherardini') || cleanFrom.includes('starita'));
+    const isSuzzaniRoute = (cleanFrom.includes('gherardini') || cleanFrom.includes('starita')) && (cleanTo.includes('suzzani') || cleanTo.includes('a&o') || cleanTo.includes('hostel'));
+    const isReverseSuzzaniRoute = (cleanTo.includes('gherardini') || cleanTo.includes('starita')) && (cleanFrom.includes('suzzani') || cleanFrom.includes('a&o') || cleanFrom.includes('hostel'));
     if (cached && cached.route) {
       if ((isMilanRoute || isReverseMilanRoute) && (cached.route.distanceKm < 1 || cached.route.distanceKm > 10)) {
         // Forza ricalcolo con coordinate reali
+      } else if ((isSuzzaniRoute || isReverseSuzzaniRoute) && (cached.route.distanceKm < 4 || cached.route.distanceKm > 12)) {
+        // Scarta cache errata (< 4km non è realistica per Suzzani da Arco della Pace)
       } else if (cached.route.distanceKm === 0 && cleanFrom !== cleanTo) {
         // Cache non valida
       } else {
