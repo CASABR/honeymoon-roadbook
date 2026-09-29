@@ -573,10 +573,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         </div>
 
         {/* Card Link Google Maps Giornata */}
-        <div className="bg-blue-50/80 border border-blue-200/80 rounded-2xl p-3 flex items-center justify-between shadow-sm mx-1">
+        <div className="bg-blue-50/80 border border-blue-200/80 rounded-2xl px-4 py-2.5 flex items-center justify-between shadow-sm mx-1">
           <div className="flex items-center gap-2">
             <span className="text-xl">🗺️</span>
-            <span className="text-xs font-bold text-blue-900 leading-tight w-24 sm:w-auto">Itinerario Giornata su Maps</span>
+            <span className="text-xs font-bold text-slate-800">Itinerario Giornata Maps</span>
           </div>
           <div>
             {!dayMapLink ? (
@@ -584,9 +584,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 <button
                   type="button"
                   onClick={() => { setEditMapLinkUrl(''); setIsMapLinkModalOpen(true); }}
-                  className="px-3 py-1.5 bg-white text-blue-700 text-[11px] font-bold rounded-xl shadow-sm border border-blue-200 hover:bg-blue-100 transition-colors cursor-pointer active:scale-95 whitespace-nowrap"
+                  className="text-xs font-semibold text-blue-600 bg-white px-3 py-1 rounded-xl border border-blue-200 shadow-xs hover:bg-blue-50 cursor-pointer active:scale-95"
                 >
-                  + Inserisci Link Maps
+                  + Inserisci Link
                 </button>
               ) : null
             ) : (
@@ -594,15 +594,15 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 <button
                   type="button"
                   onClick={() => window.open(dayMapLink, '_blank')}
-                  className="px-3 py-1.5 bg-blue-600 text-white text-[11px] font-bold rounded-xl shadow-sm hover:bg-blue-500 transition-colors cursor-pointer active:scale-95 flex items-center gap-1"
+                  className="text-xs font-bold text-white bg-blue-600 px-3 py-1 rounded-xl shadow-xs hover:bg-blue-700 cursor-pointer active:scale-95 flex items-center gap-1"
                 >
-                  <span>↗</span> Apri Maps
+                  <span>↗</span> Apri
                 </button>
                 {canEdit && (
                   <button
                     type="button"
                     onClick={() => { setEditMapLinkUrl(dayMapLink); setIsMapLinkModalOpen(true); }}
-                    className="w-7 h-7 flex items-center justify-center bg-white text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors cursor-pointer active:scale-95 shadow-sm"
+                    className="p-1 text-slate-500 hover:text-slate-800 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
                     title="Modifica link"
                   >
                     ✏️
@@ -692,45 +692,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             );
           }
 
-          // Genera URL multi-tappa per l'intero percorso della giornata su Google Maps
-          const locationsForMap: string[] = [];
-          dayItems.forEach(it => {
-            const loc = it.arrivalPoint || it.location || it.departurePoint || it.title;
-            if (loc && loc.trim()) {
-              const clean = loc.trim();
-              if (locationsForMap.length === 0 || locationsForMap[locationsForMap.length - 1] !== clean) {
-                locationsForMap.push(clean);
-              }
-            }
-          });
-
-          let fullDayMapUrl: string | null = null;
-          if (locationsForMap.length === 1) {
-            fullDayMapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(locationsForMap[0])}`;
-          } else if (locationsForMap.length >= 2) {
-            const origin = locationsForMap[0];
-            const destination = locationsForMap[locationsForMap.length - 1];
-            const waypoints = locationsForMap.slice(1, -1).join('|');
-            if (waypoints) {
-              fullDayMapUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}&waypoints=${encodeURIComponent(waypoints)}`;
-            } else {
-              fullDayMapUrl = `https://www.google.com/maps/dir/?api=1&origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}`;
-            }
-          }
-
           return (
             <div className="space-y-3">
-              {fullDayMapUrl && (
-                <a
-                  href={fullDayMapUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-700 hover:from-emerald-700 hover:to-indigo-800 text-white text-xs font-extrabold shadow-sm hover:shadow-md transition-all active:scale-[0.99] border border-white/20 mb-1"
-                >
-                  <span>🗺️ Apri Itinerario Giornata su Maps</span>
-                  <span className="text-[10px]">↗</span>
-                </a>
-              )}
               {dayItems.map((item, idx) => {
                 const nextItem = dayItems[idx + 1];
 
