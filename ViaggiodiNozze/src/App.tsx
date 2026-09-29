@@ -31,13 +31,17 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<SectionTab>('oggi');
   const [activeCategoria, setActiveCategoria] = useState<CategoriaTab | null>(null);
+  const [altroSubView, setAltroSubView] = useState<'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | null>(null);
   const [isCategorieOpen, setIsCategorieOpen] = useState(false);
 
-  const handleTabChange = (tab: SectionTab, categoria?: CategoriaTab) => {
+  const handleTabChange = (tab: SectionTab, categoria?: CategoriaTab, subView?: any) => {
     setActiveTab(tab);
     setIsCategorieOpen(false);
-    if (tab === 'oggi' || tab === 'altro') {
+    if (tab === 'oggi') {
       setActiveCategoria(null);
+    } else if (tab === 'altro') {
+      setActiveCategoria(null);
+      setAltroSubView(subView || null);
     } else if (tab === 'categorie') {
       setActiveCategoria(categoria || activeCategoria || 'tappe');
     }
@@ -109,7 +113,7 @@ export default function App() {
           </>
         )}
 
-        {activeTab === 'altro' && <AltroView />}
+        {activeTab === 'altro' && <AltroView initialSubView={altroSubView} />}
       </main>
 
       {/* Barra inferiore classica a 3 tab (Oggi - Categorie - Altro) sempre presente come base */}

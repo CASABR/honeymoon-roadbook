@@ -11,10 +11,31 @@ import type { DeviceRole } from '../types';
 
 type SubViewType = 'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | null;
 
-export default function AltroView() {
-  const [activeSubView, setActiveSubView] = useState<SubViewType>(null);
+interface AltroViewProps {
+  initialSubView?: SubViewType;
+}
+
+export default function AltroView({ initialSubView = null }: AltroViewProps) {
+  const [activeSubView, setActiveSubView] = useState<SubViewType>(initialSubView);
   const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
   const [showRoleModal, setShowRoleModal] = useState(false);
+
+  useEffect(() => {
+    if (initialSubView) {
+      setActiveSubView(initialSubView);
+    }
+  }, [initialSubView]);
+
+  useEffect(() => {
+    const handleNavigateSubView = (e: Event) => {
+      const customEvent = e as CustomEvent<{ subView: SubViewType }>;
+      if (customEvent.detail?.subView) {
+        setActiveSubView(customEvent.detail.subView);
+      }
+    };
+    window.addEventListener('navigate_subview', handleNavigateSubView);
+    return () => window.removeEventListener('navigate_subview', handleNavigateSubView);
+  }, []);
 
   useEffect(() => {
     const handleRoleChanged = (e: Event) => {
