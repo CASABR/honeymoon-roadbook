@@ -63,6 +63,49 @@ html, body, #root {
   padding-bottom: env(safe-area-inset-bottom, 12px);
 }
 
+/* Modal overlay layer - guaranteed above navbar dock (z-40) and category bar (z-50) */
+.modal-backdrop-layer {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 999 !important;
+  display: flex !important;
+  align-items: flex-end !important;
+  justify-content: center !important;
+  background-color: rgba(15, 23, 42, 0.55) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}
+
+@media (min-width: 640px) {
+  .modal-backdrop-layer {
+    align-items: center !important;
+    padding: 1rem !important;
+  }
+}
+
+.modal-sheet-container {
+  position: relative !important;
+  z-index: 1000 !important;
+  width: 100% !important;
+  max-width: 32rem !important;
+  max-height: 85vh !important;
+  max-height: 85dvh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  background-color: #ffffff !important;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+}
+
+.modal-sheet-body {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+  padding: 1.25rem 1.5rem 5rem 1.5rem !important;
+}
+
+
 
 
 

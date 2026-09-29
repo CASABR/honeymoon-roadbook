@@ -32,17 +32,22 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
   }[accentVariant];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-900/50 backdrop-blur-sm sm:p-4">
+    <div className="modal-backdrop-layer">
       {/* Click outside to close */}
-      <div className="fixed inset-0" onClick={onClose} aria-hidden="true" />
+      <div className="fixed inset-0 cursor-pointer" onClick={onClose} aria-hidden="true" />
 
       {/* Modal / Sheet Container */}
       <div 
-        className={"relative z-10 w-full max-w-lg bg-white border-t sm:border rounded-t-3xl sm:rounded-3xl " + accentBorder + " shadow-2xl max-h-[85vh] flex flex-col overflow-hidden text-slate-900"}
+        className={"modal-sheet-container border-t sm:border rounded-t-3xl sm:rounded-3xl " + accentBorder + " text-slate-900"}
         onClick={(e) => e.stopPropagation()}
       >
+        {/* iOS Drag Handle Pill on Mobile */}
+        <div className="w-full flex justify-center pt-2.5 pb-1 sm:hidden">
+          <div className="w-10 h-1.5 rounded-full bg-slate-300" />
+        </div>
+
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white/95 backdrop-blur sticky top-0 z-10">
+        <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 bg-white/95 backdrop-blur sticky top-0 z-20 shrink-0">
           <h2 className="text-lg font-bold text-slate-900 tracking-tight">{title}</h2>
           <button
             type="button"
@@ -56,8 +61,8 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
           </button>
         </div>
 
-        {/* Scrollable Body con max-h-[80vh] e padding inferiore */}
-        <div className="p-6 max-h-[80vh] overflow-y-auto pb-20 space-y-4">
+        {/* Scrollable Body */}
+        <div className="modal-sheet-body space-y-4">
           {children}
         </div>
       </div>
