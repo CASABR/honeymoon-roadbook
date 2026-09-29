@@ -21,14 +21,14 @@ import { generateTripDays, getTripDateRange, type TripDayItem } from '../utils/t
 
 export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [tripDays, setTripDays] = useState<TripDayItem[]>(() => generateTripDays());
-  const [selectedDate, setSelectedDate] = useState<string>('2026-11-29');
+  const [selectedDate, setSelectedDate] = useState<string>('2026-11-28');
   const [accommodations, setAccommodations] = useState<Alloggio[]>([]);
   const [daysData, setDaysData] = useState<Giorno[]>([]);
   const [, setLoading] = useState(true);
 
   // Calcolo dinamico Countdown rispetto alla partenza reale
   const calculateCountdown = () => {
-    const startDate = tripDays[0]?.dateStr || '2026-11-29';
+    const startDate = tripDays[0]?.dateStr || '2026-11-28';
     const target = new Date(`${startDate}T00:00:00`);
     const now = new Date();
     const diffMs = target.getTime() - now.getTime();
@@ -84,11 +84,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       const todayStr = new Date().toISOString().split('T')[0];
       const isInTrip = dynamicDays.some((d) => d.dateStr === todayStr);
       setSelectedDate(prev => {
-        if (isInTrip && (prev === '2026-11-29' || prev === dynamicDays[0]?.dateStr)) {
+        if (isInTrip && (prev === '2026-11-28' || prev === '2026-11-29' || prev === dynamicDays[0]?.dateStr)) {
           return todayStr;
         }
-        // Se la data precedente non è valida nel nuovo intervallo, imposta la prima
-        if (!dynamicDays.some(d => d.dateStr === prev) && prev === '2026-11-29') {
+        // Se la data precedente era il default o non è presente, imposta la prima data reale del viaggio
+        if (prev === '2026-11-28' || prev === '2026-11-29' || !dynamicDays.some(d => d.dateStr === prev)) {
           return range.minTripDate;
         }
         return prev;
@@ -323,7 +323,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             Calendario Tappe
           </span>
           <div className="flex items-center gap-2">
-            <label className="text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200/80 px-2 py-0.5 rounded-full cursor-pointer flex items-center gap-1 transition-colors">
+            <label
+              title="Scegli data dal calendario"
+              className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer transition-colors border border-slate-200"
+            >
               <input
                 type="date"
                 value={selectedDate}
@@ -332,7 +335,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 }}
                 className="sr-only"
               />
-              <span>📅 Data Libera</span>
+              <span className="text-sm">📅</span>
             </label>
             <span className="text-xs text-slate-400 font-medium">
               Giorno {currentDayMeta?.dayNum || '–'}
@@ -414,7 +417,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             copilota?: boolean;
           }[] = [];
 
-          timeline.forEach(item => {
+          // Ordina rigorosamente per orario (HH:mm)
+          const sortedTimeline = [...timeline].sort((a, b) => {
+            const timeA = a.time || '12:00';
+            const timeB = b.time || '12:00';
+            return timeA.localeCompare(timeB);
+          });
+
+          sortedTimeline.forEach(item => {
             let departurePoint = item.location;
             let arrivalPoint = item.location;
 
@@ -444,7 +454,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             dayItems.push({
               id: `lodging_${tonightsAccommodation.id}`,
               type: 'alloggio',
-              time: tonightsAccommodation.checkInTime || '20:00',
+              time: tonightsAccommodation.checkInTime || '21:00',
               title: tonightsAccommodation.name,
               location: accLoc,
               departurePoint: accLoc,

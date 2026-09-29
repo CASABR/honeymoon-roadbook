@@ -43,14 +43,14 @@ export default function DayPickerStrip({
           </span>
         </button>
 
-        {/* Pulsante rapido selezione data libera */}
+        {/* Pulsante rapido selezione data da calendario */}
         <label
           className={`snap-start shrink-0 relative flex flex-col items-center justify-center w-11 sm:w-12 py-1.5 px-1 rounded-2xl transition-all duration-150 cursor-pointer ${
             selectedDate !== 'tutte' && !dynamicDays.some(d => d.dateStr === selectedDate)
               ? 'bg-slate-900 text-white font-bold shadow-md shadow-slate-900/20 scale-105'
               : 'bg-white border border-slate-200/80 text-slate-600 hover:border-slate-300 hover:text-slate-900 shadow-2xs'
           }`}
-          title="Seleziona qualsiasi data"
+          title="Seleziona data dal calendario"
         >
           <input
             type="date"
@@ -61,15 +61,15 @@ export default function DayPickerStrip({
             className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
           />
           <span className="text-[10px] uppercase font-medium tracking-tight text-slate-400">
-            DATA
+            CAL
           </span>
           <span className="text-sm my-0.5 leading-none">
             📅
           </span>
-          <span className="text-[9px] font-semibold text-rose-500 truncate max-w-full px-0.5">
+          <span className="text-[9px] font-semibold text-slate-500 truncate max-w-full px-0.5">
             {selectedDate !== 'tutte' && !dynamicDays.some(d => d.dateStr === selectedDate)
               ? selectedDate.slice(5)
-              : 'LIBERA'}
+              : 'DATA'}
           </span>
         </label>
 

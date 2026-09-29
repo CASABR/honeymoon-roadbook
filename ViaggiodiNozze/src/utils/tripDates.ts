@@ -16,14 +16,14 @@ export function generateTripDays(startDateStr?: string): TripDayItem[] {
     const [y, m, d] = startDateStr.split('-').map(Number);
     start = new Date(y, m - 1, d);
   } else {
-    start = new Date(2026, 10, 29); // 29 Novembre 2026 default
+    start = new Date(2026, 10, 28); // 28 Novembre 2026 default
   }
 
   const end = new Date(2027, 0, 10); // 10 Gennaio 2027
 
   // Nel caso limite in cui la data sia successiva alla fine, limita alla fine
   if (start > end) {
-    start = new Date(2026, 10, 29);
+    start = new Date(2026, 10, 28);
   }
 
   const dayNames = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
@@ -63,14 +63,23 @@ export function generateTripDays(startDateStr?: string): TripDayItem[] {
  * Se nessuna data è inferiore al 29 Novembre 2026, usa '2026-11-29' come default.
  */
 export function calculateEarliestTripDate(dates: (string | undefined | null)[]): string {
-  const DEFAULT_START = '2026-11-29';
+  // Se ci sono date salvate (es. 28 Novembre 2026 o anteriori), individua la minima assoluta
+  const validDates = dates.filter((d): d is string => Boolean(d && /^\d{4}-\d{2}-\d{2}$/.test(d)));
+  if (validDates.length > 0) {
+    validDates.sort();
+    // Non retrocedere arbitrariamente ad anni passati, ma se la data è del viaggio (fine 2026 / inizio 2027) prendi la prima
+    const tripStartCandidate = validDates.find(d => d >= '2026-11-01') || validDates[0];
+    if (tripStartCandidate && tripStartCandidate <= '2026-11-29') {
+      return tripStartCandidate;
+    }
+  }
+
+  const DEFAULT_START = '2026-11-28';
   let minDate = DEFAULT_START;
 
-  for (const d of dates) {
-    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
-      if (d < minDate) {
-        minDate = d;
-      }
+  for (const d of validDates) {
+    if (d < minDate) {
+      minDate = d;
     }
   }
 
@@ -138,7 +147,7 @@ export async function getTripDateRange(): Promise<TripDateRange> {
     return { minTripDate, maxTripDate, tripDays };
   } catch (err) {
     console.error('[getTripDateRange] Errore calcolo range viaggio:', err);
-    const minTripDate = '2026-11-29';
+    const minTripDate = '2026-11-28';
     const maxTripDate = '2027-01-10';
     return { minTripDate, maxTripDate, tripDays: generateTripDays(minTripDate) };
   }

@@ -167,6 +167,19 @@ function calculateFallbackRoute(
   // Se abbiamo le coordinate (reali o dalla tabella statica), calcoliamo con fattore di tortuosità stradale (1.35 per auto, 1.2 a piedi)
   if (start && end) {
     const directKm = calculateHaversineDistance(start, end);
+
+    // Se la distanza in linea d'aria supera i 500 km, si tratta di un volo transoceanico/aereo
+    if (directKm > 500) {
+      return {
+        distanceKm: directKm,
+        formattedDistance: 'Tratta aerea',
+        durationSeconds: Math.round((directKm / 800) * 3600), // ~800 km/h volo
+        formattedDuration: 'Volo',
+        profile,
+        manualOverride: false
+      };
+    }
+
     const windingFactor = profile === 'driving-car' ? 1.35 : 1.2;
     const distanceKm = Math.max(0.5, Math.round(directKm * windingFactor * 10) / 10);
     
