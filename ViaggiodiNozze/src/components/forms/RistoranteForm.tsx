@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Ristorante } from '../../types';
+import { storageService } from '../../storage/storageService';
 
 interface RistoranteFormProps {
   initialData?: Ristorante | null;
@@ -22,6 +23,8 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
   const [copilota, setCopilota] = useState(false);
   
   const [error, setError] = useState('');
+  const [conflictWarning, setConflictWarning] = useState('');
+  const [isConflictConfirmed, setIsConflictConfirmed] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -58,7 +61,12 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
     }
   }, [initialData]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    setIsConflictConfirmed(false);
+    setConflictWarning('');
+  }, [orario, data]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) {
       setError('Il nome del ristorante è obbligatorio.');
@@ -69,7 +77,23 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       return;
     }
 
+    // Validazione Sovrapposizione
+    if (!isConflictConfirmed && orario && data) {
+      try {
+        const timeline = await storageService.getTimelineForDate(data);
+        const conflict = timeline.find(item => item.time === orario && item.id !== initialData?.id);
+        if (conflict) {
+          setConflictWarning(`⚠️ Attenzione: hai già programmato "${conflict.title}" alle ${orario}.`);
+          setIsConflictConfirmed(true);
+          return;
+        }
+      } catch (err) {
+        console.error('Errore validazione sovrapposizione:', err);
+      }
+    }
+
     setError('');
+    setConflictWarning('');
     
     // Assicuriamo l'esistenza del dayId implicito basato sulla data
     const dayId = `day_${data}`;
@@ -95,6 +119,13 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       {error && (
         <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
           {error}
+        </div>
+      )}
+      
+      {conflictWarning && (
+        <div className="p-3 text-xs rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
+          {conflictWarning}
+          <div className="mt-1 font-semibold">Clicca di nuovo Salva per confermare comunque.</div>
         </div>
       )}
 

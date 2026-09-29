@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { Trasporto, TipoTrasporto, StatoTrasporto } from '../../types';
+import { storageService } from '../../storage/storageService';
 
 interface TrasportoFormProps {
   initialData?: Trasporto | null;
@@ -36,10 +37,18 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
   const [ticketUrl, setTicketUrl] = useState('');
   const [notes, setNotes] = useState('');
   
-  // Scalo
+  // Scalo esteso
+  const [hasLayover, setHasLayover] = useState(false);
   const [layoverAirport, setLayoverAirport] = useState('');
+  const [layoverArrivalTime, setLayoverArrivalTime] = useState('');
+  const [layoverDepartureDate, setLayoverDepartureDate] = useState('');
+  const [layoverDepartureTime, setLayoverDepartureTime] = useState('');
+  const [layoverCarrier, setLayoverCarrier] = useState('');
+  const [layoverDuration, setLayoverDuration] = useState('');
   
   const [error, setError] = useState('');
+  const [conflictWarning, setConflictWarning] = useState('');
+  const [isConflictConfirmed, setIsConflictConfirmed] = useState(false);
 
   const isRental = type === 'auto' || type === 'camper';
 
@@ -66,7 +75,15 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       setBookingCode(initialData.bookingCode || '');
       setTicketUrl(initialData.ticketUrl || '');
       setNotes(initialData.notes || '');
-      setLayoverAirport(initialData.layover?.airport || '');
+      
+      const lay = initialData.layover;
+      setHasLayover(!!lay?.airport);
+      setLayoverAirport(lay?.airport || '');
+      setLayoverArrivalTime(lay?.arrivalTime || '');
+      setLayoverDepartureDate(lay?.departureDate || '');
+      setLayoverDepartureTime(lay?.departureTime || '');
+      setLayoverCarrier(lay?.carrier || '');
+      setLayoverDuration(lay?.duration || '');
 
       if (
         initialData.cost || initialData.depositPaid || initialData.acconto || 
@@ -103,12 +120,24 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       setBookingCode('');
       setTicketUrl('');
       setNotes('');
+      setHasLayover(false);
       setLayoverAirport('');
+      setLayoverArrivalTime('');
+      setLayoverDepartureDate('');
+      setLayoverDepartureTime('');
+      setLayoverCarrier('');
+      setLayoverDuration('');
       setShowAdvanced(false);
     }
   }, [initialData]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Reset conflictse se l'utente cambia orario
+  useEffect(() => {
+    setIsConflictConfirmed(false);
+    setConflictWarning('');
+  }, [departureTime, date]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!date || !departureLocation.trim()) {
       setError('Data e luogo di partenza/ritiro sono obbligatori.');
@@ -120,7 +149,23 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       return;
     }
 
+    // Validazione Sovrapposizione
+    if (!isConflictConfirmed && departureTime && date) {
+      try {
+        const timeline = await storageService.getTimelineForDate(date);
+        const conflict = timeline.find(item => item.time === departureTime && item.id !== initialData?.id);
+        if (conflict) {
+          setConflictWarning(`⚠️ Attenzione: hai già programmato "${conflict.title}" alle ${departureTime}.`);
+          setIsConflictConfirmed(true);
+          return;
+        }
+      } catch (err) {
+        console.error('Errore validazione sovrapposizione:', err);
+      }
+    }
+
     setError('');
+    setConflictWarning('');
 
     onSave({
       id: initialData?.id,
@@ -136,9 +181,14 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       cost: cost.trim() || undefined,
       depositPaid: depositPaid.trim() || undefined,
       acconto: depositPaid.trim() || undefined,
-      layover: layoverAirport.trim()
+      layover: (hasLayover && layoverAirport.trim())
         ? {
             airport: layoverAirport.trim(),
+            arrivalTime: layoverArrivalTime.trim() || undefined,
+            departureDate: layoverDepartureDate.trim() || undefined,
+            departureTime: layoverDepartureTime.trim() || undefined,
+            carrier: layoverCarrier.trim() || undefined,
+            duration: layoverDuration.trim() || undefined,
           }
         : undefined,
       departureTime: departureTime.trim() || undefined,
@@ -155,6 +205,13 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
       {error && (
         <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
           {error}
+        </div>
+      )}
+      
+      {conflictWarning && (
+        <div className="p-3 text-xs rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
+          {conflictWarning}
+          <div className="mt-1 font-semibold">Clicca di nuovo Salva per confermare comunque.</div>
         </div>
       )}
 
@@ -486,17 +543,99 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                   </div>
                 </div>
                 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Scalo (opzionale)
+                <div className="pt-2 border-t border-slate-200">
+                  <label className="flex items-center gap-2 cursor-pointer mb-3">
+                    <input
+                      type="checkbox"
+                      checked={hasLayover}
+                      onChange={(e) => setHasLayover(e.target.checked)}
+                      className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500 cursor-pointer"
+                    />
+                    <span className="text-xs font-bold text-slate-700">
+                      [+] Aggiungi Scalo / Tratta di coincidenza
+                    </span>
                   </label>
-                  <input
-                    type="text"
-                    placeholder="es. Pechino (PEK)"
-                    value={layoverAirport}
-                    onChange={(e) => setLayoverAirport(e.target.value)}
-                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-sky-500 transition-colors placeholder:text-slate-400"
-                  />
+                  
+                  {hasLayover && (
+                    <div className="space-y-4 p-3 bg-sky-50/50 rounded-xl border border-sky-100">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                            Città Scalo *
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="es. Pechino (PEK)"
+                            value={layoverAirport}
+                            onChange={(e) => setLayoverAirport(e.target.value)}
+                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-sky-500 transition-colors"
+                            required={hasLayover}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                            Ora Arrivo a Scalo
+                          </label>
+                          <input
+                            type="time"
+                            value={layoverArrivalTime}
+                            onChange={(e) => setLayoverArrivalTime(e.target.value)}
+                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-sky-500 transition-colors"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                            Durata Sosta
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="es. 18h 35m"
+                            value={layoverDuration}
+                            onChange={(e) => setLayoverDuration(e.target.value)}
+                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-sky-500 transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                            Data Tratta 2
+                          </label>
+                          <input
+                            type="date"
+                            value={layoverDepartureDate}
+                            onChange={(e) => setLayoverDepartureDate(e.target.value)}
+                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-sky-500 transition-colors"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                            Ora Tratta 2
+                          </label>
+                          <input
+                            type="time"
+                            value={layoverDepartureTime}
+                            onChange={(e) => setLayoverDepartureTime(e.target.value)}
+                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-sky-500 transition-colors"
+                          />
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
+                          Volo Tratta 2 (Compagnia/Num)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="es. CA783"
+                          value={layoverCarrier}
+                          onChange={(e) => setLayoverCarrier(e.target.value)}
+                          className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-sky-500 transition-colors"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </>
             )}
