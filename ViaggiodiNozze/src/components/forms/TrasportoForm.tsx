@@ -148,6 +148,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-sky-500 transition-colors"
           >
             <option value="volo">✈️ Volo</option>
+            <option value="treno">🚆 Treno</option>
             <option value="traghetto">⛴️ Traghetto</option>
             <option value="auto">🚗 Auto Noleggio</option>
             <option value="camper">🚐 Camper / Van</option>

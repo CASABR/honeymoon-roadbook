@@ -60,23 +60,35 @@ export default function AttivitaCard({ activity, onEdit, onDelete, onUpdate }: A
               <Badge label={categoryLabels[activity.category] || activity.category} variant="slate" />
               <Badge label={activity.status} variant={statusVariant} />
               
-              {/* Pillola Co-pilota: Mostra SOLO l'icona circolare compatta [ 🧭 ] */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setEditingCopilotNotes(activity.copilotNotes || '');
-                  setIsCopilotPopoverOpen(true);
-                }}
-                className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all cursor-pointer shrink-0 active:scale-90 ${
-                  hasCopilotNotes
-                    ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-400 shadow-2xs'
-                    : 'bg-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-200'
-                }`}
-                title={hasCopilotNotes ? 'Note Co-pilota presenti (clicca per leggere/modificare)' : 'Aggiungi note Co-pilota'}
-              >
-                🧭
-              </button>
+              {/* Pillola Co-pilota: Badge esteso verde se ha note, icona compatta grigia altrimenti */}
+              {hasCopilotNotes ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingCopilotNotes(activity.copilotNotes || '');
+                    setIsCopilotPopoverOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition-all cursor-pointer shrink-0 active:scale-90 shadow-2xs"
+                  title="Note Co-pilota presenti (clicca per leggere/modificare)"
+                >
+                  <span>🧭</span>
+                  <span>Co-pilota</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingCopilotNotes('');
+                    setIsCopilotPopoverOpen(true);
+                  }}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-xs bg-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-all cursor-pointer shrink-0 active:scale-90"
+                  title="Aggiungi note Co-pilota"
+                >
+                  🧭
+                </button>
+              )}
 
               {activity.duration && (
                 <span className="text-[11px] text-slate-400 font-medium">⏱ {activity.duration}</span>
