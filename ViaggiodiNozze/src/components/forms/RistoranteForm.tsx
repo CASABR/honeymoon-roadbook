@@ -12,11 +12,15 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
   const [data, setData] = useState('');
   const [orario, setOrario] = useState('');
   const [indirizzo, setIndirizzo] = useState('');
+  
+  // Livello 2
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [budget, setBudget] = useState('');
   const [linkPrenotazione, setLinkPrenotazione] = useState('');
   const [telefono, setTelefono] = useState('');
   const [nota, setNota] = useState('');
   const [copilota, setCopilota] = useState(false);
+  
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -25,14 +29,24 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       setData(initialData.data || '');
       setOrario(initialData.orario || '');
       setIndirizzo(initialData.indirizzo || '');
+      
       setBudget(initialData.budget || '');
       setLinkPrenotazione(initialData.linkPrenotazione || '');
       setTelefono(initialData.telefono || '');
       setNota(initialData.nota || '');
       setCopilota(initialData.copilota || false);
+
+      if (initialData.budget || initialData.linkPrenotazione || initialData.telefono || initialData.nota || initialData.copilota) {
+        setShowAdvanced(true);
+      }
     } else {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      
       setNome('');
-      setData('');
+      setData(`${yyyy}-${mm}-${dd}`);
       setOrario('');
       setIndirizzo('');
       setBudget('');
@@ -40,6 +54,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       setTelefono('');
       setNota('');
       setCopilota(false);
+      setShowAdvanced(false);
     }
   }, [initialData]);
 
@@ -49,12 +64,21 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       setError('Il nome del ristorante è obbligatorio.');
       return;
     }
+    if (!data) {
+      setError('La data è obbligatoria.');
+      return;
+    }
 
     setError('');
+    
+    // Assicuriamo l'esistenza del dayId implicito basato sulla data
+    const dayId = `day_${data}`;
+
     onSave({
       id: initialData?.id,
+      dayId: dayId,
       nome: nome.trim(),
-      data: data || undefined,
+      data: data,
       orario: orario || undefined,
       indirizzo: indirizzo.trim() || undefined,
       budget: budget.trim() || undefined,
@@ -63,7 +87,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       coordinate: initialData?.coordinate,
       nota: nota.trim() || undefined,
       copilota: copilota || undefined
-    });
+    } as any);
   };
 
   return (
@@ -74,119 +98,142 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
         </div>
       )}
 
-      {/* Nome locale */}
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Nome Locale / Ristorante *
-        </label>
-        <input
-          type="text"
-          placeholder="es. Fergburger, Starita Milano, Depot Eatery"
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
-          required
-        />
-      </div>
-
-      {/* Data e Orario */}
-      <div className="grid grid-cols-2 gap-3">
+      {/* Livello 1: Essenziale */}
+      <div className="space-y-4">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Data (opzionale)
-          </label>
-          <input
-            type="date"
-            value={data}
-            onChange={(e) => setData(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Orario (opzionale)
-          </label>
-          <input
-            type="time"
-            value={orario}
-            onChange={(e) => setOrario(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
-          />
-        </div>
-      </div>
-
-      {/* Indirizzo / Città / Link Maps */}
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Indirizzo / Città o Link Maps
-        </label>
-        <input
-          type="text"
-          placeholder="es. Shotover St, Queenstown o link Maps"
-          value={indirizzo}
-          onChange={(e) => setIndirizzo(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
-        />
-      </div>
-
-      {/* Budget stimato e Link / Prenotazione */}
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Budget stimato (€)
+            Nome Locale / Ristorante *
           </label>
           <input
             type="text"
-            placeholder="es. 35 € a persona"
-            value={budget}
-            onChange={(e) => setBudget(e.target.value)}
+            placeholder="es. Fergburger, Starita Milano"
+            value={nome}
+            onChange={(e) => setNome(e.target.value)}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
+            required
           />
         </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Data *
+            </label>
+            <input
+              type="date"
+              value={data}
+              onChange={(e) => setData(e.target.value)}
+              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Orario (opzionale)
+            </label>
+            <input
+              type="time"
+              value={orario}
+              onChange={(e) => setOrario(e.target.value)}
+              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
+            />
+          </div>
+        </div>
+
         <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Link Prenotazione / Web
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            📍 Indirizzo / Città o Link Maps
           </label>
           <input
-            type="url"
-            placeholder="https://..."
-            value={linkPrenotazione}
-            onChange={(e) => setLinkPrenotazione(e.target.value)}
+            type="text"
+            placeholder="es. Shotover St, Queenstown o link Maps"
+            value={indirizzo}
+            onChange={(e) => setIndirizzo(e.target.value)}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
           />
         </div>
       </div>
 
-      {/* Note / Prenotazione */}
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Note / Dettagli prenotazione
-        </label>
-        <textarea
-          rows={2}
-          placeholder="es. Tavolo prenotato a nome Mario, piatti consigliati, orario limite arrivo..."
-          value={nota}
-          onChange={(e) => setNota(e.target.value)}
-          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-amber-500 placeholder:text-slate-400 resize-none"
-        />
+      {/* Livello 2: Dettagli Aggiuntivi (Richiudibile) */}
+      <div className="pt-2">
+        <button
+          type="button"
+          onClick={() => setShowAdvanced(!showAdvanced)}
+          className="flex items-center gap-1.5 text-xs font-bold text-amber-600 hover:text-amber-800 transition-colors cursor-pointer py-1 w-full justify-center bg-amber-50 rounded-xl h-10 border border-amber-200/60"
+        >
+          <span>{showAdvanced ? 'Nascondi Dettagli' : '+ Altri Dettagli (Costo, Note, Link)'}</span>
+          <svg className={"w-4 h-4 transition-transform " + (showAdvanced ? 'rotate-180' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {showAdvanced && (
+          <div className="mt-3 space-y-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 animate-fade-in">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Budget stimato (€)
+                </label>
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  pattern="[0-9]*"
+                  step="0.01"
+                  min="0"
+                  placeholder="0.00"
+                  value={budget}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d*\.?\d*$/.test(val)) setBudget(val);
+                  }}
+                  className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-400"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Link Prenotazione
+                </label>
+                <input
+                  type="url"
+                  placeholder="https://..."
+                  value={linkPrenotazione}
+                  onChange={(e) => setLinkPrenotazione(e.target.value)}
+                  className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Note / Dettagli prenotazione
+              </label>
+              <textarea
+                rows={2}
+                placeholder="es. Tavolo prenotato a nome Mario, piatti consigliati..."
+                value={nota}
+                onChange={(e) => setNota(e.target.value)}
+                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400 resize-none"
+              />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <label htmlFor="copilota-ristorante-toggle" className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1.5">
+                <span>🧭</span>
+                <span>Mostra al co-pilota per pause pranzo/cena</span>
+              </label>
+              <input
+                id="copilota-ristorante-toggle"
+                type="checkbox"
+                checked={copilota}
+                onChange={(e) => setCopilota(e.target.checked)}
+                className="w-4 h-4 rounded text-emerald-600 bg-white border-slate-300 focus:ring-emerald-500 cursor-pointer"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Opzione Co-pilota */}
-      <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-        <label htmlFor="copilota-ristorante-toggle" className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1.5">
-          <span>🧭</span>
-          <span>Mostra al co-pilota per pause pranzo/cena</span>
-        </label>
-        <input
-          id="copilota-ristorante-toggle"
-          type="checkbox"
-          checked={copilota}
-          onChange={(e) => setCopilota(e.target.checked)}
-          className="w-4 h-4 rounded text-emerald-600 bg-white border-slate-300 focus:ring-emerald-500 cursor-pointer"
-        />
-      </div>
-
-      <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+      <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
         <button
           type="button"
           onClick={onCancel}

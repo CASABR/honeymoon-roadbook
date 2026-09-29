@@ -31,21 +31,20 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      let [loadedRistoranti, range] = await Promise.all([
+
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Timeout caricamento dati (1.5s)')), 1500)
+      );
+
+      const dataPromise = Promise.all([
         storageService.getRistoranti(),
         getTripDateRange()
       ]);
 
-      if (loadedRistoranti.length === 0) {
-        await storageService.initInitialSeedData();
-        [loadedRistoranti, range] = await Promise.all([
-          storageService.getRistoranti(),
-          getTripDateRange()
-        ]);
-      }
+      const [loadedRistoranti, range] = await Promise.race([dataPromise, timeoutPromise]) as [Ristorante[], any];
 
-      setRistoranti(loadedRistoranti);
-      setTripDays(range.tripDays);
+      setRistoranti(loadedRistoranti || []);
+      if (range) setTripDays(range.tripDays);
       setSelectedDate('tutte');
     } catch (err) {
       console.error('Errore nel caricamento dei ristoranti:', err);

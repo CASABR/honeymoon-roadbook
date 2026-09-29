@@ -275,6 +275,18 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
     }
   };
 
+  const handleToggleSaldato = async (spesa: Spesa) => {
+    if (!canEdit) return;
+    try {
+      const newStatus: StatoSpesa = spesa.status === 'saldato' ? 'da_saldare' : 'saldato';
+      const updated = { ...spesa, status: newStatus };
+      await storageService.saveSpesa(updated);
+      await loadAllData();
+    } catch (err) {
+      console.error('Errore aggiornamento stato spesa:', err);
+    }
+  };
+
   const filteredSpese = useMemo(() => {
     if (selectedCategory === 'tutte') return [...spese].sort((a, b) => b.date.localeCompare(a.date));
     return spese.filter((s) => s.category === selectedCategory).sort((a, b) => b.date.localeCompare(a.date));
@@ -531,15 +543,20 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
                     <div className="text-sm font-extrabold text-slate-900 tracking-tight">
                       € {s.amount.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
-                    <span
-                      className={`inline-block text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleSaldato(s);
+                      }}
+                      className={`cursor-pointer px-2.5 py-1 rounded-full text-xs font-bold transition-all ${
                         isPaid
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                          ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                          : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
                       }`}
                     >
-                      {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
-                    </span>
+                      {isPaid ? '🟢 Saldato' : '🟡 Da saldare'}
+                    </button>
                   </div>
 
                   {canEdit && (
@@ -597,11 +614,18 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
                 <span className="absolute left-3 top-2.5 text-sm font-bold text-slate-400">€</span>
                 <input
                   type="number"
+                  inputMode="decimal"
+                  pattern="[0-9]*"
                   step="0.01"
                   min="0"
                   required
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                      setAmount(val);
+                    }
+                  }}
                   placeholder="0.00"
                   className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                 />

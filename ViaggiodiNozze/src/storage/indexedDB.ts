@@ -33,7 +33,15 @@ function openDatabase(): Promise<IDBDatabase> {
       return;
     }
 
+    const timeoutId = setTimeout(() => {
+      reject(new Error('Timeout connessione IndexedDB (2000ms)'));
+    }, 2000);
+
     const request = window.indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onblocked = () => {
+      console.warn('IndexedDB bloccato da una versione precedente aperta.');
+    };
 
     request.onupgradeneeded = (event) => {
       const db = (event.target as IDBOpenDBRequest).result;
@@ -102,10 +110,12 @@ function openDatabase(): Promise<IDBDatabase> {
     };
 
     request.onsuccess = () => {
+      clearTimeout(timeoutId);
       resolve(request.result);
     };
 
     request.onerror = () => {
+      clearTimeout(timeoutId);
       reject(request.error || new Error('Impossibile aprire il database IndexedDB'));
     };
   });
