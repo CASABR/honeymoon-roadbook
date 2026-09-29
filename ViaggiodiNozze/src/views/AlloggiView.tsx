@@ -25,22 +25,22 @@ export default function AlloggiView() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [items, range] = await Promise.all([
+      let [items, range] = await Promise.all([
         storageService.getAccommodations(),
         getTripDateRange()
       ]);
+
+      if (items.length === 0) {
+        await storageService.initInitialSeedData();
+        [items, range] = await Promise.all([
+          storageService.getAccommodations(),
+          getTripDateRange()
+        ]);
+      }
+
       setAccommodations(items);
       setTripDays(range.tripDays);
-
-      // Auto-selezione data intelligente
-      const todayStr = new Date().toISOString().split('T')[0];
-      const isInTrip = range.tripDays.some((d) => d.dateStr === todayStr);
-
-      setSelectedDate((prev) => {
-        if (prev !== 'tutte') return prev;
-        if (isInTrip) return todayStr;
-        return 'tutte';
-      });
+      setSelectedDate('tutte');
     } catch (err) {
       console.error('Errore caricamento alloggi:', err);
     } finally {

@@ -31,22 +31,22 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [loadedRistoranti, range] = await Promise.all([
+      let [loadedRistoranti, range] = await Promise.all([
         storageService.getRistoranti(),
         getTripDateRange()
       ]);
+
+      if (loadedRistoranti.length === 0) {
+        await storageService.initInitialSeedData();
+        [loadedRistoranti, range] = await Promise.all([
+          storageService.getRistoranti(),
+          getTripDateRange()
+        ]);
+      }
+
       setRistoranti(loadedRistoranti);
       setTripDays(range.tripDays);
-
-      // Auto-selezione data intelligente
-      const todayStr = new Date().toISOString().split('T')[0];
-      const isInTrip = range.tripDays.some((d) => d.dateStr === todayStr);
-
-      setSelectedDate((prev) => {
-        if (prev !== 'tutte') return prev;
-        if (isInTrip) return todayStr;
-        return 'tutte';
-      });
+      setSelectedDate('tutte');
     } catch (err) {
       console.error('Errore nel caricamento dei ristoranti:', err);
     } finally {

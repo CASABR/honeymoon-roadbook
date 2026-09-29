@@ -1,4 +1,4 @@
-import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Shopping, Spesa, DeviceRole, NotaViaggio } from '../types';
+import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Shopping, Spesa, DeviceRole, NotaViaggio, Bagaglio } from '../types';
 import {
   STORES,
   idbGetAll,
@@ -1165,6 +1165,50 @@ class StorageService {
     } catch (err) {
       console.error('[StorageService] Errore lettura timeline:', err);
       return [];
+    }
+  }
+
+  // --- BAGAGLI ---
+  async getBagagli(): Promise<Bagaglio[]> {
+    try {
+      const items = await idbGetAll<Bagaglio>(STORES.BAGAGLI);
+      return items.sort((a, b) => b.createdAt - a.createdAt);
+    } catch (err) {
+      console.error('[StorageService] Errore lettura bagagli:', err);
+      return [];
+    }
+  }
+
+  async saveBagaglio(bagaglio: Bagaglio): Promise<void> {
+    const now = Date.now();
+    const item: Bagaglio = {
+      ...bagaglio,
+      createdAt: bagaglio.createdAt || now,
+      updatedAt: now
+    };
+    await idbPut(STORES.BAGAGLI, item);
+    notifyDataChanged('bagagli', 'save', item);
+  }
+
+  async deleteBagaglio(id: string): Promise<void> {
+    await idbDelete(STORES.BAGAGLI, id);
+    notifyDataChanged('bagagli', 'delete', { id });
+  }
+
+  async toggleBagaglioVerificato(id: string): Promise<void> {
+    try {
+      const item = await idbGet<Bagaglio>(STORES.BAGAGLI, id);
+      if (item) {
+        const updated: Bagaglio = {
+          ...item,
+          verificato: !item.verificato,
+          updatedAt: Date.now()
+        };
+        await idbPut(STORES.BAGAGLI, updated);
+        notifyDataChanged('bagagli', 'save', updated);
+      }
+    } catch (err) {
+      console.error('[StorageService] Errore toggle bagaglio verificato:', err);
     }
   }
 
