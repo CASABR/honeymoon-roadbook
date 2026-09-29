@@ -537,12 +537,17 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   }, [liveGpsState]);
 
   // Località attiva sulla mappa in base al toggle dell'utente
+  // Se siamo prima della partenza (isPreTrip), per tutti gli ospiti 'Dove siamo ora' e 'Dove dovremmo essere'
+  // coincidono perfettamente sulla prima tappa programmata per evitare falsi allarmi o discrepanze
   const currentLocation = useMemo(() => {
+    if (tripCountdown.isPreTrip && deviceRole !== 'guida') {
+      return plannedLocation;
+    }
     if (mapLocationMode === 'reale' && realLocation) {
       return realLocation;
     }
     return plannedLocation;
-  }, [mapLocationMode, realLocation, plannedLocation]);
+  }, [mapLocationMode, realLocation, plannedLocation, tripCountdown.isPreTrip, deviceRole]);
 
   // Chiamata leggera Open-Meteo per meteo locale e prossima tappa
   useEffect(() => {

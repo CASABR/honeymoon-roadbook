@@ -39,6 +39,9 @@ export default function AttivitaCard({ activity, onEdit, onDelete, onUpdate }: A
   const hasQRCode = Boolean(activity.qrCode);
   const canHavePass = hasQRCode || attachmentsCount > 0;
 
+  const [isCopilotPopoverOpen, setIsCopilotPopoverOpen] = useState(false);
+  const hasCopilotNotes = Boolean(activity.copilotNotes?.trim());
+
   return (
     <>
       <div className="rounded-3xl border border-slate-200/90 bg-white p-4.5 shadow-xs hover:shadow-md hover:border-slate-300 transition-all flex flex-col justify-between">
@@ -53,12 +56,30 @@ export default function AttivitaCard({ activity, onEdit, onDelete, onUpdate }: A
               )}
               <Badge label={categoryLabels[activity.category] || activity.category} variant="slate" />
               <Badge label={activity.status} variant={statusVariant} />
-              {activity.copilota && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+              
+              {/* Pillola Co-pilota: Stato Dinamico e Popover Note */}
+              {hasCopilotNotes ? (
+                <button
+                  type="button"
+                  onClick={() => setIsCopilotPopoverOpen(true)}
+                  className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-100/90 hover:bg-emerald-200 px-2 py-0.5 rounded-full border border-emerald-300 transition-all cursor-pointer shadow-2xs active:scale-95"
+                  title="Note del Co-pilota (clicca per leggere)"
+                >
                   <span>🧭</span>
                   <span>Co-pilota</span>
-                </span>
-              )}
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                </button>
+              ) : activity.copilota ? (
+                <button
+                  type="button"
+                  onClick={() => (canEdit ? onEdit() : setIsCopilotPopoverOpen(true))}
+                  className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-all cursor-pointer text-[10px]"
+                  title="Co-pilota (nessuna nota aggiuntiva)"
+                >
+                  🧭
+                </button>
+              ) : null}
+
               {activity.duration && (
                 <span className="text-[11px] text-slate-400 font-medium">⏱ {activity.duration}</span>
               )}
@@ -198,6 +219,74 @@ export default function AttivitaCard({ activity, onEdit, onDelete, onUpdate }: A
           title={activity.title}
           subtitle="Pass / Biglietto Attività"
         />
+      )}
+
+      {/* Popover / Modale Note del Co-pilota */}
+      {isCopilotPopoverOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in"
+          onClick={() => setIsCopilotPopoverOpen(false)}
+        >
+          <div 
+            className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-emerald-200/80 animate-scale-up space-y-3.5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-emerald-100">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-sm font-bold">
+                  🧭
+                </span>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 leading-tight">
+                    Note del Co-pilota
+                  </h3>
+                  <p className="text-[10px] text-emerald-700 font-semibold truncate max-w-[190px]">
+                    {activity.title}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCopilotPopoverOpen(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-100/90 text-xs text-slate-700 leading-relaxed font-medium">
+              {activity.copilotNotes?.trim() ? (
+                activity.copilotNotes
+              ) : (
+                <p className="text-slate-400 italic">
+                  Nessuna raccomandazione specifica inserita.
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCopilotPopoverOpen(false);
+                    onEdit();
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95"
+                >
+                  ✏️ Modifica Nota
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsCopilotPopoverOpen(false)}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+              >
+                Chiudi
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

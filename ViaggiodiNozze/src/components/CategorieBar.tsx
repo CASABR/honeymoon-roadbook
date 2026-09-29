@@ -10,211 +10,81 @@ interface CategorieBarProps {
 interface CategoriaItem {
   id: CategoriaTab;
   label: string;
-  icon: (active: boolean) => React.ReactNode;
+  icon: string;
+  accent: {
+    bg: string;
+    text: string;
+    border: string;
+    activeBg: string;
+  };
 }
 
 const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'tappe',
     label: 'Tappe',
-    // 📍 Icona pin mappa elegante e sottile
-    icon: (active) => (
-      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-        />
-      </svg>
-    )
+    icon: '📍',
+    accent: {
+      bg: 'bg-rose-50',
+      text: 'text-rose-600',
+      border: 'border-rose-100',
+      activeBg: 'bg-rose-500'
+    }
   },
   {
     id: 'attivita',
     label: 'Attività',
-    // 🗓️ Icona calendario con orologio minimale
-    icon: (active) => (
-      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-        />
-        <circle
-          cx="16"
-          cy="16"
-          r="3.5"
-          className="fill-white/80 dark:fill-slate-900/80"
-          stroke="currentColor"
-          strokeWidth={active ? "2" : "1.6"}
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M16 14.5v1.5l1 1"
-        />
-      </svg>
-    )
+    icon: '🎯',
+    accent: {
+      bg: 'bg-amber-50',
+      text: 'text-amber-600',
+      border: 'border-amber-100',
+      activeBg: 'bg-amber-500'
+    }
   },
   {
     id: 'ristoranti',
     label: 'Ristoranti',
-    // 🍽️ Icona forchetta e coltello da ristorazione
-    icon: (active) => (
-      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        {/* Forchetta a 3 punte */}
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M6 3v5a2 2 0 002 2v11M10 3v5a2 2 0 01-2 2M8 3v5"
-        />
-        {/* Coltello affusolato */}
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M17 3v9a2 2 0 01-2 2v7M17 3c1.8 1.2 2 5.5 2 9h-2"
-        />
-      </svg>
-    )
+    icon: '🍽️',
+    accent: {
+      bg: 'bg-emerald-50',
+      text: 'text-emerald-600',
+      border: 'border-emerald-100',
+      activeBg: 'bg-emerald-500'
+    }
   },
   {
     id: 'alloggi',
     label: 'Alloggi',
-    icon: (active) => (
-      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M3 7v13M21 15v5M3 15h18M3 11h18a2 2 0 012 2v2H3v-2a2 2 0 012-2z"
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M6.5 11a1.5 1.5 0 011.5-1.5h2a1.5 1.5 0 011.5 1.5"
-        />
-      </svg>
-    )
-  },
-  {
-    id: 'ristoranti',
-    label: 'Ristoranti',
-    icon: (active) => (
-      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M6 3v5a2 2 0 002 2v11M10 3v5a2 2 0 01-2 2M8 3v5"
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M17 3v9a2 2 0 01-2 2v7M17 3c1.8 1.2 2 5.5 2 9h-2"
-        />
-      </svg>
-    )
+    icon: '🛏️',
+    accent: {
+      bg: 'bg-purple-50',
+      text: 'text-purple-600',
+      border: 'border-purple-100',
+      activeBg: 'bg-purple-500'
+    }
   },
   {
     id: 'trasporti',
     label: 'Trasporti',
-    icon: (active) => (
-      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M3 12.5l7 1.5 4-8.5 2 1-2.5 8 5.5 1.5 2-2.5 1.5.5-1 3.5 1 3.5-1.5.5-2-2.5-5.5 1.5 2.5 8-2 1-4-8.5-7 1.5z"
-        />
-      </svg>
-    )
+    icon: '✈️',
+    accent: {
+      bg: 'bg-sky-50',
+      text: 'text-sky-600',
+      border: 'border-sky-100',
+      activeBg: 'bg-sky-500'
+    }
   },
   {
-    id: 'attivita',
-    label: 'Attività',
-    icon: (active) => (
-      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-        />
-        <circle
-          cx="16"
-          cy="16"
-          r="3.5"
-          className="fill-white/80 dark:fill-slate-900/80"
-          stroke="currentColor"
-          strokeWidth={active ? "2" : "1.6"}
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M16 14.5v1.5l1 1"
-        />
-      </svg>
-    )
-  },
-  {
-    id: 'tappe',
-    label: 'Tappe',
-    icon: (active) => (
-      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          strokeWidth={active ? "2" : "1.6"}
-          d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-        />
-      </svg>
-    )
-  },
-  {
-    id: 'spese',
-    label: 'Spese / Budget',
-    icon: (active) => (
-      <svg className="w-5 h-5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <rect
-          x="2"
-          y="5"
-          width="20"
-          height="14"
-          rx="2"
-          strokeWidth={active ? "2" : "1.6"}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <line
-          x1="2"
-          y1="10"
-          x2="22"
-          y2="10"
-          strokeWidth={active ? "2" : "1.6"}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
-    )
+    id: 'shopping',
+    label: 'Shopping / Extra',
+    icon: '🛍️',
+    accent: {
+      bg: 'bg-pink-50',
+      text: 'text-pink-600',
+      border: 'border-pink-100',
+      activeBg: 'bg-pink-500'
+    }
   }
 ];
 
@@ -257,7 +127,7 @@ export default function CategorieBar({
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-3 gap-3 p-1">
             {CATEGORIE_ITEMS.map((item) => {
               const isActive = activeCategoria === item.id;
 
@@ -269,14 +139,18 @@ export default function CategorieBar({
                     onSelectCategoria(item.id);
                     onClose();
                   }}
-                  className={`group flex flex-col items-center justify-center p-2.5 rounded-2xl transition-all duration-150 cursor-pointer min-h-[64px] border ${
+                  className={`group flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-150 cursor-pointer min-h-[76px] border ${
                     isActive
                       ? 'bg-slate-900 text-white border-slate-900 shadow-md shadow-slate-900/20 scale-[1.02]'
-                      : 'bg-slate-50/80 hover:bg-slate-100/90 text-slate-700 border-slate-200/60 hover:border-slate-300 active:scale-95'
+                      : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200/70 hover:border-slate-300 shadow-xs active:scale-95'
                   }`}
                 >
-                  <div className={`transition-transform duration-150 mb-1 ${isActive ? 'text-white' : 'text-slate-700 group-hover:scale-110'}`}>
-                    {item.icon(isActive)}
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg mb-1.5 transition-transform duration-150 ${
+                    isActive 
+                      ? `${item.accent.activeBg} text-white shadow-xs` 
+                      : `${item.accent.bg} ${item.accent.text} border ${item.accent.border} group-hover:scale-105`
+                  }`}>
+                    {item.icon}
                   </div>
                   <span className={`text-[11px] font-bold text-center leading-tight truncate w-full ${isActive ? 'text-white' : 'text-slate-800'}`}>
                     {item.label}

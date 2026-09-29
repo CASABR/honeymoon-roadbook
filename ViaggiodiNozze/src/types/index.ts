@@ -30,6 +30,7 @@ export interface Attivita {
   link?: string;
   status: StatoAttivita;
   copilota?: boolean;
+  copilotNotes?: string; // Note e promemoria riservati del co-pilota
   coordinate?: Coordinate;
   qrCode?: string; // Codice testuale, numero biglietto o URL per QR code
   attachments?: TransportAttachment[]; // File, biglietti, immagini o QR code salvati offline
@@ -198,6 +199,7 @@ export interface TimelineItem {
   location: string;
   categoryOrType: string;
   copilota?: boolean;
+  copilotNotes?: string;
   coordinate?: Coordinate;
   originalData: any;
 }

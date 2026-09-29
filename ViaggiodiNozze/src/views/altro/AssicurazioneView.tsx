@@ -252,25 +252,71 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
             </div>
           </div>
 
-          {/* Card 5: Istruzioni Immediate in Caso di Sinistro */}
-          <div className="bg-amber-50/70 rounded-3xl p-5 border border-amber-200/80">
-            <div className="flex items-center gap-2 mb-2">
-              <span className="text-base">⚠️</span>
-              <h3 className="text-xs font-extrabold text-amber-950 uppercase tracking-wider">
-                Cosa fare prima di andare in ospedale / medico
-              </h3>
+          {/* Card 5: Guida Pratica alle Emergenze Reali */}
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/90 space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-100">
+              <span className="text-lg">📋</span>
+              <div>
+                <h3 className="text-sm font-extrabold text-slate-900 leading-tight">
+                  Guida Rapida alle Casistiche Reali
+                </h3>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Cosa fare passo dopo passo in caso di imprevisto
+                </p>
+              </div>
             </div>
-            <ol className="space-y-2 text-xs text-amber-900/90 list-decimal list-inside leading-relaxed">
-              <li>
-                <strong>Telefona subito alla Centrale H24</strong> comunicando il numero di polizza prima di recarti presso la struttura (eccetto urgenza vitale assoluta).
-              </li>
-              <li>
-                <strong>Richiedi la presa in carico diretta</strong> affinché la compagnia invii la garanzia di pagamento all'ospedale.
-              </li>
-              <li>
-                <strong>Conserva tutte le fatture e referti originali</strong> timbrati con diagnosi medica dettagliata se dovessi anticipare piccole spese di farmaci o visite generiche.
-              </li>
-            </ol>
+
+            <div className="space-y-3 text-xs">
+              {/* Caso 1: Ospedale */}
+              <div className="p-3.5 rounded-2xl bg-rose-50/70 border border-rose-100 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🏥</span>
+                  <h4 className="font-extrabold text-rose-950 text-xs uppercase tracking-wider">
+                    1. Emergenza Sanitaria / Visita o Ricovero
+                  </h4>
+                </div>
+                <p className="text-rose-900 leading-relaxed pl-6">
+                  <strong>Telefona prima alla Centrale H24</strong> (+39 02 2660 9133) indicando il numero di polizza <span className="font-mono font-bold">HMN-2026-NZAU-88942</span> per richiedere l'autorizzazione alla presa in carico diretta.
+                </p>
+                <div className="pl-6 flex items-center gap-2 pt-1 font-mono text-[11px] text-rose-800 font-bold">
+                  <span>Pronto Soccorso:</span>
+                  <span className="bg-white/80 px-2 py-0.5 rounded-md border border-rose-200">NZ: 111</span>
+                  <span className="bg-white/80 px-2 py-0.5 rounded-md border border-rose-200">AU: 000</span>
+                  <span className="bg-white/80 px-2 py-0.5 rounded-md border border-rose-200">PH: 911</span>
+                </div>
+              </div>
+
+              {/* Caso 2: Bagaglio */}
+              <div className="p-3.5 rounded-2xl bg-amber-50/70 border border-amber-100 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🧳</span>
+                  <h4 className="font-extrabold text-amber-950 text-xs uppercase tracking-wider">
+                    2. Smarrimento Bagaglio / Ritardo Volo
+                  </h4>
+                </div>
+                <p className="text-amber-900 leading-relaxed pl-6">
+                  Fatti rilasciare subito il modulo <strong>PIR (Property Irregularity Report)</strong> al banco Lost & Found in aeroporto prima di uscire dalla zona doganale. Conserva tutti gli scontrini per acquisti di prima necessità (vestiti, spazzolino, ecc.) fino a € 500 / persona.
+                </p>
+              </div>
+
+              {/* Caso 3: Passaporto o Documenti */}
+              <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🛂</span>
+                  <h4 className="font-extrabold text-indigo-950 text-xs uppercase tracking-wider">
+                    3. Smarrimento Passaporto o Documenti
+                  </h4>
+                </div>
+                <p className="text-indigo-900 leading-relaxed pl-6">
+                  Sporgi tempestiva denuncia alla polizia locale e contatta subito il Consolato o l'Ambasciata d'Italia per l'emissione del documento di viaggio provvisorio (ETD):
+                </p>
+                <div className="pl-6 space-y-1 pt-1 font-medium text-[11px] text-indigo-900">
+                  <p>• <strong>Wellington (NZ):</strong> Ambasciata d'Italia — Tel: <a href="tel:+6444735339" className="underline font-mono font-bold">+64 4 473 5339</a></p>
+                  <p>• <strong>Sydney (AU):</strong> Consolato Generale d'Italia — Tel: <a href="tel:+61293927900" className="underline font-mono font-bold">+61 2 9392 7900</a></p>
+                  <p>• <strong>Manila (PH):</strong> Ambasciata d'Italia — Tel: <a href="tel:+63288924531" className="underline font-mono font-bold">+63 2 8892 4531</a></p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

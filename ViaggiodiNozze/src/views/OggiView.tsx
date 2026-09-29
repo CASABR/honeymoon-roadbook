@@ -376,32 +376,32 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   return (
     <div className="space-y-4 pt-1 animate-fade-in pb-32 sm:pb-36">
-      {/* 1. HEADER HERO / COPERTINA */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-5 shadow-sm border border-slate-800">
-        <div className="relative z-10 space-y-2.5">
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-xs font-semibold text-rose-300">
+      {/* 1. HEADER HERO / COPERTINA COMPATTA */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-4 shadow-sm border border-slate-800">
+        <div className="relative z-10 space-y-2">
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-[11px] font-semibold text-rose-300">
             <span>{calculateCountdown()}</span>
           </div>
 
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white leading-tight">
+            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white leading-tight">
               {dynamicCountries}
             </h1>
-            <p className="text-xs text-slate-300 font-medium mt-1">
+            <p className="text-[11px] text-slate-300 font-medium mt-0.5">
               28 nov 2026 – 10 gen 2027 • 44 giorni di avventura
             </p>
           </div>
 
           {currentDayMeta && (
-            <div className="pt-2 border-t border-white/10 space-y-1">
-              <div className="flex items-center justify-between text-xs text-slate-300">
+            <div className="pt-2 border-t border-white/10 space-y-0.5">
+              <div className="flex items-center justify-between text-[11px] text-slate-300">
                 <span className="font-semibold text-white">
                   Tappa {currentDayMeta.dayNum} di 43
                 </span>
                 <span>{formatDateHuman(selectedDate)}</span>
               </div>
               {currentDayData?.title && (
-                <p className="text-xs text-rose-200 font-medium truncate">
+                <p className="text-[11px] text-rose-200 font-medium truncate">
                   📍 {currentDayData.title}
                 </p>
               )}
@@ -612,24 +612,24 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         onUpdate={() => fetchTimeline()}
                       />
                     ) : isLodging ? (
-                      /* Card Tappa Finale: Alloggio Notturno */
-                      <div className="bg-gradient-to-br from-purple-50/80 via-white to-indigo-50/50 rounded-3xl border border-purple-200/90 p-4 shadow-sm relative overflow-hidden">
-                        <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-purple-100">
+                      /* Card Tappa Finale: Alloggio Notturno Redesigned */
+                      <div className="bg-white rounded-3xl border border-indigo-100 p-4.5 shadow-sm hover:shadow-md transition-all relative overflow-hidden">
+                        <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-indigo-50">
                           <div className="flex items-center gap-2">
-                            <span className="w-7 h-7 rounded-xl bg-purple-600 text-white flex items-center justify-center text-sm font-bold shadow-xs">
+                            <span className="w-8 h-8 rounded-xl bg-purple-50 text-purple-700 border border-purple-100 flex items-center justify-center text-sm font-bold shadow-2xs">
                               🛏️
                             </span>
                             <div>
                               <div className="flex items-center gap-1.5">
-                                <h2 className="text-xs font-bold text-purple-950 uppercase tracking-wider">
+                                <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                                   Dove dormirai stanotte
                                 </h2>
-                                <span className="text-[9px] font-bold text-purple-700 bg-purple-100/80 px-1.5 py-0.5 rounded-full">
-                                  Tappa Finale
+                                <span className="text-[9px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200/80 px-2 py-0.5 rounded-full">
+                                  Check-in dalle {tonightsAccommodation?.checkInTime || '14:00'}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-purple-700 font-medium">
-                                Check-in dalle {tonightsAccommodation?.checkInTime || '14:00'} • Notte del {formatDateHuman(selectedDate)}
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                Notte del {formatDateHuman(selectedDate)}
                               </p>
                             </div>
                           </div>
@@ -641,7 +641,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                   e.stopPropagation();
                                   setEditingAlloggioItem(tonightsAccommodation);
                                 }}
-                                className="w-6 h-6 rounded-full bg-purple-100 hover:bg-purple-200 text-purple-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+                                className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
                                 title="Modifica alloggio"
                               >
                                 ✏️
@@ -651,7 +651,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               <button
                                 type="button"
                                 onClick={() => onNavigateTab('categorie', 'alloggi')}
-                                className="text-xs font-semibold text-purple-700 hover:text-purple-800 transition-colors cursor-pointer"
+                                className="text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors cursor-pointer"
                               >
                                 Alloggi ➔
                               </button>
@@ -662,10 +662,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         <div className="space-y-2.5">
                           <div className="flex items-start justify-between gap-2">
                             <div>
-                              <h3 className="text-base font-bold text-slate-900 leading-snug">
+                              <h3 className="text-base font-extrabold text-slate-900 leading-snug">
                                 {tonightsAccommodation?.name}
                               </h3>
-                              <p className="text-xs text-slate-600 mt-0.5 font-medium flex items-center gap-1">
+                              <p className="text-xs text-slate-500 mt-0.5 font-medium flex items-center gap-1">
                                 <span>📍</span>
                                 <span>{tonightsAccommodation?.location}</span>
                               </p>
@@ -678,32 +678,34 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                           </div>
 
                           {tonightsAccommodation?.address && (
-                            <p className="text-xs text-slate-600 bg-white/80 p-2.5 rounded-xl border border-purple-100">
-                              {tonightsAccommodation.address}
-                            </p>
+                            <div className="flex items-start gap-1.5 text-xs text-slate-600 bg-slate-50/80 p-2.5 rounded-2xl border border-slate-100">
+                              <span className="text-slate-400 mt-0.5">🏢</span>
+                              <span className="leading-relaxed">{tonightsAccommodation.address}</span>
+                            </div>
                           )}
 
-                          <div className="flex items-center justify-between pt-1 text-xs">
-                            {tonightsAccommodation?.bookingCode ? (
-                              <span className="font-mono text-[11px] font-semibold bg-purple-100/70 px-2 py-1 rounded-lg text-purple-900">
-                                Cod: {tonightsAccommodation.bookingCode}
-                              </span>
-                            ) : (
-                              <span />
-                            )}
+                          <div className="flex items-center justify-between pt-1 text-xs flex-wrap gap-2">
+                            <div className="flex items-center gap-2">
+                              {tonightsAccommodation?.bookingCode && (
+                                <span className="font-mono text-[11px] font-bold bg-slate-100 border border-slate-200 px-2 py-1 rounded-xl text-slate-700">
+                                  Cod: {tonightsAccommodation.bookingCode}
+                                </span>
+                              )}
+                              {tonightsAccommodation?.cost && (
+                                <span className="text-[11px] font-bold text-slate-700 bg-emerald-50 border border-emerald-100 px-2 py-1 rounded-xl">
+                                  € {tonightsAccommodation.cost}
+                                </span>
+                              )}
+                            </div>
 
                             {(tonightsAccommodation?.address || tonightsAccommodation?.location) && (
                               <a
                                 href={resolveMapUrl(tonightsAccommodation.address || tonightsAccommodation.location)}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-xs transition-colors"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/80 text-indigo-700 font-bold text-xs shadow-2xs transition-all active:scale-95 ml-auto"
                               >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                <span>Mappa Alloggio</span>
+                                <span>Apri in Maps ↗</span>
                               </a>
                             )}
                           </div>

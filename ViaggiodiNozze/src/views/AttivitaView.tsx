@@ -224,7 +224,8 @@ export default function AttivitaView() {
       <DayPickerStrip
         selectedDate={selectedDate}
         onSelectDate={setSelectedDate}
-        tripDays={tripDays.length > 0 ? tripDays : undefined}
+        tripDays={tripDays}
+        days={tripDays}
         totalCount={activities.length}
         itemCounts={activities.reduce<Record<string, number>>((acc, a) => {
           const matchingDay = days.find(d => d.id === a.dayId);
