@@ -7,12 +7,16 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import { openMapLink, resolveMapUrl } from '../../utils/mapsHelper';
 import DayPickerStrip from '../../components/common/DayPickerStrip';
+import { useDeviceRole } from '../../utils/useDeviceRole';
+import { getTripDateRange, type TripDayItem } from '../../utils/tripDates';
 
 interface RistorantiViewProps {
   onBack?: () => void;
 }
 
 export default function RistorantiView({ onBack }: RistorantiViewProps) {
+  const { canEdit } = useDeviceRole();
+  const [tripDays, setTripDays] = useState<TripDayItem[]>([]);
   const [ristoranti, setRistoranti] = useState<Ristorante[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | 'tutte'>('tutte');
   const [loading, setLoading] = useState(true);
@@ -27,8 +31,22 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const loadedRistoranti = await storageService.getRistoranti();
+      const [loadedRistoranti, range] = await Promise.all([
+        storageService.getRistoranti(),
+        getTripDateRange()
+      ]);
       setRistoranti(loadedRistoranti);
+      setTripDays(range.tripDays);
+
+      // Auto-selezione data intelligente
+      const todayStr = new Date().toISOString().split('T')[0];
+      const isInTrip = range.tripDays.some((d) => d.dateStr === todayStr);
+
+      setSelectedDate((prev) => {
+        if (prev !== 'tutte') return prev;
+        if (isInTrip) return todayStr;
+        return 'tutte';
+      });
     } catch (err) {
       console.error('Errore nel caricamento dei ristoranti:', err);
     } finally {
@@ -111,20 +129,23 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-semibold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-          </svg>
-          <span>+ Nuovo Ristorante</span>
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>+ Nuovo Ristorante</span>
+          </button>
+        )}
       </header>
 
       {/* Selettore DayPickerStrip standardizzato a scorrimento orizzontale */}
       <DayPickerStrip
+        days={tripDays}
         selectedDate={selectedDate}
         onSelectDate={setSelectedDate}
         totalCount={ristoranti.length}
@@ -139,7 +160,7 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
       {/* Contenuto principale */}
       {loading ? (
         <div className="flex-1 flex items-center justify-center min-h-[250px]">
-          <div className="w-7 h-7 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-7 h-7 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : filteredRistoranti.length === 0 ? (
         selectedDate !== 'tutte' ? (
@@ -153,24 +174,26 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
                 Nessun ristorante o locale salvato per la data {selectedDate}.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleOpenAdd}
-              className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all cursor-pointer"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-              </svg>
-              <span>+ Nuovo Ristorante per questa data</span>
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={handleOpenAdd}
+                className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>+ Nuovo Ristorante per questa data</span>
+              </button>
+            )}
           </div>
         ) : (
           <EmptyState
             title="Nessun ristorante registrato"
             description="Aggiungi locali consigliati, pub, ristoranti tipici o prenotazioni per il viaggio."
-            actionLabel="+ Nuovo Ristorante"
-            accentVariant="amber"
-            onAction={handleOpenAdd}
+            actionLabel={canEdit ? "+ Nuovo Ristorante" : undefined}
+            accentVariant="emerald"
+            onAction={canEdit ? handleOpenAdd : undefined}
             icon={
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
@@ -263,28 +286,30 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
                         </div>
 
                         {/* Pulsanti Azione Modifica / Elimina */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(r)}
-                            className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                            title="Modifica Ristorante"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(r)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Elimina Ristorante"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
+                        {canEdit && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(r)}
+                              className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors cursor-pointer"
+                              title="Modifica Ristorante"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(r)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Elimina Ristorante"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {r.nota && (
@@ -324,7 +349,7 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingRistorante ? 'Modifica Ristorante' : 'Nuovo Ristorante'}
-        accentVariant="amber"
+        accentVariant="emerald"
       >
         <RistoranteForm
           initialData={editingRistorante}

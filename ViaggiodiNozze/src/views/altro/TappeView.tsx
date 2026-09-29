@@ -8,12 +8,16 @@ import EmptyState from '../../components/EmptyState';
 import { openMapLink, resolveMapUrl } from '../../utils/mapsHelper';
 import DayPickerStrip from '../../components/common/DayPickerStrip';
 import RouteBadge from '../../components/common/RouteBadge';
+import { useDeviceRole } from '../../utils/useDeviceRole';
+import { getTripDateRange, type TripDayItem } from '../../utils/tripDates';
 
 interface TappeViewProps {
   onBack?: () => void;
 }
 
 export default function TappeView({ onBack }: TappeViewProps) {
+  const { canEdit } = useDeviceRole();
+  const [tripDays, setTripDays] = useState<TripDayItem[]>([]);
   const [tappe, setTappe] = useState<Tappa[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | 'tutte'>('tutte');
   const [totalKm, setTotalKm] = useState<number>(0);
@@ -29,11 +33,23 @@ export default function TappeView({ onBack }: TappeViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [loadedTappe, routes] = await Promise.all([
+      const [loadedTappe, routes, range] = await Promise.all([
         storageService.getTappe(),
-        storageService.getAllRouteCaches()
+        storageService.getAllRouteCaches(),
+        getTripDateRange()
       ]);
       setTappe(loadedTappe);
+      setTripDays(range.tripDays);
+
+      // Auto-selezione data intelligente
+      const todayStr = new Date().toISOString().split('T')[0];
+      const isInTrip = range.tripDays.some((d) => d.dateStr === todayStr);
+
+      setSelectedDate((prev) => {
+        if (prev !== 'tutte') return prev;
+        if (isInTrip) return todayStr;
+        return 'tutte';
+      });
 
       // Calcola i km complessivi salvati in cache
       const kmSum = routes.reduce((sum, r) => sum + (r.route?.distanceKm || 0), 0);
@@ -120,20 +136,23 @@ export default function TappeView({ onBack }: TappeViewProps) {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-semibold text-xs rounded-xl shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-          </svg>
-          <span>+ Nuova Tappa</span>
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-lg shadow-rose-600/20 transition-all cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>+ Nuova Tappa</span>
+          </button>
+        )}
       </header>
 
       {/* Selettore DayPickerStrip standardizzato a scorrimento orizzontale */}
       <DayPickerStrip
+        days={tripDays}
         selectedDate={selectedDate}
         onSelectDate={setSelectedDate}
         totalCount={tappe.length}
@@ -147,11 +166,11 @@ export default function TappeView({ onBack }: TappeViewProps) {
 
       {/* Totale km di guida previsti */}
       {totalKm > 0 && (
-        <div className="mt-3 mb-2 px-3.5 py-2 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 flex items-center justify-between text-xs text-slate-700">
+        <div className="mt-3 mb-2 px-3.5 py-2 rounded-2xl bg-rose-50 border border-rose-200/80 flex items-center justify-between text-xs text-slate-700">
           <div className="flex items-center gap-2">
-            <span className="p-1 rounded-lg bg-amber-500 text-slate-950 font-bold text-xs shadow-xs">🚗</span>
+            <span className="p-1 rounded-lg bg-rose-600 text-white font-bold text-xs shadow-xs">🚗</span>
             <span className="font-medium text-slate-800">
-              Totale stimato tappe: <strong className="font-bold text-amber-700">~{totalKm.toFixed(1)} km</strong>
+              Totale stimato tappe: <strong className="font-bold text-rose-700">~{totalKm.toFixed(1)} km</strong>
             </span>
           </div>
           <span className="text-[10px] text-slate-400 font-mono">OpenRoute / HeiGIT</span>
@@ -161,7 +180,7 @@ export default function TappeView({ onBack }: TappeViewProps) {
       {/* Contenuto principale */}
       {loading ? (
         <div className="flex-1 flex items-center justify-center min-h-[250px]">
-          <div className="w-7 h-7 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-7 h-7 border-2 border-rose-500 border-t-transparent rounded-full animate-spin" />
         </div>
       ) : filteredTappe.length === 0 ? (
         selectedDate !== 'tutte' ? (
@@ -175,24 +194,26 @@ export default function TappeView({ onBack }: TappeViewProps) {
                 Nessuna tappa di passaggio registrata per la data {selectedDate}.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleOpenAdd}
-              className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs rounded-xl shadow-md shadow-amber-500/20 transition-all cursor-pointer"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-              </svg>
-              <span>+ Nuova Tappa per questa data</span>
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={handleOpenAdd}
+                className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-600/20 transition-all cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>+ Nuova Tappa per questa data</span>
+              </button>
+            )}
           </div>
         ) : (
           <EmptyState
             title="Nessuna tappa registrata"
             description="Aggiungi punti di passaggio, soste foto o stazioni di rifornimento lungo il tuo percorso."
-            actionLabel="+ Nuova Tappa"
-            accentVariant="amber"
-            onAction={handleOpenAdd}
+            actionLabel={canEdit ? "+ Nuova Tappa" : undefined}
+            accentVariant="rose"
+            onAction={canEdit ? handleOpenAdd : undefined}
             icon={
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -253,28 +274,30 @@ export default function TappeView({ onBack }: TappeViewProps) {
                           </div>
 
                           {/* Pulsanti Azione Modifica / Elimina */}
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEdit(tappa)}
-                              className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                              title="Modifica Tappa"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setDeleteTarget(tappa)}
-                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                              title="Elimina Tappa"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
+                          {canEdit && (
+                            <div className="flex items-center gap-1 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEdit(tappa)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Modifica Tappa"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(tappa)}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Elimina Tappa"
+                              >
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </div>
+                          )}
                         </div>
 
                         {tappa.nota && (
@@ -327,7 +350,7 @@ export default function TappeView({ onBack }: TappeViewProps) {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingTappa ? 'Modifica Tappa' : 'Nuova Tappa'}
-        accentVariant="amber"
+        accentVariant="rose"
       >
         <TappaForm
           initialData={editingTappa}

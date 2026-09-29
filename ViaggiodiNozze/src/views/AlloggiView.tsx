@@ -8,7 +8,12 @@ import ConfirmDialog from '../components/common/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import DayPickerStrip from '../components/common/DayPickerStrip';
 
+import { useDeviceRole } from '../utils/useDeviceRole';
+import { getTripDateRange, type TripDayItem } from '../utils/tripDates';
+
 export default function AlloggiView() {
+  const { canEdit } = useDeviceRole();
+  const [tripDays, setTripDays] = useState<TripDayItem[]>([]);
   const [accommodations, setAccommodations] = useState<Alloggio[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | 'tutte'>('tutte');
   const [loading, setLoading] = useState(true);
@@ -20,8 +25,22 @@ export default function AlloggiView() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const items = await storageService.getAccommodations();
+      const [items, range] = await Promise.all([
+        storageService.getAccommodations(),
+        getTripDateRange()
+      ]);
       setAccommodations(items);
+      setTripDays(range.tripDays);
+
+      // Auto-selezione data intelligente
+      const todayStr = new Date().toISOString().split('T')[0];
+      const isInTrip = range.tripDays.some((d) => d.dateStr === todayStr);
+
+      setSelectedDate((prev) => {
+        if (prev !== 'tutte') return prev;
+        if (isInTrip) return todayStr;
+        return 'tutte';
+      });
     } catch (err) {
       console.error('Errore caricamento alloggi:', err);
     } finally {
@@ -103,20 +122,23 @@ export default function AlloggiView() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-lg shadow-purple-600/20 transition-all cursor-pointer"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-          </svg>
-          <span>Aggiungi Alloggio</span>
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-lg shadow-indigo-600/20 transition-all cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Aggiungi Alloggio</span>
+          </button>
+        )}
       </header>
 
       {/* Selettore DayPickerStrip a scorrimento orizzontale */}
       <DayPickerStrip
+        days={tripDays}
         selectedDate={selectedDate}
         onSelectDate={setSelectedDate}
         totalCount={accommodations.length}
@@ -133,9 +155,9 @@ export default function AlloggiView() {
         <EmptyState
           title="Nessun alloggio inserito"
           description="Aggiungi hotel, ryokan, appartamenti o strutture del tuo viaggio di nozze."
-          actionLabel="Aggiungi Primo Alloggio"
+          actionLabel={canEdit ? "Aggiungi Primo Alloggio" : undefined}
           accentVariant="purple"
-          onAction={handleOpenAdd}
+          onAction={canEdit ? handleOpenAdd : undefined}
           icon={
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5m0 0v-5a2 2 0 012-2h2a2 2 0 012 2v5m-6 0h6" />
@@ -164,16 +186,18 @@ export default function AlloggiView() {
                   Nessun alloggio o pernottamento registrato per la data {selectedDate}.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleOpenAdd}
-                className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-purple-600 hover:bg-purple-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md shadow-purple-600/20 transition-all cursor-pointer"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-                </svg>
-                <span>+ Aggiungi Alloggio per questa data</span>
-              </button>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={handleOpenAdd}
+                  className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md shadow-indigo-600/20 transition-all cursor-pointer"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>+ Aggiungi Alloggio per questa data</span>
+                </button>
+              )}
             </div>
           );
         }

@@ -7,12 +7,16 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import { openMapLink, resolveMapUrl } from '../../utils/mapsHelper';
 import DayPickerStrip from '../../components/common/DayPickerStrip';
+import { useDeviceRole } from '../../utils/useDeviceRole';
+import { getTripDateRange, type TripDayItem } from '../../utils/tripDates';
 
 interface ShoppingViewProps {
   onBack?: () => void;
 }
 
 export default function ShoppingView({ onBack }: ShoppingViewProps) {
+  const { canEdit } = useDeviceRole();
+  const [tripDays, setTripDays] = useState<TripDayItem[]>([]);
   const [shoppingList, setShoppingList] = useState<Shopping[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | 'tutte'>('tutte');
   const [loading, setLoading] = useState(true);
@@ -27,8 +31,22 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const loaded = await storageService.getShopping();
+      const [loaded, range] = await Promise.all([
+        storageService.getShopping(),
+        getTripDateRange()
+      ]);
       setShoppingList(loaded);
+      setTripDays(range.tripDays);
+
+      // Auto-selezione data intelligente
+      const todayStr = new Date().toISOString().split('T')[0];
+      const isInTrip = range.tripDays.some((d) => d.dateStr === todayStr);
+
+      setSelectedDate((prev) => {
+        if (prev !== 'tutte') return prev;
+        if (isInTrip) return todayStr;
+        return 'tutte';
+      });
     } catch (err) {
       console.error('Errore nel caricamento dello shopping:', err);
     } finally {
@@ -111,20 +129,23 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenAdd}
-          className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 bg-rose-500 hover:bg-rose-400 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-lg shadow-rose-500/20 transition-all cursor-pointer"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-          </svg>
-          <span>+ Nuovo Shopping</span>
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={handleOpenAdd}
+            className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 bg-rose-500 hover:bg-rose-400 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-lg shadow-rose-500/20 transition-all cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            <span>+ Nuovo Shopping</span>
+          </button>
+        )}
       </header>
 
       {/* Selettore DayPickerStrip standardizzato a scorrimento orizzontale */}
       <DayPickerStrip
+        days={tripDays}
         selectedDate={selectedDate}
         onSelectDate={setSelectedDate}
         totalCount={shoppingList.length}
@@ -153,24 +174,26 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
                 Nessun negozio o sosta shopping salvata per la data {selectedDate}.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleOpenAdd}
-              className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-rose-500 hover:bg-rose-400 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-500/20 transition-all cursor-pointer"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-              </svg>
-              <span>+ Nuovo Shopping per questa data</span>
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={handleOpenAdd}
+                className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-rose-500 hover:bg-rose-400 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-500/20 transition-all cursor-pointer"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>+ Nuovo Shopping per questa data</span>
+              </button>
+            )}
           </div>
         ) : (
           <EmptyState
             title="Nessun negozio o mercato registrato"
             description="Aggiungi mercati locali, negozi di souvenir tipici o boutique da visitare durante il viaggio."
-            actionLabel="+ Nuovo Shopping"
+            actionLabel={canEdit ? "+ Nuovo Shopping" : undefined}
             accentVariant="rose"
-            onAction={handleOpenAdd}
+            onAction={canEdit ? handleOpenAdd : undefined}
             icon={
               <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -256,28 +279,30 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
                         </div>
 
                         {/* Pulsanti Azione Modifica / Elimina */}
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenEdit(s)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Modifica Shopping"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(s)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Elimina Shopping"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
+                        {canEdit && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(s)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Modifica Shopping"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(s)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Elimina Shopping"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {s.nota && (

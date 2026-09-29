@@ -70,9 +70,14 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
 
   // Filter & Form state
   const [selectedCategory, setSelectedCategory] = useState<CategoriaSpesa | 'tutte'>('tutte');
+  const [drillDownCategory, setDrillDownCategory] = useState<CategoriaSpesa | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSpesa, setEditingSpesa] = useState<Spesa | null>(null);
   const [deletingSpesa, setDeletingSpesa] = useState<Spesa | null>(null);
+
+  // Role state
+  const [deviceRole, setDeviceRole] = useState(() => storageService.getDeviceRole());
+  const canEdit = deviceRole === 'guida' || deviceRole === 'copilota';
 
   // Form fields
   const [title, setTitle] = useState('');
@@ -108,8 +113,20 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
     const handleDataMutated = () => {
       loadAllData();
     };
+    const handleRoleChanged = (e: Event) => {
+      const custom = e as CustomEvent<{ role: import('../../types').DeviceRole }>;
+      if (custom.detail?.role) {
+        setDeviceRole(custom.detail.role);
+      } else {
+        setDeviceRole(storageService.getDeviceRole());
+      }
+    };
     window.addEventListener('roadbook_data_mutated', handleDataMutated);
-    return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
+    window.addEventListener('device_role_changed', handleRoleChanged);
+    return () => {
+      window.removeEventListener('roadbook_data_mutated', handleDataMutated);
+      window.removeEventListener('device_role_changed', handleRoleChanged);
+    };
   }, []);
 
   // Aggregated Cost Computations
@@ -286,13 +303,15 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
           </div>
         </div>
 
-        <button
-          onClick={handleOpenAdd}
-          className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-        >
-          <span className="text-sm leading-none">+</span>
-          <span>Nuova Spesa</span>
-        </button>
+        {canEdit && (
+          <button
+            onClick={handleOpenAdd}
+            className="bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-bold px-3 py-2 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <span className="text-sm leading-none">+</span>
+            <span>Nuova Spesa</span>
+          </button>
+        )}
       </header>
 
       {/* 1. HERO SUMMARY CARD */}
@@ -362,13 +381,21 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
             const pct = stats.totaleGenerale > 0 ? (catStat.total / stats.totaleGenerale) * 100 : 0;
 
             return (
-              <div key={catKey} className="group">
+              <div 
+                key={catKey} 
+                onClick={() => setDrillDownCategory(catKey)}
+                className="group p-2.5 -mx-1.5 rounded-2xl hover:bg-slate-50 border border-transparent hover:border-slate-200/80 transition-all cursor-pointer active:scale-[0.99]"
+                title={`Tocca per vedere i dettagli delle spese di ${config.label}`}
+              >
                 <div className="flex items-center justify-between text-xs mb-1">
                   <div className="flex items-center gap-2">
                     <span className="text-sm">{config.icon}</span>
                     <span className="font-bold text-slate-800">{config.label}</span>
                     <span className="text-[10px] font-semibold text-slate-400">
                       ({pct.toFixed(1)}%)
+                    </span>
+                    <span className="text-[10px] font-semibold text-indigo-600 group-hover:translate-x-0.5 transition-transform inline-flex items-center">
+                      dettagli ➔
                     </span>
                   </div>
                   <div className="text-right">
@@ -388,7 +415,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
 
                 {/* Sub-info: saldato vs da saldare */}
                 {catStat.total > 0 && (
-                  <div className="flex justify-between items-center text-[10px] text-slate-400 mt-0.5 px-0.5">
+                  <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1 px-0.5">
                     <span>Saldato: €{catStat.saldato.toFixed(2)}</span>
                     {catStat.daSaldare > 0 && (
                       <span className="text-rose-500 font-medium">Da saldare: €{catStat.daSaldare.toFixed(2)}</span>
@@ -515,20 +542,24 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => handleOpenEdit(s)}
-                    className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs transition-colors cursor-pointer"
-                    title="Modifica"
-                  >
-                    ✏️
-                  </button>
-                  <button
-                    onClick={() => setDeletingSpesa(s)}
-                    className="w-7 h-7 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center text-xs transition-colors cursor-pointer"
-                    title="Elimina"
-                  >
-                    🗑️
-                  </button>
+                  {canEdit && (
+                    <>
+                      <button
+                        onClick={() => handleOpenEdit(s)}
+                        className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs transition-colors cursor-pointer"
+                        title="Modifica"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => setDeletingSpesa(s)}
+                        className="w-7 h-7 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center text-xs transition-colors cursor-pointer"
+                        title="Elimina"
+                      >
+                        🗑️
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             );
@@ -694,6 +725,262 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
         onConfirm={handleDelete}
         onCancel={() => setDeletingSpesa(null)}
       />
+
+      {/* MODALE DRILL-DOWN CATEGORIA CON DETTAGLI E SUBTOTALE */}
+      <Modal
+        isOpen={Boolean(drillDownCategory)}
+        onClose={() => setDrillDownCategory(null)}
+        title={drillDownCategory ? `Dettaglio Spese: ${CATEGORIE_CONFIG[drillDownCategory].label}` : 'Dettaglio'}
+        accentVariant={drillDownCategory === 'alloggi' ? 'purple' : drillDownCategory === 'trasporti' ? 'sky' : drillDownCategory === 'attivita' ? 'amber' : drillDownCategory === 'ristoranti' ? 'emerald' : 'indigo'}
+      >
+        {drillDownCategory && (() => {
+          const config = CATEGORIE_CONFIG[drillDownCategory];
+          const catStat = stats.catTotals[drillDownCategory];
+
+          // Spese manuali di questa categoria
+          const manualItems = spese.filter(s => s.category === drillDownCategory);
+
+          // Alloggi se la categoria è 'alloggi'
+          const alloggiItems = drillDownCategory === 'alloggi' 
+            ? alloggi.filter(a => parseEuro(a.cost) > 0)
+            : [];
+
+          // Trasporti se la categoria è 'trasporti'
+          const trasportiItems = drillDownCategory === 'trasporti'
+            ? trasporti.filter(t => parseEuro(t.cost) > 0)
+            : [];
+
+          return (
+            <div className="space-y-4">
+              {/* Scheda Subtotale Categoria */}
+              <div className={`p-4 rounded-2xl ${config.bg} border ${config.border} flex items-center justify-between`}>
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl">{config.icon}</span>
+                  <div>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                      Subtotale {config.label}
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Saldato: €{catStat.saldato.toFixed(2)} • Residuo: €{catStat.daSaldare.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <span className="text-base sm:text-lg font-black text-slate-900 font-mono">
+                    € {catStat.total.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              </div>
+
+              {/* Elenco Voci */}
+              <div className="space-y-2.5 max-h-[50vh] overflow-y-auto no-scrollbar pr-0.5">
+                {manualItems.length === 0 && alloggiItems.length === 0 && trasportiItems.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    Nessuna voce registrata per questa categoria.
+                  </div>
+                ) : null}
+
+                {/* Voci da Spese Manuali */}
+                {manualItems.map(item => {
+                  const isPaid = item.status === 'saldato';
+                  return (
+                    <div
+                      key={`manual_${item.id}`}
+                      className="p-3 bg-white rounded-2xl border border-slate-200/90 shadow-2xs flex items-center justify-between gap-2.5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold text-slate-900 truncate">
+                            {item.title}
+                          </h4>
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-600">
+                            Spesa
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400">
+                          <span>{item.date}</span>
+                          {item.notes && (
+                            <>
+                              <span>•</span>
+                              <span className="truncate max-w-[140px] italic">{item.notes}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        <div className="text-right">
+                          <span className="text-xs font-black text-slate-900 font-mono block">
+                            € {item.amount.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-block ${
+                            isPaid
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-rose-50 text-rose-700 border border-rose-200'
+                          }`}>
+                            {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
+                          </span>
+                        </div>
+
+                        {canEdit && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDrillDownCategory(null);
+                                handleOpenEdit(item);
+                              }}
+                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs transition-colors cursor-pointer"
+                              title="Modifica spesa"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDrillDownCategory(null);
+                                setDeletingSpesa(item);
+                              }}
+                              className="w-7 h-7 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center text-xs transition-colors cursor-pointer"
+                              title="Elimina spesa"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Voci da Alloggi (se categoria alloggi) */}
+                {alloggiItems.map(acc => {
+                  const costNum = parseEuro(acc.cost);
+                  const isPaid = acc.paymentStatus === 'saldato';
+                  return (
+                    <div
+                      key={`acc_${acc.id}`}
+                      className="p-3 bg-purple-50/40 rounded-2xl border border-purple-100 shadow-2xs flex items-center justify-between gap-2.5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold text-slate-900 truncate">
+                            🏨 {acc.name}
+                          </h4>
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-purple-100 text-purple-800">
+                            Alloggio
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
+                          <span>{acc.checkIn} → {acc.checkOut}</span>
+                          {acc.location && (
+                            <>
+                              <span>•</span>
+                              <span className="truncate max-w-[130px]">{acc.location}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-black text-purple-950 font-mono block">
+                          € {costNum.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-block ${
+                          isPaid
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}>
+                          {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {/* Voci da Trasporti (se categoria trasporti) */}
+                {trasportiItems.map(tr => {
+                  const costNum = parseEuro(tr.cost);
+                  const acconto = parseEuro(tr.depositPaid || tr.acconto);
+                  const isFullyPaid = acconto >= costNum && costNum > 0;
+                  return (
+                    <div
+                      key={`tr_${tr.id}`}
+                      className="p-3 bg-sky-50/40 rounded-2xl border border-sky-100 shadow-2xs flex items-center justify-between gap-2.5"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h4 className="text-xs font-bold text-slate-900 truncate">
+                            ✈️ {tr.departureLocation} → {tr.arrivalLocation}
+                          </h4>
+                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-sky-100 text-sky-800">
+                            {tr.type}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
+                          <span>{tr.date}</span>
+                          {tr.carrier && (
+                            <>
+                              <span>•</span>
+                              <span className="truncate max-w-[130px]">{tr.carrier}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-black text-sky-950 font-mono block">
+                          € {costNum.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-block ${
+                          isFullyPaid
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : acconto > 0
+                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                            : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        }`}>
+                          {isFullyPaid ? '✓ Saldato' : acconto > 0 ? `Acconto €${acconto}` : '⏳ Da saldare'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Azioni del modale */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDrillDownCategory(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Chiudi
+                </button>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cat = drillDownCategory;
+                      setDrillDownCategory(null);
+                      setEditingSpesa(null);
+                      setTitle('');
+                      setAmount('');
+                      setCategory(cat);
+                      setStatus('saldato');
+                      setDate(new Date().toISOString().split('T')[0]);
+                      setNotes('');
+                      setIsModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>+ Aggiungi Spesa in {config.label}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+      </Modal>
     </div>
   );
 }

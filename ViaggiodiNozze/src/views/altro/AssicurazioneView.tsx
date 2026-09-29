@@ -103,7 +103,7 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
               </div>
               <div className="bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Destinazioni</span>
-                <span className="font-bold text-slate-800 text-[11px]">Nuova Zelanda, Australia, Filippine</span>
+                <span className="font-bold text-slate-800 text-[11px]">Nuova Zelanda, Australia & Filippine</span>
               </div>
             </div>
           </div>
@@ -164,14 +164,28 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
               </a>
 
               <a
-                href="tel:111"
+                href="tel:+63285241728"
+                className="flex items-center justify-between bg-white text-slate-900 px-3.5 py-2.5 rounded-2xl font-bold text-xs shadow-sm hover:bg-rose-50 transition-all active:scale-95"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🇵🇭</span>
+                  <div>
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Polizia Turistica Filippine</p>
+                    <p className="text-xs font-mono font-extrabold text-rose-600">+63 2 8524 1728</p>
+                  </div>
+                </div>
+                <span className="text-xs text-rose-600 font-bold bg-rose-50 px-2 py-0.5 rounded-lg">Chiama</span>
+              </a>
+
+              <a
+                href="tel:911"
                 className="flex items-center justify-between bg-rose-950/40 text-white border border-white/20 px-3.5 py-2.5 rounded-2xl font-bold text-xs hover:bg-rose-950/60 transition-all active:scale-95"
               >
                 <div className="flex items-center gap-2">
                   <span className="text-base">🚑</span>
                   <div>
                     <p className="text-[10px] text-rose-200 font-bold uppercase">Soccorso Locale Urgenze</p>
-                    <p className="text-xs font-mono font-extrabold">111 (NZ) • 000 (AU)</p>
+                    <p className="text-xs font-mono font-extrabold">111 (NZ) • 000 (AU) • 911 (PH)</p>
                   </div>
                 </div>
                 <span className="text-xs font-bold bg-white/20 px-2 py-0.5 rounded-lg">SOS</span>

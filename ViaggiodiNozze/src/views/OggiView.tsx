@@ -288,10 +288,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           <div>
             <h1 className="text-2xl font-extrabold tracking-tight text-white leading-tight">
-              Nuova Zelanda & Australia
+              Nuova Zelanda, Australia & Filippine
             </h1>
             <p className="text-xs text-slate-300 font-medium mt-1">
-              29 nov 2026 – 10 gen 2027 • 42 giorni di avventura
+              28 nov 2026 – 10 gen 2027 • 44 giorni di avventura
             </p>
           </div>
 

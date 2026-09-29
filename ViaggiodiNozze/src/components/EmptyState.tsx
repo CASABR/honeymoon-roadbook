@@ -6,7 +6,7 @@ interface EmptyStateProps {
   actionLabel?: string;
   icon: React.ReactNode;
   onAction?: () => void;
-  accentVariant?: 'amber' | 'purple' | 'sky' | 'rose';
+  accentVariant?: 'amber' | 'purple' | 'sky' | 'rose' | 'emerald' | 'blue';
 }
 
 export default function EmptyState({
@@ -29,6 +29,14 @@ export default function EmptyState({
     sky: {
       icon: 'text-sky-600 border-sky-200 bg-sky-50',
       btn: 'bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-sky-500/20'
+    },
+    blue: {
+      icon: 'text-blue-600 border-blue-200 bg-blue-50',
+      btn: 'bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20'
+    },
+    emerald: {
+      icon: 'text-emerald-600 border-emerald-200 bg-emerald-50',
+      btn: 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/20'
     },
     rose: {
       icon: 'text-rose-600 border-rose-200 bg-rose-50',
