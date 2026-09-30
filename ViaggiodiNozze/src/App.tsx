@@ -16,6 +16,9 @@ import UpdateToast from './components/common/UpdateToast';
 
 import LiveView from './views/altro/LiveView';
 
+// Dichiarazione della costante globale iniettata da Vite
+declare const __BUILD_TIME__: string;
+
 export default function App() {
   // Rileva se il visitatore ha aperto il link condiviso esterno (es. ?live=1 oppure #live)
   const [isExternalLive] = useState<boolean>(() => {
@@ -93,7 +96,14 @@ export default function App() {
             Honeymoon Roadbook
           </p>
         </div>
-        <SettingsMenu />
+        <div className="flex items-center gap-2">
+          {typeof __BUILD_TIME__ !== 'undefined' && (
+            <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full">
+              🟢 Aggiornato: {__BUILD_TIME__}
+            </span>
+          )}
+          <SettingsMenu />
+        </div>
       </header>
 
       {/* Container Mobile / Shell */}

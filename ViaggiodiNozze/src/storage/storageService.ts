@@ -1130,7 +1130,7 @@ class StorageService {
               categoryOrType: t.type,
               originalData: t,
               displayMode: 'state',
-              stateLabel: `${t.type === 'auto' ? '🚗' : '🚐'} Noleggio attivo: ${t.carrier || 'Veicolo'}`
+              stateLabel: `${t.type === 'auto' ? '🚗' : '🚐'} Veicolo attivo: ${t.carrier?.split('(')[0]?.trim() || 'Veicolo'} • Riconsegna il ${t.dropoffDate ? new Date(t.dropoffDate).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }) : '...'} a ${t.dropoffLocation?.split('(')[0]?.trim() || t.arrivalLocation || 'destinazione'}`
             });
           }
           return;
@@ -1157,16 +1157,31 @@ class StorageService {
         // 2. Arrivi notturni / multi-giorno (crea un item compatto nel giorno di arrivo)
         const finalArrivalDate = t.layover?.arrivalDate || t.arrivalDate || t.date;
         if (finalArrivalDate === dateStr && finalArrivalDate !== t.date) {
-           timeline.push({
-             id: `${t.id}_arrival`,
-             type: 'trasporto',
+           // Se è l'arrivo a Pechino (Tratta 1), crea uno stato "In corso" (Scalo) invece di un arrivo in timeline
+           if (t.arrivalLocation.includes('Pechino')) {
+             timeline.push({
+               id: `${t.id}_state`,
+               type: 'trasporto',
+               time: '00:00',
+               title: '',
+               location: '',
+               categoryOrType: 'scalo',
+               originalData: t,
+               displayMode: 'state',
+               stateLabel: `⏳ In Scalo a Pechino (PEK T3) • Coincidenza 18h 35m • Nessun ritiro bagagli`
+             });
+           } else {
+             timeline.push({
+               id: `${t.id}_arrival`,
+               type: 'trasporto',
              time: t.arrivalTime || '00:00',
              title: `Arrivo a ${t.arrivalLocation}`,
              location: `Da ${t.departureLocation}`,
              categoryOrType: t.type,
              originalData: t,
              displayMode: 'compact'
-           });
+             });
+           }
         }
         
         // 3. Stati intermedi di scalo (giorni interi passati in aeroporto senza voli)
