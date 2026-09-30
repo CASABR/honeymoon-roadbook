@@ -8,6 +8,8 @@ import { useDeviceRole } from '../../utils/useDeviceRole';
 
 interface TrasportoCardProps {
   transport: Trasporto;
+  variant?: 'full' | 'compact';
+  segmentContext?: import('../../types').TransportSegmentContext;
   onEdit: () => void;
   onDelete: () => void;
   onUpdate?: (updated: Trasporto) => void;
@@ -15,6 +17,8 @@ interface TrasportoCardProps {
 
 export default function TrasportoCard({
   transport: initialTransport,
+  variant = 'full',
+  segmentContext,
   onEdit,
   onDelete,
   onUpdate
@@ -88,8 +92,32 @@ export default function TrasportoCard({
     };
   };
 
-  const originInfo = extractCodeOrCity(transport.departureLocation);
-  const destInfo = extractCodeOrCity(transport.dropoffLocation || transport.arrivalLocation);
+  // --- LOGICA COMPUTATA PER SEGMENT CONTEXT (Bug #5) ---
+  let effDepartureLoc = transport.departureLocation;
+  let effArrivalLoc = transport.dropoffLocation || transport.arrivalLocation;
+  let effDepartureTime = transport.departureTime;
+  let effArrivalTime = transport.arrivalTime || transport.dropoffTime;
+  let effDepartureDate = transport.date;
+  let effCarrier = transport.carrier;
+
+  if (segmentContext === 'leg2' && transport.layover) {
+    effDepartureLoc = transport.layover.airport;
+    effArrivalLoc = transport.arrivalLocation;
+    effDepartureTime = transport.layover.departureTime;
+    effArrivalTime = transport.arrivalTime;
+    effDepartureDate = transport.layover.departureDate || transport.date;
+    effCarrier = transport.layover.carrier || transport.carrier;
+  } else if (segmentContext === 'leg1' && transport.layover) {
+    effDepartureLoc = transport.departureLocation;
+    effArrivalLoc = transport.layover.airport;
+    effDepartureTime = transport.departureTime;
+    effArrivalTime = transport.layover.arrivalTime;
+    effDepartureDate = transport.date;
+    effCarrier = transport.carrier;
+  }
+
+  const originInfo = extractCodeOrCity(effDepartureLoc);
+  const destInfo = extractCodeOrCity(effArrivalLoc);
 
   const typeConfig: Record<
     TipoTrasporto,
@@ -193,7 +221,7 @@ export default function TrasportoCard({
   return (
     <>
       <article
-        className="w-full bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md hover:border-slate-300"
+        className={`w-full bg-white rounded-3xl ${variant === 'compact' ? 'p-3' : 'p-4'} border border-slate-200/90 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md hover:border-slate-300`}
       >
         {/* Decorazione tacche laterali stile Boarding Pass Wallet (cerchietti ritagliati) */}
         <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-100 border border-slate-200/60 pointer-events-none" />
@@ -217,7 +245,7 @@ export default function TrasportoCard({
                 )}
               </div>
               <h2 className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
-                {transport.carrier || 'Tratta programmata'}
+                {effCarrier || 'Tratta programmata'}
               </h2>
             </div>
           </div>
@@ -226,7 +254,7 @@ export default function TrasportoCard({
             <Badge label={statusLabel} variant={statusVariant} />
             <div className="text-right">
               <span className="text-xs font-mono font-extrabold text-slate-900">
-                {transport.departureTime || '--:--'}
+                {effDepartureTime || '--:--'}
               </span>
               <p className="text-[9px] text-slate-400 font-medium">Partenza</p>
             </div>
@@ -241,11 +269,11 @@ export default function TrasportoCard({
               <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-mono">
                 {originInfo.code}
               </div>
-              <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5" title={transport.departureLocation}>
+              <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5" title={effDepartureLoc}>
                 {originInfo.name}
               </p>
               <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                {formatDate(transport.date)} {transport.departureTime ? `• ${transport.departureTime}` : ''}
+                {formatDate(effDepartureDate)} {effDepartureTime ? `• ${effDepartureTime}` : ''}
               </p>
             </div>
 
@@ -259,7 +287,7 @@ export default function TrasportoCard({
               </div>
 
               {/* Scalo o durata se presenti */}
-              {transport.layover ? (
+              {transport.layover && segmentContext !== 'leg2' && segmentContext !== 'leg1' ? (
                 <div className="mt-2 text-center">
                   <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                     <span>🛑 Scalo {transport.layover.airport.split(' ')[0]}</span>
@@ -286,11 +314,12 @@ export default function TrasportoCard({
               <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-mono">
                 {destInfo.code}
               </div>
-              <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5" title={transport.dropoffLocation || transport.arrivalLocation}>
+              <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5" title={effArrivalLoc}>
                 {destInfo.name}
               </p>
               <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-                {transport.arrivalTime ? `${transport.arrivalTime}` : (transport.dropoffTime ? `h ${transport.dropoffTime}` : 'Arrivo')}
+                {effArrivalTime ? `h ${effArrivalTime}` : 'Arrivo'}
+                {transport.arrivalDate && transport.arrivalDate !== effDepartureDate ? ` (+1)` : ''}
               </p>
             </div>
           </div>
@@ -304,6 +333,7 @@ export default function TrasportoCard({
         </div>
 
         {/* 3. BANDA INFERIORE "DETTAGLI OPERATIVI" COMPATTA SU SINGOLA RIGA */}
+        {variant === 'full' && (
         <footer className="pt-2.5 border-t border-dashed border-slate-200 flex items-center justify-between gap-2">
           {/* Sezione Chip: PNR, Prezzo / Acconto */}
           <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-x-auto no-scrollbar">
@@ -430,6 +460,7 @@ export default function TrasportoCard({
             )}
           </div>
         </footer>
+        )}
       </article>
 
       {/* MODAL DETTAGLI / INFO "i" */}

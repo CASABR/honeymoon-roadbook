@@ -628,6 +628,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             originalData?: any;
             copilota?: boolean;
             copilotNotes?: string;
+            displayMode?: import('../types').TransportDisplayMode;
+            stateLabel?: string;
+            segmentContext?: import('../types').TransportSegmentContext;
           }[] = [];
 
           // Ordina rigorosamente per orario (HH:mm)
@@ -658,7 +661,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               coordinate: item.coordinate,
               originalData: item.originalData,
               copilota: item.copilota,
-              copilotNotes: item.copilotNotes || (item.originalData as any)?.copilotNotes
+              copilotNotes: item.copilotNotes || (item.originalData as any)?.copilotNotes,
+              displayMode: (item as any).displayMode,
+              stateLabel: (item as any).stateLabel,
+              segmentContext: (item as any).segmentContext
             });
           });
 
@@ -682,6 +688,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             }
           }
 
+          const activeStates = dayItems.filter(i => i.displayMode === 'state');
+          const visibleCards = dayItems.filter(i => i.displayMode !== 'state');
+
           if (dayItems.length === 0) {
             return (
               <div className="bg-slate-100/60 rounded-3xl border border-slate-200 border-dashed p-6 text-center">
@@ -694,8 +703,18 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           return (
             <div className="space-y-3">
-              {dayItems.map((item, idx) => {
-                const nextItem = dayItems[idx + 1];
+              {activeStates.length > 0 && (
+                <div className="flex flex-col gap-2 mb-4">
+                  {activeStates.map((stateItem, idx) => (
+                    <div key={`state-${idx}`} className="bg-amber-50 rounded-xl border border-amber-200/60 p-2 shadow-xs flex items-center gap-2">
+                       <span className="text-sm">📌</span>
+                       <span className="text-[11px] font-bold text-amber-800 tracking-tight">{stateItem.stateLabel}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {visibleCards.map((item, idx) => {
+                const nextItem = visibleCards[idx + 1];
 
                 // Punti di routing punto-a-punto verso il prossimo elemento
                 // DALL'ARRIVO di questo elemento -> ALLA PARTENZA del prossimo
@@ -705,8 +724,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 const toCoord = nextItem ? nextItem.coordinate : undefined;
 
                 const isLodging = item.type === 'alloggio';
-                const isScalo = (item as any).categoryOrType === 'scalo';
-                const isTransport = item.type === 'trasporto' && !isScalo;
+                const isScaloBanner = item.segmentContext === 'scalo' || (item as any).categoryOrType === 'scalo';
+                const isTransport = item.type === 'trasporto' && !isScaloBanner;
                 const isTappa = item.type === 'tappa';
                 const isRistorante = item.type === 'ristorante';
                 const isShopping = item.type === 'shopping';
@@ -714,7 +733,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 return (
                   <div key={`${item.id}-${idx}`} ref={(el) => { timelineItemRefs.current[item.id] = el; }}>
                     {/* CARD DELL'ELEMENTO NELLA SEQUENZA */}
-                    {isScalo ? (
+                    {isScaloBanner ? (
                       /* Banner Scalo Aereo */
                       <div className="bg-slate-100 rounded-2xl border border-slate-200/60 p-3 shadow-xs flex items-center justify-between">
                         <div className="flex items-center gap-3">
@@ -723,7 +742,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                           </span>
                           <div>
                             <h3 className="text-sm font-bold text-slate-800 tracking-tight">{item.title}</h3>
-                            <p className="text-[11px] text-slate-500 font-medium">{item.time} • {item.location}</p>
+                            <p className="text-[11px] text-slate-500 font-medium">{item.time !== '00:00' ? `${item.time} • ` : ''}{item.location}</p>
                           </div>
                         </div>
                         {item.copilota && (
@@ -736,6 +755,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                       /* Card Biglietto di Viaggio / Boarding Pass per i Trasporti */
                       <TrasportoCard
                         transport={item.originalData as Trasporto}
+                        variant={item.displayMode === 'compact' ? 'compact' : 'full'}
+                        segmentContext={item.segmentContext}
                         onEdit={() => setEditingTransportItem(item.originalData as Trasporto)}
                         onDelete={async () => {
                           await storageService.deleteTransport(item.originalData?.id || '');
