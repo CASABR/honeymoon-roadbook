@@ -736,11 +736,18 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                       item.id.endsWith('_arrival') ? (
                         <div className="bg-slate-100 rounded-2xl border border-slate-200/60 p-3 shadow-xs flex items-center gap-3">
                           <span className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm shrink-0">
-                            {(item as any).categoryOrType === 'volo' ? '✈️' : ((item as any).categoryOrType === 'treno' ? '🚆' : '🚏')}
+                            {item.title?.includes('Pechino') ? '🇨🇳' : ((item as any).categoryOrType === 'volo' ? '✈️' : ((item as any).categoryOrType === 'treno' ? '🚆' : '🚏'))}
                           </span>
                           <div>
-                            <h3 className="text-sm font-bold text-slate-800 tracking-tight">{item.title}</h3>
-                            <p className="text-[11px] text-slate-500 font-medium">{item.time !== '00:00' ? `${item.time} • ` : ''}{item.location}</p>
+                            <h3 className="text-sm font-bold text-slate-800 tracking-tight">
+                              {item.title?.includes('Pechino') ? 'Scalo a Pechino (PEK T3)' : item.title}
+                            </h3>
+                            <p className="text-[11px] text-slate-500 font-medium">
+                              {item.title?.includes('Pechino') 
+                                ? `Arrivo ore ${item.time} • Durata transito 18h 35m (Bagagli spediti ad Auckland)`
+                                : `${item.time !== '00:00' ? `${item.time} • ` : ''}${item.location}`
+                              }
+                            </p>
                           </div>
                         </div>
                       ) : (

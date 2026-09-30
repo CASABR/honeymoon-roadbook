@@ -1,26 +1,37 @@
 import type { Trasporto } from '../types';
 
 export const SEED_TRANSPORTS: Omit<Trasporto, 'createdAt' | 'updatedAt'>[] = [
-  // [TRATTA 1: Volo Intercontinentale Andata con Scalo a Pechino]
+  // [TRATTA 1: Volo Intercontinentale Andata - Milano -> Pechino]
   {
-    id: 'trn_01_mxp_pek_akl',
+    id: 'transport_flight_mxp_pek',
     type: 'volo',
     date: '2026-11-29',
-    carrier: 'Air China (CA950 + CA783)',
+    carrier: 'Air China CA950',
     departureLocation: 'Milano Malpensa (MXP) T1',
-    arrivalLocation: 'Auckland (AKL)',
+    arrivalLocation: 'Pechino Capitale (PEK) T3',
     departureTime: '12:30',
-    arrivalTime: '17:35 (01 Dic)',
-    layover: {
-      airport: 'Pechino Capitale (PEK) T3',
-      arrivalTime: '05:50 (30 Nov)',
-      departureTime: '00:25 (01 Dic)',
-      duration: '18h 35m'
-    },
-    bookingCode: '1688897340550151',
+    arrivalDate: '2026-11-30',
+    arrivalTime: '05:50',
+    bookingCode: '1688897340550151 (Trip.com) - PNR: QKP125',
     status: 'prenotato',
     cost: '1800',
-    notes: 'Scalo a Pechino con camera day-use / uscita in città. Franchigia: 2 colli da 23 kg in stiva + 8 kg cabina a testa. All\'arrivo controlli biosicurezza NZ: dichiarare scarpe da trekking pulite.'
+    notes: 'Aereo: Airbus A350 XWB. Posti: Nunzio: 50B | Giusy: 50A. Passeggeri: Nunzio Belardo (Ticket 999-6327079270), Giusy Reale (Ticket 999-6327079271). Bagaglio imbarcato direttamente per Auckland. Non necessario il ritiro durante il transito a Pechino.'
+  },
+  // [TRATTA 2: Volo Intercontinentale Andata - Pechino -> Auckland]
+  {
+    id: 'transport_flight_pek_akl',
+    type: 'volo',
+    date: '2026-11-30', // Mostrato a fine giornata del 30 Nov
+    carrier: 'Air China CA783',
+    departureLocation: 'Pechino Capitale (PEK) T3',
+    arrivalLocation: 'Auckland (AKL) Intl',
+    departureTime: '00:25 (01 Dic)', // Testuale, per mostrare a che ora parte
+    arrivalDate: '2026-12-01',
+    arrivalTime: '17:25',
+    bookingCode: '1688897340550151 - PNR: QKP125',
+    status: 'prenotato',
+    cost: 'Incluso in Tratta 1',
+    notes: 'Aereo: Boeing 787-9. Posti: Nunzio: 50L | Giusy: 50K. Passeggeri: Nunzio Belardo (Ticket 999-6327079270), Giusy Reale (Ticket 999-6327079271).'
   },
   // [TRATTA 2: Transfer Serale ad Auckland]
   {
