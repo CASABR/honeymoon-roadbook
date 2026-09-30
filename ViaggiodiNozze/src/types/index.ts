@@ -123,6 +123,7 @@ export interface Trasporto {
   type: TipoTrasporto;
   date: string; // YYYY-MM-DD
   departureTime?: string; // HH:mm
+  arrivalDate?: string; // YYYY-MM-DD (per voli notturni / multi-giorno)
   arrivalTime?: string; // HH:mm
   departureLocation: string;
   arrivalLocation: string;
@@ -141,6 +142,7 @@ export interface Trasporto {
     arrivalTime?: string; // Arrivo allo scalo (Tratta 1)
     departureTime?: string; // Partenza dallo scalo (Tratta 2)
     departureDate?: string; // Data di ripartenza (se diversa dal giorno di arrivo)
+    arrivalDate?: string; // Data di arrivo a destinazione finale (Tratta 2)
     carrier?: string; // Compagnia/Numero volo Tratta 2
     notes?: string;
   };
@@ -193,6 +195,9 @@ export interface Shopping {
 export type SectionTab = 'oggi' | 'categorie' | 'altro';
 export type CategoriaTab = 'tappe' | 'attivita' | 'ristoranti' | 'alloggi' | 'trasporti' | 'shopping' | 'spese';
 
+export type TransportDisplayMode = 'full' | 'compact' | 'state';
+export type TransportSegmentContext = 'leg1' | 'leg2' | 'scalo' | 'arrival' | 'dropoff';
+
 export interface TimelineItem {
   id: string;
   type: 'attivita' | 'trasporto' | 'tappa' | 'ristorante' | 'alloggio' | 'shopping';
@@ -204,6 +209,9 @@ export interface TimelineItem {
   copilotNotes?: string;
   coordinate?: Coordinate;
   originalData: any;
+  displayMode?: TransportDisplayMode;
+  stateLabel?: string;
+  segmentContext?: TransportSegmentContext;
 }
 
 export type CategoriaSpesa = 'trasporti' | 'alloggi' | 'attivita' | 'ristoranti' | 'altro';

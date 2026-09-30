@@ -1031,12 +1031,19 @@ class StorageService {
       // oppure volo con scalo (layover) che attraversa o riparte in questa data
       const dayTransports = transports.filter(t => {
         if (t.date === dateStr) return true;
-        // Gestione noleggi e tratte con dropoffDate o arrivo trans-data
-        if (t.dropoffDate && t.date && t.date <= dateStr && t.dropoffDate >= dateStr) return true;
-        // Gestione scalo che cade in data successiva
-        if (t.layover && t.layover.departureDate === dateStr) return true;
-        // Se lo scalo è nel mezzo (es. arrivo il 30, ripartenza l'1)
-        if (t.layover && t.layover.departureDate && t.date < dateStr && t.layover.departureDate > dateStr) return true;
+        if (t.arrivalDate === dateStr) return true;
+        
+        // Noleggi (pickupDate = t.date, dropoffDate = t.dropoffDate)
+        if (t.dropoffDate && t.date && t.date < dateStr && t.dropoffDate >= dateStr) return true;
+        
+        // Scali multi-tratta
+        if (t.layover) {
+           if (t.layover.departureDate === dateStr) return true;
+           if (t.layover.arrivalDate === dateStr) return true;
+           // Giorno di attesa intermedio in aeroporto tra leg1 e leg2
+           if (t.layover.departureDate && t.date < dateStr && t.layover.departureDate > dateStr) return true;
+           // Giorno tra arrivo Leg2 e fine viaggio (non strettamente necessario se abbiamo leg2 arrival date)
+        }
         return false;
       });
 
@@ -1078,97 +1085,171 @@ class StorageService {
       
       // Trasporti del giorno e segmenti volo
       dayTransports.forEach(t => {
-        // Se è un trasporto normale senza scalo (o scalo ignorato per questa data)
+        const isRental = t.type === 'auto' || t.type === 'camper';
         const isLayoverFlight = !!(t.layover && t.layover.airport);
-        const leg1Date = t.date;
-        const leg2Date = t.layover?.departureDate || t.date;
+        
+        if (isRental) {
+          // Giorno di ritiro
+          if (t.date === dateStr) {
+            timeline.push({
+              id: `${t.id}_pickup`,
+              type: 'trasporto',
+              time: t.departureTime || '00:00',
+              title: `${t.type.toUpperCase()} • Ritiro`,
+              location: t.departureLocation || '',
+              categoryOrType: t.type,
+              copilota: t.copilota,
+              coordinate: t.coordinate,
+              originalData: t,
+              displayMode: 'full',
+              segmentContext: 'leg1'
+            });
+          } 
+          // Giorno di riconsegna
+          else if (t.dropoffDate === dateStr) {
+            timeline.push({
+              id: `${t.id}_dropoff`,
+              type: 'trasporto',
+              time: t.dropoffTime || t.arrivalTime || '00:00',
+              title: `${t.type.toUpperCase()} • Riconsegna`,
+              location: t.dropoffLocation || t.arrivalLocation || '',
+              categoryOrType: t.type,
+              copilota: t.copilota,
+              originalData: t,
+              displayMode: 'compact',
+              segmentContext: 'dropoff'
+            });
+          } 
+          // Giorni intermedi
+          else if (dateStr > t.date && (!t.dropoffDate || dateStr < t.dropoffDate)) {
+            timeline.push({
+              id: `${t.id}_state`,
+              type: 'trasporto',
+              time: '00:00',
+              title: '',
+              location: '',
+              categoryOrType: t.type,
+              originalData: t,
+              displayMode: 'state',
+              stateLabel: `${t.type === 'auto' ? '🚗' : '🚐'} Noleggio attivo: ${t.carrier || 'Veicolo'}`
+            });
+          }
+          return;
+        }
         
         if (isLayoverFlight) {
-          // Tratta 1 (se coincide con la data richiesta)
+          const leg1Date = t.date;
+          const leg2DepartureDate = t.layover?.departureDate || leg1Date;
+          
+          // Tratta 1 Partenza
           if (leg1Date === dateStr) {
             timeline.push({
               id: `${t.id}_leg1`,
               type: 'trasporto',
-              time: t.departureTime || '08:00',
+              time: t.departureTime || '00:00',
               title: t.carrier ? `${t.type.toUpperCase()} • ${t.carrier}` : t.type.toUpperCase(),
               location: `${t.departureLocation} ➔ ${t.layover?.airport}`,
               categoryOrType: t.type,
               copilota: t.copilota,
               coordinate: t.coordinate,
-              originalData: t
-            });
-            
-            // Scalo Banner (lo mostriamo nel giorno di arrivo della Tratta 1 se abbiamo arrivalTime, o comunque nel giorno leg1Date)
-            timeline.push({
-              id: `${t.id}_layover`,
-              type: 'trasporto', // Usiamo tipo trasporto ma lo visualizzeremo diversamente o integrato
-              time: t.layover?.arrivalTime || '12:00',
-              title: `Scalo a ${t.layover?.airport}`,
-              location: t.layover?.duration ? `Coincidenza di ${t.layover.duration}` : 'Sosta in aeroporto',
-              categoryOrType: 'scalo',
-              copilota: t.copilota,
-              originalData: t
+              originalData: t,
+              displayMode: 'full',
+              segmentContext: 'leg1'
             });
           }
           
-          // Se lo scalo copre un giorno intermedio (es. 30 Novembre quando si vola 29 Nov e 1 Dic)
-          if (leg1Date < dateStr && leg2Date > dateStr) {
-            timeline.push({
-              id: `${t.id}_layover_mid`,
-              type: 'trasporto',
-              time: '08:00', // Tutta la giornata
-              title: `Scalo a ${t.layover?.airport}`,
-              location: 'Giornata intera di coincidenza',
-              categoryOrType: 'scalo',
-              copilota: t.copilota,
-              originalData: t
-            });
+          // Giornata intera di scalo (se dateStr è tra arrivo e ripartenza)
+          if (leg1Date < dateStr && leg2DepartureDate > dateStr) {
+             timeline.push({
+               id: `${t.id}_layover_mid`,
+               type: 'trasporto',
+               time: '00:00',
+               title: `Scalo a ${t.layover?.airport}`,
+               location: 'Intera giornata di sosta',
+               categoryOrType: 'scalo',
+               originalData: t,
+               displayMode: 'compact',
+               segmentContext: 'scalo'
+             });
           }
           
-          // Tratta 2 (se coincide con la data richiesta, se è diversa dalla Tratta 1 o se è lo stesso giorno ma orario successivo)
-          if (leg2Date === dateStr) {
-            // Mostra il banner di ripartenza o di scalo se non mostrato prima (es. arrivo in nottata e ripartenza il giorno dopo)
-            if (leg1Date !== leg2Date) {
+          // Tratta 2 Partenza
+          if (leg2DepartureDate === dateStr) {
+            // Aggiungiamo banner compatto per lo scalo / ripartenza
+            if (leg1Date !== leg2DepartureDate) {
               timeline.push({
                 id: `${t.id}_layover_end`,
                 type: 'trasporto',
-                time: '08:00',
+                time: '00:00',
                 title: `Scalo a ${t.layover?.airport}`,
                 location: t.layover?.duration ? `In attesa ripartenza (${t.layover.duration})` : 'Sosta in aeroporto',
                 categoryOrType: 'scalo',
                 copilota: t.copilota,
-                originalData: t
+                originalData: t,
+                displayMode: 'compact',
+                segmentContext: 'scalo'
               });
             }
             
             timeline.push({
               id: `${t.id}_leg2`,
               type: 'trasporto',
-              time: t.layover?.departureTime || '12:00',
+              time: t.layover?.departureTime || '00:00',
               title: t.layover?.carrier ? `${t.type.toUpperCase()} • ${t.layover.carrier}` : t.type.toUpperCase(),
               location: `${t.layover?.airport} ➔ ${t.arrivalLocation}`,
               categoryOrType: t.type,
               copilota: t.copilota,
-              coordinate: t.coordinate,
-              originalData: t
+              originalData: t,
+              displayMode: 'full',
+              segmentContext: 'leg2'
             });
+          }
+          
+          // Arrivo Tratta 2 in giorno successivo
+          if (t.layover?.arrivalDate === dateStr && t.layover.arrivalDate !== leg2DepartureDate) {
+             timeline.push({
+               id: `${t.id}_arrival`,
+               type: 'trasporto',
+               time: t.arrivalTime || '00:00',
+               title: `Arrivo a ${t.arrivalLocation}`,
+               location: `Da ${t.layover?.airport}`,
+               categoryOrType: t.type,
+               originalData: t,
+               displayMode: 'compact',
+               segmentContext: 'arrival'
+             });
           }
         } else {
           // Trasporto normale
-          const time = t.departureTime || '08:00';
-          const title = t.carrier ? `${t.type.toUpperCase()} • ${t.carrier}` : t.type.toUpperCase();
-          const loc = t.departureLocation ? `${t.departureLocation} ➔ ${t.arrivalLocation}` : t.arrivalLocation;
-          timeline.push({
-            id: t.id,
-            type: 'trasporto',
-            time,
-            title,
-            location: loc,
-            categoryOrType: t.type,
-            copilota: t.copilota,
-            coordinate: t.coordinate,
-            originalData: t
-          });
+          if (t.date === dateStr) {
+            timeline.push({
+              id: t.id,
+              type: 'trasporto',
+              time: t.departureTime || '00:00',
+              title: t.carrier ? `${t.type.toUpperCase()} • ${t.carrier}` : t.type.toUpperCase(),
+              location: t.departureLocation ? `${t.departureLocation} ➔ ${t.arrivalLocation}` : t.arrivalLocation,
+              categoryOrType: t.type,
+              copilota: t.copilota,
+              coordinate: t.coordinate,
+              originalData: t,
+              displayMode: 'full',
+              segmentContext: 'leg1'
+            });
+          }
+          
+          if (t.arrivalDate === dateStr && t.arrivalDate !== t.date) {
+            timeline.push({
+               id: `${t.id}_arrival`,
+               type: 'trasporto',
+               time: t.arrivalTime || '00:00',
+               title: `Arrivo a ${t.arrivalLocation}`,
+               location: `Da ${t.departureLocation}`,
+               categoryOrType: t.type,
+               originalData: t,
+               displayMode: 'compact',
+               segmentContext: 'arrival'
+            });
+          }
         }
       });
 
