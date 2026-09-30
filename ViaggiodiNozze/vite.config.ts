@@ -7,6 +7,14 @@ export default defineConfig(({ command }) => ({
   // In dev locale ('npm run dev') la radice è '/' per navigare direttamente su http://localhost:5173/
   // In produzione ('npm run build') la base è '/honeymoon-roadbook/' per GitHub Pages
   base: command === "serve" ? "/" : "/honeymoon-roadbook/",
+  define: {
+    __BUILD_TIME__: JSON.stringify(new Date().toLocaleString('it-IT', { 
+      day: '2-digit', 
+      month: 'short', 
+      hour: '2-digit', 
+      minute: '2-digit' 
+    })),
+  },
   plugins: [
     react(),
     tailwindcss(),

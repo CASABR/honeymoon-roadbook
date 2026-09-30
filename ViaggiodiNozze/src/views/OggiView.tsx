@@ -706,8 +706,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               {activeStates.length > 0 && (
                 <div className="flex flex-col gap-2 mb-4">
                   {activeStates.map((stateItem, idx) => (
-                    <div key={`state-${idx}`} className="bg-amber-50 rounded-xl border border-amber-200/60 p-2 shadow-xs flex items-center gap-2">
-                       <span className="text-sm">📌</span>
+                    <div key={`state-${idx}`} className="bg-amber-50 border border-amber-200/90 rounded-2xl p-3 shadow-xs flex items-center justify-center text-center">
                        <span className="text-[11px] font-bold text-amber-800 tracking-tight">{stateItem.stateLabel}</span>
                     </div>
                   ))}
