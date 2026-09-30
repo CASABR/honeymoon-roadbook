@@ -724,8 +724,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 const toCoord = nextItem ? nextItem.coordinate : undefined;
 
                 const isLodging = item.type === 'alloggio';
-                const isScaloBanner = item.segmentContext === 'scalo' || (item as any).categoryOrType === 'scalo';
-                const isTransport = item.type === 'trasporto' && !isScaloBanner;
+                const isTransport = item.type === 'trasporto';
                 const isTappa = item.type === 'tappa';
                 const isRistorante = item.type === 'ristorante';
                 const isShopping = item.type === 'shopping';
@@ -733,37 +732,30 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 return (
                   <div key={`${item.id}-${idx}`} ref={(el) => { timelineItemRefs.current[item.id] = el; }}>
                     {/* CARD DELL'ELEMENTO NELLA SEQUENZA */}
-                    {isScaloBanner ? (
-                      /* Banner Scalo Aereo */
-                      <div className="bg-slate-100 rounded-2xl border border-slate-200/60 p-3 shadow-xs flex items-center justify-between">
-                        <div className="flex items-center gap-3">
+                    {isTransport ? (
+                      item.id.endsWith('_arrival') ? (
+                        <div className="bg-slate-100 rounded-2xl border border-slate-200/60 p-3 shadow-xs flex items-center gap-3">
                           <span className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm shrink-0">
-                            ⏳
+                            {(item as any).categoryOrType === 'volo' ? '✈️' : ((item as any).categoryOrType === 'treno' ? '🚆' : '🚏')}
                           </span>
                           <div>
                             <h3 className="text-sm font-bold text-slate-800 tracking-tight">{item.title}</h3>
                             <p className="text-[11px] text-slate-500 font-medium">{item.time !== '00:00' ? `${item.time} • ` : ''}{item.location}</p>
                           </div>
                         </div>
-                        {item.copilota && (
-                          <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
-                            🧭 Co-pilota
-                          </span>
-                        )}
-                      </div>
-                    ) : isTransport ? (
-                      /* Card Biglietto di Viaggio / Boarding Pass per i Trasporti */
-                      <TrasportoCard
-                        transport={item.originalData as Trasporto}
-                        variant={item.displayMode === 'compact' ? 'compact' : 'full'}
-                        segmentContext={item.segmentContext}
-                        onEdit={() => setEditingTransportItem(item.originalData as Trasporto)}
-                        onDelete={async () => {
-                          await storageService.deleteTransport(item.originalData?.id || '');
-                          await fetchTimeline();
-                        }}
-                        onUpdate={() => fetchTimeline()}
-                      />
+                      ) : (
+                        /* Card Biglietto di Viaggio / Boarding Pass per i Trasporti */
+                        <TrasportoCard
+                          transport={item.originalData as Trasporto}
+                          variant={item.displayMode === 'compact' ? 'compact' : 'full'}
+                          onEdit={() => setEditingTransportItem(item.originalData as Trasporto)}
+                          onDelete={async () => {
+                            await storageService.deleteTransport(item.originalData?.id || '');
+                            await fetchTimeline();
+                          }}
+                          onUpdate={() => fetchTimeline()}
+                        />
+                      )
                     ) : isLodging ? (
                       /* Hotel Pass / Voucher Ultra-Compatto */
                       <div className="bg-white rounded-2xl border border-indigo-100 p-3 shadow-xs hover:shadow-sm transition-all">
