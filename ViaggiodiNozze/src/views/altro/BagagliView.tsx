@@ -60,15 +60,20 @@ export default function BagagliView({ onBack }: BagagliViewProps) {
 
       // Se non ci sono bagagli ma ci sono voli, crea dei bagagli seed di default
       if (items.length === 0) {
+        // Selezioniamo il primo volo intercontinentale come volo di riferimento (Air China)
+        const airChinaVolo = flights.find(f => f.carrier?.includes('Air China')) || flights[0];
+        const voloTitleStr = airChinaVolo ? `✈️ ${airChinaVolo.carrier || 'Volo Intercontinentale'} (${airChinaVolo.departureLocation} ➔ ${airChinaVolo.arrivalLocation})` : '✈️ Volo Intercontinentale';
+        const vId = airChinaVolo?.id || '';
+
         const seedItems: Bagaglio[] = [
           {
             id: 'bag_01',
-            voloId: flights[0]?.id || '',
-            voloTitle: flights[0] ? `✈️ ${flights[0].carrier || 'Volo Intercontinentale'} (${flights[0].departureLocation} ➔ ${flights[0].arrivalLocation})` : '✈️ Volo Intercontinentale',
+            voloId: vId,
+            voloTitle: voloTitleStr,
             tipo: 'stiva',
             pesoKg: 23,
-            descrizione: 'Valigia Grande Stiva (23 kg)',
-            note: 'Franchigia Air China 2 colli inclusa. Etichetta bagaglio sposo.',
+            descrizione: '2x Valigie Stiva (Max 158cm)',
+            note: 'Franchigia Air China 2 colli a testa da 23 kg.',
             passeggero: 'sposo',
             verificato: true,
             createdAt: Date.now(),
@@ -76,25 +81,38 @@ export default function BagagliView({ onBack }: BagagliViewProps) {
           },
           {
             id: 'bag_02',
-            voloId: flights[0]?.id || '',
-            voloTitle: flights[0] ? `✈️ ${flights[0].carrier || 'Volo Intercontinentale'} (${flights[0].departureLocation} ➔ ${flights[0].arrivalLocation})` : '✈️ Volo Intercontinentale',
+            voloId: vId,
+            voloTitle: voloTitleStr,
             tipo: 'stiva',
             pesoKg: 23,
-            descrizione: 'Valigia Grande Stiva (23 kg)',
-            note: 'Etichetta bagaglio sposa con lucchetto TSA.',
+            descrizione: '2x Valigie Stiva (Max 158cm)',
+            note: 'Franchigia Air China 2 colli a testa da 23 kg.',
             passeggero: 'sposa',
-            verificato: false,
+            verificato: true,
             createdAt: Date.now(),
             updatedAt: Date.now()
           },
           {
             id: 'bag_03',
-            voloId: flights[0]?.id || '',
-            voloTitle: flights[0] ? `✈️ ${flights[0].carrier || 'Volo Intercontinentale'} (${flights[0].departureLocation} ➔ ${flights[0].arrivalLocation})` : '✈️ Volo Intercontinentale',
+            voloId: vId,
+            voloTitle: voloTitleStr,
             tipo: 'mano',
-            pesoKg: 8,
-            descrizione: 'Trolley Cabina Mano (8 kg)',
-            note: 'Liquidi max 100ml in sacchetto trasparente 1L.',
+            pesoKg: 5,
+            descrizione: 'Trolley Cabina Mano (55x40x20 cm)',
+            note: '1 collo a persona max 5 kg. Liquidi max 100ml in busta trasparente 1L.',
+            passeggero: 'entrambi',
+            verificato: true,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          },
+          {
+            id: 'bag_04',
+            voloId: vId,
+            voloTitle: voloTitleStr,
+            tipo: 'borsa',
+            pesoKg: 0,
+            descrizione: 'Accessorio Personale / Zaino Piccolo',
+            note: 'Zaino o borsa da posizionare sotto il sedile anteriore.',
             passeggero: 'entrambi',
             verificato: true,
             createdAt: Date.now(),
