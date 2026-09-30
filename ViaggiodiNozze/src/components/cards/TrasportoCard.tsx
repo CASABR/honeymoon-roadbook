@@ -9,7 +9,6 @@ import { useDeviceRole } from '../../utils/useDeviceRole';
 interface TrasportoCardProps {
   transport: Trasporto;
   variant?: 'full' | 'compact';
-  segmentContext?: import('../../types').TransportSegmentContext;
   onEdit: () => void;
   onDelete: () => void;
   onUpdate?: (updated: Trasporto) => void;
@@ -18,7 +17,6 @@ interface TrasportoCardProps {
 export default function TrasportoCard({
   transport: initialTransport,
   variant = 'full',
-  segmentContext,
   onEdit,
   onDelete,
   onUpdate
@@ -92,29 +90,12 @@ export default function TrasportoCard({
     };
   };
 
-  // --- LOGICA COMPUTATA PER SEGMENT CONTEXT (Bug #5) ---
   let effDepartureLoc = transport.departureLocation;
   let effArrivalLoc = transport.dropoffLocation || transport.arrivalLocation;
   let effDepartureTime = transport.departureTime;
   let effArrivalTime = transport.arrivalTime || transport.dropoffTime;
   let effDepartureDate = transport.date;
   let effCarrier = transport.carrier;
-
-  if (segmentContext === 'leg2' && transport.layover) {
-    effDepartureLoc = transport.layover.airport;
-    effArrivalLoc = transport.arrivalLocation;
-    effDepartureTime = transport.layover.departureTime;
-    effArrivalTime = transport.arrivalTime;
-    effDepartureDate = transport.layover.departureDate || transport.date;
-    effCarrier = transport.layover.carrier || transport.carrier;
-  } else if (segmentContext === 'leg1' && transport.layover) {
-    effDepartureLoc = transport.departureLocation;
-    effArrivalLoc = transport.layover.airport;
-    effDepartureTime = transport.departureTime;
-    effArrivalTime = transport.layover.arrivalTime;
-    effDepartureDate = transport.date;
-    effCarrier = transport.carrier;
-  }
 
   const originInfo = extractCodeOrCity(effDepartureLoc);
   const destInfo = extractCodeOrCity(effArrivalLoc);
@@ -286,13 +267,17 @@ export default function TrasportoCard({
                 </span>
               </div>
 
-              {/* Scalo o durata se presenti */}
-              {transport.layover && segmentContext !== 'leg2' && segmentContext !== 'leg1' ? (
-                <div className="mt-2 text-center">
+              {transport.layover ? (
+                <div className="mt-2 text-center flex flex-col gap-1 items-center justify-center">
                   <span className="inline-flex items-center gap-1 text-[9px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                     <span>🛑 Scalo {transport.layover.airport.split(' ')[0]}</span>
                     {transport.layover.duration && <span>({transport.layover.duration})</span>}
                   </span>
+                  {/* Detailed layover info */}
+                  <div className="text-[9px] text-slate-500 font-medium">
+                     {transport.layover.departureDate ? formatDate(transport.layover.departureDate) : ''} {transport.layover.departureTime ? ` h ${transport.layover.departureTime}` : ''}
+                     {transport.layover.carrier && ` • ${transport.layover.carrier}`}
+                  </div>
                 </div>
               ) : isRental ? (
                 <div className="mt-2 text-center">
