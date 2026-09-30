@@ -449,6 +449,25 @@ class StorageService {
   async getTransports(): Promise<Trasporto[]> {
     try {
       const items = await idbGetAll<Trasporto>(STORES.TRASPORTI);
+      
+      // --- MIGRATION: Se c'è ancora il vecchio volo unito, lo separiamo ---
+      const oldIdx = items.findIndex(t => t.id === 'trn_01_mxp_pek_akl');
+      if (oldIdx !== -1) {
+        items.splice(oldIdx, 1);
+        await idbDelete(STORES.TRASPORTI, 'trn_01_mxp_pek_akl');
+        
+        const newFlights = SEED_TRANSPORTS.filter(t => t.id === 'transport_flight_mxp_pek' || t.id === 'transport_flight_pek_akl').map(t => ({
+          ...t,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        })) as Trasporto[];
+        
+        for (const nf of newFlights) {
+          items.push(nf);
+          await idbPut(STORES.TRASPORTI, nf);
+        }
+      }
+
       return items.sort((a, b) => {
         const dateCompare = a.date.localeCompare(b.date);
         if (dateCompare !== 0) return dateCompare;
