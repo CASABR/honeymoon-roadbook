@@ -37,12 +37,19 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="manifest" href="manifest.json" />
     <script>
-      // Forziamo il tema chiaro per preservare l'estetica delle card
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+      // Prevent Flash Of Unstyled Content for Dark Mode
+      (function() {
+        try {
+          var saved = localStorage.getItem('theme');
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (saved === 'dark' || (!saved && prefersDark)) {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {}
+      })();
     </script>
-    <script type="module" crossorigin src="/honeymoon-roadbook/assets/index-D-dvseV4.js"></script>
-    <link rel="stylesheet" crossorigin href="/honeymoon-roadbook/assets/index-DDCgOTQx.css">
+    <script type="module" crossorigin src="/honeymoon-roadbook/assets/index-zWRZgWL-.js"></script>
+    <link rel="stylesheet" crossorigin href="/honeymoon-roadbook/assets/index-DPb2rFJg.css">
   </head>
   <body>
     <div id="root"></div>
