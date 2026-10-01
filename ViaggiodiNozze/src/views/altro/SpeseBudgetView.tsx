@@ -3,6 +3,7 @@ import type { Spesa, CategoriaSpesa, StatoSpesa, Alloggio, Trasporto } from '../
 import { storageService } from '../../storage/storageService';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
+import { fetchExchangeRates, convertToEur, type SupportedCurrency } from '../../utils/currencyConverter';
 
 interface SpeseBudgetViewProps {
   onBack?: () => void;
@@ -67,6 +68,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
   const [alloggi, setAlloggi] = useState<Alloggio[]>([]);
   const [trasporti, setTrasporti] = useState<Trasporto[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rates, setRates] = useState<Record<string, number> | null>(null);
 
   // Filter & Form state
   const [selectedCategory, setSelectedCategory] = useState<CategoriaSpesa | 'tutte'>('tutte');
@@ -82,6 +84,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
   // Form fields
   const [title, setTitle] = useState('');
   const [amount, setAmount] = useState('');
+  const [currency, setCurrency] = useState<SupportedCurrency>('EUR');
   const [category, setCategory] = useState<CategoriaSpesa>('altro');
   const [status, setStatus] = useState<StatoSpesa>('saldato');
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -90,14 +93,16 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
   const loadAllData = async () => {
     try {
       setLoading(true);
-      const [loadedSpese, loadedAlloggi, loadedTrasporti] = await Promise.all([
+      const [loadedSpese, loadedAlloggi, loadedTrasporti, fetchedRates] = await Promise.all([
         storageService.getSpese(),
         storageService.getAccommodations(),
         storageService.getTransports(),
+        fetchExchangeRates()
       ]);
       setSpese(loadedSpese);
       setAlloggi(loadedAlloggi);
       setTrasporti(loadedTrasporti);
+      setRates(fetchedRates);
     } catch (err) {
       console.error('Errore caricamento dati spese:', err);
     } finally {
@@ -222,6 +227,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
     setEditingSpesa(null);
     setTitle('');
     setAmount('');
+    setCurrency('EUR');
     setCategory('altro');
     setStatus('saldato');
     setDate(new Date().toISOString().split('T')[0]);
@@ -233,6 +239,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
     setEditingSpesa(s);
     setTitle(s.title);
     setAmount(s.amount.toString());
+    setCurrency('EUR'); // Modifica mostra sempre EUR
     setCategory(s.category);
     setStatus(s.status);
     setDate(s.date || new Date().toISOString().split('T')[0]);
@@ -244,7 +251,16 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
     e.preventDefault();
     if (!title.trim() || !amount) return;
 
-    const parsedAmt = parseEuro(amount);
+    let parsedAmt = parseEuro(amount);
+    let finalNotes = notes.trim();
+
+    if (currency !== 'EUR' && rates && rates[currency]) {
+      const converted = convertToEur(parsedAmt, currency, rates);
+      const notePrefix = `[${parsedAmt} ${currency} - Tasso 1€=${rates[currency].toFixed(2)}]`;
+      finalNotes = finalNotes ? `${notePrefix}\n${finalNotes}` : notePrefix;
+      parsedAmt = converted;
+    }
+
     const spesaToSave: Spesa = {
       id: editingSpesa ? editingSpesa.id : 'spesa_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       title: title.trim(),
@@ -252,7 +268,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
       category,
       status,
       date,
-      notes: notes.trim() || undefined,
+      notes: finalNotes || undefined,
     };
 
     try {
@@ -609,30 +625,48 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div className="col-span-2 sm:col-span-1">
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Importo (€) *
+                Importo {currency === 'EUR' ? '(€)' : ''} *
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-2.5 text-sm font-bold text-slate-400">€</span>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  pattern="[0-9]*"
-                  step="0.01"
-                  min="0"
-                  required
-                  value={amount}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                      setAmount(val);
-                    }
-                  }}
-                  placeholder="0.00"
-                  className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                />
+              <div className="flex gap-2">
+                <select
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value as SupportedCurrency)}
+                  className="px-2 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="EUR">🇪🇺 EUR</option>
+                  <option value="NZD">🇳🇿 NZD</option>
+                  <option value="AUD">🇦🇺 AUD</option>
+                  <option value="PHP">🇵🇭 PHP</option>
+                  <option value="USD">🇺🇸 USD</option>
+                </select>
+                <div className="relative flex-1">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    pattern="[0-9]*"
+                    step="0.01"
+                    min="0"
+                    required
+                    value={amount}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                        setAmount(val);
+                      }
+                    }}
+                    placeholder="0.00"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  />
+                </div>
               </div>
+              {currency !== 'EUR' && rates && rates[currency] && (
+                <p className="text-[10px] text-slate-500 mt-1.5 font-medium px-1">
+                  ≈ <span className="font-bold text-indigo-600">{convertToEur(parseFloat(amount) || 0, currency, rates).toFixed(2)} €</span> 
+                  <span className="opacity-75"> (Tasso 1€ = {rates[currency].toFixed(2)} {currency})</span>
+                </p>
+              )}
             </div>
 
             <div>
