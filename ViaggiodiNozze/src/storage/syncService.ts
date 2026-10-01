@@ -48,7 +48,19 @@ export class SyncService {
       await deleteDoc(docRef);
       console.log(`[Cloud Sync] 🗑️ Eliminato ${entityType} ${data.id}`);
     } else {
-      await setDoc(docRef, data, { merge: true });
+      // Calcolo approssimativo dimensione payload in stringa
+      const payloadString = JSON.stringify(data);
+      const sizeKB = payloadString.length / 1024;
+      
+      let payloadToSync = { ...data };
+      
+      // Se il payload supera ~900KB (limite Firestore è 1MB), togliamo gli allegati dal sync cloud
+      if (sizeKB > 900 && 'attachments' in payloadToSync) {
+        console.warn(`[SyncService] Payload ${data.id} troppo grande per Firestore (${sizeKB.toFixed(1)} KB). Rimuovo allegati dal cloud (rimangono in locale).`);
+        delete (payloadToSync as any).attachments;
+      }
+
+      await setDoc(docRef, payloadToSync, { merge: true });
       console.log(`[Cloud Sync] ☁️ Salvato ${entityType} ${data.id}`);
     }
   }

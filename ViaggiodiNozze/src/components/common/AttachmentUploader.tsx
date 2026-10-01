@@ -7,7 +7,7 @@ interface AttachmentUploaderProps {
   maxSizeMB?: number;
 }
 
-export default function AttachmentUploader({ attachments = [], onChange, maxSizeMB = 0.7 }: AttachmentUploaderProps) {
+export default function AttachmentUploader({ attachments = [], onChange, maxSizeMB = 10 }: AttachmentUploaderProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,21 +38,64 @@ export default function AttachmentUploader({ attachments = [], onChange, maxSize
     setIsUploading(true);
 
     try {
-      // Leggiamo il file come Base64 string per salvarlo off-line in IndexedDB
-      const reader = new FileReader();
-      
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
+      let dataUrl: string;
+      let finalSize = file.size;
+
+      if (type === 'image') {
+        // Compressione automatica immagine (Canvas)
+        dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              let width = img.width;
+              let height = img.height;
+              
+              // Max dimension 1200px
+              const MAX_DIM = 1200;
+              if (width > height && width > MAX_DIM) {
+                height *= MAX_DIM / width;
+                width = MAX_DIM;
+              } else if (height > MAX_DIM) {
+                width *= MAX_DIM / height;
+                height = MAX_DIM;
+              }
+              
+              canvas.width = width;
+              canvas.height = height;
+              const ctx = canvas.getContext('2d');
+              ctx?.drawImage(img, 0, 0, width, height);
+              
+              // Comprime a 0.7 JPEG
+              const compressed = canvas.toDataURL('image/jpeg', 0.7);
+              resolve(compressed);
+            };
+            img.onerror = reject;
+            img.src = e.target?.result as string;
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+        
+        // Stima approssimativa della dimensione finale in bytes dal base64
+        finalSize = Math.round((dataUrl.length * 3) / 4);
+      } else {
+        // Lettura PDF (Nessuna compressione)
+        dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
 
       const newAttachment: TransportAttachment = {
         id: 'att_' + Date.now(),
         name: file.name,
         type,
         dataUrl,
-        size: file.size,
+        size: finalSize,
         createdAt: new Date().toISOString()
       };
 
@@ -87,7 +130,7 @@ export default function AttachmentUploader({ attachments = [], onChange, maxSize
       >
         <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">📤</span>
         <p className="text-xs font-bold text-slate-700">Carica Documento (Offline)</p>
-        <p className="text-[10px] text-slate-400 mt-0.5">JPG, PNG o PDF (max {maxSizeMB * 1000} KB per Sync Cloud)</p>
+        <p className="text-[10px] text-slate-400 mt-0.5">JPG, PNG (comp. automatica) o PDF (max {maxSizeMB} MB)</p>
         
         {isUploading && (
           <div className="mt-2 text-[10px] text-indigo-600 font-bold animate-pulse">
