@@ -8,10 +8,7 @@ import "./storage/syncService";
 
 const basename = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-// Inizializza i dati di default esclusivamente al primissimo avvio assoluto
-storageService.initInitialSeedData().catch((err) => {
-  console.error("Errore inizializzazione seed:", err);
-});
+
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

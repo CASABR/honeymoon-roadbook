@@ -15,6 +15,8 @@ import SettingsMenu from './components/common/SettingsMenu';
 import DarkModeToggle from './components/common/DarkModeToggle';
 import UpdateToast from './components/common/UpdateToast';
 import { SyncService } from './storage/syncService';
+import OnboardingView from './views/OnboardingView';
+import { getTripConfig, saveTripConfig, type TripConfig } from './utils/tripConfig';
 
 import LiveView from './views/altro/LiveView';
 
@@ -34,11 +36,33 @@ export default function App() {
     );
   });
 
+  const [tripConfig, setTripConfig] = useState<TripConfig | null>(() => {
+    let config = getTripConfig();
+    if (!config && localStorage.getItem('honeymoon_roadbook_seeded_v1')) {
+      // Migrazione utente legacy
+      config = {
+        id: 'default', // ID usato in precedenza su Firebase
+        title: 'Honeymoon Roadbook',
+        startDate: '2026-11-28',
+        endDate: '2027-01-10'
+      };
+      saveTripConfig(config);
+    }
+    return config;
+  });
+
   useEffect(() => {
-    // Initialize Real-time Firebase Sync
-    const syncService = new SyncService();
-    return () => syncService.destroy();
+    const handleConfigChange = () => setTripConfig(getTripConfig());
+    window.addEventListener('trip_config_changed', handleConfigChange);
+    return () => window.removeEventListener('trip_config_changed', handleConfigChange);
   }, []);
+
+  useEffect(() => {
+    if (!tripConfig) return;
+    // Initialize Real-time Firebase Sync with the specific trip ID
+    const syncService = new SyncService(tripConfig.id);
+    return () => syncService.destroy();
+  }, [tripConfig?.id]);
 
   const [activeTab, setActiveTab] = useState<SectionTab>('oggi');
   const [activeCategoria, setActiveCategoria] = useState<CategoriaTab | null>(null);
@@ -71,6 +95,11 @@ export default function App() {
   const handleCloseCategorie = () => {
     setIsCategorieOpen(false);
   };
+
+  // Se non c'è un viaggio configurato, mostra l'Onboarding (Zero-State)
+  if (!tripConfig) {
+    return <OnboardingView />;
+  }
 
   if (isExternalLive) {
     return (
