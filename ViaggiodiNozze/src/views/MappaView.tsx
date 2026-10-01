@@ -3,7 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { storageService } from '../storage/storageService';
-import type { Tappa, Attivita, Alloggio, Ristorante, Coordinate } from '../types';
+import type { Coordinate } from '../types';
 
 // Fix default icons if we ever fallback
 delete (L.Icon.Default.prototype as any)._getIconUrl;
