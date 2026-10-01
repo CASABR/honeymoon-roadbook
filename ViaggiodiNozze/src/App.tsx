@@ -12,6 +12,7 @@ import ShoppingView from './views/altro/ShoppingView';
 import SpeseBudgetView from './views/altro/SpeseBudgetView';
 import AltroView from './views/AltroView';
 import SettingsMenu from './components/common/SettingsMenu';
+import DarkModeToggle from './components/common/DarkModeToggle';
 import UpdateToast from './components/common/UpdateToast';
 
 import LiveView from './views/altro/LiveView';
@@ -102,6 +103,7 @@ export default function App() {
               🟢 Aggiornato: {__BUILD_TIME__}
             </span>
           )}
+          <DarkModeToggle />
           <SettingsMenu />
         </div>
       </header>
