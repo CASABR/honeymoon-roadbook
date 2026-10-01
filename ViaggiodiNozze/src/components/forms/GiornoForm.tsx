@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { usePresence } from '../../hooks/usePresence';
 import type { Giorno } from '../../types';
 
 interface GiornoFormProps {
@@ -8,6 +9,8 @@ interface GiornoFormProps {
 }
 
 export default function GiornoForm({ initialData, onSave, onCancel }: GiornoFormProps) {
+  const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
+
   const [date, setDate] = useState('');
   const [title, setTitle] = useState('');
   const [location, setLocation] = useState('');
@@ -46,6 +49,14 @@ export default function GiornoForm({ initialData, onSave, onCancel }: GiornoForm
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+
+      {isLockedByOther && (
+        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl font-bold flex gap-2 items-center animate-fade-in">
+          <span className="text-base animate-pulse">⚠️</span>
+          <span>Attenzione: il dispositivo "{lockedBy}" sta già modificando questo elemento in tempo reale. Le tue modifiche potrebbero sovrascriversi.</span>
+        </div>
+      )}
+
       {error && (
         <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
           {error}
@@ -60,7 +71,7 @@ export default function GiornoForm({ initialData, onSave, onCancel }: GiornoForm
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors"
           required
         />
       </div>
@@ -74,7 +85,7 @@ export default function GiornoForm({ initialData, onSave, onCancel }: GiornoForm
           placeholder="es. Giorno 1 - Arrivo e primo giro"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
           required
         />
       </div>
@@ -88,7 +99,7 @@ export default function GiornoForm({ initialData, onSave, onCancel }: GiornoForm
           placeholder="es. Tokyo / Shinjuku"
           value={location}
           onChange={(e) => setLocation(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
           required
         />
       </div>
@@ -102,7 +113,7 @@ export default function GiornoForm({ initialData, onSave, onCancel }: GiornoForm
           placeholder="Consigli pratici, meteo, promemoria..."
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400 resize-none"
+          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400 resize-none"
         />
       </div>
 

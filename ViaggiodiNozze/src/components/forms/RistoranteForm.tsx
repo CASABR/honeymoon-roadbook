@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { usePresence } from '../../hooks/usePresence';
 import type { Ristorante } from '../../types';
 import { storageService } from '../../storage/storageService';
 
@@ -9,6 +10,8 @@ interface RistoranteFormProps {
 }
 
 export default function RistoranteForm({ initialData, onSave, onCancel }: RistoranteFormProps) {
+  const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
+
   const [nome, setNome] = useState('');
   const [data, setData] = useState('');
   const [orario, setOrario] = useState('');
@@ -116,6 +119,14 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+
+      {isLockedByOther && (
+        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl font-bold flex gap-2 items-center animate-fade-in">
+          <span className="text-base animate-pulse">⚠️</span>
+          <span>Attenzione: il dispositivo "{lockedBy}" sta già modificando questo elemento in tempo reale. Le tue modifiche potrebbero sovrascriversi.</span>
+        </div>
+      )}
+
       {error && (
         <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
           {error}
@@ -140,13 +151,13 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
             placeholder="es. Fergburger, Starita Milano"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
             required
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="min-w-0">
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Data *
             </label>
@@ -154,11 +165,11 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
               type="date"
               value={data}
               onChange={(e) => setData(e.target.value)}
-              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
+              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors"
               required
             />
           </div>
-          <div>
+          <div className="min-w-0">
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Orario (opzionale)
             </label>
@@ -166,7 +177,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
               type="time"
               value={orario}
               onChange={(e) => setOrario(e.target.value)}
-              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
+              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors"
             />
           </div>
         </div>
@@ -180,7 +191,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
             placeholder="es. Shotover St, Queenstown o link Maps"
             value={indirizzo}
             onChange={(e) => setIndirizzo(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
           />
         </div>
       </div>
@@ -200,8 +211,8 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
 
         {showAdvanced && (
           <div className="mt-3 space-y-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 animate-fade-in">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="min-w-0">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Budget stimato (€)
                 </label>
@@ -220,7 +231,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
                   className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-400"
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Link Prenotazione
                 </label>

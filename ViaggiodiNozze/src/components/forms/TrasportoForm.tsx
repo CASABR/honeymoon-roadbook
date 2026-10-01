@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { usePresence } from '../../hooks/usePresence';
 import type { Trasporto, TipoTrasporto, StatoTrasporto } from '../../types';
 import { storageService } from '../../storage/storageService';
 
@@ -9,6 +10,8 @@ interface TrasportoFormProps {
 }
 
 export default function TrasportoForm({ initialData, onSave, onCancel }: TrasportoFormProps) {
+  const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
+
   // Livello 1: Essenziali
   const [type, setType] = useState<TipoTrasporto>('volo');
   const [date, setDate] = useState('');
@@ -202,6 +205,14 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+
+      {isLockedByOther && (
+        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl font-bold flex gap-2 items-center animate-fade-in">
+          <span className="text-base animate-pulse">⚠️</span>
+          <span>Attenzione: il dispositivo "{lockedBy}" sta già modificando questo elemento in tempo reale. Le tue modifiche potrebbero sovrascriversi.</span>
+        </div>
+      )}
+
       {error && (
         <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
           {error}
@@ -224,7 +235,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
           <select
             value={type}
             onChange={(e) => setType(e.target.value as TipoTrasporto)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-sky-500 transition-colors"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-sky-500 transition-colors"
           >
             <option value="volo">✈️ Volo</option>
             <option value="treno">🚆 Treno</option>
@@ -237,7 +248,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
 
         {isRental ? (
           <>
-            <div>
+            <div className="min-w-0">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Società Noleggio *
               </label>
@@ -246,13 +257,13 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                 placeholder="es. Snap Rentals, Hertz, Maui"
                 value={carrier}
                 onChange={(e) => setCarrier(e.target.value)}
-                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
+                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
                 required
               />
             </div>
             
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="min-w-0">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Data Ritiro *
                 </label>
@@ -260,11 +271,11 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
+                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors"
                   required
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Ora Ritiro (opzionale)
                 </label>
@@ -272,12 +283,12 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                   type="time"
                   value={departureTime}
                   onChange={(e) => setDepartureTime(e.target.value)}
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
+                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors"
                 />
               </div>
             </div>
 
-            <div>
+            <div className="min-w-0">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Luogo Ritiro *
               </label>
@@ -286,15 +297,15 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                 placeholder="es. Auckland Airport Terminal"
                 value={departureLocation}
                 onChange={(e) => setDepartureLocation(e.target.value)}
-                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
+                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
                 required
               />
             </div>
           </>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="min-w-0">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Partenza Da *
                 </label>
@@ -303,11 +314,11 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                   placeholder="es. Milano (MXP)"
                   value={departureLocation}
                   onChange={(e) => setDepartureLocation(e.target.value)}
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-sky-500 transition-colors placeholder:text-slate-400"
+                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-sky-500 transition-colors placeholder:text-slate-400"
                   required
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Arrivo A *
                 </label>
@@ -316,14 +327,14 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                   placeholder="es. Auckland (AKL)"
                   value={arrivalLocation}
                   onChange={(e) => setArrivalLocation(e.target.value)}
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-sky-500 transition-colors placeholder:text-slate-400"
+                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-sky-500 transition-colors placeholder:text-slate-400"
                   required
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="min-w-0">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Data *
                 </label>
@@ -331,11 +342,11 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-sky-500 transition-colors"
+                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-sky-500 transition-colors"
                   required
                 />
               </div>
-              <div>
+              <div className="min-w-0">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Ora Partenza
                 </label>
@@ -343,7 +354,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                   type="time"
                   value={departureTime}
                   onChange={(e) => setDepartureTime(e.target.value)}
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-sky-500 transition-colors"
+                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-sky-500 transition-colors"
                 />
               </div>
             </div>
@@ -369,7 +380,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
         {showAdvanced && (
           <div className="mt-3 space-y-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 animate-fade-in">
             {/* Stato Prenotazione (comune) */}
-            <div>
+            <div className="min-w-0">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Stato Prenotazione
               </label>
@@ -389,7 +400,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
 
             {isRental ? (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                       Data Riconsegna
@@ -428,7 +439,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                     className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-400"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                       Costo Totale (€)
@@ -483,7 +494,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
               </>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                       Vettore / Compagnia
@@ -509,7 +520,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                   </div>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                       Costo (€)
@@ -558,7 +569,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                   
                   {hasLayover && (
                     <div className="space-y-4 p-3 bg-sky-50/50 rounded-xl border border-sky-100">
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
                             Città Scalo *
@@ -585,7 +596,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                         <div>
                           <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
                             Durata Sosta
@@ -640,7 +651,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel }: Traspor
               </>
             )}
 
-            <div>
+            <div className="min-w-0">
               <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                 Note operative
               </label>
