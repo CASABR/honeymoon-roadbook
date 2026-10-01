@@ -73,13 +73,13 @@ export const DEFAULT_DOCUMENTS: TravelDocument[] = [
   }
 ];
 
-export function notifyDataChanged(entityType: string, action: 'save' | 'delete', data?: any): void {
+export function notifyDataChanged(entityType: string, action: 'save' | 'delete', data?: any, source: 'local' | 'cloud' = 'local'): void {
   if (typeof window === 'undefined') return;
   try {
     // 1. Evento specifico retrocompatibile
-    window.dispatchEvent(new CustomEvent(`${entityType}_updated`, { detail: { action, data } }));
+    window.dispatchEvent(new CustomEvent(`${entityType}_updated`, { detail: { action, data, source } }));
     // 2. Evento globale unificato per tutte le viste
-    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { entityType, action, data } }));
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { entityType, action, data, source } }));
   } catch (err) {
     console.error('[StorageService] Errore dispatching notifyDataChanged:', err);
   }
