@@ -304,11 +304,16 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
                     <span className="w-9 h-9 rounded-2xl bg-slate-100 flex items-center justify-center text-lg shrink-0 border border-slate-200/60">
                       {catInfo.icon}
                     </span>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <span className={`px-2 py-0.2 rounded-full text-[9px] font-bold border ${catInfo.badgeClass}`}>
                           {catInfo.label.split(' ')[1] || doc.category}
                         </span>
+                        {doc.attachments && doc.attachments.length > 0 && (
+                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-[9px] font-bold" title={`${doc.attachments.length} allegati`}>
+                            📎 {doc.attachments.length}
+                          </span>
+                        )}
                       </div>
                       <h3 className="font-extrabold text-slate-900 text-sm leading-snug truncate mt-0.5">
                         {doc.title}
