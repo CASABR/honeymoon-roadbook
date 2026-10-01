@@ -3,14 +3,13 @@ import { db } from '../services/firebaseConfig';
 import { STORES, idbPut, idbDelete } from './indexedDB';
 import { notifyDataChanged } from './storageService';
 
-// Unica "stanza" per il viaggio
-const TRIP_ID = 'default';
-
 export class SyncService {
   private unsubscribes: (() => void)[] = [];
   private isPushing = false;
+  private tripId: string;
 
-  constructor() {
+  constructor(tripId: string) {
+    this.tripId = tripId;
     this.setupLocalListeners();
     this.setupCloudListeners();
   }
@@ -43,7 +42,7 @@ export class SyncService {
     const collectionName = this.mapEntityToCollection(entityType);
     if (!collectionName) return;
 
-    const docRef = doc(db, 'trips', TRIP_ID, collectionName, data.id);
+    const docRef = doc(db, 'trips', this.tripId, collectionName, data.id);
 
     if (action === 'delete') {
       await deleteDoc(docRef);
@@ -71,7 +70,7 @@ export class SyncService {
     ];
 
     collectionsToSync.forEach(({ fb, store }) => {
-      const colRef = collection(db, 'trips', TRIP_ID, fb);
+      const colRef = collection(db, 'trips', this.tripId, fb);
       
       const unsub = onSnapshot(colRef, async (snapshot) => {
         // Ignoriamo i cambiamenti causati dai nostri stessi salvataggi locali (pending writes)

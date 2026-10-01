@@ -1,3 +1,5 @@
+import { getTripConfig } from './tripConfig';
+
 export interface TripDayItem {
   dateStr: string; // YYYY-MM-DD
   dayNum: number;
@@ -7,23 +9,34 @@ export interface TripDayItem {
   labelFormatted: string; // es. "29 Nov"
 }
 
-export function generateTripDays(startDateStr?: string): TripDayItem[] {
+export function generateTripDays(startDateStr?: string, endDateStr?: string): TripDayItem[] {
   const days: TripDayItem[] = [];
+  const config = getTripConfig();
+  const defaultStart = config ? config.startDate : '2026-11-28';
+  const defaultEnd = config ? config.endDate : '2027-01-10';
   
-  // Se specificata una data d'inizio valida (es. "2026-11-28"), usala; altrimenti fallback al 29 Novembre 2026
+  // Se specificata una data d'inizio valida, usala; altrimenti usa defaultStart
   let start: Date;
-  if (startDateStr && /^\d{4}-\d{2}-\d{2}$/.test(startDateStr)) {
-    const [y, m, d] = startDateStr.split('-').map(Number);
+  const startToUse = startDateStr || defaultStart;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(startToUse)) {
+    const [y, m, d] = startToUse.split('-').map(Number);
     start = new Date(y, m - 1, d);
   } else {
-    start = new Date(2026, 10, 28); // 28 Novembre 2026 default
+    start = new Date(); // Fallback ultimo
   }
 
-  const end = new Date(2027, 0, 10); // 10 Gennaio 2027
+  const endToUse = endDateStr || defaultEnd;
+  let end: Date;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(endToUse)) {
+    const [y, m, d] = endToUse.split('-').map(Number);
+    end = new Date(y, m - 1, d);
+  } else {
+    end = new Date();
+  }
 
   // Nel caso limite in cui la data sia successiva alla fine, limita alla fine
   if (start > end) {
-    start = new Date(2026, 10, 28);
+    start = new Date(end);
   }
 
   const dayNames = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
