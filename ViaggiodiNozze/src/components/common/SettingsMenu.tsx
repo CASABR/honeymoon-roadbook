@@ -159,6 +159,25 @@ export default function SettingsMenu() {
                 {importing ? 'Importazione...' : 'Importa backup JSON'}
               </button>
 
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-b border-slate-100">
+                Sincronizzazione Cloud
+              </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('force_cloud_sync_requested'));
+                  showToast('ok', 'Sincronizzazione forzata avviata nel cloud!');
+                  setOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100"
+              >
+                <svg className="w-4 h-4 text-sky-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Forza Sincronizzazione al Cloud
+              </button>
+
               <input
                 ref={fileRef}
                 type="file"

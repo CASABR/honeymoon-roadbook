@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { usePresence } from '../../hooks/usePresence';
 import type { Tappa } from '../../types';
 
 interface TappaFormProps {
@@ -8,6 +9,8 @@ interface TappaFormProps {
 }
 
 export default function TappaForm({ initialData, onSave, onCancel }: TappaFormProps) {
+  const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
+
   const [titolo, setTitolo] = useState('');
   const [data, setData] = useState('');
   const [mapsUrl, setMapsUrl] = useState('');
@@ -52,6 +55,14 @@ export default function TappaForm({ initialData, onSave, onCancel }: TappaFormPr
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+
+      {isLockedByOther && (
+        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl font-bold flex gap-2 items-center animate-fade-in">
+          <span className="text-base animate-pulse">⚠️</span>
+          <span>Attenzione: il dispositivo "{lockedBy}" sta già modificando questo elemento in tempo reale. Le tue modifiche potrebbero sovrascriversi.</span>
+        </div>
+      )}
+
       {error && (
         <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
           {error}
@@ -67,7 +78,7 @@ export default function TappaForm({ initialData, onSave, onCancel }: TappaFormPr
           placeholder="es. Sosta Lago Taupo"
           value={titolo}
           onChange={(e) => setTitolo(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
           required
         />
       </div>
@@ -80,7 +91,7 @@ export default function TappaForm({ initialData, onSave, onCancel }: TappaFormPr
           type="date"
           value={data}
           onChange={(e) => setData(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors"
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors"
         />
       </div>
 
@@ -93,7 +104,7 @@ export default function TappaForm({ initialData, onSave, onCancel }: TappaFormPr
           placeholder="es. Indirizzo o link https://maps.app.goo.gl/..."
           value={mapsUrl}
           onChange={(e) => setMapsUrl(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-amber-500 transition-colors placeholder:text-slate-400"
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
         />
       </div>
 
@@ -106,7 +117,7 @@ export default function TappaForm({ initialData, onSave, onCancel }: TappaFormPr
           placeholder="es. Punto panoramico per foto al tramonto, rifornimento carburante..."
           value={nota}
           onChange={(e) => setNota(e.target.value)}
-          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-amber-500 placeholder:text-slate-400 resize-none"
+          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-slate-100 focus:border-amber-500 placeholder:text-slate-400 resize-none"
         />
       </div>
 

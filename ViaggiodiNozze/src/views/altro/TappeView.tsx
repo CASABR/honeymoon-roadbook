@@ -5,7 +5,7 @@ import TappaForm from '../../components/forms/TappaForm';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
-import { openMapLink, resolveMapUrl } from '../../utils/mapsHelper';
+
 import DayPickerStrip from '../../components/common/DayPickerStrip';
 import RouteBadge from '../../components/common/RouteBadge';
 import { useDeviceRole } from '../../utils/useDeviceRole';
@@ -234,95 +234,87 @@ export default function TappeView({ onBack }: TappeViewProps) {
               <div className="space-y-2.5">
                 {tappeGroup.map((tappa, idx) => {
                   const nextTappa = tappeGroup[idx + 1];
-                  const hasCoordinates = tappa.coordinate && tappa.coordinate.lat !== undefined && tappa.coordinate.lng !== undefined;
-                  const mapUrl = tappa.mapsUrl?.startsWith('http')
-                    ? tappa.mapsUrl
-                    : hasCoordinates 
-                    ? `https://www.google.com/maps/search/?api=1&query=${tappa.coordinate!.lat},${tappa.coordinate!.lng}`
-                    : resolveMapUrl(tappa.mapsUrl || tappa.titolo);
+
+
 
                   return (
                     <React.Fragment key={tappa.id}>
                       <div
-                        className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm hover:shadow-md transition-all flex flex-col gap-2.5"
+                        onClick={() => handleOpenEdit(tappa)}
+                        className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-slate-300 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 cursor-pointer active:scale-[0.99]"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex items-start gap-2.5">
-                            <span className="text-xl shrink-0 mt-0.5">📍</span>
-                            <div>
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <h3 className="font-bold text-slate-900 text-sm leading-tight">
-                                  {tappa.titolo}
-                                </h3>
-                                {tappa.copilota && (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                                    🧭 Co-pilota
-                                  </span>
-                                )}
-                              </div>
-
-                              {tappa.data && (
-                                <p className="text-[11px] text-slate-500 font-medium mt-1 flex items-center gap-1">
-                                  <svg className="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                  </svg>
-                                  {tappa.data}
-                                </p>
-                              )}
-                            </div>
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 shadow-2xs bg-rose-50 text-rose-700 border border-rose-100">
+                              📍
+                            </span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              Tappa
+                            </span>
                           </div>
 
-                          {/* Pulsanti Azione Modifica / Elimina */}
-                          {canEdit && (
-                            <div className="flex items-center gap-1 shrink-0">
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {canEdit && (
                               <button
                                 type="button"
-                                onClick={() => handleOpenEdit(tappa)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="Modifica Tappa"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteTarget(tappa);
+                                }}
+                                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+                                title="Elimina"
                               >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                </svg>
+                                🗑️
                               </button>
-                              <button
-                                type="button"
-                                onClick={() => setDeleteTarget(tappa)}
-                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                                title="Elimina Tappa"
-                              >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              </button>
-                            </div>
+                            )}
+                            <button
+                              type="button"
+                              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all cursor-pointer shrink-0 active:scale-90 ${
+                                Boolean(tappa.copilota)
+                                  ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-400 shadow-2xs'
+                                  : 'bg-slate-100 text-slate-400'
+                              }`}
+                            >
+                              🧭
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEdit(tappa);
+                              }}
+                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+                              title="Dettagli e Modifica"
+                            >
+                              ℹ️
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">
+                            {tappa.titolo}
+                          </h3>
+                          {tappa.mapsUrl && (
+                            <a
+                              href={tappa.mapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="inline-flex items-center gap-1.5 mt-2 text-xs font-bold text-sky-600 bg-sky-50 px-2.5 py-1 rounded-lg hover:bg-sky-100 transition-colors"
+                            >
+                              🗺️ Apri in Maps
+                            </a>
+                          )}
+                          {tappa.nota && (
+                            <p className="text-xs text-slate-500 mt-1.5 line-clamp-2">
+                              {tappa.nota}
+                            </p>
                           )}
                         </div>
-
-                        {tappa.nota && (
-                          <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 whitespace-pre-wrap">
-                            {tappa.nota}
-                          </p>
-                        )}
-
-                        <div className="flex items-center justify-between pt-1 border-t border-slate-100 mt-1">
-                          <span className="text-[10px] text-slate-400">
-                            {hasCoordinates ? `Lat: ${tappa.coordinate?.lat}, Lng: ${tappa.coordinate?.lng}` : 'Nessuna coordinata salvata'}
-                          </span>
-
-                          <button
-                            type="button"
-                            onClick={() => openMapLink(mapUrl)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 text-xs font-semibold rounded-xl border border-sky-200/60 transition-colors cursor-pointer"
-                          >
-                            <svg className="w-3.5 h-3.5 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            <span>Apri in Maps</span>
-                          </button>
-                        </div>
                       </div>
+
+
 
                       {/* RouteBadge tra questa tappa e la successiva */}
                       {nextTappa && (

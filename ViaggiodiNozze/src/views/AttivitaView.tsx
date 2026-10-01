@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Attivita, CategoriaAttivita } from '../types';
 import { storageService } from '../storage/storageService';
-import AttivitaCard from '../components/cards/AttivitaCard';
 import AttivitaForm from '../components/forms/AttivitaForm';
 import Modal from '../components/common/Modal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
@@ -302,17 +301,75 @@ export default function AttivitaView() {
                   const nextActivity = group.items[index + 1];
                   return (
                     <div key={activity.id} className="flex flex-col gap-2">
-                      <AttivitaCard
-                        activity={activity}
-                        onEdit={() => handleOpenEditActivity(activity)}
-                        onDelete={() =>
-                          setDeleteTarget({
-                            id: activity.id,
-                            title: activity.title
-                          })
-                        }
-                        onUpdate={loadData}
-                      />
+                      <div
+                        onClick={() => handleOpenEditActivity(activity)}
+                        className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-slate-300 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 cursor-pointer active:scale-[0.99]"
+                      >
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 shadow-2xs bg-amber-50 text-amber-700 border border-amber-100">
+                              🌿
+                            </span>
+                            <span className="text-xs font-mono font-bold text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg shrink-0">
+                              {activity.time || '--:--'}
+                            </span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                              Attività
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteTarget({
+                                    id: activity.id,
+                                    title: activity.title
+                                  });
+                                }}
+                                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+                                title="Elimina"
+                              >
+                                🗑️
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all cursor-pointer shrink-0 active:scale-90 ${
+                                Boolean(activity.copilotNotes?.trim())
+                                  ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-400 shadow-2xs'
+                                  : 'bg-slate-100 text-slate-400'
+                              }`}
+                            >
+                              🧭
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditActivity(activity);
+                              }}
+                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+                              title="Dettagli e Modifica"
+                            >
+                              ℹ️
+                            </button>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">
+                            {activity.title}
+                          </h3>
+                          {activity.location && (
+                            <p className="text-xs text-slate-500 font-medium mt-1 truncate">
+                              📍 {activity.location}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                       {nextActivity && activity.location && nextActivity.location && (
                         <div className="pl-6 py-0.5">
                           <RouteBadge 

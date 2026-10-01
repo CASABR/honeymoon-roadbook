@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { storageService } from '../storage/storageService';
@@ -42,6 +42,24 @@ interface MapMarkerData {
   coord: Coordinate;
   date?: string;
   details?: string;
+}
+
+// Componente per forzare il ricalcolo delle dimensioni della mappa
+function MapUpdater({ markers }: { markers: MapMarkerData[] }) {
+  const map = useMap();
+  useEffect(() => {
+    // Quando i marker cambiano o il componente viene montato, diamo un po' di tempo
+    // al contenitore per assumere le dimensioni finali, poi forziamo l'aggiornamento
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+      if (markers.length > 0) {
+        const bounds = L.latLngBounds(markers.map(m => [m.coord.lat, m.coord.lng]));
+        map.fitBounds(bounds, { padding: [20, 20], maxZoom: 14 });
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [map, markers]);
+  return null;
 }
 
 export default function MappaView() {
@@ -145,7 +163,7 @@ export default function MappaView() {
       </header>
 
       {/* Container della mappa */}
-      <div className="flex-1 w-full rounded-3xl overflow-hidden shadow-sm border border-slate-200 relative min-h-[400px]">
+      <div className="w-full rounded-3xl overflow-hidden shadow-sm border border-slate-200 relative" style={{ height: '60vh', minHeight: '400px' }}>
         {loading ? (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-50 z-10">
             <span className="text-xs font-bold text-slate-400">Caricamento mappa...</span>
@@ -160,6 +178,7 @@ export default function MappaView() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
+            <MapUpdater markers={markers} />
             {markers.map((m) => (
               <Marker 
                 key={m.id} 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { usePresence } from '../../hooks/usePresence';
 import type { Shopping } from '../../types';
 
 interface ShoppingFormProps {
@@ -8,6 +9,8 @@ interface ShoppingFormProps {
 }
 
 export default function ShoppingForm({ initialData, onSave, onCancel }: ShoppingFormProps) {
+  const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
+
   const [nome, setNome] = useState('');
   const [data, setData] = useState('');
   const [orario, setOrario] = useState('');
@@ -64,6 +67,14 @@ export default function ShoppingForm({ initialData, onSave, onCancel }: Shopping
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+
+      {isLockedByOther && (
+        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl font-bold flex gap-2 items-center animate-fade-in">
+          <span className="text-base animate-pulse">⚠️</span>
+          <span>Attenzione: il dispositivo "{lockedBy}" sta già modificando questo elemento in tempo reale. Le tue modifiche potrebbero sovrascriversi.</span>
+        </div>
+      )}
+
       {error && (
         <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
           {error}
@@ -80,13 +91,13 @@ export default function ShoppingForm({ initialData, onSave, onCancel }: Shopping
           placeholder="es. Queenstown Mall, Auckland Night Market, Queen Victoria Market"
           value={nome}
           onChange={(e) => setNome(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-rose-500 transition-colors placeholder:text-slate-400"
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors placeholder:text-slate-400"
           required
         />
       </div>
 
       {/* Data e Orario */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Data (opzionale)
@@ -95,7 +106,7 @@ export default function ShoppingForm({ initialData, onSave, onCancel }: Shopping
             type="date"
             value={data}
             onChange={(e) => setData(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-rose-500 transition-colors"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors"
           />
         </div>
         <div>
@@ -106,7 +117,7 @@ export default function ShoppingForm({ initialData, onSave, onCancel }: Shopping
             type="time"
             value={orario}
             onChange={(e) => setOrario(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-rose-500 transition-colors"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors"
           />
         </div>
       </div>
@@ -121,12 +132,12 @@ export default function ShoppingForm({ initialData, onSave, onCancel }: Shopping
           placeholder="es. The Rocks, Sydney o link Google Maps"
           value={indirizzo}
           onChange={(e) => setIndirizzo(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-rose-500 transition-colors placeholder:text-slate-400"
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors placeholder:text-slate-400"
         />
       </div>
 
       {/* Budget stimato e Sito / Link */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Budget indicativo (€)
@@ -136,7 +147,7 @@ export default function ShoppingForm({ initialData, onSave, onCancel }: Shopping
             placeholder="es. 100 € souvenir"
             value={budget}
             onChange={(e) => setBudget(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-rose-500 transition-colors placeholder:text-slate-400"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors placeholder:text-slate-400"
           />
         </div>
         <div>
@@ -148,7 +159,7 @@ export default function ShoppingForm({ initialData, onSave, onCancel }: Shopping
             placeholder="https://..."
             value={link}
             onChange={(e) => setLink(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-rose-500 transition-colors placeholder:text-slate-400"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors placeholder:text-slate-400"
           />
         </div>
       </div>
@@ -163,7 +174,7 @@ export default function ShoppingForm({ initialData, onSave, onCancel }: Shopping
           placeholder="es. Miele di Manuka, maglione in lana merino, artigianato locale Maori, souvenir per famiglia..."
           value={nota}
           onChange={(e) => setNota(e.target.value)}
-          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-rose-500 placeholder:text-slate-400 resize-none"
+          className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-slate-100 focus:border-rose-500 placeholder:text-slate-400 resize-none"
         />
       </div>
 

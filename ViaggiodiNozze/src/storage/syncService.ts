@@ -1,6 +1,6 @@
 import { collection, doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../services/firebaseConfig';
-import { STORES, idbPut, idbDelete } from './indexedDB';
+import { STORES, idbPut, idbDelete, idbGetAll } from './indexedDB';
 import { notifyDataChanged } from './storageService';
 
 export class SyncService {
@@ -29,6 +29,41 @@ export class SyncService {
         await this.pushToCloud(entityType, action, data);
       } catch (err) {
         console.error('[SyncService] Errore Push to Cloud:', err);
+      } finally {
+        this.isPushing = false;
+      }
+    });
+
+    window.addEventListener('force_cloud_sync_requested', async () => {
+      console.log('[SyncService] Avvio sincronizzazione forzata verso il cloud...');
+      this.isPushing = true;
+      try {
+        const collectionsToSync = [
+          { fb: 'giorni', store: STORES.GIORNI },
+          { fb: 'attivita', store: STORES.ATTIVITA },
+          { fb: 'alloggi', store: STORES.ALLOGGI },
+          { fb: 'trasporti', store: STORES.TRASPORTI },
+          { fb: 'documenti', store: STORES.DOCUMENTI },
+          { fb: 'tappe', store: STORES.TAPPE },
+          { fb: 'ristoranti', store: STORES.RISTORANTI },
+          { fb: 'shopping', store: STORES.SHOPPING },
+          { fb: 'spese', store: STORES.SPESE },
+          { fb: 'note', store: STORES.NOTE },
+          { fb: 'bagagli', store: STORES.BAGAGLI }
+        ];
+
+        for (const { fb, store } of collectionsToSync) {
+          const items = await idbGetAll<any>(store);
+          const entityType = this.mapCollectionToEntity(fb);
+          if (!entityType) continue;
+          
+          for (const item of items) {
+            await this.pushToCloud(entityType, 'save', item);
+          }
+        }
+        console.log('[SyncService] Sincronizzazione forzata completata!');
+      } catch (err) {
+        console.error('[SyncService] Errore Sync Forzato:', err);
       } finally {
         this.isPushing = false;
       }
