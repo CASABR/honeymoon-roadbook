@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import "./index.css";
-import { storageService } from "./storage/storageService";
+
 import "./storage/syncService";
 
 const basename = import.meta.env.BASE_URL.replace(/\/$/, "");
