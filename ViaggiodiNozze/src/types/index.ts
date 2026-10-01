@@ -192,7 +192,7 @@ export interface Shopping {
   updatedAt: number;
 }
 
-export type SectionTab = 'oggi' | 'categorie' | 'altro';
+export type SectionTab = 'oggi' | 'categorie' | 'mappa' | 'altro';
 export type CategoriaTab = 'tappe' | 'attivita' | 'ristoranti' | 'alloggi' | 'trasporti' | 'shopping' | 'spese';
 
 export type TransportDisplayMode = 'full' | 'compact' | 'state';

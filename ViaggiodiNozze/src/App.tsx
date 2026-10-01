@@ -11,6 +11,7 @@ import TrasportiView from './views/TrasportiView';
 import ShoppingView from './views/altro/ShoppingView';
 import SpeseBudgetView from './views/altro/SpeseBudgetView';
 import AltroView from './views/AltroView';
+import MappaView from './views/MappaView';
 import SettingsMenu from './components/common/SettingsMenu';
 import DarkModeToggle from './components/common/DarkModeToggle';
 import UpdateToast from './components/common/UpdateToast';
@@ -148,6 +149,8 @@ export default function App() {
       <main className="w-full max-w-md mx-auto flex-1 flex flex-col px-4 pt-1 pb-28">
         {activeTab === 'oggi' && <OggiView onNavigateTab={handleTabChange} />}
         
+        {activeTab === 'mappa' && <MappaView />}
+
         {activeTab === 'categorie' && (
           <>
             {activeCategoria === 'tappe' && <TappeView />}
