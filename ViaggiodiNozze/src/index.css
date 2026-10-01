@@ -9,10 +9,43 @@ html, body, #root {
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', system-ui, Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: var(--color-slate-50, #f8fafc);
+  color: var(--color-slate-900, #0f172a);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  --orig-slate-50: #f8fafc;
+  --orig-slate-100: #f1f5f9;
+  --orig-slate-200: #e2e8f0;
+  --orig-slate-300: #cbd5e1;
+  --orig-slate-400: #94a3b8;
+  --orig-slate-500: #64748b;
+  --orig-slate-600: #475569;
+  --orig-slate-700: #334155;
+  --orig-slate-800: #1e293b;
+  --orig-slate-900: #0f172a;
+  --orig-slate-950: #020617;
+}
+
+html.dark {
+  --color-slate-50: var(--orig-slate-900);
+  --color-slate-100: var(--orig-slate-800);
+  --color-slate-200: var(--orig-slate-700);
+  --color-slate-300: var(--orig-slate-600);
+  --color-slate-400: var(--orig-slate-500);
+  --color-slate-500: var(--orig-slate-400);
+  --color-slate-600: var(--orig-slate-300);
+  --color-slate-700: var(--orig-slate-200);
+  --color-slate-800: var(--orig-slate-100);
+  --color-slate-900: var(--orig-slate-50);
+  --color-slate-950: #ffffff;
+  
+  --color-white: var(--orig-slate-950);
+  --color-black: var(--orig-slate-50);
+  
+  color-scheme: dark;
 }
 
 /* Scrollbar invisibile e scorrevole */
