@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { SectionTab, CategoriaTab } from './types';
 import NavBar from './components/NavBar';
 import CategorieBar from './components/CategorieBar';
@@ -14,6 +14,7 @@ import AltroView from './views/AltroView';
 import SettingsMenu from './components/common/SettingsMenu';
 import DarkModeToggle from './components/common/DarkModeToggle';
 import UpdateToast from './components/common/UpdateToast';
+import { SyncService } from './storage/syncService';
 
 import LiveView from './views/altro/LiveView';
 
@@ -32,6 +33,12 @@ export default function App() {
       window.location.hash.toLowerCase().includes('live')
     );
   });
+
+  useEffect(() => {
+    // Initialize Real-time Firebase Sync
+    const syncService = new SyncService();
+    return () => syncService.destroy();
+  }, []);
 
   const [activeTab, setActiveTab] = useState<SectionTab>('oggi');
   const [activeCategoria, setActiveCategoria] = useState<CategoriaTab | null>(null);
