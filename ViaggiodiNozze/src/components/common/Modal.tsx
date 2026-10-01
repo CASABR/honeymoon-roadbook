@@ -56,7 +56,7 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
 
       {/* Modal / Sheet Container */}
       <div 
-        className={"modal-sheet-container border-t sm:border rounded-t-3xl sm:rounded-3xl " + accentBorder + " text-slate-900"}
+        className={"modal-sheet-container border-t sm:border rounded-t-3xl sm:rounded-3xl " + accentBorder + " text-slate-900 bg-white"}
         style={{
           position: 'relative',
           zIndex: 100000,
@@ -66,7 +66,6 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          backgroundColor: '#ffffff',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
         }}
         onClick={(e) => e.stopPropagation()}
