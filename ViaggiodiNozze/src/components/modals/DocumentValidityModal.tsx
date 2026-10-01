@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { TravelDocument } from '../../types';
 import Modal from '../common/Modal';
+import AttachmentUploader from '../common/AttachmentUploader';
 
 interface DocumentValidityModalProps {
   isOpen: boolean;
@@ -79,12 +80,14 @@ export default function DocumentValidityModal({
   const [status, setStatus] = useState('Valido');
   const [validity, setValidity] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
+  const [attachments, setAttachments] = useState<TravelDocument['attachments']>([]);
 
   useEffect(() => {
     if (document) {
       setStatus(document.status || 'Valido');
       setValidity(document.validity || '');
       setExpiresAt(document.expiresAt || '');
+      setAttachments(document.attachments || []);
     }
   }, [document]);
 
@@ -103,6 +106,7 @@ export default function DocumentValidityModal({
       status: status.trim() || 'Valido',
       validity: validity.trim() || undefined,
       expiresAt: expiresAt.trim() || undefined,
+      attachments,
       updatedAt: new Date().toISOString()
     };
     onSave(updated);
@@ -210,6 +214,19 @@ export default function DocumentValidityModal({
             value={expiresAt}
             onChange={(e) => setExpiresAt(e.target.value)}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-indigo-500 transition-colors"
+          />
+        </div>
+
+        {/* 5. UPLOAD DOCUMENTI (OFFLINE VAULT) */}
+        <div className="pt-2">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+            <span>File Allegati (Offline)</span>
+            <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-md">Novità</span>
+          </label>
+          <AttachmentUploader 
+            attachments={attachments} 
+            onChange={setAttachments} 
+            maxSizeMB={5}
           />
         </div>
 
