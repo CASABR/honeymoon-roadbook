@@ -8,6 +8,7 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="color-scheme" content="light" />
     <title>Honeymoon Roadbook</title>
 
     <!-- CSP Meta Tag -->
@@ -36,19 +37,12 @@
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
     <link rel="manifest" href="manifest.json" />
     <script>
-      // Prevent Flash Of Unstyled Content for Dark Mode
-      (function() {
-        try {
-          var saved = localStorage.getItem('theme');
-          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          if (saved === 'dark' || (!saved && prefersDark)) {
-            document.documentElement.classList.add('dark');
-          }
-        } catch (e) {}
-      })();
+      // Forziamo il tema chiaro per preservare l'estetica delle card
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
     </script>
-    <script type="module" crossorigin src="/honeymoon-roadbook/assets/index-DvcRoBho.js"></script>
-    <link rel="stylesheet" crossorigin href="/honeymoon-roadbook/assets/index-DJ3Gic2b.css">
+    <script type="module" crossorigin src="/honeymoon-roadbook/assets/index-N6FbwGtS.js"></script>
+    <link rel="stylesheet" crossorigin href="/honeymoon-roadbook/assets/index-CXypdC9H.css">
   </head>
   <body>
     <div id="root"></div>
