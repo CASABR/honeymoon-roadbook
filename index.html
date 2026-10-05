@@ -1,66 +1,86 @@
 <!doctype html>
 <html lang="it">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="description" content="Honeymoon Roadbook – il tuo piano di viaggio personale" />
-    <meta name="theme-color" content="#1d4ed8" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <meta name="color-scheme" content="light" />
-    <title>Honeymoon Roadbook</title>
 
-    <!-- CSP Meta Tag -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com https://*.firebase.com https://api.open-meteo.com https://generativelanguage.googleapis.com;" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="Honeymoon Roadbook – il tuo piano di viaggio personale" />
+  <meta name="theme-color" content="#1d4ed8" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="color-scheme" content="light" />
+  <link rel="icon" type="image/svg+xml" href="/honeymoon-roadbook/favicon.svg" />
+  <title>Hounigo — Viaggio di Nozze & Planne</title>
 
-    <!-- SPA Redirect Script for GitHub Pages -->
-    <script type="text/javascript">
-      // Single Page Apps for GitHub Pages
-      // MIT License
-      // https://github.com/rafgraph/spa-github-pages
-      (function(l) {
-        if (l.search[1] === '/' ) {
-          var decoded = l.search.slice(1).split('&').map(function(s) { 
-            return s.replace(/~and~/g, '&')
-          }).join('?');
-          window.history.replaceState(null, null,
-              l.pathname.slice(0, -1) + decoded + l.hash
-          );
+  <!-- CSP Meta Tag -->
+  <meta http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://*.firebaseapp.com https://*.firebase.com https://api.open-meteo.com https://generativelanguage.googleapis.com;" />
+
+  <!-- SPA Redirect Script for GitHub Pages -->
+  <script type="text/javascript">
+    // Single Page Apps for GitHub Pages
+    // MIT License
+    // https://github.com/rafgraph/spa-github-pages
+    (function (l) {
+      if (l.search[1] === '/') {
+        var decoded = l.search.slice(1).split('&').map(function (s) {
+          return s.replace(/~and~/g, '&')
+        }).join('?');
+        window.history.replaceState(null, null,
+          l.pathname.slice(0, -1) + decoded + l.hash
+        );
+      }
+    }(window.location));
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="manifest" href="manifest.json" />
+  <script>
+    // Prevent Flash Of Unstyled Content for Dark Mode
+    (function () {
+      try {
+        var saved = localStorage.getItem('theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || (!saved && prefersDark)) {
+          document.documentElement.classList.add('dark');
         }
-      }(window.location));
-    </script>
+      } catch (e) { }
+    })();
+  </script>
+  <script type="module" crossorigin src="/honeymoon-roadbook/assets/index-Bk9z45FI.js"></script>
+  <link rel="stylesheet" crossorigin href="/honeymoon-roadbook/assets/index-BDe0WynM.css">
+</head>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
-    <link rel="manifest" href="manifest.json" />
-    <script>
-      // Prevent Flash Of Unstyled Content for Dark Mode
-      (function() {
-        try {
-          var saved = localStorage.getItem('theme');
-          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-          if (saved === 'dark' || (!saved && prefersDark)) {
-            document.documentElement.classList.add('dark');
+<body>
+  <div id="root">
+    <div
+      style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: system-ui, -apple-system, sans-serif; color: #1e293b; background: #f8fafc;">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round"
+        style="margin-bottom: 16px; color: #1d4ed8; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+      </svg>
+      <h1 style="font-size: 18px; font-weight: 600; margin: 0;">Caricamento Hitchy...</h1>
+      <p style="font-size: 14px; color: #64748b; margin-top: 8px;">Preparazione del tuo viaggio</p>
+      <style>
+        @keyframes pulse {
+
+          0%,
+          100% {
+            opacity: 1;
           }
-        } catch (e) {}
-      })();
-    </script>
-    <script type="module" crossorigin src="/honeymoon-roadbook/assets/index-Bds0l1Pf.js"></script>
-    <link rel="stylesheet" crossorigin href="/honeymoon-roadbook/assets/index-BDe0WynM.css">
-  </head>
-  <body>
-    <div id="root">
-      <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: system-ui, -apple-system, sans-serif; color: #1e293b; background: #f8fafc;">
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 16px; color: #1d4ed8; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;">
-          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
-        </svg>
-        <h1 style="font-size: 18px; font-weight: 600; margin: 0;">Caricamento Hitchy...</h1>
-        <p style="font-size: 14px; color: #64748b; margin-top: 8px;">Preparazione del tuo viaggio</p>
-        <style>@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }</style>
-      </div>
+
+          50% {
+            opacity: .5;
+          }
+        }
+      </style>
     </div>
-  </body>
+  </div>
+</body>
+
 </html>
