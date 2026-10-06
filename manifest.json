@@ -1,12 +1,12 @@
 {
-  "name": "Honeymoon Roadbook",
-  "short_name": "Roadbook",
-  "description": "Il tuo piano di viaggio personale",
-  "start_url": "/honeymoon-roadbook/",
-  "scope": "/honeymoon-roadbook/",
+  "name": "Hounigo",
+  "short_name": "Hounigo",
+  "description": "Organizza il viaggio, vivi ogni momento e condividilo con chi vuoi.",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
-  "background_color": "#f8fafc",
-  "theme_color": "#1d4ed8",
+  "background_color": "#ffffff",
+  "theme_color": "#FF6B5F",
   "lang": "it",
   "icons": [
     {
