@@ -44,10 +44,10 @@ export default function GiornoCard({
             </span>
             <Badge label={activityCount === 1 ? '1 attività' : activityCount + ' attività'} variant={activityCount > 0 ? 'amber' : 'slate'} />
           </div>
-          <h3 className="text-base font-bold text-slate-900 tracking-tight leading-snug">
+          <h3 className="text-base font-bold text-[#172033] dark:text-slate-50 tracking-tight leading-snug">
             {day.title}
           </h3>
-          <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+          <p className="text-xs text-[#64748B] dark:text-slate-400 mt-0.5 flex items-center gap-1">
             <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -55,7 +55,7 @@ export default function GiornoCard({
             <span>{day.location}</span>
           </p>
           {day.notes && (
-            <p className="text-xs text-slate-600 mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100 italic">
+            <p className="text-xs text-[#64748B] dark:text-slate-400 mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-100 italic">
               {day.notes}
             </p>
           )}

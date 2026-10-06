@@ -17,6 +17,10 @@
     "deploy": "gh-pages -d ViaggiodiNozze/dist"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/cli": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
     "firebase": "^12.19.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

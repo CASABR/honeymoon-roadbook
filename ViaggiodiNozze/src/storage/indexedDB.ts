@@ -3,7 +3,7 @@
  * Isolato all'interno del layer di storage.
  */
 const DB_NAME = 'ViaggiodiNozzeDB';
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 
 export const STORES = {
   GIORNI: 'giorni',
@@ -17,7 +17,8 @@ export const STORES = {
   SHOPPING: 'shopping',
   SPESE: 'spese',
   NOTE: 'note',
-  BAGAGLI: 'bagagli'
+  BAGAGLI: 'bagagli',
+  SETTINGS: 'settings'
 } as const;
 
 export type StoreName = typeof STORES[keyof typeof STORES];
@@ -107,6 +108,10 @@ function openDatabase(): Promise<IDBDatabase> {
         const store = db.createObjectStore(STORES.BAGAGLI, { keyPath: 'id' });
         store.createIndex('updatedAt', 'updatedAt', { unique: false });
       }
+
+      if (!db.objectStoreNames.contains(STORES.SETTINGS)) {
+        db.createObjectStore(STORES.SETTINGS, { keyPath: 'id' });
+      }
     };
 
     request.onsuccess = () => {
@@ -180,5 +185,21 @@ export async function idbClear(storeName: StoreName): Promise<void> {
 
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
+  });
+}
+
+export async function idbClearAll(): Promise<void> {
+  const db = await openDatabase();
+  const allStores = Object.values(STORES);
+  
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(allStores, 'readwrite');
+    
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    
+    allStores.forEach(storeName => {
+      tx.objectStore(storeName).clear();
+    });
   });
 }

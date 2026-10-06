@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ModalProps {
@@ -34,18 +34,7 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
 
   const modalNode = (
     <div 
-      className="modal-backdrop-layer"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 99999,
-        display: 'flex',
-        alignItems: 'flex-end',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(15, 23, 42, 0.65)',
-        backdropFilter: 'blur(8px)',
-        WebkitBackdropFilter: 'blur(8px)',
-      }}
+        className="modal-backdrop-layer fixed inset-0 z-[99999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/65 backdrop-blur-sm"
     >
       {/* Click outside to close */}
       <div 
@@ -55,33 +44,22 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
       />
 
       {/* Modal / Sheet Container */}
-      <div 
-        className={"modal-sheet-container border-t sm:border rounded-t-3xl sm:rounded-3xl " + accentBorder + " text-slate-900 bg-white"}
-        style={{
-          position: 'relative',
-          zIndex: 100000,
-          width: '100%',
-          maxWidth: '32rem',
-          maxHeight: '85dvh',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
-        }}
+      <div
+        className={`modal-sheet-container relative z-[100000] w-full max-w-lg flex flex-col overflow-hidden shadow-2xl border-t sm:border rounded-t-3xl sm:rounded-2xl ${accentBorder} text-slate-900 dark:text-slate-100 bg-white dark:bg-[#1E293B] dark:border-slate-700 max-h-[90dvh] sm:my-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* iOS Drag Handle Pill on Mobile */}
         <div className="w-full flex justify-center pt-2.5 pb-1 sm:hidden shrink-0">
-          <div className="w-10 h-1.5 rounded-full bg-slate-300" />
+          <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 bg-white/95 backdrop-blur sticky top-0 z-20 shrink-0">
-          <h2 className="text-lg font-bold text-slate-900 tracking-tight">{title}</h2>
+        <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-[#1E293B]/95 backdrop-blur sticky top-0 z-20 shrink-0 min-w-0">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight truncate break-words min-w-0 mr-3">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
             aria-label="Chiudi"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

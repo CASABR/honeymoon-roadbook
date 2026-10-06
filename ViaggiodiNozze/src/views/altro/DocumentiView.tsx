@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { TravelDocument } from '../../types';
 import { storageService } from '../../storage/storageService';
 import DocumentValidityModal from '../../components/modals/DocumentValidityModal';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
+import SwipeToDelete from '../../components/common/SwipeToDelete';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 
 interface DocumentiViewProps {
@@ -294,65 +295,67 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
           {filteredDocs.map((doc) => {
             const catInfo = getCategoryInfo(doc.category);
             return (
-              <div
-                key={doc.id}
-                onClick={() => setValidityModalDoc(doc)}
-                className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs hover:shadow-sm hover:border-slate-300 transition-all cursor-pointer flex flex-col gap-2.5 active:scale-[0.99]"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="w-9 h-9 rounded-2xl bg-slate-100 flex items-center justify-center text-lg shrink-0 border border-slate-200/60">
-                      {catInfo.icon}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`px-2 py-0.2 rounded-full text-[9px] font-bold border ${catInfo.badgeClass}`}>
-                          {catInfo.label.split(' ')[1] || doc.category}
-                        </span>
-                        {doc.attachments && doc.attachments.length > 0 && (
-                          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-[9px] font-bold" title={`${doc.attachments.length} allegati`}>
-                            📎 {doc.attachments.length}
+
+              <SwipeToDelete key={doc.id} disabled={!canEdit} onDelete={() => setDeleteTarget(doc)}>
+                <div
+                  onClick={() => setValidityModalDoc(doc)}
+                  className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs hover:shadow-sm hover:border-slate-300 transition-all cursor-pointer flex flex-col gap-2.5 active:scale-[0.99]"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className="w-9 h-9 rounded-2xl bg-slate-100 flex items-center justify-center text-lg shrink-0 border border-slate-200/60">
+                        {catInfo.icon}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`px-2 py-0.2 rounded-full text-[9px] font-bold border ${catInfo.badgeClass}`}>
+                            {catInfo.label.split(' ')[1] || doc.category}
                           </span>
-                        )}
+                          {doc.attachments && doc.attachments.length > 0 && (
+                            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-[9px] font-bold" title={`${doc.attachments.length} allegati`}>
+                              📎 {doc.attachments.length}
+                            </span>
+                          )}
+                        </div>
+                        <h3 className="font-extrabold text-slate-900 text-sm leading-snug truncate mt-0.5">
+                          {doc.title}
+                        </h3>
                       </div>
-                      <h3 className="font-extrabold text-slate-900 text-sm leading-snug truncate mt-0.5">
-                        {doc.title}
-                      </h3>
+                    </div>
+                    <div className="shrink-0">
+                      {getStatusBadge(doc.status)}
                     </div>
                   </div>
-                  <div className="shrink-0">
-                    {getStatusBadge(doc.status)}
+
+                  <p className="text-xs text-slate-600 leading-relaxed line-clamp-2 pl-0.5">
+                    {doc.description || 'Nessuna descrizione.'}
+                  </p>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
+                    <div className="flex items-center gap-2 text-slate-500 font-medium truncate">
+                      {doc.validity && (
+                        <span className="truncate">🗓️ {doc.validity}</span>
+                      )}
+                      {doc.expiresAt && (
+                        <span className="font-semibold text-rose-600">⏳ Scad: {doc.expiresAt}</span>
+                      )}
+                    </div>
+
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeleteTarget(doc);
+                        }}
+                        className="text-rose-500 hover:text-rose-700 font-semibold cursor-pointer text-[11px]"
+                      >
+                        Elimina
+                      </button>
+                    )}
                   </div>
                 </div>
-
-                <p className="text-xs text-slate-600 leading-relaxed line-clamp-2 pl-0.5">
-                  {doc.description || 'Nessuna descrizione.'}
-                </p>
-
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
-                  <div className="flex items-center gap-2 text-slate-500 font-medium truncate">
-                    {doc.validity && (
-                      <span className="truncate">🗓️ {doc.validity}</span>
-                    )}
-                    {doc.expiresAt && (
-                      <span className="font-semibold text-rose-600">⏳ Scad: {doc.expiresAt}</span>
-                    )}
-                  </div>
-
-                  {canEdit && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setDeleteTarget(doc);
-                      }}
-                      className="text-rose-500 hover:text-rose-700 font-semibold cursor-pointer text-[11px]"
-                    >
-                      Elimina
-                    </button>
-                  )}
-                </div>
-              </div>
+              </SwipeToDelete>
             );
           })}
         </div>

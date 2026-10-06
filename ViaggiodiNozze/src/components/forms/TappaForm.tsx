@@ -1,56 +1,96 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePresence } from '../../hooks/usePresence';
+import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
 import type { Tappa } from '../../types';
 
 interface TappaFormProps {
   initialData?: Tappa | null;
   onSave: (data: Omit<Tappa, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   onCancel: () => void;
+  onDelete?: () => void;
 }
 
-export default function TappaForm({ initialData, onSave, onCancel }: TappaFormProps) {
+export default function TappaForm({ initialData, onSave, onCancel, onDelete }: TappaFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
+  const [sottocategoria, setSottocategoria] = useState('Sosta panoramica');
   const [titolo, setTitolo] = useState('');
-  const [data, setData] = useState('');
-  const [mapsUrl, setMapsUrl] = useState('');
+  const [indirizzo, setIndirizzo] = useState('');
+  const [noteCopilota, setNoteCopilota] = useState('');
   const [nota, setNota] = useState('');
-  const [copilota, setCopilota] = useState(false);
   const [error, setError] = useState('');
+  const [isGeocoding, setIsGeocoding] = useState(false);
 
   useEffect(() => {
     if (initialData) {
-      setTitolo(initialData.titolo);
-      setData(initialData.data || '');
-      setMapsUrl(initialData.mapsUrl || '');
+      setSottocategoria(initialData.sottocategoria || 'Sosta panoramica');
+      setTitolo(initialData.titolo || '');
+      setIndirizzo(initialData.indirizzo || initialData.mapsUrl || '');
+      setNoteCopilota(initialData.noteCopilota || '');
       setNota(initialData.nota || '');
-      setCopilota(initialData.copilota || false);
     } else {
+      setSottocategoria('Sosta panoramica');
       setTitolo('');
-      setData('');
-      setMapsUrl('');
+      setIndirizzo('');
+      setNoteCopilota('');
       setNota('');
-      setCopilota(false);
     }
   }, [initialData]);
+
+  const processSave = async () => {
+    setError('');
+    setIsGeocoding(true);
+
+    let finalCoord = initialData?.coordinate;
+    
+    // Geocoding basato sull'indirizzo se fornito
+    if (indirizzo && indirizzo.trim()) {
+      try {
+        const coord = await getCoordinatesFromAddress(indirizzo);
+        if (coord) {
+          finalCoord = coord;
+        } else if (!finalCoord && titolo.trim()) {
+          const fallbackCoord = await getCoordinatesFromAddress(titolo);
+          if (fallbackCoord) finalCoord = fallbackCoord;
+        }
+      } catch (e) {
+        console.error("Geocoding fallito", e);
+      }
+    } else if (titolo.trim() && !finalCoord) {
+       try {
+         const coord = await getCoordinatesFromAddress(titolo);
+         if (coord) finalCoord = coord;
+       } catch(e) {}
+    }
+
+    setIsGeocoding(false);
+    
+    // Auto-imposta copilota se ci sono note copilota
+    const hasCopilotaNotes = (noteCopilota || '').trim().length > 0;
+
+    onSave({
+      id: initialData?.id,
+      titolo: titolo.trim(),
+      sottocategoria: sottocategoria.trim() || undefined,
+      indirizzo: indirizzo.trim() || undefined,
+      mapsUrl: indirizzo.trim() || undefined, // manteniamo mapsUrl allineato con indirizzo per retrocompatibilità
+      coordinate: finalCoord,
+      noteCopilota: noteCopilota.trim() || undefined,
+      nota: nota.trim() || undefined,
+      copilota: hasCopilotaNotes || initialData?.copilota || undefined,
+      data: initialData?.data,
+      dayId: initialData?.dayId,
+      completed: initialData?.completed
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!titolo.trim()) {
-      setError('Il titolo/luogo della tappa è obbligatorio.');
+      setError('Il titolo/nome della sosta è obbligatorio.');
       return;
     }
-
-    setError('');
-    onSave({
-      id: initialData?.id,
-      titolo: titolo.trim(),
-      data: data || undefined,
-      mapsUrl: mapsUrl.trim() || undefined,
-      coordinate: initialData?.coordinate,
-      nota: nota.trim() || undefined,
-      copilota: copilota || undefined
-    });
+    processSave();
   };
 
   return (
@@ -69,95 +109,108 @@ export default function TappaForm({ initialData, onSave, onCancel }: TappaFormPr
         </div>
       )}
 
+      {/* 1. Sottocategoria */}
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Titolo Tappa *
+          Categoria Sosta
+        </label>
+        <select
+          value={sottocategoria}
+          onChange={(e) => setSottocategoria(e.target.value)}
+          className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+        >
+          <option value="Sosta panoramica">⛰️ Sosta panoramica</option>
+          <option value="Sosta fotografica">📸 Sosta fotografica</option>
+          <option value="Sosta">📍 Sosta generica</option>
+        </select>
+      </div>
+
+      {/* 2. Nome / Titolo */}
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          Nome / Punto di Interesse
         </label>
         <input
           type="text"
-          placeholder="es. Sosta Lago Taupo"
+          placeholder="es. Lake Pukaki Viewpoint"
           value={titolo}
           onChange={(e) => setTitolo(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors"
           required
         />
       </div>
 
+      {/* 3. Indirizzo / Posizione */}
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Data (opzionale)
-        </label>
-        <input
-          type="date"
-          value={data}
-          onChange={(e) => setData(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors"
-        />
-      </div>
-
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Link o Indirizzo Google Maps (opzionale)
+          Indirizzo / Link Maps
         </label>
         <input
           type="text"
-          placeholder="es. Indirizzo o link https://maps.app.goo.gl/..."
-          value={mapsUrl}
-          onChange={(e) => setMapsUrl(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
+          placeholder="es. State Highway 8, Lake Pukaki"
+          value={indirizzo}
+          onChange={(e) => setIndirizzo(e.target.value)}
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors"
         />
       </div>
 
+      {/* 4. Note Copilota */}
+      <div className="p-3 bg-[#F0FAF9] border border-[#DDF4F5] rounded-2xl">
+        <label className="flex items-center gap-1.5 text-xs font-extrabold text-[#172033] uppercase tracking-wider mb-1.5">
+          <span>🧭</span> Note per il Copilota (Guida)
+        </label>
+        <textarea
+          rows={3}
+          placeholder="es. Parcheggio gratuito a sinistra dopo il ponte. Attenzione al fondo sterrato."
+          value={noteCopilota}
+          onChange={(e) => setNoteCopilota(e.target.value)}
+          className="w-full p-3 bg-white border border-[#DDF4F5] rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
+        />
+      </div>
+
+      {/* 5. Note Generali */}
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Descrizione / Note sintetiche (opzionale)
+          Note Generali / Orario
         </label>
         <textarea
           rows={2}
-          placeholder="es. Punto panoramico per foto al tramonto, rifornimento carburante..."
+          placeholder="Dettagli aggiuntivi..."
           value={nota}
           onChange={(e) => setNota(e.target.value)}
-          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-slate-100 focus:border-amber-500 placeholder:text-slate-400 resize-none"
+          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] resize-none"
         />
       </div>
 
-      {/* Checkbox Co-pilota */}
-      <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="text-base">🧭</span>
-          <div>
-            <label htmlFor="copilota-tappa-toggle" className="text-xs font-bold text-slate-800 cursor-pointer block">
-              Mostra al co-pilota
-            </label>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Mostra il badge "🧭 Co-pilota" per le soste importanti di navigazione
-            </p>
-          </div>
-        </div>
-        <input
-          id="copilota-tappa-toggle"
-          type="checkbox"
-          checked={copilota}
-          onChange={(e) => setCopilota(e.target.checked)}
-          className="w-4 h-4 rounded text-emerald-600 bg-white border-slate-300 focus:ring-emerald-500 cursor-pointer"
-        />
-      </div>
-
-      <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
+      {/* Azioni finali */}
+      <div className="flex flex-col sm:flex-row-reverse items-center justify-between gap-3 pt-3 border-t border-slate-100 mt-4">
+        <button
+          type="submit"
+          disabled={isGeocoding}
+          className="w-full sm:w-auto min-w-[200px] min-h-[44px] px-6 rounded-xl text-sm font-bold bg-[#FF6B5F] hover:bg-[#e85c50] active:scale-95 text-white shadow-md shadow-rose-500/20 transition-all cursor-pointer disabled:opacity-50"
+        >
+          {isGeocoding ? 'Salvataggio...' : (initialData ? 'Salva Modifiche' : 'Crea Tappa')}
+        </button>
+        
         <button
           type="button"
           onClick={onCancel}
-          className="min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
+          className="w-full sm:w-auto min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
         >
           Annulla
         </button>
-        <button
-          type="submit"
-          className="min-h-[44px] px-6 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
-        >
-          {initialData ? 'Aggiorna Tappa' : 'Salva Tappa'}
-        </button>
+
+        {onDelete && initialData && (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="w-full sm:w-auto mt-4 sm:mt-0 min-h-[44px] px-4 rounded-xl text-sm font-semibold text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+          >
+            Elimina tappa
+          </button>
+        )}
       </div>
+
     </form>
   );
 }

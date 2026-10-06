@@ -238,7 +238,42 @@ export function calculateDistance(coord1?: Coordinate, coord2?: Coordinate): num
  * Funzione prevista per geocodificare un indirizzo testuale o URL in Coordinate (lat, lng).
  * Da collegare a un provider di geocoding (es. Google Geocoding API o OpenStreetMap Nominatim).
  */
-export async function getCoordinatesFromAddress(_address: string): Promise<Coordinate | null> {
-  // Predisposizione per implementazione futura
+export async function getCoordinatesFromAddress(address: string): Promise<Coordinate | null> {
+  if (!address || !address.trim()) return null;
+  // Se è un URL di Google Maps puro senza query di testo, è difficile geocodificarlo con Nominatim
+  // Proviamo a pulirlo
+  let query = address.trim();
+  if (query.startsWith('http')) {
+    // Cerchiamo di estrarre la query dal link
+    try {
+      const url = new URL(query);
+      if (url.searchParams.has('query')) {
+        query = url.searchParams.get('query') || query;
+      } else {
+        // Probabilmente un link corto come maps.app.goo.gl, impossibile geocodificare senza espanderlo
+        return null;
+      }
+    } catch {
+      // url invalido
+    }
+  }
+
+  try {
+    const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query), {
+      headers: {
+        'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+      }
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data && data.length > 0) {
+      return {
+        lat: parseFloat(data[0].lat),
+        lng: parseFloat(data[0].lon)
+      };
+    }
+  } catch (err) {
+    console.error('Errore geocoding:', err);
+  }
   return null;
 }

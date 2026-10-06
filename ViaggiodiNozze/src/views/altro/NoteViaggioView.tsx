@@ -10,7 +10,7 @@ interface NoteViaggioViewProps {
 const COLOR_OPTIONS = [
   { id: 'amber' as ColorNota, label: 'Giallo', bg: 'bg-amber-50', border: 'border-amber-200', pin: 'bg-amber-400', text: 'text-amber-950', textMuted: 'text-amber-700' },
   { id: 'sky' as ColorNota, label: 'Azzurro', bg: 'bg-sky-50', border: 'border-sky-200', pin: 'bg-sky-400', text: 'text-sky-950', textMuted: 'text-sky-700' },
-  { id: 'emerald' as ColorNota, label: 'Verde', bg: 'bg-emerald-50', border: 'border-emerald-200', pin: 'bg-emerald-400', text: 'text-emerald-950', textMuted: 'text-emerald-700' },
+  { id: 'emerald' as ColorNota, label: 'Verde', bg: 'bg-[#FFF0ED]', border: 'border-slate-200', pin: 'bg-[#FF9A76]', text: 'text-emerald-950', textMuted: 'text-[#172033]' },
   { id: 'rose' as ColorNota, label: 'Rosa', bg: 'bg-rose-50', border: 'border-rose-200', pin: 'bg-rose-400', text: 'text-rose-950', textMuted: 'text-rose-700' },
 ];
 

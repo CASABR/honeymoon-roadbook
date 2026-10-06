@@ -1,709 +1,626 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import type { Trasporto, TipoTrasporto, StatoTrasporto } from '../../types';
-import { storageService } from '../../storage/storageService';
 
 interface TrasportoFormProps {
   initialData?: Trasporto | null;
   onSave: (data: Omit<Trasporto, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   onCancel: () => void;
+  onDelete?: () => void;
 }
 
-export default function TrasportoForm({ initialData, onSave, onCancel }: TrasportoFormProps) {
+export default function TrasportoForm({ initialData, onSave, onCancel, onDelete }: TrasportoFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
-  // Livello 1: Essenziali
   const [type, setType] = useState<TipoTrasporto>('volo');
-  const [date, setDate] = useState('');
-  const [departureLocation, setDepartureLocation] = useState('');
-  const [arrivalLocation, setArrivalLocation] = useState('');
   
-  // Noleggi Level 1 speciali
-  const [dropoffDate, setDropoffDate] = useState('');
-  const [dropoffLocation, setDropoffLocation] = useState('');
+  // Carrier & PNR
   const [carrier, setCarrier] = useState('');
-
-  // Livello 2: Dettagli
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [status, setStatus] = useState<StatoTrasporto>('pianificato');
-  const [copilota, setCopilota] = useState(false);
-  const [cost, setCost] = useState('');
-  const [depositPaid, setDepositPaid] = useState('');
-  
-  // Orari (potrebbero stare nel livello 1 o 2, mettiamo quelli principali nell'1)
-  const [departureTime, setDepartureTime] = useState('');
-  const [arrivalTime, setArrivalTime] = useState('');
-  const [dropoffTime, setDropoffTime] = useState('');
-  
-  // Altri dettagli volo/treno
   const [bookingCode, setBookingCode] = useState('');
-  const [ticketUrl, setTicketUrl] = useState('');
-  const [notes, setNotes] = useState('');
-  
-  // Scalo esteso
+
+  // Partenza
+  const [departureLocation, setDepartureLocation] = useState('');
+  const [departureIata, setDepartureIata] = useState('');
+  const [departureDate, setDepartureDate] = useState(''); // Usa datetime-local -> YYYY-MM-DDTHH:mm
+
+  // Arrivo / Riconsegna
+  const [arrivalLocation, setArrivalLocation] = useState('');
+  const [arrivalIata, setArrivalIata] = useState('');
+  const [arrivalDate, setArrivalDate] = useState(''); // Usa datetime-local -> YYYY-MM-DDTHH:mm
+
+  // Condizionali Volo/Treno
+  const [posti, setPosti] = useState('');
+  const [bagagli, setBagagli] = useState('');
   const [hasLayover, setHasLayover] = useState(false);
   const [layoverAirport, setLayoverAirport] = useState('');
-  const [layoverArrivalTime, setLayoverArrivalTime] = useState('');
-  const [layoverDepartureDate, setLayoverDepartureDate] = useState('');
-  const [layoverDepartureTime, setLayoverDepartureTime] = useState('');
-  const [layoverCarrier, setLayoverCarrier] = useState('');
   const [layoverDuration, setLayoverDuration] = useState('');
-  
-  const [error, setError] = useState('');
-  const [conflictWarning, setConflictWarning] = useState('');
-  const [isConflictConfirmed, setIsConflictConfirmed] = useState(false);
 
+  // Condizionali Noleggio
+  const [depositoCauzionale, setDepositoCauzionale] = useState('');
+  const [franchigia, setFranchigia] = useState('');
+  const [politicaCarburante, setPoliticaCarburante] = useState('');
+
+  // Condizionali Traghetto
+  const [sistemazioneTraghetto, setSistemazioneTraghetto] = useState('');
+  const [veicoloTraghetto, setVeicoloTraghetto] = useState('');
+
+  // Economico
+  const [cost, setCost] = useState('');
+  const [depositPaid, setDepositPaid] = useState('');
+  const [isSaldato, setIsSaldato] = useState(false);
+
+  // Extra
+  const [ticketUrl, setTicketUrl] = useState('');
+  const [notes, setNotes] = useState('');
+  const [copilota, setCopilota] = useState(false);
+
+  const [error, setError] = useState('');
+  
   const isRental = type === 'auto' || type === 'camper';
+  const isFerry = type === 'traghetto';
+  const isFlightOrTrain = type === 'volo' || type === 'treno';
+
+  // Utils per manipolare date/ore
+  const formatForInput = (d?: string, t?: string) => {
+    if (!d) return '';
+    return t ? `${d}T${t}` : `${d}T00:00`;
+  };
 
   useEffect(() => {
     if (initialData) {
       setType(initialData.type);
-      setDate(initialData.date);
-      setDepartureLocation(initialData.departureLocation);
-      setArrivalLocation(initialData.arrivalLocation);
-      
-      setDropoffDate(initialData.dropoffDate || '');
-      setDropoffLocation(initialData.dropoffLocation || '');
       setCarrier(initialData.carrier || '');
-      
-      setStatus(initialData.status);
-      setCopilota(initialData.copilota || false);
-      setCost(initialData.cost || '');
-      setDepositPaid(initialData.depositPaid || initialData.acconto || '');
-      
-      setDepartureTime(initialData.departureTime || '');
-      setArrivalTime(initialData.arrivalTime || '');
-      setDropoffTime(initialData.dropoffTime || '');
-      
       setBookingCode(initialData.bookingCode || '');
+      
+      setDepartureLocation(initialData.departureLocation || '');
+      setDepartureIata(initialData.departureIata || '');
+      setDepartureDate(formatForInput(initialData.date, initialData.departureTime));
+      
+      if (isRental) {
+        setArrivalLocation(initialData.dropoffLocation || initialData.arrivalLocation || '');
+        setArrivalDate(formatForInput(initialData.dropoffDate, initialData.dropoffTime));
+      } else {
+        setArrivalLocation(initialData.arrivalLocation || '');
+        setArrivalIata(initialData.arrivalIata || '');
+        setArrivalDate(formatForInput(initialData.arrivalDate || initialData.date, initialData.arrivalTime));
+      }
+
+      setPosti(initialData.posti || '');
+      setBagagli(initialData.bagagli || '');
+      setHasLayover(!!initialData.layover?.airport);
+      setLayoverAirport(initialData.layover?.airport || '');
+      setLayoverDuration(initialData.layover?.duration || '');
+
+      setDepositoCauzionale(initialData.depositoCauzionale || '');
+      setFranchigia(initialData.franchigia || '');
+      setPoliticaCarburante(initialData.politicaCarburante || '');
+
+      setSistemazioneTraghetto(initialData.sistemazioneTraghetto || '');
+      setVeicoloTraghetto(initialData.veicoloTraghetto || '');
+
+      setCost(initialData.cost || '');
+      const acconto = initialData.depositPaid || initialData.acconto || '';
+      setDepositPaid(acconto);
+      
+      const c = parseFloat((initialData.cost || '0').replace(',', '.'));
+      const a = parseFloat((acconto || '0').replace(',', '.'));
+      if (c > 0 && a >= c) {
+        setIsSaldato(true);
+      } else {
+        setIsSaldato(false);
+      }
+
       setTicketUrl(initialData.ticketUrl || '');
       setNotes(initialData.notes || '');
-      
-      const lay = initialData.layover;
-      setHasLayover(!!lay?.airport);
-      setLayoverAirport(lay?.airport || '');
-      setLayoverArrivalTime(lay?.arrivalTime || '');
-      setLayoverDepartureDate(lay?.departureDate || '');
-      setLayoverDepartureTime(lay?.departureTime || '');
-      setLayoverCarrier(lay?.carrier || '');
-      setLayoverDuration(lay?.duration || '');
-
-      if (
-        initialData.cost || initialData.depositPaid || initialData.acconto || 
-        initialData.bookingCode || initialData.ticketUrl || initialData.notes || 
-        initialData.layover?.airport || initialData.copilota || 
-        initialData.arrivalTime || initialData.dropoffTime || initialData.status !== 'pianificato'
-      ) {
-        setShowAdvanced(true);
-      }
+      setCopilota(initialData.copilota || false);
     } else {
-      const today = new Date();
-      const yyyy = today.getFullYear();
-      const mm = String(today.getMonth() + 1).padStart(2, '0');
-      const dd = String(today.getDate()).padStart(2, '0');
-      
       setType('volo');
-      setDate(`${yyyy}-${mm}-${dd}`);
-      setDepartureLocation('');
-      setArrivalLocation('');
-      
-      setDropoffDate('');
-      setDropoffLocation('');
       setCarrier('');
-      
-      setStatus('pianificato');
-      setCopilota(false);
-      setCost('');
-      setDepositPaid('');
-      
-      setDepartureTime('');
-      setArrivalTime('');
-      setDropoffTime('');
-      
       setBookingCode('');
-      setTicketUrl('');
-      setNotes('');
+      setDepartureLocation('');
+      setDepartureIata('');
+      setDepartureDate('');
+      setArrivalLocation('');
+      setArrivalIata('');
+      setArrivalDate('');
+      setPosti('');
+      setBagagli('');
       setHasLayover(false);
       setLayoverAirport('');
-      setLayoverArrivalTime('');
-      setLayoverDepartureDate('');
-      setLayoverDepartureTime('');
-      setLayoverCarrier('');
       setLayoverDuration('');
-      setShowAdvanced(false);
+      setDepositoCauzionale('');
+      setFranchigia('');
+      setPoliticaCarburante('');
+      setSistemazioneTraghetto('');
+      setVeicoloTraghetto('');
+      setCost('');
+      setDepositPaid('');
+      setIsSaldato(false);
+      setTicketUrl('');
+      setNotes('');
+      setCopilota(false);
     }
-  }, [initialData]);
+  }, [initialData, isRental]);
 
-  // Reset conflictse se l'utente cambia orario
   useEffect(() => {
-    setIsConflictConfirmed(false);
-    setConflictWarning('');
-  }, [departureTime, date]);
+    if (isSaldato && cost) {
+      setDepositPaid(cost);
+    }
+  }, [isSaldato, cost]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!date || !departureLocation.trim()) {
-      setError('Data e luogo di partenza/ritiro sono obbligatori.');
+    if (!departureLocation.trim() || !departureDate) {
+      setError('Partenza (Luogo e Data) sono obbligatori.');
       return;
     }
-    const finalArrivalLocation = isRental ? (arrivalLocation.trim() || dropoffLocation.trim() || departureLocation.trim()) : arrivalLocation.trim();
-    if (!finalArrivalLocation) {
-      setError('Il luogo di arrivo o riconsegna è obbligatorio.');
-      return;
+    
+    let parsedDepDate = '';
+    let parsedDepTime = '';
+    if (departureDate) {
+      const parts = departureDate.split('T');
+      parsedDepDate = parts[0];
+      parsedDepTime = parts[1] || '';
     }
 
-    // Validazione Sovrapposizione
-    if (!isConflictConfirmed && departureTime && date) {
-      try {
-        const timeline = await storageService.getTimelineForDate(date);
-        const conflict = timeline.find(item => item.time === departureTime && item.id !== initialData?.id);
-        if (conflict) {
-          setConflictWarning(`⚠️ Attenzione: hai già programmato "${conflict.title}" alle ${departureTime}.`);
-          setIsConflictConfirmed(true);
-          return;
-        }
-      } catch (err) {
-        console.error('Errore validazione sovrapposizione:', err);
-      }
+    let parsedArrDate = '';
+    let parsedArrTime = '';
+    if (arrivalDate) {
+      const parts = arrivalDate.split('T');
+      parsedArrDate = parts[0];
+      parsedArrTime = parts[1] || '';
     }
 
     setError('');
-    setConflictWarning('');
-
-    onSave({
+    
+    const baseData = {
       id: initialData?.id,
       type,
-      date,
+      carrier: carrier.trim() || undefined,
+      bookingCode: bookingCode.trim() || undefined,
+      
+      date: parsedDepDate,
+      departureTime: parsedDepTime || undefined,
       departureLocation: departureLocation.trim(),
-      arrivalLocation: finalArrivalLocation,
-      dropoffDate: isRental ? (dropoffDate || undefined) : undefined,
-      dropoffTime: isRental ? (dropoffTime.trim() || undefined) : undefined,
-      dropoffLocation: isRental ? (dropoffLocation.trim() || undefined) : undefined,
-      status,
-      copilota: copilota || undefined,
+      departureIata: departureIata.trim() || undefined,
+      
       cost: cost.trim() || undefined,
       depositPaid: depositPaid.trim() || undefined,
       acconto: depositPaid.trim() || undefined,
-      layover: (hasLayover && layoverAirport.trim())
-        ? {
-            airport: layoverAirport.trim(),
-            arrivalTime: layoverArrivalTime.trim() || undefined,
-            departureDate: layoverDepartureDate.trim() || undefined,
-            departureTime: layoverDepartureTime.trim() || undefined,
-            carrier: layoverCarrier.trim() || undefined,
-            duration: layoverDuration.trim() || undefined,
-          }
-        : undefined,
-      departureTime: departureTime.trim() || undefined,
-      arrivalTime: arrivalTime.trim() || undefined,
-      carrier: carrier.trim() || undefined,
-      bookingCode: bookingCode.trim() || undefined,
+      
       ticketUrl: ticketUrl.trim() || undefined,
-      notes: notes.trim() || undefined
-    } as any);
+      notes: notes.trim() || undefined,
+      copilota: copilota || undefined,
+      status: initialData?.status || 'pianificato' as StatoTrasporto,
+    };
+
+    if (isRental) {
+      onSave({
+        ...baseData,
+        arrivalLocation: departureLocation.trim(),
+        dropoffLocation: arrivalLocation.trim() || undefined,
+        dropoffDate: parsedArrDate || undefined,
+        dropoffTime: parsedArrTime || undefined,
+        depositoCauzionale: depositoCauzionale.trim() || undefined,
+        franchigia: franchigia.trim() || undefined,
+        politicaCarburante: politicaCarburante.trim() || undefined,
+      });
+    } else {
+      onSave({
+        ...baseData,
+        arrivalLocation: arrivalLocation.trim() || departureLocation.trim(),
+        arrivalIata: arrivalIata.trim() || undefined,
+        arrivalDate: parsedArrDate || parsedDepDate || undefined,
+        arrivalTime: parsedArrTime || undefined,
+        posti: posti.trim() || undefined,
+        bagagli: bagagli.trim() || undefined,
+        sistemazioneTraghetto: isFerry ? (sistemazioneTraghetto.trim() || undefined) : undefined,
+        veicoloTraghetto: isFerry ? (veicoloTraghetto.trim() || undefined) : undefined,
+        layover: (isFlightOrTrain && hasLayover && layoverAirport.trim()) ? {
+          airport: layoverAirport.trim(),
+          duration: layoverDuration.trim() || undefined,
+        } : undefined
+      });
+    }
+  };
+
+  const getSaldo = () => {
+    const c = parseFloat(cost.replace(',', '.')) || 0;
+    const a = parseFloat(depositPaid.replace(',', '.')) || 0;
+    return Math.max(0, c - a);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {isLockedByOther && (
+          <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl font-bold flex gap-2 items-center animate-fade-in">
+            <span className="text-base animate-pulse">⚠️</span>
+            <span>Attenzione: il dispositivo "{lockedBy}" sta già modificando questo elemento in tempo reale. Le tue modifiche potrebbero sovrascriversi.</span>
+          </div>
+        )}
 
-      {isLockedByOther && (
-        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl font-bold flex gap-2 items-center animate-fade-in">
-          <span className="text-base animate-pulse">⚠️</span>
-          <span>Attenzione: il dispositivo "{lockedBy}" sta già modificando questo elemento in tempo reale. Le tue modifiche potrebbero sovrascriversi.</span>
-        </div>
-      )}
+        {error && (
+          <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
+            {error}
+          </div>
+        )}
 
-      {error && (
-        <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
-          {error}
-        </div>
-      )}
-      
-      {conflictWarning && (
-        <div className="p-3 text-xs rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
-          {conflictWarning}
-          <div className="mt-1 font-semibold">Clicca di nuovo Salva per confermare comunque.</div>
-        </div>
-      )}
-
-      {/* Livello 1: Essenziale */}
-      <div className="space-y-4">
+        {/* 1. Sottocategoria */}
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Tipo Mezzo *
+            Sottocategoria
           </label>
-          <select
-            value={type}
-            onChange={(e) => setType(e.target.value as TipoTrasporto)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-sky-500 transition-colors"
-          >
-            <option value="volo">✈️ Volo</option>
-            <option value="treno">🚆 Treno</option>
-            <option value="traghetto">⛴️ Traghetto</option>
-            <option value="auto">🚗 Auto Noleggio</option>
-            <option value="camper">🚐 Camper / Van</option>
-            <option value="transfer">🚕 Transfer / Taxi</option>
-          </select>
-        </div>
-
-        {isRental ? (
-          <>
-            <div className="min-w-0">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Società Noleggio *
-              </label>
-              <input
-                type="text"
-                placeholder="es. Snap Rentals, Hertz, Maui"
-                value={carrier}
-                onChange={(e) => setCarrier(e.target.value)}
-                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
-                required
-              />
-            </div>
-            
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="min-w-0">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Data Ritiro *
-                </label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors"
-                  required
-                />
-              </div>
-              <div className="min-w-0">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Ora Ritiro (opzionale)
-                </label>
-                <input
-                  type="time"
-                  value={departureTime}
-                  onChange={(e) => setDepartureTime(e.target.value)}
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors"
-                />
-              </div>
-            </div>
-
-            <div className="min-w-0">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Luogo Ritiro *
-              </label>
-              <input
-                type="text"
-                placeholder="es. Auckland Airport Terminal"
-                value={departureLocation}
-                onChange={(e) => setDepartureLocation(e.target.value)}
-                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
-                required
-              />
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="min-w-0">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Partenza Da *
-                </label>
-                <input
-                  type="text"
-                  placeholder="es. Milano (MXP)"
-                  value={departureLocation}
-                  onChange={(e) => setDepartureLocation(e.target.value)}
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-sky-500 transition-colors placeholder:text-slate-400"
-                  required
-                />
-              </div>
-              <div className="min-w-0">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Arrivo A *
-                </label>
-                <input
-                  type="text"
-                  placeholder="es. Auckland (AKL)"
-                  value={arrivalLocation}
-                  onChange={(e) => setArrivalLocation(e.target.value)}
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-sky-500 transition-colors placeholder:text-slate-400"
-                  required
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="min-w-0">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Data *
-                </label>
-                <input
-                  type="date"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-sky-500 transition-colors"
-                  required
-                />
-              </div>
-              <div className="min-w-0">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Ora Partenza
-                </label>
-                <input
-                  type="time"
-                  value={departureTime}
-                  onChange={(e) => setDepartureTime(e.target.value)}
-                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-sky-500 transition-colors"
-                />
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Livello 2: Dettagli Aggiuntivi (Richiudibile) */}
-      <div className="pt-2">
-        <button
-          type="button"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className={`flex items-center gap-1.5 text-xs font-bold hover:opacity-80 transition-opacity cursor-pointer py-1 w-full justify-center rounded-xl h-10 border ${
-            isRental ? 'bg-amber-50 text-amber-600 border-amber-200/60' : 'bg-sky-50 text-sky-600 border-sky-200/60'
-          }`}
-        >
-          <span>{showAdvanced ? 'Nascondi Dettagli' : '+ Altri Dettagli (Costo, Ticket, Check-out, Note)'}</span>
-          <svg className={"w-4 h-4 transition-transform " + (showAdvanced ? 'rotate-180' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        {showAdvanced && (
-          <div className="mt-3 space-y-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 animate-fade-in">
-            {/* Stato Prenotazione (comune) */}
-            <div className="min-w-0">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Stato Prenotazione
-              </label>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as StatoTrasporto)}
-                className={`w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none transition-colors ${
-                  isRental ? 'focus:border-amber-500' : 'focus:border-sky-500'
+          <div className="flex flex-wrap gap-2">
+            {[
+              { id: 'volo', label: '✈️ Aereo' },
+              { id: 'treno', label: '🚆 Treno' },
+              { id: 'auto', label: '🚗 Noleggio Auto' },
+              { id: 'camper', label: '🚐 Camper' },
+              { id: 'traghetto', label: '⛴️ Traghetto' },
+              { id: 'transfer', label: '🚌 Bus / Transfer' }
+            ].map(cat => (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setType(cat.id as TipoTrasporto)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+                  type === cat.id 
+                    ? 'bg-slate-800 text-white border-slate-800 shadow-md' 
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                 }`}
               >
-                <option value="prenotato">✅ Prenotato</option>
-                <option value="da_prenotare">⏳ Da Prenotare</option>
-                <option value="pianificato">📋 Pianificato</option>
-                <option value="completato">🏁 Completato</option>
-              </select>
-            </div>
+                {cat.label}
+              </button>
+            ))}
+          </div>
+        </div>
 
-            {isRental ? (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Data Riconsegna
-                    </label>
-                    <input
-                      type="date"
-                      value={dropoffDate}
-                      onChange={(e) => setDropoffDate(e.target.value)}
-                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Ora Riconsegna
-                    </label>
-                    <input
-                      type="time"
-                      value={dropoffTime}
-                      onChange={(e) => setDropoffTime(e.target.value)}
-                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Luogo Riconsegna
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="es. Christchurch Airport"
-                    value={dropoffLocation}
-                    onChange={(e) => {
-                      setDropoffLocation(e.target.value);
-                      setArrivalLocation(e.target.value);
-                    }}
-                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-400"
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Costo Totale (€)
-                    </label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      pattern="[0-9]*"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={cost}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '' || /^\d*\.?\d*$/.test(val)) setCost(val);
-                      }}
-                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Acconto Versato
-                    </label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      pattern="[0-9]*"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={depositPaid}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '' || /^\d*\.?\d*$/.test(val)) setDepositPaid(val);
-                      }}
-                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-emerald-500 transition-colors placeholder:text-slate-400"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                    Modello Veicolo
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="es. Toyota RAV4, 4-berth Van"
-                    value={bookingCode}
-                    onChange={(e) => setBookingCode(e.target.value)}
-                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-400"
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Vettore / Compagnia
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="es. Air China CA783"
-                      value={carrier}
-                      onChange={(e) => setCarrier(e.target.value)}
-                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-sky-500 transition-colors placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Ora Arrivo
-                    </label>
-                    <input
-                      type="time"
-                      value={arrivalTime}
-                      onChange={(e) => setArrivalTime(e.target.value)}
-                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-sky-500 transition-colors placeholder:text-slate-400"
-                    />
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Costo (€)
-                    </label>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      pattern="[0-9]*"
-                      step="0.01"
-                      min="0"
-                      placeholder="0.00"
-                      value={cost}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        if (val === '' || /^\d*\.?\d*$/.test(val)) setCost(val);
-                      }}
-                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-sky-500 transition-colors placeholder:text-slate-400"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Codice PNR / Ticket
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="es. 7Y39XW"
-                      value={bookingCode}
-                      onChange={(e) => setBookingCode(e.target.value)}
-                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-mono focus:outline-none focus:border-sky-500 transition-colors placeholder:text-slate-400"
-                    />
-                  </div>
-                </div>
-                
-                <div className="pt-2 border-t border-slate-200">
-                  <label className="flex items-center gap-2 cursor-pointer mb-3">
-                    <input
-                      type="checkbox"
-                      checked={hasLayover}
-                      onChange={(e) => setHasLayover(e.target.checked)}
-                      className="w-4 h-4 text-sky-600 rounded focus:ring-sky-500 cursor-pointer"
-                    />
-                    <span className="text-xs font-bold text-slate-700">
-                      [+] Aggiungi Scalo / Tratta di coincidenza
-                    </span>
-                  </label>
-                  
-                  {hasLayover && (
-                    <div className="space-y-4 p-3 bg-sky-50/50 rounded-xl border border-sky-100">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                            Città Scalo *
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="es. Pechino (PEK)"
-                            value={layoverAirport}
-                            onChange={(e) => setLayoverAirport(e.target.value)}
-                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-sky-500 transition-colors"
-                            required={hasLayover}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                            Ora Arrivo a Scalo
-                          </label>
-                          <input
-                            type="time"
-                            value={layoverArrivalTime}
-                            onChange={(e) => setLayoverArrivalTime(e.target.value)}
-                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-sky-500 transition-colors"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                            Durata Sosta
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="es. 18h 35m"
-                            value={layoverDuration}
-                            onChange={(e) => setLayoverDuration(e.target.value)}
-                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-sky-500 transition-colors"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                            Data Tratta 2
-                          </label>
-                          <input
-                            type="date"
-                            value={layoverDepartureDate}
-                            onChange={(e) => setLayoverDepartureDate(e.target.value)}
-                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-sky-500 transition-colors"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                            Ora Tratta 2
-                          </label>
-                          <input
-                            type="time"
-                            value={layoverDepartureTime}
-                            onChange={(e) => setLayoverDepartureTime(e.target.value)}
-                            className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-sky-500 transition-colors"
-                          />
-                        </div>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-1">
-                          Volo Tratta 2 (Compagnia/Num)
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="es. CA783"
-                          value={layoverCarrier}
-                          onChange={(e) => setLayoverCarrier(e.target.value)}
-                          className="w-full h-10 px-3 bg-white border border-slate-200 rounded-lg text-slate-900 text-xs focus:outline-none focus:border-sky-500 transition-colors"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
+        {/* 2. Compagnia & Codice */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Compagnia / Vettore
+            </label>
+            <input
+              type="text"
+              placeholder="es. Air China, Hertz..."
+              value={carrier}
+              onChange={(e) => setCarrier(e.target.value)}
+              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors placeholder:text-slate-400"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Volo / Modello (es. CA950, RAV4)
+            </label>
+            <input
+              type="text"
+              placeholder="..."
+              value={bookingCode}
+              onChange={(e) => setBookingCode(e.target.value)}
+              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors placeholder:text-slate-400"
+            />
+          </div>
+        </div>
 
-            <div className="min-w-0">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Note operative
-              </label>
-              <textarea
-                rows={2}
-                placeholder="es. Bagagli inclusi 23kg, presentarsi 45 min prima..."
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                className={`w-full p-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none placeholder:text-slate-400 resize-none ${
-                  isRental ? 'focus:border-amber-500' : 'focus:border-sky-500'
-                }`}
+        {/* 4. Partenza */}
+        <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+          <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+            {isRental ? 'Partenza / Ritiro' : 'Partenza'}
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+            <div className="sm:col-span-8">
+              <input
+                type="text"
+                placeholder="Stazione / Aeroporto / Luogo"
+                value={departureLocation}
+                onChange={(e) => setDepartureLocation(e.target.value)}
+                className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                required
               />
             </div>
+            <div className="sm:col-span-4">
+              <input
+                type="text"
+                placeholder="Sigla IATA"
+                value={departureIata}
+                onChange={(e) => setDepartureIata(e.target.value)}
+                className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+              />
+            </div>
+          </div>
+          <input
+            type="datetime-local"
+            value={departureDate}
+            onChange={(e) => setDepartureDate(e.target.value)}
+            className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+            required
+          />
+        </div>
 
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <label htmlFor="copilota-trasporto-toggle" className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1.5">
-                <span>🧭</span>
-                <span>Mostra al co-pilota come rotta principale</span>
+        {/* 5. Arrivo */}
+        <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+          <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+            {isRental ? 'Arrivo / Riconsegna' : 'Arrivo'}
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+            <div className="sm:col-span-8">
+              <input
+                type="text"
+                placeholder="Stazione / Aeroporto / Luogo"
+                value={arrivalLocation}
+                onChange={(e) => setArrivalLocation(e.target.value)}
+                className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+              />
+            </div>
+            <div className="sm:col-span-4">
+              <input
+                type="text"
+                placeholder="Sigla IATA"
+                value={arrivalIata}
+                onChange={(e) => setArrivalIata(e.target.value)}
+                className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                disabled={isRental}
+              />
+            </div>
+          </div>
+          <input
+            type="datetime-local"
+            value={arrivalDate}
+            onChange={(e) => setArrivalDate(e.target.value)}
+            className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+          />
+        </div>
+
+        {/* 6. Campi Specifici (Aereo/Treno) */}
+        {isFlightOrTrain && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Posti a sedere
+                </label>
+                <input
+                  type="text"
+                  placeholder="es. 14A, 14B"
+                  value={posti}
+                  onChange={(e) => setPosti(e.target.value)}
+                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Bagagli inclusi
+                </label>
+                <input
+                  type="text"
+                  placeholder="es. 2x23kg stiva"
+                  value={bagagli}
+                  onChange={(e) => setBagagli(e.target.value)}
+                  className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                />
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Volo con Scalo?
+                </label>
+                <input
+                  type="checkbox"
+                  checked={hasLayover}
+                  onChange={(e) => setHasLayover(e.target.checked)}
+                  className="w-4 h-4 rounded text-[#FF6B5F] bg-white border-slate-300 focus:ring-[#FF6B5F]"
+                />
+              </div>
+              {hasLayover && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                  <input
+                    type="text"
+                    placeholder="Aeroporto Scalo (es. PEK)"
+                    value={layoverAirport}
+                    onChange={(e) => setLayoverAirport(e.target.value)}
+                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Durata scalo (es. 2h 15m)"
+                    value={layoverDuration}
+                    onChange={(e) => setLayoverDuration(e.target.value)}
+                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 6. Campi Specifici (Noleggio) */}
+        {isRental && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Cauzione / Deposito
               </label>
               <input
-                id="copilota-trasporto-toggle"
-                type="checkbox"
-                checked={copilota}
-                onChange={(e) => setCopilota(e.target.checked)}
-                className={`w-4 h-4 rounded bg-white border-slate-300 cursor-pointer ${
-                  isRental ? 'text-amber-600 focus:ring-amber-500' : 'text-sky-600 focus:ring-sky-500'
-                }`}
+                type="text"
+                placeholder="es. Carta Credito 500€"
+                value={depositoCauzionale}
+                onChange={(e) => setDepositoCauzionale(e.target.value)}
+                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Franchigia / Assicuraz.
+              </label>
+              <input
+                type="text"
+                placeholder="es. Kasko Totale"
+                value={franchigia}
+                onChange={(e) => setFranchigia(e.target.value)}
+                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Carburante
+              </label>
+              <input
+                type="text"
+                placeholder="es. Pieno/Pieno"
+                value={politicaCarburante}
+                onChange={(e) => setPoliticaCarburante(e.target.value)}
+                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
               />
             </div>
           </div>
         )}
-      </div>
 
-      <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
-        >
-          Annulla
-        </button>
-        <button
-          type="submit"
-          className={`min-h-[44px] px-6 rounded-xl text-sm font-bold active:scale-95 shadow-md transition-all cursor-pointer ${
-            isRental 
-              ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-amber-500/20' 
-              : 'bg-sky-500 hover:bg-sky-400 text-slate-950 shadow-sky-500/20'
-          }`}
-        >
-          {initialData ? 'Aggiorna Trasporto' : 'Salva Trasporto'}
-        </button>
-      </div>
-    </form>
+        {/* 6. Campi Specifici (Traghetto) */}
+        {isFerry && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Sistemazione
+              </label>
+              <input
+                type="text"
+                placeholder="es. Cabina esterna, Ponte"
+                value={sistemazioneTraghetto}
+                onChange={(e) => setSistemazioneTraghetto(e.target.value)}
+                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Veicolo a bordo
+              </label>
+              <input
+                type="text"
+                placeholder="es. Auto targa AA123BB"
+                value={veicoloTraghetto}
+                onChange={(e) => setVeicoloTraghetto(e.target.value)}
+                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* 7. Quadro Economico */}
+        <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+          <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-3">
+            Quadro Economico
+          </label>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                Costo Totale (€)
+              </label>
+              <input
+                type="text"
+                placeholder="es. 150.00"
+                value={cost}
+                onChange={(e) => setCost(e.target.value)}
+                className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-bold focus:outline-none focus:border-[#FF6B5F]"
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                Acconto Versato (€)
+              </label>
+              <input
+                type="text"
+                placeholder="es. 50.00"
+                value={depositPaid}
+                onChange={(e) => {
+                  setDepositPaid(e.target.value);
+                  setIsSaldato(false);
+                }}
+                className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+              />
+            </div>
+          </div>
+          
+          <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setIsSaldato(!isSaldato)}>
+              <input
+                type="checkbox"
+                checked={isSaldato}
+                readOnly
+                className="w-4 h-4 rounded text-emerald-500 bg-white border-slate-300 focus:ring-emerald-500"
+              />
+              <span className="text-xs font-bold text-slate-700">Saldato interamente</span>
+            </div>
+            {cost && (
+              <div className="text-right">
+                <span className="text-[10px] uppercase text-slate-500 font-bold block">Saldo Rimanente</span>
+                <span className={`text-sm font-extrabold ${getSaldo() > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                  {getSaldo().toFixed(2)} €
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* 8. Link & Documento */}
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Link Biglietto / Voucher / Carta d'imbarco
+          </label>
+          <input
+            type="url"
+            placeholder="https://..."
+            value={ticketUrl}
+            onChange={(e) => setTicketUrl(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+          />
+        </div>
+
+        {/* 9. Note */}
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Note / Promemoria
+          </label>
+          <textarea
+            rows={2}
+            placeholder="..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
+          />
+        </div>
+
+        {/* Azioni finali */}
+        <div className="flex flex-col sm:flex-row-reverse items-center justify-between gap-3 pt-3 border-t border-slate-100 mt-4">
+          <button
+            type="submit"
+            className="w-full sm:w-auto min-w-[200px] min-h-[44px] px-6 rounded-xl text-sm font-bold bg-[#FF6B5F] hover:bg-[#e85c50] active:scale-95 text-white shadow-md shadow-rose-500/20 transition-all cursor-pointer"
+          >
+            {initialData ? 'Salva Modifiche' : 'Crea Trasporto'}
+          </button>
+          
+          <button
+            type="button"
+            onClick={onCancel}
+            className="w-full sm:w-auto min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
+          >
+            Annulla
+          </button>
+
+          {onDelete && initialData && (
+            <button
+              type="button"
+              onClick={onDelete}
+              className="w-full sm:w-auto mt-4 sm:mt-0 min-h-[44px] px-4 rounded-xl text-sm font-semibold text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+            >
+              Elimina trasporto
+            </button>
+          )}
+        </div>
+      </form>
+    </div>
   );
 }

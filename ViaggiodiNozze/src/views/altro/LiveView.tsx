@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { storageService } from '../../storage/storageService';
 import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa, DeviceRole } from '../../types';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
@@ -444,6 +444,27 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   const currentTransport = useMemo(() => {
     return transports.find(t => t.date === activeDate);
   }, [transports, activeDate]);
+
+  // Calcolo volo in partenza (oggi o domani entro le 8)
+  const liveFlight = useMemo(() => {
+    const today = new Date(todayStr);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+
+    return transports.find(t => {
+      if (t.type !== 'volo') return false;
+      
+      if (t.date === todayStr) return true;
+      if (t.date === tomorrowStr && t.departureTime) {
+         const time = t.departureTime.split(':');
+         if (parseInt(time[0], 10) < 8) return true;
+         if (parseInt(time[0], 10) === 8 && parseInt(time[1], 10) === 0) return true;
+      }
+      return false;
+    });
+  }, [transports, todayStr]);
+
 
   const currentTappa = useMemo(() => {
     return tappe.find(tp => tp.data === activeDate);
@@ -1057,15 +1078,55 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
           )}
 
           {/* Badge discreto con puntino verde pulsante */}
-          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-[10px] font-bold tracking-wider shadow-2xs">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#FFF0ED] border border-slate-200/80 text-[#172033] text-[10px] font-bold tracking-wider shadow-2xs">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF9A76] opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#FFF0ED]0" />
             </span>
             <span>● LIVE</span>
           </div>
         </div>
       </header>
+
+      {/* 2. WIDGET VOLO IN PARTENZA / LIVE TRACKING */}
+      {liveFlight && (
+        <div className="bg-white border-2 border-[#FF6B5F] rounded-2xl p-4 shadow-xl shadow-rose-500/10 mx-1 mb-2 animate-scale-up">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="bg-[#FF6B5F] text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider animate-pulse">
+              ● {liveFlight.date === todayStr ? 'Oggi in partenza' : 'In partenza'}
+            </span>
+            <span className="text-xs font-bold text-slate-800">
+              {liveFlight.carrier || 'Volo'} {liveFlight.bookingCode ? `(${liveFlight.bookingCode})` : ''}
+            </span>
+          </div>
+          
+          <div className="flex items-center justify-between mb-4">
+             <div className="flex-1">
+               <p className="text-xl font-black text-slate-900 font-mono tracking-tight">{liveFlight.departureLocation || 'Partenza'}</p>
+               <p className="text-[11px] font-semibold text-slate-500">{liveFlight.departureTime || '--:--'}</p>
+             </div>
+             <div className="flex-1 flex justify-center text-rose-500 px-2">
+               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+               </svg>
+             </div>
+             <div className="flex-1 text-right">
+               <p className="text-xl font-black text-slate-900 font-mono tracking-tight">{liveFlight.arrivalLocation || 'Arrivo'}</p>
+               <p className="text-[11px] font-semibold text-slate-500">{liveFlight.arrivalTime || '--:--'} {liveFlight.arrivalDate && liveFlight.arrivalDate !== liveFlight.date ? '(+1)' : ''}</p>
+             </div>
+          </div>
+
+          <a
+            href={liveFlight.carrier ? `https://www.google.com/search?q=${encodeURIComponent('volo ' + liveFlight.carrier)}` : '#'}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs py-3 rounded-xl transition shadow-md"
+          >
+            <span>✈️</span> Segui questo volo in diretta online ↗
+          </a>
+        </div>
+      )}
+
 
       {/* 2. PRIMO ELEMENTO FORTE: OROLOGIO DOPPIO FUSO (Voi siete qui / Noi siamo qui) */}
       <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-sm flex flex-col items-center">
@@ -1114,8 +1175,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
             <span>📍</span>
             <span>POSIZIONE</span>
             {currentLocation.isRealGps ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-[#FFF0ED] text-[#172033] border border-slate-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#FFF0ED]0 animate-pulse" />
                 GPS Reale
               </span>
             ) : (
@@ -1147,7 +1208,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
             <span>📍</span>
             <span>Dove siamo ora</span>
             {realLocation && (
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#FFF0ED]0 animate-pulse" />
             )}
           </button>
 
@@ -1169,7 +1230,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
         </div>
 
         {/* Widget Meteo Compatto Open-Meteo */}
-        <div className="grid grid-cols-2 gap-2 bg-gradient-to-r from-sky-50/60 to-indigo-50/60 rounded-2xl p-2.5 border border-sky-100">
+        <div className="grid grid-cols-2 gap-2 bg-[#F0FAF9] rounded-2xl p-2.5 border border-sky-100">
           <div className="flex items-center gap-2">
             <span className="text-2xl">{weatherCurrent?.icon || '🌤️'}</span>
             <div className="min-w-0">
@@ -1267,7 +1328,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
             </div>
           ) : (
             /* Fallback Cartografico Vettoriale Stile Apple Maps (Zero Rete / Offline) */
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-50 via-sky-50/40 to-indigo-50/50 flex items-center justify-center overflow-hidden">
+            <div className="absolute inset-0 bg-slate-50 flex items-center justify-center overflow-hidden">
               <svg className="absolute inset-0 w-full h-full text-slate-200/70" xmlns="http://www.w3.org/2000/svg">
                 <defs>
                   <pattern id="grid" width="32" height="32" patternUnits="userSpaceOnUse">
@@ -1283,7 +1344,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
           )}
 
           {/* Effetto vignettatura leggera per profondità */}
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900/15 via-transparent to-slate-900/10 pointer-events-none" />
+          <div className="absolute inset-0 bg-transparent pointer-events-none" />
 
           {/* Pin Radar Pulsante ancorato alla posizione esatta (si muove con il pan) */}
           <div 
@@ -1430,13 +1491,13 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
 
           {/* Distanza dalla Tappa Programmata (durante il viaggio) */}
           {distanceToPlannedKm !== null && (
-            <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-emerald-50/80 border border-emerald-100">
+            <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-[#FFF0ED]/80 border border-[#FFF0ED]">
               <span className="text-sm">🎯</span>
               <div className="min-w-0">
-                <div className="text-[9px] uppercase tracking-wider font-bold text-emerald-600">
+                <div className="text-[9px] uppercase tracking-wider font-bold text-[#FF6B5F]">
                   Distanza Tappa
                 </div>
-                <div className="text-[11px] font-bold text-emerald-800 truncate">
+                <div className="text-[11px] font-bold text-[#172033] truncate">
                   ~{distanceToPlannedKm.toLocaleString('it-IT')} km
                 </div>
               </div>
@@ -1527,7 +1588,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
             loading="lazy"
           />
           {/* Gradiente scuro sul fondo per leggibilità micro-didascalia */}
-          <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent p-3 pt-6 flex items-center justify-between gap-2">
+          <div className="absolute inset-x-0 bottom-0 bg-black/60 p-3 pt-6 flex items-center justify-between gap-2">
             <p className="text-white text-xs font-semibold drop-shadow-xs line-clamp-1">
               📷 {photoUpdateData.caption}
             </p>
@@ -1635,7 +1696,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
                   key={item.id}
                   className={`p-3 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
                     isCurrent
-                      ? 'bg-emerald-50/70 border-emerald-300 shadow-xs ring-1 ring-emerald-200'
+                      ? 'bg-[#FFF0ED]/70 border-slate-300 shadow-xs ring-1 ring-emerald-200'
                       : isCompleted
                       ? 'bg-slate-50/60 border-slate-200/60 opacity-80'
                       : 'bg-white border-slate-200/80'
@@ -1664,8 +1725,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
 
                     {/* Stato dell'evento */}
                     {isCurrent ? (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-emerald-700 bg-emerald-100/90 px-1.5 py-0.5 rounded-full">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                      <span className="inline-flex items-center gap-1 text-[9px] font-extrabold text-[#172033] bg-[#FFF0ED]/90 px-1.5 py-0.5 rounded-full">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F] animate-pulse" />
                         ORA
                       </span>
                     ) : isCompleted ? (

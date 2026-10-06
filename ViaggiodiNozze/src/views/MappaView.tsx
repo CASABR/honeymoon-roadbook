@@ -32,7 +32,7 @@ const ICONS = {
   tappa: createCustomIcon('📍', 'bg-rose-50', 'text-rose-600', 'border-rose-400'),
   alloggio: createCustomIcon('🏨', 'bg-indigo-50', 'text-indigo-600', 'border-indigo-400'),
   ristorante: createCustomIcon('🍽️', 'bg-amber-50', 'text-amber-600', 'border-amber-400'),
-  attivita: createCustomIcon('🎟️', 'bg-emerald-50', 'text-emerald-600', 'border-emerald-400'),
+  attivita: createCustomIcon('🎟️', 'bg-[#FFF0ED]', 'text-[#FF6B5F]', 'border-slate-300'),
 };
 
 interface MapMarkerData {
@@ -175,7 +175,7 @@ export default function MappaView() {
             style={{ height: '100%', width: '100%', zIndex: 0 }}
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
             <MapUpdater markers={markers} />
@@ -217,7 +217,7 @@ export default function MappaView() {
           Alloggi
         </div>
         <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
-          <span className="w-4 h-4 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-400 flex items-center justify-center">🎟️</span>
+          <span className="w-4 h-4 rounded-full bg-[#FFF0ED] text-[#FF6B5F] border border-slate-300 flex items-center justify-center">🎟️</span>
           Attività
         </div>
         <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">

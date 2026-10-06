@@ -105,7 +105,9 @@ export default function TimelineItemDetailModal({
                       Stato
                     </span>
                     <span className="font-semibold capitalize text-slate-700">
-                      {att.status}
+                      {att.status === 'prenotato' ? '🟢 Prenotato' : 
+                       att.status === 'da_valutare' ? '🟡 Da Valutare' : 
+                       att.status === 'non_bloccato' ? '🟠 Non Bloccato' : '⚪ Libero'}
                     </span>
                   </div>
                   {att.duration && (
@@ -115,6 +117,31 @@ export default function TimelineItemDetailModal({
                       </span>
                       <span className="font-semibold text-slate-700">
                         ⏱️ {att.duration}
+                      </span>
+                    </div>
+                  )}
+                  {att.cost && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                        Prezzo & Pagamento
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 text-sm">
+                          {!isNaN(parseFloat(att.cost)) ? parseFloat(att.cost).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' }) : att.cost}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${att.status === 'prenotato' ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-100 text-orange-800'}`}>
+                          {att.status === 'prenotato' ? 'Saldato' : 'Da Saldare'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  {att.platform && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                        Piattaforma
+                      </span>
+                      <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-100">
+                        {att.platform}
                       </span>
                     </div>
                   )}
@@ -149,8 +176,28 @@ export default function TimelineItemDetailModal({
 
                 {/* Sezione Biglietto / QR Code per Attività */}
                 {att.qrCode && (
-                  <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div className="min-w-0">
+                        <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">
+                          Codice Prenotazione / Voucher
+                        </span>
+                        <p className="text-sm font-mono font-bold text-slate-900 truncate">
+                          {att.qrCode}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(att.qrCode || '');
+                          alert('Codice copiato negli appunti!');
+                        }}
+                        className="px-2.5 py-1.5 bg-white border border-amber-200 hover:bg-amber-100 text-amber-900 font-bold text-[11px] rounded-xl shrink-0 transition-colors cursor-pointer"
+                      >
+                        Copia codice 📋
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2.5 min-w-0 pt-2 border-t border-amber-200/50">
                       <div className="w-12 h-12 bg-white rounded-xl border border-amber-200 p-1 flex items-center justify-center shrink-0">
                         <img
                           src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(att.qrCode)}`}
@@ -158,33 +205,47 @@ export default function TimelineItemDetailModal({
                           className="w-full h-full object-contain"
                         />
                       </div>
-                      <div className="min-w-0">
-                        <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">
-                          QR Code Biglietto
-                        </span>
-                        <p className="text-xs font-mono font-bold text-slate-900 truncate">
-                          {att.qrCode}
-                        </p>
-                      </div>
+                      <a
+                        href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(att.qrCode)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] rounded-xl shrink-0 transition-colors"
+                      >
+                        Apri QR Code 🔍
+                      </a>
                     </div>
-                    <a
-                      href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(att.qrCode)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] rounded-xl shrink-0 transition-colors"
-                    >
-                      Ingrandisci 🔍
-                    </a>
                   </div>
                 )}
 
                 {att.attachments && att.attachments.length > 0 && (
-                  <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 flex items-center justify-between text-xs text-purple-900">
-                    <span className="font-semibold flex items-center gap-1.5">
-                      <span>🎟️</span>
-                      <span>{att.attachments.length} biglietti/allegati caricati</span>
-                    </span>
-                    <span className="text-[10px] text-purple-600 font-bold">Disponibili offline</span>
+                  <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex flex-col gap-2">
+                    <div className="flex items-center justify-between text-xs text-purple-900">
+                      <span className="font-semibold flex items-center gap-1.5">
+                        <span>🎟️</span>
+                        <span>{att.attachments.length} biglietti/allegati caricati</span>
+                      </span>
+                      <span className="text-[10px] text-purple-600 font-bold">Disponibili offline</span>
+                    </div>
+                    <div className="grid gap-2">
+                      {att.attachments.map((attach, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            const content = attach.dataUrl;
+                            if (content) {
+                              const w = window.open();
+                              if (w) w.document.write(`<iframe src="${content}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                            } else {
+                              alert('Allegato non disponibile');
+                            }
+                          }}
+                          className="w-full text-left px-3 py-2 bg-white rounded-lg border border-purple-100 hover:border-purple-300 transition-colors flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span className="truncate font-medium">{attach.name}</span>
+                          <span className="shrink-0 text-purple-600">Apri ↗</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -530,10 +591,7 @@ export default function TimelineItemDetailModal({
               onClick={() => onEdit(item)}
               className="min-h-[44px] px-5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
             >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-              <span>Modifica</span>
+              <span>✏️ Modifica</span>
             </button>
           )}
         </div>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { RouteInfo, RouteProfile, Coordinate } from '../../types';
 import { getRoute, saveManualRoute } from '../../services/routingService';
 import { openMapLink } from '../../utils/mapsHelper';

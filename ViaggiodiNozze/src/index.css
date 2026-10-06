@@ -47,7 +47,7 @@ html, body, #root {
 }
 
 html {
-  --theme-slate-50: #f8fafc;
+  --theme-slate-50: #f8f7f3;
   --theme-slate-100: #f1f5f9;
   --theme-slate-200: #e2e8f0;
   --theme-slate-300: #cbd5e1;
@@ -71,7 +71,7 @@ html {
   --theme-rose-600: #e11d48;
   --theme-emerald-50: #ecfdf5;
   --theme-emerald-100: #d1fae5;
-  --theme-emerald-600: #059669;
+  --theme-emerald-600: #e85c50;
   --theme-purple-50: #faf5ff;
   --theme-purple-100: #f3e8ff;
   --theme-purple-600: #9333ea;
@@ -103,7 +103,7 @@ html.dark {
   --theme-rose-100: #881337;
   --theme-rose-600: #fb7185; /* rose-400 */
   --theme-emerald-50: #022c22;
-  --theme-emerald-100: #064e3b;
+  --theme-emerald-100: #1E293B;
   --theme-emerald-600: #34d399; /* emerald-400 */
   --theme-purple-50: #3b0764;
   --theme-purple-100: #581c87;
@@ -209,6 +209,83 @@ input[type="url"] {
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch !important;
   padding: 1.25rem 1.5rem 5rem 1.5rem !important;
+}
+
+/* === DARK MODE: Modal === */
+html.dark .modal-sheet-container {
+  background-color: #1e293b !important;
+  border-color: rgba(100, 116, 139, 0.3) !important;
+  color: #f1f5f9 !important;
+}
+
+html.dark .modal-sheet-container h2,
+html.dark .modal-sheet-container h3,
+html.dark .modal-sheet-container label,
+html.dark .modal-sheet-container p,
+html.dark .modal-sheet-container span:not([class*="text-"]),
+html.dark .modal-sheet-container legend {
+  color: #f1f5f9;
+}
+
+html.dark .modal-sheet-container .border-b,
+html.dark .modal-sheet-container .border-t,
+html.dark .modal-sheet-container .border {
+  border-color: rgba(71, 85, 105, 0.5) !important;
+}
+
+/* Modal header bar dark mode */
+html.dark .modal-sheet-container > div:last-of-type > div:first-child {
+  background-color: #1e293b !important;
+  border-bottom-color: rgba(71, 85, 105, 0.5) !important;
+}
+
+/* Input fields inside modals: ALWAYS light (even in dark mode) */
+html.dark .modal-sheet-container input[type="text"],
+html.dark .modal-sheet-container input[type="number"],
+html.dark .modal-sheet-container input[type="date"],
+html.dark .modal-sheet-container input[type="time"],
+html.dark .modal-sheet-container input[type="url"],
+html.dark .modal-sheet-container input[type="email"],
+html.dark .modal-sheet-container textarea,
+html.dark .modal-sheet-container select {
+  background-color: #1e293b !important;
+  color: #f1f5f9 !important;
+  border-color: rgba(71, 85, 105, 0.6) !important;
+  color-scheme: dark;
+}
+
+html.dark .modal-sheet-container input::placeholder,
+html.dark .modal-sheet-container textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Modal sticky header fix */
+html.dark .modal-sheet-container [class*="sticky"],
+html.dark .modal-sheet-container [class*="bg-white"] {
+  background-color: #1e293b !important;
+}
+
+html.dark .modal-sheet-container [class*="text-slate-900"] {
+  color: #f1f5f9 !important;
+}
+
+html.dark .modal-sheet-container [class*="text-slate-700"] {
+  color: #cbd5e1 !important;
+}
+
+html.dark .modal-sheet-container [class*="text-slate-500"] {
+  color: #94a3b8 !important;
+}
+
+html.dark .modal-sheet-container [class*="bg-slate-50"],
+html.dark .modal-sheet-container [class*="bg-slate-100"],
+html.dark .modal-sheet-container [class*="bg-gray-50"] {
+  background-color: #0f172a !important;
+}
+
+/* Drag handle pill in dark */
+html.dark .modal-sheet-container .bg-slate-300 {
+  background-color: #475569 !important;
 }
 
 

@@ -14,7 +14,7 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
   const [copiedPolicy, setCopiedPolicy] = useState(false);
   const [expandedAccordion, setExpandedAccordion] = useState<string | null>('ospedale');
 
-  const policyNumber = 'HMN-2026-NZAU-88942';
+  const policyNumber = 'DA INSERIRE';
 
   const handleCopyPolicy = async () => {
     try {
@@ -80,10 +80,10 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
         </button>
         <div>
           <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <span>🛡️</span> Assicurazione & Emergenze
+            <span>🛡️</span> Assicurazione &amp; SOS
           </h1>
           <p className="text-[11px] text-slate-500 font-medium">
-            Copertura sanitaria, contatti H24 e assistenza rapida
+            Polizza attiva, emergenze locali e procedure rapide
           </p>
         </div>
       </header>
@@ -94,15 +94,22 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
         </div>
       ) : (
         <div className="px-1 space-y-4">
-          {/* Card Polizza Primaria (in alto) */}
+          {/* ─── SEZIONE 1: ASSICURAZIONE ─────────────────────────────────── */}
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex-1 h-px bg-slate-200" />
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 px-1">🛡️ Assicurazione</span>
+            <div className="flex-1 h-px bg-slate-200" />
+          </div>
+
+          {/* Card Polizza Primaria */}
           <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/90 relative overflow-hidden">
             <div className="flex justify-between items-start gap-2 mb-3">
               <div className="min-w-0">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
-                  Allianz Global Assistance / Heymondo Top
+                  NOME COMPAGNIA
                 </span>
                 <h2 className="text-lg font-black text-slate-900 mt-1.5 leading-snug">
-                  Polizza Viaggio No-Stop
+                  Polizza Assicurativa
                 </h2>
                 
                 {/* Numero Polizza in evidenza con tasto "Copia" */}
@@ -138,16 +145,23 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
             <div className="grid grid-cols-2 gap-2.5 pt-3.5 border-t border-slate-100 text-xs">
               <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Validità</span>
-                <span className="font-bold text-slate-800 text-[11px] block mt-0.5">28 Nov 2026 – 15 Gen 2027</span>
+                <span className="font-bold text-slate-800 text-[11px] block mt-0.5">Da inserire</span>
               </div>
               <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Copertura Paesi</span>
-                <span className="font-bold text-slate-800 text-[11px] block mt-0.5">🇳🇿 NZ • 🇦🇺 AU • 🇵🇭 PH</span>
+                <span className="font-bold text-slate-800 text-[11px] block mt-0.5">Da inserire</span>
               </div>
             </div>
           </div>
 
-          {/* Centrale Emergenze H24 Rapida: Pulsantoni a tutta larghezza stile tastiera emergenza con un tap */}
+          {/* ─── SEZIONE 2: EMERGENZE & SOS ──────────────────────────────── */}
+          <div className="flex items-center gap-2 mt-4 mb-2">
+            <div className="flex-1 h-px bg-slate-200" />
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-rose-500 px-1">🚨 Emergenze & SOS</span>
+            <div className="flex-1 h-px bg-slate-200" />
+          </div>
+
+          {/* Contatti rapidi e numeri di emergenza */}
           <div className="space-y-2.5">
             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
               Chiamata Rapida di Emergenza (Un Tap)
@@ -155,7 +169,7 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
 
             {/* 1. Pulsantone Centrale Operativa H24 Assicurazione */}
             <a
-              href="tel:+390226609133"
+              href="tel:+390000000000"
               className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-3xl shadow-md shadow-rose-600/20 transition-all active:scale-[0.98] cursor-pointer"
             >
               <div className="flex items-center gap-3.5 min-w-0">
@@ -164,13 +178,13 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
                 </span>
                 <div className="min-w-0 text-left">
                   <p className="text-[10px] font-bold text-rose-200 uppercase tracking-wider">
-                    Assicurazione Heymondo / Allianz
+                    ASSICURAZIONE DI VIAGGIO
                   </p>
                   <h4 className="text-sm font-extrabold text-white leading-tight truncate">
                     Centrale Operativa H24
                   </h4>
                   <p className="font-mono text-xs font-bold text-rose-100 mt-0.5">
-                    +39 02 2660 9133
+                    +39 000 000 0000
                   </p>
                 </div>
               </div>
@@ -227,40 +241,8 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
             </div>
           </div>
 
-          {/* Massimali Essenziali */}
-          <div className="bg-white rounded-3xl p-4.5 shadow-sm border border-slate-200/90">
-            <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
-              Massimali di Copertura Inclusi
-            </h3>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="bg-emerald-50/60 border border-emerald-100 p-2.5 rounded-2xl">
-                <span className="text-[10px] font-bold text-emerald-800 uppercase block">Spese Mediche</span>
-                <span className="text-sm font-extrabold text-emerald-950">ILLIMITATE</span>
-                <p className="text-[10px] text-emerald-700 mt-0.5">Presa in carico diretta</p>
-              </div>
-
-              <div className="bg-indigo-50/60 border border-indigo-100 p-2.5 rounded-2xl">
-                <span className="text-[10px] font-bold text-indigo-800 uppercase block">Rimpatrio Sanitario</span>
-                <span className="text-sm font-extrabold text-indigo-950">100% INCLUSO</span>
-                <p className="text-[10px] text-indigo-700 mt-0.5">Volo sanitario dedicato</p>
-              </div>
-
-              <div className="bg-sky-50/60 border border-sky-100 p-2.5 rounded-2xl">
-                <span className="text-[10px] font-bold text-sky-800 uppercase block">Bagaglio & Effetti</span>
-                <span className="text-sm font-extrabold text-sky-950">€ 2.500 / persona</span>
-                <p className="text-[10px] text-sky-700 mt-0.5">Furto o smarrimento</p>
-              </div>
-
-              <div className="bg-amber-50/60 border border-amber-100 p-2.5 rounded-2xl">
-                <span className="text-[10px] font-bold text-amber-800 uppercase block">Ritardo Volo</span>
-                <span className="text-sm font-extrabold text-amber-950">Fino a € 500</span>
-                <p className="text-[10px] text-amber-700 mt-0.5">Prima necessità</p>
-              </div>
-            </div>
-          </div>
-
           {/* Box Accordion Casistiche ("Cosa fare in caso di...") */}
-          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/90 space-y-3">
+          <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200/90 space-y-3 mt-4">
             <div className="pb-2 border-b border-slate-100">
               <h3 className="text-sm font-extrabold text-slate-900 leading-tight">
                 Cosa fare in caso di...
@@ -280,7 +262,7 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">🏥</span>
                   <span className="text-xs font-bold text-slate-900">
-                    Emergenza Sanitaria / Visita o Ricovero Ospedaliero
+                    Emergenza Sanitaria / Ricovero Ospedaliero
                   </span>
                 </div>
                 <span className="text-slate-400 text-xs font-bold ml-2">
@@ -290,13 +272,13 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
               {expandedAccordion === 'ospedale' && (
                 <div className="p-3.5 bg-rose-50/50 border-t border-rose-100 text-xs text-rose-950 space-y-2 leading-relaxed">
                   <p>
-                    <strong>1. Telefona prima alla Centrale Operativa H24</strong> (+39 02 2660 9133) comunicando il numero di polizza <span className="font-mono font-bold">{policyNumber}</span>. In questo modo l'assicurazione invia subito la garanzia di pagamento alla clinica/ospedale senza dover anticipare denaro.
+                    <strong>1. Telefona prima alla Centrale Operativa H24</strong> comunicando il numero di polizza <span className="font-mono font-bold">{policyNumber}</span>. In questo modo l'assicurazione invia subito la garanzia di pagamento.
                   </p>
                   <p>
-                    <strong>2. In caso di pericolo di vita imminente</strong>, chiama direttamente i soccorsi locali (<span className="font-bold">NZ: 111 | AU: 000 | PH: 911</span>) e avvisa la centrale H24 non appena le condizioni lo consentono.
+                    <strong>2. In caso di pericolo di vita imminente</strong>, chiama direttamente i soccorsi locali e avvisa la centrale H24 non appena possibile.
                   </p>
                   <p>
-                    <strong>3. Conserva cartelle cliniche</strong>, prescrizioni e quietanze di qualsiasi farmaco o ticket per la liquidazione.
+                    <strong>3. Conserva cartelle cliniche</strong>, prescrizioni e quietanze di qualsiasi farmaco o ticket.
                   </p>
                 </div>
               )}
@@ -322,19 +304,19 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
               {expandedAccordion === 'bagaglio' && (
                 <div className="p-3.5 bg-amber-50/50 border-t border-amber-100 text-xs text-amber-950 space-y-2 leading-relaxed">
                   <p>
-                    <strong>1. Compila subito il modulo PIR (Property Irregularity Report)</strong> al banco Lost & Found in aeroporto prima di superare i varchi doganali. È indispensabile per aprire il sinistro.
+                    <strong>1. Compila subito il modulo PIR</strong> al banco Lost & Found in aeroporto prima di superare i varchi doganali.
                   </p>
                   <p>
-                    <strong>2. Conserva il tagliando di imbarco bagaglio (Baggage Claim Tag)</strong> attaccato al biglietto o passaporto.
+                    <strong>2. Conserva il tagliando di imbarco bagaglio (Baggage Claim Tag)</strong> attaccato al biglietto.
                   </p>
                   <p>
-                    <strong>3. Acquisti di prima necessità:</strong> se la consegna ritarda oltre 8 ore, puoi acquistare abiti di ricambio e articoli igienici conservando ogni scontrino per rimborso fino a € 500 a persona.
+                    <strong>3. Acquisti di prima necessità:</strong> conserva ogni scontrino per richiedere il rimborso.
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Accordion 3: Smarrimento Passaporto & Consolati */}
+            {/* Accordion 3: Smarrimento Passaporto */}
             <div className="border border-slate-200 rounded-2xl overflow-hidden transition-all">
               <button
                 type="button"
@@ -344,7 +326,7 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">🛂</span>
                   <span className="text-xs font-bold text-slate-900">
-                    Smarrimento Passaporto & Consolati Italiani
+                    Smarrimento Passaporto & Consolati
                   </span>
                 </div>
                 <span className="text-slate-400 text-xs font-bold ml-2">
@@ -357,30 +339,14 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
                     <strong>1. Fai subito denuncia</strong> presso il posto di polizia locale e richiedi copia del verbale.
                   </p>
                   <p>
-                    <strong>2. Contatta la sede diplomatica italiana competente</strong> per il rilascio di un ETD (Emergency Travel Document):
+                    <strong>2. Contatta la sede diplomatica competente</strong> per il rilascio di un ETD (Emergency Travel Document). Inserisci qui sotto i numeri di emergenza della tua Ambasciata locale:
                   </p>
                   <div className="space-y-2 pt-1 font-medium text-[11px] text-indigo-900">
                     <div className="p-2.5 rounded-xl bg-white/80 border border-indigo-150">
-                      <p className="font-bold text-slate-900">🇳🇿 Wellington — Ambasciata d'Italia</p>
-                      <p className="text-slate-600">34-38 Grant Road, Thorndon, Wellington</p>
+                      <p className="font-bold text-slate-900">Ambasciata / Consolato</p>
+                      <p className="text-slate-600">Da inserire</p>
                       <p className="font-mono text-indigo-700 font-bold mt-0.5">
-                        Tel: <a href="tel:+6444735339" className="underline">+64 4 473 5339</a> • Emergenze: <a href="tel:+64274448259" className="underline">+64 27 444 8259</a>
-                      </p>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-white/80 border border-indigo-150">
-                      <p className="font-bold text-slate-900">🇦🇺 Sydney — Consolato Generale d'Italia</p>
-                      <p className="text-slate-600">Level 19, 44 Market Street, Sydney</p>
-                      <p className="font-mono text-indigo-700 font-bold mt-0.5">
-                        Tel: <a href="tel:+61293927900" className="underline">+61 2 9392 7900</a> • Emergenze: <a href="tel:+61418248994" className="underline">+61 418 248 994</a>
-                      </p>
-                    </div>
-
-                    <div className="p-2.5 rounded-xl bg-white/80 border border-indigo-150">
-                      <p className="font-bold text-slate-900">🇵🇭 Manila — Ambasciata d'Italia</p>
-                      <p className="text-slate-600">CIAO Centre, 122 Upper McKinley Rd, Taguig, Manila</p>
-                      <p className="font-mono text-indigo-700 font-bold mt-0.5">
-                        Tel: <a href="tel:+63288924531" className="underline">+63 2 8892 4531</a> • Emergenze: <a href="tel:+639175375071" className="underline">+63 917 537 5071</a>
+                        Tel: <span className="underline">+00 0000 000</span>
                       </p>
                     </div>
                   </div>

@@ -1,4 +1,4 @@
-export type StatoAttivita = 'pianificata' | 'completata' | 'annullata';
+export type StatoAttivita = 'prenotato' | 'da_valutare' | 'non_bloccato' | 'libero';
 export type CategoriaAttivita = 'visita' | 'cibo' | 'relax' | 'shopping' | 'natura' | 'cultura' | 'altro';
 
 export interface Giorno {
@@ -25,12 +25,20 @@ export interface Attivita {
   location: string;
   cost?: string; // Costo in €
   category: CategoriaAttivita;
+  sottocategoria?: 'Escursione' | 'Tour Guidato' | 'Museo' | 'Adrenalina' | 'Altro';
   duration?: string;
+  orarioRitrovo?: string; // HH:mm
+  orarioInizio?: string; // HH:mm
+  address?: string;
+  acconto?: string;
+  paymentStatus?: 'saldato' | 'da_saldare';
   notes?: string;
   link?: string;
   status: StatoAttivita;
+  platform?: string; // Piattaforma prenotazione (GetYourGuide, Headout, ecc.)
   copilota?: boolean;
-  copilotNotes?: string; // Note e promemoria riservati del co-pilota
+  completed?: boolean;
+  noteCopilota?: string; // Note e promemoria riservati del co-pilota
   coordinate?: Coordinate;
   qrCode?: string; // Codice testuale, numero biglietto o URL per QR code
   attachments?: TransportAttachment[]; // File, biglietti, immagini o QR code salvati offline
@@ -41,13 +49,17 @@ export interface Attivita {
 export interface Tappa {
   id: string;
   titolo: string;
+  sottocategoria?: string;
   data?: string; // YYYY-MM-DD
   date?: string; // Alias di data YYYY-MM-DD
   dayId?: string;
   coordinate?: Coordinate;
+  indirizzo?: string;
   mapsUrl?: string; // Link o indirizzo Maps
-  nota?: string;
+  nota?: string; // Note generali
+  noteCopilota?: string; // Note specifiche per il copilota
   copilota?: boolean;
+  completed?: boolean;
   createdAt: number;
   updatedAt: number;
 }
@@ -55,6 +67,7 @@ export interface Tappa {
 export interface Ristorante {
   id: string;
   nome: string;
+  sottocategoria?: 'Colazione' | 'Pranzo' | 'Cena' | 'Aperitivo' | 'Street Food' | 'Altro';
   data?: string; // YYYY-MM-DD
   date?: string; // Alias di data YYYY-MM-DD
   dayId?: string;
@@ -64,8 +77,12 @@ export interface Ristorante {
   indirizzo?: string;
   telefono?: string;
   linkPrenotazione?: string;
+  _enriched?: boolean;
   nota?: string;
+  noteCopilota?: string;
   copilota?: boolean;
+  completed?: boolean;
+  attachments?: TransportAttachment[];
   createdAt: number;
   updatedAt: number;
 }
@@ -75,6 +92,9 @@ export type StatoAlloggio = 'da_prenotare' | 'prenotato' | 'completato';
 export interface Alloggio {
   id: string;
   name: string;
+  sottocategoria?: 'Hotel' | 'B&B' | 'Appartamento' | 'Campeggio/Piazzola' | 'Altro';
+  pinCode?: string;
+  acconto?: string;
   location: string;
   checkIn: string; // YYYY-MM-DD
   checkInTime?: string; // HH:mm
@@ -88,8 +108,11 @@ export interface Alloggio {
   phone?: string;
   notes?: string;
   status: StatoAlloggio;
+  noteCopilota?: string;
   copilota?: boolean;
+  completed?: boolean;
   coordinate?: Coordinate;
+  attachments?: TransportAttachment[];
   createdAt: number;
   updatedAt: number;
 }
@@ -126,7 +149,9 @@ export interface Trasporto {
   arrivalDate?: string; // YYYY-MM-DD (per voli notturni / multi-giorno)
   arrivalTime?: string; // HH:mm
   departureLocation: string;
+  departureIata?: string;
   arrivalLocation: string;
+  arrivalIata?: string;
   dropoffDate?: string; // YYYY-MM-DD (per noleggi auto e camper)
   dropoffTime?: string; // HH:mm
   dropoffLocation?: string; // Luogo di riconsegna
@@ -134,6 +159,13 @@ export interface Trasporto {
   bookingCode?: string;
   ticketUrl?: string;
   cost?: string;
+  posti?: string;
+  bagagli?: string;
+  depositoCauzionale?: string;
+  franchigia?: string;
+  politicaCarburante?: string;
+  sistemazioneTraghetto?: string;
+  veicoloTraghetto?: string;
   depositPaid?: string; // Quantitativo di acconto già dato
   acconto?: string; // Alias di depositPaid
   layover?: {
@@ -148,7 +180,9 @@ export interface Trasporto {
   };
   notes?: string;
   attachments?: TransportAttachment[];
+  noteCopilota?: string;
   copilota?: boolean;
+  completed?: boolean;
   coordinate?: Coordinate;
   status: StatoTrasporto;
   createdAt: number;
@@ -178,6 +212,8 @@ export interface RoutingCacheItem {
 export interface Shopping {
   id: string;
   nome: string;
+  sottocategoria?: string;
+  scopo?: string;
   data?: string; // YYYY-MM-DD
   date?: string; // Alias di data YYYY-MM-DD
   dayId?: string;
@@ -187,7 +223,10 @@ export interface Shopping {
   indirizzo?: string;
   link?: string;
   nota?: string;
+  noteCopilota?: string;
   copilota?: boolean;
+  completed?: boolean;
+  attachments?: TransportAttachment[];
   createdAt: number;
   updatedAt: number;
 }
@@ -206,7 +245,8 @@ export interface TimelineItem {
   location: string;
   categoryOrType: string;
   copilota?: boolean;
-  copilotNotes?: string;
+  completed?: boolean;
+  noteCopilota?: string;
   coordinate?: Coordinate;
   originalData: any;
   displayMode?: TransportDisplayMode;

@@ -6,6 +6,7 @@ import TrasportoForm from '../components/forms/TrasportoForm';
 import Modal from '../components/common/Modal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
+import SwipeToDelete from '../components/common/SwipeToDelete';
 import { useDeviceRole } from '../utils/useDeviceRole';
 
 const detectCountry = (t: Trasporto): string => {
@@ -356,12 +357,13 @@ export default function TrasportiView() {
                         </h3>
                         <div className="grid gap-3">
                           {dayItems.map((t) => (
-                            <TrasportoCard
-                              key={t.id}
-                              transport={t}
-                              onEdit={() => handleOpenEdit(t)}
-                              onDelete={() => setDeletingTransport(t)}
-                            />
+                            <SwipeToDelete key={t.id} disabled={!canEdit} onDelete={() => setDeletingTransport(t)}>
+                              <TrasportoCard
+                                transport={t}
+                                onEdit={() => handleOpenEdit(t)}
+                                onDelete={() => setDeletingTransport(t)}
+                              />
+                            </SwipeToDelete>
                           ))}
                         </div>
                       </div>

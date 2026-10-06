@@ -1,5 +1,7 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { storageService } from '../../storage/storageService';
+import { getTripConfig, clearTripConfig } from '../../utils/tripConfig';
+import { idbClearAll } from '../../storage/indexedDB';
 import type { DeviceRole } from '../../types';
 import DeviceRoleModal from './DeviceRoleModal';
 
@@ -14,9 +16,15 @@ export default function SettingsMenu() {
   const [toast, setToast] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null);
   const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
   const [showRoleModal, setShowRoleModal] = useState(false);
+  const [tripId, setTripId] = useState<string>('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    const config = getTripConfig();
+    if (config) {
+      setTripId(config.id || '');
+    }
+
     const handleRoleChanged = (e: Event) => {
       const customEvent = e as CustomEvent<{ role: DeviceRole }>;
       if (customEvent.detail?.role) {
@@ -131,6 +139,61 @@ export default function SettingsMenu() {
                 <span className="text-slate-400 text-xs">›</span>
               </button>
 
+              {tripId && (
+                <div className="w-full flex items-center justify-between px-4 py-3 text-xs border-t border-slate-100 bg-slate-50/50">
+                  <div className="text-left">
+                    <span className="block text-xs font-bold text-slate-800">Codice Viaggio</span>
+                    <span className="block text-[10px] text-slate-500 font-mono select-all">{tripId}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(tripId);
+                      showToast('ok', 'Codice copiato negli appunti!');
+                    }}
+                    className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm text-slate-600 hover:text-blue-600 transition-colors cursor-pointer"
+                  >
+                    📋 Copia
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={async () => {
+                  if (confirm('Sei sicuro di voler uscire da questo viaggio? I dati non sincronizzati andranno persi.')) {
+                    await idbClearAll();
+                    clearTripConfig();
+                    setOpen(false);
+                  }
+                }}
+                className="w-full flex items-center justify-center px-4 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 transition-colors border-t border-slate-100 cursor-pointer"
+              >
+                Esci / Cambia Viaggio
+              </button>
+
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-slate-100">
+                Houni AI & Gmail
+              </p>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  window.dispatchEvent(new CustomEvent('open_smart_insert', { detail: { mode: 'gmail' } }));
+                }}
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">📧</span>
+                  <div className="text-left">
+                    <span className="block text-xs font-bold text-slate-800">Cerca in Gmail</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">Importa email di prenotazione</span>
+                  </div>
+                </div>
+                <span className="text-slate-400 text-xs">›</span>
+              </button>
+
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-b border-slate-100">
                 Backup & Ripristino
               </p>
@@ -177,6 +240,21 @@ export default function SettingsMenu() {
                 </svg>
                 Forza Sincronizzazione al Cloud
               </button>
+
+              {tripId === '0000' && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await storageService.seedRealActivities();
+                    showToast('ok', 'Attività ripristinate con successo!');
+                    setOpen(false);
+                  }}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50 transition-colors cursor-pointer border-t border-indigo-100"
+                >
+                  <span className="text-lg">📥</span>
+                  Ripristina Attività Viaggio di Nozze
+                </button>
+              )}
 
               <input
                 ref={fileRef}

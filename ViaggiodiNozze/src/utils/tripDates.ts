@@ -1,5 +1,8 @@
 import { getTripConfig } from './tripConfig';
 
+export const DEFAULT_TRIP_START_DATE = '2026-11-28';
+export const DEFAULT_TRIP_END_DATE = '2027-01-10';
+
 export interface TripDayItem {
   dateStr: string; // YYYY-MM-DD
   dayNum: number;
@@ -12,8 +15,8 @@ export interface TripDayItem {
 export function generateTripDays(startDateStr?: string, endDateStr?: string): TripDayItem[] {
   const days: TripDayItem[] = [];
   const config = getTripConfig();
-  const defaultStart = config ? config.startDate : '2026-11-28';
-  const defaultEnd = config ? config.endDate : '2027-01-10';
+  const defaultStart = config ? config.startDate : DEFAULT_TRIP_START_DATE;
+  const defaultEnd = config ? config.endDate : DEFAULT_TRIP_END_DATE;
   
   // Se specificata una data d'inizio valida, usala; altrimenti usa defaultStart
   let start: Date;
@@ -22,7 +25,8 @@ export function generateTripDays(startDateStr?: string, endDateStr?: string): Tr
     const [y, m, d] = startToUse.split('-').map(Number);
     start = new Date(y, m - 1, d);
   } else {
-    start = new Date(); // Fallback ultimo
+    const [y, m, d] = DEFAULT_TRIP_START_DATE.split('-').map(Number);
+    start = new Date(y, m - 1, d);
   }
 
   const endToUse = endDateStr || defaultEnd;
@@ -31,7 +35,8 @@ export function generateTripDays(startDateStr?: string, endDateStr?: string): Tr
     const [y, m, d] = endToUse.split('-').map(Number);
     end = new Date(y, m - 1, d);
   } else {
-    end = new Date();
+    const [y, m, d] = DEFAULT_TRIP_END_DATE.split('-').map(Number);
+    end = new Date(y, m - 1, d);
   }
 
   // Nel caso limite in cui la data sia successiva alla fine, limita alla fine
@@ -155,17 +160,16 @@ export async function getTripDateRange(): Promise<TripDateRange> {
 
     const minTripDate = calculateEarliestTripDate(allDates);
     const maxTripDate = calculateLatestTripDate(allDates);
-    const tripDays = generateTripDays(minTripDate);
+    const tripDays = generateTripDays(minTripDate, maxTripDate);
 
     return { minTripDate, maxTripDate, tripDays };
   } catch (err) {
     console.error('[getTripDateRange] Errore calcolo range viaggio:', err);
     const minTripDate = '2026-11-28';
     const maxTripDate = '2027-01-10';
-    return { minTripDate, maxTripDate, tripDays: generateTripDays(minTripDate) };
+    return { minTripDate, maxTripDate, tripDays: generateTripDays(minTripDate, maxTripDate) };
   }
 }
 
 export const TRIP_DAYS = generateTripDays();
-
 

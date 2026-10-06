@@ -7,6 +7,8 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 
 import DayPickerStrip from '../../components/common/DayPickerStrip';
+import SwipeToDelete from '../../components/common/SwipeToDelete';
+import ShoppingCard from '../../components/cards/ShoppingCard';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { getTripDateRange, type TripDayItem } from '../../utils/tripDates';
 
@@ -217,75 +219,13 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
 
 
                   return (
-                    <div
-                      key={s.id}
-                      onClick={() => handleOpenEdit(s)}
-                      className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-slate-300 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 cursor-pointer active:scale-[0.99]"
-                    >
-                      <div className="flex justify-between items-start gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 shadow-2xs bg-pink-50 text-pink-700 border border-pink-100">
-                            🛍️
-                          </span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Shopping
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {canEdit && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteTarget(s);
-                              }}
-                              className="w-7 h-7 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                              title="Elimina"
-                            >
-                              🗑️
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all cursor-pointer shrink-0 active:scale-90 ${
-                              Boolean(s.copilota)
-                                ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-400 shadow-2xs'
-                                : 'bg-slate-100 text-slate-400'
-                            }`}
-                          >
-                            🧭
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEdit(s);
-                            }}
-                            className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                            title="Dettagli e Modifica"
-                          >
-                            ℹ️
-                          </button>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">
-                          {s.nome}
-                        </h3>
-                        {s.indirizzo && (
-                          <p className="text-xs text-slate-500 font-medium mt-1 truncate">
-                            📍 {s.indirizzo}
-                          </p>
-                        )}
-                        {s.budget && (
-                          <p className="text-[11px] font-bold text-rose-600 mt-1">
-                            💰 Budget: {s.budget}
-                          </p>
-                        )}
-                      </div>
-                    </div>
+                    <SwipeToDelete key={s.id} disabled={!canEdit} onDelete={() => setDeleteTarget(s)}>
+                      <ShoppingCard
+                        shopping={s}
+                        onEdit={() => handleOpenEdit(s)}
+                        onDelete={() => setDeleteTarget(s)}
+                      />
+                    </SwipeToDelete>
 
 
                   );
