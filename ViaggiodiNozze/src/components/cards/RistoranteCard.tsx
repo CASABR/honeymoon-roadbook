@@ -1,3 +1,4 @@
+import React from 'react';
 import type { Ristorante } from '../../types';
 import { resolveMapUrl } from '../../utils/mapsHelper';
 import { storageService } from '../../storage/storageService';

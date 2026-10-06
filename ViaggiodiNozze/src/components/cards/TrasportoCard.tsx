@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { Trasporto, TipoTrasporto } from '../../types';
 import Badge from '../common/Badge';
 import TrasportoInfoModal from '../modals/TrasportoInfoModal';

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante, Shopping } from '../types';
 import { storageService } from '../storage/storageService';
@@ -83,7 +83,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [isHeroEditOpen, setIsHeroEditOpen] = useState(false);
   const [heroEditTitle, setHeroEditTitle] = useState('');
   const [heroTitleMode, setHeroTitleMode] = useState<'custom' | 'auto'>('custom');
-  const heroBgInputRef = React.useRef<HTMLInputElement>(null);
+  const heroBgInputRef = useRef<HTMLInputElement>(null);
 
   const [dayMapLink, setDayMapLink] = useState<string | null>(null);
   const [isMapLinkModalOpen, setIsMapLinkModalOpen] = useState(false);
@@ -125,9 +125,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     }
   };
 
-  const calendarContainerRef = React.useRef<HTMLDivElement>(null);
-  const selectedDayBtnRef = React.useRef<HTMLButtonElement>(null);
-  const timelineItemRefs = React.useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const calendarContainerRef = useRef<HTMLDivElement>(null);
+  const selectedDayBtnRef = useRef<HTMLButtonElement>(null);
+  const timelineItemRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   // Modali Dettaglio e Modifica
   const [detailItem, setDetailItem] = useState<TimelineItem | null>(null);

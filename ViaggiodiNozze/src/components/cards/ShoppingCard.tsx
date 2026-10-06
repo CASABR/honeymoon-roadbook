@@ -1,3 +1,4 @@
+import React from 'react';
 import type { Shopping } from '../../types';
 import { resolveMapUrl } from '../../utils/mapsHelper';
 import { storageService } from '../../storage/storageService';
