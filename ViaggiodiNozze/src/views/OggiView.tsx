@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante, Shopping } from '../types';
 import { storageService } from '../storage/storageService';
-import { resolveMapUrl } from '../utils/mapsHelper';
 import TimelineItemDetailModal from '../components/modals/TimelineItemDetailModal';
 import Modal from '../components/common/Modal';
 import AttivitaForm from '../components/forms/AttivitaForm';
@@ -12,6 +12,12 @@ import RistoranteForm from '../components/forms/RistoranteForm';
 import ShoppingForm from '../components/forms/ShoppingForm';
 import RouteBadge from '../components/common/RouteBadge';
 import TrasportoCard from '../components/cards/TrasportoCard';
+import AttivitaCard from '../components/cards/AttivitaCard';
+import AlloggioCard from '../components/cards/AlloggioCard';
+import RistoranteCard from '../components/cards/RistoranteCard';
+import TappaCard from '../components/cards/TappaCard';
+import ShoppingCard from '../components/cards/ShoppingCard';
+import InTransitBanner from '../components/common/InTransitBanner';
 import { useDeviceRole } from '../utils/useDeviceRole';
 
 interface OggiViewProps {
@@ -19,22 +25,36 @@ interface OggiViewProps {
 }
 
 import { generateTripDays, getTripDateRange, type TripDayItem } from '../utils/tripDates';
+import { getTripConfig } from '../utils/tripConfig';
+
+const TRIP_START_DATE = '2026-11-28';
+const TRIP_END_DATE = '2027-01-10';
+
+function getDefaultSelectedDate(startDate = TRIP_START_DATE, endDate = TRIP_END_DATE): string {
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (todayStr < startDate) return startDate;
+  if (todayStr > endDate) return startDate;
+  return todayStr;
+}
 
 export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const { canEdit } = useDeviceRole();
+  const tripConfig = getTripConfig();
   const [copilotPopoverActivity, setCopilotPopoverActivity] = useState<Attivita | null>(null);
   const [copilotPopoverText, setCopilotPopoverText] = useState('');
   const [isSavingCopilotNote, setIsSavingCopilotNote] = useState(false);
 
   const [tripDays, setTripDays] = useState<TripDayItem[]>(() => generateTripDays());
-  const [selectedDate, setSelectedDate] = useState<string>('2026-11-28');
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    return getDefaultSelectedDate(tripConfig?.startDate, tripConfig?.endDate);
+  });
   const [accommodations, setAccommodations] = useState<Alloggio[]>([]);
   const [daysData, setDaysData] = useState<Giorno[]>([]);
   const [, setLoading] = useState(true);
 
   // Calcolo dinamico Countdown rispetto alla partenza reale
   const calculateCountdown = () => {
-    const startDate = tripDays[0]?.dateStr || '2026-11-28';
+    const startDate = tripConfig?.startDate || tripDays[0]?.dateStr || '2026-11-28';
     const target = new Date(`${startDate}T00:00:00`);
     const now = new Date();
     const diffMs = target.getTime() - now.getTime();
@@ -47,7 +67,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     } else if (diffDays === 0) {
       return '🎉 Oggi si parte!';
     } else {
-      const end = new Date('2027-01-10T23:59:59');
+      const endDateStr = tripConfig?.endDate || '2027-01-10';
+      const end = new Date(`${endDateStr}T23:59:59`);
       if (now <= end) {
         return '✨ Viaggio in corso!';
       }
@@ -57,11 +78,52 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   const [timeline, setTimeline] = useState<import('../types').TimelineItem[]>([]);
   const [tomorrowTimeline, setTomorrowTimeline] = useState<import('../types').TimelineItem[]>([]);
-  const [dynamicCountries, setDynamicCountries] = useState<string>('Nuova Zelanda, Australia & Filippine');
+  const [dynamicCountries, setDynamicCountries] = useState<string>(tripConfig?.title || 'Il mio Viaggio');
+  const [heroBgImage, setHeroBgImage] = useState<string | null>(null);
+  const [isHeroEditOpen, setIsHeroEditOpen] = useState(false);
+  const [heroEditTitle, setHeroEditTitle] = useState('');
+  const [heroTitleMode, setHeroTitleMode] = useState<'custom' | 'auto'>('custom');
+  const heroBgInputRef = React.useRef<HTMLInputElement>(null);
 
   const [dayMapLink, setDayMapLink] = useState<string | null>(null);
   const [isMapLinkModalOpen, setIsMapLinkModalOpen] = useState(false);
   const [editMapLinkUrl, setEditMapLinkUrl] = useState('');
+
+  // Quick-expense modal (rapido da OggiView)
+  const [isQuickExpenseOpen, setIsQuickExpenseOpen] = useState(false);
+  const [quickExpenseTitle, setQuickExpenseTitle] = useState('');
+  const [quickExpenseAmount, setQuickExpenseAmount] = useState('');
+  const [quickExpenseCurrency, setQuickExpenseCurrency] = useState<'EUR'|'NZD'|'AUD'|'PHP'>('EUR');
+  const [quickExpenseSaving, setQuickExpenseSaving] = useState(false);
+
+  // Tasso di cambio approssimativo per preview live (NZD base aggiornato)
+  const QUICK_RATES: Record<string, number> = { EUR: 1, NZD: 1.74, AUD: 1.62, PHP: 61.5 };
+  const quickAmountNum = parseFloat(quickExpenseAmount) || 0;
+  const quickEur = quickExpenseCurrency === 'EUR' ? quickAmountNum : quickAmountNum / QUICK_RATES[quickExpenseCurrency];
+
+  const handleSaveQuickExpense = async () => {
+    if (!quickExpenseTitle.trim() || !quickExpenseAmount) return;
+    setQuickExpenseSaving(true);
+    try {
+      const now = new Date();
+      const id = `spesa_quick_${now.getTime()}`;
+      await storageService.saveSpesa({
+        id,
+        title: quickExpenseTitle.trim(),
+        amount: parseFloat(quickEur.toFixed(2)),
+        category: 'altro',
+        status: 'saldato',
+        date: now.toISOString().split('T')[0],
+        notes: quickExpenseCurrency !== 'EUR' ? `${quickAmountNum} ${quickExpenseCurrency}` : undefined
+      });
+      setQuickExpenseTitle('');
+      setQuickExpenseAmount('');
+      setQuickExpenseCurrency('EUR');
+      setIsQuickExpenseOpen(false);
+    } finally {
+      setQuickExpenseSaving(false);
+    }
+  };
 
   const calendarContainerRef = React.useRef<HTMLDivElement>(null);
   const selectedDayBtnRef = React.useRef<HTMLButtonElement>(null);
@@ -121,14 +183,16 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     setTimeline(items);
     
     // Day map link
-    const link = storageService.getDayMapLink(target);
+    const link = await storageService.getDayMapLink(target);
     setDayMapLink(link);
 
     // Carica anche la timeline di domani
     const tomorrowStr = getTomorrowDateStr(target);
     if (tomorrowStr) {
       const tItems = await storageService.getTimelineForDate(tomorrowStr);
-      setTomorrowTimeline(tItems);
+      // Filtriamo voli/trasporti che arrivano a mezzanotte esatta (00:00) dal giorno precedente
+      const filteredTItems = tItems.filter(item => !(item.type === 'trasporto' && item.time === '00:00'));
+      setTomorrowTimeline(filteredTItems);
     } else {
       setTomorrowTimeline([]);
     }
@@ -157,10 +221,17 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         storageService.getDays(),
         getTripDateRange(),
         storageService.getTransports(),
-        storageService.getTappe()
+        storageService.getTappe(),
+        storageService.getSetting('hero_custom_title'),
+        storageService.getSetting('hero_bg_image'),
+        storageService.getSetting('hero_title_mode')
       ]);
 
-      const [accs, days, range, transports, tappe] = await Promise.race([dataPromise, timeoutPromise]) as [Alloggio[], Giorno[], any, Trasporto[], Tappa[]];
+      const [accs, days, range, transports, tappe, heroTitle, heroBg, heroMode] = await Promise.race([dataPromise, timeoutPromise]) as [Alloggio[], Giorno[], any, Trasporto[], Tappa[], string | null, string | null, string | null];
+
+      if (heroTitle) setDynamicCountries(heroTitle);
+      if (heroBg) setHeroBgImage(heroBg);
+      if (heroMode) setHeroTitleMode(heroMode as 'custom' | 'auto');
 
       setAccommodations(accs || []);
       setDaysData(days || []);
@@ -217,25 +288,21 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         });
         setDynamicCountries(sorted.join(', '));
       } else {
-        setDynamicCountries('Nuova Zelanda, Australia & Filippine');
+        setDynamicCountries(tripConfig?.title || 'Il mio Viaggio');
       }
 
       const dynamicDays = range?.tripDays || [];
       setTripDays(dynamicDays);
 
-      // Se oggi ricade all'interno del viaggio, seleziona la data odierna al primissimo mount
+      // Implementazione deterministica fissa richiesta dall'utente
       const todayStr = new Date().toISOString().split('T')[0];
-      const isInTrip = dynamicDays.some((d: any) => d.dateStr === todayStr);
-      setSelectedDate(prev => {
-        if (isInTrip && (prev === '2026-11-28' || prev === '2026-11-29' || prev === dynamicDays[0]?.dateStr)) {
-          return todayStr;
-        }
-        // Se la data precedente era il default o non è presente, imposta la prima data reale del viaggio
-        if (prev === '2026-11-28' || prev === '2026-11-29' || !dynamicDays.some((d: any) => d.dateStr === prev)) {
-          return range?.minTripDate || '2026-11-28';
-        }
-        return prev;
-      });
+      const configStartDate = tripConfig?.startDate || '2026-11-28';
+      const configEndDate = tripConfig?.endDate || '2027-01-10';
+      
+      const forcedDate = getDefaultSelectedDate(configStartDate, configEndDate);
+      
+      setSelectedDate(forcedDate);
+      console.log("Data iniziale calcolata:", forcedDate, "Start date:", configStartDate, "Today:", todayStr);
     } catch (err) {
       console.error('Errore caricamento dati OggiView:', err);
     } finally {
@@ -270,11 +337,16 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   // Ascolta eventi globali di mutazione dati (roadbook_data_mutated) e aggiornamento attività
   useEffect(() => {
     const handleDataMutated = (e: Event) => {
-      const customEvt = e as CustomEvent<{ entityType?: string; action?: string; data?: any }>;
+      const customEvt = e as CustomEvent<{ entityType?: string; action?: string; data?: any; source?: string }>;
       const targetDate = customEvt.detail?.data?.date || customEvt.detail?.data?.data;
-      if (targetDate) {
+      const isCloud = customEvt.detail?.source === 'cloud';
+      
+      if (targetDate && !isCloud) {
         setSelectedDate(targetDate);
         fetchTimeline(targetDate);
+      } else if (targetDate && isCloud) {
+        // Se l'evento arriva dal cloud, non spostiamo la schermata dell'utente, ricarichiamo solo i dati in background
+        fetchTimeline();
       } else {
         fetchTimeline();
       }
@@ -315,6 +387,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     } else if (item.type === 'shopping') {
       setEditingShoppingItem(item.originalData as Shopping);
     }
+  };
+
+  const handleDeleteActivityFromForm = async () => {
+    if (!editingActivityItem) return;
+    await storageService.deleteActivity(editingActivityItem.id);
+    setEditingActivityItem(null);
+    await loadData();
+    await fetchTimeline(selectedDate);
   };
 
   const handleSaveActivity = async (data: Omit<Attivita, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
@@ -383,6 +463,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     await fetchTimeline();
   };
 
+  const handleDeleteAlloggioFromForm = async () => {
+    if (!editingAlloggioItem) return;
+    await storageService.deleteAccommodation(editingAlloggioItem.id);
+    setEditingAlloggioItem(null);
+    await loadData();
+    await fetchTimeline();
+  };
+
   const handleSaveRistorante = async (data: Omit<Ristorante, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const ristoranteToSave: Ristorante = {
       ...data,
@@ -442,44 +530,267 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     }
   };
 
+  // --- Hero customization handlers ---
+  const handleOpenHeroEdit = () => {
+    setHeroEditTitle(dynamicCountries);
+    setIsHeroEditOpen(true);
+  };
+
+  const handleSaveHeroTitle = () => {
+    const title = heroTitleMode === 'auto'
+      ? tripDays.map(d => {
+          const dd = daysData.find(x => x.date === d.dateStr);
+          return dd?.location || dd?.title || '';
+        }).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).slice(0, 4).join(', ')
+      : heroEditTitle;
+    setDynamicCountries(title || heroEditTitle);
+    localStorage.setItem('hero_custom_title', title || heroEditTitle);
+    localStorage.setItem('hero_title_mode', heroTitleMode);
+    setIsHeroEditOpen(false);
+  };
+
+  const handleHeroBgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const MAX_SIZE = 800; // max dimension
+
+        if (width > height && width > MAX_SIZE) {
+          height *= MAX_SIZE / width;
+          width = MAX_SIZE;
+        } else if (height > MAX_SIZE) {
+          width *= MAX_SIZE / height;
+          height = MAX_SIZE;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          // Compress as JPEG
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+          setHeroBgImage(dataUrl);
+          storageService.saveSetting('hero_bg_image', dataUrl);
+        }
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveHeroBg = () => {
+    setHeroBgImage(null);
+    storageService.saveSetting('hero_bg_image', null);
+  };
+
   return (
-    <div className="space-y-4 pt-1 animate-fade-in pb-32 sm:pb-36">
+    <div className="space-y-4 pt-1 animate-fade-in pb-20 sm:pb-24">
       {/* 1. HEADER HERO / COPERTINA COMPATTA */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-4 shadow-sm border border-slate-800">
-        <div className="relative z-10 space-y-2">
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/10 backdrop-blur-md border border-white/15 text-[11px] font-semibold text-rose-300">
-            <span>{calculateCountdown()}</span>
+      <div
+        className="relative overflow-hidden rounded-2xl text-white shadow-lg border border-white/5"
+        style={heroBgImage
+          ? { backgroundImage: `url(${heroBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+          : {}}
+      >
+        {/* Default gradient (hidden when image set) */}
+        {!heroBgImage && (
+          <div className="absolute inset-0 bg-slate-900" />
+        )}
+        {/* Dark overlay when image */}
+        {heroBgImage && (
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px]" />
+        )}
+
+        {/* Accent stripe top */}
+        <div className="relative h-[2px] w-full bg-slate-200 dark:bg-slate-700" />
+
+        <div className="relative z-10 px-4 py-3 space-y-2.5">
+          {/* Row 1: Badge countdown + data + edit button */}
+          <div className="flex items-center justify-between">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 border border-white/10 text-[10px] font-bold text-rose-300 tracking-wide uppercase">
+              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
+              <span>{calculateCountdown()}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              {currentDayMeta && (
+                <span className="text-[10px] font-semibold text-slate-400">
+                  {formatDateHuman(selectedDate)}
+                </span>
+              )}
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={handleOpenHeroEdit}
+                  className="w-6 h-6 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/20 transition-all cursor-pointer"
+                  title="Personalizza header"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536M9 11l6.232-6.232a2 2 0 012.828 2.828L11.828 13.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z" />
+                  </svg>
+                </button>
+              )}
+            </div>
           </div>
 
+          {/* Row 2: Title */}
           <div>
-            <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white leading-tight">
+            <h1 className="text-base font-extrabold tracking-tight text-white leading-tight">
               {dynamicCountries}
             </h1>
-            <p className="text-[11px] text-slate-300 font-medium mt-0.5">
-              28 nov 2026 – 10 gen 2027 • 44 giorni di avventura
+            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
+              {tripConfig ? `${formatDateHuman(tripConfig.startDate)} – ${formatDateHuman(tripConfig.endDate)} • ${tripDays.length} giorni` : `${tripDays.length} giorni di viaggio`}
             </p>
           </div>
 
-          {currentDayMeta && (
-            <div className="pt-2 border-t border-white/10 space-y-0.5">
-              <div className="flex items-center justify-between text-[11px] text-slate-300">
-                <span className="font-semibold text-white">
-                  Tappa {currentDayMeta.dayNum} di 43
-                </span>
-                <span>{formatDateHuman(selectedDate)}</span>
+        {/* Row 3: Tappa + location */}
+        {currentDayMeta && (
+          <div className="flex items-center justify-between pt-1 border-t border-white/10">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
+                Giorno {currentDayMeta.dayNum}/{tripDays.length}
+              </span>
+                {currentDayData?.title && (
+                  <span className="text-[10px] font-semibold text-rose-300 truncate max-w-[140px]">
+                    📍 {currentDayData.title}
+                  </span>
+                )}
               </div>
-              {currentDayData?.title && (
-                <p className="text-[11px] text-rose-200 font-medium truncate">
-                  📍 {currentDayData.title}
-                </p>
-              )}
             </div>
           )}
         </div>
 
-        {/* Decorazione di sfondo elegante */}
-        <div className="absolute -right-8 -bottom-10 w-44 h-44 rounded-full bg-gradient-to-tr from-rose-500/20 to-indigo-500/20 blur-2xl pointer-events-none" />
+        {/* Background glow (only without image) */}
+        {!heroBgImage && (
+          <>
+            <div className="absolute -right-6 -bottom-8 w-36 h-36 rounded-full bg-transparent blur-2xl pointer-events-none" />
+            <div className="absolute -left-4 top-0 w-24 h-24 rounded-full bg-indigo-500/10 blur-2xl pointer-events-none" />
+          </>
+        )}
       </div>
+
+      {/* HERO EDIT MODAL */}
+      {isHeroEditOpen && createPortal(
+        <div
+          className="modal-backdrop-layer"
+          onClick={() => setIsHeroEditOpen(false)}
+        >
+          <div
+            className="modal-sheet-container rounded-t-3xl sm:rounded-3xl border border-slate-200 bg-white"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Handle */}
+            <div className="w-full flex justify-center pt-2.5 pb-1 sm:hidden shrink-0">
+              <div className="w-10 h-1.5 rounded-full bg-slate-300" />
+            </div>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 bg-white/95 sticky top-0 z-20 shrink-0">
+              <h2 className="text-lg font-bold text-slate-900">✏️ Personalizza Header</h2>
+              <button type="button" onClick={() => setIsHeroEditOpen(false)} className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 cursor-pointer">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            {/* Body */}
+            <div className="modal-sheet-body space-y-5">
+              {/* Titolo Destinazioni */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Destinazioni / Titolo</label>
+                <div className="flex gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setHeroTitleMode('custom')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      heroTitleMode === 'custom'
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                    }`}
+                  >✍️ Manuale</button>
+                  <button
+                    type="button"
+                    onClick={() => setHeroTitleMode('auto')}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                      heroTitleMode === 'auto'
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                    }`}
+                  >🔄 Da Tappe</button>
+                </div>
+                {heroTitleMode === 'custom' && (
+                  <input
+                    type="text"
+                    value={heroEditTitle}
+                    onChange={e => setHeroEditTitle(e.target.value)}
+                    placeholder="es. New Zealand, Australia & Philippines"
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                )}
+                {heroTitleMode === 'auto' && (
+                  <p className="text-xs text-slate-500 bg-slate-50 rounded-xl p-3 border border-slate-200">
+                    Il titolo verrà generato automaticamente raccogliendo le <strong>location</strong> di tutte le Tappe del viaggio (senza duplicati).
+                  </p>
+                )}
+              </div>
+
+              {/* Sfondo */}
+              <div className="space-y-3">
+                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Immagine di Sfondo</label>
+                {heroBgImage ? (
+                  <div className="space-y-2">
+                    <div className="w-full h-24 rounded-xl overflow-hidden border border-slate-200 relative">
+                      <img src={heroBgImage} alt="Sfondo" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
+                        <span className="text-white text-xs font-bold bg-black/50 px-2 py-1 rounded-full">Immagine attiva</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => heroBgInputRef.current?.click()}
+                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition cursor-pointer"
+                      >🖼️ Cambia</button>
+                      <button
+                        type="button"
+                        onClick={handleRemoveHeroBg}
+                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
+                      >🗑️ Rimuovi</button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => heroBgInputRef.current?.click()}
+                    className="w-full py-4 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 text-xs font-semibold hover:border-indigo-400 hover:text-indigo-600 transition cursor-pointer"
+                  >
+                    ➕ Carica un'immagine
+                  </button>
+                )}
+                <input
+                  ref={heroBgInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleHeroBgUpload}
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSaveHeroTitle}
+                className="w-full py-3 rounded-2xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-500 transition active:scale-95 cursor-pointer"
+              >
+                Salva Modifiche
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* 2. SELETTORE ORIZZONTALE DEI GIORNI (CALENDAR STRIP) */}
       <div>
@@ -572,46 +883,60 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           </div>
         </div>
 
-        {/* Card Link Google Maps Giornata */}
-        <div className="bg-blue-50/80 border border-blue-200/80 rounded-2xl px-4 py-2.5 flex items-center justify-between shadow-sm mx-1">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">🗺️</span>
-            <span className="text-xs font-bold text-slate-800">Itinerario Giornata Maps</span>
-          </div>
-          <div>
-            {!dayMapLink ? (
-              canEdit ? (
+        {/* Card Link Google Maps Giornata - Stile Essenziale */}
+        <div 
+          className={`mx-1 rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow transition-shadow ${!dayMapLink ? 'cursor-pointer active:bg-slate-50' : ''}`}
+          onClick={() => {
+            if (!dayMapLink) {
+              setEditMapLinkUrl(''); 
+              setIsMapLinkModalOpen(true);
+            }
+          }}
+        >
+          <div className="px-3 py-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl">📍</span>
+              <div>
+                <span className="block text-[13px] font-bold text-slate-800 leading-tight">Itinerario su Maps</span>
+                <span className="block text-[10px] text-slate-500 font-medium">
+                  {!dayMapLink ? 'Clicca per aggiungere il link' : 'Visualizza percorso completo'}
+                </span>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-1.5">
+              {!dayMapLink ? (
                 <button
                   type="button"
-                  onClick={() => { setEditMapLinkUrl(''); setIsMapLinkModalOpen(true); }}
-                  className="text-xs font-semibold text-blue-600 bg-white px-3 py-1 rounded-xl border border-blue-200 shadow-xs hover:bg-blue-50 cursor-pointer active:scale-95"
+                  className="flex items-center gap-1 text-[11px] font-bold text-sky-600 bg-sky-50 border border-sky-100 px-3 py-1.5 rounded-lg hover:bg-sky-100 transition-colors pointer-events-none"
                 >
-                  + Inserisci Link
+                  + Inserisci
                 </button>
-              ) : null
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => window.open(dayMapLink, '_blank')}
-                  className="text-xs font-bold text-white bg-blue-600 px-3 py-1 rounded-xl shadow-xs hover:bg-blue-700 cursor-pointer active:scale-95 flex items-center gap-1"
-                >
-                  <span>↗</span> Apri
-                </button>
-                {canEdit && (
+              ) : (
+                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                   <button
                     type="button"
-                    onClick={() => { setEditMapLinkUrl(dayMapLink); setIsMapLinkModalOpen(true); }}
-                    className="p-1 text-slate-500 hover:text-slate-800 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer"
-                    title="Modifica link"
+                    onClick={() => window.open(dayMapLink, '_blank')}
+                    className="text-[11px] font-bold text-sky-700 bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-100 hover:bg-sky-100 hover:border-sky-200 cursor-pointer flex items-center gap-1 transition-all"
                   >
-                    ✏️
+                    Apri ↗
                   </button>
-                )}
-              </div>
-            )}
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => { setEditMapLinkUrl(dayMapLink); setIsMapLinkModalOpen(true); }}
+                      className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                      title="Modifica link"
+                    >
+                      ✏️
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
+
 
         {/* Sequenza Unificata: timeline + eventuale alloggio notturno */}
         {(() => {
@@ -627,7 +952,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             coordinate?: import('../types').Coordinate;
             originalData?: any;
             copilota?: boolean;
-            copilotNotes?: string;
+            noteCopilota?: string;
             displayMode?: import('../types').TransportDisplayMode;
             stateLabel?: string;
             segmentContext?: import('../types').TransportSegmentContext;
@@ -661,7 +986,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               coordinate: item.coordinate,
               originalData: item.originalData,
               copilota: item.copilota,
-              copilotNotes: item.copilotNotes || (item.originalData as any)?.copilotNotes,
+              noteCopilota: item.noteCopilota || (item.originalData as any)?.noteCopilota,
               displayMode: (item as any).displayMode,
               stateLabel: (item as any).stateLabel,
               segmentContext: (item as any).segmentContext
@@ -727,28 +1052,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 const isTappa = item.type === 'tappa';
                 const isRistorante = item.type === 'ristorante';
                 const isShopping = item.type === 'shopping';
+                const isAttivita = item.type === 'attivita';
 
                 return (
                   <div key={`${item.id}-${idx}`} ref={(el) => { timelineItemRefs.current[item.id] = el; }}>
                     {/* CARD DELL'ELEMENTO NELLA SEQUENZA */}
                     {isTransport ? (
-                      item.id.endsWith('_arrival') ? (
-                        <div className="bg-slate-100 rounded-2xl border border-slate-200/60 p-3 shadow-xs flex items-center gap-3">
-                          <span className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-sm shrink-0">
-                            {item.title?.includes('Pechino') ? '🇨🇳' : ((item as any).categoryOrType === 'volo' ? '✈️' : ((item as any).categoryOrType === 'treno' ? '🚆' : '🚏'))}
-                          </span>
-                          <div>
-                            <h3 className="text-sm font-bold text-slate-800 tracking-tight">
-                              {item.title?.includes('Pechino') ? 'Scalo a Pechino (PEK T3)' : item.title}
-                            </h3>
-                            <p className="text-[11px] text-slate-500 font-medium">
-                              {item.title?.includes('Pechino') 
-                                ? `Arrivo ore ${item.time} • Durata transito 18h 35m (Bagagli spediti ad Auckland)`
-                                : `${item.time !== '00:00' ? `${item.time} • ` : ''}${item.location}`
-                              }
-                            </p>
-                          </div>
-                        </div>
+                      item.id.endsWith('_arrival') || item.id.endsWith('_state') ? (
+                        <InTransitBanner transport={item.originalData as Trasporto} dateStr={selectedDate} />
                       ) : (
                         /* Card Biglietto di Viaggio / Boarding Pass per i Trasporti */
                         <TrasportoCard
@@ -763,163 +1074,70 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         />
                       )
                     ) : isLodging ? (
-                      /* Hotel Pass / Voucher Ultra-Compatto */
-                      <div className="bg-white rounded-2xl border border-indigo-100 p-3 shadow-xs hover:shadow-sm transition-all">
-                        {/* Header a riga singola */}
-                        <div className="flex items-center justify-between pb-2 mb-2 border-b border-indigo-50/80">
-                          <div className="flex items-center gap-2 min-w-0">
-                            <span className="w-6 h-6 rounded-full bg-purple-50 text-purple-700 border border-purple-100 flex items-center justify-center text-xs shrink-0">
-                              🛏️
-                            </span>
-                            <span className="text-xs font-bold text-slate-800 tracking-tight truncate">
-                              Pernottamento
-                            </span>
-                            <span className="text-[10px] text-slate-400 font-medium shrink-0">
-                              • {formatDateHuman(selectedDate)}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100/70">
-                              Check-in {tonightsAccommodation?.checkInTime || '14:00'}
-                            </span>
-                            {onNavigateTab && (
-                              <button
-                                type="button"
-                                onClick={() => onNavigateTab('categorie', 'alloggi')}
-                                className="text-[11px] font-semibold text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer ml-0.5"
-                                title="Visualizza tutti gli alloggi"
-                              >
-                                Alloggi ↗
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Corpo Centrale Compatto: Flex Orizzontale */}
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5">
-                              <h3 className="text-sm font-semibold text-slate-800 leading-snug truncate">
-                                {tonightsAccommodation?.name}
-                              </h3>
-                              {tonightsAccommodation?.copilota && (
-                                <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded-full border border-emerald-200 shrink-0">
-                                  🧭 Co-pilota
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[11px] text-slate-500 font-normal truncate mt-0.5 flex items-center gap-1">
-                              <span className="text-slate-400">📍</span>
-                              <span className="truncate">
-                                {tonightsAccommodation?.address || tonightsAccommodation?.location || 'Indirizzo registrato'}
-                              </span>
-                            </p>
-                          </div>
-
-                          {/* Pulsante pillola compatta Maps sulla stessa riga a destra */}
-                          {(tonightsAccommodation?.address || tonightsAccommodation?.location) && (
-                            <a
-                              href={resolveMapUrl(tonightsAccommodation.address || tonightsAccommodation.location)}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg transition-colors active:scale-95 border border-indigo-100"
-                            >
-                              <span>📍 Maps ↗</span>
-                            </a>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      /* Card Normale di Itinerario: Tappa, Attività, Ristorante, Shopping */
-                      <div
-                        onClick={() => {
+                      <AlloggioCard
+                        accommodation={item.originalData}
+                        onEdit={() => {
                           const found = timeline.find(t => t.id === item.id);
                           if (found) setDetailItem(found);
                         }}
-                        className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-slate-300 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 cursor-pointer active:scale-[0.99]"
-                      >
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 shadow-2xs ${
-                              isTappa ? 'bg-rose-50 text-rose-700 border border-rose-100' :
-                              isRistorante ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                              isShopping ? 'bg-pink-50 text-pink-700 border border-pink-100' :
-                              'bg-amber-50 text-amber-700 border border-amber-100'
-                            }`}>
-                              {isTappa ? '📍' : isRistorante ? '🍽️' : isShopping ? '🛍️' : '🌿'}
-                            </span>
-                            <span className="text-xs font-mono font-bold text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg shrink-0">
-                              {item.time}
-                            </span>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                              {isTappa ? 'Tappa' : isRistorante ? 'Ristorante' : isShopping ? 'Shopping' : 'Attività'}
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {/* Icona Co-pilota compatta circolare [ 🧭 ] interattiva */}
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (item.type === 'attivita' && item.originalData) {
-                                  setCopilotPopoverActivity(item.originalData as Attivita);
-                                  setCopilotPopoverText((item.originalData as Attivita).copilotNotes || '');
-                                } else {
-                                  // Per altri tipi, se ha copilota apri dettaglio
-                                  const found = timeline.find(t => t.id === item.id);
-                                  if (found) setDetailItem(found);
-                                }
-                              }}
-                              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all cursor-pointer shrink-0 active:scale-90 ${
-                                Boolean(item.copilotNotes?.trim() || (item.originalData as any)?.copilotNotes?.trim())
-                                  ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-400 shadow-2xs'
-                                  : 'bg-slate-100 text-slate-400 hover:text-slate-600 hover:bg-slate-200'
-                              }`}
-                              title={Boolean(item.copilotNotes?.trim() || (item.originalData as any)?.copilotNotes?.trim()) ? 'Note Co-pilota presenti' : 'Co-pilota'}
-                            >
-                              🧭
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const found = timeline.find(t => t.id === item.id);
-                                if (found) setDetailItem(found);
-                              }}
-                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                              title="Dettagli e Modifica"
-                            >
-                              ℹ️
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">
-                            {item.title}
-                          </h3>
-                          <div className="flex items-center justify-between gap-2 mt-1.5">
-                            <p className="text-xs text-slate-500 font-medium truncate">
-                              📍 {item.location}
-                            </p>
-                            {item.location && (
-                              <a
-                                href={resolveMapUrl(item.location)}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-xl transition-colors shrink-0 border border-sky-100 shadow-2xs"
-                              >
-                                <span>Maps</span>
-                                <svg className="w-3 h-3 text-sky-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                </svg>
-                              </a>
-                            )}
-                          </div>
-                        </div>
+                        onDelete={async () => {
+                          await storageService.deleteAccommodation(item.originalData?.id || '');
+                          await fetchTimeline();
+                        }}
+                      />
+                    ) : isAttivita ? (
+                      <AttivitaCard
+                        activity={item.originalData as Attivita}
+                        onEdit={() => {
+                          const found = timeline.find(t => t.id === item.id);
+                          if (found) setDetailItem(found);
+                        }}
+                        onDelete={async () => {
+                          await storageService.deleteActivity(item.originalData?.id || '');
+                          await fetchTimeline();
+                        }}
+                        onUpdate={() => fetchTimeline()}
+                      />
+                    ) : isRistorante ? (
+                      <RistoranteCard
+                        ristorante={item.originalData}
+                        onEdit={() => {
+                          const found = timeline.find(t => t.id === item.id);
+                          if (found) setDetailItem(found);
+                        }}
+                        onDelete={async () => {
+                          await storageService.deleteRistorante(item.originalData?.id || '');
+                          await fetchTimeline();
+                        }}
+                      />
+                    ) : isShopping ? (
+                      <ShoppingCard
+                        shopping={item.originalData}
+                        onEdit={() => {
+                          const found = timeline.find(t => t.id === item.id);
+                          if (found) setDetailItem(found);
+                        }}
+                        onDelete={async () => {
+                          await storageService.deleteShopping(item.originalData?.id || '');
+                          await fetchTimeline();
+                        }}
+                      />
+                    ) : isTappa ? (
+                      <TappaCard
+                        tappa={item.originalData}
+                        onEdit={() => {
+                          const found = timeline.find(t => t.id === item.id);
+                          if (found) setDetailItem(found);
+                        }}
+                        onDelete={async () => {
+                          await storageService.deleteTappa(item.originalData?.id || '');
+                          await fetchTimeline();
+                        }}
+                      />
+                    ) : (
+                      /* Fallback generico per altri tipi se esistono */
+                      <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm text-center text-slate-500 text-sm">
+                        {item.title} (Supporto non completo)
                       </div>
                     )}
 
@@ -951,41 +1169,36 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         </div>
       )}
 
-      {/* 4. RIQUADRO RAPIDO "EMERGENZE" -> Naviga direttamente ad AssicurazioneView */}
-      <div 
-        onClick={() => {
-          if (onNavigateTab) {
-            onNavigateTab('altro', undefined, 'assicurazione');
-          }
-          window.dispatchEvent(new CustomEvent('navigate_subview', { detail: { subView: 'assicurazione' } }));
-        }}
-        className="bg-white rounded-3xl border border-rose-200/80 p-4 shadow-sm flex items-center justify-between gap-3 cursor-pointer hover:border-rose-300 hover:shadow-md transition-all active:scale-[0.99]"
-      >
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="w-9 h-9 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center text-base font-bold shrink-0 shadow-2xs border border-rose-100">
-            ⚠️
-          </span>
-          <div className="min-w-0">
-            <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 leading-tight">
-              Numeri di Emergenza
-            </h3>
-            <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
-              NZ 111 • AU 000 • PH 911 • Polizza Sanitaria H24
-            </p>
-          </div>
-        </div>
+      {/* QUICK ACTIONS 2-COLONNE: Emergenze & SOS + Registra Spesa */}
+      <div className="grid grid-cols-2 gap-3 mt-1 mb-4">
+        {/* Pulsante 1: Emergenze & SOS */}
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            if (onNavigateTab) {
-              onNavigateTab('altro', undefined, 'assicurazione');
-            }
-            window.dispatchEvent(new CustomEvent('navigate_subview', { detail: { subView: 'assicurazione' } }));
-          }}
-          className="px-3.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-all shrink-0 cursor-pointer active:scale-95 border border-rose-200/60 shadow-2xs"
+          onClick={() => onNavigateTab?.('altro', undefined, 'assicurazione')}
+          className="bg-rose-500/10 hover:bg-rose-500/20 active:scale-[0.98] border border-rose-500/30 rounded-2xl p-3 flex items-center gap-2.5 transition-all cursor-pointer text-left w-full"
         >
-          Apri ➔
+          <span className="w-8 h-8 rounded-xl bg-rose-500/15 flex items-center justify-center text-base shrink-0 shadow-2xs">
+            🚨
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-rose-700 dark:text-rose-300 leading-tight">Emergenze</p>
+            <p className="text-[11px] text-rose-600/70 dark:text-rose-400/70 leading-tight mt-0.5">SOS, Polizia, H24</p>
+          </div>
+        </button>
+
+        {/* Pulsante 2: Registra Spesa */}
+        <button
+          type="button"
+          onClick={() => setIsQuickExpenseOpen(true)}
+          className="bg-[#FF6B5F]/10 hover:bg-[#FF6B5F]/20 active:scale-[0.98] border border-[#FF6B5F]/30 rounded-2xl p-3 flex items-center gap-2.5 transition-all cursor-pointer text-left w-full"
+        >
+          <span className="w-8 h-8 rounded-xl bg-[#FF6B5F]/15 flex items-center justify-center text-base shrink-0 shadow-2xs">
+            💳
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-[#172033] dark:text-slate-400 leading-tight">Nuova Spesa</p>
+            <p className="text-[11px] text-[#64748B] dark:text-[#FF9A76]/70 leading-tight mt-0.5">Registra o converti</p>
+          </div>
         </button>
       </div>
 
@@ -1032,7 +1245,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               const badgeBg = isLodging ? 'bg-purple-50 text-purple-700 border-purple-100' :
                               isTransport ? 'bg-sky-50 text-sky-700 border-sky-100' :
                               isTappa ? 'bg-rose-50 text-rose-700 border-rose-100' :
-                              isRistorante ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
+                              isRistorante ? 'bg-[#FFF0ED] text-[#172033] border-[#FFF0ED]' :
                               isShopping ? 'bg-pink-50 text-pink-700 border-pink-100' :
                               'bg-amber-50 text-amber-700 border-amber-100';
 
@@ -1106,6 +1319,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           initialData={editingActivityItem}
           onSave={handleSaveActivity}
           onCancel={() => setEditingActivityItem(null)}
+          onDelete={handleDeleteActivityFromForm}
         />
       </Modal>
 
@@ -1148,6 +1362,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           initialData={editingAlloggioItem}
           onSave={handleSaveAlloggio}
           onCancel={() => setEditingAlloggioItem(null)}
+          onDelete={handleDeleteAlloggioFromForm}
         />
       </Modal>
 
@@ -1189,19 +1404,19 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           }}
         >
           <div 
-            className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-emerald-200/80 animate-scale-up space-y-3.5"
+            className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-slate-200/80 animate-scale-up space-y-3.5"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-2 border-b border-emerald-100">
+            <div className="flex items-center justify-between pb-2 border-b border-[#FFF0ED]">
               <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-sm font-bold">
+                <span className="w-8 h-8 rounded-xl bg-[#FFF0ED] text-[#172033] flex items-center justify-center text-sm font-bold">
                   🧭
                 </span>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 leading-tight">
                     Note Co-pilota • {copilotPopoverActivity.title}
                   </h3>
-                  <p className="text-[10px] text-emerald-700 font-semibold truncate max-w-[190px]">
+                  <p className="text-[10px] text-[#172033] font-semibold truncate max-w-[190px]">
                     Promemoria e raccomandazioni
                   </p>
                 </div>
@@ -1226,12 +1441,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   value={copilotPopoverText}
                   onChange={(e) => setCopilotPopoverText(e.target.value)}
                   placeholder="Inserisci note, consigli parcheggio, orari migliori, promemoria per la guida..."
-                  className="w-full rounded-2xl bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 p-3 text-xs text-slate-800 leading-relaxed outline-none transition-all resize-none"
+                  className="w-full rounded-2xl bg-slate-50 border border-slate-200 focus:border-[#FF6B5F] focus:ring-2 focus:ring-[#FF6B5F]/20 p-3 text-xs text-slate-800 leading-relaxed outline-none transition-all resize-none"
                 />
               ) : (
-                <div className="bg-emerald-50/60 p-3.5 rounded-2xl border border-emerald-100 text-xs text-slate-700 leading-relaxed font-medium min-h-[80px]">
-                  {copilotPopoverActivity.copilotNotes?.trim() ? (
-                    copilotPopoverActivity.copilotNotes
+                <div className="bg-[#FFF0ED]/60 p-3.5 rounded-2xl border border-[#FFF0ED] text-xs text-slate-700 leading-relaxed font-medium min-h-[80px]">
+                  {copilotPopoverActivity.noteCopilota?.trim() ? (
+                    copilotPopoverActivity.noteCopilota
                   ) : (
                     <p className="text-slate-400 italic">
                       Nessuna raccomandazione inserita.
@@ -1258,7 +1473,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                       setIsSavingCopilotNote(true);
                       const updated: Attivita = {
                         ...copilotPopoverActivity,
-                        copilotNotes: copilotPopoverText.trim(),
+                        noteCopilota: copilotPopoverText.trim(),
                         copilota: Boolean(copilotPopoverText.trim()) || copilotPopoverActivity.copilota,
                         updatedAt: Date.now()
                       };
@@ -1274,7 +1489,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                       setIsSavingCopilotNote(false);
                     }
                   }}
-                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50"
+                  className="px-4 py-1.5 rounded-xl bg-[#FF6B5F] hover:bg-[#e85c50] active:scale-95 text-white text-xs font-bold transition-all cursor-pointer shadow-xs disabled:opacity-50"
                 >
                   {isSavingCopilotNote ? 'Salvataggio...' : 'Salva Nota'}
                 </button>
@@ -1317,6 +1532,78 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               className="px-6 py-2 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-500 shadow-md transition-colors"
             >
               Salva Link
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* MODALE SPESA RAPIDA */}
+      <Modal
+        isOpen={isQuickExpenseOpen}
+        onClose={() => setIsQuickExpenseOpen(false)}
+        title="💳 Nuova Spesa Rapida"
+        accentVariant="emerald"
+      >
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Descrizione *</label>
+            <input
+              type="text"
+              autoFocus
+              value={quickExpenseTitle}
+              onChange={e => setQuickExpenseTitle(e.target.value)}
+              placeholder="es. Cena al porto, Souvenir, Transfer..."
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] bg-white"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Importo *</label>
+            <div className="flex gap-2">
+              <select
+                value={quickExpenseCurrency}
+                onChange={e => setQuickExpenseCurrency(e.target.value as 'EUR'|'NZD'|'AUD'|'PHP')}
+                className="px-2 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] shrink-0"
+              >
+                <option value="EUR">🇪🇺 EUR</option>
+                <option value="NZD">🇳🇿 NZD</option>
+                <option value="AUD">🇦🇺 AUD</option>
+                <option value="PHP">🇵🇭 PHP</option>
+              </select>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                value={quickExpenseAmount}
+                onChange={e => setQuickExpenseAmount(e.target.value)}
+                placeholder="0.00"
+                className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] bg-white"
+              />
+            </div>
+            {quickExpenseCurrency !== 'EUR' && quickAmountNum > 0 && (
+              <p className="text-[11px] text-slate-500 mt-1.5 px-1 font-medium">
+                ≈ <span className="font-bold text-[#FF6B5F]">{quickEur.toFixed(2)} €</span>
+                <span className="opacity-70"> (tasso approx. 1€ = {QUICK_RATES[quickExpenseCurrency]} {quickExpenseCurrency})</span>
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsQuickExpenseOpen(false)}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              Annulla
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveQuickExpense}
+              disabled={quickExpenseSaving || !quickExpenseTitle.trim() || !quickExpenseAmount}
+              className="px-5 py-2 rounded-xl text-xs font-bold bg-[#FF6B5F] hover:bg-[#e85c50] text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+            >
+              {quickExpenseSaving ? 'Salvo...' : 'Aggiungi Spesa'}
             </button>
           </div>
         </div>

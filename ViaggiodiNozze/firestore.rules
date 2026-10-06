@@ -2,16 +2,136 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    
+    // Funzioni helper per la leggibilità
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isMember(tripId) {
+      return isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.get('members', []);
     }
 
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function isOwner() {
+      return request.resource.data.ownerUid == request.auth.uid;
+    }
+    
+    function isExistingOwner() {
+      return resource.data.ownerUid == request.auth.uid;
     }
 
-    match /{document=**} {
-      allow read, write: if false;
+    // 1. Dati Privati del Viaggio
+    match /trips/{tripId} {
+      
+      // TEMP bootstrap: il viaggio master "0000" deve essere leggibile/scrivibile
+      // anche prima che il nuovo UID anonimo sia presente in members.
+      allow read, write: if tripId == '0000'
+                         || (isSignedIn() && request.auth.uid in resource.data.get('members', []));
+      
+      // Creazione: chi lo crea deve impostarsi come owner
+      allow create: if tripId == '0000'
+                    || (
+                      isSignedIn() 
+                      && isOwner()
+                      && request.resource.data.members.hasAny([request.auth.uid])
+                    );
+      
+      // Modifica: consentita ai membri (con restrizioni) o a nuovi membri che si aggiungono (tramite invito)
+      allow update: if isSignedIn() 
+                    && (
+                      (
+                        request.resource.data.get('ownerUid', null) == resource.data.get('ownerUid', null)
+                        && (
+                          // Caso 1: L'utente è già membro
+                          (request.auth.uid in resource.data.get('members', []) && (
+                            isExistingOwner() 
+                            || 
+                            (request.resource.data.get('members', []) == resource.data.get('members', [])
+                             && request.resource.data.get('primaryDeviceUid', null) == resource.data.get('primaryDeviceUid', null))
+                          ))
+                          ||
+                          // Caso 2: Un nuovo utente si sta aggiungendo ai members (Client-side join)
+                          // TODO pre-release: spostare in Cloud Function joinTrip con verifica invito
+                          (
+                            !(request.auth.uid in resource.data.get('members', []))
+                            && request.resource.data.members.hasAll(resource.data.get('members', []))
+                            && request.resource.data.members.size() == resource.data.get('members', []).size() + 1
+                            && request.auth.uid in request.resource.data.members
+                          )
+                        )
+                      )
+                      ||
+                      // ⚠️ TEMPORANEO dev/test: claim del documento legacy "0000" privo di ownerUid
+                      (
+                        tripId == '0000'
+                        && resource.data.get('ownerUid', null) == null
+                        && request.resource.data.ownerUid == request.auth.uid
+                        && request.auth.uid in request.resource.data.members
+                        && request.resource.data.members.hasAll(resource.data.get('members', []))
+                      )
+                    );
+
+      allow delete: if isSignedIn() && isExistingOwner();
+
+      // Sottocollezioni private
+      match /{subcol}/{docId} {
+        // Limitiamo i nomi delle sottocollezioni valide e controlliamo l'accesso
+        allow read, write: if tripId == '0000'
+                           || (
+                             subcol in ['tappe', 'attivita', 'alloggi', 'trasporti', 'spese', 'documenti', 'note', 'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping', 'locks']
+                             && isMember(tripId)
+                           );
+      }
     }
+
+    // 2. Inviti (preparazione per Fase 2)
+    match /invites/{inviteId} {
+      // Per usare un invito bisogna leggerlo
+      allow read: if true;
+      // Solo chi crea l'invito può scriverlo
+      allow create: if isSignedIn() && request.resource.data.createdBy == request.auth.uid;
+      // La logica client incrementerà usedCount
+      allow update: if isSignedIn() 
+                    && request.resource.data.usedCount > resource.data.usedCount; 
+      allow delete: if false; 
+    }
+
+    // 3. Live Feeds (Pubblico) - solo campi in whitelist, nessun dato privato ammesso
+    function validFeedHeader(data) {
+      return data.keys().hasOnly(['title', 'coverPhotoUrl', 'status', 'currentCity', 'lastUpdateAt'])
+             && (!('status' in data) || data.status in ['in_corso', 'completato'])
+             && (!('title' in data) || (data.title is string && data.title.size() <= 120));
+    }
+
+    function validLiveUpdate(data) {
+      return data.keys().hasOnly(['title', 'text', 'photoUrl', 'timestamp', 'locationName', 'reactionCounts'])
+             && data.title is string && data.title.size() > 0 && data.title.size() <= 120
+             && (!('text' in data) || (data.text is string && data.text.size() <= 1000))
+             && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 2048))
+             && (!('locationName' in data) || (data.locationName is string && data.locationName.size() <= 120))
+             && (!('reactionCounts' in data) || data.reactionCounts.keys().hasOnly(['❤️', '😍', '😂', '👋']));
+    }
+
+    match /live_feeds/{tripId} {
+      // Chiunque può leggere il feed pubblico
+      allow read: if true;
+      allow create, update: if isMember(tripId) && validFeedHeader(request.resource.data);
+      allow delete: if isMember(tripId);
+
+      match /updates/{updateId} {
+        allow read: if true;
+        allow create, update: if isMember(tripId) && validLiveUpdate(request.resource.data);
+        allow delete: if isMember(tripId);
+        
+        match /reactions/{reactionId} {
+          allow read: if true;
+          // Validazione reazione
+          allow create: if request.resource.data.type in ['❤️', '😍', '😂', '👋']
+                        && request.resource.data.keys().hasOnly(['type', 'senderUid', 'timestamp']);
+          allow update, delete: if false;
+        }
+      }
+    }
+
   }
 }

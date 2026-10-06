@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Hitchy</string>
+    <string name="title_activity_main">Hitchy</string>
+    <string name="package_name">com.hitchy.app</string>
+    <string name="custom_url_scheme">com.hitchy.app</string>
+</resources>

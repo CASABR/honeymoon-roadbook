@@ -5,10 +5,12 @@ import RistoranteForm from '../../components/forms/RistoranteForm';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
-
 import DayPickerStrip from '../../components/common/DayPickerStrip';
+import SwipeToDelete from '../../components/common/SwipeToDelete';
+import RistoranteCard from '../../components/cards/RistoranteCard';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { getTripDateRange, type TripDayItem } from '../../utils/tripDates';
+import { enrichRistorante } from '../../services/enrichmentService';
 
 interface RistorantiViewProps {
   onBack?: () => void;
@@ -44,6 +46,36 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
       const [loadedRistoranti, range] = await Promise.race([dataPromise, timeoutPromise]) as [Ristorante[], any];
 
       setRistoranti(loadedRistoranti || []);
+
+      // Background Enrichment
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+        setTimeout(async () => {
+          const toEnrich = (loadedRistoranti || []).filter(r => 
+            r.nome && (!r.telefono || !r.linkPrenotazione) && !r._enriched
+          );
+          for (const r of toEnrich) {
+            try {
+              const enrichedData = await enrichRistorante(r.nome, r.indirizzo || '');
+              if (enrichedData.telefono || enrichedData.linkMenu) {
+                const updated = { 
+                  ...r, 
+                  telefono: r.telefono || enrichedData.telefono || '', 
+                  linkPrenotazione: r.linkPrenotazione || enrichedData.linkMenu || '',
+                  _enriched: true 
+                };
+                await storageService.updateRistorante(updated.id, updated as any);
+                setRistoranti(prev => prev.map(pr => pr.id === updated.id ? updated as any : pr));
+              } else {
+                // segna come arricchito per non riprovare
+                const updated = { ...r, _enriched: true };
+                await storageService.updateRistorante(updated.id, updated as any);
+              }
+            } catch (e) {
+              console.error("Errore durante auto-enrichment:", e);
+            }
+          }
+        }, 3000);
+      }
       if (range) setTripDays(range.tripDays);
       setSelectedDate('tutte');
     } catch (err) {
@@ -132,7 +164,7 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
           <button
             type="button"
             onClick={handleOpenAdd}
-            className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all cursor-pointer"
+            className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 bg-[#FF6B5F] hover:bg-[#FFF0ED]0 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-lg shadow-rose-500/20 transition-all cursor-pointer"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
@@ -159,7 +191,7 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
       {/* Contenuto principale */}
       {loading ? (
         <div className="flex-1 flex items-center justify-center min-h-[250px]">
-          <div className="w-7 h-7 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+          <div className="w-7 h-7 border-2 border-[#FF6B5F] border-t-transparent rounded-full animate-spin" />
         </div>
       ) : filteredRistoranti.length === 0 ? (
         selectedDate !== 'tutte' ? (
@@ -177,7 +209,7 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
               <button
                 type="button"
                 onClick={handleOpenAdd}
-                className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 transition-all cursor-pointer"
+                className="mt-1 inline-flex items-center gap-1.5 px-4 py-2 bg-[#FF6B5F] hover:bg-[#FFF0ED]0 active:scale-95 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-500/20 transition-all cursor-pointer"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
@@ -217,95 +249,13 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
 
 
                   return (
-                    <div
-                      key={r.id}
-                      onClick={() => handleOpenEdit(r)}
-                      className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-slate-300 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 cursor-pointer active:scale-[0.99]"
-                    >
-                      <div className="flex justify-between items-start gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 shadow-2xs bg-emerald-50 text-emerald-700 border border-emerald-100">
-                            🍽️
-                          </span>
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Ristorante
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {canEdit && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteTarget(r);
-                              }}
-                              className="w-7 h-7 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                              title="Elimina"
-                            >
-                              🗑️
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all cursor-pointer shrink-0 active:scale-90 ${
-                              Boolean(r.copilota)
-                                ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-400 shadow-2xs'
-                                : 'bg-slate-100 text-slate-400'
-                            }`}
-                          >
-                            🧭
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleOpenEdit(r);
-                            }}
-                            className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                            title="Dettagli e Modifica"
-                          >
-                            ℹ️
-                          </button>
-                        </div>
-                      </div>
-
-                      <div>
-                        <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">
-                          {r.nome}
-                        </h3>
-                        {r.indirizzo && (
-                          <div className="mt-1">
-                            {r.indirizzo.startsWith('http') ? (
-                              <a
-                                href={r.indirizzo}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-1.5 mt-1 text-xs font-bold text-sky-600 bg-sky-50 px-2.5 py-1 rounded-lg hover:bg-sky-100 transition-colors truncate max-w-full"
-                              >
-                                📍 Apri in Maps
-                              </a>
-                            ) : (
-                              <p className="text-xs text-slate-500 font-medium truncate">
-                                📍 {r.indirizzo}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        {r.linkPrenotazione && (
-                          <a
-                            href={r.linkPrenotazione}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="inline-flex items-center gap-1.5 mt-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-lg hover:bg-emerald-100 transition-colors"
-                          >
-                            🔗 Link Prenotazione
-                          </a>
-                        )}
-                      </div>
-                    </div>
+                    <SwipeToDelete key={r.id} disabled={!canEdit} onDelete={() => setDeleteTarget(r)}>
+                      <RistoranteCard
+                        ristorante={r}
+                        onEdit={() => handleOpenEdit(r)}
+                        onDelete={() => setDeleteTarget(r)}
+                      />
+                    </SwipeToDelete>
 
 
                   );

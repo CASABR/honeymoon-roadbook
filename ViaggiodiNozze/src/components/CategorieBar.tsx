@@ -116,7 +116,7 @@ export default function CategorieBar({
         <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/80 p-3.5">
           <div className="flex items-center justify-between px-2 mb-2 pb-1.5 border-b border-slate-100">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-              <span>🗂️</span> Categorie Viaggio
+              <span>🗂️</span> Sfoglia e Gestisci Categorie
             </span>
             <button
               type="button"

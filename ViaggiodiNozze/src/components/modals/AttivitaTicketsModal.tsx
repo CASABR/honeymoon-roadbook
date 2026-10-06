@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import type { Attivita, TransportAttachment } from '../../types';
 import Modal from '../common/Modal';
 import LightboxCarousel from '../common/LightboxCarousel';

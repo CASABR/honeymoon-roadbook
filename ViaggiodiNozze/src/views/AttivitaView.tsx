@@ -5,10 +5,13 @@ import AttivitaForm from '../components/forms/AttivitaForm';
 import Modal from '../components/common/Modal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
+import { getTripConfig } from '../utils/tripConfig';
 import RouteBadge from '../components/common/RouteBadge';
 import DayPickerStrip from '../components/common/DayPickerStrip';
+import SwipeToDelete from '../components/common/SwipeToDelete';
 import { getTripDateRange, type TripDayItem } from '../utils/tripDates';
 import { useDeviceRole } from '../utils/useDeviceRole';
+import AttivitaCard from '../components/cards/AttivitaCard';
 
 export default function AttivitaView() {
   const { canEdit } = useDeviceRole();
@@ -81,6 +84,15 @@ export default function AttivitaView() {
   };
 
   // --- Handlers Attività ---
+  const handleDeleteActivityFromForm = async () => {
+    if (!editingActivity) return;
+    await storageService.deleteActivity(editingActivity.id);
+    setIsActivityModalOpen(false);
+    setEditingActivity(null);
+    await loadData();
+  };
+
+
   const handleOpenAddActivity = (date?: string) => {
     setTargetDayForActivity(date ? `day_${date}` : (selectedDate !== 'tutte' ? `day_${selectedDate}` : undefined));
     setEditingActivity(null);
@@ -251,18 +263,33 @@ export default function AttivitaView() {
 
       {/* 3. Elenco Attività (Puro Card-First) */}
       {activities.length === 0 ? (
-        <EmptyState
-          title="Nessuna attività inserita"
-          description="Inizia ad aggiungere le attività che farai durante il viaggio (musei, escursioni, cene)."
-          actionLabel="Aggiungi Attività"
-          accentVariant="amber"
-          onAction={() => handleOpenAddActivity()}
-          icon={
-            <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-          }
-        />
+        <div className="flex flex-col gap-4">
+          <EmptyState
+            title="Nessuna attività inserita"
+            description="Inizia ad aggiungere le attività che farai durante il viaggio (musei, escursioni, cene)."
+            actionLabel="Aggiungi Attività"
+            accentVariant="amber"
+            onAction={() => handleOpenAddActivity()}
+            icon={
+              <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+            }
+          />
+          {canEdit && getTripConfig()?.id === '0000' && (
+            <button
+              onClick={async () => {
+                await storageService.seedRealActivities();
+                alert('Attività caricate con successo!');
+                await loadData();
+              }}
+              className="mx-auto flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-2xl border border-indigo-200 transition-colors shadow-sm cursor-pointer active:scale-95"
+            >
+              <span>📥</span>
+              <span>Ripristina Attività Viaggio di Nozze</span>
+            </button>
+          )}
+        </div>
       ) : filteredActivities.length === 0 ? (
         <div className="p-8 rounded-3xl bg-white border border-slate-200/80 text-center shadow-sm flex flex-col items-center justify-center gap-3 mt-4">
           <span className="text-3xl">🗓️</span>
@@ -301,75 +328,18 @@ export default function AttivitaView() {
                   const nextActivity = group.items[index + 1];
                   return (
                     <div key={activity.id} className="flex flex-col gap-2">
-                      <div
-                        onClick={() => handleOpenEditActivity(activity)}
-                        className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-slate-300 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 cursor-pointer active:scale-[0.99]"
+                      <SwipeToDelete
+                        key={activity.id}
+                        disabled={!canEdit}
+                        onDelete={() => setDeleteTarget({ id: activity.id, title: activity.title })}
                       >
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 shadow-2xs bg-amber-50 text-amber-700 border border-amber-100">
-                              🌿
-                            </span>
-                            <span className="text-xs font-mono font-bold text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg shrink-0">
-                              {activity.time || '--:--'}
-                            </span>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                              Attività
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {canEdit && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeleteTarget({
-                                    id: activity.id,
-                                    title: activity.title
-                                  });
-                                }}
-                                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                                title="Elimina"
-                              >
-                                🗑️
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all cursor-pointer shrink-0 active:scale-90 ${
-                                Boolean(activity.copilotNotes?.trim())
-                                  ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-400 shadow-2xs'
-                                  : 'bg-slate-100 text-slate-400'
-                              }`}
-                            >
-                              🧭
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenEditActivity(activity);
-                              }}
-                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                              title="Dettagli e Modifica"
-                            >
-                              ℹ️
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">
-                            {activity.title}
-                          </h3>
-                          {activity.location && (
-                            <p className="text-xs text-slate-500 font-medium mt-1 truncate">
-                              📍 {activity.location}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                        <AttivitaCard 
+                          activity={activity} 
+                          onEdit={() => handleOpenEditActivity(activity)}
+                          onDelete={() => setDeleteTarget({ id: activity.id, title: activity.title })}
+                          onUpdate={() => loadData()}
+                        />
+                      </SwipeToDelete>
                       {nextActivity && activity.location && nextActivity.location && (
                         <div className="pl-6 py-0.5">
                           <RouteBadge 
@@ -400,6 +370,7 @@ export default function AttivitaView() {
           initialData={editingActivity}
           onSave={handleSaveActivity}
           onCancel={() => setIsActivityModalOpen(false)}
+          onDelete={handleDeleteActivityFromForm}
         />
       </Modal>
 

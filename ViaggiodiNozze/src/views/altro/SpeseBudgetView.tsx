@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Spesa, CategoriaSpesa, StatoSpesa, Alloggio, Trasporto } from '../../types';
 import { storageService } from '../../storage/storageService';
 import Modal from '../../components/common/Modal';
@@ -32,10 +32,10 @@ const CATEGORIE_CONFIG: Record<
   attivita: {
     label: 'Attività',
     icon: '🎟️',
-    color: 'bg-emerald-500',
-    bg: 'bg-emerald-50',
-    border: 'border-emerald-200',
-    text: 'text-emerald-700',
+    color: 'bg-[#FFF0ED]0',
+    bg: 'bg-[#FFF0ED]',
+    border: 'border-slate-200',
+    text: 'text-[#172033]',
   },
   ristoranti: {
     label: 'Ristoranti',
@@ -55,18 +55,41 @@ const CATEGORIE_CONFIG: Record<
   },
 };
 
-const parseEuro = (val?: string | number): number => {
+/**
+ * sanitizeCost - Parser robusto per importi monetari.
+ * Gestisce stringhe complesse come "Da saldare: ~310 € (538,86 NZD)" o "406075".
+ * Estrae SOLO il primo numero decimale realistico (< 100.000 €).
+ */
+const sanitizeCost = (val?: string | number): number => {
   if (val === undefined || val === null) return 0;
-  if (typeof val === 'number') return isNaN(val) ? 0 : val;
-  const cleaned = val.replace(/[^0-9.,]/g, '').replace(',', '.');
-  const parsed = parseFloat(cleaned);
-  return isNaN(parsed) ? 0 : parsed;
+  if (typeof val === 'number') return isNaN(val) ? 0 : Math.min(val, 99999);
+  // Rimuove simboli valuta, parentesi, prefissi testuali (es. "Da saldare:", "~", "Saldo:")
+  // Cerca il primo numero valido nella stringa
+  const match = val.match(/(\d{1,6}(?:[.,]\d{1,2})?)/);
+  if (!match) return 0;
+  // Normalizza separatori: se c'è sia punto che virgola, il punto è migliaia e virgola è decimale
+  let raw = match[1];
+  if (raw.includes(',') && raw.includes('.')) {
+    // es. "1.234,56" -> rimuovi punto, sostituisci virgola
+    raw = raw.replace(/\./g, '').replace(',', '.');
+  } else {
+    // es. "310,86" oppure "310.86"
+    raw = raw.replace(',', '.');
+  }
+  const parsed = parseFloat(raw);
+  if (isNaN(parsed)) return 0;
+  // Sanity check: rifiuta valori assurdi > 99.999 € (probabile errore di concatenazione valute)
+  return parsed > 99999 ? 0 : parsed;
 };
+
+// Alias per compatibilità con il codice esistente
+const parseEuro = sanitizeCost;
 
 export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
   const [spese, setSpese] = useState<Spesa[]>([]);
   const [alloggi, setAlloggi] = useState<Alloggio[]>([]);
   const [trasporti, setTrasporti] = useState<Trasporto[]>([]);
+  const [attivita, setAttivita] = useState<import('../../types').Attivita[]>([]);
   const [loading, setLoading] = useState(true);
   const [rates, setRates] = useState<Record<string, number> | null>(null);
 
@@ -76,6 +99,13 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSpesa, setEditingSpesa] = useState<Spesa | null>(null);
   const [deletingSpesa, setDeletingSpesa] = useState<Spesa | null>(null);
+
+  // Inline editing state for transport costs in drilldown
+  const [editingTransportId, setEditingTransportId] = useState<string | null>(null);
+  const [editingTransportCost, setEditingTransportCost] = useState('');
+  const [editingTransportAcconto, setEditingTransportAcconto] = useState('');
+  const [savingTransportId, setSavingTransportId] = useState<string | null>(null);
+  const inlineInputRef = useRef<HTMLInputElement>(null);
 
   // Role state
   const [deviceRole, setDeviceRole] = useState(() => storageService.getDeviceRole());
@@ -90,18 +120,53 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [notes, setNotes] = useState('');
 
+  // Open inline edit for a transport
+  const openTransportEdit = (tr: Trasporto) => {
+    setEditingTransportId(tr.id);
+    const costNum = sanitizeCost(tr.cost);
+    setEditingTransportCost(costNum > 0 ? costNum.toFixed(2) : '');
+    const accontoNum = sanitizeCost(tr.depositPaid || tr.acconto);
+    setEditingTransportAcconto(accontoNum > 0 ? accontoNum.toFixed(2) : '');
+    setTimeout(() => inlineInputRef.current?.focus(), 80);
+  };
+
+  const saveTransportCost = async (tr: Trasporto) => {
+    if (!editingTransportId) return;
+    setSavingTransportId(tr.id);
+    try {
+      const newCost = parseFloat(editingTransportCost) || 0;
+      const newAcconto = parseFloat(editingTransportAcconto) || 0;
+      const updated: Trasporto = {
+        ...tr,
+        cost: newCost > 0 ? `${newCost.toFixed(2)} €` : tr.cost,
+        depositPaid: newAcconto > 0 ? `${newAcconto.toFixed(2)} €` : tr.depositPaid,
+        acconto: newAcconto > 0 ? `${newAcconto.toFixed(2)} €` : tr.acconto,
+        updatedAt: Date.now()
+      };
+      await storageService.saveTransport(updated);
+      await loadAllData();
+      setEditingTransportId(null);
+    } catch (err) {
+      console.error('Errore aggiornamento costo trasporto:', err);
+    } finally {
+      setSavingTransportId(null);
+    }
+  };
+
   const loadAllData = async () => {
     try {
       setLoading(true);
-      const [loadedSpese, loadedAlloggi, loadedTrasporti, fetchedRates] = await Promise.all([
+      const [loadedSpese, loadedAlloggi, loadedTrasporti, loadedAttivita, fetchedRates] = await Promise.all([
         storageService.getSpese(),
         storageService.getAccommodations(),
         storageService.getTransports(),
+        storageService.getActivities(),
         fetchExchangeRates()
       ]);
       setSpese(loadedSpese);
       setAlloggi(loadedAlloggi);
       setTrasporti(loadedTrasporti);
+      setAttivita(loadedAttivita);
       setRates(fetchedRates);
     } catch (err) {
       console.error('Errore caricamento dati spese:', err);
@@ -211,9 +276,32 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
     catTotals.trasporti.saldato += trasportiSaldato;
     catTotals.trasporti.daSaldare += trasportiDaSaldare;
 
-    const totaleGenerale = manualTotale + alloggiTotale + trasportiTotale;
-    const totaleSaldato = manualSaldato + alloggiSaldato + trasportiSaldato;
-    const totaleDaSaldare = manualDaSaldare + alloggiDaSaldare + trasportiDaSaldare;
+    // 4. Attività automatic costs
+    let attivitaTotale = 0;
+    let attivitaSaldato = 0;
+    let attivitaDaSaldare = 0;
+
+    attivita.forEach((act) => {
+      const cost = parseEuro(act.cost);
+      if (cost > 0) {
+        attivitaTotale += cost;
+        // In the data model, activities have `paymentStatus` which can be checked. If not present, we assume paid or unpaid based on logic.
+        // Usually, we added paymentStatus 'saldato' or 'da_saldare' to Attività? Let's check or just assume da_saldare unless specified.
+        if ((act as any).paymentStatus === 'saldato') {
+          attivitaSaldato += cost;
+        } else {
+          attivitaDaSaldare += cost;
+        }
+      }
+    });
+
+    catTotals.attivita.total += attivitaTotale;
+    catTotals.attivita.saldato += attivitaSaldato;
+    catTotals.attivita.daSaldare += attivitaDaSaldare;
+
+    const totaleGenerale = manualTotale + alloggiTotale + trasportiTotale + attivitaTotale;
+    const totaleSaldato = manualSaldato + alloggiSaldato + trasportiSaldato + attivitaSaldato;
+    const totaleDaSaldare = manualDaSaldare + alloggiDaSaldare + trasportiDaSaldare + attivitaDaSaldare;
 
     return {
       totaleGenerale,
@@ -221,7 +309,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
       totaleDaSaldare,
       catTotals,
     };
-  }, [spese, alloggi, trasporti]);
+  }, [spese, alloggi, trasporti, attivita]);
 
   const handleOpenAdd = () => {
     setEditingSpesa(null);
@@ -343,7 +431,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
       </header>
 
       {/* 1. HERO SUMMARY CARD */}
-      <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-5 text-white shadow-xl shadow-indigo-950/20 mb-4 border border-indigo-500/20 relative overflow-hidden">
+      <div className="bg-slate-900 rounded-3xl p-5 text-white shadow-xl shadow-indigo-950/20 mb-4 border border-indigo-500/20 relative overflow-hidden">
         <div className="absolute -right-8 -bottom-8 w-36 h-36 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
         <div className="flex justify-between items-start mb-4">
           <div>
@@ -362,7 +450,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
         {/* Saldato vs Da Saldare Cards */}
         <div className="grid grid-cols-2 gap-2.5 pt-2 border-t border-white/10">
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-3 border border-white/5">
-            <div className="flex items-center gap-1.5 text-emerald-400 text-xs font-semibold mb-1">
+            <div className="flex items-center gap-1.5 text-[#FF9A76] text-xs font-semibold mb-1">
               <span>✓</span>
               <span>Già Saldato</span>
             </div>
@@ -570,7 +658,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
                       }}
                       className={`cursor-pointer px-2.5 py-1 rounded-full text-xs font-bold transition-all ${
                         isPaid
-                          ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                          ? 'bg-[#FFF0ED] text-[#172033] hover:bg-[#FFF0ED]'
                           : 'bg-amber-100 text-amber-800 hover:bg-amber-200'
                       }`}
                     >
@@ -722,7 +810,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
                 onClick={() => setStatus('saldato')}
                 className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                   status === 'saldato'
-                    ? 'bg-emerald-600 text-white shadow-xs'
+                    ? 'bg-[#FF6B5F] text-white shadow-xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
@@ -898,7 +986,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
                             }}
                             className={`text-[9px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 transition-all cursor-pointer active:scale-95 border ${
                               isPaid
-                                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 shadow-2xs'
+                                ? 'bg-[#FFF0ED] hover:bg-[#FFF0ED] text-[#172033] border-slate-200 shadow-2xs'
                                 : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-200 shadow-2xs'
                             }`}
                             title="Tocca per cambiare stato pagamento"
@@ -973,7 +1061,7 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
                         </span>
                         <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-block ${
                           isPaid
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            ? 'bg-[#FFF0ED] text-[#172033] border border-slate-200'
                             : 'bg-rose-50 text-rose-700 border border-rose-200'
                         }`}>
                           {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
@@ -985,48 +1073,113 @@ export default function SpeseBudgetView({ onBack }: SpeseBudgetViewProps) {
 
                 {/* Voci da Trasporti (se categoria trasporti) */}
                 {trasportiItems.map(tr => {
-                  const costNum = parseEuro(tr.cost);
-                  const acconto = parseEuro(tr.depositPaid || tr.acconto);
+                  const costNum = sanitizeCost(tr.cost);
+                  const acconto = sanitizeCost(tr.depositPaid || tr.acconto);
                   const isFullyPaid = acconto >= costNum && costNum > 0;
+                  const isEditingThis = editingTransportId === tr.id;
+
                   return (
                     <div
                       key={`tr_${tr.id}`}
-                      className="p-3 bg-sky-50/40 rounded-2xl border border-sky-100 shadow-2xs flex items-center justify-between gap-2.5"
+                      className="p-3 bg-sky-50/40 rounded-2xl border border-sky-100 shadow-2xs"
                     >
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-xs font-bold text-slate-900 truncate">
-                            ✈️ {tr.departureLocation} → {tr.arrivalLocation}
-                          </h4>
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-sky-100 text-sky-800">
-                            {tr.type}
-                          </span>
+                      {/* Header riga */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-bold text-slate-900 truncate">
+                              ✈️ {tr.carrier || `${tr.departureLocation} → ${tr.arrivalLocation}`}
+                            </h4>
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-sky-100 text-sky-800 shrink-0">
+                              {tr.type}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
+                            <span>{tr.date}</span>
+                            <span>•</span>
+                            <span className="truncate max-w-[120px]">{tr.departureLocation} → {tr.arrivalLocation}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-500">
-                          <span>{tr.date}</span>
-                          {tr.carrier && (
-                            <>
-                              <span>•</span>
-                              <span className="truncate max-w-[130px]">{tr.carrier}</span>
-                            </>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="text-right">
+                            <span className="text-xs font-black text-sky-950 font-mono block">
+                              € {costNum.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-block ${
+                              isFullyPaid
+                                ? 'bg-[#FFF0ED] text-[#172033] border border-slate-200'
+                                : acconto > 0
+                                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}>
+                              {isFullyPaid ? '✓ Saldato' : acconto > 0 ? `Acc. €${acconto.toFixed(0)}` : '⏳ Da saldare'}
+                            </span>
+                          </div>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => isEditingThis ? setEditingTransportId(null) : openTransportEdit(tr)}
+                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs transition-colors cursor-pointer"
+                              title={isEditingThis ? 'Chiudi editor' : 'Modifica importo'}
+                            >
+                              {isEditingThis ? '✕' : '✏️'}
+                            </button>
                           )}
                         </div>
                       </div>
 
-                      <div className="text-right shrink-0">
-                        <span className="text-xs font-black text-sky-950 font-mono block">
-                          € {costNum.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </span>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full inline-block ${
-                          isFullyPaid
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : acconto > 0
-                            ? 'bg-amber-50 text-amber-800 border border-amber-200'
-                            : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}>
-                          {isFullyPaid ? '✓ Saldato' : acconto > 0 ? `Acconto €${acconto}` : '⏳ Da saldare'}
-                        </span>
-                      </div>
+                      {/* Inline editor importi */}
+                      {isEditingThis && (
+                        <div className="mt-2.5 pt-2.5 border-t border-sky-200 space-y-2">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] font-bold text-sky-800 mb-1">Costo totale (€)</label>
+                              <input
+                                ref={inlineInputRef}
+                                type="number"
+                                inputMode="decimal"
+                                step="0.01"
+                                min="0"
+                                value={editingTransportCost}
+                                onChange={e => setEditingTransportCost(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full px-2.5 py-1.5 rounded-lg border border-sky-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-sky-800 mb-1">Acconto già versato (€)</label>
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                step="0.01"
+                                min="0"
+                                value={editingTransportAcconto}
+                                onChange={e => setEditingTransportAcconto(e.target.value)}
+                                placeholder="0.00"
+                                className="w-full px-2.5 py-1.5 rounded-lg border border-sky-300 text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setEditingTransportId(null)}
+                              className="px-3 py-1 rounded-lg text-[10px] font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                            >
+                              Annulla
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => saveTransportCost(tr)}
+                              disabled={savingTransportId === tr.id}
+                              className="px-3 py-1 rounded-lg text-[10px] font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-60"
+                            >
+                              {savingTransportId === tr.id ? 'Salvo...' : 'Salva'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}

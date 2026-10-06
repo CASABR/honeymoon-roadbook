@@ -8,6 +8,8 @@ import EmptyState from '../../components/EmptyState';
 
 import DayPickerStrip from '../../components/common/DayPickerStrip';
 import RouteBadge from '../../components/common/RouteBadge';
+import SwipeToDelete from '../../components/common/SwipeToDelete';
+import TappaCard from '../../components/cards/TappaCard';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { getTripDateRange, type TripDayItem } from '../../utils/tripDates';
 
@@ -239,80 +241,13 @@ export default function TappeView({ onBack }: TappeViewProps) {
 
                   return (
                     <React.Fragment key={tappa.id}>
-                      <div
-                        onClick={() => handleOpenEdit(tappa)}
-                        className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-slate-300 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 cursor-pointer active:scale-[0.99]"
-                      >
-                        <div className="flex justify-between items-start gap-2">
-                          <div className="flex items-center gap-2">
-                            <span className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 shadow-2xs bg-rose-50 text-rose-700 border border-rose-100">
-                              📍
-                            </span>
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                              Tappa
-                            </span>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            {canEdit && (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setDeleteTarget(tappa);
-                                }}
-                                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                                title="Elimina"
-                              >
-                                🗑️
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all cursor-pointer shrink-0 active:scale-90 ${
-                                Boolean(tappa.copilota)
-                                  ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-400 shadow-2xs'
-                                  : 'bg-slate-100 text-slate-400'
-                              }`}
-                            >
-                              🧭
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenEdit(tappa);
-                              }}
-                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                              title="Dettagli e Modifica"
-                            >
-                              ℹ️
-                            </button>
-                          </div>
-                        </div>
-
-                        <div>
-                          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">
-                            {tappa.titolo}
-                          </h3>
-                          {tappa.mapsUrl && (
-                            <a
-                              href={tappa.mapsUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              className="inline-flex items-center gap-1.5 mt-2 text-xs font-bold text-sky-600 bg-sky-50 px-2.5 py-1 rounded-lg hover:bg-sky-100 transition-colors"
-                            >
-                              🗺️ Apri in Maps
-                            </a>
-                          )}
-                          {tappa.nota && (
-                            <p className="text-xs text-slate-500 mt-1.5 line-clamp-2">
-                              {tappa.nota}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                      <SwipeToDelete disabled={!canEdit} onDelete={() => setDeleteTarget(tappa)}>
+                        <TappaCard
+                          tappa={tappa}
+                          onEdit={() => handleOpenEdit(tappa)}
+                          onDelete={() => setDeleteTarget(tappa)}
+                        />
+                      </SwipeToDelete>
 
 
 

@@ -6,7 +6,8 @@ import Modal from '../components/common/Modal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import DayPickerStrip from '../components/common/DayPickerStrip';
-
+import SwipeToDelete from '../components/common/SwipeToDelete';
+import AlloggioCard from '../components/cards/AlloggioCard';
 import { useDeviceRole } from '../utils/useDeviceRole';
 import { getTripDateRange, type TripDayItem } from '../utils/tripDates';
 
@@ -94,6 +95,14 @@ export default function AlloggiView() {
     if (!deletingAccommodation) return;
     await storageService.deleteAccommodation(deletingAccommodation.id);
     setDeletingAccommodation(null);
+    await loadData();
+  };
+
+  const handleDeleteFromForm = async () => {
+    if (!editingAccommodation) return;
+    await storageService.deleteAccommodation(editingAccommodation.id);
+    setIsModalOpen(false);
+    setEditingAccommodation(null);
     await loadData();
   };
 
@@ -203,73 +212,13 @@ export default function AlloggiView() {
         return (
           <div className="space-y-3.5">
             {filteredAccommodations.map((acc) => (
-              <div
-                key={acc.id}
-                onClick={() => handleOpenEdit(acc)}
-                className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm hover:border-slate-300 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 cursor-pointer active:scale-[0.99]"
-              >
-                <div className="flex justify-between items-start gap-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 shadow-2xs bg-indigo-50 text-indigo-700 border border-indigo-100">
-                      🏨
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                      Alloggio
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {canEdit && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeletingAccommodation(acc);
-                        }}
-                        className="w-7 h-7 rounded-full bg-slate-100 hover:bg-rose-100 text-slate-400 hover:text-rose-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                        title="Elimina"
-                      >
-                        🗑️
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      className={`w-7 h-7 rounded-full flex items-center justify-center text-xs transition-all cursor-pointer shrink-0 active:scale-90 ${
-                        Boolean(acc.copilota)
-                          ? 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-400 shadow-2xs'
-                          : 'bg-slate-100 text-slate-400'
-                      }`}
-                    >
-                      🧭
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenEdit(acc);
-                      }}
-                      className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
-                      title="Dettagli e Modifica"
-                    >
-                      ℹ️
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900 leading-snug">
-                    {acc.name}
-                  </h3>
-                  <p className="text-xs text-slate-500 font-medium mt-1">
-                    Check-in: {acc.checkIn} {acc.checkOut ? `• Check-out: ${acc.checkOut}` : ''}
-                  </p>
-                  {acc.location && (
-                    <p className="text-xs text-slate-500 font-medium mt-0.5 truncate">
-                      📍 {acc.location}
-                    </p>
-                  )}
-                </div>
-              </div>
+              <SwipeToDelete key={acc.id} disabled={!canEdit} onDelete={() => setDeletingAccommodation(acc)}>
+              <AlloggioCard
+                accommodation={acc}
+                onEdit={() => handleOpenEdit(acc)}
+                onDelete={() => setDeletingAccommodation(acc)}
+              />
+              </SwipeToDelete>
             ))}
           </div>
         );
@@ -286,6 +235,7 @@ export default function AlloggiView() {
           initialData={editingAccommodation}
           onSave={handleSave}
           onCancel={() => setIsModalOpen(false)}
+          onDelete={handleDeleteFromForm}
         />
       </Modal>
 

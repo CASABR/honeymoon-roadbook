@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePresence } from '../../hooks/usePresence';
+import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
 import type { Ristorante } from '../../types';
 import { storageService } from '../../storage/storageService';
 
@@ -13,38 +14,34 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
   const [nome, setNome] = useState('');
+  const [sottocategoria, setSottocategoria] = useState<Ristorante['sottocategoria'] | ''>('');
   const [data, setData] = useState('');
   const [orario, setOrario] = useState('');
   const [indirizzo, setIndirizzo] = useState('');
-  
-  // Livello 2
-  const [showAdvanced, setShowAdvanced] = useState(false);
-  const [budget, setBudget] = useState('');
-  const [linkPrenotazione, setLinkPrenotazione] = useState('');
   const [telefono, setTelefono] = useState('');
+  const [linkPrenotazione, setLinkPrenotazione] = useState('');
+  const [budget, setBudget] = useState('');
   const [nota, setNota] = useState('');
-  const [copilota, setCopilota] = useState(false);
   
   const [error, setError] = useState('');
   const [conflictWarning, setConflictWarning] = useState('');
   const [isConflictConfirmed, setIsConflictConfirmed] = useState(false);
+  const [isGeocoding, setIsGeocoding] = useState(false);
+
+  const SOTTOCATEGORIE: Ristorante['sottocategoria'][] = ['Colazione', 'Pranzo', 'Cena', 'Aperitivo', 'Street Food', 'Altro'];
+  const BUDGET_OPTIONS = ['$', '$$', '$$$'];
 
   useEffect(() => {
     if (initialData) {
-      setNome(initialData.nome);
+      setNome(initialData.nome || '');
+      setSottocategoria(initialData.sottocategoria || '');
       setData(initialData.data || '');
       setOrario(initialData.orario || '');
       setIndirizzo(initialData.indirizzo || '');
-      
-      setBudget(initialData.budget || '');
-      setLinkPrenotazione(initialData.linkPrenotazione || '');
       setTelefono(initialData.telefono || '');
+      setLinkPrenotazione(initialData.linkPrenotazione || '');
+      setBudget(initialData.budget || '');
       setNota(initialData.nota || '');
-      setCopilota(initialData.copilota || false);
-
-      if (initialData.budget || initialData.linkPrenotazione || initialData.telefono || initialData.nota || initialData.copilota) {
-        setShowAdvanced(true);
-      }
     } else {
       const today = new Date();
       const yyyy = today.getFullYear();
@@ -52,15 +49,14 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       const dd = String(today.getDate()).padStart(2, '0');
       
       setNome('');
+      setSottocategoria('');
       setData(`${yyyy}-${mm}-${dd}`);
       setOrario('');
       setIndirizzo('');
-      setBudget('');
-      setLinkPrenotazione('');
       setTelefono('');
+      setLinkPrenotazione('');
+      setBudget('');
       setNota('');
-      setCopilota(false);
-      setShowAdvanced(false);
     }
   }, [initialData]);
 
@@ -80,7 +76,6 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       return;
     }
 
-    // Validazione Sovrapposizione
     if (!isConflictConfirmed && orario && data) {
       try {
         const timeline = await storageService.getTimelineForDate(data);
@@ -98,32 +93,53 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
     setError('');
     setConflictWarning('');
     
-    // Assicuriamo l'esistenza del dayId implicito basato sulla data
     const dayId = `day_${data}`;
+    setIsGeocoding(true);
+    let finalCoord = initialData?.coordinate;
+
+    if (indirizzo && indirizzo.trim()) {
+      try {
+        const coord = await getCoordinatesFromAddress(indirizzo);
+        if (coord) {
+          finalCoord = coord;
+        } else if (!finalCoord) {
+          const fallbackCoord = await getCoordinatesFromAddress(nome);
+          if (fallbackCoord) finalCoord = fallbackCoord;
+        }
+      } catch (e) {
+        console.error("Geocoding fallito", e);
+      }
+    } else if (nome.trim() && !finalCoord) {
+       try {
+         const coord = await getCoordinatesFromAddress(nome);
+         if (coord) finalCoord = coord;
+       } catch(e) {}
+    }
+
+    setIsGeocoding(false);
 
     onSave({
       id: initialData?.id,
       dayId: dayId,
       nome: nome.trim(),
+      sottocategoria: sottocategoria || undefined,
       data: data,
       orario: orario || undefined,
       indirizzo: indirizzo.trim() || undefined,
-      budget: budget.trim() || undefined,
-      linkPrenotazione: linkPrenotazione.trim() || undefined,
       telefono: telefono.trim() || undefined,
-      coordinate: initialData?.coordinate,
+      linkPrenotazione: linkPrenotazione.trim() || undefined,
+      budget: budget.trim() || undefined,
       nota: nota.trim() || undefined,
-      copilota: copilota || undefined
-    } as any);
+      coordinate: finalCoord,
+    });
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-
+    <form onSubmit={handleSubmit} className="space-y-4 pb-4">
       {isLockedByOther && (
         <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl font-bold flex gap-2 items-center animate-fade-in">
           <span className="text-base animate-pulse">⚠️</span>
-          <span>Attenzione: il dispositivo "{lockedBy}" sta già modificando questo elemento in tempo reale. Le tue modifiche potrebbero sovrascriversi.</span>
+          <span>Attenzione: il dispositivo "{lockedBy}" sta già modificando questo elemento. Le tue modifiche potrebbero sovrascriversi.</span>
         </div>
       )}
 
@@ -136,158 +152,168 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       {conflictWarning && (
         <div className="p-3 text-xs rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
           {conflictWarning}
-          <div className="mt-1 font-semibold">Clicca di nuovo Salva per confermare comunque.</div>
+          <div className="mt-1 font-semibold">Clicca di nuovo Salva per confermare.</div>
         </div>
       )}
 
-      {/* Livello 1: Essenziale */}
-      <div className="space-y-4">
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          Nome Locale / Ristorante *
+        </label>
+        <input
+          type="text"
+          placeholder="es. Da Mario"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] transition-colors placeholder:text-slate-400"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          Sottocategoria
+        </label>
+        <div className="flex flex-wrap gap-2">
+          {SOTTOCATEGORIE.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setSottocategoria(cat === sottocategoria ? '' : cat)}
+              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
+                cat === sottocategoria
+                  ? 'bg-[#172033] text-white border-[#172033]'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Nome Locale / Ristorante *
+            Data Prenotazione *
           </label>
           <input
-            type="text"
-            placeholder="es. Fergburger, Starita Milano"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
+            type="date"
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] transition-colors"
             required
           />
         </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div className="min-w-0">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Data *
-            </label>
-            <input
-              type="date"
-              value={data}
-              onChange={(e) => setData(e.target.value)}
-              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors"
-              required
-            />
-          </div>
-          <div className="min-w-0">
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Orario (opzionale)
-            </label>
-            <input
-              type="time"
-              value={orario}
-              onChange={(e) => setOrario(e.target.value)}
-              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors"
-            />
-          </div>
-        </div>
-
         <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            📍 Indirizzo / Città o Link Maps
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Ora Prenotazione
           </label>
           <input
-            type="text"
-            placeholder="es. Shotover St, Queenstown o link Maps"
-            value={indirizzo}
-            onChange={(e) => setIndirizzo(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-amber-500 transition-colors placeholder:text-slate-400"
+            type="time"
+            value={orario}
+            onChange={(e) => setOrario(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] transition-colors"
           />
         </div>
       </div>
 
-      {/* Livello 2: Dettagli Aggiuntivi (Richiudibile) */}
-      <div className="pt-2">
-        <button
-          type="button"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className="flex items-center gap-1.5 text-xs font-bold text-amber-600 hover:text-amber-800 transition-colors cursor-pointer py-1 w-full justify-center bg-amber-50 rounded-xl h-10 border border-amber-200/60"
-        >
-          <span>{showAdvanced ? 'Nascondi Dettagli' : '+ Altri Dettagli (Costo, Note, Link)'}</span>
-          <svg className={"w-4 h-4 transition-transform " + (showAdvanced ? 'rotate-180' : '')} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        {showAdvanced && (
-          <div className="mt-3 space-y-4 p-4 rounded-2xl bg-slate-50 border border-slate-200 animate-fade-in">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="min-w-0">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Budget stimato (€)
-                </label>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  pattern="[0-9]*"
-                  step="0.01"
-                  min="0"
-                  placeholder="0.00"
-                  value={budget}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '' || /^\d*\.?\d*$/.test(val)) setBudget(val);
-                  }}
-                  className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-400"
-                />
-              </div>
-              <div className="min-w-0">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Link Prenotazione
-                </label>
-                <input
-                  type="url"
-                  placeholder="https://..."
-                  value={linkPrenotazione}
-                  onChange={(e) => setLinkPrenotazione(e.target.value)}
-                  className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-amber-500 transition-colors placeholder:text-slate-400"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Note / Dettagli prenotazione
-              </label>
-              <textarea
-                rows={2}
-                placeholder="es. Tavolo prenotato a nome Mario, piatti consigliati..."
-                value={nota}
-                onChange={(e) => setNota(e.target.value)}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:border-amber-500 placeholder:text-slate-400 resize-none"
-              />
-            </div>
-
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <label htmlFor="copilota-ristorante-toggle" className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1.5">
-                <span>🧭</span>
-                <span>Mostra al co-pilota per pause pranzo/cena</span>
-              </label>
-              <input
-                id="copilota-ristorante-toggle"
-                type="checkbox"
-                checked={copilota}
-                onChange={(e) => setCopilota(e.target.checked)}
-                className="w-4 h-4 rounded text-emerald-600 bg-white border-slate-300 focus:ring-emerald-500 cursor-pointer"
-              />
-            </div>
-          </div>
-        )}
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          Indirizzo / Posizione Maps
+        </label>
+        <input
+          type="text"
+          placeholder="Via Roma 1, Milano"
+          value={indirizzo}
+          onChange={(e) => setIndirizzo(e.target.value)}
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] transition-colors placeholder:text-slate-400"
+        />
       </div>
 
-      <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Telefono
+          </label>
+          <input
+            type="tel"
+            placeholder="+39 123 456..."
+            value={telefono}
+            onChange={(e) => setTelefono(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] transition-colors placeholder:text-slate-400"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Link Menu / Web
+          </label>
+          <input
+            type="url"
+            placeholder="https://..."
+            value={linkPrenotazione}
+            onChange={(e) => setLinkPrenotazione(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] transition-colors placeholder:text-slate-400"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          Budget / Prezzo medio
+        </label>
+        <div className="flex items-center gap-2">
+          {BUDGET_OPTIONS.map((opt) => (
+            <button
+              key={opt}
+              type="button"
+              onClick={() => setBudget(opt)}
+              className={`w-12 h-10 rounded-xl text-sm font-semibold transition-colors border ${
+                budget === opt
+                  ? 'bg-[#172033] text-white border-[#172033]'
+                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+              }`}
+            >
+              {opt}
+            </button>
+          ))}
+          <input
+            type="text"
+            placeholder="o inserisci testo libero (es. 35€)"
+            value={!BUDGET_OPTIONS.includes(budget) ? budget : ''}
+            onChange={(e) => setBudget(e.target.value)}
+            className="flex-1 h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] transition-colors placeholder:text-slate-400"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          Note Aggiuntive / Piatti consigliati
+        </label>
+        <textarea
+          rows={3}
+          placeholder="Da assaggiare assolutamente..."
+          value={nota}
+          onChange={(e) => setNota(e.target.value)}
+          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] placeholder:text-slate-400 resize-none transition-colors"
+        />
+      </div>
+
+      <div className="flex items-center justify-end gap-3 pt-4 mt-2 border-t border-slate-100">
         <button
           type="button"
           onClick={onCancel}
-          className="min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
+          className="h-12 px-6 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
         >
           Annulla
         </button>
         <button
           type="submit"
-          className="min-h-[44px] px-6 rounded-xl text-sm font-bold bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 shadow-md shadow-amber-500/20 transition-all cursor-pointer"
+          disabled={isGeocoding}
+          className={`h-12 px-8 rounded-xl text-sm font-bold bg-[#172033] hover:bg-[#1a2436] active:scale-95 text-white shadow-lg transition-all ${isGeocoding ? 'opacity-70 cursor-not-allowed' : ''}`}
         >
-          {initialData ? 'Aggiorna Ristorante' : 'Salva Ristorante'}
+          {isGeocoding ? 'Salvataggio...' : 'Salva Ristorante'}
         </button>
       </div>
     </form>

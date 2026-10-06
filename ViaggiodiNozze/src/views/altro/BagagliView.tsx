@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Bagaglio, Trasporto, TipoBagaglio, PasseggeroBagaglio } from '../../types';
 import { storageService } from '../../storage/storageService';
 import Modal from '../../components/common/Modal';
@@ -271,7 +271,7 @@ export default function BagagliView({ onBack }: BagagliViewProps) {
       </div>
 
       {/* STATS RAPIDE FRANCHIGIA */}
-      <div className="grid grid-cols-3 gap-2 bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-3xl p-3.5 shadow-sm">
+      <div className="grid grid-cols-3 gap-2 bg-slate-900 text-white rounded-3xl p-3.5 shadow-sm">
         <div className="text-center">
           <span className="text-[9px] uppercase tracking-wider font-semibold text-slate-400 block">Bagagli Totali</span>
           <span className="text-base font-extrabold text-white">{bagagli.length}</span>
@@ -284,7 +284,7 @@ export default function BagagliView({ onBack }: BagagliViewProps) {
         </div>
         <div className="text-center">
           <span className="text-[9px] uppercase tracking-wider font-semibold text-slate-400 block">Verificati</span>
-          <span className="text-base font-extrabold text-emerald-400">
+          <span className="text-base font-extrabold text-[#FF9A76]">
             {bagagli.filter(b => b.verificato).length} / {bagagli.length}
           </span>
         </div>
@@ -308,7 +308,7 @@ export default function BagagliView({ onBack }: BagagliViewProps) {
               key={b.id}
               onClick={() => canEdit && handleOpenEdit(b)}
               className={`relative bg-white rounded-3xl p-4 border transition-all cursor-pointer shadow-xs hover:shadow-sm ${
-                b.verificato ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200/90'
+                b.verificato ? 'border-slate-200 bg-[#FFF0ED]/20' : 'border-slate-200/90'
               }`}
             >
               {/* Header Card Bagaglio */}
@@ -339,7 +339,7 @@ export default function BagagliView({ onBack }: BagagliViewProps) {
                     onClick={(e) => handleToggleVerificato(b.id, e)}
                     className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs transition-all cursor-pointer border ${
                       b.verificato
-                        ? 'bg-emerald-500 text-white border-emerald-600 shadow-sm'
+                        ? 'bg-[#FFF0ED]0 text-white border-emerald-600 shadow-sm'
                         : 'bg-slate-100 hover:bg-slate-200 text-slate-400 border-slate-200'
                     }`}
                     title={b.verificato ? 'Bagaglio verificato/pronto' : 'Segna come verificato'}

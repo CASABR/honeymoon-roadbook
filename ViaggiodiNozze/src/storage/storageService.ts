@@ -6,6 +6,7 @@ import {
   idbPut,
   idbDelete
 } from './indexedDB';
+import { REAL_ACTIVITIES } from './seedActivities';
 import { SEED_TRANSPORTS } from './seedTransports';
 
 export const SEED_FLAG_KEY = 'honeymoon_roadbook_seeded_v1';
@@ -127,20 +128,38 @@ class StorageService {
     }
   }
 
-  // --- DAY MAPS LINKS ---
-  getDayMapLink(date: string): string | null {
-    if (typeof localStorage === 'undefined') return null;
-    return localStorage.getItem(`day_maps_link_${date}`);
+  // --- DAY MAPS LINKS (Backward compatibility, now delegates to SETTINGS store) ---
+  async getDayMapLink(date: string): Promise<string | null> {
+    const setting = await idbGet<any>(STORES.SETTINGS, `day_maps_link_${date}`);
+    return setting ? setting.value : null;
   }
 
-  saveDayMapLink(date: string, link: string): void {
-    if (typeof localStorage !== 'undefined') {
-      if (link) {
-        localStorage.setItem(`day_maps_link_${date}`, link);
-      } else {
-        localStorage.removeItem(`day_maps_link_${date}`);
-      }
-      notifyDataChanged('dayMapsLink', 'save', { date, link });
+  async saveDayMapLink(date: string, link: string): Promise<void> {
+    const id = `day_maps_link_${date}`;
+    if (link) {
+      const data = { id, value: link };
+      await idbPut(STORES.SETTINGS, data);
+      notifyDataChanged('settings', 'save', data);
+    } else {
+      await idbDelete(STORES.SETTINGS, id);
+      notifyDataChanged('settings', 'delete', { id });
+    }
+  }
+
+  // --- GENERIC SETTINGS ---
+  async getSetting<T = any>(key: string): Promise<T | null> {
+    const setting = await idbGet<any>(STORES.SETTINGS, key);
+    return setting ? setting.value : null;
+  }
+
+  async saveSetting(key: string, value: any): Promise<void> {
+    if (value === null || value === undefined) {
+      await idbDelete(STORES.SETTINGS, key);
+      notifyDataChanged('settings', 'delete', { id: key });
+    } else {
+      const data = { id: key, value };
+      await idbPut(STORES.SETTINGS, data);
+      notifyDataChanged('settings', 'save', data);
     }
   }
 
@@ -153,191 +172,163 @@ class StorageService {
    * (es. wipe dopo upgrade IndexedDB), esegue il re-seed di emergenza.
    */
   async initInitialSeedData(): Promise<void> {
-    if (typeof localStorage === 'undefined') return;
-
-    const flagPresent = !!localStorage.getItem(SEED_FLAG_KEY);
-
-    if (flagPresent) {
-      // VERIFICA DI INTEGRITÀ FAIL-SAFE: controlla che IndexedDB non sia stato wippato (v6 upgrade).
-      try {
-        const [activities, transports, tappe, alloggi, spese] = await Promise.all([
-          idbGetAll<Attivita>(STORES.ATTIVITA),
-          idbGetAll<Trasporto>(STORES.TRASPORTI),
-          idbGetAll<Tappa>(STORES.TAPPE),
-          idbGetAll<Alloggio>(STORES.ALLOGGI),
-          idbGetAll<Spesa>(STORES.SPESE)
-        ]);
-        if (activities.length > 0 || transports.length > 0 || tappe.length > 0 || alloggi.length > 0 || spese.length > 0) {
-          return; // DB integro e popolato
-        }
-        // IndexedDB vuoto nonostante il flag in localStorage → esegui re-seed di emergenza
-        console.warn('[StorageService] IndexedDB risulta vuoto (wipe v6). Avvio re-seeding di emergenza...');
-        localStorage.removeItem(SEED_FLAG_KEY);
-      } catch (err) {
-        console.warn('[StorageService] Impossibile leggere IndexedDB per verifica integrità:', err);
-        return;
-      }
-    }
-
-    try {
-      const [days, activities, transports, tappe, docs, alloggi] = await Promise.all([
-        idbGetAll<Giorno>(STORES.GIORNI),
-        idbGetAll<Attivita>(STORES.ATTIVITA),
-        idbGetAll<Trasporto>(STORES.TRASPORTI),
-        idbGetAll<Tappa>(STORES.TAPPE),
-        idbGetAll<TravelDocument>(STORES.DOCUMENTI),
-        idbGetAll<Alloggio>(STORES.ALLOGGI)
-      ]);
-
-      if (days.length > 0 || activities.length > 0 || transports.length > 0 || tappe.length > 0 || docs.length > 0 || alloggi.length > 0) {
-        localStorage.setItem(SEED_FLAG_KEY, 'true');
-        return;
-      }
-
-      // 1. Giorno 29 Novembre 2026 e attività di partenza
-      const dateStr = '2026-11-29';
-      const day: Giorno = {
-        id: `day_${dateStr}`,
-        date: dateStr,
-        title: 'Milano',
-        location: 'Milano',
-        notes: 'Partenza viaggio di nozze',
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      };
-      await idbPut(STORES.GIORNI, day);
-
-      const novecento: Attivita = {
-        id: 'real_novecento_nov29',
-        dayId: day.id,
-        date: dateStr,
-        title: 'Museo del Novecento',
-        time: '17:00',
-        location: 'Piazza del Duomo, 8, Milano',
-        category: 'cultura',
-        status: 'completata',
-        copilota: true,
-        coordinate: { lat: 45.4637, lng: 9.1905 },
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      };
-      const starita: Attivita = {
-        id: 'real_starita_nov29',
-        dayId: day.id,
-        date: dateStr,
-        title: 'Starita Milano',
-        time: '20:00',
-        location: 'Via Gherardini, 1, Milano',
-        category: 'cibo',
-        status: 'completata',
-        copilota: true,
-        coordinate: { lat: 45.4789, lng: 9.1724 },
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      };
-      await idbPut(STORES.ATTIVITA, novecento);
-      await idbPut(STORES.ATTIVITA, starita);
-
-      // 2. Tappe di partenza
-      const defaultTappe: Tappa[] = [
-        {
-          id: 'tappa_01_auckland',
-          titolo: 'Auckland CBD & Baia',
-          data: '2026-12-01',
-          nota: 'Arrivo ad Auckland, transfer alloggio e prima passeggiata sul lungomare.',
-          coordinate: { lat: -36.8485, lng: 174.7633 },
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        },
-        {
-          id: 'tappa_02_rotorua',
-          titolo: 'Rotorua Terme & Geyser',
-          data: '2026-12-03',
-          nota: 'Parco geotermico Te Puia e cultura Maori.',
-          coordinate: { lat: -38.1368, lng: 176.2497 },
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        },
-        {
-          id: 'tappa_03_tekapo',
-          titolo: 'Lago Tekapo & Good Shepherd',
-          data: '2026-12-08',
-          nota: 'Chiesetta del Buon Pastore e osservazione stelle Mt John.',
-          coordinate: { lat: -44.0047, lng: 170.4771 },
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        },
-        {
-          id: 'tappa_04_queenstown',
-          titolo: 'Queenstown & Fiordland',
-          data: '2026-12-11',
-          nota: 'Capitale dell\'avventura e partenza per Milford Sound.',
-          coordinate: { lat: -45.0312, lng: 168.6626 },
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        }
-      ];
-      for (const t of defaultTappe) {
-        await idbPut(STORES.TAPPE, t);
-      }
-
-      // 3. Alloggio iniziale
-      const defaultAlloggio: Alloggio = {
-        id: 'acc_01_auckland',
-        name: 'Hotel Noa Auckland',
-        location: 'Queen Street, Auckland CBD',
-        address: 'Queen Street 120, Auckland CBD, Nuova Zelanda',
-        checkIn: '2026-12-01',
-        checkOut: '2026-12-02',
-        checkInTime: '14:00',
-        checkOutTime: '10:00',
-        status: 'prenotato',
-        coordinate: { lat: -36.8485, lng: 174.7633 },
-        notes: 'Pernottamento serale pre-ritiro auto Snap Rentals',
-        copilota: true,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      };
-      await idbPut(STORES.ALLOGGI, defaultAlloggio);
-
-      // 4. Spesa iniziale
-      const defaultSpesa: Spesa = {
-        id: 'spesa_01_snap',
-        title: 'Acconto Snap Rentals Auto NZ',
-        category: 'trasporti',
-        amount: 282,
-        status: 'saldato',
-        date: '2026-11-20',
-        notes: 'Acconto 518 NZD già saldato',
-        createdAt: Date.now(),
-        updatedAt: Date.now()
-      };
-      await idbPut(STORES.SPESE, defaultSpesa);
-
-      // 2. Trasporti certificati iniziali
-      const now = Date.now();
-      for (const item of SEED_TRANSPORTS) {
-        await idbPut(STORES.TRASPORTI, {
-          ...item,
-          attachments: item.attachments || [],
-          copilota: item.copilota,
-          depositPaid: item.depositPaid,
-          createdAt: now,
-          updatedAt: now
-        });
-      }
-
-      // 3. Documenti predefiniti
-      for (const doc of DEFAULT_DOCUMENTS) {
-        await idbPut(STORES.DOCUMENTI, doc);
-      }
-
-      // Segna il flag definitivo di avvenuto seeding iniziale
+    // No-op: il sistema non inietta più alcun mock data.
+    // L'app partirà completamente vuota in caso di nuovo codice vacanza.
+    if (typeof localStorage !== 'undefined') {
       localStorage.setItem(SEED_FLAG_KEY, 'true');
-      notifyDataChanged('all', 'save');
-    } catch (err) {
-      console.error('[StorageService] Errore initInitialSeedData:', err);
     }
+    return;
+  }
+
+  async ensureMasterTripSeedData(): Promise<void> {
+    const transports = await idbGetAll<Trasporto>(STORES.TRASPORTI);
+    if (transports.length > 0) {
+      await this.logLocalDataCounts('[StorageService] Re-seed 0000 non necessario');
+      return;
+    }
+
+    console.warn('[StorageService] Trasporti locali vuoti per "0000": avvio re-seed dati storici.');
+    const now = Date.now();
+
+    await idbPut(STORES.GIORNI, {
+      id: 'day_2026-11-29',
+      date: '2026-11-29',
+      title: 'Milano',
+      location: 'Milano',
+      notes: 'Partenza viaggio di nozze',
+      createdAt: now,
+      updatedAt: now
+    } satisfies Giorno);
+
+    for (const act of REAL_ACTIVITIES) {
+      await idbPut(STORES.ATTIVITA, {
+        ...act,
+        attachments: act.attachments || [],
+        createdAt: now,
+        updatedAt: now
+      });
+    }
+
+    const defaultTappe: Tappa[] = [
+      {
+        id: 'tappa_01_auckland',
+        titolo: 'Auckland CBD & Baia',
+        data: '2026-12-01',
+        date: '2026-12-01',
+        dayId: 'day_2026-12-01',
+        nota: 'Arrivo ad Auckland, transfer alloggio e prima passeggiata sul lungomare.',
+        coordinate: { lat: -36.8485, lng: 174.7633 },
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: 'tappa_02_rotorua',
+        titolo: 'Rotorua Terme & Geyser',
+        data: '2026-12-03',
+        date: '2026-12-03',
+        dayId: 'day_2026-12-03',
+        nota: 'Parco geotermico Te Puia e cultura Maori.',
+        coordinate: { lat: -38.1368, lng: 176.2497 },
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: 'tappa_03_tekapo',
+        titolo: 'Lago Tekapo & Good Shepherd',
+        data: '2026-12-08',
+        date: '2026-12-08',
+        dayId: 'day_2026-12-08',
+        nota: 'Chiesetta del Buon Pastore e osservazione stelle Mt John.',
+        coordinate: { lat: -44.0047, lng: 170.4771 },
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: 'tappa_04_queenstown',
+        titolo: 'Queenstown & Fiordland',
+        data: '2026-12-11',
+        date: '2026-12-11',
+        dayId: 'day_2026-12-11',
+        nota: 'Capitale dell\'avventura e partenza per Milford Sound.',
+        coordinate: { lat: -45.0312, lng: 168.6626 },
+        createdAt: now,
+        updatedAt: now
+      }
+    ];
+    for (const tappa of defaultTappe) {
+      await idbPut(STORES.TAPPE, tappa);
+    }
+
+    await idbPut(STORES.ALLOGGI, {
+      id: 'acc_01_auckland',
+      name: 'Hotel Noa Auckland',
+      location: 'Queen Street, Auckland CBD',
+      address: 'Queen Street 120, Auckland CBD, Nuova Zelanda',
+      checkIn: '2026-12-01',
+      checkOut: '2026-12-02',
+      checkInTime: '14:00',
+      checkOutTime: '10:00',
+      status: 'prenotato',
+      coordinate: { lat: -36.8485, lng: 174.7633 },
+      notes: 'Pernottamento serale pre-ritiro auto Snap Rentals',
+      copilota: true,
+      createdAt: now,
+      updatedAt: now
+    } satisfies Alloggio);
+
+    await idbPut(STORES.SPESE, {
+      id: 'spesa_01_snap',
+      title: 'Acconto Snap Rentals Auto NZ',
+      category: 'trasporti',
+      amount: 282,
+      status: 'saldato',
+      date: '2026-11-20',
+      notes: 'Acconto 518 NZD gia saldato',
+      createdAt: now,
+      updatedAt: now
+    } satisfies Spesa);
+
+    await this.seedTransports(true);
+
+    for (const doc of DEFAULT_DOCUMENTS) {
+      await idbPut(STORES.DOCUMENTI, doc);
+    }
+
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(SEED_FLAG_KEY, 'true');
+    }
+
+    await this.logLocalDataCounts('[StorageService] Re-seed 0000 completato');
+    notifyDataChanged('all', 'save');
+  }
+
+  async logLocalDataCounts(prefix = '[StorageService] Conteggio IndexedDB'): Promise<void> {
+    const [giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, shopping, spese, note, bagagli] = await Promise.all([
+      idbGetAll(STORES.GIORNI),
+      idbGetAll(STORES.ATTIVITA),
+      idbGetAll(STORES.ALLOGGI),
+      idbGetAll(STORES.TRASPORTI),
+      idbGetAll(STORES.DOCUMENTI),
+      idbGetAll(STORES.TAPPE),
+      idbGetAll(STORES.RISTORANTI),
+      idbGetAll(STORES.SHOPPING),
+      idbGetAll(STORES.SPESE),
+      idbGetAll(STORES.NOTE),
+      idbGetAll(STORES.BAGAGLI)
+    ]);
+    console.log(prefix, {
+      giorni: giorni.length,
+      attivita: attivita.length,
+      alloggi: alloggi.length,
+      trasporti: trasporti.length,
+      documenti: documenti.length,
+      tappe: tappe.length,
+      ristoranti: ristoranti.length,
+      shopping: shopping.length,
+      spese: spese.length,
+      note: note.length,
+      bagagli: bagagli.length
+    });
   }
 
   // --- ATTIVITA ---
@@ -416,30 +407,18 @@ class StorageService {
   async seedTransports(force = false): Promise<void> {
     try {
       const existing = await idbGetAll<Trasporto>(STORES.TRASPORTI);
-      const isAlreadySeeded = typeof localStorage !== 'undefined' && localStorage.getItem(SEED_FLAG_KEY);
+      if (!force && existing.length > 0) return;
 
-      // Se non è forzato dall'utente e abbiamo già fatto il seed iniziale o ci sono trasporti, non toccare nulla
-      if (!force && (isAlreadySeeded || existing.length > 0)) {
-        return;
-      }
-
-      const existingMap = new Map(existing.map(t => [t.id, t]));
       const now = Date.now();
       for (const item of SEED_TRANSPORTS) {
-        const prev = existingMap.get(item.id);
         await idbPut(STORES.TRASPORTI, {
           ...item,
-          attachments: (prev?.attachments && prev.attachments.length > 0) ? prev.attachments : (item.attachments || []),
-          copilota: prev?.copilota ?? item.copilota,
-          depositPaid: item.depositPaid || prev?.depositPaid,
-          createdAt: prev?.createdAt || now,
+          attachments: item.attachments || [],
+          createdAt: now,
           updatedAt: now
         });
       }
-
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem(SEED_FLAG_KEY, 'true');
-      }
+      console.log(`[StorageService] Seed trasporti completato: ${SEED_TRANSPORTS.length} record.`);
       notifyDataChanged('trasporti', 'save');
     } catch (err) {
       console.error('[StorageService] Errore durante il seeding dei trasporti:', err);
@@ -450,23 +429,7 @@ class StorageService {
     try {
       const items = await idbGetAll<Trasporto>(STORES.TRASPORTI);
       
-      // --- MIGRATION: Se c'è ancora il vecchio volo unito, lo separiamo ---
-      const oldIdx = items.findIndex(t => t.id === 'trn_01_mxp_pek_akl');
-      if (oldIdx !== -1) {
-        items.splice(oldIdx, 1);
-        await idbDelete(STORES.TRASPORTI, 'trn_01_mxp_pek_akl');
-        
-        const newFlights = SEED_TRANSPORTS.filter(t => t.id === 'transport_flight_mxp_pek' || t.id === 'transport_flight_pek_akl').map(t => ({
-          ...t,
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        })) as Trasporto[];
-        
-        for (const nf of newFlights) {
-          items.push(nf);
-          await idbPut(STORES.TRASPORTI, nf);
-        }
-      }
+      // MIGRATION RIMOSSA
 
       return items.sort((a, b) => {
         const dateCompare = a.date.localeCompare(b.date);
@@ -1119,6 +1082,7 @@ class StorageService {
               location: t.departureLocation || '',
               categoryOrType: t.type,
               copilota: t.copilota,
+              completed: t.completed,
               coordinate: t.coordinate,
               originalData: t,
               displayMode: 'full'
@@ -1134,6 +1098,7 @@ class StorageService {
               location: t.dropoffLocation || t.arrivalLocation || '',
               categoryOrType: t.type,
               copilota: t.copilota,
+              completed: t.completed,
               originalData: t,
               displayMode: 'full'
             });
@@ -1167,6 +1132,7 @@ class StorageService {
             location: t.departureLocation ? `${t.departureLocation} ➔ ${t.arrivalLocation}` : t.arrivalLocation,
             categoryOrType: t.type,
             copilota: t.copilota,
+            completed: t.completed,
             coordinate: t.coordinate,
             originalData: t,
             displayMode: isShortTransfer ? 'compact' : 'full'
@@ -1175,32 +1141,35 @@ class StorageService {
         
         // 2. Arrivi notturni / multi-giorno (crea un item compatto nel giorno di arrivo)
         const finalArrivalDate = t.layover?.arrivalDate || t.arrivalDate || t.date;
-        if (finalArrivalDate === dateStr && finalArrivalDate !== t.date) {
-           // Se è l'arrivo a Pechino (Tratta 1), crea uno stato "In corso" (Scalo) invece di un arrivo in timeline
-           if (t.arrivalLocation.includes('Pechino')) {
+        const layoverDepartureDate = t.layover?.departureDate;
+
+        // Se la tratta cade nel giorno dello scalo
+        if (t.layover && (t.arrivalDate === dateStr || layoverDepartureDate === dateStr)) {
              timeline.push({
                id: `${t.id}_state`,
                type: 'trasporto',
-               time: '00:00',
+               time: t.layover.departureTime || '00:00',
                title: '',
                location: '',
                categoryOrType: 'scalo',
                originalData: t,
                displayMode: 'state',
-               stateLabel: `⏳ In Scalo a Pechino (PEK T3) • Coincidenza 18h 35m • Nessun ritiro bagagli`
+               stateLabel: `🛬 Scalo a ${t.layover.airport.split(' ')[0]} ${t.layover.duration ? `• Attesa ${t.layover.duration}` : ''}`
              });
-           } else {
+        }
+        // Se atterra a destinazione in un giorno diverso da quello di origine
+        else if (finalArrivalDate === dateStr && finalArrivalDate !== t.date) {
              timeline.push({
                id: `${t.id}_arrival`,
                type: 'trasporto',
-             time: t.arrivalTime || '00:00',
-             title: `Arrivo a ${t.arrivalLocation}`,
-             location: `Da ${t.departureLocation}`,
-             categoryOrType: t.type,
-             originalData: t,
-             displayMode: 'compact'
+               time: t.layover?.arrivalTime || t.arrivalTime || '00:00',
+               title: `Arrivo a ${t.arrivalLocation}`,
+               location: `Da ${t.departureLocation}`,
+               categoryOrType: t.type,
+               completed: t.completed,
+               originalData: t,
+               displayMode: 'compact'
              });
-           }
         }
         
         // 3. Stati intermedi di scalo (giorni interi passati in aeroporto senza voli)
@@ -1231,6 +1200,7 @@ class StorageService {
           location: t.titolo,
           categoryOrType: 'tappa',
           copilota: t.copilota,
+          completed: t.completed,
           coordinate: t.coordinate,
           originalData: t
         });
@@ -1246,7 +1216,8 @@ class StorageService {
           location: a.location,
           categoryOrType: a.category,
           copilota: a.copilota,
-          copilotNotes: a.copilotNotes,
+          completed: a.completed,
+          noteCopilota: a.noteCopilota,
           coordinate: a.coordinate,
           originalData: a
         });
@@ -1262,6 +1233,7 @@ class StorageService {
           location: r.indirizzo || r.nome,
           categoryOrType: 'ristorante',
           copilota: r.copilota,
+          completed: r.completed,
           coordinate: r.coordinate,
           originalData: r
         });
@@ -1277,6 +1249,7 @@ class StorageService {
           location: s.indirizzo || s.nome,
           categoryOrType: 'shopping',
           copilota: s.copilota,
+          completed: s.completed,
           coordinate: s.coordinate,
           originalData: s
         });
@@ -1294,6 +1267,7 @@ class StorageService {
             title: `Pernottamento presso: ${acc.name}`,
             location: acc.address || acc.location,
             categoryOrType: 'alloggio',
+            completed: acc.completed,
             coordinate: undefined,
             originalData: acc
           });
@@ -1385,7 +1359,30 @@ class StorageService {
       console.error('[StorageService] Errore salvataggio device role:', e);
     }
   }
+
+  // --- SEED ATTIVITÀ REALI ---
+  async seedRealActivities(): Promise<void> {
+    try {
+      console.log('[StorageService] Avvio seeding forzato attività reali...');
+      const now = Date.now();
+      
+      // Inseriamo o sovrascriviamo le attività reali. 
+      // Poiché hanno un 'id' fisso in seedActivities.ts, idbPut aggiornerà quelle esistenti o creerà le nuove.
+      for (const act of REAL_ACTIVITIES) {
+        await this.saveActivity({ ...act, createdAt: now, updatedAt: now } as any);
+      }
+      
+      console.log('[StorageService] Seeding attività reali completato con successo!');
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { entityType: 'activity', action: 'seed' } }));
+    } catch (err) {
+      console.error('[StorageService] Errore durante il seeding attività:', err);
+    }
+  }
 }
 
 export const storageService = new StorageService();
 
+// Esposto globalmente per chiamare `window.storageService.seedRealActivities()` da console
+if (typeof window !== 'undefined') {
+  (window as any).storageService = storageService;
+}

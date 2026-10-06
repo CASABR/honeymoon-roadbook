@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../services/firebaseConfig';
+import { db } from '../firebase';
 import { getTripConfig } from '../utils/tripConfig';
 import { storageService } from '../storage/storageService';
 

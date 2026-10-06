@@ -7,11 +7,12 @@ import SpeseBudgetView from './altro/SpeseBudgetView';
 import LiveView from './altro/LiveView';
 import BagagliView from './altro/BagagliView';
 import NoteViaggioView from './altro/NoteViaggioView';
+import GestioneViaggioView from './altro/GestioneViaggioView';
 import DeviceRoleModal from '../components/common/DeviceRoleModal';
 import { storageService } from '../storage/storageService';
 import type { DeviceRole } from '../types';
 
-type SubViewType = 'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | null;
+type SubViewType = 'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | 'gestione' | null;
 
 interface AltroViewProps {
   initialSubView?: SubViewType;
@@ -66,6 +67,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   if (activeSubView === 'bagagli') return <BagagliView onBack={handleBack} />;
   if (activeSubView === 'note') return <NoteViaggioView onBack={handleBack} />;
   if (activeSubView === 'galleria') return <DocumentiGalleriaView onBack={handleBack} />;
+  if (activeSubView === 'gestione') return <GestioneViaggioView onBack={handleBack} />;
 
   return (
     <div className="space-y-4 pt-1 animate-fade-in pb-10">
@@ -82,21 +84,21 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
         {/* Card 0: Live Viaggio (Condividi & Segui il viaggio in tempo reale) */}
         <button 
           onClick={() => setActiveSubView('live')}
-          className="col-span-2 bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-white rounded-3xl p-4.5 border border-emerald-200/90 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.99]"
+          className="col-span-2 bg-white rounded-3xl p-4.5 border border-slate-200/90 shadow-sm hover:shadow-md hover:border-slate-300 transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.99]"
         >
           <div className="flex items-center gap-3.5">
-            <div className="relative w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-xl shadow-md shadow-emerald-500/20 shrink-0">
+            <div className="relative w-12 h-12 rounded-2xl bg-[#FFF0ED]0 text-white flex items-center justify-center text-xl shadow-md shadow-[#FF6B5F]/20 shrink-0">
               <span className="relative z-10">📡</span>
               <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400 border border-white" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#FF9A76] opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-[#FF9A76] border border-white" />
               </span>
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-extrabold text-slate-900 text-sm sm:text-base leading-tight">Live Viaggio</h3>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-100 text-emerald-800">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse" />
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-[#FFF0ED] text-[#172033]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F] animate-pulse" />
                   LIVE
                 </span>
               </div>
@@ -105,7 +107,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
               </p>
             </div>
           </div>
-          <svg className="w-5 h-5 text-emerald-600 shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5 text-[#FF6B5F] shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
           </svg>
         </button>
@@ -125,7 +127,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                 <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm leading-tight">Ruolo Dispositivo</h3>
                 <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
                   deviceRole === 'guida'
-                    ? 'bg-emerald-100 text-emerald-800'
+                    ? 'bg-[#FFF0ED] text-[#172033]'
                     : deviceRole === 'copilota'
                     ? 'bg-amber-100 text-amber-800'
                     : 'bg-slate-200 text-slate-700'
@@ -143,6 +145,28 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             </div>
           </div>
           <span className="text-slate-400 text-base font-bold ml-2">›</span>
+        </button>
+
+        {/* Card Gestione Viaggio (Invita) */}
+        <button
+          type="button"
+          onClick={() => setActiveSubView('gestione')}
+          className="col-span-2 bg-indigo-50/50 rounded-3xl p-4 border border-indigo-100 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.99]"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-indigo-100 flex items-center justify-center text-xl shrink-0 shadow-2xs border border-indigo-200/60">
+              👥
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-indigo-900 text-xs sm:text-sm leading-tight">Gestione Viaggio</h3>
+              </div>
+              <p className="text-[11px] text-indigo-600/80 mt-0.5 line-clamp-1">
+                Invita collaboratori e gestisci gli accessi
+              </p>
+            </div>
+          </div>
+          <span className="text-indigo-400 text-base font-bold ml-2">›</span>
         </button>
 
         {/* Card 1: Assicurazione */}
@@ -220,7 +244,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
         {/* Card Full Width Unificata: Documenti del Viaggio */}
         <button 
           onClick={() => setActiveSubView('documenti')}
-          className="col-span-2 bg-gradient-to-r from-indigo-50/70 via-white to-sky-50/60 rounded-3xl p-4.5 border border-indigo-200/90 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
+          className="col-span-2 bg-white rounded-3xl p-4.5 border border-indigo-200/90 shadow-sm hover:shadow-md hover:border-indigo-300 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
         >
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white text-2xl shrink-0 shadow-md shadow-indigo-600/20">

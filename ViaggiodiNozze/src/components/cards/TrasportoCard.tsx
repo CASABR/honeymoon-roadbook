@@ -4,13 +4,13 @@ import Badge from '../common/Badge';
 import TrasportoInfoModal from '../modals/TrasportoInfoModal';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import { getTransportMapTargets } from '../../utils/mapsHelper';
-import { useDeviceRole } from '../../utils/useDeviceRole';
+import { storageService } from '../../storage/storageService';
 
 interface TrasportoCardProps {
   transport: Trasporto;
   variant?: 'full' | 'compact';
   onEdit: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   onUpdate?: (updated: Trasporto) => void;
 }
 
@@ -18,10 +18,8 @@ export default function TrasportoCard({
   transport: initialTransport,
   variant = 'full',
   onEdit,
-  onDelete,
   onUpdate
 }: TrasportoCardProps) {
-  const { canEdit } = useDeviceRole();
   const [transport, setTransport] = useState<Trasporto>(initialTransport);
   const [isCopied, setIsCopied] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
@@ -39,6 +37,17 @@ export default function TrasportoCard({
     setTransport(updated);
     if (onUpdate) {
       onUpdate(updated);
+    }
+  };
+
+  const handleToggleComplete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = { ...transport, completed: !transport.completed };
+    try {
+      await storageService.saveTransport(updated);
+      handleUpdateTransport(updated);
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -197,12 +206,16 @@ export default function TrasportoCard({
     ? (mapTargets.arrivalUrl || mapTargets.dropoffUrl || mapTargets.primaryUrl)
     : (mapTargets.departureUrl || mapTargets.pickupUrl || mapTargets.primaryUrl);
 
-  const activeMapLabel = transport.status === 'completato' ? 'Arrivo' : 'Partenza';
+
 
   return (
     <>
       <article
-        className={`w-full bg-white rounded-3xl ${variant === 'compact' ? 'p-3' : 'p-4'} border border-slate-200/90 shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md hover:border-slate-300`}
+        className={`w-full rounded-3xl ${variant === 'compact' ? 'p-3' : 'p-4'} border shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md hover:border-slate-300 ${
+          transport.completed
+            ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-200/60'
+            : 'bg-white border-slate-200/90'
+        }`}
       >
         {/* Decorazione tacche laterali stile Boarding Pass Wallet (cerchietti ritagliati) */}
         <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-100 border border-slate-200/60 pointer-events-none" />
@@ -225,19 +238,45 @@ export default function TrasportoCard({
                   </span>
                 )}
               </div>
-              <h2 className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
-                {effCarrier || 'Tratta programmata'}
-              </h2>
+              <div className="flex items-start gap-1.5 mt-0.5">
+                <button
+                  type="button"
+                  onClick={handleToggleComplete}
+                  className={`shrink-0 w-4 h-4 rounded-full border flex items-center justify-center cursor-pointer transition-all mt-0.5 ${
+                    transport.completed
+                      ? 'bg-emerald-500 border-emerald-500 text-white shadow-sm'
+                      : 'border-slate-300 dark:border-slate-600 hover:border-emerald-400'
+                  }`}
+                  aria-label={transport.completed ? 'Segna come da fare' : 'Segna come completato'}
+                >
+                  {transport.completed && (
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+                <h2 className={`text-xs sm:text-sm font-extrabold text-[#172033] dark:text-slate-50 truncate ${transport.completed ? 'opacity-75' : ''}`}>
+                  {effCarrier || 'Tratta programmata'}
+                </h2>
+              </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
             <Badge label={statusLabel} variant={statusVariant} />
-            <div className="text-right">
-              <span className="text-xs font-mono font-extrabold text-slate-900">
-                {effDepartureTime || '--:--'}
-              </span>
-              <p className="text-[9px] text-slate-400 font-medium">Partenza</p>
+            <div className="text-right flex items-center justify-center">
+              {effDepartureTime ? (
+                <div>
+                  <span className="text-xs font-mono font-extrabold text-[#172033] dark:text-slate-50 block leading-none">
+                    {effDepartureTime}
+                  </span>
+                  <span className="text-[9px] text-slate-400 font-medium leading-none">Partenza</span>
+                </div>
+              ) : (
+                <button type="button" onClick={(e) => { e.stopPropagation(); onEdit(); }} className="text-[10px] font-bold text-[#64748B] dark:text-slate-400 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 transition">
+                  ⏱️ Orario?
+                </button>
+              )}
             </div>
           </div>
         </header>
@@ -247,7 +286,7 @@ export default function TrasportoCard({
           <div className="flex items-center justify-between gap-3">
             {/* ORIGINE / PARTENZA */}
             <div className="flex-1 min-w-0 text-left">
-              <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-[#172033] dark:text-slate-50 tracking-tight font-mono">
                 {originInfo.code}
               </div>
               <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5" title={effDepartureLoc}>
@@ -274,14 +313,14 @@ export default function TrasportoCard({
                     {transport.layover.duration && <span>({transport.layover.duration})</span>}
                   </span>
                   {/* Detailed layover info */}
-                  <div className="text-[9px] text-slate-500 font-medium">
+                  <div className="text-[9px] text-[#64748B] dark:text-slate-400 font-medium">
                      {transport.layover.departureDate ? formatDate(transport.layover.departureDate) : ''} {transport.layover.departureTime ? ` h ${transport.layover.departureTime}` : ''}
                      {transport.layover.carrier && ` • ${transport.layover.carrier}`}
                   </div>
                 </div>
               ) : isRental ? (
                 <div className="mt-2 text-center">
-                  <span className="text-[9px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
+                  <span className="text-[9px] font-semibold text-[#64748B] dark:text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
                     {transport.dropoffDate ? `Fino al ${formatDate(transport.dropoffDate)}` : 'Noleggio'}
                   </span>
                 </div>
@@ -296,7 +335,7 @@ export default function TrasportoCard({
 
             {/* DESTINAZIONE / ARRIVO */}
             <div className="flex-1 min-w-0 text-right">
-              <div className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-[#172033] dark:text-slate-50 tracking-tight font-mono">
                 {destInfo.code}
               </div>
               <p className="text-[11px] font-bold text-slate-700 truncate mt-0.5" title={effArrivalLoc}>
@@ -311,138 +350,93 @@ export default function TrasportoCard({
 
           {/* Scalo o noleggio extra se presenti (senza blocco DA/A duplicato) */}
           {transport.notes && transport.notes.includes('Ritira') && (
-            <div className="mt-2 text-xs text-slate-500 bg-slate-50 p-2 rounded-xl border border-slate-100">
+            <div className="mt-2 text-xs text-[#64748B] dark:text-slate-400 bg-slate-50 p-2 rounded-xl border border-slate-100">
               {transport.notes}
             </div>
           )}
         </div>
 
-        {/* 3. BANDA INFERIORE "DETTAGLI OPERATIVI" COMPATTA SU SINGOLA RIGA */}
+        {/* 3. BANDA INFERIORE "DETTAGLI OPERATIVI" */}
         {variant === 'full' && (
-        <footer className="pt-2.5 border-t border-dashed border-slate-200 flex items-center justify-between gap-2">
-          {/* Sezione Chip: PNR, Prezzo / Acconto */}
-          <div className="flex items-center gap-1.5 flex-nowrap min-w-0 overflow-x-auto no-scrollbar">
-            {/* Micro-pillola PNR con popover modale */}
-            {transport.bookingCode ? (
-              <button
-                type="button"
-                onClick={() => setIsPNROpen(true)}
-                title="Visualizza codice prenotazione / PNR"
-                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-950 transition-all cursor-pointer active:scale-95 shrink-0 shadow-2xs font-bold text-[10px]"
-              >
-                <span>🎟️</span>
-                <span>PNR</span>
-              </button>
-            ) : null}
-
-            {/* Chip Costo in Euro (mostra solo importi reali in €, non 'Incluso nel pacchetto') */}
+        <footer className="mt-2">
+          {/* RIGA 1: COSTI E PAGAMENTI */}
+          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-200/50 dark:border-slate-800 w-full">
+            {/* Costo / Saldo */}
             {transport.cost && transport.cost.trim() && !transport.cost.toLowerCase().includes('incluso') && (
-              <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-lg border shrink-0 ${
-                transport.cost.toLowerCase().includes('saldato')
-                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                  : 'bg-rose-50 text-rose-800 border-rose-200'
+              <span className={`inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded-md ${
+                transport.cost.toLowerCase().includes('saldato') 
+                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' 
+                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
               }`}>
-                {transport.cost}
+                {transport.cost.toLowerCase().match(/saldato|saldare|costo|saldo/) ? transport.cost : `Costo: ${transport.cost}`}
               </span>
             )}
-
-            {/* Chip Acconto */}
+            {/* Acconto */}
             {(transport.depositPaid || transport.acconto) && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
-                <span>Acconto: {transport.depositPaid || transport.acconto}</span>
+              <span className="inline-flex items-center bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-xs font-medium px-2 py-0.5 rounded-md">
+                Acconto: {transport.depositPaid || transport.acconto}
               </span>
             )}
           </div>
 
-          {/* Azioni Rapide Compatte: Maps, Info, Pass, Modifica, Elimina */}
-          <div className="flex items-center gap-1 shrink-0">
-            {/* Tasto Mappe Rapido Micro */}
-            {activeMapUrl && (
-              <a
-                href={activeMapUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={`Apri su Google Maps (${activeMapLabel})`}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all cursor-pointer active:scale-95"
-              >
-                <svg className="w-3 h-3 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span>Maps ↗</span>
-              </a>
-            )}
+          {/* RIGA 2: PULSANTI D'AZIONE */}
+          <div className="flex items-center justify-between pt-2 mt-2 border-t border-slate-100 dark:border-slate-800/50">
+            {/* LATO SINISTRO: Azioni Principali */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {/* Maps */}
+              {activeMapUrl && (
+                <a
+                  href={activeMapUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/50 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium transition-colors"
+                >
+                  <span className="text-[10px]">📍</span> Maps
+                </a>
+              )}
 
-            {/* Pulsante Info Micro */}
-            {hasInfo && (
-              <button
-                type="button"
-                onClick={() => setIsInfoOpen(true)}
-                title="Dettagli e note"
-                className="inline-flex items-center gap-0.5 px-2 py-1 rounded-lg text-[11px] font-bold text-sky-700 bg-sky-50 hover:bg-sky-100 border border-sky-200 transition-all cursor-pointer active:scale-95"
-              >
-                <span>Dettagli</span>
-              </button>
-            )}
-
-            {/* Pulsante Pass / Biglietti */}
-            {canHaveTickets && (
-              <button
-                type="button"
-                onClick={() => setIsTicketsOpen(true)}
-                title="Biglietti, Pass e QR Code offline"
-                className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer active:scale-95 border ${
-                  attachmentsCount > 0
-                    ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
-                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
-                }`}
-              >
-                <span>🎟️</span>
-                <span>Pass</span>
-                {attachmentsCount > 0 && (
-                  <span className="ml-0.5 px-1 py-0.1 rounded-full text-[9px] font-bold bg-purple-600 text-white leading-none">
-                    {attachmentsCount}
-                  </span>
-                )}
-              </button>
-            )}
-
-            {/* Pulsanti Modifica ed Elimina (solo per guida e copilota) */}
-            {canEdit && (
-              <>
+              {/* PNR (spostato nella riga azioni per salvare spazio) */}
+              {transport.bookingCode && (
                 <button
                   type="button"
-                  onClick={onEdit}
-                  title="Modifica trasporto"
-                  className="w-7 h-7 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer active:scale-95 flex items-center justify-center border border-slate-200/80"
+                  onClick={(e) => { e.stopPropagation(); setIsPNROpen(true); }}
+                  title="Mostra Codice PNR"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/50 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium transition-colors"
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                    />
-                  </svg>
+                  <span className="text-[10px]">#️⃣</span> PNR
                 </button>
+              )}
 
+              {/* Pass / Biglietti */}
+              {canHaveTickets && (
                 <button
                   type="button"
-                  onClick={onDelete}
-                  title="Elimina trasporto"
-                  className="w-7 h-7 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer active:scale-95 flex items-center justify-center border border-slate-200/80"
+                  onClick={(e) => { e.stopPropagation(); setIsTicketsOpen(true); }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/50 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium transition-colors"
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                    />
-                  </svg>
+                  <span className="text-[10px]">🎟️</span> Pass/QR
+                  {attachmentsCount > 0 && (
+                    <span className="ml-1 px-1.5 rounded-full bg-slate-200 dark:bg-slate-700 text-[9px] font-bold">
+                      {attachmentsCount}
+                    </span>
+                  )}
                 </button>
-              </>
-            )}
+              )}
+
+              {/* Dettagli (Ghost) */}
+              {hasInfo && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setIsInfoOpen(true); }}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/50 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium transition-colors"
+                >
+                  <span className="text-[10px]">ℹ️</span> Dettagli
+                </button>
+              )}
+            </div>
+
+            {/* LATO DESTRO: Gestione */}
+            
           </div>
         </footer>
         )}
@@ -467,7 +461,7 @@ export default function TrasportoCard({
       {isPNROpen && transport.bookingCode && (
         <div 
           className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
-          onClick={() => setIsPNROpen(false)}
+          onClick={(e) => { e.stopPropagation(); setIsPNROpen(false); }}
         >
           <div 
             className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-slate-200 text-center relative"
@@ -477,7 +471,7 @@ export default function TrasportoCard({
               🎟️
             </div>
             
-            <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-500">
+            <h3 className="text-sm font-extrabold uppercase tracking-wider text-[#64748B] dark:text-slate-400">
               Codice Prenotazione (PNR)
             </h3>
             
@@ -486,7 +480,7 @@ export default function TrasportoCard({
             </p>
 
             <div className="my-4 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
-              <span className="font-mono text-xl sm:text-2xl font-black text-slate-900 tracking-wider select-all break-all">
+              <span className="font-mono text-xl sm:text-2xl font-black text-[#172033] dark:text-slate-50 tracking-wider select-all break-all">
                 {transport.bookingCode}
               </span>
             </div>
@@ -514,8 +508,8 @@ export default function TrasportoCard({
 
               <button
                 type="button"
-                onClick={() => setIsPNROpen(false)}
-                className="py-3 px-4 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); setIsPNROpen(false); }}
+                className="py-3 px-4 rounded-xl text-xs font-semibold text-[#64748B] dark:text-slate-400 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 Chiudi
               </button>
