@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import type { Alloggio } from '../../types';
 import { resolveMapUrl } from '../../utils/mapsHelper';
 import { storageService } from '../../storage/storageService';
