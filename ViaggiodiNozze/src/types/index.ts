@@ -53,6 +53,9 @@ export interface Tappa {
   data?: string; // YYYY-MM-DD
   date?: string; // Alias di data YYYY-MM-DD
   dayId?: string;
+  order?: number; // Ordine cronologico
+  orario?: string; // HH:mm
+  time?: string; // Alias di orario HH:mm
   coordinate?: Coordinate;
   indirizzo?: string;
   mapsUrl?: string; // Link o indirizzo Maps
@@ -67,7 +70,7 @@ export interface Tappa {
 export interface Ristorante {
   id: string;
   nome: string;
-  sottocategoria?: 'Colazione' | 'Pranzo' | 'Cena' | 'Aperitivo' | 'Street Food' | 'Altro';
+  sottocategoria?: 'Colazione' | 'Pranzo' | 'Cena' | 'Aperitivo' | 'Street Food' | 'Altro' | 'colazione' | 'pranzo' | 'cena' | 'snack';
   data?: string; // YYYY-MM-DD
   date?: string; // Alias di data YYYY-MM-DD
   dayId?: string;
@@ -80,6 +83,7 @@ export interface Ristorante {
   _enriched?: boolean;
   nota?: string;
   noteCopilota?: string;
+  status?: 'saldato' | 'da_saldare';
   copilota?: boolean;
   completed?: boolean;
   attachments?: TransportAttachment[];
@@ -161,11 +165,8 @@ export interface Trasporto {
   cost?: string;
   posti?: string;
   bagagli?: string;
-  depositoCauzionale?: string;
-  franchigia?: string;
-  politicaCarburante?: string;
-  sistemazioneTraghetto?: string;
-  veicoloTraghetto?: string;
+  terminalGate?: string;
+  checkinCutoff?: string;
   depositPaid?: string; // Quantitativo di acconto già dato
   acconto?: string; // Alias di depositPaid
   layover?: {
@@ -178,7 +179,6 @@ export interface Trasporto {
     carrier?: string; // Compagnia/Numero volo Tratta 2
     notes?: string;
   };
-  notes?: string;
   attachments?: TransportAttachment[];
   noteCopilota?: string;
   copilota?: boolean;
@@ -254,7 +254,7 @@ export interface TimelineItem {
   segmentContext?: TransportSegmentContext;
 }
 
-export type CategoriaSpesa = 'trasporti' | 'alloggi' | 'attivita' | 'ristoranti' | 'altro';
+export type CategoriaSpesa = 'trasporti' | 'alloggi' | 'attivita' | 'ristoranti' | 'shopping' | 'altro';
 export type StatoSpesa = 'saldato' | 'da_saldare';
 
 export interface Spesa {

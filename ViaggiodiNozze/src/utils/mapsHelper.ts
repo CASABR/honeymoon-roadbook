@@ -64,21 +64,21 @@ export function getTransportMapTargets(transport: Trasporto): TransportMapTarget
     let dropoffQuery = dropoffLocation || arrivalLocation;
 
     if (!/^https?:\/\//i.test(pickupQuery)) {
-      if (departureLocation.toLowerCase().includes('the strand') || departureLocation.toLowerCase().includes('parnell')) {
+      if ((departureLocation || '').toLowerCase().includes('the strand') || (departureLocation || '').toLowerCase().includes('parnell')) {
         pickupQuery = 'Snap Rentals Auckland Downtown, 60-64 The Strand, Parnell, Auckland';
-      } else if (departureLocation.toLowerCase().includes('assembly drive') || departureLocation.toLowerCase().includes('tullamarine')) {
+      } else if ((departureLocation || '').toLowerCase().includes('assembly drive') || (departureLocation || '').toLowerCase().includes('tullamarine')) {
         pickupQuery = 'Travellers Autobarn Campervan Hire Melbourne, 5 Assembly Dr, Tullamarine VIC';
-      } else if (departureLocation.toLowerCase().includes('adelaide airport')) {
+      } else if ((departureLocation || '').toLowerCase().includes('adelaide airport')) {
         pickupQuery = 'Bargain Car Rentals Adelaide Airport, South Australia';
       }
     }
 
     if (!/^https?:\/\//i.test(dropoffQuery)) {
-      if (dropoffQuery.toLowerCase().includes('orchard road') || dropoffQuery.toLowerCase().includes('harewood')) {
+      if ((dropoffQuery || '').toLowerCase().includes('orchard road') || (dropoffQuery || '').toLowerCase().includes('harewood')) {
         dropoffQuery = 'Snap Rentals Christchurch Airport, 170 Orchard Road, Harewood, Christchurch';
-      } else if (dropoffQuery.toLowerCase().includes('mcpherson') || dropoffQuery.toLowerCase().includes('banksmeadow')) {
+      } else if ((dropoffQuery || '').toLowerCase().includes('mcpherson') || (dropoffQuery || '').toLowerCase().includes('banksmeadow')) {
         dropoffQuery = 'Travellers Autobarn Campervan Hire Sydney, 1C McPherson St, Banksmeadow NSW';
-      } else if (dropoffQuery.toLowerCase().includes('adelaide airport')) {
+      } else if ((dropoffQuery || '').toLowerCase().includes('adelaide airport')) {
         dropoffQuery = 'Bargain Car Rentals Adelaide Airport, South Australia';
       }
     }
@@ -130,25 +130,25 @@ export function getTransportMapTargets(transport: Trasporto): TransportMapTarget
     let arrQuery = arrivalLocation;
 
     if (!/^https?:\/\//i.test(depQuery)) {
-      if (depQuery.toLowerCase().includes('wellington')) {
+      if ((depQuery || '').toLowerCase().includes('wellington')) {
         depQuery = 'Bluebridge Wellington Ferry Terminal, 50 Waterloo Quay, Pipitea, Wellington';
-      } else if (depQuery.toLowerCase().includes('cape jervis')) {
+      } else if ((depQuery || '').toLowerCase().includes('cape jervis')) {
         depQuery = 'SeaLink Kangaroo Island Ferry Terminal, Cape Jervis SA';
-      } else if (depQuery.toLowerCase().includes('penneshaw')) {
+      } else if ((depQuery || '').toLowerCase().includes('penneshaw')) {
         depQuery = 'SeaLink Kangaroo Island Ferry Terminal, Penneshaw SA';
-      } else if (depQuery.toLowerCase().includes('el nido')) {
+      } else if ((depQuery || '').toLowerCase().includes('el nido')) {
         depQuery = 'El Nido Port Terminal, Palawan, Philippines';
       }
     }
 
     if (!/^https?:\/\//i.test(arrQuery)) {
-      if (arrQuery.toLowerCase().includes('picton')) {
+      if ((arrQuery || '').toLowerCase().includes('picton')) {
         arrQuery = 'Bluebridge Picton Ferry Terminal, 1 Lagoon Road, Picton';
-      } else if (arrQuery.toLowerCase().includes('penneshaw')) {
+      } else if ((arrQuery || '').toLowerCase().includes('penneshaw')) {
         arrQuery = 'SeaLink Kangaroo Island Ferry Terminal, Penneshaw SA';
-      } else if (arrQuery.toLowerCase().includes('cape jervis')) {
+      } else if ((arrQuery || '').toLowerCase().includes('cape jervis')) {
         arrQuery = 'SeaLink Kangaroo Island Ferry Terminal, Cape Jervis SA';
-      } else if (arrQuery.toLowerCase().includes('coron')) {
+      } else if ((arrQuery || '').toLowerCase().includes('coron')) {
         arrQuery = 'Coron Port Terminal, Busuanga, Palawan, Philippines';
       }
     }
@@ -169,9 +169,9 @@ export function getTransportMapTargets(transport: Trasporto): TransportMapTarget
   // 4. TRANSFER / TAXI
   let transferQuery = arrivalLocation;
   if (!/^https?:\/\//i.test(transferQuery)) {
-    if (arrivalLocation.toLowerCase().includes('hotel noa') || arrivalLocation.toLowerCase().includes('queen st')) {
+    if ((arrivalLocation || '').toLowerCase().includes('hotel noa') || (arrivalLocation || '').toLowerCase().includes('queen st')) {
       transferQuery = 'Noa Hotel Auckland, Queen Street, Auckland CBD, New Zealand';
-    } else if (arrivalLocation.toLowerCase().includes('auckland apt') || arrivalLocation.toLowerCase().includes('akl')) {
+    } else if ((arrivalLocation || '').toLowerCase().includes('auckland apt') || (arrivalLocation || '').toLowerCase().includes('akl')) {
       transferQuery = 'Auckland Airport International Terminal';
     }
   }
@@ -193,7 +193,7 @@ function mapAirportTerminal(raw: string): string {
     return raw.trim();
   }
 
-  const l = raw.toLowerCase();
+  const l = String(raw || '').toLowerCase();
   if (l.includes('mxp') || l.includes('malpensa')) return 'Milano Malpensa Airport Terminal 1';
   if (l.includes('pek') || l.includes('pechino')) return 'Beijing Capital International Airport Terminal 3';
   if (l.includes('akl') || l.includes('auckland')) return 'Auckland Airport International Terminal, Ray Emery Drive';

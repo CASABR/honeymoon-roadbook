@@ -102,7 +102,7 @@ export const KNOWN_COORDINATES: Record<string, Coordinate> = {
  */
 export function lookupKnownCoordinate(text: string): Coordinate | null {
   if (!text) return null;
-  const clean = text.toLowerCase().replace(/[^a-z0-9]/g, ' ');
+  const clean = String(text || '').toLowerCase().replace(/[^a-z0-9]/g, ' ');
   const words = clean.split(/\s+/).filter(Boolean);
 
   // 1. Priorità assoluta: specifici toponimi/vie/piazze prima dei nomi generici di città (es. 'suzzani', 'starita', 'duomo' prima di 'milano')
@@ -280,7 +280,7 @@ export async function getRoute(
   toCoord?: Coordinate
 ): Promise<RouteInfo | null> {
   if (!from || !to) return null;
-  if (from.trim().toLowerCase() === to.trim().toLowerCase()) {
+  if (String(from || '').trim().toLowerCase() === String(to || '').trim().toLowerCase()) {
     return {
       distanceKm: 0,
       formattedDistance: '0 km',
@@ -292,8 +292,8 @@ export async function getRoute(
   }
 
   // 1. Verifica cache persistente IndexedDB: route_[profile]_[from]_[to]
-  const cleanFrom = from.trim().toLowerCase().replace(/\s+/g, '_');
-  const cleanTo = to.trim().toLowerCase().replace(/\s+/g, '_');
+  const cleanFrom = String(from || '').trim().toLowerCase().replace(/\s+/g, '_');
+  const cleanTo = String(to || '').trim().toLowerCase().replace(/\s+/g, '_');
   const cacheKey = `route_${profile}_${cleanFrom}_${cleanTo}`;
 
   try {
@@ -455,8 +455,8 @@ export async function saveManualRoute(
   distanceKm: number,
   formattedDuration: string
 ): Promise<RouteInfo> {
-  const cleanFrom = from.trim().toLowerCase().replace(/\s+/g, '_');
-  const cleanTo = to.trim().toLowerCase().replace(/\s+/g, '_');
+  const cleanFrom = String(from || '').trim().toLowerCase().replace(/\s+/g, '_');
+  const cleanTo = String(to || '').trim().toLowerCase().replace(/\s+/g, '_');
   const cacheKey = `route_${profile}_${cleanFrom}_${cleanTo}`;
 
   const routeInfo: RouteInfo = {

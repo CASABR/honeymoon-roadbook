@@ -1,5 +1,5 @@
 @import "tailwindcss";
-
+@custom-variant dark (&:is(.dark *));
 @theme {
   --color-slate-50: var(--theme-slate-50);
   --color-slate-100: var(--theme-slate-100);
@@ -44,6 +44,25 @@ html, body, #root {
   color: var(--theme-slate-900);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html, body {
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+input, textarea {
+  user-select: auto;
+}
+button, a, input, select {
+  touch-action: manipulation;
+}
+
+.safe-pt {
+  padding-top: max(1rem, env(safe-area-inset-top));
+}
+.safe-pb {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
 
 html {
@@ -167,6 +186,15 @@ input[type="url"] {
 /* Safe area inset per smartphone con notch / home indicator */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 12px);
+}
+
+/* Fallback globale per forzare i testi chiari nelle card in dark mode */
+.dark .tappa-card-title,
+.dark [data-tappa-title] {
+  color: #ffffff !important;
+}
+.dark .tappa-card-subtitle {
+  color: #cbd5e1 !important;
 }
 
 /* Modal overlay layer - guaranteed above navbar dock (z-40) and category bar (z-50) */

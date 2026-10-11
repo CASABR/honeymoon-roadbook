@@ -150,7 +150,9 @@ export default function AttivitaView() {
     return filtered.sort((a, b) => {
       const dateA = a.date || (a.dayId.startsWith('day_') ? a.dayId.replace('day_', '') : '');
       const dateB = b.date || (b.dayId.startsWith('day_') ? b.dayId.replace('day_', '') : '');
-      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      const isoA = ((dateA || '').split('-').length === 3 && (dateA || '').split('-')[0].length === 2 ? (dateA || '').split('-').reverse().join('-') : (dateA || ''));
+      const isoB = ((dateB || '').split('-').length === 3 && (dateB || '').split('-')[0].length === 2 ? (dateB || '').split('-').reverse().join('-') : (dateB || ''));
+      if (isoA !== isoB) return isoA.localeCompare(isoB);
       
       const timeA = a.time || '23:59';
       const timeB = b.time || '23:59';
@@ -166,7 +168,11 @@ export default function AttivitaView() {
       groups[d].push(a);
     });
     // Sort keys
-    const sortedKeys = Object.keys(groups).sort();
+    const sortedKeys = Object.keys(groups).sort((a, b) => {
+      const isoA = ((a || '').split('-').length === 3 && (a || '').split('-')[0].length === 2 ? (a || '').split('-').reverse().join('-') : (a || ''));
+      const isoB = ((b || '').split('-').length === 3 && (b || '').split('-')[0].length === 2 ? (b || '').split('-').reverse().join('-') : (b || ''));
+      return isoA.localeCompare(isoB);
+    });
     return sortedKeys.map(k => ({ date: k, items: groups[k] }));
   }, [filteredActivities]);
 
@@ -286,7 +292,7 @@ export default function AttivitaView() {
               className="mx-auto flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-2xl border border-indigo-200 transition-colors shadow-sm cursor-pointer active:scale-95"
             >
               <span>📥</span>
-              <span>Ripristina Attività Viaggio di Nozze</span>
+              <span>Ripristina Attività Viaggio</span>
             </button>
           )}
         </div>

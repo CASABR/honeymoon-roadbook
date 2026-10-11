@@ -18,6 +18,7 @@ import RistoranteCard from '../components/cards/RistoranteCard';
 import TappaCard from '../components/cards/TappaCard';
 import ShoppingCard from '../components/cards/ShoppingCard';
 import InTransitBanner from '../components/common/InTransitBanner';
+import UniversalCopilotaModal from '../components/modals/UniversalCopilotaModal';
 import { useDeviceRole } from '../utils/useDeviceRole';
 
 interface OggiViewProps {
@@ -43,6 +44,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [copilotPopoverActivity, setCopilotPopoverActivity] = useState<Attivita | null>(null);
   const [copilotPopoverText, setCopilotPopoverText] = useState('');
   const [isSavingCopilotNote, setIsSavingCopilotNote] = useState(false);
+  const [isGlobalCopilotOpen, setIsGlobalCopilotOpen] = useState(false);
+  const [globalCopilotNoteStr, setGlobalCopilotNoteStr] = useState('');
+  const [globalCopilotNoteId, setGlobalCopilotNoteId] = useState<string | null>(null);
 
   const [tripDays, setTripDays] = useState<TripDayItem[]>(() => generateTripDays());
   const [selectedDate, setSelectedDate] = useState<string>(() => {
@@ -180,7 +184,33 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const fetchTimeline = useCallback(async (dateToFetch?: string) => {
     const target = dateToFetch || selectedDate;
     const items = await storageService.getTimelineForDate(target);
-    setTimeline(items);
+    
+    // --- FILTRO RIGIDO DEDUPLICAZIONE ---
+    const filteredItems = [];
+    for (const item of items) {
+      if (item.type === 'trasporto' && item.originalData) {
+        const t = item.originalData as import('../types').Trasporto;
+        
+        // CANCELLAZIONE FISICA E SCARTO TRENO 28/11
+        if (t.date === '2026-11-28' && t.type === 'treno') {
+          if (t.carrier === 'TRENO ROMA TERMINI - MILANO CENTRALE' || t.departureTime === '00:00') {
+             await storageService.deleteTransport(t.id);
+             continue; // SCARTA
+          }
+        }
+        
+        // CANCELLAZIONE FISICA E SCARTO VOLO CUMULATIVO 29/11 - 01/12
+        if (t.type === 'volo' && (t.date === '2026-11-29' || t.date === '2026-12-01')) {
+          if (t.carrier && (t.carrier.includes('(CA950 + CA783)') || t.carrier.includes('CA950 + CA783'))) {
+             await storageService.deleteTransport(t.id);
+             continue; // SCARTA
+          }
+        }
+      }
+      filteredItems.push(item);
+    }
+    
+    setTimeline(filteredItems);
     
     // Day map link
     const link = await storageService.getDayMapLink(target);
@@ -209,7 +239,22 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     }
   }, [selectedDate, timeline, scrollToCurrentEvent, tripDays]);
 
+  const fetchGlobalCopilotNote = useCallback(async () => {
+    try {
+      const allNotes = await storageService.getNote();
+      const dailyNote = allNotes.find(n => n.id === 'copilota_' + selectedDate && n.title === 'Note Copilota di Giornata');
+      if (dailyNote) {
+        setGlobalCopilotNoteId(dailyNote.id);
+        setGlobalCopilotNoteStr(dailyNote.content || '');
+      } else {
+        setGlobalCopilotNoteId(null);
+        setGlobalCopilotNoteStr('');
+      }
+    } catch (err) {}
+  }, [selectedDate]);
+
   const loadData = useCallback(async () => {
+    fetchGlobalCopilotNote();
     try {
       setLoading(true);
       const timeoutPromise = new Promise((_, reject) =>
@@ -960,6 +1005,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           // Ordina rigorosamente per orario (HH:mm)
           const sortedTimeline = [...timeline].sort((a, b) => {
+            const dateA = a.originalData?.date || a.originalData?.data || a.originalData?.checkIn || '2026-11-28';
+            const dateB = b.originalData?.date || b.originalData?.data || b.originalData?.checkIn || '2026-11-28';
+            const isoA = ((dateA || '').split('-').length === 3 && (dateA || '').split('-')[0].length === 2 ? (dateA || '').split('-').reverse().join('-') : (dateA || ''));
+            const isoB = ((dateB || '').split('-').length === 3 && (dateB || '').split('-')[0].length === 2 ? (dateB || '').split('-').reverse().join('-') : (dateB || ''));
+            if (isoA !== isoB) return isoA.localeCompare(isoB);
             const timeA = a.time || '12:00';
             const timeB = b.time || '12:00';
             return timeA.localeCompare(timeB);
@@ -1498,6 +1548,50 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           </div>
         </div>
       )}
+
+      {/* Pulsante Floating Copilota (Global Day Note) */}
+      <button
+        type="button"
+        onClick={() => setIsGlobalCopilotOpen(true)}
+        className="fixed bottom-[90px] right-4 z-40 bg-[#FF6B5F] text-white p-3.5 rounded-full shadow-2xl flex items-center justify-center cursor-pointer hover:bg-[#e85c50] active:scale-95 transition-all border-2 border-white"
+        title="Note Copilota"
+      >
+        <span className="text-xl leading-none">🧭</span>
+      </button>
+
+      {/* Modal Copilota Globale della giornata */}
+      <UniversalCopilotaModal
+        isOpen={isGlobalCopilotOpen}
+        onClose={() => setIsGlobalCopilotOpen(false)}
+        title={`Giornata del ${selectedDate}`}
+        noteCopilota={globalCopilotNoteStr}
+        canEdit={canEdit}
+        onSave={async (notes) => {
+          try {
+            if (globalCopilotNoteId) {
+              const allNotes = await storageService.getNote();
+              const existing = allNotes.find(n => n.id === globalCopilotNoteId);
+              if (existing) {
+                await storageService.saveNota({ ...existing, content: notes.trim(), updatedAt: Date.now() });
+              }
+            } else {
+              await storageService.saveNota({
+                id: 'note_' + Date.now(),
+                title: 'Note Copilota di Giornata',
+                content: notes.trim(),
+                date: selectedDate,
+                type: 'info',
+                createdAt: Date.now(),
+                updatedAt: Date.now()
+              } as any);
+            }
+            await fetchGlobalCopilotNote();
+            setIsGlobalCopilotOpen(false);
+          } catch (err) {
+            console.error('Errore salvataggio nota copilota globale', err);
+          }
+        }}
+      />
 
       {/* Modal Inserimento Link Maps Giornata */}
       <Modal

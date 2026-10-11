@@ -34,6 +34,7 @@ const getWeatherDescription = (code: number): { description: string; icon: strin
 interface LiveViewProps {
   onBack?: () => void;
   isStandaloneExternal?: boolean;
+  tripId?: string;
 }
 
 interface DestinationTimezone {
@@ -65,7 +66,12 @@ interface CustomLivePhoto {
   timestamp: string;
 }
 
-export default function LiveView({ onBack, isStandaloneExternal = false }: LiveViewProps) {
+import { liveService, type LiveUpdate } from '../../services/liveService';
+import { getTripConfig } from '../../utils/tripConfig';
+
+export default function LiveView({ onBack, isStandaloneExternal = false, tripId }: LiveViewProps) {
+  const activeTripId = tripId || getTripConfig()?.id;
+
   const [now, setNow] = useState<Date>(new Date());
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
   const [days, setDays] = useState<Giorno[]>([]);
@@ -74,7 +80,55 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   const [tappe, setTappe] = useState<Tappa[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Messaggio di stato dagli sposi
+  // Live Feed Data from Firestore
+  const [liveUpdates, setLiveUpdates] = useState<LiveUpdate[]>([]);
+  const [localReactions, setLocalReactions] = useState<Record<string, string>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return JSON.parse(localStorage.getItem('hounigo_local_reactions') || '{}');
+      } catch {
+        return {};
+      }
+    }
+    return {};
+  });
+
+  const handleReaction = async (updateId: string, emoji: string) => {
+    if (!activeTripId) return;
+    const newReactions = { ...localReactions, [updateId]: emoji };
+    setLocalReactions(newReactions);
+    localStorage.setItem('hounigo_local_reactions', JSON.stringify(newReactions));
+    try {
+      await liveService.addReaction(activeTripId, updateId, emoji as any);
+    } catch (err) {
+      console.warn('Salvataggio offline pending', err);
+    }
+  };
+
+  // Sottoscrizioni a Firestore per il Live
+  useEffect(() => {
+    if (!activeTripId) return;
+    const unsubHeader = liveService.subscribeToLiveHeader(activeTripId, (header) => {
+      if (header?.statusMessage) {
+        setStatusMessage(header.statusMessage);
+      }
+      if (header?.statusUpdatedAt) {
+        const timeStr = new Intl.DateTimeFormat('it-IT', {
+          hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short'
+        }).format(new Date(header.statusUpdatedAt));
+        setStatusUpdatedAt(`Aggiornato alle ${timeStr}`);
+      }
+    });
+    const unsubUpdates = liveService.subscribeToLiveUpdates(activeTripId, (updates) => {
+      setLiveUpdates(updates);
+    });
+    return () => {
+      unsubHeader();
+      unsubUpdates();
+    };
+  }, [activeTripId]);
+
+  // Messaggio di stato locale/fallback
   const [statusMessage, setStatusMessage] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem(STATUS_MESSAGE_KEY) || DEFAULT_STATUS_MESSAGE;
@@ -299,15 +353,18 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   const handleShareLiveLink = async () => {
     if (typeof window === 'undefined') return;
 
-    // Genera l'URL diretto con il parametro live=1 e hash #live
+    // Genera l'URL diretto con il parametro live=1, tripId e hash #live
     const url = new URL(window.location.href);
     url.searchParams.set('live', '1');
+    if (activeTripId) {
+      url.searchParams.set('tripId', activeTripId);
+    }
     url.hash = 'live';
     const liveShareUrl = url.toString();
 
     const shareData = {
-      title: 'Viaggio di Nozze • Live',
-      text: 'Segui il nostro viaggio di nozze in tempo reale! 🌍💍',
+      title: 'Hounigo • Live',
+      text: 'Segui il nostro viaggio in tempo reale! 🌍',
       url: liveShareUrl
     };
 
@@ -391,11 +448,16 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   }, [todayStr]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (!isStandaloneExternal) {
+      loadData();
+    } else {
+      setLoading(false); // Esterni non caricano IndexedDB
+    }
+  }, [loadData, isStandaloneExternal]);
 
   // Ascolta l'evento unificato di mutazione dati per ricaricare istantaneamente LiveView
   useEffect(() => {
+    if (isStandaloneExternal) return;
     const handleDataMutated = () => {
       loadData();
     };
@@ -470,8 +532,61 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     return tappe.find(tp => tp.data === activeDate);
   }, [tappe, activeDate]);
 
+  // Posizione GPS Reale
+  const realLocation = useMemo(() => {
+    if (liveGpsState && liveGpsState.isLiveGps && liveGpsState.coords) {
+      const timeAgo = (() => {
+        try {
+          const diffMs = Date.now() - new Date(liveGpsState.updatedAt).getTime();
+          const diffMin = Math.floor(diffMs / 60000);
+          if (diffMin < 1) return 'Pochi istanti fa (GPS)';
+          if (diffMin < 60) return `${diffMin} min fa (GPS)`;
+          const diffHours = Math.floor(diffMin / 60);
+          return `${diffHours} ore fa (GPS)`;
+        } catch {
+          return 'Posizione GPS';
+        }
+      })();
+
+      return {
+        title: liveGpsState.displayName || `${liveGpsState.city || ''}, ${liveGpsState.country || ''}`.trim() || 'Posizione Reale',
+        city: liveGpsState.city || 'Posizione Corrente',
+        country: liveGpsState.country || 'Reale',
+        countryCode: liveGpsState.countryCode || '',
+        flag: getCountryFlag(liveGpsState.countryCode),
+        coords: liveGpsState.coords,
+        isRealGps: true,
+        updateNotice: `Rilevamento GPS • ${timeAgo}`,
+        badgeLabel: `📍 ${liveGpsState.city || 'Posizione Reale'}`
+      };
+    }
+    return null;
+  }, [liveGpsState]);
+
   // Posizione programmata dall'itinerario per la data odierna
   const plannedLocation = useMemo(() => {
+    if (tripCountdown.isPreTrip) {
+      if (realLocation) {
+        return {
+          ...realLocation,
+          isRealGps: false,
+          updateNotice: 'Viaggio non ancora iniziato (In attesa della partenza)',
+          badgeLabel: 'Viaggio non iniziato'
+        };
+      }
+      return {
+        title: 'Posizione Attuale (Prima della partenza)',
+        city: 'In attesa della partenza',
+        country: 'Italia',
+        countryCode: 'it',
+        flag: '🇮🇹',
+        coords: { lat: 45.4642, lng: 9.1900 },
+        isRealGps: false,
+        updateNotice: 'Viaggio non ancora iniziato',
+        badgeLabel: 'In attesa della partenza'
+      };
+    }
+
     if (currentAccommodation) {
       return {
         title: currentAccommodation.location || currentAccommodation.name,
@@ -507,55 +622,26 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
         flag: '✈️',
         coords: currentTransport.coordinate || lookupKnownCoordinate(currentTransport.arrivalLocation) || { lat: -36.8485, lng: 174.7633 },
         isRealGps: false,
-        updateNotice: tripCountdown.isPreTrip ? 'Viaggio non ancora iniziato (Inizio: 29 Nov 2026)' : 'Trasferimento programmato',
-        badgeLabel: tripCountdown.isPreTrip ? 'Viaggio non ancora iniziato (Inizio: 29 Nov 2026)' : `✈️ ${currentTransport.arrivalLocation}`
+        updateNotice: 'Trasferimento programmato',
+        badgeLabel: `✈️ ${currentTransport.arrivalLocation}`
       };
     }
     const defaultTitle = currentDay?.title || 'Auckland, Nuova Zelanda';
     const defaultCity = currentDay?.location || 'Auckland';
     return {
-      title: tripCountdown.isPreTrip ? '1ª Tappa Programmata (Auckland)' : defaultTitle,
+      title: defaultTitle,
       city: defaultCity,
       country: 'Nuova Zelanda',
       countryCode: 'nz',
       flag: '🇳🇿',
       coords: lookupKnownCoordinate(defaultCity) || { lat: -36.8485, lng: 174.7633 },
       isRealGps: false,
-      updateNotice: tripCountdown.isPreTrip ? 'Viaggio non ancora iniziato (Inizio: 29 Nov 2026)' : 'Partenza programmata',
-      badgeLabel: tripCountdown.isPreTrip ? 'Viaggio non ancora iniziato (Inizio: 29 Nov 2026)' : `🗓️ ${defaultCity}`
+      updateNotice: 'Partenza programmata',
+      badgeLabel: `🗓️ ${defaultCity}`
     };
-  }, [currentAccommodation, currentTappa, currentTransport, currentDay, tripCountdown.isPreTrip]);
+  }, [tripCountdown.isPreTrip, realLocation, currentAccommodation, currentTappa, currentTransport, currentDay]);
 
-  // Posizione GPS Reale
-  const realLocation = useMemo(() => {
-    if (liveGpsState && liveGpsState.isLiveGps && liveGpsState.coords) {
-      const timeAgo = (() => {
-        try {
-          const diffMs = Date.now() - new Date(liveGpsState.updatedAt).getTime();
-          const diffMin = Math.floor(diffMs / 60000);
-          if (diffMin < 1) return 'Pochi istanti fa (GPS)';
-          if (diffMin < 60) return `${diffMin} min fa (GPS)`;
-          const diffHours = Math.floor(diffMin / 60);
-          return `${diffHours} ore fa (GPS)`;
-        } catch {
-          return 'Posizione GPS';
-        }
-      })();
 
-      return {
-        title: liveGpsState.displayName || `${liveGpsState.city || ''}, ${liveGpsState.country || ''}`.trim() || 'Posizione Reale',
-        city: liveGpsState.city || 'Posizione Corrente',
-        country: liveGpsState.country || 'Reale',
-        countryCode: liveGpsState.countryCode || '',
-        flag: getCountryFlag(liveGpsState.countryCode),
-        coords: liveGpsState.coords,
-        isRealGps: true,
-        updateNotice: `Rilevamento GPS • ${timeAgo}`,
-        badgeLabel: `📍 ${liveGpsState.city || 'Posizione Reale'}`
-      };
-    }
-    return null;
-  }, [liveGpsState]);
 
   // Località attiva sulla mappa in base al toggle dell'utente (reale vs programmato) per qualsiasi ruolo
   const currentLocation = useMemo(() => {
@@ -659,7 +745,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
     }
 
     // 3. Fallback contestuale in base alla località del viaggio
-    const locLower = `${currentLocation.title} ${currentLocation.city}`.toLowerCase();
+    const locLower = `${currentLocation?.title || ''} ${currentLocation?.city || ''}`.toLowerCase();
     
     if (locLower.includes('filippine') || locLower.includes('manila') || locLower.includes('palawan') || locLower.includes('coron') || locLower.includes('el nido') || locLower.includes('boracay') || locLower.includes('cebu')) {
       return DESTINATION_ZONES[4]; // Manila
@@ -862,7 +948,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
       };
     }
 
-    const locLower = `${currentLocation.title} ${currentLocation.city}`.toLowerCase();
+    const locLower = `${currentLocation?.title || ''} ${currentLocation?.city || ''}`.toLowerCase();
     
     if (locLower.includes('filippine') || locLower.includes('coron') || locLower.includes('el nido') || locLower.includes('palawan')) {
       return {
@@ -980,22 +1066,24 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
   }, [timelineItems, currentAccommodation, now, activeTimezone, tripCountdown.isPreTrip, activeDate, todayStr]);
 
   // Salva stato personalizzato
-  const handleSaveStatus = () => {
+  const handleSaveStatus = async () => {
     const trimmed = tempStatus.trim() || DEFAULT_STATUS_MESSAGE;
-    const nowTimeStr = new Intl.DateTimeFormat('it-IT', {
-      hour: '2-digit',
-      minute: '2-digit',
-      day: 'numeric',
-      month: 'short'
-    }).format(new Date());
-
+    
+    // Aggiorna localmente per risposta immediata
     setStatusMessage(trimmed);
-    setStatusUpdatedAt(`Aggiornato alle ${nowTimeStr}`);
     setIsEditingStatus(false);
 
     if (typeof window !== 'undefined') {
       localStorage.setItem(STATUS_MESSAGE_KEY, trimmed);
-      localStorage.setItem(STATUS_DATE_KEY, `Aggiornato alle ${nowTimeStr}`);
+    }
+    
+    // Scrive su Firestore se abbiamo il tripId
+    if (activeTripId) {
+      try {
+        await liveService.updateStatusMessage(activeTripId, trimmed);
+      } catch (err) {
+        console.error('Errore aggiornamento status message:', err);
+      }
     }
   };
 
@@ -1024,7 +1112,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
             <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-1.5">
               <span>Live</span>
               {isStandaloneExternal && (
-                <span className="text-xs font-semibold text-rose-500">• Viaggio di Nozze</span>
+                <span className="text-xs font-semibold text-rose-500">• Hounigo</span>
               )}
             </h1>
             <p className="text-[11px] text-slate-500 font-medium">
@@ -1743,6 +1831,63 @@ export default function LiveView({ onBack, isStandaloneExternal = false }: LiveV
                 </div>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      {/* 7. LIVE FEED PUBBLICO (Gli update espliciti) */}
+      <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-base">📡</span>
+          <h3 className="font-bold text-slate-900 text-sm">Aggiornamenti Live</h3>
+        </div>
+        
+        {liveUpdates.length === 0 ? (
+          <div className="py-5 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+            Nessun aggiornamento pubblicato finora
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {liveUpdates.map((update) => (
+              <div key={update.id} className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 space-y-3">
+                <div className="flex justify-between items-start">
+                  <h4 className="font-bold text-slate-900 text-sm">{update.title}</h4>
+                  <span className="text-[10px] text-slate-400">
+                    {new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' }).format(new Date(update.timestamp))}
+                  </span>
+                </div>
+                {update.locationName && (
+                  <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                    <span>📍</span> {update.locationName}
+                  </div>
+                )}
+                {update.text && (
+                  <p className="text-xs text-slate-700 leading-relaxed">{update.text}</p>
+                )}
+                
+                {/* Reactions */}
+                <div className="flex gap-2 pt-2 border-t border-slate-200/60 mt-2">
+                  {['❤️', '😍', '😂', '👋'].map((emoji) => {
+                    const isSelected = localReactions[update.id] === emoji;
+                    const baseCount = update.reactionCounts?.[emoji] || 0;
+                    return (
+                      <button
+                        key={emoji}
+                        onClick={() => handleReaction(update.id, emoji)}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-full border text-[11px] cursor-pointer active:scale-95 transition-all shadow-xs ${
+                          isSelected 
+                            ? 'bg-indigo-50 border-indigo-200 text-indigo-700 font-bold' 
+                            : 'bg-white border-slate-200 hover:bg-slate-100 text-slate-600'
+                        }`}
+                      >
+                        <span>{emoji}</span>
+                        <span className="font-semibold">{baseCount + (isSelected ? 1 : 0)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>

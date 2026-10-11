@@ -74,6 +74,18 @@ export async function ensureMasterTripMembership(
     updatedAt: Date.now()
   }, { merge: true });
 
+  // Assicura anche la creazione del documento in /trips/0000/members/{uid}
+  try {
+    const memberRef = doc(db, 'trips', MASTER_TRIP_ID, 'members', uid);
+    await setDoc(memberRef, {
+      uid,
+      role: 'owner',
+      createdAt: Date.now()
+    }, { merge: true });
+  } catch {
+    // Non bloccante per dev offline
+  }
+
   const snap = await getDoc(ref);
   console.log(`[MasterTrip] Riallineamento "0000": ${status} (uid ${uid})`);
   return { status, data: snap.data() };

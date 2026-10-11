@@ -14,7 +14,8 @@
     "lint": "oxlint",
     "preview": "npm run preview --prefix ViaggiodiNozze",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d ViaggiodiNozze/dist"
+    "deploy": "gh-pages -d ViaggiodiNozze/dist",
+    "notify": "npm run --prefix ViaggiodiNozze notify"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
@@ -41,3 +42,4 @@
     "vite-plugin-pwa": "^1.3.0"
   }
 }
+

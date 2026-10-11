@@ -15,6 +15,7 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
 
   const [sottocategoria, setSottocategoria] = useState('Sosta panoramica');
   const [titolo, setTitolo] = useState('');
+  const [orario, setOrario] = useState('');
   const [indirizzo, setIndirizzo] = useState('');
   const [noteCopilota, setNoteCopilota] = useState('');
   const [nota, setNota] = useState('');
@@ -25,12 +26,14 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
     if (initialData) {
       setSottocategoria(initialData.sottocategoria || 'Sosta panoramica');
       setTitolo(initialData.titolo || '');
+      setOrario(initialData.orario || (initialData as any).time || '');
       setIndirizzo(initialData.indirizzo || initialData.mapsUrl || '');
       setNoteCopilota(initialData.noteCopilota || '');
       setNota(initialData.nota || '');
     } else {
       setSottocategoria('Sosta panoramica');
       setTitolo('');
+      setOrario('');
       setIndirizzo('');
       setNoteCopilota('');
       setNota('');
@@ -72,6 +75,8 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
       id: initialData?.id,
       titolo: titolo.trim(),
       sottocategoria: sottocategoria.trim() || undefined,
+      orario: orario.trim() || undefined,
+      time: orario.trim() || undefined,
       indirizzo: indirizzo.trim() || undefined,
       mapsUrl: indirizzo.trim() || undefined, // manteniamo mapsUrl allineato con indirizzo per retrocompatibilità
       coordinate: finalCoord,
@@ -109,20 +114,34 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
         </div>
       )}
 
-      {/* 1. Sottocategoria */}
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Categoria Sosta
-        </label>
-        <select
-          value={sottocategoria}
-          onChange={(e) => setSottocategoria(e.target.value)}
-          className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-        >
-          <option value="Sosta panoramica">⛰️ Sosta panoramica</option>
-          <option value="Sosta fotografica">📸 Sosta fotografica</option>
-          <option value="Sosta">📍 Sosta generica</option>
-        </select>
+      {/* 1. Sottocategoria & Orario */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Categoria Sosta
+          </label>
+          <select
+            value={sottocategoria}
+            onChange={(e) => setSottocategoria(e.target.value)}
+            className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+          >
+            <option value="Sosta panoramica">⛰️ Sosta panoramica</option>
+            <option value="Sosta fotografica">📸 Sosta fotografica</option>
+            <option value="Sosta">📍 Sosta generica</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            ⏰ Orario Previsto (HH:mm)
+          </label>
+          <input
+            type="time"
+            value={orario}
+            onChange={(e) => setOrario(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors"
+          />
+        </div>
       </div>
 
       {/* 2. Nome / Titolo */}

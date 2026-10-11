@@ -1,6 +1,6 @@
 import type { Trasporto } from '../../types';
 import Modal from '../common/Modal';
-import { getTransportMapTargets } from '../../utils/mapsHelper';
+import { formatDate } from '../../utils/tripDates';
 
 interface TrasportoInfoModalProps {
   isOpen: boolean;
@@ -11,343 +11,172 @@ interface TrasportoInfoModalProps {
 export default function TrasportoInfoModal({ isOpen, onClose, transport }: TrasportoInfoModalProps) {
   if (!transport) return null;
 
-  const mapTargets = getTransportMapTargets(transport);
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '';
-    try {
-      const [y, m, d] = dateStr.split('-');
-      return `${d}/${m}/${y}`;
-    } catch {
-      return dateStr;
-    }
-  };
-
   const isRental = transport.type === 'auto' || transport.type === 'camper';
-
-  // Analisi intelligente del testo delle note per estrarre sezioni con icone
-  const parseNotes = (notesText: string) => {
-    const parts = notesText.split(/(?<=[.!?])\s+/);
-    return parts.map((part, index) => {
-      const lower = part.toLowerCase();
-      let icon = 'ℹ️';
-      let title = '';
-
-      if (lower.includes('franchigia') || lower.includes('bagagl') || lower.includes('colli') || lower.includes('kg')) {
-        icon = '🧳';
-        title = 'Franchigia Bagagli';
-      } else if (lower.includes('biosicurezza') || lower.includes('trekking') || lower.includes('calzatur') || lower.includes('dichiar')) {
-        icon = '🌿';
-        title = 'Controlli Biosicurezza';
-      } else if (lower.includes('chiav') || lower.includes('cassett') || lower.includes('ritiro notturno') || lower.includes('contactless')) {
-        icon = '🔑';
-        title = 'Ritiro Chiavi & Accesso';
-      } else if (lower.includes('targa') || lower.includes('linkt') || lower.includes('pedaggi')) {
-        icon = '🛣️';
-        title = 'Pedaggi & Registrazione';
-      } else if (lower.includes('tassativo') || lower.includes('check-in') || lower.includes('imbarco') || lower.includes('minuti prima')) {
-        icon = '⏱️';
-        title = 'Check-in & Imbarco';
-      } else if (lower.includes('navetta') || lower.includes('one-way fee')) {
-        icon = '🚐';
-        title = 'Navetta & Tariffe';
-      }
-
-      return (
-        <div key={index} className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-800">
-          <div className="flex items-start gap-2.5">
-            <span className="text-base shrink-0 pt-0.5">{icon}</span>
-            <div className="min-w-0 flex-1">
-              {title && (
-                <div className="font-bold text-sky-800 text-[11px] uppercase tracking-wider mb-0.5">
-                  {title}
-                </div>
-              )}
-              <p className="leading-relaxed text-slate-700">{part}</p>
-            </div>
-          </div>
-        </div>
-      );
-    });
-  };
+  const hasOperativeData = transport.terminalGate || transport.checkinCutoff || transport.bookingCode || transport.posti;
+  const hasBagagli = !!transport.bagagli;
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Dettagli & Indicazioni Navigatore" accentVariant="sky">
+    <Modal isOpen={isOpen} onClose={onClose} title="Dettagli Trasporto" accentVariant="sky">
       <div className="space-y-4">
-        {/* Intestazione Principale Tratta */}
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-          <div className="flex items-center justify-between gap-2 flex-wrap pb-2 border-b border-slate-200">
+        
+        {/* 1. Header Card (Dati di Viaggio Principali) */}
+        <div className="p-4 rounded-2xl bg-white shadow-sm border border-slate-200">
+          <div className="flex items-center justify-between gap-2 flex-wrap pb-3 border-b border-slate-100">
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold text-sky-800 uppercase tracking-wide">
-                {transport.type.toUpperCase()}
+              <span className="text-xs font-mono font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg uppercase tracking-wide border border-sky-100">
+                {transport.type}
               </span>
-              {transport.copilota && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                  <span>🧭</span>
-                  <span>Co-pilota</span>
-                </span>
+              {transport.completed && (
+                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">✓ Completato</span>
               )}
             </div>
-            <span className="text-xs font-semibold text-slate-500">
+            <span className="text-sm font-bold text-slate-700">
               {formatDate(transport.date)}
             </span>
           </div>
 
-          <div className="mt-2 text-sm font-bold text-slate-900 leading-snug">
-            {isRental ? (
-              <span>{transport.carrier || 'Noleggio Veicolo'}</span>
-            ) : (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span>{transport.departureLocation}</span>
-                <span className="text-sky-600">➔</span>
-                <span>{transport.arrivalLocation}</span>
+          <div className="mt-3">
+            {transport.carrier && (
+              <div className="text-sm font-extrabold text-slate-900 mb-2">
+                {transport.carrier}
               </div>
             )}
+            
+            {!isRental ? (
+              <div className="flex items-center gap-2 text-slate-700 text-sm font-medium">
+                <span className="truncate">{transport.departureLocation}</span>
+                <span className="text-sky-500 shrink-0">➔</span>
+                <span className="truncate">{transport.arrivalLocation}</span>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5 text-sm">
+                <div className="flex gap-2">
+                  <span className="text-slate-400">Ritiro:</span>
+                  <span className="text-slate-700 font-medium">{transport.departureLocation}</span>
+                </div>
+                <div className="flex gap-2">
+                  <span className="text-slate-400">Riconsegna:</span>
+                  <span className="text-slate-700 font-medium">{transport.dropoffLocation || transport.arrivalLocation}</span>
+                </div>
+              </div>
+            )}
+            
+            <div className="mt-2 text-xs font-semibold text-slate-500 flex gap-4">
+              {transport.departureTime && <span>Partenza: {transport.departureTime}</span>}
+              {transport.arrivalTime && <span>Arrivo: {transport.arrivalTime}</span>}
+            </div>
           </div>
-
-          {transport.carrier && !isRental && (
-            <div className="text-xs text-slate-500 mt-1 flex items-center gap-1">
-              <span>Compagnia:</span>
-              <span className="text-slate-800 font-semibold">{transport.carrier}</span>
-            </div>
-          )}
-
-          {transport.bookingCode && (
-            <div className="text-xs text-slate-600 mt-1.5 flex items-center gap-2">
-              <span className="text-slate-500">Codice PNR:</span>
-              <span className="font-mono font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
-                {transport.bookingCode}
-              </span>
-            </div>
-          )}
-
-          {/* Navigatore Maps Primario Rapido */}
-          {mapTargets.primaryUrl && (
-            <div className="mt-3 pt-2.5 border-t border-slate-200">
-              <a
-                href={mapTargets.primaryUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white font-bold text-xs shadow-md shadow-emerald-600/20 transition-all cursor-pointer min-h-[40px]"
-              >
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span>Naviga verso {mapTargets.primaryLabel} con Google Maps</span>
-              </a>
-            </div>
-          )}
         </div>
 
-        {/* Dettagli Indirizzi / Orari Estesi per Noleggio con Link Maps */}
-        {isRental && (
-          <div className="space-y-3">
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-              <div className="flex items-center justify-between gap-1 flex-wrap">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 uppercase tracking-wider">
-                  <span>🔑</span>
-                  <span>Sede Ritiro (Pick-up)</span>
-                </div>
-                {mapTargets.pickupUrl && (
-                  <a
-                    href={mapTargets.pickupUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 transition-colors"
-                  >
-                    <span>Apri Maps</span>
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
-                )}
-              </div>
-              <div className="text-xs text-slate-800 font-semibold">
-                {formatDate(transport.date)} {transport.departureTime ? `• ore ${transport.departureTime}` : ''}
-              </div>
-              <div className="text-xs text-slate-600 leading-relaxed">
-                {transport.departureLocation}
-              </div>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-              <div className="flex items-center justify-between gap-1 flex-wrap">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800 uppercase tracking-wider">
-                  <span>🏁</span>
-                  <span>Sede Riconsegna (Drop-off)</span>
-                </div>
-                {mapTargets.dropoffUrl && (
-                  <a
-                    href={mapTargets.dropoffUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 hover:text-emerald-800 transition-colors"
-                  >
-                    <span>Apri Maps</span>
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
-                )}
-              </div>
-              <div className="text-xs text-slate-800 font-semibold">
-                {formatDate(transport.dropoffDate || transport.date)}{' '}
-                {transport.dropoffTime ? `• ore ${transport.dropoffTime}` : ''}
-              </div>
-              <div className="text-xs text-slate-600 leading-relaxed">
-                {transport.dropoffLocation || transport.arrivalLocation}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Dettagli Tratta con Collegamenti Terminal per Voli e Traghetti */}
-        {!isRental && (
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2.5">
-            <div className="text-xs font-bold text-sky-800 uppercase tracking-wider">
-              Terminal e Moli di Imbarco
-            </div>
-            <div className="space-y-2 text-xs">
-              {mapTargets.departureUrl && (
-                <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
-                  <div className="truncate min-w-0">
-                    <span className="text-slate-500 block text-[10px] uppercase font-semibold">Partenza:</span>
-                    <span className="text-slate-800 font-semibold truncate block">{transport.departureLocation}</span>
-                  </div>
-                  <a
-                    href={mapTargets.departureUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[11px] shrink-0 border border-emerald-200"
-                  >
-                    Maps ➔
-                  </a>
+        {/* 2. Card Operativa Imbarco & Accesso (Quick-Look) */}
+        {hasOperativeData && (
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-3">Imbarco & Accesso</h4>
+            <div className="grid grid-cols-2 gap-3">
+              {transport.terminalGate && (
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                  <div className="text-[10px] text-slate-400 uppercase font-semibold mb-0.5">Terminal / Gate</div>
+                  <div className="text-xs font-bold text-slate-800">{transport.terminalGate}</div>
                 </div>
               )}
-
-              {mapTargets.arrivalUrl && (
-                <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs">
-                  <div className="truncate min-w-0">
-                    <span className="text-slate-500 block text-[10px] uppercase font-semibold">Arrivo:</span>
-                    <span className="text-slate-800 font-semibold truncate block">{transport.arrivalLocation}</span>
-                  </div>
-                  <a
-                    href={mapTargets.arrivalUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-[11px] shrink-0 border border-emerald-200"
-                  >
-                    Maps ➔
-                  </a>
+              {transport.checkinCutoff && (
+                <div className="bg-rose-50 p-2.5 rounded-xl border border-rose-100">
+                  <div className="text-[10px] text-rose-500 uppercase font-bold mb-0.5">Check-in Cutoff</div>
+                  <div className="text-xs font-bold text-rose-700">{transport.checkinCutoff}</div>
+                </div>
+              )}
+              {transport.bookingCode && (
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                  <div className="text-[10px] text-slate-400 uppercase font-semibold mb-0.5">PNR / Ticket</div>
+                  <div className="text-xs font-mono font-bold text-sky-700">{transport.bookingCode}</div>
+                </div>
+              )}
+              {transport.posti && (
+                <div className="bg-white p-2.5 rounded-xl border border-slate-200">
+                  <div className="text-[10px] text-slate-400 uppercase font-semibold mb-0.5">Posti Assegnati</div>
+                  <div className="text-xs font-bold text-slate-800">{transport.posti}</div>
                 </div>
               )}
             </div>
           </div>
         )}
 
-        {/* Dettagli Scalo Esteso (se presente) */}
+        {/* 3. Card Bagagli & Requisiti */}
+        {(hasBagagli || transport.ticketUrl) && (
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
+            <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-2">Bagagli & Documenti</h4>
+            {transport.bagagli && (
+              <div className="flex gap-2 items-start text-sm text-slate-700 mb-3 bg-white p-3 rounded-xl border border-slate-200">
+                <span className="shrink-0 mt-0.5">🧳</span>
+                <p className="leading-snug">{transport.bagagli}</p>
+              </div>
+            )}
+            {transport.ticketUrl && (
+              <a
+                href={transport.ticketUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-sky-100 hover:bg-sky-200 text-sky-800 font-bold text-xs transition-colors border border-sky-200"
+              >
+                <span>🎟️ Apri Voucher / E-Ticket</span>
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* 4. Card Scalo */}
         {transport.layover && (
-          <div className="p-3.5 rounded-2xl bg-amber-50/80 border border-amber-200 space-y-1.5">
-            <div className="flex items-center justify-between gap-1 flex-wrap">
-              <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
-                <span>🛑</span>
-                <span>Dettagli Scalo: {transport.layover.airport}</span>
-              </span>
-              {mapTargets.layoverUrl && (
-                <a
-                  href={mapTargets.layoverUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-[11px] font-bold text-amber-800 hover:text-amber-900 flex items-center gap-1"
-                >
-                  <span>Mappa Scalo</span>
-                  <span>➔</span>
-                </a>
-              )}
+          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200">
+            <div className="flex items-center gap-1.5 mb-2">
+              <span>🛑</span>
+              <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider">Scalo Tecnico</h4>
             </div>
+            <div className="text-sm font-bold text-amber-900 mb-1">{transport.layover.airport}</div>
             {transport.layover.duration && (
-              <div className="text-xs text-amber-800 font-medium">
-                <strong>Durata attesa prevista:</strong> {transport.layover.duration}
+              <div className="text-xs text-amber-700 font-medium mb-2">
+                Durata: {transport.layover.duration}
               </div>
             )}
-            {(transport.layover.arrivalTime || transport.layover.departureTime) && (
-              <div className="text-xs font-mono text-slate-700">
-                Arrivo: {transport.layover.arrivalTime || '—'} ➔ Ripartenza: {transport.layover.departureTime || '—'}
-              </div>
-            )}
+            <div className="flex gap-4 text-xs font-mono text-amber-800 bg-amber-100/50 p-2 rounded-lg">
+              {transport.layover.arrivalTime && <span>Arr: {transport.layover.arrivalTime}</span>}
+              {transport.layover.departureTime && <span>Part: {transport.layover.departureTime}</span>}
+            </div>
             {transport.layover.notes && (
-              <p className="text-xs text-slate-700 pt-1 border-t border-amber-200">
+              <p className="mt-2 text-xs text-amber-800 leading-relaxed border-t border-amber-200/50 pt-2">
                 {transport.layover.notes}
               </p>
             )}
           </div>
         )}
 
-        {/* Riepilogo Costi, Saldo ed Acconto Pagato */}
+        {/* 5. Card Note Copilota */}
+        {transport.noteCopilota && (
+          <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200">
+            <div className="flex items-center gap-1.5 mb-2">
+              <span>🧭</span>
+              <h4 className="text-xs font-bold text-emerald-900 uppercase tracking-wider">Note Operative Copilota</h4>
+            </div>
+            <div className="text-xs text-emerald-800 leading-relaxed whitespace-pre-wrap font-medium">
+              {transport.noteCopilota}
+            </div>
+          </div>
+        )}
+
+        {/* Pagamenti Rapido (se serve, messo in basso piccolo) */}
         {(transport.cost || transport.depositPaid || transport.acconto) && (
-          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-            <div className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <span>💳</span>
-              <span>Dati Economici & Pagamento</span>
-            </div>
-            <div className="space-y-1.5 text-xs">
-              {transport.cost && (
-                <div className="flex justify-between items-center py-1 border-b border-slate-200/60">
-                  <span className="text-slate-500 font-medium">Costo / Saldo da pagare:</span>
-                  <span className="font-bold text-slate-900">{transport.cost}</span>
-                </div>
-              )}
-              {(transport.depositPaid || transport.acconto) && (
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-emerald-800 font-semibold flex items-center gap-1">
-                    <span>✓</span>
-                    <span>Acconto già dato:</span>
-                  </span>
-                  <span className="font-extrabold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-lg border border-emerald-300">
-                    {transport.depositPaid || transport.acconto}
-                  </span>
-                </div>
-              )}
-            </div>
+          <div className="flex justify-between items-center px-4 py-3 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs">
+            <span className="text-slate-500 font-bold">Costo Totale: <span className="text-slate-800">{transport.cost || '-'}</span></span>
+            {(transport.depositPaid || transport.acconto) && (
+              <span className="text-emerald-600 font-bold">Acconto: {transport.depositPaid || transport.acconto}</span>
+            )}
           </div>
         )}
 
-        {/* Sezione Note Operative Spacchettata per Icone */}
-        {transport.notes && (
-          <div className="space-y-2 pt-1">
-            <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Istruzioni Operative & Franchigie
-            </h3>
-            <div className="space-y-2">
-              {parseNotes(transport.notes)}
-            </div>
-          </div>
-        )}
-
-        {/* Link Biglietto / Voucher esterno */}
-        {transport.ticketUrl && (
-          <div className="pt-2">
-            <a
-              href={transport.ticketUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 font-semibold text-xs transition-colors cursor-pointer min-h-[40px]"
-            >
-              <span>Apri Link Voucher / Biglietto Esterno</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-              </svg>
-            </a>
-          </div>
-        )}
-
-        {/* Pulsante Chiusura Rapido */}
-        <div className="pt-3 border-t border-slate-200">
+        <div className="pt-2">
           <button
             type="button"
             onClick={onClose}
-            className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs transition-colors cursor-pointer min-h-[40px]"
+            className="w-full py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition-colors cursor-pointer"
           >
             Chiudi
           </button>

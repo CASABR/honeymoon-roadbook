@@ -2,6 +2,10 @@
  * aiExtractor.ts
  * ─────────────────────────────────────────────────────────────────────────────
  * Servizio client-side di estrazione dati con Gemini AI.
+ */
+
+/**
+ * Servizio client-side di estrazione dati con Gemini AI.
  * Effettua la chiamata diretta all'API REST di Gemini tramite la chiave VITE_GEMINI_API_KEY.
  *
  * Modalità:
@@ -287,10 +291,11 @@ Risposta corretta: entityType: "info", info: { message: "..." }
 Il tuo compito:
 1. Identifica il tipo di entità.
 2. Estrai i campi formattando date in YYYY-MM-DD e orari in HH:mm.
-3. Se è una richiesta di "info", usa le informazioni di contesto fornite (Data, Città, Posizione) per dare suggerimenti mirati.
-4. Non usare MAI "sconosciuto" se puoi rispondere come "info".`;
+3. Se estrai un importo/costo, formattalo SEMPRE come numero semplice o decimale (es. "1250.50" o "319"), senza NESSUN separatore delle migliaia (non usare MAI "1.250,50" o "406.075"). Usa il punto per i decimali.
+4. Se è una richiesta di "info", usa le informazioni di contesto fornite (Data, Città, Posizione) per dare suggerimenti mirati.
+5. Non usare MAI "sconosciuto" se puoi rispondere come "info".`;
 
-const CHAT_PROMPT = `Sei Hitchy, il Concierge di viaggio di una coppia in luna di miele.
+const CHAT_PROMPT = `Sei Houni AI, il Concierge di viaggio di una coppia in luna di miele.
 Rispondi in italiano, in modo caldo ma sintetico (max ~120 parole), a domande su cibo, meteo, tappe, orari, trasporti e consigli pratici.
 - Quando consigli luoghi, proponi 2-3 opzioni concrete, ognuna con un link Google Maps nel formato https://www.google.com/maps/search/?api=1&query=NOME+CITTA
 - Usa il contesto fornito (data, viaggio, città) per risposte mirate.
@@ -305,65 +310,56 @@ export function looksLikeQuestion(text: string): boolean {
   return t.endsWith('?') || QUESTION_START.test(t);
 }
 
-const delay = (ms: number) => new Promise(res => setTimeout(res, ms));
 
-/** Chiamata a Gemini con fallback tra modelli. Restituisce il testo grezzo della risposta. */
-async function callGemini(apiKey: string, requestBody: unknown): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
-  const modelsToTry = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-3.5-flash-lite'];
-  let response: Response | null = null;
-  let lastErrorMsg = '';
 
-  for (let i = 0; i < modelsToTry.length; i++) {
-    const model = modelsToTry[i];
+// ─── Utility: Estrazione testo da HTML ──────────────────────────────────────────
+export function stripHtml(html: string): string {
+  if (!html) return '';
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  // Rimuovi script e style
+  const scriptsAndStyles = doc.querySelectorAll('script, style');
+  scriptsAndStyles.forEach(el => el.remove());
+  return doc.body.textContent || doc.body.innerText || '';
+}
+
+/** Caching in-memory per risposte del Concierge */
+const apiCache = new Map<string, { data: any, ts: number }>();
+const CACHE_TTL = 10 * 60 * 1000;
+
+/** Chiamata a Gemini tramite REST API diretta. Restituisce il testo grezzo della risposta. */
+async function callGemini(requestBody: unknown, model: string = 'gemini-1.5-flash'): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  try {
+    let apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey || apiKey.includes('la_tua_chiave')) {
+      apiKey = localStorage.getItem('gemini_api_key');
+    }
+    if (!apiKey || apiKey.includes('la_tua_chiave')) {
+      apiKey = 'AQ.Ab8RN6Kxc93HHq3cDGA0Sv3XFgczoWKPiXUip9tgF88fixCHg';
+    }
+    if (!apiKey) return { ok: false, error: 'Chiave API Gemini mancante' };
+    
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    try {
-      response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (response.ok) break; // Trovato modello funzionante!
-
-      const errorText = await response.text();
-      let errorMsg = `Errore API Gemini ${model} (${response.status})`;
-      try {
-        const err = JSON.parse(errorText);
-        errorMsg = err?.error?.message || errorMsg;
-      } catch {}
-      lastErrorMsg = errorMsg;
-
-      // Se non è l'ultimo tentativo e l'errore è 503 o 429 (Congestione/Rate Limit), aspetta e riprova
-      if (i < modelsToTry.length - 1 && (response.status === 503 || response.status === 429 || response.status >= 500)) {
-        await delay(2000);
-        continue;
-      }
-      // Se è un errore 400 (Bad Request) o 401 (Auth) ecc, interrompi subito senza riprovare gli altri
-      break;
-    } catch (err) {
-      lastErrorMsg = err instanceof Error ? err.message : 'Errore di rete';
-      if (i < modelsToTry.length - 1) {
-        await delay(2000);
-        continue;
-      }
+    
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+    
+    if (!response.ok) {
+       await response.text();
+       return { ok: false, error: `Errore API Gemini (${response.status})` };
     }
+    
+    const responseJson = await response.json();
+    const rawText = responseJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!rawText) return { ok: false, error: 'Risposta vuota o formato non valido.' };
+    return { ok: true, text: rawText };
+  } catch (error: any) {
+    console.error('Errore chiamata Gemini REST API:', error);
+    return { ok: false, error: `Errore rete: ${error.message || 'Sconosciuto'}` };
   }
-
-  if (!response || !response.ok) {
-    if (response?.status === 503 || response?.status === 429) {
-      lastErrorMsg = 'I server AI sono momentaneamente congestionati. Riprova tra pochi secondi.';
-    }
-    return { ok: false, error: lastErrorMsg || 'Servizio AI non raggiungibile.' };
-  }
-
-  const responseJson = await response.json();
-  const rawText: string | undefined = responseJson?.candidates?.[0]?.content?.parts
-    ?.map((p: any) => p?.text || '')
-    .join('');
-
-  if (!rawText) return { ok: false, error: 'Risposta API vuota o formato inatteso.' };
-  return { ok: true, text: rawText };
 }
 
 const sanitizeSuggestion = (s: any): ConciergeSuggestion | undefined => {
@@ -380,13 +376,21 @@ const infoResult = (message: string, suggestion?: any, raw?: string): AIExtracti
 });
 
 /** Modalità Concierge: restituisce sempre un 'info' se l'API risponde. */
-async function askConcierge(apiKey: string, text: string, contextStr: string): Promise<AIExtractionResult> {
-  const res = await callGemini(apiKey, {
+export async function askConcierge(_text: string, contextStr: string, cleanTextOverride?: string): Promise<AIExtractionResult> {
+  const cleanText = cleanTextOverride || stripHtml(_text);
+  
+  const cacheKey = `concierge_${cleanText}_${contextStr}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CACHE_TTL) {
+    return cached.data;
+  }
+
+  const res = await callGemini({
     system_instruction: { parts: [{ text: CHAT_PROMPT }] },
-    contents: [{ role: 'user', parts: [{ text: `CONTESTO: ${contextStr}\n\nDOMANDA: ${text.slice(0, 4000)}` }] }],
+    contents: [{ role: 'user', parts: [{ text: `CONTESTO: ${contextStr}\n\nDOMANDA: ${cleanText.slice(0, 4000)}` }] }],
     generationConfig: {
-      temperature: 0.6,
-      maxOutputTokens: 1500,
+      temperature: 0.3,
+      maxOutputTokens: 1024,
       responseMimeType: 'application/json',
       responseSchema: CHAT_SCHEMA
     }
@@ -394,14 +398,21 @@ async function askConcierge(apiKey: string, text: string, contextStr: string): P
 
   if (!res.ok) return { success: false, entityType: 'sconosciuto', error: res.error };
 
+  let finalResult: AIExtractionResult;
   try {
     const parsed = JSON.parse(res.text);
-    if (parsed?.message) return infoResult(parsed.message, parsed.suggestion, res.text);
+    if (parsed?.message) {
+      finalResult = infoResult(parsed.message, parsed.suggestion || (parsed.suggestions && parsed.suggestions[0]), res.text);
+      apiCache.set(cacheKey, { data: finalResult, ts: Date.now() });
+      return finalResult;
+    }
   } catch {
-    // JSON troncato o non valido: mostriamo comunque il testo come risposta discorsiva
+    // JSON troncato o non valido
   }
   const plain = res.text.replace(/^\s*\{?\s*"message"\s*:\s*"/, '').replace(/"\s*,?\s*("suggestion"[\s\S]*)?\}?\s*$/, '').replace(/\\n/g, '\n');
-  return infoResult(plain || 'Non sono riuscito a formulare una risposta. Prova a riformulare la domanda.', undefined, res.text);
+  finalResult = infoResult(plain || 'Non sono riuscito a formulare una risposta. Prova a riformulare.', undefined, res.text);
+  apiCache.set(cacheKey, { data: finalResult, ts: Date.now() });
+  return finalResult;
 }
 
 /**
@@ -415,18 +426,9 @@ export async function extractFromText(
   contextStr: string = '',
   mode: AIMode = 'auto'
 ): Promise<AIExtractionResult> {
-  const apiKeyB64 = import.meta.env.VITE_GEMINI_API_KEY_B64;
-  const apiKey = apiKeyB64 && typeof window !== 'undefined' ? atob(apiKeyB64) : '';
+  const cleanText = stripHtml(text);
 
-  if (!apiKey || !apiKey.trim()) {
-    return {
-      success: false,
-      entityType: 'sconosciuto',
-      error: 'Variabile d\'ambiente VITE_GEMINI_API_KEY non configurata.'
-    };
-  }
-
-  if (!text || !text.trim()) {
+  if (!cleanText || !cleanText.trim()) {
     return {
       success: false,
       entityType: 'sconosciuto',
@@ -435,28 +437,28 @@ export async function extractFromText(
   }
 
   // Modalità Concierge esplicita, o domanda evidente in modalità auto
-  if (mode === 'chat' || (mode === 'auto' && looksLikeQuestion(text))) {
-    return askConcierge(apiKey, text, contextStr);
+  if (mode === 'chat' || (mode === 'auto' && looksLikeQuestion(cleanText))) {
+    return askConcierge(cleanText, contextStr);
   }
 
   // ─── Modalità Importazione ───
-  const res = await callGemini(apiKey, {
+  const res = await callGemini({
     system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
     contents: [
       {
         role: 'user',
         parts: [{
-          text: `CONTESTO DINAMICO: ${contextStr}\n\nEstrai le informazioni strutturate dal seguente testo (o rispondi se è una domanda):\n\n---\n${text.slice(0, 8000)}\n---`
+          text: `CONTESTO DINAMICO: ${contextStr}\n\nEstrai le informazioni strutturate dal seguente testo (o rispondi se è una domanda):\n\n---\n${cleanText.slice(0, 8000)}\n---`
         }]
       }
     ],
     generationConfig: {
-      temperature: 0.1,
-      maxOutputTokens: 1500,
+      temperature: 0.1, // Temperatura bassa per estrazione precisa
+      maxOutputTokens: 512,
       responseMimeType: 'application/json',
       responseSchema: EXTRACTION_SCHEMA
     }
-  });
+  }, 'gemini-1.5-flash-8b');
 
   if (!res.ok) return { success: false, entityType: 'sconosciuto', error: res.error };
 
@@ -488,11 +490,11 @@ export async function extractFromText(
     return { success: true, entityType: 'shopping', data: { type: 'shopping', ...parsed.shopping } as ExtractedShopping };
   }
   if (parsed?.info?.message) {
-    return infoResult(parsed.info.message, parsed.info.suggestion, res.text);
+    return infoResult(parsed.info.message, parsed.info.suggestions?.[0], res.text);
   }
 
   // Fallback: nessuna prenotazione riconosciuta → rispondiamo come Concierge invece di fallire
-  const concierge = await askConcierge(apiKey, text, contextStr);
+  const concierge = await askConcierge(cleanText, contextStr);
   if (concierge.success) return concierge;
   return infoResult(
     'Non ho trovato una prenotazione chiara in questo testo (date, struttura o tratta mancanti).\n\n' +

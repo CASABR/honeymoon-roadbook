@@ -84,7 +84,7 @@ export default function RouteBadge({
     setIsEditing(false);
   };
 
-  if (!from || !to || from.trim().toLowerCase() === to.trim().toLowerCase()) {
+  if (!from || !to || String(from || '').trim().toLowerCase() === String(to || '').trim().toLowerCase()) {
     return null;
   }
 
@@ -137,7 +137,7 @@ export default function RouteBadge({
   }
 
   const isCar = profile === 'driving-car';
-  const isTransoceanic = route && (route.distanceKm > 500 || route.formattedDistance.toLowerCase().includes('aereo') || route.formattedDistance.toLowerCase().includes('transoceanic'));
+  const isTransoceanic = route && (route.distanceKm > 500 || (route?.formattedDistance || '').toLowerCase().includes('aereo') || (route?.formattedDistance || '').toLowerCase().includes('transoceanic'));
 
   if (isTransoceanic) {
     return (

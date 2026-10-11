@@ -1,7 +1,12 @@
+const cache = new Map<string, { data: any, ts: number }>();
+const CACHE_TTL = 10 * 60 * 1000; // 10 minuti
+
 export async function enrichRistorante(nome: string, indirizzo: string): Promise<{ telefono?: string, linkMenu?: string }> {
-  const apiKeyB64 = import.meta.env.VITE_GEMINI_API_KEY_B64;
-  const apiKey = apiKeyB64 && typeof window !== 'undefined' ? atob(apiKeyB64) : '';
-  if (!apiKey) return {};
+  const cacheKey = `enrich_${nome}_${indirizzo}`;
+  const cached = cache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CACHE_TTL) {
+    return cached.data;
+  }
 
   const prompt = `Trova il numero di telefono pubblico (formato internazionale se possibile) e il link al sito web ufficiale (o al menu) del seguente ristorante. Rispondi ESCLUSIVAMENTE in formato JSON valido, usando questo schema:
   {
@@ -15,23 +20,40 @@ export async function enrichRistorante(nome: string, indirizzo: string): Promise
   Se non trovi dati certi, restituisci null per quei campi. NON includere markdown come \`\`\`json.`;
 
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    if (!apiKey || apiKey.includes('la_tua_chiave')) return {};
+    
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${apiKey}`;
+    
+    const requestBody = {
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.1,
+        maxOutputTokens: 512,
+        responseMimeType: 'application/json'
+      }
+    };
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.1,
-          responseMimeType: 'application/json'
-        }
-      })
+      body: JSON.stringify(requestBody),
+      signal: controller.signal
     });
     
-    if (!res.ok) return {};
-    const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    clearTimeout(timeoutId);
+    
+    if (!response.ok) return {};
+    
+    const responseJson = await response.json();
+    const text = responseJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+    
     if (text) {
       const parsed = JSON.parse(text);
+      cache.set(cacheKey, { data: parsed, ts: Date.now() });
       return parsed;
     }
   } catch (e) {

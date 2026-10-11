@@ -7,7 +7,7 @@ import {
   idbDelete
 } from './indexedDB';
 import { REAL_ACTIVITIES } from './seedActivities';
-import { SEED_TRANSPORTS } from './seedTransports';
+import { initialTransports } from './seedTransports';
 
 export const SEED_FLAG_KEY = 'honeymoon_roadbook_seeded_v1';
 
@@ -97,7 +97,7 @@ class StorageService {
   async getDays(): Promise<Giorno[]> {
     try {
       const items = await idbGetAll<Giorno>(STORES.GIORNI);
-      return items.sort((a, b) => a.date.localeCompare(b.date));
+      return items.sort((a, b) => ((a.date || '').split('-').length === 3 && (a.date || '').split('-')[0].length === 2 ? (a.date || '').split('-').reverse().join('-') : (a.date || '')).localeCompare(((b.date || '').split('-').length === 3 && (b.date || '').split('-')[0].length === 2 ? (b.date || '').split('-').reverse().join('-') : (b.date || ''))));
     } catch (err) {
       console.error('[StorageService] Errore lettura giorni:', err);
       return [];
@@ -289,6 +289,7 @@ class StorageService {
     } satisfies Spesa);
 
     await this.seedTransports(true);
+    await this.ensureRefuels();
 
     for (const doc of DEFAULT_DOCUMENTS) {
       await idbPut(STORES.DOCUMENTI, doc);
@@ -300,6 +301,238 @@ class StorageService {
 
     await this.logLocalDataCounts('[StorageService] Re-seed 0000 completato');
     notifyDataChanged('all', 'save');
+  }
+
+    async ensureRefuels(): Promise<void> {
+    const existingShopping = await idbGetAll<import('../types').Shopping>(STORES.SHOPPING);
+    const existingAlloggi = await idbGetAll<import('../types').Alloggio>(STORES.ALLOGGI);
+    const now = Date.now();
+    
+    const { SEED_SHOPPING } = await import('./seedShopping');
+    const { SEED_ALLOGGI } = await import('./seedAlloggi');
+    const { REAL_TAPPE } = await import('./seedTappe');
+    const { SEED_RISTORANTI } = await import('./seedRistoranti');
+
+    for (const fuel of SEED_SHOPPING) {
+      if (!existingShopping.some(s => s.id === fuel.id)) {
+        const item = { ...fuel, createdAt: now, updatedAt: now } as import('../types').Shopping;
+        await idbPut(STORES.SHOPPING, item);
+        notifyDataChanged('shopping', 'save', item);
+      }
+    }
+
+    for (const acc of SEED_ALLOGGI) {
+      if (!existingAlloggi.some(s => s.id === acc.id)) {
+        const item: import('../types').Alloggio = { ...acc, createdAt: now, updatedAt: now };
+        await idbPut(STORES.ALLOGGI, item);
+        notifyDataChanged('alloggi', 'save', item);
+      }
+    }
+    
+    // Upsert rigoroso Tappe basato su date + titolo
+    const existingTappe = await idbGetAll<import('../types').Tappa>(STORES.TAPPE);
+    for (const tappa of REAL_TAPPE) {
+      const existing = existingTappe.find(e => 
+        e.date === tappa.date && 
+        e.titolo.toLowerCase().trim() === tappa.titolo.toLowerCase().trim()
+      );
+
+      if (existing) {
+         const updated = { 
+            ...existing, 
+            ...tappa, 
+            id: existing.id, 
+            orario: existing.orario || tappa.orario,
+            updatedAt: now 
+         };
+         await idbPut(STORES.TAPPE, updated);
+      } else {
+         await idbPut(STORES.TAPPE, { ...tappa, createdAt: now, updatedAt: now });
+      }
+    }
+    notifyDataChanged('tappe', 'save', {});
+
+    // Upsert rigoroso Ristoranti basato su date + nome
+    const existingRist = await idbGetAll<import('../types').Ristorante>(STORES.RISTORANTI);
+    for (const rist of SEED_RISTORANTI) {
+      const existing = existingRist.find(e => 
+        e.date === rist.date && 
+        e.nome.toLowerCase().trim() === rist.nome.toLowerCase().trim()
+      );
+
+      if (existing) {
+         const updated = { 
+            ...existing, 
+            ...rist, 
+            id: existing.id, 
+            status: existing.status || rist.status || 'da_saldare',
+            updatedAt: now 
+         };
+         await idbPut(STORES.RISTORANTI, updated);
+      } else {
+         await idbPut(STORES.RISTORANTI, { ...rist, createdAt: now, updatedAt: now });
+      }
+    }
+    notifyDataChanged('ristoranti', 'save', {});
+
+    // Upsert rigoroso Shopping basato su date + nome
+    const existingShop = await idbGetAll<import('../types').Shopping>(STORES.SHOPPING);
+    for (const shop of SEED_SHOPPING) {
+      const existing = existingShop.find(e => 
+        e.date === shop.date && 
+        e.nome.toLowerCase().trim() === shop.nome.toLowerCase().trim()
+      );
+
+      if (existing) {
+         const updated = { 
+            ...existing, 
+            ...shop, 
+            id: existing.id, 
+            updatedAt: now 
+         };
+         await idbPut(STORES.SHOPPING, updated);
+      } else {
+         await idbPut(STORES.SHOPPING, { ...shop, createdAt: now, updatedAt: now });
+      }
+    }
+    notifyDataChanged('shopping', 'save', {});
+
+    // Upsert rigoroso Trasporti certificati (incluso Snap Rentals)
+    const existingTransports = await idbGetAll<import('../types').Trasporto>(STORES.TRASPORTI);
+    const { initialTransports: certifiedTransports } = await import('./seedTransports');
+    for (const trn of certifiedTransports) {
+      const trnId = trn.id;
+      const existing = existingTransports.find(e => 
+        e.id === trnId ||
+        (e.date === trn.date && (
+          (e.carrier && trn.carrier && (e.carrier.toLowerCase().includes(trn.carrier.toLowerCase().split(' ')[0]) || trn.carrier.toLowerCase().includes(e.carrier.toLowerCase().split(' ')[0]))) ||
+          (e.type === trn.type && (e.departureLocation?.toLowerCase().includes(trn.departureLocation?.toLowerCase().slice(0, 5)) || false))
+        ))
+      );
+
+      if (existing) {
+        const updated = {
+          ...existing,
+          ...trn,
+          id: existing.id || trnId,
+          attachments: existing.attachments || trn.attachments || [],
+          updatedAt: now
+        };
+        await idbPut(STORES.TRASPORTI, updated);
+      } else {
+        await idbPut(STORES.TRASPORTI, {
+          ...trn,
+          id: trnId,
+          attachments: trn.attachments || [],
+          createdAt: now,
+          updatedAt: now
+        });
+      }
+    }
+    notifyDataChanged('trasporti', 'save', {});
+
+    // --- AUTOMATIC DEDUPLICATION & UPDATE SCRIPT ---
+    try {
+      const allTransports = await idbGetAll<import('../types').Trasporto>(STORES.TRASPORTI);
+      let changedAny = false;
+
+      for (const t of allTransports) {
+        let dirty = false;
+        
+        // 1. Treno 28 Nov - Rimuovi il vecchio generico
+        if (t.type === 'treno' && t.date === '2026-11-28') {
+          if (t.carrier === 'TRENO ROMA TERMINI - MILANO CENTRALE' || t.departureTime === '00:00' || !t.departureTime) {
+            await idbDelete(STORES.TRASPORTI, t.id);
+            changedAny = true;
+            continue;
+          }
+        }
+        
+        // 2. Volo 29 Nov / 01 Dic - Rimuovi volo aggregato Air China CA950 + CA783
+        if (t.type === 'volo' && (t.date === '2026-11-29' || t.date === '2026-12-01')) {
+          if (t.carrier && t.carrier.includes('CA950 + CA783')) {
+            await idbDelete(STORES.TRASPORTI, t.id);
+            changedAny = true;
+            continue;
+          }
+        }
+
+        // 3. Traghetto 06 Dic - Rimuovi vecchio Interislander
+        if (t.type === 'traghetto' && t.date === '2026-12-06') {
+          if (t.carrier && t.carrier.includes('Interislander')) {
+            await idbDelete(STORES.TRASPORTI, t.id);
+            changedAny = true;
+            continue;
+          } else if (t.carrier && t.carrier.includes('Bluebridge')) {
+            t.cost = '198.00'; 
+            t.noteCopilota = 'Costo Totale: 356,13 NZD. Include 2 adulti + veicolo auto fino a 5m. Inserire marcia, freno a mano e disattivare allarme. All\'arrivo alle 17:15 rotta verso Kaikoura con sosta foche a Ohau Point.';
+            dirty = true;
+          }
+        }
+
+        // 4. Volo 15 Dec CHC-ADL
+        if (t.type === 'volo' && t.date === '2026-12-15') {
+          t.cost = '355.71';
+          t.noteCopilota = 'Atterraggio 17:35; chiamare subito lo shuttle di Bargain Car Rentals (+61 3 6165 0838 o 1300 729 230, tasto 1) per il ritiro auto prima della chiusura delle 18:45–19:00.';
+          dirty = true;
+        }
+
+        // 5. Volo 17 Dec ADL-MEL
+        if (t.type === 'volo' && t.date === '2026-12-17') {
+          t.cost = '186.60';
+          t.posti = '16A (Nunzio), 16B (Giusy)';
+          t.noteCopilota = 'Arrivo a Melbourne Tullamarine alle 21:40; trasferimento al piazzale Travellers Autobarn per il ritiro notturno/contactless del Budgie Van con cassetta a codice.';
+          dirty = true;
+        }
+
+        // 6. Volo 28 Dec SYD-MNL
+        if (t.type === 'volo' && t.date === '2026-12-28') {
+          t.noteCopilota = 'Compilare il modulo eTravel (etravel.gov.ph) entro 72 ore prima del decollo del 28 dicembre. Sbarco a Manila T3 la sera del 28; sosta notturna al Tess and Tessha Condotel vicino al Terminal 3 e rientro in aeroporto la mattina del 29 per il volo verso Caticlan.';
+          dirty = true;
+        }
+        
+        // 7. Volo 02 Jan MPH-ENI
+        if (t.type === 'volo' && t.date === '2027-01-02') {
+          t.posti = '5C (Nunzio), 5D (Giusy)';
+          t.cost = '450.00';
+          t.noteCopilota = 'Atterraggio a El Nido Lio alle 16:40; check-in al Desert Rose e presentazione al briefing obbligatorio della spedizione TAO previsto per il tardo pomeriggio.';
+          dirty = true;
+        }
+
+        // 8. Volo 08 Jan USU-CEB
+        if (t.type === 'volo' && t.date === '2027-01-08') {
+          t.posti = '06D (Nunzio), 06C (Giusy)';
+          t.cost = '105.00';
+          t.noteCopilota = 'Partenza dall\'aeroporto Francisco B. Reyes di Busuanga; arrivo a Cebu Mactan T1 e alloggio all\'Appleton Boutique Hotel vicino all\'aeroporto.';
+          dirty = true;
+        }
+
+        // 9. Voli 09-10 Jan CEB-TPE-FCO
+        if (t.type === 'volo' && t.date === '2027-01-09') {
+          if (t.arrivalIata === 'TPE') t.posti = '51K (Nunzio), 51J (Giusy)';
+          if (t.arrivalIata === 'FCO') t.posti = '45K (Nunzio), 45J (Giusy)';
+          dirty = true;
+        }
+
+        // 10. Elimina vecchi duplicati generici (Volo e Traghetto) se non hanno dati completi
+        if ((t.type === 'volo' || t.type === 'traghetto') && (!t.carrier || t.carrier === 'Volo' || t.carrier === 'Traghetto') && (!t.departureTime || t.departureTime === '00:00')) {
+             await idbDelete(STORES.TRASPORTI, t.id);
+             changedAny = true;
+             continue;
+        }
+
+        if (dirty) {
+          await idbPut(STORES.TRASPORTI, t);
+          changedAny = true;
+        }
+      }
+
+      if (changedAny) {
+        notifyDataChanged('trasporti', 'save', {}); // trigger UI refresh
+      }
+    } catch(err) {
+      console.warn('[StorageService] Errore deduplicazione', err);
+    }
   }
 
   async logLocalDataCounts(prefix = '[StorageService] Conteggio IndexedDB'): Promise<void> {
@@ -380,7 +613,7 @@ class StorageService {
   async getAccommodations(): Promise<Alloggio[]> {
     try {
       const items = await idbGetAll<Alloggio>(STORES.ALLOGGI);
-      return items.sort((a, b) => a.checkIn.localeCompare(b.checkIn));
+      return items.sort((a, b) => ((a.checkIn || '').split('-').length === 3 && (a.checkIn || '').split('-')[0].length === 2 ? (a.checkIn || '').split('-').reverse().join('-') : (a.checkIn || '')).localeCompare(((b.checkIn || '').split('-').length === 3 && (b.checkIn || '').split('-')[0].length === 2 ? (b.checkIn || '').split('-').reverse().join('-') : (b.checkIn || ''))));
     } catch (err) {
       console.error('[StorageService] Errore lettura alloggi:', err);
       return [];
@@ -410,15 +643,16 @@ class StorageService {
       if (!force && existing.length > 0) return;
 
       const now = Date.now();
-      for (const item of SEED_TRANSPORTS) {
+      for (const item of initialTransports) {
         await idbPut(STORES.TRASPORTI, {
           ...item,
+          id: item.id || `trn_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
           attachments: item.attachments || [],
           createdAt: now,
           updatedAt: now
         });
       }
-      console.log(`[StorageService] Seed trasporti completato: ${SEED_TRANSPORTS.length} record.`);
+      console.log(`[StorageService] Seed trasporti completato: ${initialTransports.length} record.`);
       notifyDataChanged('trasporti', 'save');
     } catch (err) {
       console.error('[StorageService] Errore durante il seeding dei trasporti:', err);
@@ -432,7 +666,7 @@ class StorageService {
       // MIGRATION RIMOSSA
 
       return items.sort((a, b) => {
-        const dateCompare = a.date.localeCompare(b.date);
+        const dateCompare = ((a.date || '').split('-').length === 3 && (a.date || '').split('-')[0].length === 2 ? (a.date || '').split('-').reverse().join('-') : (a.date || '')).localeCompare(((b.date || '').split('-').length === 3 && (b.date || '').split('-')[0].length === 2 ? (b.date || '').split('-').reverse().join('-') : (b.date || '')));
         if (dateCompare !== 0) return dateCompare;
         if (a.departureTime && b.departureTime) return a.departureTime.localeCompare(b.departureTime);
         return 0;
@@ -555,7 +789,7 @@ class StorageService {
     try {
       const items = await idbGetAll<Tappa>(STORES.TAPPE);
       return items.sort((a, b) => {
-        if (a.data && b.data) return a.data.localeCompare(b.data);
+        if (a.data && b.data) return ((a.data || '').split('-').length === 3 && (a.data || '').split('-')[0].length === 2 ? (a.data || '').split('-').reverse().join('-') : (a.data || '')).localeCompare(((b.data || '').split('-').length === 3 && (b.data || '').split('-')[0].length === 2 ? (b.data || '').split('-').reverse().join('-') : (b.data || '')));
         if (a.data) return -1;
         if (b.data) return 1;
         return a.titolo.localeCompare(b.titolo);
@@ -643,7 +877,7 @@ class StorageService {
     try {
       const items = await idbGetAll<Ristorante>(STORES.RISTORANTI);
       return items.sort((a, b) => {
-        if (a.data && b.data) return a.data.localeCompare(b.data);
+        if (a.data && b.data) return ((a.data || '').split('-').length === 3 && (a.data || '').split('-')[0].length === 2 ? (a.data || '').split('-').reverse().join('-') : (a.data || '')).localeCompare(((b.data || '').split('-').length === 3 && (b.data || '').split('-')[0].length === 2 ? (b.data || '').split('-').reverse().join('-') : (b.data || '')));
         if (a.data) return -1;
         if (b.data) return 1;
         return a.nome.localeCompare(b.nome);
@@ -731,7 +965,7 @@ class StorageService {
     try {
       const items = await idbGetAll<Shopping>(STORES.SHOPPING);
       return items.sort((a, b) => {
-        if (a.data && b.data) return a.data.localeCompare(b.data);
+        if (a.data && b.data) return ((a.data || '').split('-').length === 3 && (a.data || '').split('-')[0].length === 2 ? (a.data || '').split('-').reverse().join('-') : (a.data || '')).localeCompare(((b.data || '').split('-').length === 3 && (b.data || '').split('-')[0].length === 2 ? (b.data || '').split('-').reverse().join('-') : (b.data || '')));
         if (a.data) return -1;
         if (b.data) return 1;
         return a.nome.localeCompare(b.nome);
@@ -818,7 +1052,7 @@ class StorageService {
   async getSpese(): Promise<Spesa[]> {
     try {
       const items = await idbGetAll<Spesa>(STORES.SPESE);
-      return items.sort((a, b) => b.date.localeCompare(a.date));
+      return items.sort((a, b) => ((b.date || '').split('-').length === 3 && (b.date || '').split('-')[0].length === 2 ? (b.date || '').split('-').reverse().join('-') : (b.date || '')).localeCompare(((a.date || '').split('-').length === 3 && (a.date || '').split('-')[0].length === 2 ? (a.date || '').split('-').reverse().join('-') : (a.date || ''))));
     } catch (err) {
       console.error('[StorageService] Errore lettura spese:', err);
       return [];
@@ -1078,7 +1312,7 @@ class StorageService {
               id: `${t.id}_pickup`,
               type: 'trasporto',
               time: t.departureTime || '00:00',
-              title: `${t.type.toUpperCase()} • Ritiro`,
+              title: `${t.type.toUpperCase()} • Ritiro${t.carrier ? ` (${t.carrier.split('(')[0].trim()})` : ''}`,
               location: t.departureLocation || '',
               categoryOrType: t.type,
               copilota: t.copilota,
@@ -1094,7 +1328,7 @@ class StorageService {
               id: `${t.id}_dropoff`,
               type: 'trasporto',
               time: t.dropoffTime || t.arrivalTime || '00:00',
-              title: `${t.type.toUpperCase()} • Riconsegna`,
+              title: `${t.type.toUpperCase()} • Riconsegna${t.carrier ? ` (${t.carrier.split('(')[0].trim()})` : ''}`,
               location: t.dropoffLocation || t.arrivalLocation || '',
               categoryOrType: t.type,
               copilota: t.copilota,
@@ -1195,7 +1429,7 @@ class StorageService {
         timeline.push({
           id: t.id,
           type: 'tappa',
-          time: '10:00', // Orario indicativo mattutino per le soste di viaggio se non specificato
+          time: t.orario || (t as any).time || (t.order ? `${String(8 + t.order).padStart(2, '0')}:00` : '10:00'),
           title: t.titolo,
           location: t.titolo,
           categoryOrType: 'tappa',
@@ -1353,6 +1587,7 @@ class StorageService {
     if (typeof window === 'undefined') return;
     try {
       localStorage.setItem('app_device_role', role);
+      idbPut(STORES.SETTINGS, { id: 'device_role_backup', value: role }).catch(() => {});
       // Dispatch custom event to notify listeners across the app
       window.dispatchEvent(new CustomEvent('device_role_changed', { detail: { role } }));
     } catch (e) {

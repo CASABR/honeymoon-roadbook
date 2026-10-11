@@ -179,8 +179,8 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       link: link.trim() || undefined,
       qrCode: qrCode.trim() || undefined,
       notes: notes.trim() || undefined,
-      status,
-      attachments: initialData?.attachments,
+      status: paymentStatus === 'saldato' ? 'prenotato' : status,
+        attachments: initialData?.attachments,
       copilota: initialData?.copilota,
       noteCopilota: initialData?.noteCopilota,
       platform: initialData?.platform
@@ -353,7 +353,16 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
               id="saldato-toggle"
               type="checkbox"
               checked={paymentStatus === 'saldato'}
-              onChange={(e) => setPaymentStatus(e.target.checked ? 'saldato' : 'da_saldare')}
+              onChange={(e) => {
+            const checked = e.target.checked;
+            setPaymentStatus(checked ? 'saldato' : 'da_saldare');
+            if (checked && cost) {
+                setAcconto(cost);
+            } else {
+                setAcconto('0');
+            }
+            setStatus(checked ? 'prenotato' : 'da_valutare'); // 'prenotato' in Attivita means confirmed basically. Or 'completato' if it exists.
+        }}
               className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer"
             />
           </div>

@@ -4,6 +4,7 @@ import { getTripConfig, clearTripConfig } from '../../utils/tripConfig';
 import { idbClearAll } from '../../storage/indexedDB';
 import type { DeviceRole } from '../../types';
 import DeviceRoleModal from './DeviceRoleModal';
+import { usePushNotifications } from '../../hooks/usePushNotifications';
 
 /**
  * Menu impostazioni discreto (icona in alto a destra nell'\u2019App).
@@ -18,6 +19,8 @@ export default function SettingsMenu() {
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [tripId, setTripId] = useState<string>('');
   const fileRef = useRef<HTMLInputElement>(null);
+  
+  const { isSupported, permission, subscription, subscribeToPush, unsubscribeFromPush, isSubscribing } = usePushNotifications();
 
   useEffect(() => {
     const config = getTripConfig();
@@ -160,6 +163,24 @@ export default function SettingsMenu() {
 
               <button
                 type="button"
+                onClick={() => {
+                  setOpen(false);
+                  window.dispatchEvent(new CustomEvent('navigate_to', { detail: { view: 'altro', subView: 'gestione' } }));
+                }}
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">👥</span>
+                  <div className="text-left">
+                    <span className="block text-xs font-bold text-slate-800">Gestione Viaggio</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">Invita un co-pilota</span>
+                  </div>
+                </div>
+                <span className="text-slate-400 text-xs">›</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={async () => {
                   if (confirm('Sei sicuro di voler uscire da questo viaggio? I dati non sincronizzati andranno persi.')) {
                     await idbClearAll();
@@ -193,6 +214,46 @@ export default function SettingsMenu() {
                 </div>
                 <span className="text-slate-400 text-xs">›</span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  window.dispatchEvent(new CustomEvent('open_smart_insert', { detail: { mode: 'copilot' } }));
+                }}
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">🤖</span>
+                  <div className="text-left">
+                    <span className="block text-xs font-bold text-slate-800">Copilota AI</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">Chiedi al Concierge intelligente</span>
+                  </div>
+                </div>
+                <span className="text-slate-400 text-xs">›</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const current = localStorage.getItem('gemini_api_key') || '';
+                  const key = window.prompt('Inserisci la chiave API Gemini:', current);
+                  if (key !== null) {
+                    localStorage.setItem('gemini_api_key', key.trim());
+                    showToast('ok', 'Chiave API Gemini salvata!');
+                  }
+                  setOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">🔑</span>
+                  <div className="text-left">
+                    <span className="block text-xs font-bold text-slate-800">Chiave API Gemini</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">Configura l'accesso all'IA</span>
+                  </div>
+                </div>
+                <span className="text-slate-400 text-xs">›</span>
+              </button>
+
 
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-b border-slate-100">
                 Backup & Ripristino
@@ -241,6 +302,64 @@ export default function SettingsMenu() {
                 Forza Sincronizzazione al Cloud
               </button>
 
+              <button
+                type="button"
+                disabled={isSubscribing}
+                onClick={async () => {
+                  if (!isSupported) {
+                    showToast('error', 'Notifiche non supportate sul tuo browser/dispositivo.');
+                    return;
+                  }
+                  
+                  try {
+                    if (subscription) {
+                      await unsubscribeFromPush();
+                      showToast('ok', '🔕 Notifiche push disattivate.');
+                    } else {
+                      const sub = await subscribeToPush();
+                      if (sub) {
+                        showToast('ok', '🔔 Notifiche push attivate con successo!');
+                      } else if (permission === 'denied') {
+                        showToast('error', 'Permesso notifiche negato dal browser.');
+                      }
+                    }
+                  } catch (err: any) {
+                    showToast('error', err.message || 'Errore durante la modifica delle notifiche.');
+                  }
+                  
+                  // Optional: we can choose to leave menu open or close it
+                  // setOpen(false); 
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100 ${isSubscribing ? 'opacity-70 cursor-not-allowed' : ''}`}
+              >
+                <span className="text-base shrink-0">{subscription ? '🔔' : '🔕'}</span>
+                <div className="text-left flex-1">
+                  <span className="block text-xs font-bold text-slate-800">
+                    {isSubscribing ? 'Salvataggio in corso...' : 'Notifiche Push'}
+                  </span>
+                  <span className="block text-[10px] text-slate-400 font-normal">
+                    {isSubscribing 
+                      ? 'Attendere prego...' 
+                      : (subscription ? 'Attive - Clicca per disattivare' : 'Ricevi avvisi e aggiornamenti')}
+                  </span>
+                </div>
+                {!isSubscribing && subscription && (
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                    ON
+                  </span>
+                )}
+                {!isSubscribing && !subscription && permission !== 'denied' && (
+                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                    OFF
+                  </span>
+                )}
+                {!isSubscribing && !subscription && permission === 'denied' && (
+                  <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
+                    BLOCCATE
+                  </span>
+                )}
+              </button>
+
               {tripId === '0000' && (
                 <button
                   type="button"
@@ -252,7 +371,7 @@ export default function SettingsMenu() {
                   className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50 transition-colors cursor-pointer border-t border-indigo-100"
                 >
                   <span className="text-lg">📥</span>
-                  Ripristina Attività Viaggio di Nozze
+                  Ripristina Attività Viaggio
                 </button>
               )}
 
@@ -281,10 +400,10 @@ export default function SettingsMenu() {
         <div
           role="status"
           className={
-            'fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-2xl text-sm font-medium shadow-2xl shadow-black/40 border transition-all ' +
+            'fixed bottom-24 left-1/2 -translate-x-1/2 z-[9999] p-4 rounded-xl shadow-xl transition-all min-w-[280px] text-center font-medium border ' +
             (toast.type === 'ok'
-              ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
-              : 'bg-rose-500/20 border-rose-500/40 text-rose-300')
+              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 border-slate-800 dark:border-slate-100'
+              : 'bg-slate-900 text-rose-400 dark:bg-white dark:text-rose-600 border-rose-900/50 dark:border-rose-200')
           }
         >
           {toast.msg}

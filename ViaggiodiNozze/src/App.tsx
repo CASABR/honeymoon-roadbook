@@ -15,25 +15,19 @@ import MappaView from './views/MappaView';
 import SettingsMenu from './components/common/SettingsMenu';
 import DarkModeToggle from './components/common/DarkModeToggle';
 import UpdateToast from './components/common/UpdateToast';
-import { storageService } from './storage/storageService';
 import { SyncService } from './storage/syncService';
 import OnboardingView from './views/OnboardingView';
-import { getTripConfig, saveTripConfig, type TripConfig } from './utils/tripConfig';
+import { getTripConfig, type TripConfig } from './utils/tripConfig';
+import { storageService } from './storage/storageService';
 import { auth } from './firebase';
 import { signInAnonymously, onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
-import {
-  MASTER_TRIP_ID,
-  MASTER_TRIP_START_DATE,
-  MASTER_TRIP_END_DATE,
-  MASTER_TRIP_TOTAL_DAYS,
-  ensureMasterTripMembership
-} from './utils/masterTrip';
 
 import LiveView from './views/altro/LiveView';
 import WalkthroughModal from './components/modals/WalkthroughModal';
 import SmartInsertModal from './components/modals/SmartInsertModal';
+import { InstallPWA } from './components/InstallPWA';
 // Dichiarazione della costante globale iniettata da Vite
 declare const __BUILD_TIME__: string;
 
@@ -46,38 +40,92 @@ export default function App() {
       urlParams.get('live') === '1' ||
       urlParams.get('live') === 'true' ||
       urlParams.get('view') === 'live' ||
-      window.location.hash.toLowerCase().includes('live')
+      (window.location.hash || '').toLowerCase().includes('live')
     );
   });
 
-  const [tripConfig, setTripConfig] = useState<TripConfig | null>(() => {
-    let config = getTripConfig();
-    if (!config && localStorage.getItem('honeymoon_roadbook_seeded_v1')) {
-      // Migrazione utente legacy
-      config = {
-        id: '0000', // ID usato in precedenza su Firebase
-        title: 'Viaggio Originale',
-        startDate: MASTER_TRIP_START_DATE,
-        endDate: MASTER_TRIP_END_DATE,
-        totalDays: MASTER_TRIP_TOTAL_DAYS
-      };
-      saveTripConfig(config);
-    }
-    // Check se l'id è rimasto 'default'
-    if (config && config.id === 'default') {
-      config.id = '0000';
-      config.title = 'Viaggio Originale';
-      config.startDate = MASTER_TRIP_START_DATE;
-      config.endDate = MASTER_TRIP_END_DATE;
-      config.totalDays = MASTER_TRIP_TOTAL_DAYS;
-      saveTripConfig(config);
-    }
-    return config;
+  const [tripConfig, setTripConfig] = useState<TripConfig | null>(() => getTripConfig());
+  const [isInitializing, setIsInitializing] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return !getTripConfig();
   });
+
+  useEffect(() => {
+    if (!isInitializing) return;
+
+    async function hydrateState() {
+      let config = tripConfig;
+      if (!config) {
+        try {
+          const { idbGet } = await import('./storage/indexedDB');
+          const storedConfig = await idbGet<any>('settings', 'trip_config_backup');
+          if (storedConfig && storedConfig.value) {
+            config = storedConfig.value;
+            if (typeof localStorage !== 'undefined') {
+              localStorage.setItem('roadbook_trip_config', JSON.stringify(config));
+            }
+          }
+        } catch (e) { console.error(e); }
+      }
+
+      if (typeof localStorage !== 'undefined' && !localStorage.getItem('app_device_role')) {
+        try {
+          const { idbGet } = await import('./storage/indexedDB');
+          const storedRole = await idbGet<any>('settings', 'device_role_backup');
+          if (storedRole && storedRole.value) {
+            localStorage.setItem('app_device_role', storedRole.value);
+            window.dispatchEvent(new CustomEvent('device_role_changed', { detail: { role: storedRole.value } }));
+          }
+        } catch (e) { console.error(e); }
+      }
+
+      if (config && config.id === 'default') {
+        // Se c'è un config 'default', l'onboarding non è stato fatto. 
+        // L'app lo rileverà e mostrerà OnboardingView.
+        config = null;
+      }
+
+      setTripConfig(config);
+      setIsInitializing(false);
+    }
+    
+    hydrateState();
+  }, [isInitializing, tripConfig]);
 
   useEffect(() => {
     const handleConfigChange = () => setTripConfig(getTripConfig());
     window.addEventListener('trip_config_changed', handleConfigChange);
+    
+    // Ensure alloggi and refuels are populated
+    storageService.ensureRefuels().catch(console.error);
+
+    // --- DEDUPLICAZIONE FORZATA AL PRIMO RENDER ---
+    const runDeduplication = async () => {
+      try {
+        const allTransports = await storageService.getTransports();
+        let deletedAny = false;
+        for (const t of allTransports) {
+          if (t.date === '2026-11-28') {
+            if (t.carrier === 'TRENO ROMA TERMINI - MILANO CENTRALE' || t.departureTime === '00:00' || (!t.carrier?.toLowerCase().includes('frecciarossa') && !t.carrier?.toLowerCase().includes('italo'))) {
+              await storageService.deleteTransport(t.id);
+              deletedAny = true;
+            }
+          }
+          if (t.carrier && (t.carrier.includes('(CA950 + CA783)') || t.carrier.includes('CA950 + CA783'))) {
+            await storageService.deleteTransport(t.id);
+            deletedAny = true;
+          }
+        }
+        if (deletedAny) {
+          const { notifyDataChanged } = await import('./storage/storageService');
+          notifyDataChanged('trasporti', 'delete', {});
+        }
+      } catch (err) {
+        console.error('[App] Errore deduplicazione forzata:', err);
+      }
+    };
+    runDeduplication();
+    
     return () => window.removeEventListener('trip_config_changed', handleConfigChange);
   }, []);
 
@@ -109,41 +157,52 @@ export default function App() {
 
     const initializeTrip = async () => {
       try {
-        if (tripConfig.id === MASTER_TRIP_ID) {
-          // ⚠️ TEMP dev/test: riallineamento silenzioso del nuovo UID anonimo su "0000"
-          await ensureMasterTripMembership(authUser.uid, tripConfig).catch(err =>
-            console.warn('[MasterTrip] Riallineamento "0000" non riuscito:', err)
-          );
-        } else {
-        const docRef = doc(db, 'trips', tripConfig.id);
-        const snapshot = await getDoc(docRef).catch(() => null); // Catturiamo l'errore di permessi
-        
-        if (!snapshot || !snapshot.exists()) {
-          // Tentiamo la creazione se non esiste o se non avevamo i permessi per leggerlo.
-          // Se in realtà esiste e non siamo membri, la regola `allow create` o `allow update` ci bloccherà comunque, il che è corretto.
-          await setDoc(docRef, {
-            ownerUid: authUser.uid,
-            members: [authUser.uid],
-            title: tripConfig.title,
-            startDate: tripConfig.startDate,
-            endDate: tripConfig.endDate,
-            createdAt: Date.now()
-          }, { merge: true }).catch(err => {
-            console.warn("[Auth] Impossibile creare/aggiornare il viaggio principale:", err);
-          });
-        }
+        if (tripConfig.id !== '0000') {
+          const tripRef = doc(db, 'trips', tripConfig.id);
+          const memberRef = doc(db, 'trips', tripConfig.id, 'members', authUser.uid);
+          const snapshot = await getDoc(tripRef).catch(() => null);
+          
+          if (!snapshot || !snapshot.exists()) {
+            const batch = writeBatch(db);
+            batch.set(tripRef, {
+              ownerUid: authUser.uid,
+              members: [authUser.uid],
+              title: tripConfig.title,
+              startDate: tripConfig.startDate,
+              endDate: tripConfig.endDate,
+              createdAt: Date.now()
+            }, { merge: true });
+            batch.set(memberRef, {
+              uid: authUser.uid,
+              role: 'owner',
+              createdAt: Date.now()
+            }, { merge: true });
+            await batch.commit().catch(err => {
+              console.warn("[Auth] Impossibile creare il viaggio / membro owner:", err);
+            });
+          } else {
+            const tripData = snapshot.data();
+            if (tripData?.ownerUid === authUser.uid) {
+              const memSnap = await getDoc(memberRef).catch(() => null);
+              if (!memSnap || !memSnap.exists()) {
+                await setDoc(memberRef, {
+                  uid: authUser.uid,
+                  role: 'owner',
+                  createdAt: Date.now()
+                }, { merge: true }).catch(err => {
+                  console.warn("[Auth] Impossibile allineare membro owner:", err);
+                });
+              }
+            }
+          }
         }
         
         if (isMounted) {
           syncService = new SyncService(tripConfig.id);
-          if (tripConfig.id === MASTER_TRIP_ID) {
-            await storageService.ensureMasterTripSeedData();
-            await storageService.logLocalDataCounts('[App] IndexedDB pronto per push "0000"');
-            syncService.syncAllLocalToCloud().catch(err =>
-              console.warn('[SyncService] Push iniziale dati locali "0000" non riuscito:', err)
-            );
-          }
         }
+        
+        // Esegui la migrazione automatica dei rifornimenti
+        await storageService.ensureRefuels();
       } catch (err) {
         console.error("[App] Errore inizializzazione viaggio:", err);
       }
@@ -156,13 +215,6 @@ export default function App() {
       if (syncService) syncService.destroy();
     };
   }, [tripConfig?.id, authUser?.uid]);
-
-  useEffect(() => {
-    // Auto-caricamento attività fisse per il viaggio 0000 se mancanti (funziona anche offline)
-    if (tripConfig?.id === '0000') {
-      storageService.seedRealActivities().catch(err => console.error(err));
-    }
-  }, [tripConfig?.id]);
 
   // Quando il cloud porta nuovi dati, forza il re-render delle view
   
@@ -194,8 +246,19 @@ export default function App() {
       }
       setIsSmartInsertOpen(true);
     };
+    const handleNavigateTo = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { view, subView, categoria } = customEvent.detail || {};
+      if (view) {
+        handleTabChange(view as SectionTab, categoria as CategoriaTab, subView);
+      }
+    };
     window.addEventListener('open_smart_insert', handleOpenSmartInsert);
-    return () => window.removeEventListener('open_smart_insert', handleOpenSmartInsert);
+    window.addEventListener('navigate_to', handleNavigateTo);
+    return () => {
+      window.removeEventListener('open_smart_insert', handleOpenSmartInsert);
+      window.removeEventListener('navigate_to', handleNavigateTo);
+    };
   }, []);
 
   // IMPORTANT: must be declared here (before any conditional returns) to comply with React Rules of Hooks
@@ -240,19 +303,31 @@ export default function App() {
     setIsCategorieOpen(false);
   };
 
-  // Se non c'è un viaggio configurato, mostra l'Onboarding (Zero-State)
-  if (!tripConfig) {
+  // Se non c'è un viaggio configurato e NON siamo in modalità Live esterna con tripId, mostra l'Onboarding
+  const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const externalTripId = urlParams.get('tripId');
+  
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="animate-spin text-4xl">⏳</div>
+      </div>
+    );
+  }
+
+  if (!tripConfig && !(isExternalLive && externalTripId)) {
     return <OnboardingView />;
   }
 
   if (isExternalLive) {
+    const activeTripId = tripConfig?.id || externalTripId || '';
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col items-center selection:bg-rose-500 selection:text-white font-sans antialiased">
         <header className="w-full max-w-md mx-auto flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-rose-500" />
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-              Honeymoon Roadbook • Live
+              Hounigo • Live
             </p>
           </div>
           <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200/60">
@@ -261,11 +336,12 @@ export default function App() {
         </header>
 
         <main className="w-full max-w-md mx-auto flex-1 flex flex-col px-4 pt-1 pb-10">
-          <LiveView isStandaloneExternal={true} />
+          <LiveView isStandaloneExternal={true} tripId={activeTripId} />
         </main>
       </div>
     );
   }
+
 
 
 
@@ -274,7 +350,7 @@ export default function App() {
       {/* Top Bar */}
         <header className="w-full max-w-md mx-auto flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5">
         <div className="flex items-center gap-1.5">
-          <img src="/favicon.svg" alt="Hounigo" className="w-8 h-8 object-contain" />
+          <img src="/favicon.svg" alt="Hounigo" className="h-6 w-auto object-contain max-w-[100px]" />
           {typeof __BUILD_TIME__ !== 'undefined' && (
             <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full">
               🟢 {__BUILD_TIME__}
@@ -351,6 +427,9 @@ export default function App() {
 
       {/* PWA Update Toast */}
       <UpdateToast />
+
+      {/* PWA Install Button */}
+      <InstallPWA />
     </div>
   );
 }

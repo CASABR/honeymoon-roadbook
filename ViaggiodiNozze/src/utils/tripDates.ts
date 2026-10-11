@@ -173,3 +173,14 @@ export async function getTripDateRange(): Promise<TripDateRange> {
 
 export const TRIP_DAYS = generateTripDays();
 
+/**
+ * Converte una data YYYY-MM-DD nel formato europeo standard DD-MM-YYYY
+ */
+export function formatDate(dateStr?: string | null): string {
+  if (!dateStr) return '';
+  // Se ha l'orario associato YYYY-MM-DDTHH:mm, prendiamo solo la data
+  const dateOnly = dateStr.split('T')[0];
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateOnly)) return dateStr; // Non formattabile
+  const [y, m, d] = dateOnly.split('-');
+  return `${d}-${m}-${y}`;
+}

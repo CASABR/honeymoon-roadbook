@@ -22,6 +22,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
   const [linkPrenotazione, setLinkPrenotazione] = useState('');
   const [budget, setBudget] = useState('');
   const [nota, setNota] = useState('');
+  const [status, setStatus] = useState<'da_saldare' | 'saldato'>('da_saldare');
   
   const [error, setError] = useState('');
   const [conflictWarning, setConflictWarning] = useState('');
@@ -42,6 +43,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       setLinkPrenotazione(initialData.linkPrenotazione || '');
       setBudget(initialData.budget || '');
       setNota(initialData.nota || '');
+      setStatus(initialData.status === 'saldato' || (initialData as any).completed ? 'saldato' : 'da_saldare');
     } else {
       const today = new Date();
       const yyyy = today.getFullYear();
@@ -57,6 +59,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       setLinkPrenotazione('');
       setBudget('');
       setNota('');
+      setStatus('da_saldare');
     }
   }, [initialData]);
 
@@ -129,6 +132,8 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       telefono: telefono.trim() || undefined,
       linkPrenotazione: linkPrenotazione.trim() || undefined,
       budget: budget.trim() || undefined,
+      status: status,
+      completed: status === 'saldato',
       nota: nota.trim() || undefined,
       coordinate: finalCoord,
     });
@@ -284,6 +289,39 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
             onChange={(e) => setBudget(e.target.value)}
             className="flex-1 h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] transition-colors placeholder:text-slate-400"
           />
+        </div>
+      </div>
+
+      {/* Stato Pagamento */}
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          Stato Pagamento
+        </label>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setStatus('da_saldare')}
+            className={`flex-1 h-11 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 cursor-pointer ${
+              status === 'da_saldare'
+                ? 'bg-amber-50 text-amber-800 border-amber-300 ring-2 ring-amber-400/20 shadow-xs'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <span>⏳</span>
+            <span>Da Saldare</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatus('saldato')}
+            className={`flex-1 h-11 rounded-xl text-xs font-bold transition-all border flex items-center justify-center gap-1.5 cursor-pointer ${
+              status === 'saldato'
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 ring-2 ring-emerald-400/20 shadow-xs'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            <span>✓</span>
+            <span>Saldato</span>
+          </button>
         </div>
       </div>
 

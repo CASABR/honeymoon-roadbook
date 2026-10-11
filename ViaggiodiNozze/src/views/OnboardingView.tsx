@@ -3,14 +3,6 @@ import { saveTripConfig } from '../utils/tripConfig';
 import { idbClearAll } from '../storage/indexedDB';
 import { auth } from '../firebase';
 import { signInAnonymously } from 'firebase/auth';
-import {
-  isMasterTripCode,
-  ensureMasterTripMembership,
-  MASTER_TRIP_ID,
-  MASTER_TRIP_START_DATE,
-  MASTER_TRIP_END_DATE,
-  MASTER_TRIP_TOTAL_DAYS
-} from '../utils/masterTrip';
 
 export default function OnboardingView({ onComplete }: { onComplete?: (config: any) => void }) {
   const [mode, setMode] = useState<'select' | 'create' | 'join' | 'role' | 'ai'>('select');
@@ -49,7 +41,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 3000));
         const userCredential = await Promise.race([authPromise, timeoutPromise]) as any;
         ownerUid = userCredential.user.uid;
-        console.log('Autenticato come proprietario:', ownerUid);
+
       } catch (err) {
         console.warn('Errore autenticazione (fallback locale):', err);
         // Non blocchiamo la creazione. Procediamo offline/fallback
@@ -73,80 +65,52 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         const userCredential = await signInAnonymously(auth);
         user = userCredential.user;
       }
-
-      // ⚠️ TEMP dev/test: re-claim diretto del viaggio master "0000" (UID anonimo rigenerato)
-      if (isMasterTripCode(inviteCode)) {
-        const { data } = await ensureMasterTripMembership(user.uid);
-        await idbClearAll();
-        setTempConfig({
-          id: MASTER_TRIP_ID,
-          title: data?.title || 'Viaggio Originale',
-          startDate: MASTER_TRIP_START_DATE,
-          endDate: MASTER_TRIP_END_DATE,
-          totalDays: MASTER_TRIP_TOTAL_DAYS,
-          ownerUid: data?.ownerUid
-        });
-        setMode('role');
-        return;
-      }
-
-      const { doc, getDoc, updateDoc, arrayUnion, increment } = await import('firebase/firestore');
+      
       const { db } = await import('../firebase');
+      const { doc, getDoc, updateDoc, arrayUnion, setDoc, query, collection, where, getDocs } = await import('firebase/firestore');
 
-      const inviteRef = doc(db, 'invites', inviteCode.trim().toUpperCase());
-      const inviteSnap = await getDoc(inviteRef);
-
-      if (!inviteSnap.exists()) {
-        alert("Codice invito non valido o non trovato.");
-        setLoading(false);
-        return;
+      const uid = user.uid;
+      const codeClean = inviteCode.trim();
+      let tripRef = doc(db, 'trips', codeClean);
+      let tripSnap = await getDoc(tripRef);
+      
+      if (!tripSnap.exists()) {
+        const q = query(collection(db, 'trips'), where('inviteCode', '==', codeClean));
+        const qSnap = await getDocs(q);
+        if (!qSnap.empty) {
+          tripSnap = qSnap.docs[0];
+          tripRef = tripSnap.ref;
+        } else {
+          throw new Error('Codice viaggio non trovato.');
+        }
       }
-
-      const inviteData = inviteSnap.data();
-      if (inviteData.expiresAt < Date.now()) {
-        alert("Questo codice invito è scaduto.");
-        setLoading(false);
-        return;
-      }
-
-      if (inviteData.usedCount >= inviteData.maxUses) {
-        alert("Questo codice invito è già stato utilizzato.");
-        setLoading(false);
-        return;
-      }
-
-      const tripId = inviteData.tripId;
-      const tripRef = doc(db, 'trips', tripId);
-
-      // Prima aggiorniamo l'invito per segnarlo come usato
-      await updateDoc(inviteRef, {
-        usedCount: increment(1)
-      });
-
-      // Poi ci aggiungiamo ai members del viaggio
+      
+      const tripData = tripSnap.data() as any;
+      
+      // Update members array
       await updateDoc(tripRef, {
-        members: arrayUnion(user.uid)
+        members: arrayUnion(uid)
       });
-
-      // Scarichiamo i metadati base del viaggio
-      const tripSnap = await getDoc(tripRef);
-      if (tripSnap.exists()) {
-        const tData = tripSnap.data();
-        await idbClearAll();
-        setTempConfig({
-          id: tripId,
-          title: tData.title,
-          startDate: tData.startDate,
-          endDate: tData.endDate,
-          ownerUid: tData.ownerUid
-        });
-        setMode('role');
-      } else {
-        alert("Errore: impossibile leggere i dettagli del viaggio.");
+      
+      // Update or create member doc
+      const memberRef = doc(tripRef, 'members', uid);
+      const memberSnap = await getDoc(memberRef);
+      if (!memberSnap.exists()) {
+        await setDoc(memberRef, { uid, role: 'copilota', createdAt: Date.now() });
       }
+
+      await idbClearAll();
+      setTempConfig({
+        id: tripSnap.id,
+        title: tripData.title || 'Il nostro viaggio',
+        startDate: tripData.startDate || '',
+        endDate: tripData.endDate || '',
+        ownerUid: tripData.ownerUid || ''
+      });
+      setMode('role');
     } catch (err: any) {
       console.error(err);
-      alert(`Errore durante l'adesione al viaggio. Verifica la connessione e i permessi.${err?.code ? `\n(${err.code})` : ''}`);
+      alert(`Errore durante l'adesione al viaggio: ${err?.message || 'Verifica il codice e la connessione.'}`);
     } finally {
       setLoading(false);
     }

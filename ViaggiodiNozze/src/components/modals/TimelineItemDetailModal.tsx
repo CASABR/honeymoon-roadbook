@@ -147,32 +147,9 @@ export default function TimelineItemDetailModal({
                   )}
                 </div>
 
-                {att.link && (
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                      Link / Sito Web
-                    </span>
-                    <a
-                      href={att.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-amber-600 font-semibold underline truncate block hover:text-amber-700"
-                    >
-                      {att.link}
-                    </a>
-                  </div>
-                )}
+                
 
-                {att.notes && (
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-                      Note & Dettagli
-                    </span>
-                    <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
-                      {att.notes}
-                    </p>
-                  </div>
-                )}
+                
 
                 {/* Sezione Biglietto / QR Code per Attività */}
                 {att.qrCode && (
@@ -188,9 +165,12 @@ export default function TimelineItemDetailModal({
                       </div>
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(e) => {
                           navigator.clipboard.writeText(att.qrCode || '');
-                          alert('Codice copiato negli appunti!');
+                          const btn = e.currentTarget;
+                          const oldText = btn.innerHTML;
+                          btn.innerHTML = 'Copiato ✓';
+                          setTimeout(() => { btn.innerHTML = oldText; }, 2000);
                         }}
                         className="px-2.5 py-1.5 bg-white border border-amber-200 hover:bg-amber-100 text-amber-900 font-bold text-[11px] rounded-xl shrink-0 transition-colors cursor-pointer"
                       >
@@ -342,13 +322,13 @@ export default function TimelineItemDetailModal({
                   </div>
                 )}
 
-                {tr.notes && (
+                {tr.noteCopilota && (
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-                      Note Operative
+                      Note Operative Copilota
                     </span>
                     <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
-                      {tr.notes}
+                      {tr.noteCopilota}
                     </p>
                   </div>
                 )}
@@ -379,14 +359,24 @@ export default function TimelineItemDetailModal({
                   </div>
                 </div>
 
-                {tp.data && (
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                      Data Programmata
-                    </span>
-                    <p className="font-semibold text-slate-700">📅 {tp.data}</p>
-                  </div>
-                )}
+                <div className="grid grid-cols-2 gap-3">
+                  {tp.data && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                        Data Programmata
+                      </span>
+                      <p className="font-semibold text-slate-700">📅 {tp.data}</p>
+                    </div>
+                  )}
+                  {(tp.orario || (tp as any).time) && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                        Orario Sosta / Passaggio
+                      </span>
+                      <p className="font-semibold text-slate-700">⏰ {tp.orario || (tp as any).time}</p>
+                    </div>
+                  )}
+                </div>
 
                 {tp.nota && (
                   <div>
@@ -534,6 +524,19 @@ export default function TimelineItemDetailModal({
                   )}
                 </div>
 
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
+                    Stato Pagamento
+                  </span>
+                  <span className={`inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full border ${
+                    (rt.status === 'saldato' || (rt as any).completed)
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                      : 'bg-amber-50 text-amber-700 border-amber-200'
+                  }`}>
+                    {(rt.status === 'saldato' || (rt as any).completed) ? '✓ Saldato' : '⏳ Da saldare'}
+                  </span>
+                </div>
+
                 {rt.telefono && (
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
@@ -578,22 +581,90 @@ export default function TimelineItemDetailModal({
 
         {/* Azioni del Modale */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-100 gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-[44px] px-4 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            Chiudi
-          </button>
-          {canEdit && (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => onEdit(item)}
-              className="min-h-[44px] px-5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+              onClick={async () => {
+                if (window.confirm('Sei sicuro di voler eliminare questo elemento?')) {
+                  const { storageService } = await import('../../storage/storageService');
+                  if (isAttivita) await storageService.deleteActivity(item.id);
+                  else if (isTrasporto) await storageService.deleteTransport(item.id);
+                  else if (isTappa) await storageService.deleteTappa(item.id);
+                  else if (isShopping) await storageService.deleteShopping(item.id);
+                  else await storageService.deleteRistorante(item.id);
+                  
+                  // Per Alloggio non è previsto qui, ma nel dubbio
+                  if (item.type === 'alloggio') await storageService.deleteAccommodation(item.id);
+
+                  window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'delete' } }));
+                  onClose();
+                }
+              }}
+              className="min-h-[44px] px-4 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100 transition-colors cursor-pointer"
+              title="Elimina"
             >
-              <span>✏️ Modifica</span>
+              🗑️ Elimina
             </button>
-          )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="min-h-[44px] px-4 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              Chiudi
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            {canEdit && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const { liveService } = await import('../../services/liveService');
+                    const { getTripConfig } = await import('../../utils/tripConfig');
+                    const tripId = getTripConfig()?.id;
+                    if (!tripId) {
+                      alert('Viaggio non configurato.');
+                      return;
+                    }
+
+                    const title = isAttivita ? `Iniziata attività: ${item.title}` :
+                                  isTrasporto ? `In viaggio verso ${item.title}` :
+                                  isTappa ? `Arrivati a ${item.title}` :
+                                  isShopping ? `Shopping time: ${item.title}` :
+                                  `A tavola: ${item.title}`;
+                    
+                    const locationName = isAttivita ? (data as import('../../types').Attivita).location :
+                                         isTrasporto ? (data as import('../../types').Trasporto).arrivalLocation :
+                                         isTappa ? (data as import('../../types').Tappa).titolo :
+                                         isShopping ? (data as import('../../types').Shopping).nome :
+                                         (data as import('../../types').Ristorante).nome;
+
+                    await liveService.publishToLive(tripId, {
+                      title,
+                      text: 'Aggiornamento dal diario di viaggio',
+                      locationName
+                    });
+                    alert('Pubblicato con successo in Live! 📡');
+                  } catch (err) {
+                    alert('Errore durante la pubblicazione: ' + (err as Error).message);
+                  }
+                }}
+                className="min-h-[44px] px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:opacity-90 shadow-md shadow-rose-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Condividi in Live"
+              >
+                <span>📡 Condividi in Live</span>
+              </button>
+            )}
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(item)}
+                className="min-h-[44px] px-5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+              >
+                <span>✏️ Modifica</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </Modal>
