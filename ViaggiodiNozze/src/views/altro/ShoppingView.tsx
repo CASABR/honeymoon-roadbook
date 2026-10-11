@@ -106,6 +106,17 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
     return acc;
   }, {});
 
+  const formatMicroHeaderDate = (dateString: string) => {
+    if (dateString === 'Senza Data') return 'SENZA DATA';
+    try {
+      const d = new Date(dateString);
+      if (isNaN(d.getTime())) return dateString;
+      return new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+    } catch {
+      return dateString;
+    }
+  };
+
   return (
     <div className="flex flex-col min-h-full animate-fade-in pb-10">
       {/* Header */}
@@ -206,18 +217,15 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
       ) : (
         <div className="space-y-6">
           {Object.entries(groupedShopping).map(([groupKey, sGroup]) => (
-            <div key={groupKey} className="space-y-3">
+            <div key={groupKey} className="mt-4 first:mt-1">
               {selectedDate === 'tutte' && (
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
-                  {groupKey === 'Senza Data' ? 'Senza Data' : `Data: ${groupKey}`}
+                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest px-1 mb-2">
+                  {formatMicroHeaderDate(groupKey)}
                 </h2>
               )}
 
               <div className="space-y-2.5">
                 {sGroup.map((s) => {
-
-
-
                   return (
                     <SwipeToDelete key={s.id} disabled={!canEdit} onDelete={() => setDeleteTarget(s)}>
                       <ShoppingCard
@@ -226,8 +234,6 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
                         onDelete={() => setDeleteTarget(s)}
                       />
                     </SwipeToDelete>
-
-
                   );
                 })}
               </div>

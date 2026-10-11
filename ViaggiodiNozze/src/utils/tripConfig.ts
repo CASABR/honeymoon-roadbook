@@ -61,7 +61,13 @@ export function getTripConfig(): TripConfig | null {
 
 export function saveTripConfig(config: TripConfig): void {
   if (typeof localStorage === 'undefined') return;
-  localStorage.setItem(CONFIG_KEY, JSON.stringify(normalizeTripConfig(config)));
+  const normalized = normalizeTripConfig(config);
+  localStorage.setItem(CONFIG_KEY, JSON.stringify(normalized));
+  
+  import('../storage/indexedDB').then(({ idbPut }) => {
+    idbPut('settings', { id: 'trip_config_backup', value: normalized }).catch(() => {});
+  });
+  
   // Dispatch event so App.tsx can re-render if needed
   window.dispatchEvent(new Event('trip_config_changed'));
 }

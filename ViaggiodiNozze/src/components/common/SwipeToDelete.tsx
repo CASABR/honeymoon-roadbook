@@ -69,7 +69,7 @@ export default function SwipeToDelete({ onDelete, children, disabled = false }: 
   };
 
   return (
-    <div className="relative w-full overflow-hidden rounded-3xl group touch-pan-y">
+    <div className="relative w-full overflow-x-clip overflow-y-visible rounded-3xl group touch-pan-y">
       {/* Background delete indicator */}
       <div 
         className="absolute inset-y-0 right-0 w-24 bg-rose-500 rounded-3xl flex flex-col items-center justify-center text-white font-bold opacity-0 transition-opacity duration-200 shadow-inner"

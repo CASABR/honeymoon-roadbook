@@ -10,7 +10,7 @@ import SwipeToDelete from '../components/common/SwipeToDelete';
 import { useDeviceRole } from '../utils/useDeviceRole';
 
 const detectCountry = (t: Trasporto): string => {
-  const text = `${t.departureLocation} ${t.arrivalLocation} ${t.layover?.airport || ''} ${t.carrier || ''} ${t.notes || ''}`.toLowerCase();
+  const text = `${t.departureLocation || ''} ${t.arrivalLocation || ''} ${t.layover?.airport || ''} ${t.carrier || ''} ${t.noteCopilota || ''}`.toLowerCase();
   if (/(auckland|akl|chc|wellington|christchurch|picton|queenstown|rotorua|snap rentals|cook strait|sealink|nuova zelanda)/.test(text)) return '🇳🇿 Nuova Zelanda';
   if (/(syd|mel|adl|adelaide|kangaroo island|sydney|melbourne|virgin australia|jetstar|australia)/.test(text)) return '🇦🇺 Australia';
   if (/(mnl|mph|eni|usu|ceb|manila|boracay|el nido|tao coron|cebu|filippine|airswift|asia)/.test(text)) return '🇵🇭 Filippine';
@@ -77,26 +77,8 @@ export default function TrasportiView() {
 
   const handleSave = async (data: Omit<Trasporto, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const transportToSave: Trasporto = {
+      ...data,
       id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'trn_' + Date.now()),
-      type: data.type,
-      date: data.date,
-      departureTime: data.departureTime,
-      arrivalTime: data.arrivalTime,
-      departureLocation: data.departureLocation,
-      arrivalLocation: data.arrivalLocation,
-      dropoffDate: data.dropoffDate,
-      dropoffTime: data.dropoffTime,
-      dropoffLocation: data.dropoffLocation,
-      carrier: data.carrier,
-      bookingCode: data.bookingCode,
-      ticketUrl: data.ticketUrl,
-      cost: data.cost,
-      layover: data.layover,
-      notes: data.notes,
-      status: data.status,
-      depositPaid: data.depositPaid,
-      acconto: data.acconto,
-      copilota: data.copilota,
       attachments: data.attachments || [],
       createdAt: editingTransport?.createdAt || Date.now(),
       updatedAt: Date.now()
@@ -115,7 +97,11 @@ export default function TrasportiView() {
   };
 
   const handleReloadSeedData = async () => {
-    if (confirm('Vuoi ripristinare le tratte certificate del viaggio di nozze con orari, scali e prezzi in €?')) {
+    if (confirm('Vuoi ELIMINARE tutti i trasporti attuali e RIPRISTINARE le tratte certificate del viaggio con orari, scali e prezzi in €? Questa azione azzererà l\'archivio sporco in un solo click!')) {
+      const allT = await storageService.getTransports();
+      for (const t of allT) {
+        await storageService.deleteTransport(t.id);
+      }
       await storageService.seedTransports(true);
       await loadData();
     }
@@ -226,7 +212,7 @@ export default function TrasportiView() {
               <button
                 type="button"
                 onClick={handleReloadSeedData}
-                title="Carica o ripristina le tratte certificate del viaggio di nozze"
+                title="Carica o ripristina le tratte certificate del viaggio"
                 className="inline-flex items-center gap-1 min-h-[36px] px-2.5 bg-blue-50 hover:bg-blue-100 active:scale-95 text-blue-700 font-semibold text-xs rounded-xl border border-blue-200 transition-all cursor-pointer shadow-sm"
               >
                 <span>🔄 Ripristina</span>
@@ -309,7 +295,7 @@ export default function TrasportiView() {
       {transports.length === 0 ? (
         <EmptyState
           title="Nessun trasporto inserito"
-          description="Carica le tratte certificate del viaggio di nozze oppure inserisci nuovi voli, traghetti, camper e transfer."
+          description="Carica le tratte certificate del viaggio oppure inserisci nuovi voli, traghetti, camper e transfer."
           actionLabel="Carica Tratte Certificate"
           accentVariant="sky"
           onAction={handleReloadSeedData}
@@ -335,7 +321,11 @@ export default function TrasportiView() {
         <div className="space-y-8">
           {sortedCountries.map((country) => {
             const countryGroup = groupedByCountry[country];
-            const sortedDates = Object.keys(countryGroup).sort((a, b) => a.localeCompare(b));
+            const sortedDates = Object.keys(countryGroup).sort((a, b) => {
+              const isoA = ((a || '').split('-').length === 3 && (a || '').split('-')[0].length === 2 ? (a || '').split('-').reverse().join('-') : (a || ''));
+              const isoB = ((b || '').split('-').length === 3 && (b || '').split('-')[0].length === 2 ? (b || '').split('-').reverse().join('-') : (b || ''));
+              return isoA.localeCompare(isoB);
+            });
             
             return (
               <div key={country} className="space-y-4">

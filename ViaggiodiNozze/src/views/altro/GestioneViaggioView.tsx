@@ -20,21 +20,51 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
         return;
       }
 
-      // Generate a random 6-character alphanumeric code
-      const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-      
-      // Calculate expiration (7 days from now)
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 7);
+      // 1. Prova prima tramite la Cloud Function dedicata createInvite
+      try {
+        const { httpsCallable } = await import('firebase/functions');
+        const { functions } = await import('../../firebase');
+        if (functions) {
+          const createInviteFn = httpsCallable<{ tripId: string }, { success: boolean; code: string; expiresAt: number }>(functions, 'createInvite');
+          const res = await createInviteFn({ tripId: config.id });
+          if (res.data?.code) {
+            setInviteCode(res.data.code);
+            return;
+          }
+        }
+      } catch (cfErr) {
+        console.warn("Cloud function createInvite non disponibile, fallback sicuro:", cfErr);
+      }
 
-      const inviteRef = doc(db, 'invites', code);
-      await setDoc(inviteRef, {
+      // 2. Fallback: genera codice casuale e salva SOLO l'hash SHA-256 in /trips/{tripId}/inviteTokens/{tokenId}
+      const charset = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+      let code = '';
+      const randomValues = new Uint8Array(8);
+      window.crypto.getRandomValues(randomValues);
+      for (let i = 0; i < 8; i++) {
+        code += charset[randomValues[i] % charset.length];
+      }
+
+      const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
+      const tokenId = 'tok_' + Math.random().toString(36).substring(2, 10);
+
+      // Calcola hash SHA-256 nel browser (nessun codice in chiaro salvato)
+      const encoder = new TextEncoder();
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', encoder.encode(code));
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const tokenHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      const tokenRef = doc(db, 'trips', config.id, 'inviteTokens', tokenId);
+      await setDoc(tokenRef, {
+        tokenId,
+        tokenHash,
         tripId: config.id,
         createdBy: user.uid,
         createdAt: Date.now(),
-        expiresAt: expiresAt.getTime(),
+        expiresAt,
         maxUses: 1,
-        usedCount: 0
+        usedCount: 0,
+        active: true
       });
 
       setInviteCode(code);

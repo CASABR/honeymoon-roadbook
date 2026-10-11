@@ -161,7 +161,7 @@ export default function AlloggiView() {
       {accommodations.length === 0 ? (
         <EmptyState
           title="Nessun alloggio inserito"
-          description="Aggiungi hotel, ryokan, appartamenti o strutture del tuo viaggio di nozze."
+          description="Aggiungi hotel, ryokan, appartamenti o strutture del tuo viaggio."
           actionLabel={canEdit ? "Aggiungi Primo Alloggio" : undefined}
           accentVariant="purple"
           onAction={canEdit ? handleOpenAdd : undefined}

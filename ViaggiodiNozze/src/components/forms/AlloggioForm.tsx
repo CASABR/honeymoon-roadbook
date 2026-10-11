@@ -120,10 +120,11 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
       pinCode: pinCode.trim() || undefined,
       phone: phone.trim() || undefined,
       cost: cost.trim() || undefined,
+        completed: paymentStatus === 'saldato',
+        status: (paymentStatus === 'saldato' ? 'completato' : 'prenotato') as any,
       acconto: acconto.trim() || undefined,
       paymentStatus,
       notes: notes.trim() || undefined,
-      status: 'prenotato',
       coordinate: finalCoord
     });
   };
@@ -325,7 +326,15 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
               id="saldato-toggle"
               type="checkbox"
               checked={paymentStatus === 'saldato'}
-              onChange={(e) => setPaymentStatus(e.target.checked ? 'saldato' : 'da_saldare')}
+              onChange={(e) => {
+            const checked = e.target.checked;
+            setPaymentStatus(checked ? 'saldato' : 'da_saldare');
+            if (checked && cost) {
+                setAcconto(cost);
+            } else {
+                setAcconto('0');
+            }
+        }}
               className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer"
             />
           </div>

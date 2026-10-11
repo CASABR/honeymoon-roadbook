@@ -1,5 +1,6 @@
 import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
+import * as crypto from 'crypto';
 
 admin.initializeApp();
 
@@ -178,3 +179,236 @@ export const smartExtract = functions.https.onCall(
     }
   }
 );
+
+/**
+ * Funzione proxy sicura per chiamare Gemini dall'app client senza esporre la chiave API.
+ * Richiede autenticazione.
+ */
+export const callGeminiApi = functions.https.onCall(
+  { secrets: [geminiApiKey], cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new functions.https.HttpsError("unauthenticated", "Devi essere autenticato.");
+    }
+    const requestBody = request.data.requestBody;
+    const apiKey = geminiApiKey.value();
+    if (!apiKey) {
+      throw new functions.https.HttpsError("internal", "API Key non configurata.");
+    }
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Errore API Gemini Proxy:", errorText);
+        throw new functions.https.HttpsError("internal", `Errore API Gemini (${response.status})`);
+      }
+      return await response.json();
+    } catch (error: any) {
+      if (error instanceof functions.https.HttpsError) throw error;
+      console.error("Errore Proxy Gemini:", error);
+      throw new functions.https.HttpsError("internal", "Errore di rete o server sconosciuto.");
+    }
+  }
+);
+
+// Hash helper: SHA-256 in hex
+function hashToken(raw: string): string {
+  return crypto.createHash('sha256').update(raw.trim().toUpperCase()).digest('hex');
+}
+
+/**
+ * Cloud Function per unirsi a un viaggio tramite invite token (Semplificata).
+ * 
+ * Riceve: { inviteToken: string }
+ */
+export const joinTrip = functions.https.onCall(
+  { cors: true },
+  async (request) => {
+    console.log("[JOINTRIP-SIMPLIFIED] called with auth:", !!request.auth);
+    
+    if (!request.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Devi essere autenticato.');
+    }
+
+    const uid = request.auth.uid;
+    const inviteToken = request.data?.inviteToken;
+    
+    if (!inviteToken || typeof inviteToken !== 'string' || !inviteToken.trim()) {
+      throw new functions.https.HttpsError('invalid-argument', 'Codice mancante.');
+    }
+
+    const tokenClean = inviteToken.trim();
+    const db = admin.firestore();
+
+    // 1. Caso Master Trip "0000"
+    if (tokenClean === '0000') {
+      const tripRef = db.collection('trips').doc('0000');
+      const tripSnap = await tripRef.get();
+      
+      if (!tripSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Viaggio 0000 non trovato. Esegui il seed.');
+      }
+      
+      const batch = db.batch();
+      batch.update(tripRef, {
+        members: admin.firestore.FieldValue.arrayUnion(uid)
+      });
+      
+      const memberRef = tripRef.collection('members').doc(uid);
+      const memberSnap = await memberRef.get();
+      if (!memberSnap.exists) {
+        batch.set(memberRef, { uid, role: 'copilota', createdAt: Date.now() });
+      }
+      
+      await batch.commit();
+      
+      const tripData = tripSnap.data() || {};
+      return {
+        success: true,
+        tripId: '0000',
+        title: tripData.title || 'Viaggio Originale',
+        startDate: tripData.startDate || '',
+        endDate: tripData.endDate || '',
+        ownerUid: tripData.ownerUid || ''
+      };
+    }
+
+    // 2. Fallback per altri viaggi (Match diretto su ID o inviteCode)
+    const tripRef = db.collection('trips').doc(tokenClean);
+    let tripSnap = await tripRef.get();
+    
+    if (!tripSnap.exists) {
+       // Prova a cercare per inviteCode
+       const query = await db.collection('trips').where('inviteCode', '==', tokenClean).limit(1).get();
+       if (!query.empty) {
+           tripSnap = query.docs[0];
+       } else {
+           throw new functions.https.HttpsError('not-found', 'Codice viaggio non trovato.');
+       }
+    }
+
+    const batch = db.batch();
+    batch.update(tripSnap.ref, {
+      members: admin.firestore.FieldValue.arrayUnion(uid)
+    });
+    
+    const memberRef = tripSnap.ref.collection('members').doc(uid);
+    const memberSnap = await memberRef.get();
+    if (!memberSnap.exists) {
+      batch.set(memberRef, { uid, role: 'copilota', createdAt: Date.now() });
+    }
+    
+    await batch.commit();
+    
+    const tripData = tripSnap.data() || {};
+    return {
+      success: true,
+      tripId: tripSnap.id,
+      title: tripData.title || 'Il nostro viaggio',
+      startDate: tripData.startDate || '',
+      endDate: tripData.endDate || '',
+      ownerUid: tripData.ownerUid || ''
+    };
+  }
+);
+
+/**
+ * Cloud Function per generare un invite token sicuro per un viaggio.
+ * Solo l'owner del viaggio può generare inviti.
+ * 
+ * Riceve: { tripId: string }
+ * Restituisce: { success: true, code: string, expiresAt: number }
+ */
+export const createInvite = functions.https.onCall(
+  { cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new functions.https.HttpsError(
+        'unauthenticated',
+        'Devi essere autenticato per generare un invito.'
+      );
+    }
+
+    const uid = request.auth.uid;
+    const tripId = request.data?.tripId;
+    if (!tripId || typeof tripId !== 'string') {
+      throw new functions.https.HttpsError(
+        'invalid-argument',
+        'tripId mancante o non valido.'
+      );
+    }
+
+    const db = admin.firestore();
+    const tripRef = db.collection('trips').doc(tripId);
+    const tripSnap = await tripRef.get();
+    if (!tripSnap.exists) {
+      throw new functions.https.HttpsError(
+        'not-found',
+        'Viaggio non trovato.'
+      );
+    }
+
+    const tripData = tripSnap.data() || {};
+    // Verifica che il richiedente sia effettivamente l'owner
+    const isOwner = tripData.ownerUid === uid;
+    if (!isOwner) {
+      // Controlla anche in /members/{uid} per ruolo 'owner'
+      const memberSnap = await tripRef.collection('members').doc(uid).get();
+      if (!memberSnap.exists || memberSnap.data()?.role !== 'owner') {
+        throw new functions.https.HttpsError(
+          'permission-denied',
+          'Solo il proprietario del viaggio può generare codici di invito.'
+        );
+      }
+    }
+
+    // Genera un codice casuale di 8 caratteri alfanumerici (uppercase, facile da leggere)
+    // Escludiamo caratteri facilmente confondibili (0, O, 1, I) per un'ottima UX
+    const charset = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const bytes = crypto.randomBytes(8);
+    let code = '';
+    for (let i = 0; i < 8; i++) {
+      code += charset[bytes[i] % charset.length];
+    }
+
+    const tokenHash = hashToken(code);
+    const tokenId = 'tok_' + crypto.randomBytes(6).toString('hex');
+    const now = Date.now();
+    const expiresAt = now + 7 * 24 * 60 * 60 * 1000; // 7 giorni
+
+    const tokenData = {
+      tokenId,
+      tokenHash,
+      tripId,
+      createdBy: uid,
+      createdAt: now,
+      expiresAt,
+      maxUses: 1,
+      usedCount: 0,
+      active: true
+    };
+
+    const batch = db.batch();
+    // 1. Salva nella subcollection del viaggio /trips/{tripId}/inviteTokens/{tokenId}
+    const tripTokenRef = tripRef.collection('inviteTokens').doc(tokenId);
+    batch.set(tripTokenRef, tokenData);
+
+    // 2. Salva nel lookup globale hash /invite_tokens/{tokenHash} (nessun token in chiaro)
+    const globalTokenRef = db.collection('invite_tokens').doc(tokenHash);
+    batch.set(globalTokenRef, tokenData);
+
+    await batch.commit();
+
+    return {
+      success: true,
+      code,
+      expiresAt
+    };
+  }
+);
+

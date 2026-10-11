@@ -1,130 +1,136 @@
-import React from 'react';
 import type { Shopping } from '../../types';
-import { resolveMapUrl } from '../../utils/mapsHelper';
+import { useState } from 'react';
+import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
+import { resolveMapUrl } from '../../utils/mapsHelper';
 
 interface ShoppingCardProps {
   shopping: Shopping;
   onEdit: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
+  onDetail?: () => void;
+  onUpdate?: (updated: Shopping) => void;
 }
 
-export default function ShoppingCard({ shopping, onEdit }: ShoppingCardProps) {
+export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: ShoppingCardProps) {
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const copilotData = (shopping as any).noteCopilota || (shopping as any).notes || '';
+  const hasCopilotNotes = Boolean(copilotData.trim());
+  
+
   const mapTarget = shopping.indirizzo || shopping.nome;
 
-  const handleToggleComplete = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    try {
-      await storageService.updateShopping(shopping.id, { completed: !shopping.completed });
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
   return (
-    <div onClick={onEdit} className="cursor-pointer rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-3 relative active:scale-[0.99] bg-[#FFFFFF] dark:bg-[#1E293B] border-[#ECEAE5] dark:border-slate-700">
-      <div className="flex justify-between items-start gap-2">
-        <div className="flex items-center gap-2">
-          <span className="w-8 h-8 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 shadow-2xs bg-pink-50 text-pink-700 border border-pink-100">
-            🛍️
+    <div 
+      onClick={onDetail || onEdit} 
+      className="cursor-pointer rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-3 relative active:scale-[0.99] bg-white border border-slate-200"
+    >
+      {/* TOP */}
+      <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700/50">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 text-[10px] font-bold tracking-wide uppercase">
+            <span className="text-sm">🛍️</span> Shopping
           </span>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-            Shopping
-          </span>
+          {shopping.orario && (
+            <div className="flex flex-col ml-1">
+              <span className="text-[10px] font-semibold text-slate-500">
+                Orario: {shopping.orario}
+              </span>
+            </div>
+          )}
         </div>
-
-        <div className="flex items-center gap-1.5 shrink-0">
-          
+        <div className="flex items-center gap-2">
+          {true && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
+                className={`flex items-center justify-center w-7 h-7 rounded-full border transition-colors shadow-sm ${
+                  hasCopilotNotes
+                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400' 
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500 opacity-60 hover:opacity-100'
+                }`}
+                title="Apri note Copilota"
+              >
+                <span className="text-sm">🧭</span>
+              </button>
+            )}
         </div>
       </div>
 
+      {/* BODY */}
       <div>
-        <div className="flex items-start gap-2.5 flex-wrap">
-          <button
-    type="button"
-    onClick={handleToggleComplete}
-    className={`shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider rounded-full border transition-all ${
-      shopping.completed
-        ? 'bg-[#E6F4EA] text-[#39734A] dark:bg-[#143521] dark:text-[#4ADE80] border-transparent dark:border-[#235835]'
-        : 'bg-[#FFFDF2] text-[#172033] border-[#FFC857]/40 dark:bg-[#382C0E] dark:text-[#FDE047] dark:border-[#785912]'
-    }`}
-  >
-    {shopping.completed ? '✓ Confermato' : 'Da Saldare'}
-  </button>
-            <h3 className={`text-sm sm:text-base font-extrabold text-[#172033] dark:text-slate-50 leading-snug pt-0.5 ${shopping.completed ? 'opacity-75' : ''}`}>
+        <div className="flex items-start gap-2 flex-wrap">
+          <h3 className="text-base font-extrabold text-slate-900 leading-snug">
             {shopping.nome}
           </h3>
-          {shopping.copilota && (
-            <span className="text-[9px] font-semibold text-pink-700 bg-pink-50 px-1.5 py-0.2 rounded-full border border-pink-200 shrink-0 mt-1">
-              🧭 Co-pilota
-            </span>
-          )}
         </div>
-        {shopping.indirizzo && (
-          <p className="text-xs text-[#64748B] dark:text-slate-400 font-medium mt-1 truncate flex items-center gap-1">
-            <span className="text-slate-400">📍</span>
-            <span>{shopping.indirizzo}</span>
+        {mapTarget && (
+          <p className="text-xs text-slate-500 font-medium truncate mt-1 flex items-center gap-1">
+            <span>📍</span>
+            <span className="truncate">{mapTarget}</span>
           </p>
         )}
       </div>
 
-      {/* Info condensata (Link) */}
-      {shopping.link && (
-        <div className="mt-1 flex items-center gap-2 flex-wrap text-[11px]">
-          <a
-            href={shopping.link}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-[10px] font-semibold text-pink-600 hover:text-pink-800 transition-colors"
-          >
-            Sito Web ↗
-          </a>
-        </div>
-      )}
-
-      {/* Barra inferiore: Prezzo, Dettagli, Maps */}
-      <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-        {/* Prezzo */}
-        <div className="flex items-center gap-1.5 flex-wrap">
+      {/* BOTTOM */}
+      <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center">
           {(!shopping.budget || isNaN(parseFloat(shopping.budget)) || parseFloat(shopping.budget) === 0) ? (
-            <span className="text-[11px] font-semibold text-[#64748B] dark:text-slate-400 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
-              Budget non inserito
+            <span className="text-[11px] font-semibold text-slate-500">
+              Costo non specificato
             </span>
           ) : (
-            <span className="text-[11px] font-bold text-[#172033] dark:text-slate-50 bg-slate-100 px-2.5 py-0.5 rounded-lg">
+            <span className="text-slate-900 dark:text-slate-100 font-semibold bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-md">
               {parseFloat(shopping.budget).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
             </span>
           )}
         </div>
 
-        {/* Pulsanti destra */}
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+          {shopping.link && (
+            <a
+              href={shopping.link}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-pink-600 dark:text-pink-400 text-xs font-medium transition-colors"
+            >
+              Sito Web ↗
+            </a>
+          )}
           {mapTarget && (
             <a
               href={resolveMapUrl(mapTarget)}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/50 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium transition-colors shadow-2xs"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600 dark:text-slate-200 text-xs font-medium transition-colors"
             >
               <span className="text-[10px]">📍</span> 
               <span>Maps</span>
             </a>
           )}
-
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation();
-              onEdit();
-            }}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200/50 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs font-medium transition-colors shadow-2xs active:scale-95"
-          >
-            <span className="text-[10px]">ℹ️</span>
-            <span>Dettagli</span>
-          </button>
         </div>
       </div>
+    
+      <UniversalCopilotaModal
+        isOpen={isCopilotOpen}
+        onClose={() => setIsCopilotOpen(false)}
+        title={shopping.nome || 'Dettaglio'}
+        noteCopilota={copilotData}
+        canEdit={true}
+        onSave={async (notes) => {
+          try {
+            const updated = { ...shopping, noteCopilota: notes.trim(), updatedAt: Date.now() } as any;
+            
+            await storageService.updateShopping(shopping.id, updated);
+            if (typeof onUpdate === 'function') onUpdate(updated);
+      
+            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update' }}));
+            setIsCopilotOpen(false);
+          } catch(e) { console.error(e); }
+        }}
+      />
     </div>
   );
 }

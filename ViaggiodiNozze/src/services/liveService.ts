@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, getDoc, writeBatch, onSnapshot, query, orderBy, setDoc, limit, updateDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 
 /**
@@ -7,6 +7,26 @@ import { db, auth } from '../firebase';
  */
 
 export type LiveFeedStatus = 'in_corso' | 'completato';
+
+export interface LiveFeedHeader {
+  title?: string;
+  coverPhotoUrl?: string;
+  status?: LiveFeedStatus;
+  currentCity?: string;
+  statusMessage?: string;
+  statusUpdatedAt?: number;
+  lastUpdateAt?: number;
+}
+
+export interface LiveUpdate {
+  id: string;
+  title: string;
+  text?: string;
+  photoUrl?: string;
+  locationName?: string;
+  timestamp: number;
+  reactionCounts?: Record<string, number>;
+}
 
 /** Unici campi accettati in input per un aggiornamento pubblico. */
 export interface LiveUpdateInput {
@@ -22,6 +42,7 @@ export interface LiveFeedHeaderInput {
   coverPhotoUrl?: string;
   status?: LiveFeedStatus;
   currentCity?: string;
+  statusMessage?: string;
 }
 
 export const LIVE_REACTIONS = ['❤️', '😍', '😂', '👋'] as const;
@@ -49,7 +70,7 @@ export const sanitizeLiveUpdate = (input: LiveUpdateInput) => ({
 });
 
 const sanitizeHeader = (input: LiveFeedHeaderInput = {}) => {
-  const out: Record<string, string> = {};
+  const out: Record<string, any> = {};
   const title = cleanString(input.title, MAX_TITLE);
   if (title) out.title = title;
   const cover = cleanUrl(input.coverPhotoUrl);
@@ -57,15 +78,14 @@ const sanitizeHeader = (input: LiveFeedHeaderInput = {}) => {
   if (input.status === 'in_corso' || input.status === 'completato') out.status = input.status;
   const city = cleanString(input.currentCity, MAX_LOCATION);
   if (city) out.currentCity = city;
+  const msg = cleanString(input.statusMessage, MAX_TEXT);
+  if (msg) out.statusMessage = msg;
   return out;
 };
 
 export const liveService = {
   /**
    * Pubblica un aggiornamento nel feed pubblico del viaggio.
-   * - Richiede utente autenticato presente in /trips/{tripId}.members (verificato anche dalle rules).
-   * - Filtra i dati: solo titolo, testo, foto, località.
-   * - Scrive l'update e aggiorna lastUpdateAt sulla testata in un'unica batch atomica.
    */
   async publishToLive(
     tripId: string,
@@ -90,7 +110,6 @@ export const liveService = {
 
     const now = Date.now();
     const feedRef = doc(db, 'live_feeds', tripId);
-    // ID nuovo e indipendente: non riutilizziamo gli ID dei documenti privati
     const updateRef = doc(collection(db, 'live_feeds', tripId, 'updates'));
 
     const feedSnap = await getDoc(feedRef);
@@ -114,4 +133,75 @@ export const liveService = {
     console.log('[LiveService] Pubblicato aggiornamento:', updateRef.id);
     return updateRef.id;
   },
+
+  /**
+   * Modifica il messaggio di stato ("Messaggio da noi").
+   */
+  async updateStatusMessage(tripId: string, message: string): Promise<void> {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Non autenticato');
+    const safeMsg = cleanString(message, MAX_TEXT);
+    const feedRef = doc(db, 'live_feeds', tripId);
+    
+    // Assicuriamoci che il documento esista
+    const feedSnap = await getDoc(feedRef);
+    if (!feedSnap.exists()) {
+       await setDoc(feedRef, { statusMessage: safeMsg, statusUpdatedAt: Date.now() }, { merge: true });
+    } else {
+       await updateDoc(feedRef, { statusMessage: safeMsg, statusUpdatedAt: Date.now() });
+    }
+  },
+
+  getVisitorId(): string {
+    if (typeof window === 'undefined') return 'server';
+    let vid = localStorage.getItem('hounigo_live_visitor_id');
+    if (!vid) {
+      vid = 'vis_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+      localStorage.setItem('hounigo_live_visitor_id', vid);
+    }
+    return vid;
+  },
+
+  /**
+   * Aggiunge o aggiorna una reaction a un aggiornamento. Utenti pubblici possono farlo.
+   */
+  async addReaction(tripId: string, updateId: string, type: typeof LIVE_REACTIONS[number]): Promise<void> {
+    if (!LIVE_REACTIONS.includes(type)) return;
+    const visitorId = this.getVisitorId();
+    const reactionRef = doc(db, 'live_feeds', tripId, 'updates', updateId, 'reactions', visitorId);
+    await setDoc(reactionRef, {
+      type,
+      visitorId,
+      timestamp: Date.now()
+    }, { merge: true });
+  },
+
+  /**
+   * Sottoscrizione al LiveFeedHeader.
+   */
+  subscribeToLiveHeader(tripId: string, callback: (header: LiveFeedHeader | null) => void) {
+    const ref = doc(db, 'live_feeds', tripId);
+    return onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        callback(snap.data() as LiveFeedHeader);
+      } else {
+        callback(null);
+      }
+    });
+  },
+
+  /**
+   * Sottoscrizione agli updates.
+   */
+  subscribeToLiveUpdates(tripId: string, callback: (updates: LiveUpdate[]) => void) {
+    const q = query(collection(db, 'live_feeds', tripId, 'updates'), orderBy('timestamp', 'desc'), limit(50));
+    return onSnapshot(q, (snap) => {
+      const results: LiveUpdate[] = [];
+      snap.forEach(doc => {
+        results.push({ id: doc.id, ...doc.data() } as LiveUpdate);
+      });
+      callback(results);
+    });
+  }
 };
+

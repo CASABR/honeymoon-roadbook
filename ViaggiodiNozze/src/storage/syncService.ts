@@ -153,9 +153,14 @@ export class SyncService {
               (async () => {
                 try {
                   const localData = await idbGet<any>(store, docId);
-                  if (localData && localData.updatedAt && data.updatedAt && localData.updatedAt > data.updatedAt) {
-                    console.warn(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Il dato locale e' piu' recente`);
-                    return;
+                  if (localData && localData.updatedAt) {
+                    const serverUpdatedAt = data.updatedAt || 0;
+                    if (localData.updatedAt > serverUpdatedAt) {
+                      console.warn(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Il dato locale e' piu' recente`);
+                      // Pushiamo il dato locale al server per allinearlo (visto che il server ha dati vecchi)
+                      await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
+                      return;
+                    }
                   }
                 } catch (e) {}
                 

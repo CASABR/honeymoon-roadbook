@@ -13,6 +13,12 @@ interface SmartInsertModalProps {
   mode?: 'gmail' | 'manual';
 }
 
+export interface ChatMessage {
+  role: 'user' | 'ai';
+  text: string;
+  suggestions?: any[];
+}
+
 type Step = 'input' | 'extracting' | 'review' | 'saving' | 'done' | 'error' | 'gmailLoading';
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
@@ -59,6 +65,8 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
   const [inputMode, setInputMode] = useState<'import' | 'chat'>('import');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [existingData, setExistingData] = useState<any>(null);
   const [editData, setEditData] = useState<any>({});
   const [pendingSuggestion, setPendingSuggestion] = useState<any>(null);
   const [pickerDate, setPickerDate] = useState(defaultSuggestionDate());
@@ -131,19 +139,49 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   const handleExtract = async () => {
     if (!text.trim()) return;
 
-    setStep('extracting');
+    const currentUserText = text.trim();
+    if (inputMode === 'chat') {
+      setChatMessages(prev => [...prev, { role: 'user', text: currentUserText }]);
+      setText('');
+      // Do not change step, stay in 'input'
+    } else {
+      setStep('extracting');
+    }
+    
     setErrorMsg('');
 
     const config = getTripConfig();
     const today = new Date().toISOString().split('T')[0];
-    const contextStr = `Data Odierna: ${today}. Viaggio: ${config?.title} (${config?.startDate} - ${config?.endDate}).`;
+    let contextStr = `Oggi: ${today}. Viaggio: ${config?.title} (${config?.startDate} - ${config?.endDate}).`;
 
-    const res = await extractFromText(text, contextStr, inputMode);
+    if (inputMode === 'chat' && chatMessages.length > 0) {
+      const recentChat = chatMessages.slice(-4).map(m => `${m.role === 'user' ? 'U' : 'A'}: ${m.text}`).join(' | ');
+      contextStr += ` STORICO CHAT: ${recentChat}`;
+    }
+
+    const res = await extractFromText(currentUserText, contextStr, inputMode);
 
     if (res.success && res.data) {
+      if (inputMode === 'chat' || res.entityType === 'info') {
+        const d: any = res.data;
+        setChatMessages(prev => [...prev, { 
+          role: 'ai', 
+          text: d.message || '', 
+          suggestions: d.suggestion ? [d.suggestion] : (d.suggestions || []) 
+        }]);
+        setStep('input');
+        setTimeout(() => {
+          const el = document.getElementById('chat-scroll-container');
+          if (el) el.scrollTop = el.scrollHeight;
+        }, 100);
+        return;
+      }
+
+      // -- IMPORT MODE --
       const d: any = res.data;
       const initial: any = { category: res.entityType };
       
+      let existingItem: any = null;
       if (res.entityType === 'alloggio') {
         initial.title = d.name || '';
         initial.location = d.location || '';
@@ -151,131 +189,94 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
         initial.dateEnd = d.checkOut || '';
         initial.cost = d.cost || '';
         initial.notes = d.notes || '';
+        const all = await storageService.getAccommodations();
+        existingItem = all.find(a => (a.name.toLowerCase().includes(initial.title.toLowerCase()) && a.checkIn === initial.dateStart));
       } else if (res.entityType === 'attivita') {
         initial.title = d.title || '';
         initial.location = d.location || '';
         initial.dateStart = d.date || '';
+        initial.time = d.time || '';
         initial.cost = d.cost || '';
         initial.notes = d.notes || '';
+        const all = await storageService.getActivities();
+        existingItem = all.find(a => a.title.toLowerCase().includes(initial.title.toLowerCase()) && a.date === initial.dateStart);
       } else if (res.entityType === 'ristorante') {
         initial.title = d.name || '';
         initial.location = d.location || '';
         initial.dateStart = d.date || '';
+        initial.time = d.time || '';
         initial.cost = d.cost || '';
         initial.notes = d.notes || '';
+        const all = await storageService.getRistoranti();
+        existingItem = all.find(a => a.nome.toLowerCase().includes(initial.title.toLowerCase()) && (a.data === initial.dateStart || a.date === initial.dateStart));
       } else if (res.entityType === 'tappa') {
         initial.title = d.titolo || '';
         initial.dateStart = d.data || '';
         initial.notes = d.nota || '';
+        const all = await storageService.getTappe();
+        existingItem = all.find(a => a.titolo.toLowerCase().includes(initial.title.toLowerCase()) && (a.data === initial.dateStart || a.date === initial.dateStart));
       } else if (res.entityType === 'trasporto') {
         initial.title = `${d.departureLocation || ''} -> ${d.arrivalLocation || ''}`;
         initial.dateStart = d.date || '';
         initial.dateEnd = d.arrivalDate || '';
         initial.cost = d.cost || '';
+        initial.time = d.departureTime || '';
         initial.notes = d.notes || '';
-      } else if (res.entityType === 'info') {
-        initial.message = d.message || '';
-        initial.suggestions = d.suggestions || [];
-        initial.question = text;
+        const all = await storageService.getTransports();
+        existingItem = all.find(a => a.date === initial.dateStart && a.departureLocation?.toLowerCase() === d.departureLocation?.toLowerCase());
       }
+      
+      setExistingData(existingItem || null);
+      if (existingItem) {
+         initial.id = existingItem.id;
+      }
+      
       setEditData(initial);
       setStep('review');
     } else {
       setErrorMsg(res.error || 'Estrazione fallita.');
-      setStep('error');
+      if (inputMode === 'chat') {
+        setChatMessages(prev => [...prev, { role: 'ai', text: res.error || 'Errore di comunicazione col Concierge.' }]);
+        setStep('input');
+      } else {
+        setStep('error');
+      }
     }
   };
 
   const handleSave = async () => {
     setStep('saving');
-
     try {
       const now = Date.now();
       const cat = editData.category;
-
-      if (cat === 'alloggio') {
-        await storageService.saveAccommodation({
-          id: generateId('alloggio'),
-          name: editData.title,
-          location: editData.location,
-          checkIn: editData.dateStart,
-          checkOut: editData.dateEnd,
-          address: editData.location || '',
-          cost: editData.cost,
-          time: editData.time,
-          notes: editData.notes,
-          status: 'prenotato',
-          createdAt: now,
-          updatedAt: now,
-        } as any);
-        onSaved?.('alloggio');
-      } else if (cat === 'tappa') {
-        await storageService.addTappa({
-          titolo: editData.title,
-          data: editData.dateStart,
-          date: editData.dateStart,
-          nota: editData.notes,
-        });
-        onSaved?.('tappa');
-      } else if (cat === 'trasporto') {
-        // Estrai se possibile andata/ritorno dal title
-        const parts = editData.title.split('->').map((s: string) => s.trim());
-        const dep = parts[0] || editData.title;
-        const arr = parts[1] || '';
-        await storageService.saveTransport({
-          id: generateId('trasporto'),
-          type: 'volo', // Default generico
-          date: editData.dateStart,
-          arrivalDate: editData.dateEnd,
-          departureLocation: dep,
-          arrivalLocation: arr,
-          cost: editData.cost,
-          time: editData.time,
-          notes: editData.notes,
-          status: 'prenotato',
-          createdAt: now,
-          updatedAt: now,
-        } as any);
-        onSaved?.('trasporto');
-      } else if (cat === 'attivita') {
-        await storageService.saveActivity({
-          id: generateId('attivita'),
-          dayId: `day_${editData.dateStart}`,
-          date: editData.dateStart,
-          title: editData.title,
-          location: editData.location,
-          cost: editData.cost,
-          time: editData.time,
-          category: 'visita', // fallback category
-          status: 'pianificata',
-          notes: editData.notes,
-          createdAt: now,
-          updatedAt: now,
-        } as any);
-        // onSaved supporta opzionalmente un type aggiuntivo, ma passiamo 'tappa' come approssimazione
-        onSaved?.('tappa');
-      } else if (cat === 'ristorante') {
-        await storageService.saveRistorante({
-          id: generateId('rist'),
-          nome: editData.title,
-          data: editData.dateStart,
-          date: editData.dateStart,
-          dayId: `day_${editData.dateStart}`,
-          indirizzo: editData.location,
-          budget: editData.cost,
-          time: editData.time,
-          nota: editData.notes,
-          createdAt: now,
-          updatedAt: now,
-        } as any);
-        onSaved?.('tappa');
+      
+      if (existingData) {
+         // UPDATE
+         if (cat === 'alloggio') await storageService.saveAccommodation({...existingData, name: editData.title, location: editData.location, checkIn: editData.dateStart, checkOut: editData.dateEnd, address: editData.location || '', cost: editData.cost, time: editData.time, notes: editData.notes, updatedAt: now});
+         else if (cat === 'tappa') await storageService.updateTappa(existingData.id, {titolo: editData.title, data: editData.dateStart, date: editData.dateStart, nota: editData.notes});
+         else if (cat === 'trasporto') {
+           const parts = editData.title.split('->').map((s: string) => s.trim());
+           await storageService.saveTransport({...existingData, departureLocation: parts[0] || editData.title, arrivalLocation: parts[1] || '', date: editData.dateStart, arrivalDate: editData.dateEnd, cost: editData.cost, time: editData.time, notes: editData.notes, updatedAt: now});
+         }
+         else if (cat === 'attivita') await storageService.saveActivity({...existingData, title: editData.title, location: editData.location, date: editData.dateStart, time: editData.time, cost: editData.cost, notes: editData.notes, updatedAt: now});
+         else if (cat === 'ristorante') await storageService.updateRistorante(existingData.id, {nome: editData.title, indirizzo: editData.location, data: editData.dateStart, date: editData.dateStart, budget: editData.cost, nota: editData.notes});
+      } else {
+         // CREATE
+         if (cat === 'alloggio') await storageService.saveAccommodation({id: generateId('alloggio'), name: editData.title, location: editData.location, checkIn: editData.dateStart, checkOut: editData.dateEnd, address: editData.location || '', cost: editData.cost, time: editData.time, notes: editData.notes, status: 'prenotato', createdAt: now, updatedAt: now} as any);
+         else if (cat === 'tappa') await storageService.addTappa({titolo: editData.title, data: editData.dateStart, date: editData.dateStart, nota: editData.notes});
+         else if (cat === 'trasporto') {
+           const parts = editData.title.split('->').map((s: string) => s.trim());
+           await storageService.saveTransport({id: generateId('trasporto'), type: 'volo', date: editData.dateStart, arrivalDate: editData.dateEnd, departureLocation: parts[0] || editData.title, arrivalLocation: parts[1] || '', cost: editData.cost, time: editData.time, notes: editData.notes, status: 'prenotato', createdAt: now, updatedAt: now} as any);
+         }
+         else if (cat === 'attivita') await storageService.saveActivity({id: generateId('attivita'), dayId: `day_${editData.dateStart}`, date: editData.dateStart, title: editData.title, location: editData.location, cost: editData.cost, time: editData.time, category: 'visita', status: 'pianificata', notes: editData.notes, createdAt: now, updatedAt: now} as any);
+         else if (cat === 'ristorante') await storageService.saveRistorante({id: generateId('rist'), nome: editData.title, data: editData.dateStart, date: editData.dateStart, dayId: `day_${editData.dateStart}`, indirizzo: editData.location, budget: editData.cost, time: editData.time, nota: editData.notes, createdAt: now, updatedAt: now} as any);
       }
-
+      
+      onSaved?.(cat === 'alloggio' ? 'alloggio' : (cat === 'trasporto' ? 'trasporto' : 'tappa'));
       setStep('done');
       setTimeout(() => onClose(), 2000);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Errore durante il salvataggio.';
-      setErrorMsg(msg);
+      setErrorMsg(err instanceof Error ? err.message : 'Errore salvataggio.');
       setStep('error');
     }
   };
@@ -337,9 +338,9 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
           )}
 
           {/* ─── Step: INPUT ─── */}
-          {step === 'input' && (
-            <div className="space-y-4">
-              <div className="flex gap-2 p-1 bg-slate-800/50 rounded-xl mb-4">
+          {(step === 'input' || (step === 'extracting' && inputMode === 'chat')) && (
+            <div className="space-y-4 flex flex-col h-[70vh] max-h-[600px]">
+              <div className="flex gap-2 p-1 bg-slate-800/50 rounded-xl mb-4 shrink-0">
                 <button
                   type="button"
                   onClick={() => setInputMode('import')}
@@ -356,148 +357,142 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                 </button>
               </div>
 
-              <textarea
-                ref={textAreaRef}
-                value={text}
-                onChange={(e) => setText(e.target.value)}
-                placeholder={
-                  inputMode === 'import'
-                    ? "Incolla qui la conferma del volo, della stanza o un'idea per una tappa...\n\nEsempio:\n\"Prenotazione confermata per Hotel Franz Josef dal 5 al 7 dicembre.\""
-                    : "Chiedi consigli al tuo Concierge...\n\nEsempio:\n\"Dove mangiare stasera a Tokyo?\"\n\"Cosa vedere oggi pomeriggio?\""
-                }
-                className="w-full h-40 p-4 bg-slate-800/50 border border-slate-700 rounded-2xl text-slate-200 text-sm resize-none focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 placeholder:text-slate-500 leading-relaxed"
-              />
+              {inputMode === 'chat' && (
+                <div id="chat-scroll-container" className="flex-1 overflow-y-auto mb-2 space-y-4 pr-1 custom-scrollbar min-h-[200px] max-h-[400px]">
+                  {chatMessages.length === 0 && (
+                     <div className="text-center text-slate-500 text-sm py-10">
+                       Chiedi consigli al tuo Concierge di viaggio...
+                     </div>
+                  )}
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                      {msg.role === 'ai' && (
+                        <div className="w-8 h-8 shrink-0 rounded-full bg-[#FF6B5F]/20 border border-violet-500/30 flex items-center justify-center text-sm mr-2 mt-1">✨</div>
+                      )}
+                      <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl whitespace-pre-wrap break-words text-sm ${
+                        msg.role === 'user' 
+                          ? 'bg-[#FF6B5F]/80 text-white rounded-br-sm' 
+                          : 'bg-slate-800/80 text-slate-200 rounded-tl-sm border border-slate-700/80'
+                      }`}>
+                        {msg.role === 'ai' ? renderMessage(msg.text) : msg.text}
+                        
+                        {msg.suggestions && msg.suggestions.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {msg.suggestions.map((s: any, idx: number) => (
+                              <div key={idx} className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50">
+                                <div className="flex justify-between items-center mb-1">
+                                  <span className="font-bold text-white">{s.title || s.name || s.nome}</span>
+                                </div>
+                                {(s.location || s.indirizzo) && <div className="text-xs text-slate-400 mb-2">📍 {s.location || s.indirizzo}</div>}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPickerDate(s.date || s.checkIn || defaultSuggestionDate());
+                                    setPickerTime(s.time || s.departureTime || '');
+                                    setPendingSuggestion(s);
+                                  }}
+                                  className="w-full py-1.5 rounded-lg bg-[#FF6B5F]/10 text-[#FF6B5F] text-xs font-bold hover:bg-[#FF6B5F]/20 transition"
+                                >
+                                  + Aggiungi all'itinerario
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  {step === 'extracting' && inputMode === 'chat' && (
+                    <div className="flex justify-start">
+                       <div className="w-8 h-8 shrink-0 rounded-full bg-[#FF6B5F]/20 border border-violet-500/30 flex items-center justify-center text-sm mr-2 animate-pulse">✨</div>
+                       <div className="bg-slate-800/80 px-4 py-2.5 rounded-2xl rounded-tl-sm text-slate-400 text-sm italic">Sto scrivendo...</div>
+                    </div>
+                  )}
+                </div>
+              )}
 
-              <div className="flex gap-2">
-                {inputMode === 'import' && (
+              <div className="shrink-0 relative">
+                <textarea
+                  ref={textAreaRef}
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey && inputMode === 'chat') {
+                      e.preventDefault();
+                      handleExtract();
+                    }
+                  }}
+                  placeholder={
+                    inputMode === 'import'
+                      ? "Incolla qui la conferma del volo, della stanza o un'idea per una tappa...\n\nEsempio:\n\"Prenotazione confermata per Hotel Franz Josef dal 5 al 7 dicembre.\""
+                      : "Scrivi un messaggio..."
+                  }
+                  className={`w-full p-4 bg-slate-800/50 border border-slate-700 text-slate-200 text-sm resize-none focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 placeholder:text-slate-500 ${inputMode === 'chat' ? 'h-16 rounded-3xl pl-5 pr-14' : 'h-40 rounded-2xl leading-relaxed'}`}
+                />
+                {inputMode === 'chat' && (
                   <button
-                    type="button"
-                    onClick={() => alert('Funzionalità di scansione OCR (PDF/Immagini) in arrivo!')}
-                    className="w-12 shrink-0 py-3.5 rounded-xl font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700 hover:bg-slate-700 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center"
-                    title="Allega PDF o Immagine"
+                    onClick={handleExtract}
+                    disabled={!text.trim()}
+                    className="absolute right-2 top-2 bottom-2 w-12 h-12 rounded-full bg-[#FF6B5F] text-white flex items-center justify-center hover:bg-[#e85c50] disabled:opacity-50 transition"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
+                    <svg className="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={handleExtract}
-                  disabled={!text.trim()}
-                  className="flex-1 py-3.5 rounded-xl font-bold bg-[#FF6B5F] text-white shadow-lg shadow-rose-500/20 hover:bg-[#e85c50] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  {inputMode === 'import' ? 'Crea Tappa con AI' : 'Invia al Concierge'}
-                </button>
               </div>
+
+              {inputMode === 'import' && (
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleExtract}
+                    disabled={!text.trim()}
+                    className="flex-1 py-3.5 rounded-xl font-bold bg-[#FF6B5F] text-white shadow-lg shadow-rose-500/20 hover:bg-[#e85c50] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Crea Tappa con AI
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
           {/* ─── Step: EXTRACTING ─── */}
-          {step === 'extracting' && (
+          {step === 'extracting' && inputMode === 'import' && (
             <div className="flex flex-col items-center justify-center py-10 gap-4">
               <div className="relative w-16 h-16">
                 <div className="absolute inset-0 rounded-full border-4 border-slate-800 border-t-violet-500 animate-spin" />
                 <div className="absolute inset-3 rounded-full bg-slate-800 flex items-center justify-center text-xl">✨</div>
               </div>
               <div className="text-center">
-                <p className="font-bold text-white text-sm">{inputMode === 'chat' ? 'Hitchy sta pensando...' : "L'AI sta analizzando..."}</p>
-                <p className="text-xs text-slate-400 mt-1">{inputMode === 'chat' ? 'Preparo i consigli' : 'Strutturazione in corso'}</p>
+                <p className="font-bold text-white text-sm">L'AI sta analizzando...</p>
+                <p className="text-xs text-slate-400 mt-1">Strutturazione in corso</p>
               </div>
             </div>
           )}
 
           {/* ─── Step: REVIEW ─── */}
-          {step === 'review' && editData && editData.category === 'info' && (
-            <div className="space-y-4">
-              {/* Domanda utente */}
-              {editData.question && (
-                <div className="flex justify-end">
-                  <div className="max-w-[85%] bg-[#FF6B5F]/80 text-white text-sm px-4 py-2.5 rounded-2xl rounded-br-md whitespace-pre-wrap break-words">
-                    {editData.question}
-                  </div>
-                </div>
-              )}
-
-              {/* Risposta assistente */}
-              <div className="flex items-start gap-2.5">
-                <div className="w-9 h-9 shrink-0 rounded-full bg-[#FF6B5F]/20 border border-violet-500/30 flex items-center justify-center text-lg">
-                  ✨
-                </div>
-                <div className="min-w-0 flex-1 bg-slate-800/80 p-4 rounded-2xl rounded-tl-md border border-slate-700/80">
-                  <p className="text-violet-400 text-[11px] font-bold uppercase tracking-wider mb-1.5">Hitchy · Concierge</p>
-                  <div className="text-slate-200 text-sm whitespace-pre-wrap leading-relaxed break-words">
-                    {renderMessage(editData.message || '')}
-                  </div>
-                </div>
-              </div>
-
-              {editData.suggestions && editData.suggestions.length > 0 && (
-                <div className="space-y-3 mt-4">
-                  {editData.suggestions.map((s: any, idx: number) => (
-                    <div key={idx} className="bg-slate-800/60 p-3 rounded-2xl border border-slate-700/50 flex flex-col gap-2">
-                      <div className="flex items-center justify-between">
-                         <span className="font-bold text-white text-sm">{s.title || s.name || s.nome || 'Proposta'}</span>
-                         {s.cost && <span className="text-xs bg-slate-700 text-slate-300 px-2 py-0.5 rounded-full">{s.cost}€</span>}
-                      </div>
-                      {(s.location || s.indirizzo) && (
-                         <div className="text-xs text-slate-400">📍 {s.location || s.indirizzo}</div>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const hasTime = !!(s.time || s.departureTime);
-                          const hasDate = !!(s.date || s.checkIn);
-                          if (!hasTime || !hasDate) {
-                            setPickerDate(s.date || s.checkIn || defaultSuggestionDate());
-                            setPickerTime(s.time || s.departureTime || '');
-                            setPendingSuggestion(s);
-                          } else {
-                            setEditData({
-                              category: s.category || (s.name ? 'ristorante' : 'attivita'),
-                              title: s.title || s.name || s.nome,
-                              location: s.location || s.indirizzo || '',
-                              dateStart: s.date || s.checkIn || defaultSuggestionDate(),
-                              time: s.time || s.departureTime || '',
-                              cost: s.cost || '',
-                              notes: s.notes || ''
-                            });
-                          }
-                        }}
-                        className="w-full mt-1 py-2.5 rounded-xl font-bold bg-[#FF6B5F]/10 hover:bg-[#FF6B5F]/20 text-[#FF6B5F] border border-[#FF6B5F]/20 transition flex items-center justify-center gap-1.5 cursor-pointer text-xs"
-                      >
-                        ➕ Aggiungi al Viaggio
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  id="concierge-new-question"
-                  onClick={() => { setText(''); setStep('input'); setTimeout(() => textAreaRef.current?.focus(), 50); }}
-                  className="flex-1 py-3 rounded-xl text-sm font-semibold border border-slate-700 text-slate-200 hover:bg-slate-800 active:scale-[0.98] transition cursor-pointer"
-                >
-                  💬 Nuova domanda
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="flex-1 py-3 rounded-xl text-sm font-semibold bg-slate-700 text-white hover:bg-slate-600 transition-colors cursor-pointer"
-                >
-                  Chiudi
-                </button>
-              </div>
-            </div>
-          )}
-
           {step === 'review' && editData && editData.category !== 'info' && (
             <div className="space-y-4">
+              {existingData ? (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl mb-2">
+                   <div className="flex items-start gap-2 text-amber-400">
+                     <span className="text-lg">⚠️</span>
+                     <div>
+                       <p className="font-bold text-sm">Prenotazione già presente!</p>
+                       <p className="text-xs mt-0.5 text-amber-300">Abbiamo trovato "{existingData.title || existingData.nome || existingData.name || existingData.titolo}" in questa data. Puoi integrare i dati mancanti o mantenere la versione attuale.</p>
+                     </div>
+                   </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl mb-2">
+                   <div className="flex items-center gap-2 text-emerald-400">
+                     <span className="text-lg">✨</span>
+                     <p className="font-bold text-sm">Nuovo elemento rilevato</p>
+                   </div>
+                </div>
+              )}
               <div className="flex flex-col gap-3">
                 
                 <div>
@@ -602,17 +597,17 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
               <div className="flex gap-3 pt-2 border-t border-slate-800">
                 <button
                   type="button"
-                  onClick={() => { setStep('input'); }}
+                  onClick={() => existingData ? onClose() : setStep('input')}
                   className="flex-1 py-3 px-5 rounded-xl text-sm font-medium border border-slate-700 text-slate-300 hover:bg-slate-800 active:scale-[0.98] transition cursor-pointer"
                 >
-                  ← Annulla
+                  {existingData ? 'Mantieni Invariato' : '← Salta'}
                 </button>
                 <button
                   type="button"
                   onClick={handleSave}
                   className="flex-[2] py-3 px-6 rounded-xl text-sm font-semibold bg-[#FF6B5F] text-white shadow-lg shadow-rose-500/20 hover:opacity-90 active:scale-[0.98] transition flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  ✅ Salva nel Roadbook
+                  {existingData ? '✅ Aggiorna campi mancanti' : '✅ Aggiungi all\'itinerario'}
                 </button>
               </div>
             </div>

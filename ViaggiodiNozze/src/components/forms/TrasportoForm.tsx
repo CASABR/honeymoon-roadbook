@@ -36,13 +36,8 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
   const [layoverDuration, setLayoverDuration] = useState('');
 
   // Condizionali Noleggio
-  const [depositoCauzionale, setDepositoCauzionale] = useState('');
-  const [franchigia, setFranchigia] = useState('');
-  const [politicaCarburante, setPoliticaCarburante] = useState('');
 
   // Condizionali Traghetto
-  const [sistemazioneTraghetto, setSistemazioneTraghetto] = useState('');
-  const [veicoloTraghetto, setVeicoloTraghetto] = useState('');
 
   // Economico
   const [cost, setCost] = useState('');
@@ -51,14 +46,15 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
 
   // Extra
   const [ticketUrl, setTicketUrl] = useState('');
-  const [notes, setNotes] = useState('');
+  const [terminalGate, setTerminalGate] = useState('');
+  const [checkinCutoff, setCheckinCutoff] = useState('');
+  const [noteCopilota, setNoteCopilota] = useState('');
   const [copilota, setCopilota] = useState(false);
 
   const [error, setError] = useState('');
   
   const isRental = type === 'auto' || type === 'camper';
-  const isFerry = type === 'traghetto';
-  const isFlightOrTrain = type === 'volo' || type === 'treno';
+    const isFlightOrTrain = type === 'volo' || type === 'treno';
 
   // Utils per manipolare date/ore
   const formatForInput = (d?: string, t?: string) => {
@@ -91,12 +87,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
       setLayoverAirport(initialData.layover?.airport || '');
       setLayoverDuration(initialData.layover?.duration || '');
 
-      setDepositoCauzionale(initialData.depositoCauzionale || '');
-      setFranchigia(initialData.franchigia || '');
-      setPoliticaCarburante(initialData.politicaCarburante || '');
 
-      setSistemazioneTraghetto(initialData.sistemazioneTraghetto || '');
-      setVeicoloTraghetto(initialData.veicoloTraghetto || '');
 
       setCost(initialData.cost || '');
       const acconto = initialData.depositPaid || initialData.acconto || '';
@@ -111,7 +102,9 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
       }
 
       setTicketUrl(initialData.ticketUrl || '');
-      setNotes(initialData.notes || '');
+      setTerminalGate(initialData.terminalGate || '');
+      setCheckinCutoff(initialData.checkinCutoff || '');
+      setNoteCopilota(initialData.noteCopilota || '');
       setCopilota(initialData.copilota || false);
     } else {
       setType('volo');
@@ -128,16 +121,13 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
       setHasLayover(false);
       setLayoverAirport('');
       setLayoverDuration('');
-      setDepositoCauzionale('');
-      setFranchigia('');
-      setPoliticaCarburante('');
-      setSistemazioneTraghetto('');
-      setVeicoloTraghetto('');
       setCost('');
       setDepositPaid('');
       setIsSaldato(false);
       setTicketUrl('');
-      setNotes('');
+      setTerminalGate('');
+      setCheckinCutoff('');
+      setNoteCopilota('');
       setCopilota(false);
     }
   }, [initialData, isRental]);
@@ -189,9 +179,11 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
       acconto: depositPaid.trim() || undefined,
       
       ticketUrl: ticketUrl.trim() || undefined,
-      notes: notes.trim() || undefined,
+      noteCopilota: noteCopilota.trim() || undefined,
+      terminalGate: terminalGate.trim() || undefined,
+      checkinCutoff: checkinCutoff.trim() || undefined,
       copilota: copilota || undefined,
-      status: initialData?.status || 'pianificato' as StatoTrasporto,
+      status: isSaldato ? 'completato' : (initialData?.status || 'prenotato') as StatoTrasporto,
     };
 
     if (isRental) {
@@ -201,9 +193,6 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
         dropoffLocation: arrivalLocation.trim() || undefined,
         dropoffDate: parsedArrDate || undefined,
         dropoffTime: parsedArrTime || undefined,
-        depositoCauzionale: depositoCauzionale.trim() || undefined,
-        franchigia: franchigia.trim() || undefined,
-        politicaCarburante: politicaCarburante.trim() || undefined,
       });
     } else {
       onSave({
@@ -214,8 +203,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
         arrivalTime: parsedArrTime || undefined,
         posti: posti.trim() || undefined,
         bagagli: bagagli.trim() || undefined,
-        sistemazioneTraghetto: isFerry ? (sistemazioneTraghetto.trim() || undefined) : undefined,
-        veicoloTraghetto: isFerry ? (veicoloTraghetto.trim() || undefined) : undefined,
+
         layover: (isFlightOrTrain && hasLayover && layoverAirport.trim()) ? {
           airport: layoverAirport.trim(),
           duration: layoverDuration.trim() || undefined,
@@ -437,77 +425,33 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
           </div>
         )}
 
-        {/* 6. Campi Specifici (Noleggio) */}
-        {isRental && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Cauzione / Deposito
-              </label>
-              <input
-                type="text"
-                placeholder="es. Carta Credito 500€"
-                value={depositoCauzionale}
-                onChange={(e) => setDepositoCauzionale(e.target.value)}
-                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Franchigia / Assicuraz.
-              </label>
-              <input
-                type="text"
-                placeholder="es. Kasko Totale"
-                value={franchigia}
-                onChange={(e) => setFranchigia(e.target.value)}
-                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Carburante
-              </label>
-              <input
-                type="text"
-                placeholder="es. Pieno/Pieno"
-                value={politicaCarburante}
-                onChange={(e) => setPoliticaCarburante(e.target.value)}
-                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-              />
-            </div>
+        {/* 6. Campi Accesso & Operatività */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Terminal / Gate / Molo
+            </label>
+            <input
+              type="text"
+              placeholder="es. Terminal 1, Gate B2"
+              value={terminalGate}
+              onChange={(e) => setTerminalGate(e.target.value)}
+              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+            />
           </div>
-        )}
-
-        {/* 6. Campi Specifici (Traghetto) */}
-        {isFerry && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Sistemazione
-              </label>
-              <input
-                type="text"
-                placeholder="es. Cabina esterna, Ponte"
-                value={sistemazioneTraghetto}
-                onChange={(e) => setSistemazioneTraghetto(e.target.value)}
-                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                Veicolo a bordo
-              </label>
-              <input
-                type="text"
-                placeholder="es. Auto targa AA123BB"
-                value={veicoloTraghetto}
-                onChange={(e) => setVeicoloTraghetto(e.target.value)}
-                className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-              />
-            </div>
+          <div>
+            <label className="block text-[10px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+              Cutoff Check-in (Orario Limite)
+            </label>
+            <input
+              type="text"
+              placeholder="es. Presentarsi entro le 18:00"
+              value={checkinCutoff}
+              onChange={(e) => setCheckinCutoff(e.target.value)}
+              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+            />
           </div>
-        )}
+        </div>
 
         {/* 7. Quadro Economico */}
         <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
@@ -545,7 +489,15 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
           </div>
           
           <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setIsSaldato(!isSaldato)}>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => {
+            const newVal = !isSaldato;
+            setIsSaldato(newVal);
+            if (newVal && cost) {
+                setDepositPaid(cost);
+            } else if (!newVal) {
+                setDepositPaid('0');
+            }
+        }}>
               <input
                 type="checkbox"
                 checked={isSaldato}
@@ -582,13 +534,13 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
         {/* 9. Note */}
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Note / Promemoria
+            Note Copilota (Istruzioni Operative)
           </label>
           <textarea
             rows={2}
             placeholder="..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            value={noteCopilota}
+            onChange={(e) => setNoteCopilota(e.target.value)}
             className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
           />
         </div>

@@ -1,6 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
+import { getFunctions } from "firebase/functions";
 
 // Configurazione letta da .env.local (prefisso VITE_ obbligatorio per esporla al client).
 // Progetto: app-viaggio-di-nozze — lo stesso su cui vengono deployate le firestore.rules (.firebaserc).
@@ -13,12 +14,7 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-console.log("Firebase API Key check:", {
-  hasKey: !!firebaseConfig.apiKey,
-  length: firebaseConfig.apiKey ? firebaseConfig.apiKey.length : 0,
-  prefix: firebaseConfig.apiKey ? firebaseConfig.apiKey.substring(0, 6) : "MANCANTE",
-  projectId: firebaseConfig.projectId || "MANCANTE",
-});
+
 
 const missing = Object.entries(firebaseConfig).filter(([, v]) => !v).map(([k]) => k);
 if (missing.length) {
@@ -27,6 +23,7 @@ if (missing.length) {
 
 let dbInstance: any;
 let authInstance: any;
+let functionsInstance: any;
 
 try {
   const app = initializeApp(firebaseConfig);
@@ -42,9 +39,11 @@ try {
     dbInstance = initializeFirestore(app, {});
   }
   authInstance = getAuth(app);
+  functionsInstance = getFunctions(app);
 } catch (e) {
   console.error("Firebase initialization failed:", e);
 }
 
 export const db = dbInstance;
 export const auth = authInstance;
+export const functions = functionsInstance;

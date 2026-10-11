@@ -8,20 +8,24 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  errorInfo: ErrorInfo | null;
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
   public state: State = {
     hasError: false,
-    error: null
+    error: null,
+    errorInfo: null
   };
 
   public static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, errorInfo: null };
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught error:', error, errorInfo);
+    console.error("FATAL ERROR STACK:", error);
+    console.error("COMPONENT STACK:", errorInfo.componentStack);
+    this.setState({ errorInfo });
   }
 
   public render() {
@@ -39,6 +43,9 @@ export default class ErrorBoundary extends Component<Props, State> {
             <div className="p-4 bg-slate-100 rounded-xl text-left overflow-auto text-xs font-mono text-slate-700 max-h-40 border border-slate-200">
               {this.state.error?.message || 'Errore sconosciuto'}
             </div>
+            <pre className="text-xs text-left overflow-auto max-h-48 p-2 bg-slate-900 text-rose-300 rounded mt-2">
+              {this.state.error?.stack || this.state.errorInfo?.componentStack || 'No stack'}
+            </pre>
             <button
               onClick={() => window.location.reload()}
               className="mt-6 px-6 py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-colors w-full"
