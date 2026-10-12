@@ -33,9 +33,8 @@ const TRIP_END_DATE = '2027-01-10';
 
 function getDefaultSelectedDate(startDate = TRIP_START_DATE, endDate = TRIP_END_DATE): string {
   const todayStr = new Date().toISOString().split('T')[0];
-  if (todayStr < startDate) return startDate;
-  if (todayStr > endDate) return startDate;
-  return todayStr;
+  if (todayStr >= startDate && todayStr <= endDate) return todayStr;
+  return startDate;
 }
 
 export default function OggiView({ onNavigateTab }: OggiViewProps) {
@@ -264,7 +263,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       const dataPromise = Promise.all([
         storageService.getAccommodations(),
         storageService.getDays(),
-        getTripDateRange(),
+        getTripDateRange([selectedDate, new Date().toISOString().split('T')[0]]),
         storageService.getTransports(),
         storageService.getTappe(),
         storageService.getSetting('hero_custom_title'),
@@ -346,8 +345,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       
       const forcedDate = getDefaultSelectedDate(configStartDate, configEndDate);
       
-      setSelectedDate(forcedDate);
-      console.log("Data iniziale calcolata:", forcedDate, "Start date:", configStartDate, "Today:", todayStr);
+      setSelectedDate(prev => {
+        if (prev && dynamicDays.some((d: { dateStr: string }) => d.dateStr === prev)) {
+          return prev;
+        }
+        return forcedDate;
+      });
+      console.log("Data selezionata:", selectedDate || forcedDate, "Start date:", configStartDate, "Today:", todayStr);
     } catch (err) {
       console.error('Errore caricamento dati OggiView:', err);
     } finally {

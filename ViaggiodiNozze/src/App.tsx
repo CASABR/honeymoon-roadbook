@@ -33,13 +33,15 @@ import { InstallPWA } from './components/InstallPWA';
 declare const __BUILD_TIME__: string;
 
 /**
- * Config iniziale sincrona: localStorage, oppure viaggio master se il PIN "0000"
- * è già stato verificato su questo dispositivo (evita lo spinner sulla PWA).
+ * Config iniziale sincrona: localStorage, solo se il PIN è autenticato su questo dispositivo
+ * (evita lo spinner sulla PWA e bypassa la schermata di blocco).
  */
 function getInitialTripConfig(): TripConfig | null {
+  if (typeof localStorage === 'undefined') return null;
+  const isPinAuth = localStorage.getItem('houni_pin_authenticated') === 'true' || localStorage.getItem('auth_pin_verified') === 'true';
   const stored = getTripConfig();
-  if (stored) return stored;
-  if (typeof localStorage !== 'undefined' && localStorage.getItem('auth_pin_verified') === 'true') {
+  if (stored && isPinAuth) return stored;
+  if (isPinAuth) {
     const master = normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' });
     saveTripConfig(master);
     return master;
@@ -77,6 +79,15 @@ export default function App() {
     if (!isInitializing) return;
 
     async function hydrateState() {
+      if (typeof localStorage !== 'undefined') {
+        const isPinAuth = localStorage.getItem('houni_pin_authenticated') === 'true' || localStorage.getItem('auth_pin_verified') === 'true';
+        if (!isPinAuth) {
+          setTripConfig(null);
+          setIsInitializing(false);
+          return;
+        }
+      }
+
       let config = tripConfig;
       if (!config) {
         try {
@@ -150,6 +161,36 @@ export default function App() {
     runDeduplication();
     
     return () => window.removeEventListener('trip_config_changed', handleConfigChange);
+  }, []);
+
+  // Aggiornamento immediato Service Worker per allineamento PWA
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return;
+
+    navigator.serviceWorker.ready.then((registration) => {
+      registration.update().catch(() => {});
+    });
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        navigator.serviceWorker.ready.then((reg) => reg.update().catch(() => {}));
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    let refreshing = false;
+    const handleControllerChange = () => {
+      if (refreshing) return;
+      refreshing = true;
+      console.log('[App] Nuovo Service Worker rilevato: ricarico per applicare l\'aggiornamento.');
+      window.location.reload();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+    };
   }, []);
 
   const [authUser, setAuthUser] = useState<User | null>(null);

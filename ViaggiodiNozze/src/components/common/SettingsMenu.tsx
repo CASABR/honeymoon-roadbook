@@ -224,11 +224,35 @@ export default function SettingsMenu() {
 
               <button
                 type="button"
+                onClick={() => {
+                  if (confirm('Vuoi bloccare l\'app e richiedere nuovamente il PIN di accesso?')) {
+                    localStorage.removeItem('houni_pin_authenticated');
+                    localStorage.removeItem('houni_auth_time');
+                    localStorage.removeItem('auth_pin_verified');
+                    clearTripConfig();
+                    window.location.reload();
+                  }
+                }}
+                className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold text-amber-600 hover:bg-amber-50 transition-colors border-t border-slate-100 cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <span>🔒</span>
+                  <span>Blocca App / Logout PIN</span>
+                </div>
+                <span className="text-slate-400 text-xs">›</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={async () => {
                   if (confirm('Sei sicuro di voler uscire da questo viaggio? I dati non sincronizzati andranno persi.')) {
+                    localStorage.removeItem('houni_pin_authenticated');
+                    localStorage.removeItem('houni_auth_time');
+                    localStorage.removeItem('auth_pin_verified');
                     await idbClearAll();
                     clearTripConfig();
                     setOpen(false);
+                    window.location.reload();
                   }
                 }}
                 className="w-full flex items-center justify-center px-4 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 transition-colors border-t border-slate-100 cursor-pointer"

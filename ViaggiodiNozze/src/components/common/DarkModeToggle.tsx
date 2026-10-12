@@ -4,7 +4,7 @@ export default function DarkModeToggle() {
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('theme');
+    const saved = localStorage.getItem('houni_theme') || localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     if (saved === 'dark' || (!saved && prefersDark)) {
       setIsDark(true);
@@ -19,13 +19,14 @@ export default function DarkModeToggle() {
     const nextMode = !isDark;
     setIsDark(nextMode);
     
+    const themeStr = nextMode ? 'dark' : 'light';
     if (nextMode) {
       document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
     } else {
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
     }
+    localStorage.setItem('houni_theme', themeStr);
+    localStorage.setItem('theme', themeStr);
     
     // Dispatche un evento custom in modo che altri componenti (es. grafici o mappe) possano reagire
     window.dispatchEvent(new CustomEvent('theme_changed', { detail: { isDark: nextMode } }));
