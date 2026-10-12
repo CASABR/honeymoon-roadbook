@@ -186,7 +186,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             const updated = { ...accommodation, noteCopilota: notes.trim(), updatedAt: Date.now() } as any;
             
             await storageService.saveAccommodation(updated);
-            try { if (eval("typeof onUpdate === 'function'")) eval("onUpdate(updated)"); } catch(e){}
+            if (typeof onUpdate === 'function') onUpdate(updated);
       
             window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update' }}));
             setIsCopilotOpen(false);

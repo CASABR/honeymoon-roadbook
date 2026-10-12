@@ -17,7 +17,8 @@ import DarkModeToggle from './components/common/DarkModeToggle';
 import UpdateToast from './components/common/UpdateToast';
 import { SyncService } from './storage/syncService';
 import OnboardingView from './views/OnboardingView';
-import { getTripConfig, type TripConfig } from './utils/tripConfig';
+import { getTripConfig, saveTripConfig, normalizeTripConfig, type TripConfig } from './utils/tripConfig';
+import { withTimeout } from './utils/withTimeout';
 import { storageService } from './storage/storageService';
 import { auth } from './firebase';
 import { signInAnonymously, onAuthStateChanged, type User } from 'firebase/auth';
@@ -30,6 +31,21 @@ import SmartInsertModal from './components/modals/SmartInsertModal';
 import { InstallPWA } from './components/InstallPWA';
 // Dichiarazione della costante globale iniettata da Vite
 declare const __BUILD_TIME__: string;
+
+/**
+ * Config iniziale sincrona: localStorage, oppure viaggio master se il PIN "0000"
+ * è già stato verificato su questo dispositivo (evita lo spinner sulla PWA).
+ */
+function getInitialTripConfig(): TripConfig | null {
+  const stored = getTripConfig();
+  if (stored) return stored;
+  if (typeof localStorage !== 'undefined' && localStorage.getItem('auth_pin_verified') === 'true') {
+    const master = normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' });
+    saveTripConfig(master);
+    return master;
+  }
+  return null;
+}
 
 export default function App() {
   // Rileva se il visitatore ha aperto il link condiviso esterno (es. ?live=1 oppure #live)
@@ -44,11 +60,18 @@ export default function App() {
     );
   });
 
-  const [tripConfig, setTripConfig] = useState<TripConfig | null>(() => getTripConfig());
+  const [tripConfig, setTripConfig] = useState<TripConfig | null>(() => getInitialTripConfig());
   const [isInitializing, setIsInitializing] = useState(() => {
     if (typeof window === 'undefined') return false;
-    return !getTripConfig();
+    return !getInitialTripConfig();
   });
+
+  // Rete di sicurezza: lo spinner iniziale non può mai durare più di 1.5s
+  useEffect(() => {
+    if (!isInitializing) return;
+    const safety = setTimeout(() => setIsInitializing(false), 1500);
+    return () => clearTimeout(safety);
+  }, [isInitializing]);
 
   useEffect(() => {
     if (!isInitializing) return;
@@ -58,7 +81,7 @@ export default function App() {
       if (!config) {
         try {
           const { idbGet } = await import('./storage/indexedDB');
-          const storedConfig = await idbGet<any>('settings', 'trip_config_backup');
+          const storedConfig = await withTimeout(idbGet<any>('settings', 'trip_config_backup'), 1500, undefined);
           if (storedConfig && storedConfig.value) {
             config = storedConfig.value;
             if (typeof localStorage !== 'undefined') {
@@ -71,7 +94,7 @@ export default function App() {
       if (typeof localStorage !== 'undefined' && !localStorage.getItem('app_device_role')) {
         try {
           const { idbGet } = await import('./storage/indexedDB');
-          const storedRole = await idbGet<any>('settings', 'device_role_backup');
+          const storedRole = await withTimeout(idbGet<any>('settings', 'device_role_backup'), 1500, undefined);
           if (storedRole && storedRole.value) {
             localStorage.setItem('app_device_role', storedRole.value);
             window.dispatchEvent(new CustomEvent('device_role_changed', { detail: { role: storedRole.value } }));

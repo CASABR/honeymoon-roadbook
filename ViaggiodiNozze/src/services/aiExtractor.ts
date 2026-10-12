@@ -326,34 +326,58 @@ export function stripHtml(html: string): string {
 const apiCache = new Map<string, { data: any, ts: number }>();
 const CACHE_TTL = 10 * 60 * 1000;
 
+/** Modello principale + fallback (i modelli gemini-1.5-* sono stati ritirati e restituiscono 404). */
+export const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_FALLBACK_MODEL = 'gemini-2.0-flash';
+
+/** Risolve la chiave API: .env → localStorage → default personale. */
+export function resolveGeminiApiKey(): string {
+  let apiKey: string | null | undefined = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey || apiKey.includes('la_tua_chiave')) {
+    apiKey = localStorage.getItem('gemini_api_key');
+  }
+  if (!apiKey || apiKey.includes('la_tua_chiave')) {
+    apiKey = 'AQ.Ab8RN6Kxc93HHq3cDGA0Sv3XFgczoWKPiXUip9tgF88fixCHg';
+  }
+  return apiKey.trim();
+}
+
 /** Chiamata a Gemini tramite REST API diretta. Restituisce il testo grezzo della risposta. */
-async function callGemini(requestBody: unknown, model: string = 'gemini-1.5-flash'): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+async function callGemini(requestBody: any, model: string = GEMINI_MODEL): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   try {
-    let apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey || apiKey.includes('la_tua_chiave')) {
-      apiKey = localStorage.getItem('gemini_api_key');
-    }
-    if (!apiKey || apiKey.includes('la_tua_chiave')) {
-      apiKey = 'AQ.Ab8RN6Kxc93HHq3cDGA0Sv3XFgczoWKPiXUip9tgF88fixCHg';
-    }
+    const apiKey = resolveGeminiApiKey();
     if (!apiKey) return { ok: false, error: 'Chiave API Gemini mancante' };
-    
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    
+
+    // Su gemini-2.5 il "thinking" consuma i maxOutputTokens: lo disattiviamo per risposte rapide e complete.
+    const body = model.startsWith('gemini-2.5')
+      ? { ...requestBody, generationConfig: { ...(requestBody?.generationConfig || {}), thinkingConfig: { thinkingBudget: 0 } } }
+      : requestBody;
+
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(body)
     });
-    
+
     if (!response.ok) {
-       await response.text();
-       return { ok: false, error: `Errore API Gemini (${response.status})` };
+      const errText = await response.text();
+      console.error(`[Gemini] ${model} → HTTP ${response.status}:`, errText);
+      // Modello non disponibile: riprova una volta col modello di fallback
+      if (response.status === 404 && model !== GEMINI_FALLBACK_MODEL) {
+        return callGemini(requestBody, GEMINI_FALLBACK_MODEL);
+      }
+      if (response.status === 400 || response.status === 401 || response.status === 403) {
+        return { ok: false, error: `Errore API Gemini (${response.status}): chiave API non valida o non autorizzata.` };
+      }
+      return { ok: false, error: `Errore API Gemini (${response.status})` };
     }
-    
+
     const responseJson = await response.json();
-    const rawText = responseJson?.candidates?.[0]?.content?.parts?.[0]?.text;
-    
+    const parts = responseJson?.candidates?.[0]?.content?.parts || [];
+    const rawText = parts.map((p: any) => p?.text || '').join('');
+
     if (!rawText) return { ok: false, error: 'Risposta vuota o formato non valido.' };
     return { ok: true, text: rawText };
   } catch (error: any) {
@@ -458,7 +482,7 @@ export async function extractFromText(
       responseMimeType: 'application/json',
       responseSchema: EXTRACTION_SCHEMA
     }
-  }, 'gemini-1.5-flash-8b');
+  });
 
   if (!res.ok) return { success: false, entityType: 'sconosciuto', error: res.error };
 

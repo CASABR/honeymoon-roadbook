@@ -310,7 +310,6 @@ class StorageService {
     
     const { SEED_SHOPPING } = await import('./seedShopping');
     const { SEED_ALLOGGI } = await import('./seedAlloggi');
-    const { REAL_TAPPE } = await import('./seedTappe');
     const { SEED_RISTORANTI } = await import('./seedRistoranti');
 
     for (const fuel of SEED_SHOPPING) {
@@ -329,26 +328,35 @@ class StorageService {
       }
     }
     
-    // Upsert rigoroso Tappe basato su date + titolo
+    // Upsert rigoroso Tappe basato su date + titolo / ID
+    const { REAL_TAPPE, SEED_TAPPE_VERSION } = await import('./seedTappe');
+    const isTappeVersionNew = typeof localStorage !== 'undefined' && localStorage.getItem('tappe_seed_version') !== SEED_TAPPE_VERSION;
     const existingTappe = await idbGetAll<import('../types').Tappa>(STORES.TAPPE);
     for (const tappa of REAL_TAPPE) {
       const existing = existingTappe.find(e => 
-        e.date === tappa.date && 
-        e.titolo.toLowerCase().trim() === tappa.titolo.toLowerCase().trim()
+        e.id === tappa.id ||
+        (e.date === tappa.date && (
+          e.titolo.toLowerCase().trim() === tappa.titolo.toLowerCase().trim() ||
+          e.titolo.toLowerCase().includes(tappa.titolo.toLowerCase().slice(0, 8)) ||
+          tappa.titolo.toLowerCase().includes(e.titolo.toLowerCase().slice(0, 8))
+        ))
       );
 
       if (existing) {
          const updated = { 
             ...existing, 
             ...tappa, 
-            id: existing.id, 
-            orario: existing.orario || tappa.orario,
+            id: existing.id || tappa.id, 
+            orario: isTappeVersionNew ? (tappa.orario || existing.orario) : (existing.orario || tappa.orario),
             updatedAt: now 
          };
          await idbPut(STORES.TAPPE, updated);
       } else {
          await idbPut(STORES.TAPPE, { ...tappa, createdAt: now, updatedAt: now });
       }
+    }
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('tappe_seed_version', SEED_TAPPE_VERSION);
     }
     notifyDataChanged('tappe', 'save', {});
 
@@ -789,9 +797,15 @@ class StorageService {
     try {
       const items = await idbGetAll<Tappa>(STORES.TAPPE);
       return items.sort((a, b) => {
-        if (a.data && b.data) return ((a.data || '').split('-').length === 3 && (a.data || '').split('-')[0].length === 2 ? (a.data || '').split('-').reverse().join('-') : (a.data || '')).localeCompare(((b.data || '').split('-').length === 3 && (b.data || '').split('-')[0].length === 2 ? (b.data || '').split('-').reverse().join('-') : (b.data || '')));
-        if (a.data) return -1;
-        if (b.data) return 1;
+        const dateA = a.data || a.date || '';
+        const dateB = b.data || b.date || '';
+        if (dateA !== dateB) return dateA.localeCompare(dateB);
+        const timeA = a.orario || (a as any).time || '';
+        const timeB = b.orario || (b as any).time || '';
+        if (timeA && timeB && timeA !== timeB) return timeA.localeCompare(timeB);
+        if (a.order !== undefined && b.order !== undefined && a.order !== b.order) {
+          return a.order - b.order;
+        }
         return a.titolo.localeCompare(b.titolo);
       });
     } catch (err) {

@@ -1,8 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { saveTripConfig } from '../utils/tripConfig';
+import { saveTripConfig, type TripConfig } from '../utils/tripConfig';
 import { idbClearAll } from '../storage/indexedDB';
 import { auth } from '../firebase';
 import { signInAnonymously } from 'firebase/auth';
+import { withTimeout, rejectAfter } from '../utils/withTimeout';
+import {
+  isMasterTripCode,
+  ensureMasterTripMembership,
+  MASTER_TRIP_ID,
+  MASTER_TRIP_START_DATE,
+  MASTER_TRIP_END_DATE,
+  MASTER_TRIP_TOTAL_DAYS
+} from '../utils/masterTrip';
+
+/** Config del viaggio master: disponibile subito, senza attendere Firestore. */
+const MASTER_TRIP_CONFIG: TripConfig = {
+  id: MASTER_TRIP_ID,
+  title: 'Viaggio Originale',
+  startDate: MASTER_TRIP_START_DATE,
+  endDate: MASTER_TRIP_END_DATE,
+  totalDays: MASTER_TRIP_TOTAL_DAYS
+};
+
+/** Allinea la membership Firebase del viaggio master senza bloccare la UI. */
+function syncMasterMembershipInBackground() {
+  (async () => {
+    try {
+      if (!auth) return;
+      const user = auth.currentUser || (await signInAnonymously(auth)).user;
+      await ensureMasterTripMembership(user.uid, { title: MASTER_TRIP_CONFIG.title });
+    } catch (err) {
+      console.warn('[Onboarding] Sync membership "0000" in background fallita (riproverà al prossimo avvio):', err);
+    }
+  })();
+}
 
 export default function OnboardingView({ onComplete }: { onComplete?: (config: any) => void }) {
   const [mode, setMode] = useState<'select' | 'create' | 'join' | 'role' | 'ai'>('select');
@@ -32,7 +63,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
     e.preventDefault();
     if (!title || !startDate || !endDate) return;
     setLoading(true);
-    await idbClearAll();
+    await withTimeout(idbClearAll(), 1500, undefined);
 
     let ownerUid = 'local_fallback';
     if (auth) {
@@ -57,12 +88,25 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCode.trim()) return;
+    const codeClean = inviteCode.trim();
+
+    // ── PIN master "0000": accesso ISTANTANEO, nessuna attesa di rete o IndexedDB ──
+    if (isMasterTripCode(codeClean)) {
+      localStorage.setItem('auth_pin_verified', 'true');
+      setTempConfig(MASTER_TRIP_CONFIG);
+      setMode('role');
+      setLoading(false);
+      // Membership Firebase in background (non blocca mai la UI)
+      syncMasterMembershipInBackground();
+      return;
+    }
+
     setLoading(true);
 
     try {
       let user = auth.currentUser;
       if (!user) {
-        const userCredential = await signInAnonymously(auth);
+        const userCredential = await rejectAfter(signInAnonymously(auth), 8000, 'Timeout autenticazione: controlla la connessione.');
         user = userCredential.user;
       }
       
@@ -70,13 +114,12 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
       const { doc, getDoc, updateDoc, arrayUnion, setDoc, query, collection, where, getDocs } = await import('firebase/firestore');
 
       const uid = user.uid;
-      const codeClean = inviteCode.trim();
       let tripRef = doc(db, 'trips', codeClean);
-      let tripSnap = await getDoc(tripRef);
+      let tripSnap: any = await rejectAfter(getDoc(tripRef), 8000, 'Timeout connessione al viaggio.');
       
       if (!tripSnap.exists()) {
         const q = query(collection(db, 'trips'), where('inviteCode', '==', codeClean));
-        const qSnap = await getDocs(q);
+        const qSnap = await rejectAfter(getDocs(q), 8000, 'Timeout ricerca codice invito.');
         if (!qSnap.empty) {
           tripSnap = qSnap.docs[0];
           tripRef = tripSnap.ref;
@@ -87,19 +130,18 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
       
       const tripData = tripSnap.data() as any;
       
-      // Update members array
-      await updateDoc(tripRef, {
-        members: arrayUnion(uid)
-      });
-      
-      // Update or create member doc
-      const memberRef = doc(tripRef, 'members', uid);
-      const memberSnap = await getDoc(memberRef);
-      if (!memberSnap.exists()) {
-        await setDoc(memberRef, { uid, role: 'copilota', createdAt: Date.now() });
-      }
+      // Membership: non blocca l'accesso se lenta
+      updateDoc(tripRef, { members: arrayUnion(uid) })
+        .then(async () => {
+          const memberRef = doc(tripRef, 'members', uid);
+          const memberSnap = await getDoc(memberRef);
+          if (!memberSnap.exists()) {
+            await setDoc(memberRef, { uid, role: 'copilota', createdAt: Date.now() });
+          }
+        })
+        .catch(err => console.warn('[Onboarding] Membership in background fallita:', err));
 
-      await idbClearAll();
+      await withTimeout(idbClearAll(), 1500, undefined);
       setTempConfig({
         id: tripSnap.id,
         title: tripData.title || 'Il nostro viaggio',
@@ -117,8 +159,12 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   };
 
   const handleFinishOnboarding = (aiAction?: 'gmail' | 'manual') => {
+    // Ruolo e config salvati in modo sincrono → la transizione è immediata
+    localStorage.setItem('app_device_role', tempRole);
     import('../storage/storageService').then(({ storageService }) => {
       storageService.setDeviceRole(tempRole);
+      // Popola i dati locali in background (non blocca il render)
+      storageService.ensureRefuels().catch(console.error);
     });
     saveTripConfig(tempConfig);
     if (onComplete) onComplete(tempConfig);
@@ -346,38 +392,51 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   // ROLE MODE
   // ─────────────────────────────────────────
   if (mode === 'role') {
+    // NB: colori fissi in esadecimale — il tema scuro rimappa text-white/slate-* su toni scuri.
+    const roleCardStyle: React.CSSProperties = {
+      background: 'rgba(30,41,59,0.9)',
+      border: '1.5px solid rgba(255,255,255,0.28)'
+    };
     return renderLayout(
       <div className="rounded-3xl border border-white/10 p-7 space-y-6"
         style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)' }}>
 
         <div className="text-center">
-          <h2 className="text-2xl font-extrabold text-white mb-2">Ruolo Dispositivo</h2>
-          <p className="text-sm text-slate-300">Scegli come utilizzerai questo dispositivo durante il viaggio.</p>
+          <h2 className="text-2xl font-extrabold mb-2" style={{ color: '#ffffff' }}>Ruolo Dispositivo</h2>
+          <p className="text-sm" style={{ color: '#cbd5e1' }}>Scegli come utilizzerai questo dispositivo durante il viaggio.</p>
         </div>
 
         <div className="space-y-4">
           <button
+            id="onboarding-role-guida"
             onClick={() => { setTempRole('guida'); setMode('ai'); }}
-            className="w-full text-left p-4 rounded-2xl border transition-all hover:bg-white/10 active:scale-95 cursor-pointer"
-            style={{ borderColor: 'rgba(255,255,255,0.2)' }}
+            className="w-full text-left p-4 rounded-2xl transition-all hover:brightness-125 active:scale-95 cursor-pointer shadow-lg"
+            style={roleCardStyle}
           >
             <div className="flex items-center gap-3 mb-1">
               <span className="text-2xl">🗺️</span>
-              <h3 className="font-bold text-white text-lg">Guida (Navigazione)</h3>
+              <div>
+                <h3 className="font-bold text-lg leading-tight" style={{ color: '#ffffff' }}>Nunzio • Guida (Navigazione)</h3>
+                <span className="text-[11px] font-semibold" style={{ color: '#34d399' }}>Master GPS • Mappe & Direzioni</span>
+              </div>
             </div>
-            <p className="text-xs text-slate-400">Chi guida vede e usa principalmente le mappe GPS, il percorso e le direzioni.</p>
+            <p className="text-xs leading-relaxed mt-1" style={{ color: '#cbd5e1' }}>Dispositivo di riferimento per le mappe e la posizione GPS del viaggio.</p>
           </button>
 
           <button
+            id="onboarding-role-copilota"
             onClick={() => { setTempRole('copilota'); setMode('ai'); }}
-            className="w-full text-left p-4 rounded-2xl border transition-all hover:bg-white/10 active:scale-95 cursor-pointer"
-            style={{ borderColor: 'rgba(255,255,255,0.2)' }}
+            className="w-full text-left p-4 rounded-2xl transition-all hover:brightness-125 active:scale-95 cursor-pointer shadow-lg"
+            style={roleCardStyle}
           >
             <div className="flex items-center gap-3 mb-1">
               <span className="text-2xl">📝</span>
-              <h3 className="font-bold text-white text-lg">Copilota (Organizzazione)</h3>
+              <div>
+                <h3 className="font-bold text-lg leading-tight" style={{ color: '#ffffff' }}>Giusy • Copilota (Organizzazione)</h3>
+                <span className="text-[11px] font-semibold" style={{ color: '#fbbf24' }}>Roadbook • Note, Spese & Orari</span>
+              </div>
             </div>
-            <p className="text-xs text-slate-400">Il copilota gestisce le note, inserisce le spese, controlla gli orari e i documenti.</p>
+            <p className="text-xs leading-relaxed mt-1" style={{ color: '#cbd5e1' }}>Gestisce le note di guida, inserisce le spese, controlla gli orari e i documenti.</p>
           </button>
         </div>
       </div>
@@ -397,8 +456,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             style={{ background: 'linear-gradient(135deg, #10b981, #3b82f6)' }}>
             ✨
           </div>
-          <h2 className="text-2xl font-extrabold text-white mb-2">Houni AI</h2>
-          <p className="text-sm text-slate-300">
+          <h2 className="text-2xl font-extrabold mb-2" style={{ color: '#ffffff' }}>Houni AI</h2>
+          <p className="text-sm" style={{ color: '#cbd5e1' }}>
             Il tuo Concierge personale. Vuoi caricare automaticamente le prenotazioni?
           </p>
         </div>
@@ -415,14 +474,15 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           <button
             onClick={() => handleFinishOnboarding('gmail')}
             className="w-full py-4 px-4 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:opacity-90 cursor-pointer flex items-center justify-center gap-2"
-            style={{ background: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.15)' }}
+            style={{ background: 'rgba(30,41,59,0.9)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.25)' }}
           >
             <span>📧</span> Sincronizza con Gmail (Avanzato)
           </button>
 
           <button
             onClick={() => handleFinishOnboarding()}
-            className="w-full py-3 mt-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="w-full py-3 mt-2 rounded-xl text-xs font-medium transition-opacity hover:opacity-80 cursor-pointer"
+            style={{ color: '#cbd5e1' }}
           >
             Salta, crea itinerario a mano
           </button>
