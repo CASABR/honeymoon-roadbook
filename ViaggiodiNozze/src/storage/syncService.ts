@@ -12,6 +12,49 @@ export class SyncService {
     this.tripId = tripId;
     this.setupLocalListeners();
     this.setupCloudListeners();
+    // Avvia sincronizzazione automatica bidirezionale all'avvio (Master e Copilota)
+    this.syncBidirectional().catch(err => console.warn('[SyncService] Errore sync iniziale:', err));
+  }
+
+  public async syncBidirectional(): Promise<void> {
+    try {
+      const { getDocs } = await import('firebase/firestore');
+      const collectionsToSync = this.getCollectionsToSync();
+      let pulledCount = 0;
+
+      for (const { fb, store } of collectionsToSync) {
+        try {
+          const colRef = collection(db, 'trips', this.tripId, fb);
+          const snap = await getDocs(colRef);
+          for (const docSnap of snap.docs) {
+            const serverData = docSnap.data();
+            const docId = docSnap.id;
+            const localData = await idbGet<any>(store, docId);
+
+            if (localData && localData.updatedAt && (localData.updatedAt > (serverData.updatedAt || 0))) {
+              // Local is newer: push to cloud
+              await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
+            } else {
+              // Cloud is newer or same: store locally
+              await idbPut(store, serverData);
+              pulledCount++;
+            }
+          }
+        } catch (colErr) {
+          console.warn(`[SyncService] Errore sync collection ${fb}:`, colErr);
+        }
+      }
+
+      // Se il device ha dati locali non presenti nel cloud, esegui push
+      await this.syncAllLocalToCloud();
+
+      if (pulledCount > 0) {
+        window.dispatchEvent(new Event('roadbook_cloud_synced'));
+      }
+      console.log(`[SyncService] Sync bidirezionale completato (pull: ${pulledCount})`);
+    } catch (err) {
+      console.warn('[SyncService] Sync bidirezionale iniziale fallito (offline):', err);
+    }
   }
 
   public async syncAllLocalToCloud(): Promise<void> {

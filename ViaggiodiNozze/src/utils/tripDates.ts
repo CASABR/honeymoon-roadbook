@@ -81,20 +81,11 @@ export function generateTripDays(startDateStr?: string, endDateStr?: string): Tr
  * Se nessuna data è inferiore al 29 Novembre 2026, usa '2026-11-29' come default.
  */
 export function calculateEarliestTripDate(dates: (string | undefined | null)[]): string {
-  // Se ci sono date salvate (es. 28 Novembre 2026 o anteriori), individua la minima assoluta
+  const config = getTripConfig();
+  const defaultStart = config?.startDate || DEFAULT_TRIP_START_DATE;
   const validDates = dates.filter((d): d is string => Boolean(d && /^\d{4}-\d{2}-\d{2}$/.test(d)));
-  if (validDates.length > 0) {
-    validDates.sort();
-    // Non retrocedere arbitrariamente ad anni passati, ma se la data è del viaggio (fine 2026 / inizio 2027) prendi la prima
-    const tripStartCandidate = validDates.find(d => d >= '2026-11-01') || validDates[0];
-    if (tripStartCandidate && tripStartCandidate <= '2026-11-29') {
-      return tripStartCandidate;
-    }
-  }
 
-  const DEFAULT_START = '2026-11-28';
-  let minDate = DEFAULT_START;
-
+  let minDate = defaultStart;
   for (const d of validDates) {
     if (d < minDate) {
       minDate = d;
@@ -106,17 +97,17 @@ export function calculateEarliestTripDate(dates: (string | undefined | null)[]):
 
 /**
  * Trova la data massima tra una serie di stringhe data (YYYY-MM-DD).
- * Se nessuna data è superiore al 10 Gennaio 2027, usa '2027-01-10' come default.
+ * Se nessuna data è superiore alla data di fine vacanza, usa quella come base.
  */
 export function calculateLatestTripDate(dates: (string | undefined | null)[]): string {
-  const DEFAULT_END = '2027-01-10';
-  let maxDate = DEFAULT_END;
+  const config = getTripConfig();
+  const defaultEnd = config?.endDate || DEFAULT_TRIP_END_DATE;
+  const validDates = dates.filter((d): d is string => Boolean(d && /^\d{4}-\d{2}-\d{2}$/.test(d)));
 
-  for (const d of dates) {
-    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
-      if (d > maxDate) {
-        maxDate = d;
-      }
+  let maxDate = defaultEnd;
+  for (const d of validDates) {
+    if (d > maxDate) {
+      maxDate = d;
     }
   }
 
@@ -131,9 +122,10 @@ export interface TripDateRange {
 
 /**
  * Calcola l'intervallo reale dinamico del viaggio interrogando direttamente IndexedDB.
- * Raccoglie tutte le date presenti in giorni, attività, tappe, trasporti, ristoranti, shopping e alloggi.
+ * Raccoglie tutte le date presenti in giorni, attività, tappe, trasporti, ristoranti, shopping e alloggi,
+ * estendendo il calendario automaticamente se ci sono eventi precedenti o successivi.
  */
-export async function getTripDateRange(): Promise<TripDateRange> {
+export async function getTripDateRange(extraDates: (string | undefined | null)[] = []): Promise<TripDateRange> {
   try {
     const { storageService } = await import('../storage/storageService');
     const [days, activities, transports, tappe, ristoranti, shopping, accs] = await Promise.all([
@@ -147,9 +139,11 @@ export async function getTripDateRange(): Promise<TripDateRange> {
     ]);
 
     const allDates: (string | undefined | null)[] = [
+      ...extraDates,
       ...days.map(d => d.date),
       ...activities.map(a => a.date || (a.dayId.startsWith('day_') ? a.dayId.replace('day_', '') : undefined)),
       ...transports.map(t => t.date),
+      ...transports.map(t => t.arrivalDate),
       ...transports.map(t => t.dropoffDate),
       ...tappe.map(t => t.data || t.date),
       ...ristoranti.map(r => r.data || r.date),
@@ -165,8 +159,8 @@ export async function getTripDateRange(): Promise<TripDateRange> {
     return { minTripDate, maxTripDate, tripDays };
   } catch (err) {
     console.error('[getTripDateRange] Errore calcolo range viaggio:', err);
-    const minTripDate = '2026-11-28';
-    const maxTripDate = '2027-01-10';
+    const minTripDate = calculateEarliestTripDate(extraDates);
+    const maxTripDate = calculateLatestTripDate(extraDates);
     return { minTripDate, maxTripDate, tripDays: generateTripDays(minTripDate, maxTripDate) };
   }
 }

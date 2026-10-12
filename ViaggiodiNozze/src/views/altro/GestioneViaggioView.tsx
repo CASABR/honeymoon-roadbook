@@ -1,12 +1,79 @@
 import { useState } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
-import { getTripConfig } from '../../utils/tripConfig';
+import { getTripConfig, saveTripConfig } from '../../utils/tripConfig';
 
 export default function GestioneViaggioView({ onBack }: { onBack: () => void }) {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
+
+  const initialConfig = getTripConfig();
+  const [title, setTitle] = useState(initialConfig?.title || 'Il nostro viaggio');
+  const [startDate, setStartDate] = useState(initialConfig?.startDate || '');
+  const [endDate, setEndDate] = useState(initialConfig?.endDate || '');
+  const [savingDates, setSavingDates] = useState(false);
+  const [datesSaved, setDatesSaved] = useState(false);
+
+  const handleSaveTripDates = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!startDate || !endDate) {
+      alert('Inserisci sia la data di inizio che quella di fine vacanza.');
+      return;
+    }
+    if (startDate > endDate) {
+      alert('La data di inizio non può essere successiva alla data di fine.');
+      return;
+    }
+    setSavingDates(true);
+    try {
+      const config = getTripConfig();
+      if (!config) return;
+
+      const startD = new Date(startDate);
+      const endD = new Date(endDate);
+      const diffTime = Math.abs(endD.getTime() - startD.getTime());
+      const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+      const updated = {
+        ...config,
+        title: title.trim() || config.title,
+        startDate,
+        endDate,
+        totalDays
+      };
+
+      saveTripConfig(updated);
+
+      if (db && config.id) {
+        try {
+          const tripRef = doc(db, 'trips', config.id);
+          await setDoc(tripRef, {
+            title: updated.title,
+            startDate: updated.startDate,
+            endDate: updated.endDate,
+            totalDays: updated.totalDays,
+            updatedAt: Date.now()
+          }, { merge: true });
+        } catch (fbErr) {
+          console.warn('[GestioneViaggio] Aggiornamento Firestore opzionale/offline:', fbErr);
+        }
+      }
+
+      window.dispatchEvent(new CustomEvent('trip_config_changed', { detail: { config: updated } }));
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+        detail: { entityType: 'settings', action: 'save', data: updated }
+      }));
+
+      setDatesSaved(true);
+      setTimeout(() => setDatesSaved(false), 3000);
+    } catch (err) {
+      console.error('Errore salvataggio date viaggio:', err);
+      alert('Si è verificato un errore durante il salvataggio.');
+    } finally {
+      setSavingDates(false);
+    }
+  };
 
   const generateInvite = async () => {
     try {
@@ -111,10 +178,72 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
         </button>
         <div>
           <h2 className="text-xl font-extrabold text-slate-900 tracking-tight">Gestione Viaggio</h2>
-          <p className="text-xs text-slate-500 font-medium">Invita collaboratori e gestisci gli accessi</p>
+          <p className="text-xs text-slate-500 font-medium">Modifica date e gestisci accessi collaboratori</p>
         </div>
       </header>
 
+      {/* Date e Info Viaggio */}
+      <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm">
+        <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl mb-4">
+          📅
+        </div>
+        <h3 className="font-extrabold text-slate-900 text-lg mb-1">Date e Durata Vacanza</h3>
+        <p className="text-xs text-slate-500 mb-5 leading-relaxed">
+          Modifica il periodo ufficiale del viaggio. Il calendario dell'app e la timeline si adatteranno automaticamente.
+        </p>
+
+        <form onSubmit={handleSaveTripDates} className="space-y-4">
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+              Titolo Viaggio
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Es. Il nostro viaggio di nozze"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                Data Inizio
+              </label>
+              <input
+                type="date"
+                required
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+              />
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                Data Fine
+              </label>
+              <input
+                type="date"
+                required
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={savingDates}
+            className="w-full py-3 rounded-xl font-bold bg-amber-500 hover:bg-amber-600 active:scale-[0.98] text-slate-950 shadow-md shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50 text-sm"
+          >
+            {savingDates ? 'Salvataggio in corso...' : datesSaved ? '✓ Date salvate con successo!' : 'Salva Date Viaggio'}
+          </button>
+        </form>
+      </div>
+
+      {/* Invito Co-pilota */}
       <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm">
         <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center text-2xl mb-4">
           👥

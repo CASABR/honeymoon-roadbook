@@ -22,12 +22,42 @@ export default function RouteBadge({
   className = '',
   onDistanceCalculated
 }: RouteBadgeProps) {
-  const [profile, setProfile] = useState<RouteProfile>(defaultProfile);
+  const [profile, setProfile] = useState<RouteProfile>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('houni_travel_mode');
+      if (saved === 'walking') return 'foot-walking';
+      if (saved === 'driving') return 'driving-car';
+    }
+    return defaultProfile;
+  });
   const [route, setRoute] = useState<RouteInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [manualDistance, setManualDistance] = useState('');
   const [manualDuration, setManualDuration] = useState('');
+
+  useEffect(() => {
+    const handleTravelModeChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<{ mode: 'driving' | 'walking' }>;
+      const mode = customEvent.detail?.mode;
+      if (mode === 'walking') {
+        setProfile('foot-walking');
+      } else if (mode === 'driving') {
+        setProfile('driving-car');
+      }
+    };
+    window.addEventListener('travel_mode_changed', handleTravelModeChanged);
+    return () => window.removeEventListener('travel_mode_changed', handleTravelModeChanged);
+  }, []);
+
+  const updateTravelMode = (newProfile: RouteProfile) => {
+    setProfile(newProfile);
+    const mode = newProfile === 'foot-walking' ? 'walking' : 'driving';
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('houni_travel_mode', mode);
+    }
+    window.dispatchEvent(new CustomEvent('travel_mode_changed', { detail: { mode } }));
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -170,7 +200,7 @@ export default function RouteBadge({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            if (profile !== 'driving-car') setProfile('driving-car');
+            if (profile !== 'driving-car') updateTravelMode('driving-car');
           }}
           className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
             isCar
@@ -186,7 +216,7 @@ export default function RouteBadge({
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            if (profile !== 'foot-walking') setProfile('foot-walking');
+            if (profile !== 'foot-walking') updateTravelMode('foot-walking');
           }}
           className={`flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold transition-all cursor-pointer ${
             !isCar

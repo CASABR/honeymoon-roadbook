@@ -64,6 +64,8 @@ export default defineConfig(({ command }) => ({
         globPatterns: ["**/*.{js,css,html,svg,png,jpg,jpeg,webp,ico}"],
         navigateFallbackDenylist: [/^\/__\/auth/],
         importScripts: ["push-sw.js"],
+        skipWaiting: true,
+        clientsClaim: true,
       },
       devOptions: {
         enabled: false,

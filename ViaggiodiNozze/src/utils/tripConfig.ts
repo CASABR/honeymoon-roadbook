@@ -22,9 +22,9 @@ export function normalizeTripConfig(config: TripConfig): TripConfig {
 
   if (normalized.id === MASTER_TRIP_ID) {
     normalized.title = normalized.title || 'Viaggio Originale';
-    normalized.startDate = MASTER_TRIP_START_DATE;
-    normalized.endDate = MASTER_TRIP_END_DATE;
-    normalized.totalDays = MASTER_TRIP_TOTAL_DAYS;
+    normalized.startDate = normalized.startDate || MASTER_TRIP_START_DATE;
+    normalized.endDate = normalized.endDate || MASTER_TRIP_END_DATE;
+    normalized.totalDays = normalized.totalDays || MASTER_TRIP_TOTAL_DAYS;
     return normalized;
   }
 
