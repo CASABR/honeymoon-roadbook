@@ -76,13 +76,24 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
     }
   };
 
-  const copyToClipboard = () => {
-    if (!inviteCode) return;
-    const url = `${window.location.origin}/?join=${inviteCode}`;
-    navigator.clipboard.writeText(url).then(() => {
+  const getInviteUrl = () => {
+    if (!inviteCode) return '';
+    const baseUrl = `${window.location.origin}${window.location.pathname}`;
+    return `${baseUrl}?role=copilota&invite=true&join=${encodeURIComponent(inviteCode)}`;
+  };
+
+  const copyToClipboard = async () => {
+    const url = getInviteUrl();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
+      setTimeout(() => setCopied(false), 2500);
+    } catch {
+      // Fallback per dispositivi con clipboard API limitata
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    }
   };
 
   return (
@@ -110,14 +121,14 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
         </div>
         <h3 className="font-extrabold text-slate-900 text-lg mb-2">Invita un Co-pilota</h3>
         <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-          Genera un link di invito per permettere a una persona di accedere e modificare questo viaggio. Il link sarà valido per 7 giorni.
+          Genera un link di invito per permettere a una persona di accedere e modificare questo viaggio come Co-pilota. Il link sarà valido per 7 giorni.
         </p>
 
         {!inviteCode ? (
           <button
             onClick={generateInvite}
             disabled={loading}
-            className="w-full py-3.5 rounded-xl font-bold bg-slate-900 text-white shadow-md active:scale-[0.98] transition-all disabled:opacity-50"
+            className="w-full py-3.5 rounded-xl font-bold bg-slate-900 text-white shadow-md active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
           >
             {loading ? 'Generazione...' : 'Genera Link Invito'}
           </button>
@@ -127,15 +138,31 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
               <span className="block text-xs text-slate-500 font-medium mb-1">Codice Invito</span>
               <span className="text-3xl font-black tracking-widest text-slate-900">{inviteCode}</span>
             </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Link d'Invito Completo
+              </label>
+              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={getInviteUrl()}
+                  onClick={(e) => e.currentTarget.select()}
+                  className="w-full bg-transparent px-1 text-xs text-slate-800 font-mono focus:outline-none select-all truncate"
+                />
+              </div>
+            </div>
             
             <button
+              type="button"
               onClick={copyToClipboard}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold bg-indigo-600 text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700 active:scale-[0.98] transition-all"
+              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold bg-indigo-600 text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700 active:scale-[0.98] transition-all cursor-pointer"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
               </svg>
-              {copied ? 'Copiato!' : 'Copia Link Condivisibile'}
+              {copied ? '✓ Link Copiato negli Appunti!' : 'Copia Link'}
             </button>
           </div>
         )}

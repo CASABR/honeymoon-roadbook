@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
-import { storageService } from '../../storage/storageService';
+import { storageService, notifyDataChanged } from '../../storage/storageService';
 import type { Alloggio } from '../../types';
 import { resolveMapUrl } from '../../utils/mapsHelper';
 
@@ -17,21 +17,31 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
   const copilotData = (accommodation as any).noteCopilota || (accommodation as any).notes || '';
   const hasCopilotNotes = Boolean(copilotData.trim());
   
+  const isSaldato = accommodation.paymentStatus === 'saldato' || accommodation.completed || Boolean(accommodation.depositPaid && parseFloat(accommodation.depositPaid.replace(',', '.')) >= parseFloat(String(accommodation.cost || '0').replace(',', '.')) && parseFloat(String(accommodation.cost || '0').replace(',', '.')) > 0);
+
   const handleTogglePayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      
-      const isSaldato = accommodation.completed;
-      const updated = { ...accommodation, completed: !isSaldato, status: isSaldato ? 'da_prenotare' : 'completato' } as any;
-      updated.acconto = isSaldato ? "0" : accommodation.cost;
-      updated.updatedAt = Date.now();
-      await storageService.saveAccommodation(updated);
+      const newStatus = isSaldato ? 'da_saldare' : 'saldato';
+      const updatedCost = accommodation.cost || '0.00';
+      const depositVal = newStatus === 'saldato' ? updatedCost : '0.00';
+      const updated: Alloggio = {
+        ...accommodation,
+        status: (newStatus === 'saldato' ? 'completato' : 'da_prenotare') as any,
+        paymentStatus: newStatus as any,
+        completed: newStatus === 'saldato',
+        depositPaid: depositVal,
+        acconto: depositVal,
+        updatedAt: Date.now()
+      };
+      await storageService.saveAlloggio(updated);
+      notifyDataChanged('alloggi', 'save', updated);
       if (typeof onUpdate === 'function') onUpdate(updated);
-    
-      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update' }}));
-    } catch(e) { console.error(e); }
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'alloggi', data: updated }}));
+    } catch (err) {
+      console.error('Errore durante il cambio stato pagamento alloggio:', err);
+    }
   };
-  
 
   const [copied, setCopied] = useState(false);
 
@@ -76,34 +86,37 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
           )}
         </div>
         <div className="flex items-center gap-2">
-          {true && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-                className={`flex items-center justify-center w-7 h-7 rounded-full border transition-colors shadow-sm ${
-                  hasCopilotNotes
-                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400' 
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500 opacity-60 hover:opacity-100'
-                }`}
-                title="Apri note Copilota"
-              >
-                <span className="text-sm">🧭</span>
-              </button>
-            )}
-          <span className={`inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-            accommodation.completed
-              ? 'bg-[#E6F4EA] text-[#39734A] dark:bg-[#143521] dark:text-[#4ADE80] border-transparent'
-              : 'bg-[#FFFDF2] text-slate-900 border-[#FFC857]/40 dark:bg-[#382C0E] dark:text-[#FDE047] dark:border-[#785912]'
-          }`}>
-            {accommodation.completed ? '✓ Confermato' : 'Da Saldare'}
-          </span>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
+            className={`flex items-center justify-center w-7 h-7 rounded-full border transition-colors shadow-sm ${
+              hasCopilotNotes
+                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400' 
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500 opacity-60 hover:opacity-100'
+            }`}
+            title="Apri note Copilota"
+          >
+            <span className="text-sm">🧭</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleTogglePayment}
+            className={`inline-flex items-center text-[10px] font-bold px-2.5 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
+              isSaldato
+                ? 'bg-[#E6F4EA] text-[#39734A] border-emerald-300 dark:bg-[#143521] dark:text-[#4ADE80] dark:border-emerald-800'
+                : 'bg-[#FFFDF2] text-amber-900 border-[#FFC857] dark:bg-[#382C0E] dark:text-[#FDE047] dark:border-[#785912]'
+            }`}
+            title="Clicca per invertire stato: Saldato / Da saldare"
+          >
+            {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
+          </button>
         </div>
       </div>
 
       {/* BODY */}
       <div>
         <div className="flex items-start gap-2 flex-wrap">
-          <h3 className={`text-base font-extrabold text-slate-900 leading-snug ${accommodation.completed ? 'opacity-90' : ''}`}>
+          <h3 className={`text-base font-extrabold text-slate-900 leading-snug ${isSaldato ? 'opacity-90' : ''}`}>
             {accommodation.name}
           </h3>
         </div>
@@ -111,34 +124,43 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
           <span>📍</span>
           <span className="truncate">{accommodation.address || accommodation.location || 'Indirizzo registrato'}</span>
         </p>
+
+        {accommodation.cancellazioneGratuitaEntro && (
+          <div className="flex items-center gap-1.5 text-[11px] font-medium text-emerald-800 dark:text-emerald-300 bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200/90 dark:border-emerald-800/60 px-2.5 py-1 rounded-lg w-fit mt-2">
+            <span>🛡️</span>
+            <span>Cancellazione gratuita fino al {accommodation.cancellazioneGratuitaEntro}</span>
+          </div>
+        )}
       </div>
 
       {/* BOTTOM */}
       <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-                {(!accommodation.cost || isNaN(parseFloat(String(accommodation.cost).replace(/[^0-9,.-]/g, '').replace(',', '.'))) || parseFloat(String(accommodation.cost).replace(/[^0-9,.-]/g, '').replace(',', '.')) === 0) ? (
-                  <span className="text-sm font-semibold text-gray-800 dark:text-slate-200">
-                    Gratuito
-                  </span>
-                ) : (
-                  <span className="text-sm font-semibold text-gray-800 bg-slate-50 dark:bg-slate-800 dark:text-slate-200 px-2 py-1 rounded-md">
-                    {String(accommodation.cost)}
-                  </span>
-                )}
-                
-                {accommodation.cost && String(accommodation.cost) !== '0' && (
-                  <span 
-                    onClick={handleTogglePayment}
-                    className={`cursor-pointer hover:opacity-80 active:scale-95 transition-all text-[10px] font-bold px-2 py-0.5 rounded-full shadow-xs hover:shadow-sm ${
-                      (accommodation.completed)
-                        ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400" 
-                        : "bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-400"
-                    }`}
-                  >
-                    {(accommodation.completed) ? '✓ Saldato' : '⏳ Da saldare'}
-                  </span>
-                )}
-              </div>
+          {(!accommodation.cost || isNaN(parseFloat(String(accommodation.cost).replace(/[^0-9,.-]/g, '').replace(',', '.'))) || parseFloat(String(accommodation.cost).replace(/[^0-9,.-]/g, '').replace(',', '.')) === 0) ? (
+            <span className="text-sm font-semibold text-gray-800 dark:text-slate-200">
+              Gratuito
+            </span>
+          ) : (
+            <span className="text-sm font-semibold text-gray-800 bg-slate-50 dark:bg-slate-800 dark:text-slate-200 px-2 py-1 rounded-md">
+              {String(accommodation.cost)}
+            </span>
+          )}
+          
+          {accommodation.cost && String(accommodation.cost) !== '0' && (
+            <button 
+              type="button"
+              onClick={handleTogglePayment}
+              className={`cursor-pointer hover:scale-105 active:scale-95 transition-all text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-2xs ${
+                isSaldato
+                  ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800" 
+                  : "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-700"
+              }`}
+              title="Clicca per invertire stato: Saldato / Da saldare"
+            >
+              {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
+            </button>
+          )}
+        </div>
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
           {accommodation.phone && (
@@ -174,7 +196,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
           )}
         </div>
       </div>
-    
+
       <UniversalCopilotaModal
         isOpen={isCopilotOpen}
         onClose={() => setIsCopilotOpen(false)}
@@ -184,13 +206,13 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
         onSave={async (notes) => {
           try {
             const updated = { ...accommodation, noteCopilota: notes.trim(), updatedAt: Date.now() } as any;
-            
             await storageService.saveAccommodation(updated);
             if (typeof onUpdate === 'function') onUpdate(updated);
-      
-            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update' }}));
+            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'alloggi', data: updated }}));
             setIsCopilotOpen(false);
-          } catch(e) { console.error(e); }
+          } catch (e) {
+            console.error(e);
+          }
         }}
       />
     </div>

@@ -22,8 +22,9 @@ export async function enrichRistorante(nome: string, indirizzo: string): Promise
   Se non trovi dati certi, restituisci null per quei campi. NON includere markdown come \`\`\`json.`;
 
   try {
-    const apiKey = resolveGeminiApiKey();
-    if (!apiKey) return {};
+    const rawApiKey = resolveGeminiApiKey();
+    if (!rawApiKey) return {};
+    const apiKey = rawApiKey.trim();
     
     const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
     
@@ -42,14 +43,20 @@ export async function enrichRistorante(nome: string, indirizzo: string): Promise
     
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
+      },
       body: JSON.stringify(requestBody),
       signal: controller.signal
     });
     
     clearTimeout(timeoutId);
     
-    if (!response.ok) return {};
+    if (!response.ok) {
+      console.warn(`[EnrichmentService] API rejected HTTP ${response.status}`);
+      return {};
+    }
     
     const responseJson = await response.json();
     const text = responseJson?.candidates?.[0]?.content?.parts?.[0]?.text;

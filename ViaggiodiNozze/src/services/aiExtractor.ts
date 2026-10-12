@@ -326,11 +326,11 @@ export function stripHtml(html: string): string {
 const apiCache = new Map<string, { data: any, ts: number }>();
 const CACHE_TTL = 10 * 60 * 1000;
 
-/** Modello principale + fallback (i modelli gemini-1.5-* sono stati ritirati e restituiscono 404). */
-export const GEMINI_MODEL = 'gemini-2.5-flash';
-const GEMINI_FALLBACK_MODEL = 'gemini-2.0-flash';
+/** Modello principale + fallback */
+export const GEMINI_MODEL = 'gemini-1.5-flash';
+const GEMINI_FALLBACK_MODEL = 'gemini-2.5-flash';
 
-/** Risolve la chiave API: .env → localStorage → default personale. */
+/** Risolve la chiave API: .env → localStorage → default personale con sanitizzazione rigorosa. */
 export function resolveGeminiApiKey(): string {
   let apiKey: string | null | undefined = import.meta.env.VITE_GEMINI_API_KEY;
   if (!apiKey || apiKey.includes('la_tua_chiave')) {
@@ -339,14 +339,15 @@ export function resolveGeminiApiKey(): string {
   if (!apiKey || apiKey.includes('la_tua_chiave')) {
     apiKey = 'AQ.Ab8RN6Kxc93HHq3cDGA0Sv3XFgczoWKPiXUip9tgF88fixCHg';
   }
-  return apiKey.trim();
+  return (apiKey || '').trim().replace(/^["']|["']$/g, '').trim();
 }
 
 /** Chiamata a Gemini tramite REST API diretta. Restituisce il testo grezzo della risposta. */
 async function callGemini(requestBody: any, model: string = GEMINI_MODEL): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   try {
-    const apiKey = resolveGeminiApiKey();
-    if (!apiKey) return { ok: false, error: 'Chiave API Gemini mancante' };
+    const rawApiKey = resolveGeminiApiKey();
+    if (!rawApiKey) return { ok: false, error: 'Chiave API Gemini mancante' };
+    const apiKey = rawApiKey.trim();
 
     // Su gemini-2.5 il "thinking" consuma i maxOutputTokens: lo disattiviamo per risposte rapide e complete.
     const body = model.startsWith('gemini-2.5')
@@ -357,21 +358,41 @@ async function callGemini(requestBody: any, model: string = GEMINI_MODEL): Promi
 
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
+      },
       body: JSON.stringify(body)
     });
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error(`[Gemini] ${model} → HTTP ${response.status}:`, errText);
+      let parsedErr: any = null;
+      try {
+        parsedErr = JSON.parse(errText);
+      } catch {
+        parsedErr = null;
+      }
+      
+      const gError = parsedErr?.error || parsedErr;
+      console.error(`[Gemini API Error] HTTP ${response.status} (${model}):`, {
+        status: response.status,
+        statusText: response.statusText,
+        message: gError?.message || errText,
+        errorStatus: gError?.status,
+        code: gError?.code,
+        details: gError?.details || gError
+      });
+
       // Modello non disponibile: riprova una volta col modello di fallback
       if (response.status === 404 && model !== GEMINI_FALLBACK_MODEL) {
+        console.warn(`[Gemini] Modello ${model} non trovato (404), ritento con ${GEMINI_FALLBACK_MODEL}...`);
         return callGemini(requestBody, GEMINI_FALLBACK_MODEL);
       }
       if (response.status === 400 || response.status === 401 || response.status === 403) {
-        return { ok: false, error: `Errore API Gemini (${response.status}): chiave API non valida o non autorizzata.` };
+        return { ok: false, error: `Errore API Gemini (${response.status}): ${gError?.message || 'chiave API non valida o non autorizzata.'}` };
       }
-      return { ok: false, error: `Errore API Gemini (${response.status})` };
+      return { ok: false, error: `Errore API Gemini (${response.status}): ${gError?.message || errText}` };
     }
 
     const responseJson = await response.json();
