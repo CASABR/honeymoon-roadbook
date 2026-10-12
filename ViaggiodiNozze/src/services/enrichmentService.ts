@@ -1,3 +1,5 @@
+import { GEMINI_MODEL, resolveGeminiApiKey } from './aiExtractor';
+
 const cache = new Map<string, { data: any, ts: number }>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minuti
 
@@ -20,17 +22,18 @@ export async function enrichRistorante(nome: string, indirizzo: string): Promise
   Se non trovi dati certi, restituisci null per quei campi. NON includere markdown come \`\`\`json.`;
 
   try {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey || apiKey.includes('la_tua_chiave')) return {};
+    const apiKey = resolveGeminiApiKey();
+    if (!apiKey) return {};
     
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-8b:generateContent?key=${apiKey}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
     
     const requestBody = {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
         temperature: 0.1,
         maxOutputTokens: 512,
-        responseMimeType: 'application/json'
+        responseMimeType: 'application/json',
+        thinkingConfig: { thinkingBudget: 0 }
       }
     };
     
