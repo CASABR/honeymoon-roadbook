@@ -16,6 +16,9 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="color-scheme" content="light" />
   <link rel="icon" type="image/svg+xml" href="/honeymoon-roadbook/favicon.svg" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Hounigo — Il tuo viaggio di nozze</title>
 
   <!-- CSP Meta Tag -->
@@ -45,18 +48,20 @@
     // Prevent Flash Of Unstyled Content for Dark Mode
     (function () {
       try {
-        var saved = localStorage.getItem('theme');
+        var saved = localStorage.getItem('houni_theme') || localStorage.getItem('theme');
         var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         if (saved === 'dark' || (!saved && prefersDark)) {
           document.documentElement.classList.add('dark');
+        } else {
+          document.documentElement.classList.remove('dark');
         }
       } catch (e) { }
     })();
   </script>
-  <script type="module" crossorigin src="/honeymoon-roadbook/assets/index-BEhoZWs3.js"></script>
+  <script type="module" crossorigin src="/honeymoon-roadbook/assets/index-DtVFeK23.js"></script>
   <link rel="modulepreload" crossorigin href="/honeymoon-roadbook/assets/index.esm-DG5lS29R.js">
   <link rel="modulepreload" crossorigin href="/honeymoon-roadbook/assets/index.esm-q1wgthbG.js">
-  <link rel="stylesheet" crossorigin href="/honeymoon-roadbook/assets/index-B4uDc15A.css">
+  <link rel="stylesheet" crossorigin href="/honeymoon-roadbook/assets/index-ChX4XxDG.css">
 <link rel="manifest" href="/honeymoon-roadbook/manifest.webmanifest"></head>
 
 <body>
