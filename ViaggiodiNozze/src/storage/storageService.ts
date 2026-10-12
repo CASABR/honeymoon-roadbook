@@ -209,84 +209,12 @@ class StorageService {
       });
     }
 
-    const defaultTappe: Tappa[] = [
-      {
-        id: 'tappa_01_auckland',
-        titolo: 'Auckland CBD & Baia',
-        data: '2026-12-01',
-        date: '2026-12-01',
-        dayId: 'day_2026-12-01',
-        nota: 'Arrivo ad Auckland, transfer alloggio e prima passeggiata sul lungomare.',
-        coordinate: { lat: -36.8485, lng: 174.7633 },
-        createdAt: now,
-        updatedAt: now
-      },
-      {
-        id: 'tappa_02_rotorua',
-        titolo: 'Rotorua Terme & Geyser',
-        data: '2026-12-03',
-        date: '2026-12-03',
-        dayId: 'day_2026-12-03',
-        nota: 'Parco geotermico Te Puia e cultura Maori.',
-        coordinate: { lat: -38.1368, lng: 176.2497 },
-        createdAt: now,
-        updatedAt: now
-      },
-      {
-        id: 'tappa_03_tekapo',
-        titolo: 'Lago Tekapo & Good Shepherd',
-        data: '2026-12-08',
-        date: '2026-12-08',
-        dayId: 'day_2026-12-08',
-        nota: 'Chiesetta del Buon Pastore e osservazione stelle Mt John.',
-        coordinate: { lat: -44.0047, lng: 170.4771 },
-        createdAt: now,
-        updatedAt: now
-      },
-      {
-        id: 'tappa_04_queenstown',
-        titolo: 'Queenstown & Fiordland',
-        data: '2026-12-11',
-        date: '2026-12-11',
-        dayId: 'day_2026-12-11',
-        nota: 'Capitale dell\'avventura e partenza per Milford Sound.',
-        coordinate: { lat: -45.0312, lng: 168.6626 },
-        createdAt: now,
-        updatedAt: now
-      }
-    ];
-    for (const tappa of defaultTappe) {
-      await idbPut(STORES.TAPPE, tappa);
-    }
-
-    await idbPut(STORES.ALLOGGI, {
-      id: 'acc_01_auckland',
-      name: 'Hotel Noa Auckland',
-      location: 'Queen Street, Auckland CBD',
-      address: 'Queen Street 120, Auckland CBD, Nuova Zelanda',
-      checkIn: '2026-12-01',
-      checkOut: '2026-12-02',
-      checkInTime: '14:00',
-      checkOutTime: '10:00',
-      status: 'prenotato',
-      coordinate: { lat: -36.8485, lng: 174.7633 },
-      notes: 'Pernottamento serale pre-ritiro auto Snap Rentals',
-      copilota: true,
-      createdAt: now,
-      updatedAt: now
-    } satisfies Alloggio);
-
-    await idbPut(STORES.SPESE, {
-      id: 'spesa_01_snap',
-      title: 'Acconto Snap Rentals Auto NZ',
-      category: 'trasporti',
-      amount: 282,
-      status: 'saldato',
-      date: '2026-11-20',
-      notes: 'Acconto 518 NZD gia saldato',
-      createdAt: now,
-      updatedAt: now
-    } satisfies Spesa);
+    // Elimina eventuali chiavi mock legacy da sessioni precedenti
+    await idbDelete(STORES.TAPPE, 'tappa_01_auckland').catch(() => {});
+    await idbDelete(STORES.TAPPE, 'tappa_02_rotorua').catch(() => {});
+    await idbDelete(STORES.TAPPE, 'tappa_03_tekapo').catch(() => {});
+    await idbDelete(STORES.TAPPE, 'tappa_04_queenstown').catch(() => {});
+    await idbDelete(STORES.ALLOGGI, 'acc_01_auckland').catch(() => {});
 
     await this.seedTransports(true);
     await this.ensureRefuels();
@@ -303,7 +231,14 @@ class StorageService {
     notifyDataChanged('all', 'save');
   }
 
-    async ensureRefuels(): Promise<void> {
+  async ensureRefuels(): Promise<void> {
+    // Rimozione proattiva di vecchi mockup/placeholder
+    await idbDelete(STORES.ALLOGGI, 'acc_01_auckland').catch(() => {});
+    await idbDelete(STORES.TAPPE, 'tappa_01_auckland').catch(() => {});
+    await idbDelete(STORES.TAPPE, 'tappa_02_rotorua').catch(() => {});
+    await idbDelete(STORES.TAPPE, 'tappa_03_tekapo').catch(() => {});
+    await idbDelete(STORES.TAPPE, 'tappa_04_queenstown').catch(() => {});
+
     const existingShopping = await idbGetAll<import('../types').Shopping>(STORES.SHOPPING);
     const existingAlloggi = await idbGetAll<import('../types').Alloggio>(STORES.ALLOGGI);
     const now = Date.now();
@@ -628,6 +563,10 @@ class StorageService {
     }
   }
 
+  async getAlloggi(): Promise<Alloggio[]> {
+    return this.getAccommodations();
+  }
+
   async saveAccommodation(acc: Alloggio): Promise<void> {
     const now = Date.now();
     const item: Alloggio = {
@@ -639,9 +578,17 @@ class StorageService {
     notifyDataChanged('alloggi', 'save', item);
   }
 
+  async saveAlloggio(acc: Alloggio): Promise<void> {
+    return this.saveAccommodation(acc);
+  }
+
   async deleteAccommodation(id: string): Promise<void> {
     await idbDelete(STORES.ALLOGGI, id);
     notifyDataChanged('alloggi', 'delete', { id });
+  }
+
+  async deleteAlloggio(id: string): Promise<void> {
+    return this.deleteAccommodation(id);
   }
 
   // --- TRASPORTI ---

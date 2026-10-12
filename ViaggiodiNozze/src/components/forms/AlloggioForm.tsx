@@ -25,6 +25,7 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
   const [cost, setCost] = useState('');
   const [acconto, setAcconto] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'saldato' | 'da_saldare'>('saldato');
+  const [cancellazioneGratuitaEntro, setCancellazioneGratuitaEntro] = useState('');
   const [notes, setNotes] = useState('');
   
   const [error, setError] = useState('');
@@ -47,6 +48,7 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
       setCost(initialData.cost || '');
       setAcconto(initialData.acconto || '');
       setPaymentStatus(initialData.paymentStatus || 'saldato');
+      setCancellazioneGratuitaEntro(initialData.cancellazioneGratuitaEntro || '');
       setNotes(initialData.notes || '');
     } else {
       const today = new Date();
@@ -72,6 +74,7 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
       setCost('');
       setAcconto('');
       setPaymentStatus('da_saldare');
+      setCancellazioneGratuitaEntro('');
       setNotes('');
     }
   }, [initialData]);
@@ -124,6 +127,7 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
         status: (paymentStatus === 'saldato' ? 'completato' : 'prenotato') as any,
       acconto: acconto.trim() || undefined,
       paymentStatus,
+      cancellazioneGratuitaEntro: cancellazioneGratuitaEntro.trim() || undefined,
       notes: notes.trim() || undefined,
       coordinate: finalCoord
     });
@@ -339,6 +343,19 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
             />
           </div>
         </div>
+      </div>
+
+      <div>
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+          <span>🛡️</span> Cancellazione Gratuita Entro Il
+        </label>
+        <input
+          type="text"
+          placeholder="es. 11 Dicembre 2026 oppure data ISO"
+          value={cancellazioneGratuitaEntro}
+          onChange={(e) => setCancellazioneGratuitaEntro(e.target.value)}
+          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] placeholder:text-slate-400"
+        />
       </div>
 
       <div>

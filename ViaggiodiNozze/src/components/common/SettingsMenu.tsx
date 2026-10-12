@@ -17,8 +17,32 @@ export default function SettingsMenu() {
   const [toast, setToast] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null);
   const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
   const [showRoleModal, setShowRoleModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
   const [tripId, setTripId] = useState<string>('');
   const fileRef = useRef<HTMLInputElement>(null);
+
+  const generateCopilotInviteUrl = (): string => {
+    if (typeof window === 'undefined') return '';
+    const baseUrl = `${window.location.origin}${window.location.pathname}`;
+    const config = getTripConfig();
+    const activeTrip = config?.id || tripId;
+    const joinQuery = activeTrip ? `&join=${encodeURIComponent(activeTrip)}` : '';
+    return `${baseUrl}?role=copilota&invite=true${joinQuery}`;
+  };
+
+  const handleCopyInviteLink = async () => {
+    const url = generateCopilotInviteUrl();
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedInvite(true);
+      showToast('ok', "Link d'invito copiato negli appunti!");
+      setTimeout(() => setCopiedInvite(false), 2500);
+    } catch (err) {
+      console.warn('Clipboard writeText non disponibile:', err);
+      showToast('ok', "Seleziona e copia il link nel riquadro");
+    }
+  };
   
   const { isSupported, permission, subscription, subscribeToPush, unsubscribeFromPush, isSubscribing } = usePushNotifications();
 
@@ -165,6 +189,25 @@ export default function SettingsMenu() {
                 type="button"
                 onClick={() => {
                   setOpen(false);
+                  setShowInviteModal(true);
+                  handleCopyInviteLink();
+                }}
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">🤝</span>
+                  <div className="text-left">
+                    <span className="block text-xs font-bold text-slate-800">Invita Co-pilota</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">Copia link d'invito diretto</span>
+                  </div>
+                </div>
+                <span className="text-slate-400 text-xs">›</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
                   window.dispatchEvent(new CustomEvent('navigate_to', { detail: { view: 'altro', subView: 'gestione' } }));
                 }}
                 className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100"
@@ -173,7 +216,7 @@ export default function SettingsMenu() {
                   <span className="text-base">👥</span>
                   <div className="text-left">
                     <span className="block text-xs font-bold text-slate-800">Gestione Viaggio</span>
-                    <span className="block text-[10px] text-slate-400 font-normal">Invita un co-pilota</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">Gestisci accessi e collaboratori</span>
                   </div>
                 </div>
                 <span className="text-slate-400 text-xs">›</span>
@@ -394,6 +437,84 @@ export default function SettingsMenu() {
         currentRole={deviceRole}
         onSelectRole={handleSelectRole}
       />
+
+      {/* Modal Invita Copilota */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="fixed inset-0" onClick={() => setShowInviteModal(false)} />
+          <div className="relative bg-white dark:bg-slate-900 rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 z-10 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
+                  🤝
+                </span>
+                <div>
+                  <h3 className="font-extrabold text-slate-800 dark:text-white text-sm">Invita Co-pilota</h3>
+                  <p className="text-[11px] text-slate-400">Link di accesso con ruolo Co-pilota</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInviteModal(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 hover:text-slate-700 dark:hover:text-slate-300 flex items-center justify-center text-xs cursor-pointer transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+              Invia questo link al tuo co-pilota. Aprendolo su qualsiasi smartphone o tablet, accederà direttamente al viaggio con il ruolo Co-pilota già configurato.
+            </p>
+
+            <div className="space-y-1.5">
+              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                Link d'invito
+              </label>
+              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={generateCopilotInviteUrl()}
+                  onClick={(e) => e.currentTarget.select()}
+                  className="w-full bg-transparent px-1 text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none select-all truncate"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleCopyInviteLink}
+                className="flex-1 py-3 px-4 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>{copiedInvite ? '✓' : '📋'}</span>
+                <span>{copiedInvite ? "Copiato negli appunti!" : "Copia Link"}</span>
+              </button>
+
+              {typeof navigator !== 'undefined' && 'share' in navigator && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try {
+                      await navigator.share({
+                        title: 'Hounigo - Invito Co-pilota',
+                        text: 'Unisciti al Roadbook di Nozze come Co-pilota!',
+                        url: generateCopilotInviteUrl()
+                      });
+                    } catch (e) {
+                      // Annullato
+                    }
+                  }}
+                  className="py-3 px-3 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center justify-center cursor-pointer"
+                  title="Condividi tramite app"
+                >
+                  📤
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Toast Feedback */}
       {toast && (

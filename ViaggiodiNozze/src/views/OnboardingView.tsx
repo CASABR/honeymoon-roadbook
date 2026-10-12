@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { saveTripConfig, type TripConfig } from '../utils/tripConfig';
 import { idbClearAll } from '../storage/indexedDB';
+import { storageService } from '../storage/storageService';
 import { auth } from '../firebase';
 import { signInAnonymously } from 'firebase/auth';
 import { withTimeout, rejectAfter } from '../utils/withTimeout';
@@ -51,9 +52,16 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const joinCode = urlParams.get('join');
+    const roleParam = urlParams.get('role');
+    if (roleParam === 'copilota' || roleParam === 'guida' || roleParam === 'viewer') {
+      setTempRole(roleParam as any);
+      storageService.setDeviceRole(roleParam as any);
+    }
     if (joinCode) {
       setInviteCode(joinCode.toUpperCase());
       setMode('join');
+    }
+    if (joinCode || roleParam || urlParams.get('invite')) {
       // Clean up the URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }

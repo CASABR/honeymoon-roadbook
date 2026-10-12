@@ -106,6 +106,8 @@ export interface Alloggio {
   checkOutTime?: string; // HH:mm
   address: string;
   cost?: string; // Costo totale in €
+  depositPaid?: string; // Somma versata / saldo pagato
+  cancellazioneGratuitaEntro?: string; // es. '11 Dicembre 2026' o data ISO
   paymentStatus?: 'saldato' | 'da_saldare'; // Stato pagamento
   bookingUrl?: string;
   bookingCode?: string;
