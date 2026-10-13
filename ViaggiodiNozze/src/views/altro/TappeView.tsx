@@ -185,13 +185,13 @@ export default function TappeView({ onBack }: TappeViewProps) {
         </div>
       ) : filteredTappe.length === 0 ? (
         selectedDate !== 'tutte' ? (
-          <div className="p-8 rounded-3xl bg-white border border-slate-200/80 text-center shadow-sm flex flex-col items-center justify-center gap-3">
+          <div className="p-8 rounded-3xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 text-center shadow-sm flex flex-col items-center justify-center gap-3">
             <span className="text-3xl">📍</span>
             <div>
-              <h3 className="text-sm font-bold text-slate-900">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
                 Nessun elemento programmato per questo giorno
               </h3>
-              <p className="text-xs text-slate-500 mt-1 max-w-xs">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs">
                 Nessuna tappa di passaggio registrata per la data {selectedDate}.
               </p>
             </div>

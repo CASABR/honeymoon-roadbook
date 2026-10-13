@@ -139,8 +139,8 @@ export default function SettingsMenu() {
         {open && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <div className="absolute right-0 top-11 z-50 w-64 rounded-2xl bg-white border border-slate-200 shadow-xl overflow-hidden">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-b border-slate-100">
+            <div className="absolute right-0 top-11 z-50 w-64 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden">
+              <p className="text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-700">
                 Dispositivo
               </p>
 
@@ -150,14 +150,14 @@ export default function SettingsMenu() {
                   setOpen(false);
                   setShowRoleModal(true);
                 }}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">
                     {deviceRole === 'guida' ? '🟢' : deviceRole === 'copilota' ? '🟡' : '💻'}
                   </span>
                   <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800">Ruolo Dispositivo</span>
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Ruolo Dispositivo</span>
                     <span className="block text-[10px] text-slate-400 font-normal">
                       {deviceRole === 'guida' ? 'Telefono Guida (GPS)' : deviceRole === 'copilota' ? 'Telefono Co-pilota' : 'Computer / Viewer'}
                     </span>
@@ -167,10 +167,10 @@ export default function SettingsMenu() {
               </button>
 
               {tripId && (
-                <div className="w-full flex items-center justify-between px-4 py-3 text-xs border-t border-slate-100 bg-slate-50/50">
+                <div className="w-full flex items-center justify-between px-4 py-3 text-xs border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40">
                   <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800">Codice Viaggio</span>
-                    <span className="block text-[10px] text-slate-500 font-mono select-all">{tripId}</span>
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Codice Viaggio</span>
+                    <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-mono select-all">{tripId}</span>
                   </div>
                   <button
                     type="button"
@@ -178,7 +178,7 @@ export default function SettingsMenu() {
                       navigator.clipboard.writeText(tripId);
                       showToast('ok', 'Codice copiato negli appunti!');
                     }}
-                    className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm text-slate-600 hover:text-blue-600 transition-colors cursor-pointer"
+                    className="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
                   >
                     📋 Copia
                   </button>
@@ -192,12 +192,12 @@ export default function SettingsMenu() {
                   setShowInviteModal(true);
                   handleCopyInviteLink();
                 }}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100"
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
               >
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">🤝</span>
                   <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800">Invita Co-pilota</span>
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Invita Co-pilota</span>
                     <span className="block text-[10px] text-slate-400 font-normal">Copia link d'invito diretto</span>
                   </div>
                 </div>
@@ -210,12 +210,12 @@ export default function SettingsMenu() {
                   setOpen(false);
                   window.dispatchEvent(new CustomEvent('navigate_to', { detail: { view: 'altro', subView: 'gestione' } }));
                 }}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100"
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
               >
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">👥</span>
                   <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800">Gestione Viaggio</span>
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Gestione Viaggio</span>
                     <span className="block text-[10px] text-slate-400 font-normal">Gestisci accessi e collaboratori</span>
                   </div>
                 </div>
@@ -233,7 +233,7 @@ export default function SettingsMenu() {
                     window.location.reload();
                   }
                 }}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold text-amber-600 hover:bg-amber-50 transition-colors border-t border-slate-100 cursor-pointer"
+                className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors border-t border-slate-100 dark:border-slate-700 cursor-pointer"
               >
                 <div className="flex items-center gap-2">
                   <span>🔒</span>
@@ -255,12 +255,12 @@ export default function SettingsMenu() {
                     window.location.reload();
                   }
                 }}
-                className="w-full flex items-center justify-center px-4 py-2 text-xs font-bold text-rose-500 hover:bg-rose-50 transition-colors border-t border-slate-100 cursor-pointer"
+                className="w-full flex items-center justify-center px-4 py-2 text-xs font-bold text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors border-t border-slate-100 dark:border-slate-700 cursor-pointer"
               >
                 Esci / Cambia Viaggio
               </button>
 
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-slate-100 dark:border-slate-700">
                 Houni AI & Gmail
               </p>
 
@@ -270,12 +270,12 @@ export default function SettingsMenu() {
                   setOpen(false);
                   window.dispatchEvent(new CustomEvent('open_smart_insert', { detail: { mode: 'gmail' } }));
                 }}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer"
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
               >
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">📧</span>
                   <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800">Cerca in Gmail</span>
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Cerca in Gmail</span>
                     <span className="block text-[10px] text-slate-400 font-normal">Importa email di prenotazione</span>
                   </div>
                 </div>
@@ -287,12 +287,12 @@ export default function SettingsMenu() {
                   setOpen(false);
                   window.dispatchEvent(new CustomEvent('open_smart_insert', { detail: { mode: 'copilot' } }));
                 }}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100"
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
               >
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">🤖</span>
                   <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800">Copilota AI</span>
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Copilota AI</span>
                     <span className="block text-[10px] text-slate-400 font-normal">Chiedi al Concierge intelligente</span>
                   </div>
                 </div>
@@ -309,20 +309,19 @@ export default function SettingsMenu() {
                   }
                   setOpen(false);
                 }}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100"
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
               >
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">🔑</span>
                   <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800">Chiave API Gemini</span>
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Chiave API Gemini</span>
                     <span className="block text-[10px] text-slate-400 font-normal">Configura l'accesso all'IA</span>
                   </div>
                 </div>
                 <span className="text-slate-400 text-xs">›</span>
               </button>
 
-
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-b border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-b border-slate-100 dark:border-slate-700">
                 Backup & Ripristino
               </p>
 
@@ -330,7 +329,7 @@ export default function SettingsMenu() {
                 type="button"
                 disabled={exporting}
                 onClick={handleExport}
-                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer disabled:opacity-50"
               >
                 <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -342,7 +341,7 @@ export default function SettingsMenu() {
                 type="button"
                 disabled={importing}
                 onClick={() => fileRef.current?.click()}
-                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50 border-t border-slate-100"
+                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer disabled:opacity-50 border-t border-slate-100 dark:border-slate-700"
               >
                 <svg className="w-4 h-4 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
@@ -350,7 +349,7 @@ export default function SettingsMenu() {
                 {importing ? 'Importazione...' : 'Importa backup JSON'}
               </button>
 
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-b border-slate-100">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-b border-slate-100 dark:border-slate-700">
                 Sincronizzazione Cloud
               </p>
 
@@ -361,7 +360,7 @@ export default function SettingsMenu() {
                   showToast('ok', 'Sincronizzazione forzata avviata nel cloud!');
                   setOpen(false);
                 }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100"
+                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
               >
                 <svg className="w-4 h-4 text-sky-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -393,15 +392,12 @@ export default function SettingsMenu() {
                   } catch (err: any) {
                     showToast('error', err.message || 'Errore durante la modifica delle notifiche.');
                   }
-                  
-                  // Optional: we can choose to leave menu open or close it
-                  // setOpen(false); 
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer border-t border-slate-100 ${isSubscribing ? 'opacity-70 cursor-not-allowed' : ''}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700 ${isSubscribing ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
                 <span className="text-base shrink-0">{subscription ? '🔔' : '🔕'}</span>
                 <div className="text-left flex-1">
-                  <span className="block text-xs font-bold text-slate-800">
+                  <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">
                     {isSubscribing ? 'Salvataggio in corso...' : 'Notifiche Push'}
                   </span>
                   <span className="block text-[10px] text-slate-400 font-normal">
@@ -411,17 +407,17 @@ export default function SettingsMenu() {
                   </span>
                 </div>
                 {!isSubscribing && subscription && (
-                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">
+                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-800">
                     ON
                   </span>
                 )}
                 {!isSubscribing && !subscription && permission !== 'denied' && (
-                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-600">
                     OFF
                   </span>
                 )}
                 {!isSubscribing && !subscription && permission === 'denied' && (
-                  <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100">
+                  <span className="text-[10px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-full border border-rose-100 dark:border-rose-800">
                     BLOCCATE
                   </span>
                 )}

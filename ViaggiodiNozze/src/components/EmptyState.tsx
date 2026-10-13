@@ -45,14 +45,14 @@ export default function EmptyState({
   }[accentVariant];
 
   return (
-    <div className="flex flex-col items-center justify-center p-8 text-center rounded-3xl bg-white border border-slate-200/80 shadow-sm my-auto min-h-[280px]">
+    <div className="flex flex-col items-center justify-center p-8 text-center rounded-3xl bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-sm my-auto min-h-[280px]">
       <div className={"w-16 h-16 rounded-2xl flex items-center justify-center mb-5 border " + accentClasses.icon}>
         {icon}
       </div>
-      <h3 className="text-lg font-bold text-slate-900 mb-2 tracking-tight">
+      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2 tracking-tight">
         {title}
       </h3>
-      <p className="text-sm text-slate-500 max-w-xs mb-8 leading-relaxed font-normal">
+      <p className="text-sm text-slate-500 dark:text-slate-400 max-w-xs mb-8 leading-relaxed font-normal">
         {description}
       </p>
       {onAction && (

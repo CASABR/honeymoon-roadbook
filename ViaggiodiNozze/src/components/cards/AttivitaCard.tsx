@@ -57,18 +57,18 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
         {/* TOP */}
         <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-100 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-500/20 text-xs font-medium">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-100 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-500/20 text-[11px] font-semibold uppercase tracking-wider">
               <span className="text-sm">{icon}</span> Attività
             </span>
             {(ritrovo || inizio || activity.duration) && (
               <div className="flex items-center gap-1.5 ml-1">
                 {(ritrovo || inizio) && (
-                  <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
+                  <span className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400">
                     {ritrovo ? `Ore ${ritrovo}` : `Inizio ${inizio}`}
                   </span>
                 )}
                 {activity.duration && (
-                  <span className="text-xs font-normal text-slate-400 dark:text-slate-500">
+                  <span className="text-xs font-normal leading-relaxed opacity-75 text-slate-400 dark:text-slate-500">
                     • {activity.duration}
                   </span>
                 )}
@@ -79,14 +79,14 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-              className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full border transition-colors shadow-2xs ${
+              className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all cursor-pointer shadow-2xs ${
                 hasCopilotNotes
-                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400' 
+                  ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400' 
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500 opacity-60 hover:opacity-100'
               }`}
               title="Note Copilota"
             >
-              <span>🧭</span> Co-pilota
+              <span className="text-sm">🧭</span>
             </button>
           </div>
         </div>
@@ -94,23 +94,15 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
         {/* BODY */}
         <div>
           <div className="flex items-start gap-2 flex-wrap">
-            <h3 className={`font-semibold text-base text-slate-800 dark:text-slate-100 leading-snug ${activity.completed ? 'opacity-90' : ''}`}>
+            <h3 className={`font-semibold text-base leading-snug tracking-tight text-slate-800 dark:text-slate-100 ${activity.completed ? 'opacity-90' : ''}`}>
               {activity.title}
             </h3>
           </div>
           {activity.location && (
-            <p className="text-sm text-slate-500 dark:text-slate-400 font-normal truncate mt-1 flex items-center gap-1">
+            <p className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400 truncate mt-1 flex items-center gap-1">
               <span>📍</span>
               <span className="truncate">{activity.location}</span>
             </p>
-          )}
-
-          {/* BOX NOTE COPILOTA */}
-          {hasCopilotNotes && (
-            <div className="bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 p-2.5 rounded-lg text-xs leading-relaxed text-amber-900 dark:text-amber-200 mt-2 flex items-start gap-1.5">
-              <span className="shrink-0 text-sm">🧭</span>
-              <span className="flex-1 break-words">{copilotData}</span>
-            </div>
           )}
         </div>
 
@@ -118,11 +110,11 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
         <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             {(!activity.cost || isNaN(parseFloat(String(activity.cost).replace(/[^0-9,.-]/g, '').replace(',', '.'))) || parseFloat(String(activity.cost).replace(/[^0-9,.-]/g, '').replace(',', '.')) === 0) ? (
-              <span className="text-sm font-semibold text-gray-800 dark:text-slate-200">
+              <span className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400">
                 Gratuito
               </span>
             ) : (
-              <span className="text-sm font-semibold text-gray-800 bg-slate-50 dark:bg-slate-800 dark:text-slate-200 px-2 py-0.5 rounded-md">
+              <span className="text-sm font-medium tracking-normal text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                 {String(activity.cost)}
               </span>
             )}
@@ -131,7 +123,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
               <button 
                 type="button"
                 onClick={handleTogglePayment}
-                className={`cursor-pointer hover:scale-105 active:scale-95 transition-all text-xs font-medium px-2 py-0.5 rounded-full border shadow-2xs ${
+                className={`cursor-pointer hover:scale-105 active:scale-95 transition-all text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border shadow-2xs ${
                   (activity.paymentStatus === 'saldato' || activity.status === 'prenotato')
                     ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800" 
                     : "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-700"

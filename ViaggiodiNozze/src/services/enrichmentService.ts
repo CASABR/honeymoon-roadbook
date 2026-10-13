@@ -33,8 +33,7 @@ export async function enrichRistorante(nome: string, indirizzo: string): Promise
       generationConfig: {
         temperature: 0.1,
         maxOutputTokens: 512,
-        responseMimeType: 'application/json',
-        thinkingConfig: { thinkingBudget: 0 }
+        responseMimeType: 'application/json'
       }
     };
     

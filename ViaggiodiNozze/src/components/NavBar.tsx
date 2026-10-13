@@ -74,19 +74,19 @@ export default function NavBar({
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 flex justify-center bg-white/95 backdrop-blur-xl border-t border-slate-200/80 px-4 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_24px_rgba(0,0,0,0.06)]">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex justify-center bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800 px-4 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_24px_rgba(0,0,0,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.3)]">
       <div className="w-full max-w-md mx-auto flex items-center justify-around gap-2">
         {tabs.slice(0, 2).map((tab) => {
           const isSelected = tab.id === 'categorie'
             ? (activeTab === 'categorie' || isCategorieActive)
             : activeTab === tab.id;
 
-          let activeClasses = 'text-slate-400 hover:text-slate-700 font-medium';
+          let activeClasses = 'text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 font-medium';
           if (isSelected) {
             if (tab.id === 'oggi') {
-              activeClasses = 'text-rose-600 bg-rose-50/90 font-bold shadow-2xs';
+              activeClasses = 'text-rose-600 bg-rose-50/90 dark:bg-rose-950/40 dark:text-rose-400 font-bold shadow-2xs';
             } else if (tab.id === 'categorie') {
-              activeClasses = 'text-amber-600 bg-amber-50/90 font-bold shadow-2xs';
+              activeClasses = 'text-amber-600 bg-amber-50/90 dark:bg-amber-950/40 dark:text-amber-400 font-bold shadow-2xs';
             }
           }
 
@@ -111,7 +111,7 @@ export default function NavBar({
         <button
           type="button"
           onClick={() => onOpenSmartInsert && onOpenSmartInsert()}
-          className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-2xl transition-all duration-200 cursor-pointer shrink-0 min-h-[48px] active:scale-95 text-slate-500 hover:text-slate-800 font-medium"
+          className="flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-2xl transition-all duration-200 cursor-pointer shrink-0 min-h-[48px] active:scale-95 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 font-medium"
         >
           <div className="w-10 h-10 rounded-full bg-[#FF6B5F] text-white flex items-center justify-center shadow-lg shadow-rose-500/30">
             <span className="text-xl">✨</span>
@@ -122,9 +122,9 @@ export default function NavBar({
         {tabs.slice(2).map((tab) => {
           const isSelected = activeTab === tab.id;
 
-          let activeClasses = 'text-slate-400 hover:text-slate-700 font-medium';
+          let activeClasses = 'text-slate-400 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 font-medium';
           if (isSelected) {
-            activeClasses = 'text-slate-900 bg-slate-100 font-bold shadow-2xs';
+            activeClasses = 'text-slate-900 bg-slate-100 dark:bg-slate-800 dark:text-slate-100 font-bold shadow-2xs';
           }
 
           const iconScale = isSelected ? 'scale-110' : '';

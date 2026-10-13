@@ -62,16 +62,24 @@ export default function App() {
     );
   });
 
-  const [tripConfig, setTripConfig] = useState<TripConfig | null>(() => getInitialTripConfig());
-  const [isInitializing, setIsInitializing] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return !getInitialTripConfig();
+  // PRIMISSIMA operazione sincrona: verifica se il PIN è autenticato su questo dispositivo
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem('houni_pin_authenticated') === 'true' || localStorage.getItem('auth_pin_verified') === 'true';
   });
 
-  // Rete di sicurezza: lo spinner iniziale non può mai durare più di 1.5s
+  const [tripConfig, setTripConfig] = useState<TripConfig | null>(getInitialTripConfig);
+
+  const [isInitializing, setIsInitializing] = useState(() => {
+    if (typeof localStorage === 'undefined') return false;
+    const isAuth = localStorage.getItem('houni_pin_authenticated') === 'true' || localStorage.getItem('auth_pin_verified') === 'true';
+    return !isAuth;
+  });
+
+  // Rete di sicurezza: lo spinner iniziale non può mai durare più di 1s
   useEffect(() => {
     if (!isInitializing) return;
-    const safety = setTimeout(() => setIsInitializing(false), 1500);
+    const safety = setTimeout(() => setIsInitializing(false), 1000);
     return () => clearTimeout(safety);
   }, [isInitializing]);
 
@@ -81,7 +89,10 @@ export default function App() {
     async function hydrateState() {
       if (typeof localStorage !== 'undefined') {
         const isPinAuth = localStorage.getItem('houni_pin_authenticated') === 'true' || localStorage.getItem('auth_pin_verified') === 'true';
-        if (!isPinAuth) {
+        if (isPinAuth) {
+          setIsAuthenticated(true);
+        } else {
+          setIsAuthenticated(false);
           setTripConfig(null);
           setIsInitializing(false);
           return;
@@ -114,9 +125,7 @@ export default function App() {
       }
 
       if (config && config.id === 'default') {
-        // Se c'è un config 'default', l'onboarding non è stato fatto. 
-        // L'app lo rileverà e mostrerà OnboardingView.
-        config = null;
+        config = normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' });
       }
 
       setTripConfig(config);
@@ -127,8 +136,17 @@ export default function App() {
   }, [isInitializing, tripConfig]);
 
   useEffect(() => {
-    const handleConfigChange = () => setTripConfig(getTripConfig());
+    const handleConfigChange = () => {
+      const isAuth = typeof localStorage !== 'undefined' && (localStorage.getItem('houni_pin_authenticated') === 'true' || localStorage.getItem('auth_pin_verified') === 'true');
+      if (isAuth) {
+        setIsAuthenticated(true);
+        setTripConfig(getTripConfig() || normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' }));
+      } else {
+        setTripConfig(getTripConfig());
+      }
+    };
     window.addEventListener('trip_config_changed', handleConfigChange);
+    window.addEventListener('storage', handleConfigChange);
     
     // Ensure alloggi and refuels are populated
     storageService.ensureRefuels().catch(console.error);
@@ -373,20 +391,28 @@ export default function App() {
   
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
         <div className="animate-spin text-4xl">⏳</div>
       </div>
     );
   }
 
-  if (!tripConfig && !(isExternalLive && externalTripId)) {
-    return <OnboardingView />;
+  // Se l'utente non è ancora autenticato e non siamo in vista ospite Live esterna
+  if (!isAuthenticated && !(isExternalLive && externalTripId)) {
+    return (
+      <OnboardingView
+        onComplete={() => {
+          setIsAuthenticated(true);
+          setTripConfig(getTripConfig() || normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' }));
+        }}
+      />
+    );
   }
 
   if (isExternalLive) {
     const activeTripId = tripConfig?.id || externalTripId || '';
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col items-center selection:bg-rose-500 selection:text-white font-sans antialiased">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col items-center selection:bg-rose-500 selection:text-white font-sans antialiased">
         <header className="w-full max-w-md mx-auto flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-rose-500" />
@@ -394,7 +420,7 @@ export default function App() {
               Hounigo • Live
             </p>
           </div>
-          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200/60">
+          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200/60 dark:border-slate-700">
             Vista Ospiti
           </span>
         </header>
@@ -406,11 +432,8 @@ export default function App() {
     );
   }
 
-
-
-
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col items-center selection:bg-rose-500 selection:text-white font-sans antialiased">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col items-center selection:bg-rose-500 selection:text-white font-sans antialiased">
       {/* Top Bar */}
         <header className="w-full max-w-md mx-auto flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5">
         <div className="flex items-center gap-1.5">
