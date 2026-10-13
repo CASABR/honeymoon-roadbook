@@ -328,15 +328,16 @@ const CACHE_TTL = 10 * 60 * 1000;
 
 /** Modello di fallback predefinito */
 /** Modello di default ufficiale */
-export let GEMINI_MODEL = 'gemini-3.8-flash';
+export let GEMINI_MODEL = 'gemini-3.1-flash-lite';
 
-// Modelli supportati in ordine di priorità (tenta gemini-1.5-flash e passa istantaneamente a 3.5 / 3.8 in caso di 404 o 503)
+// Modelli supportati in ordine di disponibilità ed efficienza verificata:
+// gemini-3.1-flash-lite e 3.5-flash-lite rispondono in pochi secondi senza sovraccarico 503
 export const PREFERRED_GEMINI_MODELS = [
-  'gemini-1.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-3.5-flash-lite',
   'gemini-3.5-flash',
   'gemini-3.8-flash',
-  'gemini-flash-latest',
-  'gemini-2.5-flash'
+  'gemini-flash-latest'
 ];
 
 // Cache in memoria del modello verificato funzionante
@@ -344,24 +345,28 @@ let cachedWorkingModel: string | null = null;
 
 /**
  * Risolve dinamicamente il miglior modello Gemini disponibile per la chiave API corrente.
- * Se listModels ha successo, sceglie tra i modelli Flash moderni supportati (priorità a gemini-3.8-flash).
+ * Se listModels ha successo, sceglie tra i modelli Flash moderni supportati (priorità a gemini-3.1-flash-lite).
  */
 export async function getWorkingGeminiModel(cleanKey: string): Promise<string> {
   if (cachedWorkingModel) return cachedWorkingModel;
 
   try {
+    const listController = new AbortController();
+    const listTimeout = setTimeout(() => listController.abort(), 4000);
     const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`;
-    const res = await fetch(listUrl);
+    const res = await fetch(listUrl, { signal: listController.signal });
+    clearTimeout(listTimeout);
+
     if (res.ok) {
       const data = await res.json();
       const models: Array<{ name: string; supportedGenerationMethods?: string[] }> = data.models || [];
       const supported = models.filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'));
       
       if (supported.length > 0) {
-        // Normalizza il nome (es: "models/gemini-3.8-flash" -> "gemini-3.8-flash")
+        // Normalizza il nome (es: "models/gemini-3.1-flash-lite" -> "gemini-3.1-flash-lite")
         const cleanNames = supported.map(m => m.name.replace(/^models\//, ''));
         
-        const match = PREFERRED_GEMINI_MODELS.find(pref => cleanNames.includes(pref)) || cleanNames[0];
+        const match = PREFERRED_GEMINI_MODELS.find(pref => cleanNames.includes(pref));
         if (match) {
           cachedWorkingModel = match;
           GEMINI_MODEL = match;
@@ -373,8 +378,8 @@ export async function getWorkingGeminiModel(cleanKey: string): Promise<string> {
     console.warn('[Gemini] Fallback automatico su modello default a causa di errore listModels:', e);
   }
 
-  cachedWorkingModel = 'gemini-3.8-flash';
-  return 'gemini-3.8-flash';
+  cachedWorkingModel = 'gemini-3.1-flash-lite';
+  return 'gemini-3.1-flash-lite';
 }
 
 /** Risolve la chiave API: localStorage (utente) → .env con sanitizzazione rigorosa. */
@@ -412,6 +417,8 @@ async function callGemini(requestBody: any): Promise<{ ok: true; text: string } 
 
     for (const modelToUse of candidateModels) {
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${cleanKey}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8500);
 
       try {
         const response = await fetch(url, {
@@ -419,8 +426,10 @@ async function callGemini(requestBody: any): Promise<{ ok: true; text: string } 
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(requestBody)
+          body: JSON.stringify(requestBody),
+          signal: controller.signal
         });
+        clearTimeout(timeoutId);
 
         if (response.ok) {
           cachedWorkingModel = modelToUse;
@@ -463,11 +472,11 @@ async function callGemini(requestBody: any): Promise<{ ok: true; text: string } 
 
         // 429: Limite di utilizzo (Rate Limit)
         if (response.status === 429) {
-          lastErrorMsg = `Limite richieste raggiunto per ${modelToUse} (429). Tentativo su modello alternativo...`;
+          lastErrorMsg = `Limite richieste per ${modelToUse} (429). Tentativo su modello alternativo...`;
           continue;
         }
 
-        // 404: Modello non trovato / deprecato
+        // 404: Modello non disponibile
         if (response.status === 404) {
           lastErrorMsg = `Modello ${modelToUse} non disponibile (404). Tentativo su modello alternativo...`;
           continue;
@@ -475,14 +484,17 @@ async function callGemini(requestBody: any): Promise<{ ok: true; text: string } 
 
         // 503: Servizio temporaneamente non disponibile / sovraccarico
         if (response.status === 503) {
-          lastErrorMsg = `Modello ${modelToUse} attualmente sovraccarico (503). Tentativo su modello alternativo...`;
+          lastErrorMsg = `Modello ${modelToUse} momentaneamente sovraccarico (503). Tentativo su modello alternativo...`;
           continue;
         }
 
         lastErrorMsg = `Errore API Gemini (${response.status}): ${errMsg}`;
       } catch (networkErr: any) {
-        console.warn(`[Gemini Network Error] su ${modelToUse}:`, networkErr.message);
-        lastErrorMsg = networkErr.message || 'Errore di connessione a Gemini';
+        clearTimeout(timeoutId);
+        const isTimeout = networkErr.name === 'AbortError';
+        const msg = isTimeout ? `Tempo scaduto su ${modelToUse} (timeout 8s). Tentativo su modello alternativo...` : (networkErr.message || 'Errore di connessione a Gemini');
+        console.warn(`[Gemini Network Error] su ${modelToUse}:`, msg);
+        lastErrorMsg = msg;
       }
     }
 
