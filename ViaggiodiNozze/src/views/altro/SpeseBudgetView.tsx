@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from "react";
-import { storageService } from "../../storage/storageService";
+import { storageService, notifyDataChanged } from "../../storage/storageService";
 import type { Spesa, StatoSpesa, CategoriaSpesa } from "../../types";
 import { Search, ChevronRight } from "lucide-react";
 import Modal from "../../components/common/Modal";
@@ -247,8 +247,8 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
 
     addToList(alloggi, 'alloggi', 'name', 'title', 'checkIn', 'cost', 'cost');
     addToList(attivita, 'attivita', 'title', 'name', 'date', 'cost', 'cost');
-    addToList(ristoranti, 'ristoranti', 'name', 'nome', 'date', 'budget', 'cost');
-    addToList(shoppingItemsList, 'shopping', 'name', 'item', 'date', 'budget', 'cost');
+    addToList(ristoranti, 'ristoranti', 'nome', 'name', 'date', 'budget', 'cost');
+    addToList(shoppingItemsList, 'shopping', 'nome', 'name', 'date', 'budget', 'cost');
 
     // Sort by date desc
     list.sort((a, b) => {
@@ -355,6 +355,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
         case 'shopping':
           updated.budget = formattedCost;
           await storageService.saveShopping(updated);
+          notifyDataChanged('shopping', 'save', updated);
           break;
         case 'altro':
         default:
@@ -362,8 +363,10 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           updated.paymentStatus = newStatus;
           updated.amount = newCostStr ? (parseFloat(newCostStr) || raw.amount) : raw.amount;
           await storageService.saveSpesa(updated);
+          notifyDataChanged('spese', 'save', updated);
           break;
       }
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: e.category, data: updated } }));
       await loadAllData();
       setEditingItemId(null);
     } finally {

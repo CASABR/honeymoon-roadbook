@@ -171,6 +171,8 @@ export interface Trasporto {
   checkinCutoff?: string;
   depositPaid?: string; // Quantitativo di acconto già dato
   acconto?: string; // Alias di depositPaid
+  amountPaid?: string; // Alias di depositPaid
+  paymentStatus?: 'saldato' | 'da_saldare'; // Stato pagamento
   layover?: {
     airport: string;
     duration?: string;
@@ -221,6 +223,11 @@ export interface Shopping {
   dayId?: string;
   orario?: string; // HH:mm
   budget?: string; // es. 50 €
+  cost?: string; // Alias di budget
+  acconto?: string; // Importo versato/acconto
+  depositPaid?: string; // Alias di acconto
+  amountPaid?: string; // Alias di acconto
+  paymentStatus?: 'saldato' | 'da_saldare'; // Stato pagamento
   coordinate?: Coordinate;
   indirizzo?: string;
   link?: string;

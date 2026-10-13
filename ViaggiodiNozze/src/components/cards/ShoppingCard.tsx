@@ -1,7 +1,7 @@
 import type { Shopping } from '../../types';
 import { useState } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
-import { storageService } from '../../storage/storageService';
+import { storageService, notifyDataChanged } from '../../storage/storageService';
 import { resolveMapUrl } from '../../utils/mapsHelper';
 
 interface ShoppingCardProps {
@@ -16,7 +16,37 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const copilotData = (shopping as any).noteCopilota || (shopping as any).notes || '';
   const hasCopilotNotes = Boolean(copilotData.trim());
-  
+
+  const costNum = parseFloat(String(shopping.budget || shopping.cost || '0').replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
+  const paidNum = parseFloat(String(shopping.depositPaid || shopping.amountPaid || shopping.acconto || '0').replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
+
+  const isSaldato = shopping.paymentStatus === 'saldato' || shopping.completed || (costNum > 0 && paidNum >= costNum);
+
+  const handleTogglePayment = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const newStatus = isSaldato ? 'da_saldare' : 'saldato';
+      const costStr = shopping.budget || shopping.cost || `${costNum.toFixed(2)} €`;
+      const paidVal = newStatus === 'saldato' ? costStr : '0.00 €';
+
+      const updated: Shopping = {
+        ...shopping,
+        paymentStatus: newStatus,
+        completed: newStatus === 'saldato',
+        depositPaid: paidVal,
+        acconto: paidVal,
+        amountPaid: paidVal,
+        updatedAt: Date.now()
+      };
+
+      await storageService.saveShopping(updated);
+      notifyDataChanged('shopping', 'save', updated);
+      if (typeof onUpdate === 'function') onUpdate(updated);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'shopping', data: updated } }));
+    } catch (err) {
+      console.error('Errore durante il cambio stato pagamento shopping:', err);
+    }
+  };
 
   const mapTarget = shopping.indirizzo || shopping.nome;
 
@@ -40,27 +70,37 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
           )}
         </div>
         <div className="flex items-center gap-2">
-          {true && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-                className={`flex items-center justify-center w-7 h-7 rounded-full border transition-colors shadow-sm ${
-                  hasCopilotNotes
-                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400' 
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 opacity-60 hover:opacity-100'
-                }`}
-                title="Apri note Copilota"
-              >
-                <span className="text-sm">🧭</span>
-              </button>
-            )}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
+            className={`flex items-center justify-center w-7 h-7 rounded-full border transition-colors shadow-sm ${
+              hasCopilotNotes
+                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400' 
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 opacity-60 hover:opacity-100'
+            }`}
+            title="Apri note Copilota"
+          >
+            <span className="text-sm">🧭</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleTogglePayment}
+            className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
+              isSaldato
+                ? 'bg-[#E6F4EA] text-[#39734A] border-emerald-300 dark:bg-[#143521] dark:text-[#4ADE80] dark:border-emerald-800'
+                : 'bg-[#FFFDF2] text-amber-900 border-[#FFC857] dark:bg-[#382C0E] dark:text-[#FDE047] dark:border-[#785912]'
+            }`}
+            title="Clicca per invertire stato: Saldato / Da saldare"
+          >
+            {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
+          </button>
         </div>
       </div>
 
       {/* BODY */}
       <div>
         <div className="flex items-start gap-2 flex-wrap">
-          <h3 className="text-base font-semibold text-slate-900 dark:text-white leading-snug">
+          <h3 className={`text-base font-semibold text-slate-900 dark:text-white leading-snug ${isSaldato ? 'opacity-90' : ''}`}>
             {shopping.nome}
           </h3>
         </div>
@@ -126,7 +166,8 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
             await storageService.updateShopping(shopping.id, updated);
             if (typeof onUpdate === 'function') onUpdate(updated);
       
-            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update' }}));
+            notifyDataChanged('shopping', 'save', updated);
+            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'shopping', data: updated }}));
             setIsCopilotOpen(false);
           } catch(e) { console.error(e); }
         }}
