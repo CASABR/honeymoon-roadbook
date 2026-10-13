@@ -189,8 +189,7 @@ export default function SettingsMenu() {
                 type="button"
                 onClick={() => {
                   setOpen(false);
-                  setShowInviteModal(true);
-                  handleCopyInviteLink();
+                  window.dispatchEvent(new CustomEvent('navigate_to', { detail: { view: 'altro', subView: 'gestione' } }));
                 }}
                 className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
               >
@@ -198,7 +197,7 @@ export default function SettingsMenu() {
                   <span className="text-base">🤝</span>
                   <div className="text-left">
                     <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Invita Co-pilota</span>
-                    <span className="block text-[10px] text-slate-400 font-normal">Copia link d'invito diretto</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">Genera codice d'invito sicuro</span>
                   </div>
                 </div>
                 <span className="text-slate-400 text-xs">›</span>

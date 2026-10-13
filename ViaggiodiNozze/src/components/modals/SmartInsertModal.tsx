@@ -640,9 +640,40 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
               <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
                 <div className="flex items-start gap-2.5">
                   <span className="text-xl mt-0.5">⚠️</span>
-                  <div>
+                  <div className="flex-1">
                     <p className="text-sm font-bold text-rose-400">{inputMode === 'chat' ? 'Concierge non raggiungibile' : 'Estrazione non riuscita'}</p>
                     <p className="text-xs text-rose-300 mt-1 leading-relaxed">{errorMsg}</p>
+                    
+                    {errorMsg.toLowerCase().includes('chiave') && (
+                      <div className="mt-3 pt-3 border-t border-rose-500/20">
+                        <label className="text-[11px] font-semibold text-rose-200 block mb-1">
+                          Inserisci Chiave API Google Gemini (salvata per sempre):
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="password"
+                            id="inline-gemini-key"
+                            placeholder="AIzaSy..."
+                            className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-violet-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const inputEl = document.getElementById('inline-gemini-key') as HTMLInputElement;
+                              if (inputEl && inputEl.value.trim()) {
+                                localStorage.setItem('gemini_api_key', inputEl.value.trim());
+                                setErrorMsg('');
+                                setStep('input');
+                                handleExtract();
+                              }
+                            }}
+                            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition"
+                          >
+                            Salva e Riprova
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

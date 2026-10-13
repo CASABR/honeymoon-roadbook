@@ -113,70 +113,82 @@ export const smartExtract = functions.https.onCall(
       );
     }
 
-    // Usiamo il modello gemini-2.5-flash
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    // Modello predefinito: gemini-3.8-flash (con fallback automatico a 3.5 o flash-latest se in alta domanda)
+    const preferredModels = [
+      "gemini-3.8-flash",
+      "gemini-3.5-flash",
+      "gemini-flash-latest"
+    ];
 
-    const requestBody = {
-      system_instruction: {
-        parts: [{ text: SYSTEM_PROMPT }]
-      },
-      contents: [
-        {
-          role: "user",
-          parts: [
-            {
-              text: `Estrai le informazioni strutturate dal seguente testo:\n\n---\n${text.slice(0, 8000)}\n---`
-            }
-          ]
+    let lastError = null;
+    let responseJson = null;
+
+    for (const model of preferredModels) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      const requestBody = {
+        system_instruction: {
+          parts: [{ text: SYSTEM_PROMPT }]
+        },
+        contents: [
+          {
+            role: "user",
+            parts: [
+              {
+                text: `Estrai le informazioni strutturate dal seguente testo:\n\n---\n${text.slice(0, 8000)}\n---`
+              }
+            ]
+          }
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          responseMimeType: "application/json",
+          responseSchema: EXTRACTION_SCHEMA
         }
-      ],
-      generationConfig: {
-        temperature: 0.1,
-        responseMimeType: "application/json",
-        responseSchema: EXTRACTION_SCHEMA
-      }
-    };
+      };
 
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Errore API Gemini:", errorText);
-        throw new functions.https.HttpsError(
-          "internal",
-          `Errore API Gemini (${response.status})`
-        );
-      }
-
-      const responseJson = await response.json();
-      const rawText = responseJson?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-      if (!rawText) {
-        throw new functions.https.HttpsError("internal", "Risposta API vuota o formato inatteso.");
-      }
-
-      let parsed;
       try {
-        parsed = JSON.parse(rawText);
-      } catch (e) {
-        throw new functions.https.HttpsError("internal", "Impossibile interpretare la risposta JSON dell'AI.");
-      }
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody)
+        });
 
-      // Restituisco il risultato strutturato al client
-      return parsed;
+        if (response.ok) {
+          responseJson = await response.json();
+          break;
+        }
 
-    } catch (error: any) {
-      if (error instanceof functions.https.HttpsError) {
-        throw error;
+        const errorText = await response.text();
+        console.warn(`[smartExtract] Modello ${model} ha risposto HTTP ${response.status}:`, errorText);
+        lastError = `Errore API Gemini (${response.status}) su ${model}`;
+        // Se 404 o 503, prova il modello successivo
+        if (response.status !== 404 && response.status !== 503) {
+          throw new functions.https.HttpsError("internal", lastError);
+        }
+      } catch (err: any) {
+        if (err instanceof functions.https.HttpsError) throw err;
+        lastError = err.message;
       }
-      console.error("Errore generico:", error);
-      throw new functions.https.HttpsError("internal", "Errore di rete o server sconosciuto.");
     }
+
+    if (!responseJson) {
+      throw new functions.https.HttpsError("internal", lastError || "Tutti i modelli Gemini sono temporaneamente non disponibili.");
+    }
+
+    const rawText = responseJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!rawText) {
+      throw new functions.https.HttpsError("internal", "Risposta API vuota o formato inatteso.");
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch (e) {
+      throw new functions.https.HttpsError("internal", "Impossibile interpretare la risposta JSON dell'AI.");
+    }
+
+    return parsed;
   }
 );
 
@@ -190,29 +202,44 @@ export const callGeminiApi = functions.https.onCall(
     if (!request.auth) {
       throw new functions.https.HttpsError("unauthenticated", "Devi essere autenticato.");
     }
-    const requestBody = request.data.requestBody;
+    const requestBody = request.data?.requestBody;
+    if (!requestBody) {
+      throw new functions.https.HttpsError("invalid-argument", "Manca requestBody.");
+    }
     const apiKey = geminiApiKey.value();
     if (!apiKey) {
-      throw new functions.https.HttpsError("internal", "API Key non configurata.");
+      throw new functions.https.HttpsError("internal", "API Key non configurata lato server.");
     }
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody)
-      });
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Errore API Gemini Proxy:", errorText);
-        throw new functions.https.HttpsError("internal", `Errore API Gemini (${response.status})`);
+
+    const modelsToTry = [
+      "gemini-3.8-flash",
+      "gemini-3.5-flash",
+      "gemini-flash-latest"
+    ];
+
+    let lastErrorText = "";
+    for (const model of modelsToTry) {
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(requestBody)
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+        lastErrorText = await response.text();
+        console.warn(`[callGeminiApi] Modello ${model} HTTP ${response.status}:`, lastErrorText);
+        if (response.status !== 404 && response.status !== 503) {
+          throw new functions.https.HttpsError("internal", `Errore API Gemini (${response.status})`);
+        }
+      } catch (e: any) {
+        if (e instanceof functions.https.HttpsError) throw e;
       }
-      return await response.json();
-    } catch (error: any) {
-      if (error instanceof functions.https.HttpsError) throw error;
-      console.error("Errore Proxy Gemini:", error);
-      throw new functions.https.HttpsError("internal", "Errore di rete o server sconosciuto.");
     }
+
+    throw new functions.https.HttpsError("internal", "Nessun modello Gemini ha risposto con successo.");
   }
 );
 
@@ -242,69 +269,80 @@ export const joinTrip = functions.https.onCall(
       throw new functions.https.HttpsError('invalid-argument', 'Codice mancante.');
     }
 
-    const tokenClean = inviteToken.trim();
+    const tokenClean = inviteToken.trim().toUpperCase();
     const db = admin.firestore();
+    const tokenHash = hashToken(tokenClean);
 
-    // 1. Caso Master Trip "0000"
-    if (tokenClean === '0000') {
-      const tripRef = db.collection('trips').doc('0000');
-      const tripSnap = await tripRef.get();
-      
-      if (!tripSnap.exists) {
-        throw new functions.https.HttpsError('not-found', 'Viaggio 0000 non trovato. Esegui il seed.');
+    // 1. Lookup del token tramite hash in /invite_tokens/{tokenHash}
+    const globalTokenRef = db.collection('invite_tokens').doc(tokenHash);
+    const globalTokenSnap = await globalTokenRef.get();
+
+    let targetTripId: string | null = null;
+    let tokenRefToUpdate: admin.firestore.DocumentReference | null = null;
+
+    if (globalTokenSnap.exists) {
+      const tokenData = globalTokenSnap.data() || {};
+
+      if (tokenData.active === false) {
+        throw new functions.https.HttpsError('failed-precondition', 'Codice di invito revocato o non attivo.');
       }
-      
-      const batch = db.batch();
-      batch.update(tripRef, {
-        members: admin.firestore.FieldValue.arrayUnion(uid)
-      });
-      
-      const memberRef = tripRef.collection('members').doc(uid);
-      const memberSnap = await memberRef.get();
-      if (!memberSnap.exists) {
-        batch.set(memberRef, { uid, role: 'copilota', createdAt: Date.now() });
+
+      if (tokenData.expiresAt && tokenData.expiresAt < Date.now()) {
+        throw new functions.https.HttpsError('failed-precondition', 'Codice di invito scaduto.');
       }
-      
-      await batch.commit();
-      
-      const tripData = tripSnap.data() || {};
-      return {
-        success: true,
-        tripId: '0000',
-        title: tripData.title || 'Viaggio Originale',
-        startDate: tripData.startDate || '',
-        endDate: tripData.endDate || '',
-        ownerUid: tripData.ownerUid || ''
-      };
+
+      if (typeof tokenData.maxUses === 'number' && (tokenData.usedCount || 0) >= tokenData.maxUses) {
+        throw new functions.https.HttpsError('failed-precondition', 'Codice di invito già utilizzato.');
+      }
+
+      targetTripId = tokenData.tripId;
+      tokenRefToUpdate = globalTokenRef;
+    } else {
+      // 2. Fallback di retrocompatibilità: verifica se corrisponde a un inviteCode legacy sul viaggio
+      const query = await db.collection('trips').where('inviteCode', '==', tokenClean).limit(1).get();
+      if (!query.empty) {
+        targetTripId = query.docs[0].id;
+      } else {
+        throw new functions.https.HttpsError('not-found', 'Codice invito non valido o inesistente.');
+      }
     }
 
-    // 2. Fallback per altri viaggi (Match diretto su ID o inviteCode)
-    const tripRef = db.collection('trips').doc(tokenClean);
-    let tripSnap = await tripRef.get();
-    
+    if (!targetTripId) {
+      throw new functions.https.HttpsError('not-found', 'Viaggio associato all\'invito non trovato.');
+    }
+
+    const tripRef = db.collection('trips').doc(targetTripId);
+    const tripSnap = await tripRef.get();
+
     if (!tripSnap.exists) {
-       // Prova a cercare per inviteCode
-       const query = await db.collection('trips').where('inviteCode', '==', tokenClean).limit(1).get();
-       if (!query.empty) {
-           tripSnap = query.docs[0];
-       } else {
-           throw new functions.https.HttpsError('not-found', 'Codice viaggio non trovato.');
-       }
+      throw new functions.https.HttpsError('not-found', 'Il viaggio associato a questo invito non esiste più.');
     }
 
     const batch = db.batch();
-    batch.update(tripSnap.ref, {
+
+    // Aggiorna membri del viaggio
+    batch.update(tripRef, {
       members: admin.firestore.FieldValue.arrayUnion(uid)
     });
-    
-    const memberRef = tripSnap.ref.collection('members').doc(uid);
+
+    // Subcollection member: assegnato esplicitamente dal server
+    const memberRef = tripRef.collection('members').doc(uid);
     const memberSnap = await memberRef.get();
     if (!memberSnap.exists) {
       batch.set(memberRef, { uid, role: 'copilota', createdAt: Date.now() });
     }
-    
+
+    // Se usato un token con hash, incrementa usedCount e disattiva se raggiunto maxUses
+    if (tokenRefToUpdate) {
+      batch.update(tokenRefToUpdate, {
+        usedCount: admin.firestore.FieldValue.increment(1),
+        lastUsedAt: Date.now(),
+        lastUsedBy: uid
+      });
+    }
+
     await batch.commit();
-    
+
     const tripData = tripSnap.data() || {};
     return {
       success: true,
