@@ -1,4 +1,4 @@
-import { GEMINI_MODEL, resolveGeminiApiKey } from './aiExtractor';
+import { getWorkingGeminiModel, resolveGeminiApiKey } from './aiExtractor';
 
 const cache = new Map<string, { data: any, ts: number }>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minuti
@@ -26,7 +26,8 @@ export async function enrichRistorante(nome: string, indirizzo: string): Promise
     if (!rawApiKey) return {};
     const cleanKey = rawApiKey.trim().replace(/['"]/g, '');
     
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${cleanKey}`;
+    const activeModel = await getWorkingGeminiModel(cleanKey);
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${cleanKey}`;
     
     const requestBody = {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],

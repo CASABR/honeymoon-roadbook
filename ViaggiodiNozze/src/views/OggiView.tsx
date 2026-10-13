@@ -1580,16 +1580,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         </div>
       )}
 
-      {/* Pulsante Floating Copilota (Global Day Note) */}
-      <button
-        type="button"
-        onClick={() => setIsGlobalCopilotOpen(true)}
-        className="fixed bottom-[90px] right-4 z-40 bg-[#FF6B5F] text-white p-3.5 rounded-full shadow-2xl flex items-center justify-center cursor-pointer hover:bg-[#e85c50] active:scale-95 transition-all border-2 border-white"
-        title="Note Copilota"
-      >
-        <span className="text-xl leading-none">🧭</span>
-      </button>
-
       {/* Modal Copilota Globale della giornata */}
       <UniversalCopilotaModal
         isOpen={isGlobalCopilotOpen}

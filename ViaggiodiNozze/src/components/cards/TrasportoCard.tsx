@@ -105,20 +105,20 @@ export default function TrasportoCard({
     <>
       <div 
         onClick={onDetail || onEdit}
-        className={`w-full rounded-2xl ${variant === 'compact' ? 'p-3' : 'p-3.5 sm:p-4'} border shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800`}
+        className={`w-full rounded-2xl ${variant === 'compact' ? 'p-3' : 'p-3.5 sm:p-4'} border shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700`}
       >
         {/* Decorazione tacche laterali stile Boarding Pass Wallet (cerchietti ritagliati) */}
-        <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 pointer-events-none" />
-        <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 pointer-events-none" />
+        <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-700 pointer-events-none" />
+        <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-700 pointer-events-none" />
 
         {/* TOP */}
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 text-[11px] font-semibold uppercase tracking-wider">
               <span className="text-sm">{currentType.icon}</span> {currentType.label}
             </span>
             <div className="flex flex-col ml-1">
-              <span className="font-semibold text-base leading-snug tracking-tight text-slate-800 dark:text-slate-100">
+              <span className="font-semibold text-base leading-snug tracking-tight text-slate-900 dark:text-white">
                 {transport.carrier || currentType.label}
               </span>
             </div>
@@ -130,7 +130,7 @@ export default function TrasportoCard({
               className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all cursor-pointer shadow-2xs ${
                 (transport.noteCopilota || transport.copilota)
                   ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500 opacity-60 hover:opacity-100'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-400 opacity-60 hover:opacity-100'
               }`}
               title="Note Copilota"
             >
@@ -147,13 +147,13 @@ export default function TrasportoCard({
           <div className="flex items-center justify-between gap-3">
             {/* ORIGINE */}
             <div className="flex-1 min-w-0 text-left">
-              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono">
                 {originInfo.code}
               </div>
-              <p className="text-sm font-medium tracking-normal text-slate-700 dark:text-slate-300 truncate mt-0.5">
+              <p className="text-sm font-medium tracking-normal text-slate-600 dark:text-slate-300 truncate mt-0.5">
                 {originInfo.name}
               </p>
-              <p className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400 mt-0.5">
                 {formatDate(transport.date)} {transport.departureTime ? `• ${transport.departureTime}` : ''}
               </p>
             </div>
@@ -168,13 +168,13 @@ export default function TrasportoCard({
               </div>
               {transport.layover ? (
                 <div className="mt-1 text-center">
-                  <span className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400">
+                  <span className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400">
                     Scalo {transport.layover.airport.split(' ')[0]}
                   </span>
                 </div>
               ) : (
                 <div className="mt-1 text-center">
-                  <span className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400">
+                  <span className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400">
                     Diretto
                   </span>
                 </div>
@@ -183,13 +183,13 @@ export default function TrasportoCard({
 
             {/* DESTINAZIONE */}
             <div className="flex-1 min-w-0 text-right">
-              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight font-mono">
+              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono">
                 {destInfo.code}
               </div>
-              <p className="text-sm font-medium tracking-normal text-slate-700 dark:text-slate-300 truncate mt-0.5">
+              <p className="text-sm font-medium tracking-normal text-slate-600 dark:text-slate-300 truncate mt-0.5">
                 {destInfo.name}
               </p>
-              <p className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400 mt-0.5">
+              <p className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400 mt-0.5">
                 {transport.arrivalTime ? `h ${transport.arrivalTime}` : 'Arrivo'}
               </p>
             </div>
@@ -205,18 +205,18 @@ export default function TrasportoCard({
         </div>
 
         {/* BOTTOM */}
-        <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+        <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center">
             {transport.cost === '0.00' || transport.cost === '0' ? (
               <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-sky-700 bg-sky-50 border border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50">
                 Incluso nel pacchetto
               </span>
             ) : transport.cost ? (
-              <span className="text-sm font-medium tracking-normal text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+              <span className="text-sm font-medium tracking-normal text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
                 {transport.cost}
               </span>
             ) : (
-              <span className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400">
+              <span className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400">
                 Costo da definire
               </span>
             )}
@@ -227,7 +227,7 @@ export default function TrasportoCard({
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setIsPNROpen(true); }}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600 dark:text-slate-200 text-xs font-medium transition-colors"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600 dark:text-slate-200 text-xs font-medium transition-colors"
               >
                 <span className="text-[10px]">#️⃣</span> PNR
               </button>
@@ -247,7 +247,7 @@ export default function TrasportoCard({
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600 dark:text-slate-200 text-xs font-medium transition-colors"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600 dark:text-slate-200 text-xs font-medium transition-colors"
               >
                 <span className="text-[10px]">📍</span> Maps
               </a>

@@ -23,7 +23,7 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
   return (
     <div 
       onClick={onDetail || onEdit} 
-      className="cursor-pointer rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-3 relative active:scale-[0.99] bg-white border border-slate-200"
+      className="cursor-pointer rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-3 relative active:scale-[0.99] bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
     >
       {/* TOP */}
       <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700/50">
@@ -33,7 +33,7 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
           </span>
           {shopping.orario && (
             <div className="flex flex-col ml-1">
-              <span className="text-[10px] font-semibold text-slate-500">
+              <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">
                 Orario: {shopping.orario}
               </span>
             </div>
@@ -47,7 +47,7 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
                 className={`flex items-center justify-center w-7 h-7 rounded-full border transition-colors shadow-sm ${
                   hasCopilotNotes
                     ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400' 
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500 opacity-60 hover:opacity-100'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 opacity-60 hover:opacity-100'
                 }`}
                 title="Apri note Copilota"
               >
@@ -60,12 +60,12 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
       {/* BODY */}
       <div>
         <div className="flex items-start gap-2 flex-wrap">
-          <h3 className="text-base font-extrabold text-slate-900 leading-snug">
+          <h3 className="text-base font-semibold text-slate-900 dark:text-white leading-snug">
             {shopping.nome}
           </h3>
         </div>
         {mapTarget && (
-          <p className="text-xs text-slate-500 font-medium truncate mt-1 flex items-center gap-1">
+          <p className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate mt-1 flex items-center gap-1">
             <span>📍</span>
             <span className="truncate">{mapTarget}</span>
           </p>
@@ -76,11 +76,11 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
       <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center">
           {(!shopping.budget || isNaN(parseFloat(shopping.budget)) || parseFloat(shopping.budget) === 0) ? (
-            <span className="text-[11px] font-semibold text-slate-500">
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
               Costo non specificato
             </span>
           ) : (
-            <span className="text-slate-900 dark:text-slate-100 font-semibold bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded-md">
+            <span className="text-slate-900 dark:text-white font-semibold bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md text-sm">
               {parseFloat(shopping.budget).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
             </span>
           )}

@@ -2,16 +2,20 @@ import { useState, useEffect, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import icon from 'leaflet/dist/images/marker-icon.png';
+import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import { storageService } from '../storage/storageService';
 import type { Coordinate } from '../types';
 
-// Fix default icons if we ever fallback
-delete (L.Icon.Default.prototype as any)._getIconUrl;
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+// Configurazione Icona di default Leaflet per Vite/GitHub Pages (evita icone 404)
+const DefaultIcon = L.icon({
+  iconUrl: icon,
+  shadowUrl: iconShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
 });
+L.Marker.prototype.options.icon = DefaultIcon;
 
 // Helper per creare icone HTML personalizzate
 const createCustomIcon = (emoji: string, bgColor: string, textColor: string, borderColor: string) => {
@@ -42,6 +46,15 @@ interface MapMarkerData {
   coord: Coordinate;
   date?: string;
   details?: string;
+}
+
+// Estrazione sicura di coordinate con parseFloat
+function parseValidCoord(c: any): Coordinate | null {
+  if (!c) return null;
+  const lat = typeof c.lat === 'number' ? c.lat : parseFloat(String(c.lat));
+  const lng = typeof c.lng === 'number' ? c.lng : parseFloat(String(c.lng));
+  if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return null;
+  return { lat, lng };
 }
 
 // Componente per forzare il ricalcolo delle dimensioni della mappa
@@ -80,12 +93,13 @@ export default function MappaView() {
         const newMarkers: MapMarkerData[] = [];
 
         tappe.forEach((t) => {
-          if (t.coordinate) {
+          const coord = parseValidCoord(t.coordinate);
+          if (coord) {
             newMarkers.push({
               id: t.id,
               title: t.titolo,
               type: 'tappa',
-              coord: t.coordinate,
+              coord,
               date: t.data || t.date,
               details: t.nota
             });
@@ -93,12 +107,13 @@ export default function MappaView() {
         });
 
         alloggi.forEach((a) => {
-          if (a.coordinate) {
+          const coord = parseValidCoord(a.coordinate);
+          if (coord) {
             newMarkers.push({
               id: a.id,
               title: a.name,
               type: 'alloggio',
-              coord: a.coordinate,
+              coord,
               date: a.checkIn,
               details: a.address
             });
@@ -106,12 +121,13 @@ export default function MappaView() {
         });
 
         ristoranti.forEach((r) => {
-          if (r.coordinate) {
+          const coord = parseValidCoord(r.coordinate);
+          if (coord) {
             newMarkers.push({
               id: r.id,
               title: r.nome,
               type: 'ristorante',
-              coord: r.coordinate,
+              coord,
               date: r.data || r.date,
               details: r.indirizzo
             });
@@ -119,12 +135,13 @@ export default function MappaView() {
         });
 
         attivita.forEach((a) => {
-          if (a.coordinate) {
+          const coord = parseValidCoord(a.coordinate);
+          if (coord) {
             newMarkers.push({
               id: a.id,
               title: a.title,
               type: 'attivita',
-              coord: a.coordinate,
+              coord,
               date: a.date,
               details: a.location
             });
