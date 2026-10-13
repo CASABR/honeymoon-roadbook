@@ -23,16 +23,16 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
   return (
     <div 
       onClick={onDetail || onEdit} 
-      className="cursor-pointer rounded-2xl border p-3.5 sm:p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 relative active:scale-[0.99] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+      className="cursor-pointer rounded-2xl border p-3.5 sm:p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 relative active:scale-[0.99] bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
     >
       {/* TOP */}
-      <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+      <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-100 dark:bg-pink-500/10 dark:text-pink-400 dark:border-pink-500/20 text-[11px] font-semibold uppercase tracking-wider">
             <span className="text-sm">📍</span> Tappa
           </span>
           {orario ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 text-[11px] font-medium font-mono">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200 text-[11px] font-medium font-mono">
               ⏰ {orario}
             </span>
           ) : (
@@ -47,7 +47,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
           )}
           {tappa.data && (
             <div className="flex flex-col ml-1">
-              <span className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400">
+              <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
                 {tappa.data}
               </span>
             </div>
@@ -60,7 +60,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
             className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all cursor-pointer shadow-2xs ${
               hasCopilotNotes
                 ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400' 
-                : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500 opacity-60 hover:opacity-100'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 opacity-60 hover:opacity-100'
             }`}
             title="Note Copilota"
           >
@@ -72,12 +72,12 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
       {/* BODY */}
       <div>
         <div className="flex items-start gap-2 flex-wrap">
-          <h3 className="font-semibold text-base leading-snug tracking-tight text-slate-800 dark:text-slate-100">
+          <h3 className="font-semibold text-base leading-snug tracking-tight text-slate-900 dark:text-white">
             {tappa.titolo}
           </h3>
         </div>
         {tappa.indirizzo && (
-          <p className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400 truncate mt-1 flex items-center gap-1">
+          <p className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300 truncate mt-1 flex items-center gap-1">
             <span>📍</span>
             <span className="truncate">{tappa.indirizzo}</span>
           </p>
@@ -85,7 +85,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
       </div>
 
       {/* BOTTOM */}
-      <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+      <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
         <div /> {/* Spacer for flex-between */}
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">

@@ -62,10 +62,10 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
   return (
     <div 
       onClick={onDetail || onEdit} 
-      className="cursor-pointer rounded-2xl border p-3.5 sm:p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 relative active:scale-[0.99] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+      className="cursor-pointer rounded-2xl border p-3.5 sm:p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 relative active:scale-[0.99] bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
     >
       {/* TOP */}
-      <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+      <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20 text-[11px] font-semibold uppercase tracking-wider">
             <span className="text-sm">🛏️</span> Alloggio
@@ -73,12 +73,12 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
           {(accommodation.checkInTime || accommodation.checkOutTime) && (
             <div className="flex items-center gap-1.5 ml-1">
               {accommodation.checkInTime && (
-                <span className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400">
+                <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
                   In {accommodation.checkInTime}
                 </span>
               )}
               {accommodation.checkOutTime && (
-                <span className="text-xs font-normal leading-relaxed opacity-75 text-slate-400 dark:text-slate-500">
+                <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
                   • Out {accommodation.checkOutTime}
                 </span>
               )}
@@ -92,7 +92,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all cursor-pointer shadow-2xs ${
               hasCopilotNotes
                 ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400' 
-                : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500 opacity-60 hover:opacity-100'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 opacity-60 hover:opacity-100'
             }`}
             title="Note Copilota"
           >
@@ -116,11 +116,11 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
       {/* BODY */}
       <div>
         <div className="flex items-start gap-2 flex-wrap">
-          <h3 className={`font-semibold text-base leading-snug tracking-tight text-slate-800 dark:text-slate-100 ${isSaldato ? 'opacity-90' : ''}`}>
+          <h3 className={`font-semibold text-base leading-snug tracking-tight text-slate-900 dark:text-white ${isSaldato ? 'opacity-90' : ''}`}>
             {accommodation.name}
           </h3>
         </div>
-        <p className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400 truncate mt-1 flex items-center gap-1">
+        <p className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300 truncate mt-1 flex items-center gap-1">
           <span>📍</span>
           <span className="truncate">{accommodation.address || accommodation.location || 'Indirizzo registrato'}</span>
         </p>
@@ -137,11 +137,11 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
       <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           {(!accommodation.cost || isNaN(parseFloat(String(accommodation.cost).replace(/[^0-9,.-]/g, '').replace(',', '.'))) || parseFloat(String(accommodation.cost).replace(/[^0-9,.-]/g, '').replace(',', '.')) === 0) ? (
-            <span className="text-sm font-semibold text-gray-800 dark:text-slate-200">
+            <span className="text-sm font-semibold text-slate-900 dark:text-white">
               Gratuito
             </span>
           ) : (
-            <span className="text-sm font-semibold text-gray-800 bg-slate-50 dark:bg-slate-800 dark:text-slate-200 px-2 py-1 rounded-md">
+            <span className="text-sm font-semibold text-slate-900 bg-slate-100 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 rounded-md">
               {String(accommodation.cost)}
             </span>
           )}

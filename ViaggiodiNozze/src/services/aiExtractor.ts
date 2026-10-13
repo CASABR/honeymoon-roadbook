@@ -326,8 +326,54 @@ export function stripHtml(html: string): string {
 const apiCache = new Map<string, { data: any, ts: number }>();
 const CACHE_TTL = 10 * 60 * 1000;
 
-/** Modello ufficiale Gemini */
-export const GEMINI_MODEL = 'gemini-1.5-flash';
+/** Modello di fallback predefinito */
+export let GEMINI_MODEL = 'gemini-1.5-flash';
+
+// Cache in memoria del modello verificato funzionante
+let cachedWorkingModel: string | null = null;
+
+/**
+ * Risolve dinamicamente il miglior modello Gemini disponibile per la chiave API corrente.
+ * Se listModels ha successo, sceglie tra gemini-1.5-flash, gemini-1.5-flash-latest, gemini-2.0-flash, gemini-1.5-pro, o il primo supportato.
+ */
+export async function getWorkingGeminiModel(cleanKey: string): Promise<string> {
+  if (cachedWorkingModel) return cachedWorkingModel;
+
+  try {
+    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`;
+    const res = await fetch(listUrl);
+    if (res.ok) {
+      const data = await res.json();
+      const models: Array<{ name: string; supportedGenerationMethods?: string[] }> = data.models || [];
+      const supported = models.filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'));
+      
+      if (supported.length > 0) {
+        // Normalizza il nome (es: "models/gemini-1.5-flash" -> "gemini-1.5-flash")
+        const cleanNames = supported.map(m => m.name.replace(/^models\//, ''));
+        
+        const preferred = [
+          'gemini-1.5-flash',
+          'gemini-1.5-flash-latest',
+          'gemini-2.0-flash',
+          'gemini-1.5-pro',
+          'gemini-pro'
+        ];
+        
+        const match = preferred.find(pref => cleanNames.includes(pref)) || cleanNames[0];
+        if (match) {
+          cachedWorkingModel = match;
+          GEMINI_MODEL = match;
+          return match;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[Gemini] Fallback automatico su modello default a causa di errore listModels:', e);
+  }
+
+  cachedWorkingModel = 'gemini-1.5-flash';
+  return 'gemini-1.5-flash';
+}
 
 /** Risolve la chiave API: localStorage (utente) → .env con sanitizzazione rigorosa. */
 export function resolveGeminiApiKey(): string {
@@ -341,14 +387,15 @@ export function resolveGeminiApiKey(): string {
   return (apiKey || '').trim().replace(/['"]/g, '').trim();
 }
 
-/** Chiamata a Gemini tramite REST API diretta con modello gemini-1.5-flash. */
+/** Chiamata a Gemini tramite REST API diretta con fallback dinamico modello. */
 async function callGemini(requestBody: any): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   try {
     const rawApiKey = resolveGeminiApiKey();
     if (!rawApiKey) return { ok: false, error: 'Chiave API Gemini mancante. Inseriscila in Impostazioni > Chiave API Gemini.' };
     const cleanKey = rawApiKey.trim().replace(/['"]/g, '');
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanKey}`;
+    const activeModel = await getWorkingGeminiModel(cleanKey);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${cleanKey}`;
 
     const response = await fetch(url, {
       method: 'POST',
