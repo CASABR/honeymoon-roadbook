@@ -21,9 +21,32 @@ Hounigo nasce per consentire ai viaggiatori di consultare tappe, alloggi, traspo
 - **Note Copilota con Popup Dedicato:** Accesso rapido alle note di guida/parcheggio tramite icona 🧭 senza interferire con la card frontale.
 - **Sincronizzazione Locale Offline-First:** Persistenza su IndexedDB con layer asincrono (`storageService.ts`) e cache istantanea.
 - **Dark Mode Completa:** Copertura cromatica su viewport, shell, card, bottom dock, categorie bar, menu impostazioni e modali.
-- **Integrazione AI Gemini Flash:** Estrazione strutturata di dati e modalità Concierge impostata sul modello ufficiale `gemini-3.8-flash` (con resilienza multi-modello) tramite chiamata REST diretta.
+- **Integrazione AI Houni AI (Google AI Studio & Gemini Flash):** Estrazione intelligente dati voucher, note e concierge di viaggio. Supporto completo e trasparente a chiavi generate da Google AI Studio sia con nuovo prefisso `AQ.` che con formato standard `AIzaSy.`. Sanitizzazione automatica delle stringhe (trim e strip apici), autenticazione via query parameter `?key=`, chiamata endpoint `v1beta/models/...:generateContent` e pipeline resiliente basata sul modello `gemini-3.1-flash-lite` con fallback automatico multi-modello.
 - **Feed LIVE Pubblico (`/live_feeds/{tripId}`):** Visualizzazione pubblica per ospiti con reazioni anonime (❤️, 😍, 😂, 👋) e isolamento totale dai dati privati (nessun costo, documento o PNR esposto).
 - **Service Worker PWA:** Generazione Service Worker Workbox con skipWaiting e clientClaim per aggiornamenti istantanei.
+
+### Tabella Ufficiale Attività Honeymoon 2026/2027
+
+Elenco consolidato delle attività ed escursioni confermate dell'itinerario ufficiale on-the-road (Nuova Zelanda, Australia, Filippine). **Nota di integrità:** l'itinerario ufficiale e i relativi costi e note operative non devono essere sovrascritti o sostituiti da seed mockup fittizi.
+
+| # | Data | Attività / Esperienza | Luogo / Fornitore | Prezzo / Modalità | Note Operative & Copilota |
+|---|---|---|---|---|---|
+| 1 | 28/11/2026 | **Museo del Novecento** | Milano (Piazza del Duomo) | 20,00 € (10 € cad.) | Ultimo ingresso ore 18:30, chiusura 19:30. In loco o online. |
+| 2 | 30/11/2026 | **Grande Muraglia Cinese (Mutianyu)** | Pechino / Scalo Air China | In loco (Funivia & Toboggan) | Scalo di 18h 35m. Visto transito 24/144h. Toboggan discesa. |
+| 3 | 02/12/2026 | **Waitomo Caves (Glowworm Caves Tour)** | Waitomo / GetYourGuide | 84,58 € (Saldato) | Barca sotterranea larve luminose. 12-14 °C. Divieto foto. |
+| 4 | 03/12/2026 | **Hobbiton Movie Set Tour** | Matamata / GetYourGuide | 129,36 € (Saldato) | Partenza ore 08:30 da Waitomo. Presentarsi alle 10:45 a The Shires Rest. |
+| 5 | 03/12/2026 | **Esperienza Culturale Maori Te Pā Tū con Cena** | Rotorua / GetYourGuide | 288,58 € (Saldato) | Ref: 3KQIPMAAZJD6CHQ8VYDBGVT1FDXMDDCF. Rito e cena tradizionale Hāngi. |
+| 6 | 07/12/2026 | **Kaikoura Whale Watch** | Kaikoura / GetYourGuide | 174,14 € (Saldato) | Check-in ore 08:10 Whaleway Station. Pastiglia mal di mare 30 min prima. |
+| 7 | 09/12/2026 | **Fox Glacier Heli-Hike** | Fox Glacier / Headout | 852,82 € (Saldato) | Volo elicottero + trekking su ghiaccio. Verifica meteo ore 07:30. |
+| 8 | 12/12/2026 | **Crociera Milford Sound** | Milford Sound / Cruise Milford NZ | 154,08 € (Saldato) | Prenotata Booking. Banco Cruise Milford. Parcheggio a 10 min a piedi. |
+| 9 | 16/12/2026 | **Seal Bay Conservation Park (Leoni Marini)** | Kangaroo Island / Parks SA | 50,00 € (Da saldare) | Tour guidato con ranger sulla battigia tra i leoni marini protetti. |
+| 10 | 16/12/2026 | **Flinders Chase NP (Remarkable Rocks & Admirals Arch)** | Kangaroo Island / Parks SA | Incluso nel pass parco | Sculture di granito e otarie neozelandesi. Accesso con pass auto. |
+| 11 | 24/12/2026 | **Dolphin Cruise Jervis Bay** | Jervis Bay / Huskisson | 70,00 € (Da saldare) | Uscita in catamarano per branchi di delfini residenti a Jervis Bay. |
+| 12 | 30/12/2026 | **Tour Privato Barca Boracay (Island Hopping)** | Boracay / White Beach Station 2 | 60,00 € (Da saldare) | Barca locale privata per Crocodile Island e snorkeling Crystal Cove. |
+| 13 | 02/01/2027 | **Briefing Obbligatorio TAO Philippines** | El Nido Town Proper | Incluso nella spedizione | Ore 17:30 ritiro sacche stagne e briefing rotte e sicurezza. |
+| 14 | 03-06/01/2027 | **Spedizione Avventura TAO Philippines (El Nido → Coron)** | Palawan / TAO Philippines | 1.410,65 € (Saldato) | 4 giorni tra isole remote Linapacan e Culion. Campi base tradizionali. |
+
+---
 
 ### Limiti Noti e Rischio Architetturale (Verificati)
 - **Onboarding / Join Trip:** Disallineamento architetturale critico tra frontend e backend:

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Trasporto, TipoTrasporto } from '../../types';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
-import { storageService } from '../../storage/storageService';
+import { storageService, notifyDataChanged } from '../../storage/storageService';
 import { getTransportMapTargets } from '../../utils/mapsHelper';
 
 interface TrasportoCardProps {
@@ -35,9 +35,35 @@ export default function TrasportoCard({
     transport.type === 'camper' ||
     Boolean(transport.bookingCode || transport.ticketUrl || attachmentsCount > 0);
 
-  const activeMapUrl = transport.status === 'completato' 
-    ? (mapTargets.arrivalUrl || mapTargets.dropoffUrl || mapTargets.primaryUrl)
-    : (mapTargets.departureUrl || mapTargets.pickupUrl || mapTargets.primaryUrl);
+  const activeMapUrl = (mapTargets.departureUrl || mapTargets.pickupUrl || mapTargets.primaryUrl || mapTargets.arrivalUrl || mapTargets.dropoffUrl);
+
+  const costNum = parseFloat(String(transport.cost || '0').replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
+  const isIncluded = transport.cost === '0.00' || transport.cost === '0' || costNum === 0;
+  const isSaldato = transport.paymentStatus === 'saldato' || isIncluded || Boolean(transport.depositPaid && parseFloat(String(transport.depositPaid).replace(/[^0-9,.-]/g, '').replace(',', '.')) >= costNum && costNum > 0);
+
+  const handleTogglePayment = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isIncluded) return;
+    try {
+      const newStatus = isSaldato ? 'da_saldare' : 'saldato';
+      const costStr = transport.cost || `${costNum.toFixed(2)} €`;
+      const paidVal = newStatus === 'saldato' ? costStr : '0.00 €';
+      const updated: Trasporto = {
+        ...transport,
+        paymentStatus: newStatus,
+        depositPaid: paidVal,
+        acconto: paidVal,
+        amountPaid: paidVal,
+        updatedAt: Date.now()
+      };
+      await storageService.saveTransport(updated);
+      notifyDataChanged('trasporti', 'save', updated);
+      if (typeof onUpdate === 'function') onUpdate(updated);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'trasporti', data: updated } }));
+    } catch (err) {
+      console.error('Errore toggle pagamento trasporto:', err);
+    }
+  };
 
   const extractCodeOrCity = (locationStr: string): { code: string; name: string } => {
     if (!locationStr) return { code: 'LOC', name: 'Destinazione' };
@@ -136,7 +162,21 @@ export default function TrasportoCard({
             >
               <span className="text-sm">🧭</span>
             </button>
-            <span className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${transport.status === 'prenotato' || transport.status === 'completato' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'}`}>
+            {!isIncluded && (
+              <button
+                type="button"
+                onClick={handleTogglePayment}
+                className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
+                  isSaldato
+                    ? 'bg-[#E6F4EA] text-[#39734A] border-emerald-300 dark:bg-[#143521] dark:text-[#4ADE80] dark:border-emerald-800'
+                    : 'bg-[#FFFDF2] text-amber-900 border-[#FFC857] dark:bg-[#382C0E] dark:text-[#FDE047] dark:border-[#785912]'
+                }`}
+                title="Clicca per invertire stato: Saldato / Da saldare"
+              >
+                {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
+              </button>
+            )}
+            <span className="inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20">
               {statusLabel}
             </span>
           </div>

@@ -1,83 +1,157 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import icon from 'leaflet/dist/images/marker-icon.png';
-import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 import { storageService } from '../storage/storageService';
+import { lookupKnownCoordinate } from '../services/routingService';
 import type { Coordinate } from '../types';
 
-// Configurazione Icona di default Leaflet per Vite/GitHub Pages (evita icone 404)
-const DefaultIcon = L.icon({
-  iconUrl: icon,
-  shadowUrl: iconShadow,
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-});
-L.Marker.prototype.options.icon = DefaultIcon;
+export type POICategory = 'tappa' | 'alloggio' | 'attivita' | 'ristorante';
 
-// Helper per creare icone HTML personalizzate
-const createCustomIcon = (emoji: string, bgColor: string, textColor: string, borderColor: string) => {
-  return L.divIcon({
-    html: `
-      <div class="w-8 h-8 rounded-full shadow-md flex items-center justify-center text-sm border-2 ${bgColor} ${textColor} ${borderColor} transform transition-transform hover:scale-110">
-        ${emoji}
-      </div>
-    `,
-    className: 'bg-transparent border-none', // Override Leaflet defaults
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-    popupAnchor: [0, -16]
-  });
-};
-
-const ICONS = {
-  tappa: createCustomIcon('📍', 'bg-rose-50', 'text-rose-600', 'border-rose-400'),
-  alloggio: createCustomIcon('🏨', 'bg-indigo-50', 'text-indigo-600', 'border-indigo-400'),
-  ristorante: createCustomIcon('🍽️', 'bg-amber-50', 'text-amber-600', 'border-amber-400'),
-  attivita: createCustomIcon('🎟️', 'bg-[#FFF0ED]', 'text-[#FF6B5F]', 'border-slate-300'),
-};
-
-interface MapMarkerData {
+export interface MapMarkerData {
   id: string;
   title: string;
-  type: 'tappa' | 'alloggio' | 'ristorante' | 'attivita';
+  type: POICategory;
   coord: Coordinate;
   date?: string;
+  time?: string;
   details?: string;
+  originalItem?: any;
 }
 
-// Estrazione sicura di coordinate con parseFloat
+// Configurazione grafica e icone SVG inline per categoria
+const CATEGORY_META: Record<POICategory, {
+  label: string;
+  badgeBg: string;
+  badgeText: string;
+  badgeBorder: string;
+  markerBg: string;
+  markerBorder: string;
+  markerShadow: string;
+  iconSvg: string;
+}> = {
+  tappa: {
+    label: 'Tappa',
+    badgeBg: 'bg-rose-50 dark:bg-rose-950/40',
+    badgeText: 'text-rose-700 dark:text-rose-300',
+    badgeBorder: 'border-rose-200 dark:border-rose-800/40',
+    markerBg: '#F43F5E', // Rose 500
+    markerBorder: '#BE123C', // Rose 700
+    markerShadow: 'rgba(244, 63, 94, 0.45)',
+    iconSvg: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>`
+  },
+  alloggio: {
+    label: 'Alloggio',
+    badgeBg: 'bg-indigo-50 dark:bg-indigo-950/40',
+    badgeText: 'text-indigo-700 dark:text-indigo-300',
+    badgeBorder: 'border-indigo-200 dark:border-indigo-800/40',
+    markerBg: '#6366F1', // Indigo 500
+    markerBorder: '#4338CA', // Indigo 700
+    markerShadow: 'rgba(99, 102, 241, 0.45)',
+    iconSvg: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M3 7v14M21 7v14M6 11h4M6 15h4M14 11h4M14 15h4M9 3h6v4H9z"/></svg>`
+  },
+  attivita: {
+    label: 'Attività',
+    badgeBg: 'bg-amber-50 dark:bg-amber-950/40',
+    badgeText: 'text-amber-700 dark:text-amber-300',
+    badgeBorder: 'border-amber-200 dark:border-amber-800/40',
+    markerBg: '#F59E0B', // Amber 500
+    markerBorder: '#B45309', // Amber 700
+    markerShadow: 'rgba(245, 158, 11, 0.45)',
+    iconSvg: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10h16v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V10z"/><path d="M9 10V6a3 3 0 0 1 6 0v4"/><circle cx="12" cy="15" r="1.5"/></svg>`
+  },
+  ristorante: {
+    label: 'Ristorante',
+    badgeBg: 'bg-emerald-50 dark:bg-emerald-950/40',
+    badgeText: 'text-emerald-700 dark:text-emerald-300',
+    badgeBorder: 'border-emerald-200 dark:border-emerald-800/40',
+    markerBg: '#10B981', // Emerald 500
+    markerBorder: '#047857', // Emerald 700
+    markerShadow: 'rgba(16, 185, 129, 0.45)',
+    iconSvg: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 2v20M6 2v7a3 3 0 0 0 3 3h0a3 3 0 0 0 3-3V2M9 12v10"/></svg>`
+  }
+};
+
+// Generatore icone Leaflet basate su L.divIcon per non dipendere da percorsi statici/PNG
+function createPinIcon(type: POICategory, isSelected: boolean = false) {
+  const meta = CATEGORY_META[type];
+  const size = isSelected ? 42 : 36;
+  const scale = isSelected ? 1.15 : 1;
+
+  const html = `
+    <div style="
+      width: ${size}px;
+      height: ${size}px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: ${meta.markerBg};
+      border: ${isSelected ? '3px solid #FFFFFF' : `2.5px solid ${meta.markerBorder}`};
+      border-radius: 50% 50% 50% 0;
+      transform: rotate(-45deg) scale(${scale});
+      box-shadow: 0 4px 12px ${meta.markerShadow}, 0 2px 4px rgba(0,0,0,0.25);
+      cursor: pointer;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    ">
+      <div style="transform: rotate(45deg); display: flex; align-items: center; justify-content: center;">
+        ${meta.iconSvg}
+      </div>
+    </div>
+  `;
+
+  return L.divIcon({
+    html,
+    className: 'leaflet-custom-poi-marker',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size],
+    popupAnchor: [0, -size + 4]
+  });
+}
+
+// Estrazione sicura di coordinate con Number() / parseFloat() rigorosi
 function parseValidCoord(c: any): Coordinate | null {
   if (!c) return null;
   const lat = typeof c.lat === 'number' ? c.lat : parseFloat(String(c.lat));
   const lng = typeof c.lng === 'number' ? c.lng : parseFloat(String(c.lng));
   if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return null;
-  return { lat, lng };
+  return { lat: Number(lat), lng: Number(lng) };
 }
 
-// Componente per forzare il ricalcolo delle dimensioni della mappa
-function MapUpdater({ markers }: { markers: MapMarkerData[] }) {
+// Controller mappa per fitBounds e re-center
+function MapController({
+  markers,
+  selectedMarker
+}: {
+  markers: MapMarkerData[];
+  selectedMarker: MapMarkerData | null;
+}) {
   const map = useMap();
+
   useEffect(() => {
-    // Quando i marker cambiano o il componente viene montato, diamo un po' di tempo
-    // al contenitore per assumere le dimensioni finali, poi forziamo l'aggiornamento
     const timer = setTimeout(() => {
       map.invalidateSize();
-      if (markers.length > 0) {
-        const bounds = L.latLngBounds(markers.map(m => [m.coord.lat, m.coord.lng]));
-        map.fitBounds(bounds, { padding: [20, 20], maxZoom: 14 });
+      if (selectedMarker) {
+        map.setView([selectedMarker.coord.lat, selectedMarker.coord.lng], Math.max(map.getZoom(), 13), {
+          animate: true
+        });
+      } else if (markers.length > 0) {
+        const bounds = L.latLngBounds(markers.map((m) => [m.coord.lat, m.coord.lng]));
+        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 13 });
       }
-    }, 100);
+    }, 120);
     return () => clearTimeout(timer);
-  }, [map, markers]);
+  }, [map, markers, selectedMarker]);
+
   return null;
 }
 
 export default function MappaView() {
   const [markers, setMarkers] = useState<MapMarkerData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<POICategory | 'all'>('all');
+  const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
+
+  const markerRefs = useRef<Record<string, L.Marker | null>>({});
 
   useEffect(() => {
     const loadData = async () => {
@@ -92,65 +166,84 @@ export default function MappaView() {
 
         const newMarkers: MapMarkerData[] = [];
 
+        // 1. Tappe
         tappe.forEach((t) => {
-          const coord = parseValidCoord(t.coordinate);
+          const directCoord = parseValidCoord(t.coordinate);
+          const coord = directCoord || lookupKnownCoordinate(t.indirizzo || t.titolo || '');
           if (coord) {
             newMarkers.push({
-              id: t.id,
+              id: `tappa_${t.id}`,
               title: t.titolo,
               type: 'tappa',
               coord,
               date: t.data || t.date,
-              details: t.nota
+              time: t.orario || (t as any).time,
+              details: t.indirizzo || t.nota,
+              originalItem: t
             });
           }
         });
 
+        // 2. Alloggi
         alloggi.forEach((a) => {
-          const coord = parseValidCoord(a.coordinate);
+          const directCoord = parseValidCoord(a.coordinate);
+          const coord = directCoord || lookupKnownCoordinate(a.address || a.location || a.name || '');
           if (coord) {
             newMarkers.push({
-              id: a.id,
+              id: `alloggio_${a.id}`,
               title: a.name,
               type: 'alloggio',
               coord,
               date: a.checkIn,
-              details: a.address
+              time: a.checkInTime ? `In: ${a.checkInTime}` : undefined,
+              details: a.address || a.location,
+              originalItem: a
             });
           }
         });
 
-        ristoranti.forEach((r) => {
-          const coord = parseValidCoord(r.coordinate);
+        // 3. Attività
+        attivita.forEach((act) => {
+          const directCoord = parseValidCoord(act.coordinate);
+          const coord = directCoord || lookupKnownCoordinate(act.address || act.location || act.title || '');
           if (coord) {
             newMarkers.push({
-              id: r.id,
+              id: `attivita_${act.id}`,
+              title: act.title,
+              type: 'attivita',
+              coord,
+              date: act.date,
+              time: act.time || act.orarioInizio,
+              details: act.address || act.location,
+              originalItem: act
+            });
+          }
+        });
+
+        // 4. Ristoranti
+        ristoranti.forEach((r) => {
+          const directCoord = parseValidCoord(r.coordinate);
+          const coord = directCoord || lookupKnownCoordinate(r.indirizzo || r.nome || '');
+          if (coord) {
+            newMarkers.push({
+              id: `ristorante_${r.id}`,
               title: r.nome,
               type: 'ristorante',
               coord,
               date: r.data || r.date,
-              details: r.indirizzo
-            });
-          }
-        });
-
-        attivita.forEach((a) => {
-          const coord = parseValidCoord(a.coordinate);
-          if (coord) {
-            newMarkers.push({
-              id: a.id,
-              title: a.title,
-              type: 'attivita',
-              coord,
-              date: a.date,
-              details: a.location
+              time: r.orario,
+              details: r.indirizzo,
+              originalItem: r
             });
           }
         });
 
         setMarkers(newMarkers);
+        if (newMarkers.length > 0) {
+          setSelectedMarkerId(newMarkers[0].id);
+        }
       } catch (err) {
-        console.error('Errore caricamento mappa:', err);
+        console.error('Errore caricamento dati per la mappa:', err);
       } finally {
         setLoading(false);
       }
@@ -159,89 +252,262 @@ export default function MappaView() {
     loadData();
   }, []);
 
-  const center: [number, number] = useMemo(() => {
-    if (markers.length === 0) return [41.9028, 12.4964]; // Roma default
-    // Media delle coordinate
-    const sumLat = markers.reduce((sum, m) => sum + m.coord.lat, 0);
-    const sumLng = markers.reduce((sum, m) => sum + m.coord.lng, 0);
-    return [sumLat / markers.length, sumLng / markers.length];
-  }, [markers]);
+  // Filtro categoria
+  const filteredMarkers = useMemo(() => {
+    if (selectedCategory === 'all') return markers;
+    return markers.filter((m) => m.type === selectedCategory);
+  }, [markers, selectedCategory]);
+
+  // Marker selezionato
+  const selectedMarker = useMemo(() => {
+    return filteredMarkers.find((m) => m.id === selectedMarkerId) || filteredMarkers[0] || null;
+  }, [filteredMarkers, selectedMarkerId]);
+
+  // Centro di default
+  const defaultCenter: [number, number] = useMemo(() => {
+    if (selectedMarker) return [selectedMarker.coord.lat, selectedMarker.coord.lng];
+    if (filteredMarkers.length > 0) {
+      const sumLat = filteredMarkers.reduce((s, m) => s + m.coord.lat, 0);
+      const sumLng = filteredMarkers.reduce((s, m) => s + m.coord.lng, 0);
+      return [sumLat / filteredMarkers.length, sumLng / filteredMarkers.length];
+    }
+    return [45.4642, 9.1900]; // Milano
+  }, [filteredMarkers, selectedMarker]);
+
+  const handleSelectMarker = (marker: MapMarkerData) => {
+    setSelectedMarkerId(marker.id);
+    const mRef = markerRefs.current[marker.id];
+    if (mRef) {
+      mRef.openPopup();
+    }
+  };
 
   return (
-    <div className="flex flex-col h-full animate-fade-in pb-4 space-y-4">
-      <header className="px-1 mb-2">
-        <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-          <span>🗺️</span>
-          <span>Mappa Interattiva</span>
-        </h1>
-        <p className="text-[11px] text-slate-500 font-medium">
-          Esplora le tappe, gli alloggi e le attività del tuo itinerario
-        </p>
+    <div className="flex flex-col h-full animate-fade-in pb-16 space-y-3">
+      {/* HEADER & FILTRI */}
+      <header className="px-1 flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
+              <span>🗺️</span>
+              <span>Mappa Interattiva</span>
+            </h1>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              {filteredMarkers.length} punti di interesse localizzati nel percorso
+            </p>
+          </div>
+        </div>
+
+        {/* Categorie filtri pillole */}
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1">
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('all')}
+            className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border ${
+              selectedCategory === 'all'
+                ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white shadow-xs'
+                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            Tutti ({markers.length})
+          </button>
+          {(Object.keys(CATEGORY_META) as POICategory[]).map((catKey) => {
+            const meta = CATEGORY_META[catKey];
+            const count = markers.filter((m) => m.type === catKey).length;
+            const isSelected = selectedCategory === catKey;
+            return (
+              <button
+                key={catKey}
+                type="button"
+                onClick={() => setSelectedCategory(catKey)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all border flex items-center gap-1.5 ${
+                  isSelected
+                    ? `${meta.badgeBg} ${meta.badgeText} ${meta.badgeBorder} shadow-xs font-bold ring-1 ring-current`
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <span>{meta.label}</span>
+                <span className="text-[10px] opacity-75">({count})</span>
+              </button>
+            );
+          })}
+        </div>
       </header>
 
-      {/* Container della mappa */}
-      <div className="w-full rounded-3xl overflow-hidden shadow-sm border border-slate-200 relative" style={{ height: '60vh', minHeight: '400px' }}>
+      {/* CONTAINER MAPPA */}
+      <div
+        className="w-full rounded-3xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700 relative bg-slate-100 dark:bg-slate-900"
+        style={{ height: '52vh', minHeight: '340px' }}
+      >
         {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-50 z-10">
-            <span className="text-xs font-bold text-slate-400">Caricamento mappa...</span>
+          <div className="absolute inset-0 flex items-center justify-center bg-slate-50/80 dark:bg-slate-900/80 z-10 backdrop-blur-xs">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-7 h-7 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento mappa e pin...</span>
+            </div>
           </div>
         ) : (
-          <MapContainer 
-            center={center} 
-            zoom={markers.length > 0 ? 6 : 2} 
+          <MapContainer
+            center={defaultCenter}
+            zoom={filteredMarkers.length > 0 ? 11 : 4}
             style={{ height: '100%', width: '100%', zIndex: 0 }}
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <MapUpdater markers={markers} />
-            {markers.map((m) => (
-              <Marker 
-                key={m.id} 
-                position={[m.coord.lat, m.coord.lng]}
-                icon={ICONS[m.type]}
-              >
-                <Popup className="rounded-2xl">
-                  <div className="p-1">
-                    <h3 className="text-xs font-bold text-slate-900 capitalize mb-1">
-                      {m.title}
-                    </h3>
-                    {m.date && (
-                      <p className="text-[10px] text-slate-500 mb-1">📅 {m.date}</p>
-                    )}
-                    {m.details && (
-                      <p className="text-[11px] text-slate-600 leading-snug line-clamp-2">
-                        {m.details}
-                      </p>
-                    )}
-                  </div>
-                </Popup>
-              </Marker>
-            ))}
+            <MapController markers={filteredMarkers} selectedMarker={selectedMarker} />
+
+            {filteredMarkers.map((m) => {
+              const isSelected = selectedMarker?.id === m.id;
+              const meta = CATEGORY_META[m.type];
+              const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${m.coord.lat},${m.coord.lng}`;
+
+              return (
+                <Marker
+                  key={m.id}
+                  position={[m.coord.lat, m.coord.lng]}
+                  icon={createPinIcon(m.type, isSelected)}
+                  ref={(ref) => {
+                    markerRefs.current[m.id] = ref;
+                  }}
+                  eventHandlers={{
+                    click: () => {
+                      setSelectedMarkerId(m.id);
+                    }
+                  }}
+                >
+                  <Popup className="custom-leaflet-popup">
+                    <div className="p-1 min-w-[190px] max-w-[240px]">
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${meta.badgeBg} ${meta.badgeText} border ${meta.badgeBorder}`}>
+                          {meta.label}
+                        </span>
+                        {(m.time || m.date) && (
+                          <span className="text-[10px] font-medium text-slate-400">
+                            {m.time || m.date}
+                          </span>
+                        )}
+                      </div>
+                      <h3 className="text-xs font-bold text-slate-900 leading-snug mb-1">
+                        {m.title}
+                      </h3>
+                      {m.details && (
+                        <p className="text-[11px] text-slate-600 leading-snug line-clamp-2 mb-2">
+                          {m.details}
+                        </p>
+                      )}
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center justify-center gap-1 py-1.5 px-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[11px] font-semibold transition-colors mt-1"
+                      >
+                        <span>🗺️</span>
+                        <span>Apri in Google Maps ↗</span>
+                      </a>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
           </MapContainer>
         )}
       </div>
 
-      {/* Legenda rapida */}
-      <div className="flex items-center justify-center gap-4 flex-wrap px-2">
-        <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
-          <span className="w-4 h-4 rounded-full bg-rose-50 text-rose-600 border border-rose-400 flex items-center justify-center">📍</span>
-          Tappe
+      {/* CARD DETTAGLIO ELEMENTO SELEZIONATO */}
+      {selectedMarker && (
+        <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3.5 shadow-sm hover:shadow-md transition-all duration-200">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${CATEGORY_META[selectedMarker.type].badgeBg} ${CATEGORY_META[selectedMarker.type].badgeText} ${CATEGORY_META[selectedMarker.type].badgeBorder}`}>
+                  {CATEGORY_META[selectedMarker.type].label}
+                </span>
+                {selectedMarker.date && (
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    📅 {selectedMarker.date}
+                  </span>
+                )}
+                {selectedMarker.time && (
+                  <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    ⏰ {selectedMarker.time}
+                  </span>
+                )}
+              </div>
+              <h3 className="text-[15px] font-semibold text-slate-900 dark:text-white leading-snug truncate">
+                {selectedMarker.title}
+              </h3>
+              {selectedMarker.details && (
+                <p className="text-xs text-slate-600 dark:text-slate-300 font-medium truncate mt-1 flex items-center gap-1">
+                  <span>📍</span>
+                  <span className="truncate">{selectedMarker.details}</span>
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => handleSelectMarker(selectedMarker)}
+                title="Centra marker sulla mappa"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-colors"
+              >
+                🎯
+              </button>
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${selectedMarker.coord.lat},${selectedMarker.coord.lng}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-800 text-xs font-semibold transition-colors"
+              >
+                <span>Naviga ↗</span>
+              </a>
+            </div>
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
-          <span className="w-4 h-4 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-400 flex items-center justify-center">🏨</span>
-          Alloggi
+      )}
+
+      {/* LISTA ORIZZONTALE POI COMPATTA */}
+      {filteredMarkers.length > 1 && (
+        <div className="space-y-1">
+          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1">
+            Punti correlati ({filteredMarkers.length})
+          </div>
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
+            {filteredMarkers.map((m) => {
+              const isSelected = selectedMarker?.id === m.id;
+              const meta = CATEGORY_META[m.type];
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => handleSelectMarker(m)}
+                  className={`flex-shrink-0 max-w-[210px] text-left p-2.5 rounded-xl border transition-all ${
+                    isSelected
+                      ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 shadow-xs'
+                      : 'bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${isSelected ? 'bg-white/20 text-white dark:bg-slate-900/20 dark:text-slate-900' : `${meta.badgeBg} ${meta.badgeText}`}`}>
+                      {meta.label}
+                    </span>
+                    {m.date && (
+                      <span className="text-[10px] opacity-75 truncate">
+                        {m.date}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs font-semibold truncate leading-tight">
+                    {m.title}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
-        <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
-          <span className="w-4 h-4 rounded-full bg-[#FFF0ED] text-[#FF6B5F] border border-slate-300 flex items-center justify-center">🎟️</span>
-          Attività
-        </div>
-        <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-600">
-          <span className="w-4 h-4 rounded-full bg-amber-50 text-amber-600 border border-amber-400 flex items-center justify-center">🍽️</span>
-          Rist.
-        </div>
-      </div>
+      )}
     </div>
   );
 }
