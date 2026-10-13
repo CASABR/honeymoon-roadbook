@@ -4,8 +4,8 @@ import { doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { storageService } from '../storage/storageService';
 import { getTripConfig } from '../utils/tripConfig';
 
-// Chiave VAPID pubblica
-const PUBLIC_VAPID_KEY = 'BGw2M2Mu8UFc2OjWFfhNl9HMzrMpOYfuI8MIwLQi8bkBaxJ4vTPkhd79u8D0SMw7qb0fHCuy0syAQ1exSxMRAR8'; 
+// Chiave VAPID pubblica (da environment con fallback compatibile)
+const PUBLIC_VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || 'BGw2M2Mu8UFc2OjWFfhNl9HMzrMpOYfuI8MIwLQi8bkBaxJ4vTPkhd79u8D0SMw7qb0fHCuy0syAQ1exSxMRAR8'; 
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -82,8 +82,10 @@ export function usePushNotifications() {
       }
       
       const tripConfig = getTripConfig();
-      // Associa esplicitamente le notifiche push al trip storico "0000" per il device principale
-      const tripId = tripConfig?.id === '0000' ? '0000' : '0000'; // Forza "0000" come richiesto
+      const tripId = tripConfig?.id?.trim();
+      if (!tripId) {
+        throw new Error("Nessun viaggio attivo trovato. Unisciti o crea un viaggio prima di attivare le notifiche.");
+      }
       
       await setDoc(doc(db, 'push_subscribers', deviceId), {
         subscription: JSON.parse(JSON.stringify(sub)),

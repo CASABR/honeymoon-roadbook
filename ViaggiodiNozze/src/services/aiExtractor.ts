@@ -327,14 +327,23 @@ const apiCache = new Map<string, { data: any, ts: number }>();
 const CACHE_TTL = 10 * 60 * 1000;
 
 /** Modello di fallback predefinito */
-export let GEMINI_MODEL = 'gemini-1.5-flash';
+/** Modello di default ufficiale */
+export let GEMINI_MODEL = 'gemini-3.8-flash';
+
+// Modelli supportati in ordine di priorità (esclusi rigorosamente modelli 1.5 ritirati o non supportati)
+export const PREFERRED_GEMINI_MODELS = [
+  'gemini-3.8-flash',
+  'gemini-3.5-flash',
+  'gemini-flash-latest',
+  'gemini-2.5-flash'
+];
 
 // Cache in memoria del modello verificato funzionante
 let cachedWorkingModel: string | null = null;
 
 /**
  * Risolve dinamicamente il miglior modello Gemini disponibile per la chiave API corrente.
- * Se listModels ha successo, sceglie tra gemini-1.5-flash, gemini-1.5-flash-latest, gemini-2.0-flash, gemini-1.5-pro, o il primo supportato.
+ * Se listModels ha successo, sceglie tra i modelli Flash moderni supportati (priorità a gemini-3.8-flash).
  */
 export async function getWorkingGeminiModel(cleanKey: string): Promise<string> {
   if (cachedWorkingModel) return cachedWorkingModel;
@@ -348,18 +357,10 @@ export async function getWorkingGeminiModel(cleanKey: string): Promise<string> {
       const supported = models.filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'));
       
       if (supported.length > 0) {
-        // Normalizza il nome (es: "models/gemini-1.5-flash" -> "gemini-1.5-flash")
+        // Normalizza il nome (es: "models/gemini-3.8-flash" -> "gemini-3.8-flash")
         const cleanNames = supported.map(m => m.name.replace(/^models\//, ''));
         
-        const preferred = [
-          'gemini-1.5-flash',
-          'gemini-1.5-flash-latest',
-          'gemini-2.0-flash',
-          'gemini-1.5-pro',
-          'gemini-pro'
-        ];
-        
-        const match = preferred.find(pref => cleanNames.includes(pref)) || cleanNames[0];
+        const match = PREFERRED_GEMINI_MODELS.find(pref => cleanNames.includes(pref)) || cleanNames[0];
         if (match) {
           cachedWorkingModel = match;
           GEMINI_MODEL = match;
@@ -371,8 +372,8 @@ export async function getWorkingGeminiModel(cleanKey: string): Promise<string> {
     console.warn('[Gemini] Fallback automatico su modello default a causa di errore listModels:', e);
   }
 
-  cachedWorkingModel = 'gemini-1.5-flash';
-  return 'gemini-1.5-flash';
+  cachedWorkingModel = 'gemini-3.8-flash';
+  return 'gemini-3.8-flash';
 }
 
 /** Risolve la chiave API: localStorage (utente) → .env con sanitizzazione rigorosa. */
@@ -381,62 +382,118 @@ export function resolveGeminiApiKey(): string {
   if (typeof localStorage !== 'undefined') {
     apiKey = localStorage.getItem('gemini_api_key');
   }
-  if (!apiKey || apiKey.includes('la_tua_chiave')) {
+  if (!apiKey || apiKey.includes('la_tua_chiave') || apiKey.startsWith('AQ.')) {
     apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  }
+  // Se la chiave è l'access token errato 'AQ.*', considerala non valida per evitare 401 continuo
+  if (apiKey && apiKey.startsWith('AQ.')) {
+    apiKey = '';
   }
   return (apiKey || '').trim().replace(/['"]/g, '').trim();
 }
 
-/** Chiamata a Gemini tramite REST API diretta con fallback dinamico modello. */
+/** Chiamata a Gemini tramite REST API diretta con fallback automatico e gestione diagnostica HTTP accurata. */
 async function callGemini(requestBody: any): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   try {
     const rawApiKey = resolveGeminiApiKey();
-    if (!rawApiKey) return { ok: false, error: 'Chiave API Gemini mancante. Inseriscila in Impostazioni > Chiave API Gemini.' };
+    if (!rawApiKey) {
+      return { 
+        ok: false, 
+        error: 'Chiave API Gemini mancante o non valida. Inserisci la tua chiave Google AI (formato standard AIzaSy...) nelle Impostazioni o direttamente qui sotto.' 
+      };
+    }
     const cleanKey = rawApiKey.trim().replace(/['"]/g, '');
 
-    const activeModel = await getWorkingGeminiModel(cleanKey);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${cleanKey}`;
+    // Seleziona modello iniziale
+    const initialModel = await getWorkingGeminiModel(cleanKey);
+    const candidateModels = [
+      initialModel,
+      ...PREFERRED_GEMINI_MODELS.filter(m => m !== initialModel)
+    ];
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': cleanKey
-      },
-      body: JSON.stringify(requestBody)
-    });
+    let lastErrorMsg = '';
 
-    if (!response.ok) {
-      const errText = await response.text();
-      let parsedErr: any = null;
+    for (const modelToUse of candidateModels) {
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${cleanKey}`;
+
       try {
-        parsedErr = JSON.parse(errText);
-      } catch {
-        parsedErr = null;
-      }
-      
-      const gError = parsedErr?.error || parsedErr;
-      console.error(`[Gemini API Error] HTTP ${response.status} (gemini-1.5-flash):`, {
-        status: response.status,
-        statusText: response.statusText,
-        message: gError?.message || errText,
-        errorStatus: gError?.status,
-        code: gError?.code,
-        details: gError?.details || gError
-      });
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': cleanKey
+          },
+          body: JSON.stringify(requestBody)
+        });
 
-      if (response.status === 400 || response.status === 401 || response.status === 403) {
-        return { ok: false, error: `Errore API Gemini (${response.status}): ${gError?.message || 'chiave API non valida o non autorizzata.'}` };
+        if (response.ok) {
+          cachedWorkingModel = modelToUse;
+          GEMINI_MODEL = modelToUse;
+          const responseJson = await response.json();
+          const parts = responseJson?.candidates?.[0]?.content?.parts || [];
+          const rawText = parts.map((p: any) => p?.text || '').join('');
+
+          if (!rawText) return { ok: false, error: 'Risposta vuota o formato non valido.' };
+          return { ok: true, text: rawText };
+        }
+
+        const errText = await response.text();
+        let parsedErr: any = null;
+        try {
+          parsedErr = JSON.parse(errText);
+        } catch {
+          parsedErr = null;
+        }
+
+        const gError = parsedErr?.error || parsedErr;
+        const errMsg = gError?.message || errText;
+        console.warn(`[Gemini API] Modello ${modelToUse} HTTP ${response.status}:`, errMsg);
+
+        // 401 / 403: Credenziali o permessi non validi -> non riprovare altri modelli con la stessa chiave
+        if (response.status === 401 || response.status === 403) {
+          return { 
+            ok: false, 
+            error: `Errore credenziali API Gemini (${response.status}): la chiave non è autorizzata o è scaduta. Inserisci una chiave Google AI valida.` 
+          };
+        }
+
+        // 400: Parametri non validi
+        if (response.status === 400) {
+          return { 
+            ok: false, 
+            error: `Richiesta non valida per il modello ${modelToUse} (${response.status}): ${errMsg}` 
+          };
+        }
+
+        // 429: Limite di utilizzo (Rate Limit)
+        if (response.status === 429) {
+          lastErrorMsg = `Limite richieste raggiunto per ${modelToUse} (429). Tentativo su modello alternativo...`;
+          continue;
+        }
+
+        // 404: Modello non trovato / deprecato
+        if (response.status === 404) {
+          lastErrorMsg = `Modello ${modelToUse} non disponibile (404). Tentativo su modello alternativo...`;
+          continue;
+        }
+
+        // 503: Servizio temporaneamente non disponibile / sovraccarico
+        if (response.status === 503) {
+          lastErrorMsg = `Modello ${modelToUse} attualmente sovraccarico (503). Tentativo su modello alternativo...`;
+          continue;
+        }
+
+        lastErrorMsg = `Errore API Gemini (${response.status}): ${errMsg}`;
+      } catch (networkErr: any) {
+        console.warn(`[Gemini Network Error] su ${modelToUse}:`, networkErr.message);
+        lastErrorMsg = networkErr.message || 'Errore di connessione a Gemini';
       }
-      return { ok: false, error: `Errore API Gemini (${response.status}): ${gError?.message || errText}` };
     }
 
-    const responseJson = await response.json();
-    const parts = responseJson?.candidates?.[0]?.content?.parts || [];
-    const rawText = parts.map((p: any) => p?.text || '').join('');
-
-    if (!rawText) return { ok: false, error: 'Risposta vuota o formato non valido.' };
-    return { ok: true, text: rawText };
+    return { 
+      ok: false, 
+      error: lastErrorMsg || 'Tutti i modelli Gemini configurati sono momentaneamente occupati o non raggiungibili.' 
+    };
   } catch (error: any) {
     console.error('Errore chiamata Gemini REST API:', error);
     return { ok: false, error: `Errore rete: ${error.message || 'Sconosciuto'}` };

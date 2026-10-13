@@ -120,40 +120,36 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         user = userCredential.user;
       }
       
-      const { db } = await import('../firebase');
-      const { doc, getDoc, updateDoc, arrayUnion, setDoc, query, collection, where, getDocs } = await import('firebase/firestore');
+      const { functions } = await import('../firebase');
+      const { httpsCallable } = await import('firebase/functions');
 
-      const uid = user.uid;
-      let tripRef = doc(db, 'trips', codeClean);
-      let tripSnap: any = await rejectAfter(getDoc(tripRef), 8000, 'Timeout connessione al viaggio.');
-      
-      if (!tripSnap.exists()) {
-        const q = query(collection(db, 'trips'), where('inviteCode', '==', codeClean));
-        const qSnap = await rejectAfter(getDocs(q), 8000, 'Timeout ricerca codice invito.');
-        if (!qSnap.empty) {
-          tripSnap = qSnap.docs[0];
-          tripRef = tripSnap.ref;
-        } else {
-          throw new Error('Codice viaggio non trovato.');
-        }
+      if (!functions) {
+        throw new Error('Servizi cloud non inizializzati.');
       }
-      
-      const tripData = tripSnap.data() as any;
-      
-      // Membership: non blocca l'accesso se lenta
-      updateDoc(tripRef, { members: arrayUnion(uid) })
-        .then(async () => {
-          const memberRef = doc(tripRef, 'members', uid);
-          const memberSnap = await getDoc(memberRef);
-          if (!memberSnap.exists()) {
-            await setDoc(memberRef, { uid, role: 'copilota', createdAt: Date.now() });
-          }
-        })
-        .catch(err => console.warn('[Onboarding] Membership in background fallita:', err));
+
+      const joinTripFn = httpsCallable<{ inviteToken: string }, {
+        success: boolean;
+        tripId: string;
+        title: string;
+        startDate?: string;
+        endDate?: string;
+        ownerUid?: string;
+      }>(functions, 'joinTrip');
+
+      const result = await rejectAfter(
+        joinTripFn({ inviteToken: codeClean }),
+        10000,
+        'Timeout durante la verifica del codice di invito.'
+      );
+
+      const tripData = result.data;
+      if (!tripData || !tripData.tripId) {
+        throw new Error('Risposta non valida dal server.');
+      }
 
       await withTimeout(idbClearAll(), 1500, undefined);
       setTempConfig({
-        id: tripSnap.id,
+        id: tripData.tripId,
         title: tripData.title || 'Il nostro viaggio',
         startDate: tripData.startDate || '',
         endDate: tripData.endDate || '',
@@ -161,8 +157,16 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
       });
       setMode('role');
     } catch (err: any) {
-      console.error(err);
-      alert(`Errore durante l'adesione al viaggio: ${err?.message || 'Verifica il codice e la connessione.'}`);
+      console.error('[Onboarding] Errore joinTrip:', err);
+      let userMessage = 'Impossibile unirsi al viaggio. Verifica il codice e la connessione.';
+      if (err?.code === 'functions/not-found' || err?.message?.includes('not-found')) {
+        userMessage = 'Codice invito non trovato o non valido.';
+      } else if (err?.code === 'functions/failed-precondition' || err?.message?.includes('failed-precondition')) {
+        userMessage = err.message.replace(/^.*?:\s*/, '') || 'Codice invito scaduto o già utilizzato.';
+      } else if (err?.code === 'functions/unauthenticated') {
+        userMessage = 'Sessione non autenticata. Ricarica la pagina e riprova.';
+      }
+      alert(userMessage);
     } finally {
       setLoading(false);
     }
