@@ -330,10 +330,11 @@ const CACHE_TTL = 10 * 60 * 1000;
 /** Modello di default ufficiale */
 export let GEMINI_MODEL = 'gemini-3.8-flash';
 
-// Modelli supportati in ordine di priorità (esclusi rigorosamente modelli 1.5 ritirati o non supportati)
+// Modelli supportati in ordine di priorità (tenta gemini-1.5-flash e passa istantaneamente a 3.5 / 3.8 in caso di 404 o 503)
 export const PREFERRED_GEMINI_MODELS = [
-  'gemini-3.8-flash',
+  'gemini-1.5-flash',
   'gemini-3.5-flash',
+  'gemini-3.8-flash',
   'gemini-flash-latest',
   'gemini-2.5-flash'
 ];
@@ -382,12 +383,8 @@ export function resolveGeminiApiKey(): string {
   if (typeof localStorage !== 'undefined') {
     apiKey = localStorage.getItem('gemini_api_key');
   }
-  if (!apiKey || apiKey.includes('la_tua_chiave') || apiKey.startsWith('AQ.')) {
+  if (!apiKey || apiKey.includes('la_tua_chiave')) {
     apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  }
-  // Se la chiave è l'access token errato 'AQ.*', considerala non valida per evitare 401 continuo
-  if (apiKey && apiKey.startsWith('AQ.')) {
-    apiKey = '';
   }
   return (apiKey || '').trim().replace(/['"]/g, '').trim();
 }
@@ -399,7 +396,7 @@ async function callGemini(requestBody: any): Promise<{ ok: true; text: string } 
     if (!rawApiKey) {
       return { 
         ok: false, 
-        error: 'Chiave API Gemini mancante o non valida. Inserisci la tua chiave Google AI (formato standard AIzaSy...) nelle Impostazioni o direttamente qui sotto.' 
+        error: 'Chiave API Gemini mancante o non configurata. Inserisci la tua chiave API Google AI nelle Impostazioni o direttamente qui sotto.' 
       };
     }
     const cleanKey = rawApiKey.trim().replace(/['"]/g, '');
@@ -420,8 +417,7 @@ async function callGemini(requestBody: any): Promise<{ ok: true; text: string } 
         const response = await fetch(url, {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': cleanKey
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify(requestBody)
         });
