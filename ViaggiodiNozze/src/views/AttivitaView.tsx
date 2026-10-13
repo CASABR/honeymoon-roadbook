@@ -349,6 +349,7 @@ export default function AttivitaView() {
                       {nextActivity && activity.location && nextActivity.location && (
                         <div className="pl-6 py-0.5">
                           <RouteBadge 
+                            routeId={`act_${activity.id}_${nextActivity.id}`}
                             from={activity.location} 
                             to={nextActivity.location} 
                           />

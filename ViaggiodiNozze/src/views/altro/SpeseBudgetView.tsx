@@ -115,7 +115,7 @@ interface Props {
 
 export default function SpeseBudgetView({ onBack: _onBack }: Props) {
   const [deviceRole] = useState(() => storageService.getDeviceRole());
-  const canEdit = deviceRole === ("sposi" as any) || deviceRole === ("copilota" as any);
+  const canEdit = deviceRole === 'guida' || deviceRole === 'copilota' || (deviceRole as any) === 'sposi';
 
   // Dati Grezzi
   const [spese, setSpese] = useState<Spesa[]>([]);
@@ -325,43 +325,42 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
       const raw = e.rawItem;
       const formattedCost = newCostStr ? `${newCostStr} €` : raw.cost || raw.budget || raw.amount;
       const formattedPaid = newPaidStr ? `${newPaidStr} €` : "0 €";
-      const updated = { ...raw, paymentStatus: newStatus, status: newStatus, updatedAt: Date.now() };
+      const updated = { 
+        ...raw, 
+        paymentStatus: newStatus, 
+        status: newStatus, 
+        depositPaid: formattedPaid,
+        acconto: formattedPaid,
+        amountPaid: formattedPaid,
+        updatedAt: Date.now() 
+      };
 
       switch (e.category) {
         case 'trasporti':
           updated.cost = formattedCost;
-          updated.depositPaid = formattedPaid;
           await storageService.saveTransport(updated);
           break;
         case 'alloggi':
           updated.cost = formattedCost;
-          updated.acconto = formattedPaid;
           await storageService.saveAccommodation(updated);
           break;
         case 'attivita':
           updated.cost = formattedCost;
-          // Per estensibilità
-          if ('amountPaid' in updated || 'acconto' in updated) {
-            updated.amountPaid = formattedPaid;
-            updated.acconto = formattedPaid;
-          } else {
-             updated.amountPaid = formattedPaid;
-          }
           await storageService.saveActivity(updated);
           break;
         case 'ristoranti':
           updated.budget = formattedCost;
-          updated.amountPaid = formattedPaid;
-          await storageService.updateRistorante(e.id, updated);
+          await storageService.saveRistorante(updated);
           break;
         case 'shopping':
           updated.budget = formattedCost;
-          updated.amountPaid = formattedPaid;
-          await storageService.updateShopping(e.id, updated);
+          await storageService.saveShopping(updated);
           break;
         case 'altro':
         default:
-          updated.amount = newCostStr;
+          updated.status = newStatus;
+          updated.paymentStatus = newStatus;
+          updated.amount = newCostStr ? (parseFloat(newCostStr) || raw.amount) : raw.amount;
           await storageService.saveSpesa(updated);
           break;
       }
