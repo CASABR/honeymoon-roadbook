@@ -82,7 +82,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [timeline, setTimeline] = useState<import('../types').TimelineItem[]>([]);
   const [tomorrowTimeline, setTomorrowTimeline] = useState<import('../types').TimelineItem[]>([]);
   const [dynamicCountries, setDynamicCountries] = useState<string>(tripConfig?.title || 'Il mio Viaggio');
-  const [heroBgImage, setHeroBgImage] = useState<string | null>(null);
+  const [heroBgImage, setHeroBgImage] = useState<string | null>(() => {
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('trip_header_image') || localStorage.getItem('hero_bg_image') || null;
+    }
+    return null;
+  });
   const [isHeroEditOpen, setIsHeroEditOpen] = useState(false);
   const [heroEditTitle, setHeroEditTitle] = useState('');
   const [heroTitleMode, setHeroTitleMode] = useState<'custom' | 'auto'>('custom');
@@ -267,14 +272,20 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         storageService.getTransports(),
         storageService.getTappe(),
         storageService.getSetting('hero_custom_title'),
-        storageService.getSetting('hero_bg_image'),
+        storageService.getSetting('trip_header_image').then(v => v || storageService.getSetting('hero_bg_image')),
         storageService.getSetting('hero_title_mode')
       ]);
 
       const [accs, days, range, transports, tappe, heroTitle, heroBg, heroMode] = await Promise.race([dataPromise, timeoutPromise]) as [Alloggio[], Giorno[], any, Trasporto[], Tappa[], string | null, string | null, string | null];
 
       if (heroTitle) setDynamicCountries(heroTitle);
-      if (heroBg) setHeroBgImage(heroBg);
+      if (heroBg) {
+        setHeroBgImage(heroBg);
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('trip_header_image', heroBg);
+          localStorage.setItem('hero_bg_image', heroBg);
+        }
+      }
       if (heroMode) setHeroTitleMode(heroMode as 'custom' | 'auto');
 
       setAccommodations(accs || []);
@@ -626,6 +637,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           // Compress as JPEG
           const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
           setHeroBgImage(dataUrl);
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('trip_header_image', dataUrl);
+            localStorage.setItem('hero_bg_image', dataUrl);
+          }
+          storageService.saveSetting('trip_header_image', dataUrl);
           storageService.saveSetting('hero_bg_image', dataUrl);
         }
       };
@@ -636,6 +652,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   const handleRemoveHeroBg = () => {
     setHeroBgImage(null);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('trip_header_image');
+      localStorage.removeItem('hero_bg_image');
+    }
+    storageService.saveSetting('trip_header_image', null);
     storageService.saveSetting('hero_bg_image', null);
   };
 
@@ -1405,6 +1426,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       >
         <TappaForm
           initialData={editingTappaItem}
+          defaultDate={selectedDate}
           onSave={handleSaveTappa}
           onCancel={() => setEditingTappaItem(null)}
         />

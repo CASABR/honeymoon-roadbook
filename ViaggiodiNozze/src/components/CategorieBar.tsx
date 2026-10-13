@@ -113,15 +113,15 @@ export default function CategorieBar({
 
       {/* Dock popup a 2 file da 3 icone */}
       <div className="fixed bottom-20 left-4 right-4 max-w-sm mx-auto z-50 animate-slide-up">
-        <div className="bg-white/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/80 p-3.5">
-          <div className="flex items-center justify-between px-2 mb-2 pb-1.5 border-b border-slate-100">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 p-3.5">
+          <div className="flex items-center justify-between px-2 mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
               <span>🗂️</span> Sfoglia e Gestisci Categorie
             </span>
             <button
               type="button"
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 text-xs font-bold p-1 rounded-lg"
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold p-1 rounded-lg"
             >
               ✕
             </button>
@@ -141,18 +141,18 @@ export default function CategorieBar({
                   }}
                   className={`group flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-150 cursor-pointer min-h-[76px] border ${
                     isActive
-                      ? 'bg-slate-900 text-white border-slate-900 shadow-md shadow-slate-900/20 scale-[1.02]'
-                      : 'bg-white hover:bg-slate-50 text-slate-800 border-slate-200/70 hover:border-slate-300 shadow-xs active:scale-95'
+                      ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-900 dark:border-slate-100 shadow-md shadow-slate-900/20 scale-[1.02]'
+                      : 'bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200/70 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 shadow-xs active:scale-95'
                   }`}
                 >
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg mb-1.5 transition-transform duration-150 ${
                     isActive 
                       ? `${item.accent.activeBg} text-white shadow-xs` 
-                      : `${item.accent.bg} ${item.accent.text} border ${item.accent.border} group-hover:scale-105`
+                      : `${item.accent.bg} dark:bg-slate-700/80 ${item.accent.text} border ${item.accent.border} dark:border-slate-600 group-hover:scale-105`
                   }`}>
                     {item.icon}
                   </div>
-                  <span className={`text-[11px] font-bold text-center leading-tight truncate w-full ${isActive ? 'text-white' : 'text-slate-800'}`}>
+                  <span className={`text-[11px] font-bold text-center leading-tight truncate w-full ${isActive ? 'text-white dark:text-slate-900' : 'text-slate-800 dark:text-slate-200'}`}>
                     {item.label}
                   </span>
                 </button>

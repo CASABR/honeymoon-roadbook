@@ -326,9 +326,8 @@ export function stripHtml(html: string): string {
 const apiCache = new Map<string, { data: any, ts: number }>();
 const CACHE_TTL = 10 * 60 * 1000;
 
-/** Modello principale + fallback */
+/** Modello ufficiale Gemini */
 export const GEMINI_MODEL = 'gemini-1.5-flash';
-const GEMINI_FALLBACK_MODEL = 'gemini-2.5-flash';
 
 /** Risolve la chiave API: localStorage (utente) → .env con sanitizzazione rigorosa. */
 export function resolveGeminiApiKey(): string {
@@ -342,19 +341,14 @@ export function resolveGeminiApiKey(): string {
   return (apiKey || '').trim().replace(/['"]/g, '').trim();
 }
 
-/** Chiamata a Gemini tramite REST API diretta. Restituisce il testo grezzo della risposta. */
-async function callGemini(requestBody: any, model: string = GEMINI_MODEL): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+/** Chiamata a Gemini tramite REST API diretta con modello gemini-1.5-flash. */
+async function callGemini(requestBody: any): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   try {
     const rawApiKey = resolveGeminiApiKey();
     if (!rawApiKey) return { ok: false, error: 'Chiave API Gemini mancante. Inseriscila in Impostazioni > Chiave API Gemini.' };
     const cleanKey = rawApiKey.trim().replace(/['"]/g, '');
 
-    // Su gemini-2.5 il "thinking" consuma i maxOutputTokens: lo disattiviamo per risposte rapide e complete.
-    const body = model.startsWith('gemini-2.5')
-      ? { ...requestBody, generationConfig: { ...(requestBody?.generationConfig || {}), thinkingConfig: { thinkingBudget: 0 } } }
-      : requestBody;
-
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanKey}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanKey}`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -362,7 +356,7 @@ async function callGemini(requestBody: any, model: string = GEMINI_MODEL): Promi
         'Content-Type': 'application/json',
         'x-goog-api-key': cleanKey
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(requestBody)
     });
 
     if (!response.ok) {
@@ -375,7 +369,7 @@ async function callGemini(requestBody: any, model: string = GEMINI_MODEL): Promi
       }
       
       const gError = parsedErr?.error || parsedErr;
-      console.error(`[Gemini API Error] HTTP ${response.status} (${model}):`, {
+      console.error(`[Gemini API Error] HTTP ${response.status} (gemini-1.5-flash):`, {
         status: response.status,
         statusText: response.statusText,
         message: gError?.message || errText,
@@ -384,11 +378,6 @@ async function callGemini(requestBody: any, model: string = GEMINI_MODEL): Promi
         details: gError?.details || gError
       });
 
-      // Modello non disponibile: riprova una volta col modello di fallback
-      if (response.status === 404 && model !== GEMINI_FALLBACK_MODEL) {
-        console.warn(`[Gemini] Modello ${model} non trovato (404), ritento con ${GEMINI_FALLBACK_MODEL}...`);
-        return callGemini(requestBody, GEMINI_FALLBACK_MODEL);
-      }
       if (response.status === 400 || response.status === 401 || response.status === 403) {
         return { ok: false, error: `Errore API Gemini (${response.status}): ${gError?.message || 'chiave API non valida o non autorizzata.'}` };
       }

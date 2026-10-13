@@ -5,14 +5,16 @@ import type { Tappa } from '../../types';
 
 interface TappaFormProps {
   initialData?: Tappa | null;
+  defaultDate?: string;
   onSave: (data: Omit<Tappa, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   onCancel: () => void;
   onDelete?: () => void;
 }
 
-export default function TappaForm({ initialData, onSave, onCancel, onDelete }: TappaFormProps) {
+export default function TappaForm({ initialData, defaultDate, onSave, onCancel, onDelete }: TappaFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
+  const [data, setData] = useState(() => initialData?.data || (initialData as any)?.date || defaultDate || new Date().toISOString().split('T')[0]);
   const [sottocategoria, setSottocategoria] = useState('Sosta panoramica');
   const [titolo, setTitolo] = useState('');
   const [orario, setOrario] = useState('');
@@ -24,6 +26,7 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
 
   useEffect(() => {
     if (initialData) {
+      setData(initialData.data || (initialData as any)?.date || defaultDate || new Date().toISOString().split('T')[0]);
       setSottocategoria(initialData.sottocategoria || 'Sosta panoramica');
       setTitolo(initialData.titolo || '');
       setOrario(initialData.orario || (initialData as any).time || '');
@@ -31,6 +34,7 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
       setNoteCopilota(initialData.noteCopilota || '');
       setNota(initialData.nota || '');
     } else {
+      setData(defaultDate || new Date().toISOString().split('T')[0]);
       setSottocategoria('Sosta panoramica');
       setTitolo('');
       setOrario('');
@@ -38,7 +42,7 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
       setNoteCopilota('');
       setNota('');
     }
-  }, [initialData]);
+  }, [initialData, defaultDate]);
 
   const processSave = async () => {
     setError('');
@@ -70,6 +74,7 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
     
     // Auto-imposta copilota se ci sono note copilota
     const hasCopilotaNotes = (noteCopilota || '').trim().length > 0;
+    const dateClean = data.trim() || undefined;
 
     onSave({
       id: initialData?.id,
@@ -83,8 +88,9 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
       noteCopilota: noteCopilota.trim() || undefined,
       nota: nota.trim() || undefined,
       copilota: hasCopilotaNotes || initialData?.copilota || undefined,
-      data: initialData?.data,
-      dayId: initialData?.dayId,
+      data: dateClean,
+      date: dateClean,
+      dayId: dateClean ? `day_${dateClean}` : initialData?.dayId,
       completed: initialData?.completed
     });
   };
@@ -102,28 +108,41 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
     <form onSubmit={handleSubmit} className="space-y-4">
 
       {isLockedByOther && (
-        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl font-bold flex gap-2 items-center animate-fade-in">
+        <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200 text-xs rounded-xl font-bold flex gap-2 items-center animate-fade-in">
           <span className="text-base animate-pulse">⚠️</span>
           <span>Attenzione: il dispositivo "{lockedBy}" sta già modificando questo elemento in tempo reale. Le tue modifiche potrebbero sovrascriversi.</span>
         </div>
       )}
 
       {error && (
-        <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
+        <div className="p-3 text-xs rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300">
           {error}
         </div>
       )}
 
-      {/* 1. Sottocategoria & Orario */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* 1. Data, Sottocategoria & Orario */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            📅 Data
+          </label>
+          <input
+            type="date"
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+            className="w-full h-11 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F]"
+            required
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
             Categoria Sosta
           </label>
           <select
             value={sottocategoria}
             onChange={(e) => setSottocategoria(e.target.value)}
-            className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+            className="w-full h-11 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F]"
           >
             <option value="Sosta panoramica">⛰️ Sosta panoramica</option>
             <option value="Sosta fotografica">📸 Sosta fotografica</option>
@@ -132,21 +151,21 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            ⏰ Orario Previsto (HH:mm)
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            ⏰ Orario (HH:mm)
           </label>
           <input
             type="time"
             value={orario}
             onChange={(e) => setOrario(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors"
+            className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-750 focus:border-[#FF6B5F] transition-colors"
           />
         </div>
       </div>
 
       {/* 2. Nome / Titolo */}
       <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
           Nome / Punto di Interesse
         </label>
         <input
@@ -154,14 +173,14 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
           placeholder="es. Lake Pukaki Viewpoint"
           value={titolo}
           onChange={(e) => setTitolo(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors"
+          className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-750 focus:border-[#FF6B5F] transition-colors"
           required
         />
       </div>
 
       {/* 3. Indirizzo / Posizione */}
       <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
           Indirizzo / Link Maps
         </label>
         <input
@@ -169,13 +188,13 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
           placeholder="es. State Highway 8, Lake Pukaki"
           value={indirizzo}
           onChange={(e) => setIndirizzo(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors"
+          className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-750 focus:border-[#FF6B5F] transition-colors"
         />
       </div>
 
       {/* 4. Note Copilota */}
-      <div className="p-3 bg-[#F0FAF9] border border-[#DDF4F5] rounded-2xl">
-        <label className="flex items-center gap-1.5 text-xs font-extrabold text-[#172033] uppercase tracking-wider mb-1.5">
+      <div className="p-3 bg-[#F0FAF9] dark:bg-slate-800/80 border border-[#DDF4F5] dark:border-slate-700 rounded-2xl">
+        <label className="flex items-center gap-1.5 text-xs font-extrabold text-[#172033] dark:text-slate-200 uppercase tracking-wider mb-1.5">
           <span>🧭</span> Note per il Copilota (Guida)
         </label>
         <textarea
@@ -183,26 +202,26 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
           placeholder="es. Parcheggio gratuito a sinistra dopo il ponte. Attenzione al fondo sterrato."
           value={noteCopilota}
           onChange={(e) => setNoteCopilota(e.target.value)}
-          className="w-full p-3 bg-white border border-[#DDF4F5] rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
+          className="w-full p-3 bg-white dark:bg-slate-900 border border-[#DDF4F5] dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
         />
       </div>
 
       {/* 5. Note Generali */}
       <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Note Generali / Orario
+        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+          Note Generali
         </label>
         <textarea
           rows={2}
           placeholder="Dettagli aggiuntivi..."
           value={nota}
           onChange={(e) => setNota(e.target.value)}
-          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] resize-none"
+          className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-750 focus:border-[#FF6B5F] resize-none"
         />
       </div>
 
       {/* Azioni finali */}
-      <div className="flex flex-col sm:flex-row-reverse items-center justify-between gap-3 pt-3 border-t border-slate-100 mt-4">
+      <div className="flex flex-col sm:flex-row-reverse items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 mt-4">
         <button
           type="submit"
           disabled={isGeocoding}
@@ -214,7 +233,7 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
         <button
           type="button"
           onClick={onCancel}
-          className="w-full sm:w-auto min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
+          className="w-full sm:w-auto min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
         >
           Annulla
         </button>
@@ -223,7 +242,7 @@ export default function TappaForm({ initialData, onSave, onCancel, onDelete }: T
           <button
             type="button"
             onClick={onDelete}
-            className="w-full sm:w-auto mt-4 sm:mt-0 min-h-[44px] px-4 rounded-xl text-sm font-semibold text-rose-500 hover:bg-rose-50 hover:text-rose-600 transition-all cursor-pointer"
+            className="w-full sm:w-auto mt-4 sm:mt-0 min-h-[44px] px-4 rounded-xl text-sm font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 hover:text-rose-600 transition-all cursor-pointer"
           >
             Elimina tappa
           </button>

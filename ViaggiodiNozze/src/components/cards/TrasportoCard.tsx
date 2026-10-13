@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { Trasporto, TipoTrasporto } from '../../types';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
+import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
+import { storageService } from '../../storage/storageService';
 import { getTransportMapTargets } from '../../utils/mapsHelper';
 
 interface TrasportoCardProps {
@@ -21,6 +23,7 @@ export default function TrasportoCard({
 }: TrasportoCardProps) {
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
   const [isPNROpen, setIsPNROpen] = useState(false);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
 
   const attachmentsCount = transport.attachments?.length || 0;
   const mapTargets = getTransportMapTargets(transport);
@@ -111,27 +114,29 @@ export default function TrasportoCard({
         {/* TOP */}
         <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 text-xs font-medium">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 text-[11px] font-semibold uppercase tracking-wider">
               <span className="text-sm">{currentType.icon}</span> {currentType.label}
             </span>
             <div className="flex flex-col ml-1">
-              <span className="font-semibold text-base text-slate-800 dark:text-slate-100 leading-snug">
+              <span className="font-semibold text-base leading-snug tracking-tight text-slate-800 dark:text-slate-100">
                 {transport.carrier || currentType.label}
               </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {(transport.noteCopilota || transport.copilota) && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 transition-colors shadow-2xs"
-                title="Apri per visualizzare la nota del co-pilota"
-              >
-                🧭 Co-pilota
-              </button>
-            )}
-            <span className={`inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full ${transport.status === 'prenotato' || transport.status === 'completato' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'}`}>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
+              className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all cursor-pointer shadow-2xs ${
+                (transport.noteCopilota || transport.copilota)
+                  ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-500 opacity-60 hover:opacity-100'
+              }`}
+              title="Note Copilota"
+            >
+              <span className="text-sm">🧭</span>
+            </button>
+            <span className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ${transport.status === 'prenotato' || transport.status === 'completato' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'}`}>
               {statusLabel}
             </span>
           </div>
@@ -145,10 +150,10 @@ export default function TrasportoCard({
               <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight font-mono">
                 {originInfo.code}
               </div>
-              <p className="text-sm text-slate-500 dark:text-slate-400 font-normal truncate mt-0.5">
+              <p className="text-sm font-medium tracking-normal text-slate-700 dark:text-slate-300 truncate mt-0.5">
                 {originInfo.name}
               </p>
-              <p className="text-sm text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+              <p className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400 mt-0.5">
                 {formatDate(transport.date)} {transport.departureTime ? `• ${transport.departureTime}` : ''}
               </p>
             </div>
@@ -163,13 +168,13 @@ export default function TrasportoCard({
               </div>
               {transport.layover ? (
                 <div className="mt-1 text-center">
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">
+                  <span className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400">
                     Scalo {transport.layover.airport.split(' ')[0]}
                   </span>
                 </div>
               ) : (
                 <div className="mt-1 text-center">
-                  <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">
+                  <span className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400">
                     Diretto
                   </span>
                 </div>
@@ -181,10 +186,10 @@ export default function TrasportoCard({
               <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-100 tracking-tight font-mono">
                 {destInfo.code}
               </div>
-              <p className="text-sm text-slate-500 dark:text-slate-400 font-normal truncate mt-0.5">
+              <p className="text-sm font-medium tracking-normal text-slate-700 dark:text-slate-300 truncate mt-0.5">
                 {destInfo.name}
               </p>
-              <p className="text-sm text-slate-500 dark:text-slate-400 font-normal mt-0.5">
+              <p className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400 mt-0.5">
                 {transport.arrivalTime ? `h ${transport.arrivalTime}` : 'Arrivo'}
               </p>
             </div>
@@ -192,17 +197,9 @@ export default function TrasportoCard({
 
           {transport.posti && (
             <div className="mt-2 flex flex-col items-start">
-              <div className="text-xs font-medium px-2 py-0.5 rounded-full text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 inline-flex items-center gap-1">
+              <div className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 inline-flex items-center gap-1">
                 💺 Posti: {transport.posti}
               </div>
-            </div>
-          )}
-
-          {/* BOX NOTE COPILOTA */}
-          {(transport.noteCopilota || transport.copilota) && (
-            <div className="bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 p-2.5 rounded-lg text-xs leading-relaxed text-amber-900 dark:text-amber-200 mt-2.5 flex items-start gap-1.5">
-              <span className="shrink-0 text-sm">🧭</span>
-              <span className="flex-1 break-words">{transport.noteCopilota || transport.copilota}</span>
             </div>
           )}
         </div>
@@ -211,15 +208,15 @@ export default function TrasportoCard({
         <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center">
             {transport.cost === '0.00' || transport.cost === '0' ? (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full text-sky-700 bg-sky-50 border border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50">
+              <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-sky-700 bg-sky-50 border border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50">
                 Incluso nel pacchetto
               </span>
             ) : transport.cost ? (
-              <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+              <span className="text-sm font-medium tracking-normal text-slate-900 dark:text-slate-100 bg-slate-50 dark:bg-slate-800 px-2 py-0.5 rounded-md">
                 {transport.cost}
               </span>
             ) : (
-              <span className="text-xs text-slate-500 dark:text-slate-400 font-normal">
+              <span className="text-xs font-normal leading-relaxed opacity-75 text-slate-500 dark:text-slate-400">
                 Costo da definire
               </span>
             )}
@@ -264,6 +261,29 @@ export default function TrasportoCard({
         onClose={() => setIsTicketsOpen(false)}
         transport={transport}
         onUpdateTransport={(updated) => { if (onUpdate) onUpdate(updated); }}
+      />
+      <UniversalCopilotaModal
+        isOpen={isCopilotOpen}
+        onClose={() => setIsCopilotOpen(false)}
+        title={transport.carrier || currentType.label}
+        noteCopilota={transport.noteCopilota || (typeof transport.copilota === 'string' ? transport.copilota : '')}
+        canEdit={true}
+        onSave={async (notes) => {
+          try {
+            const updated: Trasporto = {
+              ...transport,
+              noteCopilota: notes.trim(),
+              copilota: Boolean(notes.trim()) || transport.copilota,
+              updatedAt: Date.now()
+            };
+            await storageService.saveTransport(updated);
+            if (typeof onUpdate === 'function') onUpdate(updated);
+            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'trasporti', data: updated } }));
+            setIsCopilotOpen(false);
+          } catch (e) {
+            console.error(e);
+          }
+        }}
       />
       {isPNROpen && transport.bookingCode && (
         <div 
