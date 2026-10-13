@@ -653,7 +653,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                           <input
                             type="password"
                             id="inline-gemini-key"
-                            placeholder="AIzaSy..."
+                            placeholder="Incolla chiave API..."
                             className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-violet-500"
                           />
                           <button
@@ -661,7 +661,8 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                             onClick={() => {
                               const inputEl = document.getElementById('inline-gemini-key') as HTMLInputElement;
                               if (inputEl && inputEl.value.trim()) {
-                                localStorage.setItem('gemini_api_key', inputEl.value.trim());
+                                const cleanKey = inputEl.value.trim().replace(/['"]/g, '');
+                                localStorage.setItem('gemini_api_key', cleanKey);
                                 setErrorMsg('');
                                 setStep('input');
                                 handleExtract();
