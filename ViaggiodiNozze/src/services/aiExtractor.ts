@@ -330,37 +330,37 @@ const CACHE_TTL = 10 * 60 * 1000;
 export const GEMINI_MODEL = 'gemini-1.5-flash';
 const GEMINI_FALLBACK_MODEL = 'gemini-2.5-flash';
 
-/** Risolve la chiave API: .env → localStorage → default personale con sanitizzazione rigorosa. */
+/** Risolve la chiave API: localStorage (utente) → .env con sanitizzazione rigorosa. */
 export function resolveGeminiApiKey(): string {
-  let apiKey: string | null | undefined = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey || apiKey.includes('la_tua_chiave')) {
+  let apiKey: string | null | undefined = null;
+  if (typeof localStorage !== 'undefined') {
     apiKey = localStorage.getItem('gemini_api_key');
   }
   if (!apiKey || apiKey.includes('la_tua_chiave')) {
-    apiKey = 'AQ.Ab8RN6Kxc93HHq3cDGA0Sv3XFgczoWKPiXUip9tgF88fixCHg';
+    apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   }
-  return (apiKey || '').trim().replace(/^["']|["']$/g, '').trim();
+  return (apiKey || '').trim().replace(/['"]/g, '').trim();
 }
 
 /** Chiamata a Gemini tramite REST API diretta. Restituisce il testo grezzo della risposta. */
 async function callGemini(requestBody: any, model: string = GEMINI_MODEL): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   try {
     const rawApiKey = resolveGeminiApiKey();
-    if (!rawApiKey) return { ok: false, error: 'Chiave API Gemini mancante' };
-    const apiKey = rawApiKey.trim();
+    if (!rawApiKey) return { ok: false, error: 'Chiave API Gemini mancante. Inseriscila in Impostazioni > Chiave API Gemini.' };
+    const cleanKey = rawApiKey.trim().replace(/['"]/g, '');
 
     // Su gemini-2.5 il "thinking" consuma i maxOutputTokens: lo disattiviamo per risposte rapide e complete.
     const body = model.startsWith('gemini-2.5')
       ? { ...requestBody, generationConfig: { ...(requestBody?.generationConfig || {}), thinkingConfig: { thinkingBudget: 0 } } }
       : requestBody;
 
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanKey}`;
 
-    const response = await fetch(endpoint, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
+        'x-goog-api-key': cleanKey
       },
       body: JSON.stringify(body)
     });

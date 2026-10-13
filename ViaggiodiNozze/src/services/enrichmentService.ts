@@ -24,9 +24,9 @@ export async function enrichRistorante(nome: string, indirizzo: string): Promise
   try {
     const rawApiKey = resolveGeminiApiKey();
     if (!rawApiKey) return {};
-    const apiKey = rawApiKey.trim();
+    const cleanKey = rawApiKey.trim().replace(/['"]/g, '');
     
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${cleanKey}`;
     
     const requestBody = {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
@@ -45,7 +45,7 @@ export async function enrichRistorante(nome: string, indirizzo: string): Promise
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
+        'x-goog-api-key': cleanKey
       },
       body: JSON.stringify(requestBody),
       signal: controller.signal

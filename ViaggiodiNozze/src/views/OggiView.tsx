@@ -263,7 +263,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       const dataPromise = Promise.all([
         storageService.getAccommodations(),
         storageService.getDays(),
-        getTripDateRange([selectedDate, new Date().toISOString().split('T')[0]]),
+        getTripDateRange(),
         storageService.getTransports(),
         storageService.getTappe(),
         storageService.getSetting('hero_custom_title'),
@@ -863,7 +863,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               <span className="text-sm">📅</span>
             </label>
             <span className="text-xs text-slate-400 font-medium">
-              Giorno {currentDayMeta?.dayNum || '–'}
+              {currentDayMeta && currentDayMeta.dayNum > 0
+                ? `Giorno ${currentDayMeta.dayNum}`
+                : currentDayMeta
+                ? `Pre-viaggio (${currentDayMeta.labelFormatted})`
+                : '–'}
             </span>
           </div>
         </div>
@@ -1199,6 +1203,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     {nextItem && fromLoc && toLoc && fromLoc.trim().toLowerCase() !== toLoc.trim().toLowerCase() && (
                       <div className="flex items-center justify-center py-1">
                         <RouteBadge
+                          routeId={`seq_${item.id}_${nextItem.id}`}
                           from={fromLoc}
                           to={toLoc}
                           fromCoord={fromCoord}

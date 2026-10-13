@@ -255,6 +255,7 @@ export default function TappeView({ onBack }: TappeViewProps) {
                       {nextTappa && (
                         <div className="flex items-center justify-center py-1">
                           <RouteBadge
+                            routeId={`tappa_${tappa.id}_${nextTappa.id}`}
                             from={tappa.titolo}
                             to={nextTappa.titolo}
                             fromCoord={tappa.coordinate}

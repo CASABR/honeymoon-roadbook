@@ -121,9 +121,12 @@ export interface TripDateRange {
 }
 
 /**
- * Calcola l'intervallo reale dinamico del viaggio interrogando direttamente IndexedDB.
- * Raccoglie tutte le date presenti in giorni, attività, tappe, trasporti, ristoranti, shopping e alloggi,
- * estendendo il calendario automaticamente se ci sono eventi precedenti o successivi.
+ * Calcola l'intervallo reale dinamico del viaggio.
+ * REGOLA:
+ * - Per le date antecedenti alla data di inizio del viaggio (es. 2026-11-28),
+ *   include il giorno SOLO ED ESCLUSIVAMENTE se per quella specifica data esiste
+ *   almeno 1 elemento registrato in IndexedDB (trasporti, tappe, attività, alloggi, ristoranti, shopping).
+ * - Per l'intervallo ufficiale di viaggio [startDate, endDate], genera tutti i giorni consecutivi.
  */
 export async function getTripDateRange(extraDates: (string | undefined | null)[] = []): Promise<TripDateRange> {
   try {
@@ -138,30 +141,85 @@ export async function getTripDateRange(extraDates: (string | undefined | null)[]
       storageService.getAccommodations()
     ]);
 
-    const allDates: (string | undefined | null)[] = [
-      ...extraDates,
-      ...days.map(d => d.date),
-      ...activities.map(a => a.date || (a.dayId.startsWith('day_') ? a.dayId.replace('day_', '') : undefined)),
-      ...transports.map(t => t.date),
-      ...transports.map(t => t.arrivalDate),
-      ...transports.map(t => t.dropoffDate),
-      ...tappe.map(t => t.data || t.date),
-      ...ristoranti.map(r => r.data || r.date),
-      ...shopping.map(s => s.data || s.date),
-      ...accs.map(a => a.checkIn),
-      ...accs.map(a => a.checkOut)
-    ];
+    const populatedDatesSet = new Set<string>();
+    const addDate = (d?: string | null) => {
+      if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) {
+        populatedDatesSet.add(d);
+      }
+    };
 
-    const minTripDate = calculateEarliestTripDate(allDates);
-    const maxTripDate = calculateLatestTripDate(allDates);
-    const tripDays = generateTripDays(minTripDate, maxTripDate);
+    if (Array.isArray(extraDates)) {
+      extraDates.forEach(addDate);
+    }
+
+    days.forEach(d => addDate(d.date));
+    activities.forEach(a => addDate(a.date || (a.dayId.startsWith('day_') ? a.dayId.replace('day_', '') : undefined)));
+    transports.forEach(t => {
+      addDate(t.date);
+      addDate(t.arrivalDate);
+      addDate(t.dropoffDate);
+    });
+    tappe.forEach(t => addDate(t.data || t.date));
+    ristoranti.forEach(r => addDate(r.data || r.date));
+    shopping.forEach(s => addDate(s.data || s.date));
+    accs.forEach(a => {
+      addDate(a.checkIn);
+      addDate(a.checkOut);
+    });
+
+    const config = getTripConfig();
+    const officialStart = config?.startDate || DEFAULT_TRIP_START_DATE;
+    const officialEnd = config?.endDate || DEFAULT_TRIP_END_DATE;
+
+    // 1. Date antecedenti a officialStart: SOLO se effettivamente presenti tra i dati salvati
+    const antecedentDates = Array.from(populatedDatesSet)
+      .filter(d => d < officialStart)
+      .sort();
+
+    // 2. Intervallo continuativo del viaggio ufficiale [officialStart, officialEnd]
+    const officialDays = generateTripDays(officialStart, officialEnd);
+
+    // 3. Date successive a officialEnd: solo se popolate
+    const subsequentDates = Array.from(populatedDatesSet)
+      .filter(d => d > officialEnd)
+      .sort();
+
+    const dayNames = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+    const monthNames = [
+      'Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu',
+      'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'
+    ];
+    const buildItem = (dateStr: string, dayNum: number): TripDayItem => {
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      const monthShort = monthNames[dt.getMonth()];
+      const dayOfMonth = String(d);
+      return {
+        dateStr,
+        dayNum,
+        dayOfMonth,
+        monthShort,
+        dayNameShort: dayNames[dt.getDay()],
+        labelFormatted: `${dayOfMonth} ${monthShort}`
+      };
+    };
+
+    const antecedentItems: TripDayItem[] = antecedentDates.map((dateStr, idx) => {
+      return buildItem(dateStr, idx - antecedentDates.length);
+    });
+
+    const subsequentItems: TripDayItem[] = subsequentDates.map((dateStr, idx) => {
+      return buildItem(dateStr, officialDays.length + 1 + idx);
+    });
+
+    const tripDays = [...antecedentItems, ...officialDays, ...subsequentItems];
+    const minTripDate = tripDays.length > 0 ? tripDays[0].dateStr : officialStart;
+    const maxTripDate = tripDays.length > 0 ? tripDays[tripDays.length - 1].dateStr : officialEnd;
 
     return { minTripDate, maxTripDate, tripDays };
   } catch (err) {
     console.error('[getTripDateRange] Errore calcolo range viaggio:', err);
-    const minTripDate = calculateEarliestTripDate(extraDates);
-    const maxTripDate = calculateLatestTripDate(extraDates);
-    return { minTripDate, maxTripDate, tripDays: generateTripDays(minTripDate, maxTripDate) };
+    return { minTripDate: DEFAULT_TRIP_START_DATE, maxTripDate: DEFAULT_TRIP_END_DATE, tripDays: generateTripDays() };
   }
 }
 
