@@ -145,21 +145,6 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               {String(accommodation.cost)}
             </span>
           )}
-          
-          {accommodation.cost && String(accommodation.cost) !== '0' && (
-            <button 
-              type="button"
-              onClick={handleTogglePayment}
-              className={`cursor-pointer hover:scale-105 active:scale-95 transition-all text-[10px] font-bold px-2 py-0.5 rounded-full border shadow-2xs ${
-                isSaldato
-                  ? "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800" 
-                  : "bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-700"
-              }`}
-              title="Clicca per invertire stato: Saldato / Da saldare"
-            >
-              {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
-            </button>
-          )}
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0 ml-auto">
