@@ -176,9 +176,11 @@ export default function TrasportoCard({
                 {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
               </button>
             )}
-            <span className="inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20">
-              {statusLabel}
-            </span>
+            {transport.status && transport.status !== 'completato' && (
+              <span className="inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700/50 dark:text-slate-300 dark:border-slate-600">
+                {statusLabel}
+              </span>
+            )}
           </div>
         </div>
 

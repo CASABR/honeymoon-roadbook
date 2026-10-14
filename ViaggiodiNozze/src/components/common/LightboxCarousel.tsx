@@ -17,8 +17,8 @@ export default function LightboxCarousel({
   initialIndex = 0,
   title = 'Pronto per la scansione'
 }: LightboxCarouselProps) {
-  // Filtra solo le immagini
-  const imageItems = items.filter((item) => item.type === 'image');
+  // Supporta tutti gli allegati (immagini e PDF)
+  const allItems = items;
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
   // Touch swipe support
@@ -27,19 +27,19 @@ export default function LightboxCarousel({
 
   useEffect(() => {
     if (isOpen) {
-      setCurrentIndex(Math.min(Math.max(0, initialIndex), Math.max(0, imageItems.length - 1)));
+      setCurrentIndex(Math.min(Math.max(0, initialIndex), Math.max(0, allItems.length - 1)));
     }
-  }, [isOpen, initialIndex, imageItems.length]);
+  }, [isOpen, initialIndex, allItems.length]);
 
   const handleNext = useCallback(() => {
-    if (imageItems.length <= 1) return;
-    setCurrentIndex((prev) => (prev + 1) % imageItems.length);
-  }, [imageItems.length]);
+    if (allItems.length <= 1) return;
+    setCurrentIndex((prev) => (prev + 1) % allItems.length);
+  }, [allItems.length]);
 
   const handlePrev = useCallback(() => {
-    if (imageItems.length <= 1) return;
-    setCurrentIndex((prev) => (prev - 1 + imageItems.length) % imageItems.length);
-  }, [imageItems.length]);
+    if (allItems.length <= 1) return;
+    setCurrentIndex((prev) => (prev - 1 + allItems.length) % allItems.length);
+  }, [allItems.length]);
 
   // Keyboard navigation (Arrow keys & Escape)
   useEffect(() => {
@@ -74,10 +74,10 @@ export default function LightboxCarousel({
     const minSwipeDistance = 45; // pixel
 
     if (diff > minSwipeDistance) {
-      // Swipe a sinistra -> Prossima foto
+      // Swipe a sinistra -> Prossimo file
       handleNext();
     } else if (diff < -minSwipeDistance) {
-      // Swipe a destra -> Foto precedente
+      // Swipe a destra -> File precedente
       handlePrev();
     }
 
@@ -85,13 +85,14 @@ export default function LightboxCarousel({
     touchEndX.current = null;
   };
 
-  if (!isOpen || imageItems.length === 0) return null;
+  if (!isOpen || allItems.length === 0) return null;
 
-  const currentItem = imageItems[currentIndex] || imageItems[0];
+  const currentItem = allItems[currentIndex] || allItems[0];
+  const isPdf = currentItem.type === 'pdf' || currentItem.name?.toLowerCase().endsWith('.pdf') || currentItem.dataUrl?.startsWith('data:application/pdf');
 
   const lightboxNode = (
     <div
-      className="fixed inset-0 flex flex-col items-center justify-between bg-black/95 p-4 sm:p-6 backdrop-blur-md select-none animate-fade-in"
+      className="fixed inset-0 flex flex-col items-center justify-between bg-black/95 p-3 sm:p-6 backdrop-blur-md select-none animate-fade-in"
       style={{
         position: 'fixed',
         inset: 0,
@@ -104,64 +105,95 @@ export default function LightboxCarousel({
     >
       {/* Top Header Barra */}
       <div
-        className="w-full max-w-md flex items-center justify-between py-2 text-white shrink-0"
+        className="w-full max-w-4xl flex items-center justify-between py-2 text-white shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold uppercase tracking-wider text-sky-400">
             {title}
           </span>
-          {imageItems.length > 1 && (
+          {allItems.length > 1 && (
             <span className="text-[11px] font-mono font-semibold px-2 py-0.5 rounded-full bg-white/10 text-slate-200 border border-white/20">
-              {currentIndex + 1} di {imageItems.length}
+              {currentIndex + 1} di {allItems.length}
             </span>
           )}
+          <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-white/15 text-slate-300">
+            {isPdf ? '📄 PDF' : '🖼️ Immagine'}
+          </span>
         </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-sm font-bold transition-all cursor-pointer"
-          title="Chiudi"
-        >
-          ✕
-        </button>
+        <div className="flex items-center gap-2">
+          <a
+            href={currentItem.dataUrl}
+            download={currentItem.name}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
+            title="Scarica / Apri file"
+          >
+            <span>Scarica</span>
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-sm font-bold transition-all cursor-pointer"
+            title="Chiudi"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
-      {/* Main Image Container with navigation arrows */}
+      {/* Main Container with navigation arrows */}
       <div
-        className="relative w-full max-w-md flex-1 flex items-center justify-center my-auto py-2"
+        className="relative w-full max-w-4xl flex-1 flex items-center justify-center my-auto py-2"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Freccia Sinistra */}
-        {imageItems.length > 1 && (
+        {allItems.length > 1 && (
           <button
             type="button"
             onClick={handlePrev}
-            className="absolute left-1 z-10 w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white flex items-center justify-center text-lg transition-transform active:scale-90 cursor-pointer shadow-lg"
-            title="Precedente (o swipe verso destra)"
+            className="absolute left-1 sm:-left-5 z-20 w-11 h-11 rounded-full bg-black/75 hover:bg-black/90 border border-white/30 text-white flex items-center justify-center text-lg transition-transform active:scale-90 cursor-pointer shadow-xl"
+            title="Precedente (frecce o swipe)"
           >
             ◀
           </button>
         )}
 
-        {/* Immagine / QR Code Ingrandito */}
-        <div className="w-full max-h-[72vh] bg-white p-2.5 sm:p-4 rounded-3xl shadow-2xl flex items-center justify-center overflow-hidden">
-          <img
-            key={currentItem.id}
-            src={currentItem.dataUrl}
-            alt={currentItem.name}
-            className="w-full h-auto max-h-[66vh] object-contain rounded-xl transition-all duration-200"
-          />
+        {/* Visualizzatore: PDF incorporato o Immagine ad alta risoluzione */}
+        <div className="w-full h-full max-h-[76vh] bg-slate-900/90 rounded-2xl sm:rounded-3xl shadow-2xl flex items-center justify-center overflow-hidden border border-white/10 p-1 sm:p-2">
+          {isPdf ? (
+            <div className="w-full h-full flex flex-col items-center justify-center">
+              <iframe
+                key={currentItem.id}
+                src={currentItem.dataUrl}
+                title={currentItem.name}
+                className="w-full h-full rounded-xl border-0 bg-white"
+              />
+            </div>
+          ) : (
+            <div className="w-full h-full bg-white/5 rounded-xl flex items-center justify-center overflow-hidden p-2">
+              <img
+                key={currentItem.id}
+                src={currentItem.dataUrl}
+                alt={currentItem.name}
+                className="w-full h-auto max-h-[72vh] object-contain rounded-lg transition-all duration-200"
+              />
+            </div>
+          )}
         </div>
 
         {/* Freccia Destra */}
-        {imageItems.length > 1 && (
+        {allItems.length > 1 && (
           <button
             type="button"
             onClick={handleNext}
-            className="absolute right-1 z-10 w-10 h-10 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white flex items-center justify-center text-lg transition-transform active:scale-90 cursor-pointer shadow-lg"
-            title="Successiva (o swipe verso sinistra)"
+            className="absolute right-1 sm:-right-5 z-20 w-11 h-11 rounded-full bg-black/75 hover:bg-black/90 border border-white/30 text-white flex items-center justify-center text-lg transition-transform active:scale-90 cursor-pointer shadow-xl"
+            title="Successivo (frecce o swipe)"
           >
             ▶
           </button>
@@ -170,20 +202,20 @@ export default function LightboxCarousel({
 
       {/* Footer Dettagli & Consigli */}
       <div
-        className="w-full max-w-md text-center py-2 shrink-0 space-y-1"
+        className="w-full max-w-4xl text-center py-2 shrink-0 space-y-1"
         onClick={(e) => e.stopPropagation()}
       >
-        <p className="text-xs font-medium text-slate-300 truncate px-4">
+        <p className="text-xs font-semibold text-slate-200 truncate px-4">
           {currentItem.name}
         </p>
 
-        {imageItems.length > 1 ? (
+        {allItems.length > 1 ? (
           <p className="text-[11px] text-slate-400">
-            Scorri con il dito o usa le frecce per sfogliare i biglietti • Aumenta la luminosità per la scansione
+            Scorri o usa le frecce per sfogliare tutti i documenti e biglietti ({currentIndex + 1} di {allItems.length})
           </p>
         ) : (
           <p className="text-[11px] text-slate-400">
-            Aumenta la luminosità dello schermo per facilitare la scansione del lettore ottico.
+            Documento allegato disponibile offline • Tocca all'esterno o premi ESC per chiudere
           </p>
         )}
       </div>

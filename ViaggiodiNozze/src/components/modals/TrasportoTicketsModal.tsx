@@ -27,7 +27,6 @@ export default function TrasportoTicketsModal({
   if (!transport) return null;
 
   const attachments = transport.attachments || [];
-  const imageAttachments = attachments.filter((att) => att.type === 'image');
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -190,8 +189,7 @@ export default function TrasportoTicketsModal({
             </div>
           ) : (
             <div className="space-y-3">
-              {attachments.map((att) => {
-                const imgIdx = att.type === 'image' ? imageAttachments.findIndex((a) => a.id === att.id) : -1;
+              {attachments.map((att, attIdx) => {
                 return (
                   <div
                     key={att.id}
@@ -200,9 +198,9 @@ export default function TrasportoTicketsModal({
                     {/* Anteprima Sinistra */}
                     {att.type === 'image' ? (
                       <div
-                        onClick={() => setZoomedIndex(imgIdx >= 0 ? imgIdx : 0)}
+                        onClick={() => setZoomedIndex(attIdx)}
                         className="w-14 h-14 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden cursor-pointer shrink-0 relative group flex items-center justify-center"
-                        title="Tocca per ingrandire e scansionare"
+                        title="Tocca per visualizzare e sfogliare a schermo intero"
                       >
                         <img src={att.dataUrl} alt={att.name} className="w-full h-full object-cover" />
                         <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
@@ -210,7 +208,11 @@ export default function TrasportoTicketsModal({
                         </div>
                       </div>
                     ) : (
-                      <div className="w-14 h-14 rounded-xl bg-rose-50 border border-rose-200 flex flex-col items-center justify-center text-rose-600 shrink-0">
+                      <div 
+                        onClick={() => setZoomedIndex(attIdx)}
+                        className="w-14 h-14 rounded-xl bg-rose-50 border border-rose-200 flex flex-col items-center justify-center text-rose-600 shrink-0 cursor-pointer hover:bg-rose-100 transition-colors"
+                        title="Tocca per visualizzare e sfogliare il PDF"
+                      >
                         <span className="text-lg font-bold">📄</span>
                         <span className="text-[9px] font-mono font-bold uppercase mt-0.5">PDF</span>
                       </div>
@@ -218,7 +220,11 @@ export default function TrasportoTicketsModal({
 
                     {/* Informazioni File */}
                     <div className="min-w-0 flex-1">
-                      <p className="text-xs font-semibold text-slate-900 truncate" title={att.name}>
+                      <p 
+                        onClick={() => setZoomedIndex(attIdx)}
+                        className="text-xs font-semibold text-slate-900 truncate cursor-pointer hover:text-sky-600" 
+                        title={att.name}
+                      >
                         {att.name}
                       </p>
                       <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
@@ -227,27 +233,27 @@ export default function TrasportoTicketsModal({
                         <span className="text-emerald-600 font-medium">Offline</span>
                       </div>
 
-                      {att.type === 'image' ? (
+                      <div className="flex items-center gap-2 mt-1">
                         <button
                           type="button"
-                          onClick={() => setZoomedIndex(imgIdx >= 0 ? imgIdx : 0)}
-                          className="mt-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
+                          onClick={() => setZoomedIndex(attIdx)}
+                          className="text-[11px] font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
                         >
-                          <span>Mostra a schermo intero (sfogliabile)</span>
+                          <span>Sfoglia</span>
                           <span>🔍</span>
                         </button>
-                      ) : (
+                        <span className="text-slate-300">•</span>
                         <button
                           type="button"
                           onClick={() => handleOpenPdf(att.dataUrl, att.name)}
-                          className="mt-1 text-[11px] font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
+                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 flex items-center gap-1 cursor-pointer"
                         >
-                          <span>Apri documento PDF</span>
+                          <span>Apri</span>
                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                           </svg>
                         </button>
-                      )}
+                      </div>
                     </div>
 
                     {/* Tasto Elimina */}

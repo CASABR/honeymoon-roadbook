@@ -28,8 +28,6 @@ export default function UniversalAttachmentModal({
   const [zoomedIndex, setZoomedIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const imageAttachments = attachments.filter((att) => att.type === 'image');
-
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -100,18 +98,11 @@ export default function UniversalAttachmentModal({
     return (
       <div className="space-y-4">
         <div className="grid grid-cols-1 gap-3">
-          {attachments.map((att) => (
+          {attachments.map((att, attIdx) => (
             <div key={att.id} className="flex items-center justify-between p-3 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm">
               <div 
                 className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer group"
-                onClick={() => {
-                  if (att.type === 'image') {
-                    const idx = imageAttachments.findIndex(img => img.id === att.id);
-                    if (idx >= 0) setZoomedIndex(idx);
-                  } else {
-                    handleOpenPdf(att.dataUrl, att.name);
-                  }
-                }}
+                onClick={() => setZoomedIndex(attIdx)}
               >
                 <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700 overflow-hidden group-hover:border-[#DDF4F5] transition-colors">
                   {att.type === 'image' ? (
@@ -131,13 +122,20 @@ export default function UniversalAttachmentModal({
               </div>
               
               <div className="flex items-center gap-1 ml-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setZoomedIndex(attIdx)}
+                  className="px-2 py-1 text-xs font-bold text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
+                >
+                  Sfoglia
+                </button>
                 {att.type === 'pdf' && (
-                  <button onClick={() => handleOpenPdf(att.dataUrl, att.name)} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-[#172033] dark:hover:text-white bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-colors">
+                  <button onClick={() => handleOpenPdf(att.dataUrl, att.name)} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-[#172033] dark:hover:text-white bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-colors cursor-pointer" title="Apri / Scarica">
                     <Download className="w-4 h-4" />
                   </button>
                 )}
                 {canEdit && (
-                  <button onClick={() => handleDelete(att.id)} className="w-8 h-8 flex items-center justify-center text-rose-500 hover:text-white hover:bg-rose-500 rounded-full transition-colors ml-1">
+                  <button onClick={() => handleDelete(att.id)} className="w-8 h-8 flex items-center justify-center text-rose-500 hover:text-white hover:bg-rose-500 rounded-full transition-colors ml-1 cursor-pointer" title="Elimina">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 )}
@@ -188,11 +186,13 @@ export default function UniversalAttachmentModal({
         )}
       </Modal>
 
-      {zoomedIndex !== null && imageAttachments.length > 0 && (
+      {zoomedIndex !== null && attachments.length > 0 && (
         <LightboxCarousel
-          isOpen={true} items={imageAttachments}
+          isOpen={true}
+          items={attachments}
           initialIndex={zoomedIndex}
           onClose={() => setZoomedIndex(null)}
+          title={title}
         />
       )}
     </>
