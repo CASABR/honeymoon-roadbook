@@ -26,9 +26,12 @@ export class SyncService {
         try {
           const colRef = collection(db, 'trips', this.tripId, fb);
           const snap = await getDocs(colRef);
+          const serverDocIds = new Set<string>();
+
           for (const docSnap of snap.docs) {
             const serverData = docSnap.data();
             const docId = docSnap.id;
+            serverDocIds.add(docId);
             const localData = await idbGet<any>(store, docId);
 
             if (localData && localData.updatedAt && (localData.updatedAt > (serverData.updatedAt || 0))) {
@@ -36,8 +39,22 @@ export class SyncService {
               await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
             } else {
               // Cloud is newer or same: store locally
-              await idbPut(store, serverData);
+              await idbPut(store, { ...serverData, id: docId });
               pulledCount++;
+            }
+          }
+
+          // Rimuovi record orfani in locale per collection di dati condivisi se su Firestore esistono record
+          // (per evitare accumuli e somme sballate da vecchi mock locali su PC o mobile)
+          if (snap.docs.length > 0 && fb !== 'settings') {
+            const localItems = await idbGetAll<any>(store);
+            for (const localItem of localItems) {
+              if (localItem && localItem.id && !serverDocIds.has(localItem.id)) {
+                // Se il record non esiste su Firestore ed è più vecchio dell'avvio o non appartiene al tripId
+                // Elimina l'orfano dal DB locale per mantenere l'allineamento perfetto al centesimo
+                await idbDelete(store, localItem.id);
+                console.log(`[SyncService] Rimosso orfano locale non presente su Cloud: ${fb}/${localItem.id}`);
+              }
             }
           }
         } catch (colErr) {

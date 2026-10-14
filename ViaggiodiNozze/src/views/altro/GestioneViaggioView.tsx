@@ -15,6 +15,99 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
   const [savingDates, setSavingDates] = useState(false);
   const [datesSaved, setDatesSaved] = useState(false);
 
+  // Immagine Header Centralizzata
+  const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(() => {
+    if (initialConfig?.headerImageUrl) return initialConfig.headerImageUrl;
+    if (typeof localStorage !== 'undefined') {
+      return localStorage.getItem('trip_header_image') || null;
+    }
+    return null;
+  });
+  const [savingHeaderImg, setSavingHeaderImg] = useState(false);
+
+  const handleImageUpload = (file: File) => {
+    if (!file) return;
+    setSavingHeaderImg(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const MAX_SIZE = 800; // max dimensione per mantenere il Base64 sotto i 300-400KB
+
+        if (width > height && width > MAX_SIZE) {
+          height = Math.round(height * (MAX_SIZE / width));
+          width = MAX_SIZE;
+        } else if (height > MAX_SIZE) {
+          width = Math.round(width * (MAX_SIZE / height));
+          height = MAX_SIZE;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
+          setHeaderImageUrl(dataUrl);
+
+          if (typeof localStorage !== 'undefined') {
+            localStorage.setItem('trip_header_image', dataUrl);
+            localStorage.setItem('hero_bg_image', dataUrl);
+          }
+
+          const config = getTripConfig();
+          if (config) {
+            const updated = { ...config, headerImageUrl: dataUrl };
+            saveTripConfig(updated);
+            if (db && config.id) {
+              try {
+                await setDoc(doc(db, 'trips', config.id), {
+                  headerImageUrl: dataUrl,
+                  updatedAt: Date.now()
+                }, { merge: true });
+              } catch (err) {
+                console.warn('[GestioneViaggio] Errore salvataggio headerImageUrl in Firestore:', err);
+              }
+            }
+            window.dispatchEvent(new CustomEvent('trip_config_changed', { detail: { config: updated } }));
+            window.dispatchEvent(new CustomEvent('trip_header_image_updated', { detail: { headerImageUrl: dataUrl } }));
+          }
+        }
+        setSavingHeaderImg(false);
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveHeaderImage = async () => {
+    setHeaderImageUrl(null);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('trip_header_image');
+      localStorage.removeItem('hero_bg_image');
+    }
+    const config = getTripConfig();
+    if (config) {
+      const updated = { ...config, headerImageUrl: null };
+      saveTripConfig(updated);
+      if (db && config.id) {
+        try {
+          await setDoc(doc(db, 'trips', config.id), {
+            headerImageUrl: null,
+            updatedAt: Date.now()
+          }, { merge: true });
+        } catch (err) {
+          console.warn('[GestioneViaggio] Errore rimozione headerImageUrl in Firestore:', err);
+        }
+      }
+      window.dispatchEvent(new CustomEvent('trip_config_changed', { detail: { config: updated } }));
+      window.dispatchEvent(new CustomEvent('trip_header_image_updated', { detail: { headerImageUrl: null } }));
+    }
+  };
+
   const handleSaveTripDates = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!startDate || !endDate) {
@@ -40,7 +133,8 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
         title: title.trim() || config.title,
         startDate,
         endDate,
-        totalDays
+        totalDays,
+        headerImageUrl: headerImageUrl || config.headerImageUrl || null
       };
 
       saveTripConfig(updated);
@@ -53,6 +147,7 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
             startDate: updated.startDate,
             endDate: updated.endDate,
             totalDays: updated.totalDays,
+            headerImageUrl: updated.headerImageUrl,
             updatedAt: Date.now()
           }, { merge: true });
         } catch (fbErr) {
@@ -241,6 +336,71 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
             {savingDates ? 'Salvataggio in corso...' : datesSaved ? '✓ Date salvate con successo!' : 'Salva Date Viaggio'}
           </button>
         </form>
+      </div>
+
+      {/* Immagine di Copertina / Header del Viaggio */}
+      <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm">
+        <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-2xl mb-4">
+          🖼️
+        </div>
+        <h3 className="font-extrabold text-slate-900 text-lg mb-1">Copertina del Viaggio</h3>
+        <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+          L'immagine caricata sarà visibile nell'header su tutti i dispositivi sincronizzati (Master, Copilota e Viewer).
+        </p>
+
+        {headerImageUrl ? (
+          <div className="space-y-3">
+            <div className="relative w-full h-44 rounded-2xl overflow-hidden border border-slate-200 group shadow-inner">
+              <img
+                src={headerImageUrl}
+                alt="Copertina Viaggio"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-black/20 pointer-events-none" />
+            </div>
+            <div className="flex gap-2">
+              <label className="flex-1 py-2.5 px-3 rounded-xl font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs text-center cursor-pointer transition-colors">
+                {savingHeaderImg ? 'Compressione in corso...' : 'Sostituisci Foto'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={savingHeaderImg}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) handleImageUpload(f);
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={handleRemoveHeaderImage}
+                disabled={savingHeaderImg}
+                className="py-2.5 px-4 rounded-xl font-bold bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs transition-colors cursor-pointer"
+              >
+                Rimuovi
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <label className="w-full border-2 border-dashed border-slate-200 hover:border-amber-400 bg-slate-50/70 hover:bg-amber-50/30 rounded-2xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all">
+              <span className="text-2xl">📸</span>
+              <span className="text-xs font-bold text-slate-700">Carica Immagine di Copertina</span>
+              <span className="text-[10px] text-slate-400">JPG, PNG compressa automaticamente per il cloud</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={savingHeaderImg}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) handleImageUpload(f);
+                }}
+              />
+            </label>
+          </div>
+        )}
       </div>
 
       {/* Invito Co-pilota */}

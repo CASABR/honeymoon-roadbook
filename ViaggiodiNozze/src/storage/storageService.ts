@@ -262,6 +262,28 @@ class StorageService {
         notifyDataChanged('alloggi', 'save', item);
       }
     }
+
+    // Upsert rigoroso Attività certificate basato su ID o data + titolo
+    const existingActivities = await idbGetAll<import('../types').Attivita>(STORES.ATTIVITA);
+    for (const act of REAL_ACTIVITIES) {
+      const actTitle = (act.title || (act as any).titolo || '').toLowerCase().trim();
+      const existing = existingActivities.find(e =>
+        e.id === act.id ||
+        (e.date === act.date && ((e.title || (e as any).titolo || '').toLowerCase().trim() === actTitle))
+      );
+      if (existing) {
+        const updated = {
+          ...existing,
+          ...act,
+          id: existing.id || act.id,
+          updatedAt: now
+        };
+        await idbPut(STORES.ATTIVITA, updated);
+      } else {
+        await idbPut(STORES.ATTIVITA, { ...act, createdAt: now, updatedAt: now });
+      }
+    }
+    notifyDataChanged('attivita', 'save', {});
     
     // Upsert rigoroso Tappe basato su date + titolo / ID
     const { REAL_TAPPE, SEED_TAPPE_VERSION } = await import('./seedTappe');
@@ -703,10 +725,12 @@ class StorageService {
       updatedAt: new Date().toISOString()
     };
     await idbPut(STORES.DOCUMENTI, item);
+    notifyDataChanged('documenti', 'save', item);
   }
 
   async deleteDocument(id: string): Promise<void> {
     await idbDelete(STORES.DOCUMENTI, id);
+    notifyDataChanged('documenti', 'delete', { id });
   }
 
   // --- ROUTING CACHE ---

@@ -5,6 +5,14 @@ export interface TripConfig {
   endDate: string; // YYYY-MM-DD
   totalDays?: number;
   ownerUid?: string; // UID del creatore per sicurezza Firestore
+  headerImageUrl?: string | null;
+  budgetConfig?: Record<string, any>;
+  infoAltro?: {
+    assicurazione?: string;
+    numeriEmergenza?: string;
+    noteViaggio?: string;
+    [key: string]: any;
+  };
 }
 
 const CONFIG_KEY = 'roadbook_trip_config';

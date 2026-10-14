@@ -419,21 +419,6 @@ export default function SettingsMenu() {
                 )}
               </button>
 
-              {tripId === '0000' && (
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await storageService.seedRealActivities();
-                    showToast('ok', 'Attività ripristinate con successo!');
-                    setOpen(false);
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3 text-xs font-bold text-indigo-700 bg-indigo-50/50 hover:bg-indigo-50 transition-colors cursor-pointer border-t border-indigo-100"
-                >
-                  <span className="text-lg">📥</span>
-                  Ripristina Attività Viaggio
-                </button>
-              )}
-
               <input
                 ref={fileRef}
                 type="file"
