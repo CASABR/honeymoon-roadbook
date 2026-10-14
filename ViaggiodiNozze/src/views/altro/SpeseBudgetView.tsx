@@ -5,6 +5,7 @@ import { Search, ChevronRight } from "lucide-react";
 import Modal from "../../components/common/Modal";
 
 import { formatDate } from '../../utils/tripDates';
+import { resolvePaymentInfo } from '../../utils/priceHelper';
 
 // ============================================================================
 // TIPI & COSTANTI
@@ -187,23 +188,35 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
 
     const addToList = (items: any[], cat: string, titleField1: string, titleField2: string, dateField: string, costField: string, altCostField: string) => {
       items.forEach((item) => {
-        const costNum = parseEuro(item[costField] || item[altCostField]);
-        if (costNum > 0) {
-          let paidAmount = 0;
-          let isPaid = item.paymentStatus === 'saldato' || item.status === 'saldato' || item.status === 'completato' || item.paymentStatus === 'completato';
-          
-          if (item.depositPaid || item.acconto) {
-            paidAmount = parseEuro(item.depositPaid || item.acconto);
-          } else if (item.amountPaid) {
-             paidAmount = parseEuro(item.amountPaid);
-          } else if (isPaid) {
-            paidAmount = costNum;
-          }
+        const rawCost = item[costField] || item[altCostField];
+        const paymentInfo = resolvePaymentInfo({
+          cost: rawCost,
+          depositPaid: item.depositPaid || item.acconto || item.amountPaid,
+          paymentStatus: item.paymentStatus,
+          status: item.status,
+          completed: item.completed,
+          packageIncluded: item.packageIncluded
+        });
 
-          if (paidAmount >= costNum) {
-            isPaid = true;
-            paidAmount = costNum;
-          }
+        // Se è gratuito o incluso nel pacchetto, non è una spesa da saldare né un costo a carico del viaggiatore
+        if (paymentInfo.isFree || paymentInfo.isPackageIncluded) {
+          list.push({
+            id: item.id,
+            category: cat as any,
+            title: item[titleField1] || item[titleField2] || 'Senza titolo',
+            date: item[dateField] || item.startDate || item.checkIn || item.data,
+            cost: 0,
+            paidAmount: 0,
+            paid: true,
+            rawItem: item,
+          });
+          return;
+        }
+
+        const costNum = paymentInfo.costNum;
+        if (costNum > 0) {
+          const paidAmount = paymentInfo.paidNum;
+          const isPaid = paymentInfo.isPaid || paidAmount >= costNum;
 
           list.push({
             id: item.id,
@@ -223,15 +236,33 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
     
     // Custom per trasporti
     trasporti.forEach((t) => {
-      const costNum = parseEuro(t.cost);
+      const paymentInfo = resolvePaymentInfo({
+        cost: t.cost,
+        depositPaid: t.depositPaid || t.acconto || t.amountPaid,
+        paymentStatus: t.paymentStatus,
+        status: t.status,
+        completed: t.completed,
+        packageIncluded: t.packageIncluded
+      });
+
+      if (paymentInfo.isFree || paymentInfo.isPackageIncluded) {
+        list.push({
+          id: t.id,
+          category: 'trasporti',
+          title: t.carrier || `${t.departureLocation} → ${t.arrivalLocation}`,
+          date: t.date || t.startDate,
+          cost: 0,
+          paidAmount: 0,
+          paid: true,
+          rawItem: t,
+        });
+        return;
+      }
+
+      const costNum = paymentInfo.costNum;
       if (costNum > 0) {
-        let acconto = parseEuro(t.depositPaid || t.acconto);
-        let isPaid = (t.paymentStatus === 'saldato' || t.status === 'saldato' || t.status === 'completato' || t.paymentStatus === 'completato');
-        if (isPaid) acconto = costNum;
-        if (acconto >= costNum) {
-          isPaid = true;
-          acconto = costNum;
-        }
+        const acconto = paymentInfo.paidNum;
+        const isPaid = paymentInfo.isPaid || acconto >= costNum;
         list.push({
           id: t.id,
           category: 'trasporti',

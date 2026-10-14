@@ -3,6 +3,7 @@ import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
 import type { Alloggio } from '../../types';
 import { resolveMapUrl } from '../../utils/mapsHelper';
+import { resolvePaymentInfo } from '../../utils/priceHelper';
 
 interface AlloggioCardProps {
   accommodation: Alloggio;
@@ -17,13 +18,22 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
   const copilotData = (accommodation as any).noteCopilota || (accommodation as any).notes || '';
   const hasCopilotNotes = Boolean(copilotData.trim());
   
-  const isSaldato = accommodation.paymentStatus === 'saldato' || accommodation.completed || Boolean(accommodation.depositPaid && parseFloat(accommodation.depositPaid.replace(',', '.')) >= parseFloat(String(accommodation.cost || '0').replace(',', '.')) && parseFloat(String(accommodation.cost || '0').replace(',', '.')) > 0);
+  const paymentInfo = resolvePaymentInfo({
+    cost: accommodation.cost,
+    depositPaid: accommodation.depositPaid || accommodation.acconto,
+    paymentStatus: accommodation.paymentStatus,
+    status: accommodation.status,
+    completed: accommodation.completed
+  });
+
+  const { isFree, isPaid, costNum, displayText } = paymentInfo;
 
   const handleTogglePayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isFree) return;
     try {
-      const newStatus = isSaldato ? 'da_saldare' : 'saldato';
-      const updatedCost = accommodation.cost || '0.00';
+      const newStatus = isPaid ? 'da_saldare' : 'saldato';
+      const updatedCost = accommodation.cost || (costNum > 0 ? `${costNum.toFixed(2)} €` : '0.00');
       const depositVal = newStatus === 'saldato' ? updatedCost : '0.00';
       const updated: Alloggio = {
         ...accommodation,
@@ -98,25 +108,27 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
           >
             <span className="text-sm">🧭</span>
           </button>
-          <button
-            type="button"
-            onClick={handleTogglePayment}
-            className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
-              isSaldato
-                ? 'bg-[#E6F4EA] text-[#39734A] border-emerald-300 dark:bg-[#143521] dark:text-[#4ADE80] dark:border-emerald-800'
-                : 'bg-[#FFFDF2] text-amber-900 border-[#FFC857] dark:bg-[#382C0E] dark:text-[#FDE047] dark:border-[#785912]'
-            }`}
-            title="Clicca per invertire stato: Saldato / Da saldare"
-          >
-            {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
-          </button>
+          {!isFree && (
+            <button
+              type="button"
+              onClick={handleTogglePayment}
+              className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
+                isPaid
+                  ? 'bg-[#E6F4EA] text-[#39734A] border-emerald-300 dark:bg-[#143521] dark:text-[#4ADE80] dark:border-emerald-800'
+                  : 'bg-[#FFFDF2] text-amber-900 border-[#FFC857] dark:bg-[#382C0E] dark:text-[#FDE047] dark:border-[#785912]'
+              }`}
+              title="Clicca per invertire stato: Saldato / Da saldare"
+            >
+              {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
+            </button>
+          )}
         </div>
       </div>
 
       {/* BODY */}
       <div>
         <div className="flex items-start gap-2 flex-wrap">
-          <h3 className={`font-semibold text-base leading-snug tracking-tight text-slate-900 dark:text-white ${isSaldato ? 'opacity-90' : ''}`}>
+          <h3 className={`font-semibold text-base leading-snug tracking-tight text-slate-900 dark:text-white ${isPaid ? 'opacity-90' : ''}`}>
             {accommodation.name}
           </h3>
         </div>
@@ -136,13 +148,13 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
       {/* BOTTOM */}
       <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          {(!accommodation.cost || isNaN(parseFloat(String(accommodation.cost).replace(/[^0-9,.-]/g, '').replace(',', '.'))) || parseFloat(String(accommodation.cost).replace(/[^0-9,.-]/g, '').replace(',', '.')) === 0) ? (
-            <span className="text-sm font-semibold text-slate-900 dark:text-white">
+          {isFree ? (
+            <span className="text-sm font-semibold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
               Gratuito
             </span>
           ) : (
             <span className="text-sm font-semibold text-slate-900 bg-slate-100 dark:bg-slate-700 dark:text-slate-100 px-2 py-1 rounded-md">
-              {String(accommodation.cost)}
+              {displayText}
             </span>
           )}
         </div>

@@ -704,36 +704,37 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   placeholder={
                     inputMode === 'import'
                       ? attachedFile 
-                        ? "File allegato pronto! Premi 'Estrai Dati con AI' per elaborarlo o aggiungi note..."
-                        : "Incolla qui la conferma del volo, dell'hotel o carica direttamente il file PDF/foto con il pulsante qui sotto..."
-                      : "Scrivi un messaggio o chiedi un consiglio..."
+                        ? "File pronto! Premi 'Estrai Dati con AI' per elaborarlo o aggiungi eventuali note..."
+                        : "Incolla il testo della conferma oppure usa '📎 Allega prenotazione' per caricare PDF o immagini..."
+                      : "Scrivi un messaggio o chiedi un consiglio al Concierge..."
                   }
-                  className={`w-full p-4 bg-slate-800/50 border border-slate-700 text-slate-200 text-sm resize-none focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 placeholder:text-slate-500 ${inputMode === 'chat' ? 'h-16 rounded-3xl pl-5 pr-14' : 'h-32 rounded-2xl leading-relaxed'}`}
+                  className={`w-full p-4 bg-slate-800/70 border border-slate-700 text-slate-200 text-sm resize-none focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 placeholder:text-slate-500 ${inputMode === 'chat' ? 'h-20 rounded-2xl pr-14' : 'h-32 rounded-2xl leading-relaxed'}`}
                 />
                 {inputMode === 'chat' && (
                   <button
                     onClick={handleExtract}
                     disabled={!text.trim() && !attachedFile}
-                    className="absolute right-2 top-2 bottom-2 w-12 h-12 rounded-full bg-[#FF6B5F] text-white flex items-center justify-center hover:bg-[#e85c50] disabled:opacity-50 transition"
+                    className="absolute right-3 top-3 bottom-3 w-10 h-10 rounded-xl bg-[#FF6B5F] text-white flex items-center justify-center hover:bg-[#e85c50] disabled:opacity-50 transition cursor-pointer shadow-md"
+                    title="Invia messaggio"
                   >
-                    <svg className="w-5 h-5 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                    <svg className="w-5 h-5 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
                   </button>
                 )}
               </div>
 
-              {/* Pulsanti Azione (Allega prenotazione + Estrai) */}
-              <div className="flex gap-2 shrink-0 pt-1">
+              {/* Pulsanti Azione (Allega prenotazione sempre in evidenza + Estrai) */}
+              <div className="flex flex-wrap sm:flex-nowrap gap-2 shrink-0 pt-1">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isProcessingFile}
-                  className="px-4 py-3 rounded-xl font-semibold bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer"
+                  className="flex-1 sm:flex-none px-4 py-3 rounded-xl font-bold bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/40 text-violet-200 text-xs flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer shadow-sm hover:border-violet-400"
                   title="Carica documento PDF, biglietto o screenshot di prenotazione"
                 >
-                  <svg className="w-4 h-4 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  <svg className="w-4 h-4 text-violet-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                   </svg>
-                  <span>{attachedFile ? 'Sostituisci File' : '📎 Allega prenotazione'}</span>
+                  <span className="truncate">{attachedFile ? 'Sostituisci File' : '📎 Allega prenotazione'}</span>
                 </button>
 
                 {inputMode === 'import' && (
@@ -741,7 +742,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                     type="button"
                     onClick={handleExtract}
                     disabled={!text.trim() && !attachedFile}
-                    className="flex-1 py-3 rounded-xl font-bold bg-[#FF6B5F] text-white shadow-lg shadow-rose-500/20 hover:bg-[#e85c50] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                    className="flex-1 py-3 px-4 rounded-xl font-bold bg-[#FF6B5F] text-white shadow-lg shadow-rose-500/20 hover:bg-[#e85c50] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />

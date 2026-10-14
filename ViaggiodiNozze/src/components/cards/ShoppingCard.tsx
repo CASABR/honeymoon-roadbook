@@ -3,6 +3,7 @@ import { useState } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
 import { resolveMapUrl } from '../../utils/mapsHelper';
+import { resolvePaymentInfo } from '../../utils/priceHelper';
 
 interface ShoppingCardProps {
   shopping: Shopping;
@@ -17,16 +18,22 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
   const copilotData = (shopping as any).noteCopilota || (shopping as any).notes || '';
   const hasCopilotNotes = Boolean(copilotData.trim());
 
-  const costNum = parseFloat(String(shopping.budget || shopping.cost || '0').replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
-  const paidNum = parseFloat(String(shopping.depositPaid || shopping.amountPaid || shopping.acconto || '0').replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
+  const paymentInfo = resolvePaymentInfo({
+    cost: shopping.budget || (shopping as any).cost,
+    depositPaid: shopping.depositPaid || (shopping as any).amountPaid || (shopping as any).acconto,
+    paymentStatus: shopping.paymentStatus,
+    status: (shopping as any).status,
+    completed: shopping.completed
+  });
 
-  const isSaldato = shopping.paymentStatus === 'saldato' || shopping.completed || (costNum > 0 && paidNum >= costNum);
+  const isSaldato = paymentInfo.isPaid;
 
   const handleTogglePayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (paymentInfo.isFree || paymentInfo.isPackageIncluded) return;
     try {
       const newStatus = isSaldato ? 'da_saldare' : 'saldato';
-      const costStr = shopping.budget || shopping.cost || `${costNum.toFixed(2)} €`;
+      const costStr = shopping.budget || (shopping as any).cost || `${paymentInfo.costNum.toFixed(2)} €`;
       const paidVal = newStatus === 'saldato' ? costStr : '0.00 €';
 
       const updated: Shopping = {
@@ -82,18 +89,24 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
           >
             <span className="text-sm">🧭</span>
           </button>
-          <button
-            type="button"
-            onClick={handleTogglePayment}
-            className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
-              isSaldato
-                ? 'bg-[#E6F4EA] text-[#39734A] border-emerald-300 dark:bg-[#143521] dark:text-[#4ADE80] dark:border-emerald-800'
-                : 'bg-[#FFFDF2] text-amber-900 border-[#FFC857] dark:bg-[#382C0E] dark:text-[#FDE047] dark:border-[#785912]'
-            }`}
-            title="Clicca per invertire stato: Saldato / Da saldare"
-          >
-            {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
-          </button>
+          {!paymentInfo.isFree && !paymentInfo.isPackageIncluded ? (
+            <button
+              type="button"
+              onClick={handleTogglePayment}
+              className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
+                isSaldato
+                  ? 'bg-[#E6F4EA] text-[#39734A] border-emerald-300 dark:bg-[#143521] dark:text-[#4ADE80] dark:border-emerald-800'
+                  : 'bg-[#FFFDF2] text-amber-900 border-[#FFC857] dark:bg-[#382C0E] dark:text-[#FDE047] dark:border-[#785912]'
+              }`}
+              title="Clicca per invertire stato: Saldato / Da saldare"
+            >
+              {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
+            </button>
+          ) : (
+            <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
+              {paymentInfo.displayText}
+            </span>
+          )}
         </div>
       </div>
 
@@ -115,13 +128,21 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
       {/* BOTTOM */}
       <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center">
-          {(!shopping.budget || isNaN(parseFloat(shopping.budget)) || parseFloat(shopping.budget) === 0) ? (
+          {paymentInfo.isFree ? (
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+              Gratuito
+            </span>
+          ) : paymentInfo.isPackageIncluded ? (
+            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
+              Incluso nel pacchetto
+            </span>
+          ) : paymentInfo.costNum === 0 ? (
             <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
               Costo non specificato
             </span>
           ) : (
             <span className="text-slate-900 dark:text-white font-semibold bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md text-sm">
-              {parseFloat(shopping.budget).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+              {paymentInfo.costNum.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
             </span>
           )}
         </div>

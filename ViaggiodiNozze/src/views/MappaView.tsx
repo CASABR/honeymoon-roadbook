@@ -134,7 +134,6 @@ function createUserLocationIcon() {
   });
 }
 
-// Controller mappa per fitBounds, re-center e geolocalizzazione
 function MapController({
   markers,
   selectedMarker,
@@ -147,26 +146,35 @@ function MapController({
   shouldFlyToUser: boolean;
 }) {
   const map = useMap();
+  const hasInitializedRef = useRef(false);
+  const userCenteringActiveRef = useRef(false);
 
+  // Se l'utente clicca "Dove sono io", vola e mantieni il focus sulla posizione utente
   useEffect(() => {
     if (shouldFlyToUser && userLocation) {
+      userCenteringActiveRef.current = true;
       map.flyTo([userLocation.lat, userLocation.lng], 15, { animate: true, duration: 1.2 });
-      return;
     }
+  }, [shouldFlyToUser, userLocation, map]);
 
-    const timer = setTimeout(() => {
-      map.invalidateSize();
-      if (selectedMarker) {
-        map.setView([selectedMarker.coord.lat, selectedMarker.coord.lng], Math.max(map.getZoom(), 13), {
-          animate: true
-        });
-      } else if (markers.length > 0) {
-        const bounds = L.latLngBounds(markers.map((m) => [m.coord.lat, m.coord.lng]));
-        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 13 });
-      }
-    }, 120);
-    return () => clearTimeout(timer);
-  }, [map, markers, selectedMarker, userLocation, shouldFlyToUser]);
+  // Se l'utente seleziona un marker esplicito dalla lista
+  useEffect(() => {
+    if (selectedMarker) {
+      userCenteringActiveRef.current = false;
+      map.setView([selectedMarker.coord.lat, selectedMarker.coord.lng], Math.max(map.getZoom(), 13), {
+        animate: true
+      });
+    }
+  }, [selectedMarker, map]);
+
+  // Adatta i bordi iniziali una sola volta all'avvio o solo se non siamo centrati sull'utente
+  useEffect(() => {
+    if (!hasInitializedRef.current && markers.length > 0) {
+      hasInitializedRef.current = true;
+      const bounds = L.latLngBounds(markers.map((m) => [m.coord.lat, m.coord.lng]));
+      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 13 });
+    }
+  }, [markers, map]);
 
   return null;
 }
