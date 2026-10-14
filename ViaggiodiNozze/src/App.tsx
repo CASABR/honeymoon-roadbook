@@ -30,6 +30,8 @@ import LiveView from './views/altro/LiveView';
 import WalkthroughModal from './components/modals/WalkthroughModal';
 import SmartInsertModal from './components/modals/SmartInsertModal';
 import { InstallPWA } from './components/InstallPWA';
+import DesktopNavigation, { type DesktopNavSection } from './components/common/DesktopNavigation';
+import PrenotazioniWorkspaceView from './views/desktop/PrenotazioniWorkspaceView';
 // Dichiarazione della costante globale iniettata da Vite
 declare const __BUILD_TIME__: string;
 
@@ -442,78 +444,151 @@ export default function App() {
     );
   }
 
+  const [desktopSection, setDesktopSection] = useState<DesktopNavSection>('prenotazioni');
+
+  const handleSelectDesktopSection = (section: DesktopNavSection) => {
+    setDesktopSection(section);
+    if (section === 'itinerario') {
+      setActiveTab('oggi');
+      setActiveCategoria(null);
+    } else if (section === 'alloggi') {
+      setActiveTab('categorie');
+      setActiveCategoria('alloggi');
+    } else if (section === 'trasporti') {
+      setActiveTab('categorie');
+      setActiveCategoria('trasporti');
+    } else if (section === 'attivita') {
+      setActiveTab('categorie');
+      setActiveCategoria('attivita');
+    } else if (section === 'ristoranti') {
+      setActiveTab('categorie');
+      setActiveCategoria('ristoranti');
+    } else if (section === 'shopping') {
+      setActiveTab('categorie');
+      setActiveCategoria('shopping');
+    } else if (section === 'spese') {
+      setActiveTab('categorie');
+      setActiveCategoria('spese');
+    } else if (section === 'documenti') {
+      setActiveTab('altro');
+      setAltroSubView('documenti');
+    } else if (section === 'mappa') {
+      setActiveTab('mappa');
+    } else if (section === 'gestione') {
+      setActiveTab('altro');
+      setAltroSubView('gestione' as any);
+    } else if (section === 'live') {
+      setActiveTab('altro');
+      setAltroSubView('live');
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col items-center selection:bg-rose-500 selection:text-white font-sans antialiased">
-      {/* Top Bar */}
-        <header className="w-full max-w-md mx-auto flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5">
-        <div className="flex items-center gap-1.5">
-          <img src="/favicon.svg" alt="Hounigo" className="h-6 w-auto object-contain max-w-[100px]" />
-          {typeof __BUILD_TIME__ !== 'undefined' && (
-            <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full">
-              🟢 {__BUILD_TIME__}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setIsWalkthroughOpen(true)}
-            className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
-            aria-label="Guida"
-          >
-            <span className="text-sm font-bold">?</span>
-          </button>
-          <DarkModeToggle />
-          <SettingsMenu />
-        </div>
-      </header>
-
-      {/* Container Mobile / Shell */}
-      <main className="w-full max-w-md mx-auto flex-1 flex flex-col px-4 pt-1 pb-20">
-        {activeTab === 'oggi' && <OggiView  onNavigateTab={handleTabChange} />}
-        
-        {activeTab === 'mappa' && <MappaView  />}
-
-        {activeTab === 'categorie' && (
-          <>
-            {activeCategoria === 'tappe' && <TappeView  />}
-            {activeCategoria === 'attivita' && <AttivitaView  />}
-            {activeCategoria === 'ristoranti' && <RistorantiView />}
-            {activeCategoria === 'alloggi' && <AlloggiView  />}
-            {activeCategoria === 'trasporti' && <TrasportiView />}
-            {activeCategoria === 'shopping' && <ShoppingView />}
-            {activeCategoria === 'spese' && <SpeseBudgetView />}
-            {!activeCategoria && <TappeView />}
-          </>
-        )}
-
-        {activeTab === 'altro' && <AltroView initialSubView={altroSubView} />}
-      </main>
-
-      {/* Barra inferiore classica a 3 tab (Oggi - Categorie - Altro) sempre presente come base */}
-      <NavBar
-        activeTab={activeTab}
-        onTabChange={handleTabChange}
-        onOpenCategorie={handleToggleCategorie}
-        onOpenSmartInsert={() => {
-          setSmartInsertMode('manual');
-          setIsSmartInsertOpen(true);
-        }}
-        isCategorieActive={activeTab === 'categorie' || isCategorieOpen}
-      />
-
-      {/* Dock orizzontale a capsula mostrato in overlay sovrimpresso al click su "Categorie" */}
-      {isCategorieOpen && (
-        <CategorieBar
-          activeCategoria={activeCategoria}
-          onSelectCategoria={handleSelectCategoria}
-          onClose={handleCloseCategorie}
+    <div className="min-h-screen bg-[#FAF7F2] dark:bg-slate-950 text-[#172033] dark:text-slate-100 flex flex-col md:flex-row selection:bg-rose-500 selection:text-white font-sans antialiased">
+      
+      {/* ─── DESKTOP SIDEBAR NAVIGATION (Schermi md+) ─────────────────── */}
+      <div className="hidden md:block">
+        <DesktopNavigation
+          currentSection={desktopSection}
+          onSelectSection={handleSelectDesktopSection}
+          onOpenSmartInsert={() => {
+            setSmartInsertMode('manual');
+            setIsSmartInsertOpen(true);
+          }}
+          tripConfig={tripConfig}
         />
-      )}
+      </div>
+
+      {/* ─── MAIN CONTENT CONTAINER (Responsive: mobile centered shell, desktop full workspace) ─ */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+        
+        {/* Top Header Mobile / Tablet Header */}
+        <header className="w-full flex md:hidden items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-slate-200/60 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+          <div className="flex items-center gap-1.5">
+            <img src="/favicon.svg" alt="Hounigo" className="h-6 w-auto object-contain max-w-[100px]" />
+            {typeof __BUILD_TIME__ !== 'undefined' && (
+              <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full">
+                🟢 {__BUILD_TIME__}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsWalkthroughOpen(true)}
+              className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
+              aria-label="Guida"
+            >
+              <span className="text-sm font-bold">?</span>
+            </button>
+            <DarkModeToggle />
+            <SettingsMenu />
+          </div>
+        </header>
+
+        {/* Workspace Body */}
+        <main className="flex-1 px-3 sm:px-6 md:px-8 py-3 md:py-6 max-w-7xl w-full mx-auto pb-24 md:pb-12">
+          {/* Sezione Desktop Esclusiva Hub Prenotazioni */}
+          {desktopSection === 'prenotazioni' ? (
+            <div className="hidden md:block">
+              <PrenotazioniWorkspaceView
+                onOpenSmartInsert={() => {
+                  setSmartInsertMode('manual');
+                  setIsSmartInsertOpen(true);
+                }}
+                onNavigateToTab={(tab, cat) => handleTabChange(tab as SectionTab, cat as CategoriaTab)}
+              />
+            </div>
+          ) : null}
+
+          {/* Viste Standard (Visibili sempre su mobile, e su desktop quando selezionate dalla sidebar) */}
+          <div className={desktopSection === 'prenotazioni' ? 'block md:hidden' : 'block'}>
+            {activeTab === 'oggi' && <OggiView onNavigateTab={handleTabChange} />}
+            
+            {activeTab === 'mappa' && <MappaView />}
+
+            {activeTab === 'categorie' && (
+              <>
+                {activeCategoria === 'tappe' && <TappeView />}
+                {activeCategoria === 'attivita' && <AttivitaView />}
+                {activeCategoria === 'ristoranti' && <RistorantiView />}
+                {activeCategoria === 'alloggi' && <AlloggiView />}
+                {activeCategoria === 'trasporti' && <TrasportiView />}
+                {activeCategoria === 'shopping' && <ShoppingView />}
+                {activeCategoria === 'spese' && <SpeseBudgetView />}
+                {!activeCategoria && <TappeView />}
+              </>
+            )}
+
+            {activeTab === 'altro' && <AltroView initialSubView={altroSubView} />}
+          </div>
+        </main>
+      </div>
+
+      {/* ─── MOBILE BOTTOM BAR (Visibile solo su schermi < md) ───────────── */}
+      <div className="block md:hidden">
+        <NavBar
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          onOpenCategorie={handleToggleCategorie}
+          onOpenSmartInsert={() => {
+            setSmartInsertMode('manual');
+            setIsSmartInsertOpen(true);
+          }}
+          isCategorieActive={activeTab === 'categorie' || isCategorieOpen}
+        />
+
+        {/* Dock orizzontale Categorie su Mobile */}
+        {isCategorieOpen && (
+          <CategorieBar
+            activeCategoria={activeCategoria}
+            onSelectCategoria={handleSelectCategoria}
+            onClose={handleCloseCategorie}
+          />
+        )}
+      </div>
 
       {/* Onboarding / Guida */}
       <WalkthroughModal isOpen={isWalkthroughOpen} onClose={handleCloseWalkthrough} />
-
-      {/* Add Menu eliminato: la funzione è stata accorpata in Categorie e Smart AI */}
 
       {/* Inserimento Smart AI */}
       <SmartInsertModal
