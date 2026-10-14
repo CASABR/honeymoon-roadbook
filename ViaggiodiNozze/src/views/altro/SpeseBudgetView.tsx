@@ -250,8 +250,17 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
     addToList(ristoranti, 'ristoranti', 'nome', 'name', 'date', 'budget', 'cost');
     addToList(shoppingItemsList, 'shopping', 'nome', 'name', 'date', 'budget', 'cost');
 
+    // Deduplicazione deterministica per ID
+    const uniqueMap = new Map<string, UnifiedExpense>();
+    list.forEach(item => {
+      if (item.id) {
+        uniqueMap.set(item.id, item);
+      }
+    });
+    const uniqueList = Array.from(uniqueMap.values());
+
     // Sort by date desc
-    list.sort((a, b) => {
+    uniqueList.sort((a, b) => {
       if (!a.date && !b.date) return 0;
       if (!a.date) return 1;
       if (!b.date) return -1;
@@ -260,7 +269,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
       return new Date(isoA).getTime() - new Date(isoB).getTime();
     });
 
-    return list;
+    return uniqueList;
   }, [spese, trasporti, alloggi, attivita, ristoranti, shoppingItemsList]);
 
   // Filtro
@@ -339,18 +348,22 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
         case 'trasporti':
           updated.cost = formattedCost;
           await storageService.saveTransport(updated);
+          notifyDataChanged('trasporti', 'save', updated);
           break;
         case 'alloggi':
           updated.cost = formattedCost;
           await storageService.saveAccommodation(updated);
+          notifyDataChanged('alloggi', 'save', updated);
           break;
         case 'attivita':
           updated.cost = formattedCost;
           await storageService.saveActivity(updated);
+          notifyDataChanged('attivita', 'save', updated);
           break;
         case 'ristoranti':
           updated.budget = formattedCost;
           await storageService.saveRistorante(updated);
+          notifyDataChanged('ristoranti', 'save', updated);
           break;
         case 'shopping':
           updated.budget = formattedCost;
@@ -366,7 +379,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           notifyDataChanged('spese', 'save', updated);
           break;
       }
-      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: e.category, data: updated } }));
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'save', entityType: e.category, data: updated } }));
       await loadAllData();
       setEditingItemId(null);
     } finally {
@@ -552,8 +565,27 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
   // ============================================================================
   return (
     <div className="flex flex-col h-full animate-fade-in pb-20">
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
         
+        {/* Header di navigazione con pulsante di ritorno ad Altro */}
+        <header className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={_onBack || (() => window.history.back())}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs border border-slate-200/60"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+            </svg>
+            <span>Torna ad Altro</span>
+          </button>
+          <div className="min-w-0">
+            <h1 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-1.5 truncate">
+              <span>💳</span> Spese &amp; Budget
+            </h1>
+          </div>
+        </header>
+
         {/* Riepilogo Totali (Migliorato con progress bar) */}
         <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl -mr-10 -mt-10 opacity-60"></div>

@@ -96,17 +96,6 @@ export default function TrasportiView() {
     await loadData();
   };
 
-  const handleReloadSeedData = async () => {
-    if (confirm('Vuoi ELIMINARE tutti i trasporti attuali e RIPRISTINARE le tratte certificate del viaggio con orari, scali e prezzi in €? Questa azione azzererà l\'archivio sporco in un solo click!')) {
-      const allT = await storageService.getTransports();
-      for (const t of allT) {
-        await storageService.deleteTransport(t.id);
-      }
-      await storageService.seedTransports(true);
-      await loadData();
-    }
-  };
-
   // Filtraggio tratte
   const filteredTransports = transports.filter((t) => {
     const typeMatch = (activeFilter === 'tutti') || 
@@ -208,27 +197,16 @@ export default function TrasportiView() {
 
         <div className="flex items-center gap-1.5 ml-auto">
           {canEdit && (
-            <>
-              <button
-                type="button"
-                onClick={handleReloadSeedData}
-                title="Carica o ripristina le tratte certificate del viaggio"
-                className="inline-flex items-center gap-1 min-h-[36px] px-2.5 bg-blue-50 hover:bg-blue-100 active:scale-95 text-blue-700 font-semibold text-xs rounded-xl border border-blue-200 transition-all cursor-pointer shadow-sm"
-              >
-                <span>🔄 Ripristina</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleOpenAdd}
-                className="inline-flex items-center gap-1 min-h-[36px] px-3 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-                </svg>
-                <span>Nuovo</span>
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={handleOpenAdd}
+              className="inline-flex items-center gap-1 min-h-[36px] px-3 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-600/20 transition-all cursor-pointer"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Nuovo</span>
+            </button>
           )}
         </div>
       </header>
@@ -295,10 +273,10 @@ export default function TrasportiView() {
       {transports.length === 0 ? (
         <EmptyState
           title="Nessun trasporto inserito"
-          description="Carica le tratte certificate del viaggio oppure inserisci nuovi voli, traghetti, camper e transfer."
-          actionLabel="Carica Tratte Certificate"
+          description="Aggiungi voli, traghetti, camper e transfer per il tuo viaggio."
+          actionLabel="Aggiungi Trasporto"
           accentVariant="sky"
-          onAction={handleReloadSeedData}
+          onAction={handleOpenAdd}
           icon={
             <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />

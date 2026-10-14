@@ -5,7 +5,6 @@ import AttivitaForm from '../components/forms/AttivitaForm';
 import Modal from '../components/common/Modal';
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
-import { getTripConfig } from '../utils/tripConfig';
 import RouteBadge from '../components/common/RouteBadge';
 import DayPickerStrip from '../components/common/DayPickerStrip';
 import SwipeToDelete from '../components/common/SwipeToDelete';
@@ -282,19 +281,6 @@ export default function AttivitaView() {
               </svg>
             }
           />
-          {canEdit && getTripConfig()?.id === '0000' && (
-            <button
-              onClick={async () => {
-                await storageService.seedRealActivities();
-                alert('Attività caricate con successo!');
-                await loadData();
-              }}
-              className="mx-auto flex items-center justify-center gap-2 px-6 py-3 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-2xl border border-indigo-200 transition-colors shadow-sm cursor-pointer active:scale-95"
-            >
-              <span>📥</span>
-              <span>Ripristina Attività Viaggio</span>
-            </button>
-          )}
         </div>
       ) : filteredActivities.length === 0 ? (
         <div className="p-8 rounded-3xl bg-white border border-slate-200/80 text-center shadow-sm flex flex-col items-center justify-center gap-3 mt-4">

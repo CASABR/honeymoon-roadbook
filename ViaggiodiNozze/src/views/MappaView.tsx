@@ -117,17 +117,43 @@ function parseValidCoord(c: any): Coordinate | null {
   return { lat: Number(lat), lng: Number(lng) };
 }
 
-// Controller mappa per fitBounds e re-center
+// Generatore icona "Dove sono io" - Pallino blu pulsante stile Google/Apple Maps
+function createUserLocationIcon() {
+  const html = `
+    <div style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
+      <div style="position: absolute; width: 24px; height: 24px; border-radius: 50%; background: rgba(59, 130, 246, 0.35); animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+      <div style="width: 14px; height: 14px; border-radius: 50%; background: #2563EB; border: 2.5px solid #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.35); position: relative; z-index: 1;"></div>
+    </div>
+  `;
+  return L.divIcon({
+    html,
+    className: 'leaflet-user-location-marker',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+    popupAnchor: [0, -14]
+  });
+}
+
+// Controller mappa per fitBounds, re-center e geolocalizzazione
 function MapController({
   markers,
-  selectedMarker
+  selectedMarker,
+  userLocation,
+  shouldFlyToUser
 }: {
   markers: MapMarkerData[];
   selectedMarker: MapMarkerData | null;
+  userLocation: Coordinate | null;
+  shouldFlyToUser: boolean;
 }) {
   const map = useMap();
 
   useEffect(() => {
+    if (shouldFlyToUser && userLocation) {
+      map.flyTo([userLocation.lat, userLocation.lng], 15, { animate: true, duration: 1.2 });
+      return;
+    }
+
     const timer = setTimeout(() => {
       map.invalidateSize();
       if (selectedMarker) {
@@ -140,7 +166,7 @@ function MapController({
       }
     }, 120);
     return () => clearTimeout(timer);
-  }, [map, markers, selectedMarker]);
+  }, [map, markers, selectedMarker, userLocation, shouldFlyToUser]);
 
   return null;
 }
@@ -151,7 +177,51 @@ export default function MappaView() {
   const [selectedCategory, setSelectedCategory] = useState<POICategory | 'all'>('all');
   const [selectedMarkerId, setSelectedMarkerId] = useState<string | null>(null);
 
+  // Stato Geolocalizzazione "Dove sono io"
+  const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+  const [shouldFlyToUser, setShouldFlyToUser] = useState(false);
+  const [locationToast, setLocationToast] = useState<string | null>(null);
+
   const markerRefs = useRef<Record<string, L.Marker | null>>({});
+
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      showToast("Geolocalizzazione non supportata dal tuo browser");
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setIsLocating(false);
+        const newCoord: Coordinate = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
+        };
+        setUserLocation(newCoord);
+        setShouldFlyToUser(true);
+        // Reset flag dopo il volo
+        setTimeout(() => setShouldFlyToUser(false), 1500);
+      },
+      (error) => {
+        setIsLocating(false);
+        console.warn("Errore geolocalizzazione utente:", error);
+        showToast("Impossibile rilevare la posizione attuale");
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 5000
+      }
+    );
+  };
+
+  const showToast = (msg: string) => {
+    setLocationToast(msg);
+    setTimeout(() => {
+      setLocationToast(null);
+    }, 3500);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -356,7 +426,29 @@ export default function MappaView() {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            <MapController markers={filteredMarkers} selectedMarker={selectedMarker} />
+            <MapController
+              markers={filteredMarkers}
+              selectedMarker={selectedMarker}
+              userLocation={userLocation}
+              shouldFlyToUser={shouldFlyToUser}
+            />
+
+            {/* Marker Posizione Attuale Utente (Pallino Blu Pulsante) */}
+            {userLocation && (
+              <Marker
+                position={[userLocation.lat, userLocation.lng]}
+                icon={createUserLocationIcon()}
+              >
+                <Popup className="custom-leaflet-popup">
+                  <div className="p-1 text-center min-w-[120px]">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 inline-block mb-1">
+                      📍 Tu sei qui
+                    </span>
+                    <p className="text-[11px] font-semibold text-slate-800">La tua posizione attuale</p>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
 
             {filteredMarkers.map((m) => {
               const isSelected = selectedMarker?.id === m.id;
@@ -412,6 +504,33 @@ export default function MappaView() {
               );
             })}
           </MapContainer>
+        )}
+
+        {/* Pulsante Flottante "Dove sono io" */}
+        <button
+          type="button"
+          onClick={handleLocateMe}
+          disabled={isLocating}
+          title="Dove sono io"
+          aria-label="La mia posizione"
+          className="absolute bottom-4 right-4 z-[400] w-11 h-11 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-full shadow-lg border border-slate-200/80 dark:border-slate-700 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
+        >
+          {isLocating ? (
+            <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="4" strokeWidth="2.5" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 2v3m0 14v3M2 12h3m14 0h3" />
+            </svg>
+          )}
+        </button>
+
+        {/* Toast Notifica Posizione Sobrio e non bloccante */}
+        {locationToast && (
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[500] px-3.5 py-1.5 rounded-full bg-slate-900/90 text-white text-xs font-semibold shadow-md backdrop-blur-xs flex items-center gap-2 animate-fade-in">
+            <span>ℹ️</span>
+            <span>{locationToast}</span>
+          </div>
         )}
       </div>
 
