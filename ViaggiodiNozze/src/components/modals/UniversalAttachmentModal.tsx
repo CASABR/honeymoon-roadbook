@@ -99,7 +99,13 @@ export default function UniversalAttachmentModal({
             <div key={att.id} className="flex items-center justify-between p-3 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm">
               <div 
                 className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer group"
-                onClick={() => setZoomedIndex(attIdx)}
+                onClick={() => {
+                  if (att.type === 'pdf') {
+                    handleOpenPdf(att.dataUrl, att.name);
+                  } else {
+                    setZoomedIndex(attIdx);
+                  }
+                }}
               >
                 <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700 overflow-hidden group-hover:border-[#DDF4F5] transition-colors">
                   {att.type === 'image' ? (
