@@ -247,6 +247,7 @@ class StorageService {
     const { SEED_ALLOGGI } = await import('./seedAlloggi');
     const { SEED_RISTORANTI } = await import('./seedRistoranti');
 
+    // 1. Inserisci Shopping solo se mancante (nessuna sovrascrittura se presente)
     for (const fuel of SEED_SHOPPING) {
       if (!existingShopping.some(s => s.id === fuel.id)) {
         const item = { ...fuel, createdAt: now, updatedAt: now } as import('../types').Shopping;
@@ -255,6 +256,7 @@ class StorageService {
       }
     }
 
+    // 2. Inserisci Alloggi solo se mancante (nessuna sovrascrittura se presente)
     for (const acc of SEED_ALLOGGI) {
       if (!existingAlloggi.some(s => s.id === acc.id)) {
         const item: import('../types').Alloggio = { ...acc, createdAt: now, updatedAt: now };
@@ -263,32 +265,28 @@ class StorageService {
       }
     }
 
-    // Upsert rigoroso Attività certificate basato su ID o data + titolo
+    // 3. Attività: inserisci SOLO se NON esiste già nel DB (evita reset delle modifiche utente al refresh)
     const existingActivities = await idbGetAll<import('../types').Attivita>(STORES.ATTIVITA);
+    let insertedAnyAct = false;
     for (const act of REAL_ACTIVITIES) {
       const actTitle = (act.title || (act as any).titolo || '').toLowerCase().trim();
       const existing = existingActivities.find(e =>
         e.id === act.id ||
         (e.date === act.date && ((e.title || (e as any).titolo || '').toLowerCase().trim() === actTitle))
       );
-      if (existing) {
-        const updated = {
-          ...existing,
-          ...act,
-          id: existing.id || act.id,
-          updatedAt: now
-        };
-        await idbPut(STORES.ATTIVITA, updated);
-      } else {
+      if (!existing) {
         await idbPut(STORES.ATTIVITA, { ...act, createdAt: now, updatedAt: now });
+        insertedAnyAct = true;
       }
     }
-    notifyDataChanged('attivita', 'save', {});
+    if (insertedAnyAct) {
+      notifyDataChanged('attivita', 'save', {});
+    }
     
-    // Upsert rigoroso Tappe basato su date + titolo / ID
+    // 4. Tappe: inserisci SOLO se NON esiste già nel DB (evita reset delle modifiche utente al refresh)
     const { REAL_TAPPE, SEED_TAPPE_VERSION } = await import('./seedTappe');
-    const isTappeVersionNew = typeof localStorage !== 'undefined' && localStorage.getItem('tappe_seed_version') !== SEED_TAPPE_VERSION;
     const existingTappe = await idbGetAll<import('../types').Tappa>(STORES.TAPPE);
+    let insertedAnyTappa = false;
     for (const tappa of REAL_TAPPE) {
       const existing = existingTappe.find(e => 
         e.id === tappa.id ||
@@ -299,72 +297,60 @@ class StorageService {
         ))
       );
 
-      if (existing) {
-         const updated = { 
-            ...existing, 
-            ...tappa, 
-            id: existing.id || tappa.id, 
-            orario: isTappeVersionNew ? (tappa.orario || existing.orario) : (existing.orario || tappa.orario),
-            updatedAt: now 
-         };
-         await idbPut(STORES.TAPPE, updated);
-      } else {
-         await idbPut(STORES.TAPPE, { ...tappa, createdAt: now, updatedAt: now });
+      if (!existing) {
+        await idbPut(STORES.TAPPE, { ...tappa, createdAt: now, updatedAt: now });
+        insertedAnyTappa = true;
       }
     }
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('tappe_seed_version', SEED_TAPPE_VERSION);
     }
-    notifyDataChanged('tappe', 'save', {});
+    if (insertedAnyTappa) {
+      notifyDataChanged('tappe', 'save', {});
+    }
 
-    // Upsert rigoroso Ristoranti basato su date + nome
+    // 5. Ristoranti: inserisci SOLO se mancante
     const existingRist = await idbGetAll<import('../types').Ristorante>(STORES.RISTORANTI);
+    let insertedAnyRist = false;
     for (const rist of SEED_RISTORANTI) {
       const existing = existingRist.find(e => 
-        e.date === rist.date && 
-        e.nome.toLowerCase().trim() === rist.nome.toLowerCase().trim()
+        e.id === rist.id ||
+        (e.date === rist.date && 
+         e.nome.toLowerCase().trim() === rist.nome.toLowerCase().trim())
       );
 
-      if (existing) {
-         const updated = { 
-            ...existing, 
-            ...rist, 
-            id: existing.id, 
-            status: existing.status || rist.status || 'da_saldare',
-            updatedAt: now 
-         };
-         await idbPut(STORES.RISTORANTI, updated);
-      } else {
-         await idbPut(STORES.RISTORANTI, { ...rist, createdAt: now, updatedAt: now });
+      if (!existing) {
+        await idbPut(STORES.RISTORANTI, { ...rist, createdAt: now, updatedAt: now });
+        insertedAnyRist = true;
       }
     }
-    notifyDataChanged('ristoranti', 'save', {});
+    if (insertedAnyRist) {
+      notifyDataChanged('ristoranti', 'save', {});
+    }
 
-    // Upsert rigoroso Shopping basato su date + nome
+    // 6. Shopping: inserisci SOLO se mancante
     const existingShop = await idbGetAll<import('../types').Shopping>(STORES.SHOPPING);
+    let insertedAnyShop = false;
     for (const shop of SEED_SHOPPING) {
       const existing = existingShop.find(e => 
-        e.date === shop.date && 
-        e.nome.toLowerCase().trim() === shop.nome.toLowerCase().trim()
+        e.id === shop.id ||
+        (e.date === shop.date && 
+         e.nome.toLowerCase().trim() === shop.nome.toLowerCase().trim())
       );
 
-      if (existing) {
-         const updated = { 
-            ...existing, 
-            ...shop, 
-            id: existing.id, 
-            updatedAt: now 
-         };
-         await idbPut(STORES.SHOPPING, updated);
-      } else {
-         await idbPut(STORES.SHOPPING, { ...shop, createdAt: now, updatedAt: now });
+      if (!existing) {
+        await idbPut(STORES.SHOPPING, { ...shop, createdAt: now, updatedAt: now });
+        insertedAnyShop = true;
       }
     }
-    notifyDataChanged('shopping', 'save', {});
+    if (insertedAnyShop) {
+      notifyDataChanged('shopping', 'save', {});
+    }
 
-    // Upsert rigoroso Trasporti certificati (incluso Snap Rentals)
+    // 7. Trasporti certificati: inserisci SOLO se mancanti (senza sovrascrivere personalizzazioni utente)
     const existingTransports = await idbGetAll<import('../types').Trasporto>(STORES.TRASPORTI);
     const { initialTransports: certifiedTransports } = await import('./seedTransports');
+    let insertedAnyTrn = false;
     for (const trn of certifiedTransports) {
       const trnId = trn.id;
       const existing = existingTransports.find(e => 
@@ -375,16 +361,7 @@ class StorageService {
         ))
       );
 
-      if (existing) {
-        const updated = {
-          ...existing,
-          ...trn,
-          id: existing.id || trnId,
-          attachments: existing.attachments || trn.attachments || [],
-          updatedAt: now
-        };
-        await idbPut(STORES.TRASPORTI, updated);
-      } else {
+      if (!existing) {
         await idbPut(STORES.TRASPORTI, {
           ...trn,
           id: trnId,
@@ -392,19 +369,20 @@ class StorageService {
           createdAt: now,
           updatedAt: now
         });
+        insertedAnyTrn = true;
       }
     }
-    notifyDataChanged('trasporti', 'save', {});
+    if (insertedAnyTrn) {
+      notifyDataChanged('trasporti', 'save', {});
+    }
 
-    // --- AUTOMATIC DEDUPLICATION & UPDATE SCRIPT ---
+    // 8. Deduplicazione e pulizia una tantum solo per vecchi mock duplicati
     try {
       const allTransports = await idbGetAll<import('../types').Trasporto>(STORES.TRASPORTI);
       let changedAny = false;
 
       for (const t of allTransports) {
-        let dirty = false;
-        
-        // 1. Treno 28 Nov - Rimuovi il vecchio generico
+        // Treno 28 Nov - Rimuovi il vecchio generico mock
         if (t.type === 'treno' && t.date === '2026-11-28') {
           if (t.carrier === 'TRENO ROMA TERMINI - MILANO CENTRALE' || t.departureTime === '00:00' || !t.departureTime) {
             await idbDelete(STORES.TRASPORTI, t.id);
@@ -413,7 +391,7 @@ class StorageService {
           }
         }
         
-        // 2. Volo 29 Nov / 01 Dic - Rimuovi volo aggregato Air China CA950 + CA783
+        // Volo 29 Nov / 01 Dic - Rimuovi volo aggregato Air China CA950 + CA783
         if (t.type === 'volo' && (t.date === '2026-11-29' || t.date === '2026-12-01')) {
           if (t.carrier && t.carrier.includes('CA950 + CA783')) {
             await idbDelete(STORES.TRASPORTI, t.id);
@@ -422,78 +400,25 @@ class StorageService {
           }
         }
 
-        // 3. Traghetto 06 Dic - Rimuovi vecchio Interislander
+        // Traghetto 06 Dic - Rimuovi vecchio Interislander mock
         if (t.type === 'traghetto' && t.date === '2026-12-06') {
           if (t.carrier && t.carrier.includes('Interislander')) {
             await idbDelete(STORES.TRASPORTI, t.id);
             changedAny = true;
             continue;
-          } else if (t.carrier && t.carrier.includes('Bluebridge')) {
-            t.cost = '198.00'; 
-            t.noteCopilota = 'Costo Totale: 356,13 NZD. Include 2 adulti + veicolo auto fino a 5m. Inserire marcia, freno a mano e disattivare allarme. All\'arrivo alle 17:15 rotta verso Kaikoura con sosta foche a Ohau Point.';
-            dirty = true;
           }
         }
 
-        // 4. Volo 15 Dec CHC-ADL
-        if (t.type === 'volo' && t.date === '2026-12-15') {
-          t.cost = '355.71';
-          t.noteCopilota = 'Atterraggio 17:35; chiamare subito lo shuttle di Bargain Car Rentals (+61 3 6165 0838 o 1300 729 230, tasto 1) per il ritiro auto prima della chiusura delle 18:45–19:00.';
-          dirty = true;
-        }
-
-        // 5. Volo 17 Dec ADL-MEL
-        if (t.type === 'volo' && t.date === '2026-12-17') {
-          t.cost = '186.60';
-          t.posti = '16A (Nunzio), 16B (Giusy)';
-          t.noteCopilota = 'Arrivo a Melbourne Tullamarine alle 21:40; trasferimento al piazzale Travellers Autobarn per il ritiro notturno/contactless del Budgie Van con cassetta a codice.';
-          dirty = true;
-        }
-
-        // 6. Volo 28 Dec SYD-MNL
-        if (t.type === 'volo' && t.date === '2026-12-28') {
-          t.noteCopilota = 'Compilare il modulo eTravel (etravel.gov.ph) entro 72 ore prima del decollo del 28 dicembre. Sbarco a Manila T3 la sera del 28; sosta notturna al Tess and Tessha Condotel vicino al Terminal 3 e rientro in aeroporto la mattina del 29 per il volo verso Caticlan.';
-          dirty = true;
-        }
-        
-        // 7. Volo 02 Jan MPH-ENI
-        if (t.type === 'volo' && t.date === '2027-01-02') {
-          t.posti = '5C (Nunzio), 5D (Giusy)';
-          t.cost = '450.00';
-          t.noteCopilota = 'Atterraggio a El Nido Lio alle 16:40; check-in al Desert Rose e presentazione al briefing obbligatorio della spedizione TAO previsto per il tardo pomeriggio.';
-          dirty = true;
-        }
-
-        // 8. Volo 08 Jan USU-CEB
-        if (t.type === 'volo' && t.date === '2027-01-08') {
-          t.posti = '06D (Nunzio), 06C (Giusy)';
-          t.cost = '105.00';
-          t.noteCopilota = 'Partenza dall\'aeroporto Francisco B. Reyes di Busuanga; arrivo a Cebu Mactan T1 e alloggio all\'Appleton Boutique Hotel vicino all\'aeroporto.';
-          dirty = true;
-        }
-
-        // 9. Voli 09-10 Jan CEB-TPE-FCO
-        if (t.type === 'volo' && t.date === '2027-01-09') {
-          if (t.arrivalIata === 'TPE') t.posti = '51K (Nunzio), 51J (Giusy)';
-          if (t.arrivalIata === 'FCO') t.posti = '45K (Nunzio), 45J (Giusy)';
-          dirty = true;
-        }
-
-        // 10. Elimina vecchi duplicati generici (Volo e Traghetto) se non hanno dati completi
+        // Elimina vecchi duplicati generici (Volo e Traghetto) privi di carrier o orari
         if ((t.type === 'volo' || t.type === 'traghetto') && (!t.carrier || t.carrier === 'Volo' || t.carrier === 'Traghetto') && (!t.departureTime || t.departureTime === '00:00')) {
              await idbDelete(STORES.TRASPORTI, t.id);
              changedAny = true;
              continue;
         }
-
-        if (dirty) {
-          await idbPut(STORES.TRASPORTI, t);
-          changedAny = true;
-        }
       }
 
       if (changedAny) {
-        notifyDataChanged('trasporti', 'save', {}); // trigger UI refresh
+        notifyDataChanged('trasporti', 'save', {});
       }
     } catch(err) {
       console.warn('[StorageService] Errore deduplicazione', err);
