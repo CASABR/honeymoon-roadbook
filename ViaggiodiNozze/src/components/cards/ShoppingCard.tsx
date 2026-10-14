@@ -89,24 +89,6 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
           >
             <span className="text-sm">🧭</span>
           </button>
-          {!paymentInfo.isFree && !paymentInfo.isPackageIncluded ? (
-            <button
-              type="button"
-              onClick={handleTogglePayment}
-              className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
-                isSaldato
-                  ? 'bg-[#E6F4EA] text-[#39734A] border-emerald-300 dark:bg-[#143521] dark:text-[#4ADE80] dark:border-emerald-800'
-                  : 'bg-[#FFFDF2] text-amber-900 border-[#FFC857] dark:bg-[#382C0E] dark:text-[#FDE047] dark:border-[#785912]'
-              }`}
-              title="Clicca per invertire stato: Saldato / Da saldare"
-            >
-              {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
-            </button>
-          ) : (
-            <span className="inline-flex items-center text-[11px] font-medium px-2 py-0.5 rounded-full border bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700">
-              {paymentInfo.displayText}
-            </span>
-          )}
         </div>
       </div>
 
@@ -127,23 +109,38 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
 
       {/* BOTTOM */}
       <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center">
+        <div className="flex items-center gap-2">
           {paymentInfo.isFree ? (
-            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+            <span className="text-sm font-semibold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
               Gratuito
             </span>
           ) : paymentInfo.isPackageIncluded ? (
-            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded-md border border-blue-200 dark:border-blue-800">
+            <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-sky-700 bg-sky-50 border border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50">
               Incluso nel pacchetto
             </span>
           ) : paymentInfo.costNum === 0 ? (
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              Costo non specificato
+            <span className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400">
+              Budget da definire
             </span>
           ) : (
             <span className="text-slate-900 dark:text-white font-semibold bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md text-sm">
               {paymentInfo.costNum.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
             </span>
+          )}
+
+          {!paymentInfo.isFree && !paymentInfo.isPackageIncluded && (
+            <button
+              type="button"
+              onClick={handleTogglePayment}
+              className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
+                isSaldato
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-700'
+              }`}
+              title="Clicca per invertire stato: Saldato / Da saldare"
+            >
+              {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
+            </button>
           )}
         </div>
 

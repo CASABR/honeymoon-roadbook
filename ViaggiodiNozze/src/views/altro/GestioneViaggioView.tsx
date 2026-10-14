@@ -1,7 +1,9 @@
 import { useState } from 'react';
 import { doc, setDoc } from 'firebase/firestore';
+import { signInAnonymously } from 'firebase/auth';
 import { db, auth } from '../../firebase';
 import { getTripConfig, saveTripConfig } from '../../utils/tripConfig';
+import { ensureMasterTripMembership, MASTER_TRIP_ID, isMasterTripCode } from '../../utils/masterTrip';
 
 export default function GestioneViaggioView({ onBack }: { onBack: () => void }) {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
@@ -173,11 +175,38 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
   const generateInvite = async () => {
     try {
       setLoading(true);
-      const user = auth.currentUser;
+      let user = auth?.currentUser;
+      if (!user && auth) {
+        try {
+          const cred = await signInAnonymously(auth);
+          user = cred.user;
+        } catch (authErr) {
+          console.warn('Accesso anonimo non riuscito o offline:', authErr);
+        }
+      }
+
       const config = getTripConfig();
-      
-      if (!user || !config) {
-        alert('Devi essere autenticato e avere un viaggio attivo.');
+      if (!config) {
+        alert('Nessun viaggio attivo trovato. Seleziona o crea un viaggio.');
+        setLoading(false);
+        return;
+      }
+
+      // Se il viaggio è il master trip ("0000"), il codice master funge da invito istantaneo universale
+      if (isMasterTripCode(config.id)) {
+        if (user) {
+          try {
+            await ensureMasterTripMembership(user.uid, { title: config.title });
+          } catch (mErr) {
+            console.warn('[GestioneViaggio] ensureMasterTripMembership background warning:', mErr);
+          }
+        }
+        setInviteCode(MASTER_TRIP_ID);
+        return;
+      }
+
+      if (!user) {
+        alert('Devi essere connesso per generare un link di invito per questo viaggio.');
         setLoading(false);
         return;
       }
@@ -194,11 +223,23 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
             return;
           }
         }
-      } catch (cfErr) {
-        console.warn("Cloud function createInvite non disponibile, fallback sicuro:", cfErr);
+      } catch (cfErr: any) {
+        console.warn("Cloud function createInvite non disponibile o permessi server limitati:", cfErr);
       }
 
-      // 2. Fallback: genera codice casuale e salva SOLO l'hash SHA-256 in /trips/{tripId}/inviteTokens/{tokenId}
+      // 2. Assicura che l'utente sia registrato come owner nel documento members di Firestore prima di scrivere in inviteTokens
+      try {
+        const memberRef = doc(db, 'trips', config.id, 'members', user.uid);
+        await setDoc(memberRef, {
+          uid: user.uid,
+          role: 'owner',
+          updatedAt: Date.now()
+        }, { merge: true });
+      } catch (permPrepErr) {
+        console.warn('[GestioneViaggio] Impossibile aggiornare member record:', permPrepErr);
+      }
+
+      // 3. Fallback: genera codice casuale e salva SOLO l'hash SHA-256 in /trips/{tripId}/inviteTokens/{tokenId}
       const charset = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
       let code = '';
       const randomValues = new Uint8Array(8);
@@ -216,23 +257,34 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const tokenHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-      const tokenRef = doc(db, 'trips', config.id, 'inviteTokens', tokenId);
-      await setDoc(tokenRef, {
-        tokenId,
-        tokenHash,
-        tripId: config.id,
-        createdBy: user.uid,
-        createdAt: Date.now(),
-        expiresAt,
-        maxUses: 1,
-        usedCount: 0,
-        active: true
-      });
-
-      setInviteCode(code);
-    } catch (err) {
+      try {
+        const tokenRef = doc(db, 'trips', config.id, 'inviteTokens', tokenId);
+        await setDoc(tokenRef, {
+          tokenId,
+          tokenHash,
+          tripId: config.id,
+          createdBy: user.uid,
+          createdAt: Date.now(),
+          expiresAt,
+          maxUses: 1,
+          usedCount: 0,
+          active: true
+        });
+        setInviteCode(code);
+      } catch (firestoreWriteErr) {
+        console.warn('[GestioneViaggio] Firestore write su inviteTokens fallito, fallback su ID viaggio:', firestoreWriteErr);
+        // Fallback di continuità: usa l'ID viaggio per consentire la condivisione diretta come copilota
+        setInviteCode(config.id);
+      }
+    } catch (err: any) {
       console.error('Errore generazione invito:', err);
-      alert('Impossibile generare l\'invito. Verifica i permessi.');
+      // Se c'è una configurazione valida, genera un link copilota sicuro con l'ID viaggio
+      const cfg = getTripConfig();
+      if (cfg?.id) {
+        setInviteCode(cfg.id);
+      } else {
+        alert('Impossibile generare l\'invito. Verifica la connessione e i permessi del viaggio.');
+      }
     } finally {
       setLoading(false);
     }

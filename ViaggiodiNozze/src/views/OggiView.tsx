@@ -1371,35 +1371,35 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         })()}
       </div>
 
-      {/* QUICK ACTIONS 2-COLONNE: Emergenze & SOS + Registra Spesa */}
+      {/* QUICK ACTIONS 2-COLONNE: Nuova Spesa ed Emergenze */}
       <div className="grid grid-cols-2 gap-3 mt-1 mb-4">
-        {/* Pulsante 1: Emergenze & SOS */}
-        <button
-          type="button"
-          onClick={() => onNavigateTab?.('altro', undefined, 'assicurazione')}
-          className="bg-rose-500/10 hover:bg-rose-500/20 active:scale-[0.98] border border-rose-500/30 rounded-2xl p-3 flex items-center gap-2.5 transition-all cursor-pointer text-left w-full"
-        >
-          <span className="w-8 h-8 rounded-xl bg-rose-500/15 flex items-center justify-center text-base shrink-0 shadow-2xs">
-            🚨
-          </span>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-rose-700 dark:text-rose-300 leading-tight">Emergenze</p>
-            <p className="text-[11px] text-rose-600/70 dark:text-rose-400/70 leading-tight mt-0.5">SOS, Polizia, H24</p>
-          </div>
-        </button>
-
-        {/* Pulsante 2: Registra Spesa */}
+        {/* Pulsante 1: Nuova Spesa */}
         <button
           type="button"
           onClick={() => setIsQuickExpenseOpen(true)}
-          className="bg-[#FF6B5F]/10 hover:bg-[#FF6B5F]/20 active:scale-[0.98] border border-[#FF6B5F]/30 rounded-2xl p-3 flex items-center gap-2.5 transition-all cursor-pointer text-left w-full"
+          className="bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-sm hover:border-slate-300 dark:hover:border-slate-600 active:scale-[0.98] rounded-xl py-3 px-3.5 flex items-center gap-2.5 transition-all cursor-pointer text-left w-full text-slate-800 dark:text-slate-100"
         >
-          <span className="w-8 h-8 rounded-xl bg-[#FF6B5F]/15 flex items-center justify-center text-base shrink-0 shadow-2xs">
+          <span className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-base shrink-0">
             💳
           </span>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-[#172033] dark:text-slate-400 leading-tight">Nuova Spesa</p>
-            <p className="text-[11px] text-[#64748B] dark:text-[#FF9A76]/70 leading-tight mt-0.5">Registra o converti</p>
+            <p className="text-[14px] font-semibold text-slate-800 dark:text-slate-100 leading-tight">Nuova Spesa</p>
+            <p className="text-[12px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5 truncate">Registra o converti</p>
+          </div>
+        </button>
+
+        {/* Pulsante 2: Emergenze & SOS */}
+        <button
+          type="button"
+          onClick={() => onNavigateTab?.('altro', undefined, 'assicurazione')}
+          className="bg-rose-50/60 dark:bg-rose-950/30 border border-rose-200/70 dark:border-rose-900/50 hover:bg-rose-100/60 dark:hover:bg-rose-950/50 active:scale-[0.98] rounded-xl py-3 px-3.5 flex items-center gap-2.5 transition-all cursor-pointer text-left w-full text-rose-900 dark:text-rose-200"
+        >
+          <span className="w-8 h-8 rounded-full bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-300 flex items-center justify-center text-base shrink-0">
+            🚨
+          </span>
+          <div className="min-w-0">
+            <p className="text-[14px] font-semibold text-rose-700 dark:text-rose-300 leading-tight">Emergenze</p>
+            <p className="text-[12px] text-rose-500/90 dark:text-rose-400 leading-tight mt-0.5 truncate">SOS, Polizia, H24</p>
           </div>
         </button>
       </div>
