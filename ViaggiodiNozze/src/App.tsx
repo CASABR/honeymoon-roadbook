@@ -18,6 +18,7 @@ import UpdateToast from './components/common/UpdateToast';
 import { SyncService } from './storage/syncService';
 import OnboardingView from './views/OnboardingView';
 import { getTripConfig, saveTripConfig, normalizeTripConfig, type TripConfig } from './utils/tripConfig';
+import { getPersistedSession, registerDeviceOnFirestore } from './utils/deviceSession';
 import { withTimeout } from './utils/withTimeout';
 import { storageService } from './storage/storageService';
 import { auth } from './firebase';
@@ -33,18 +34,23 @@ import { InstallPWA } from './components/InstallPWA';
 declare const __BUILD_TIME__: string;
 
 /**
- * Config iniziale sincrona: localStorage, solo se il PIN è autenticato su questo dispositivo
- * (evita lo spinner sulla PWA e bypassa la schermata di blocco).
+ * Config iniziale sincrona: localStorage, solo se il dispositivo è autenticato per un viaggio
+ * (evita lo spinner sulla PWA e bypassa la schermata di blocco o di inserimento PIN).
  */
 function getInitialTripConfig(): TripConfig | null {
   if (typeof localStorage === 'undefined') return null;
-  const isPinAuth = localStorage.getItem('houni_pin_authenticated') === 'true' || localStorage.getItem('auth_pin_verified') === 'true';
+  const session = getPersistedSession();
   const stored = getTripConfig();
-  if (stored && isPinAuth) return stored;
-  if (isPinAuth) {
-    const master = normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' });
-    saveTripConfig(master);
-    return master;
+  if (stored && session.isAuthenticated) return stored;
+  if (session.isAuthenticated && session.tripId) {
+    const trip = normalizeTripConfig({
+      id: session.tripId,
+      title: session.tripId === '0000' ? 'Viaggio Originale' : 'Il nostro viaggio',
+      startDate: '',
+      endDate: ''
+    });
+    saveTripConfig(trip);
+    return trip;
   }
   return null;
 }
@@ -62,18 +68,19 @@ export default function App() {
     );
   });
 
-  // PRIMISSIMA operazione sincrona: verifica se il PIN è autenticato su questo dispositivo
+  // PRIMISSIMA operazione sincrona: verifica se la sessione del dispositivo è autenticata
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     if (typeof localStorage === 'undefined') return false;
-    return localStorage.getItem('houni_pin_authenticated') === 'true' || localStorage.getItem('auth_pin_verified') === 'true';
+    const session = getPersistedSession();
+    return session.isAuthenticated;
   });
 
   const [tripConfig, setTripConfig] = useState<TripConfig | null>(getInitialTripConfig);
 
   const [isInitializing, setIsInitializing] = useState(() => {
     if (typeof localStorage === 'undefined') return false;
-    const isAuth = localStorage.getItem('houni_pin_authenticated') === 'true' || localStorage.getItem('auth_pin_verified') === 'true';
-    return !isAuth;
+    const session = getPersistedSession();
+    return !session.isAuthenticated;
   });
 
   // Rete di sicurezza: lo spinner iniziale non può mai durare più di 1s
@@ -87,18 +94,15 @@ export default function App() {
     if (!isInitializing) return;
 
     async function hydrateState() {
-      if (typeof localStorage !== 'undefined') {
-        const isPinAuth = localStorage.getItem('houni_pin_authenticated') === 'true' || localStorage.getItem('auth_pin_verified') === 'true';
-        if (isPinAuth) {
-          setIsAuthenticated(true);
-        } else {
-          setIsAuthenticated(false);
-          setTripConfig(null);
-          setIsInitializing(false);
-          return;
-        }
+      const session = getPersistedSession();
+      if (!session.isAuthenticated) {
+        setIsAuthenticated(false);
+        setTripConfig(null);
+        setIsInitializing(false);
+        return;
       }
 
+      setIsAuthenticated(true);
       let config = tripConfig;
       if (!config) {
         try {
@@ -113,11 +117,12 @@ export default function App() {
         } catch (e) { console.error(e); }
       }
 
-      if (typeof localStorage !== 'undefined' && !localStorage.getItem('app_device_role')) {
+      if (typeof localStorage !== 'undefined' && !localStorage.getItem('houni_device_role') && !localStorage.getItem('app_device_role')) {
         try {
           const { idbGet } = await import('./storage/indexedDB');
           const storedRole = await withTimeout(idbGet<any>('settings', 'device_role_backup'), 1500, undefined);
           if (storedRole && storedRole.value) {
+            localStorage.setItem('houni_device_role', storedRole.value);
             localStorage.setItem('app_device_role', storedRole.value);
             window.dispatchEvent(new CustomEvent('device_role_changed', { detail: { role: storedRole.value } }));
           }
@@ -137,11 +142,12 @@ export default function App() {
 
   useEffect(() => {
     const handleConfigChange = () => {
-      const isAuth = typeof localStorage !== 'undefined' && (localStorage.getItem('houni_pin_authenticated') === 'true' || localStorage.getItem('auth_pin_verified') === 'true');
-      if (isAuth) {
+      const session = getPersistedSession();
+      if (session.isAuthenticated) {
         setIsAuthenticated(true);
-        setTripConfig(getTripConfig() || normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' }));
+        setTripConfig(getTripConfig() || normalizeTripConfig({ id: session.tripId || '0000', title: 'Viaggio Originale', startDate: '', endDate: '' }));
       } else {
+        setIsAuthenticated(false);
         setTripConfig(getTripConfig());
       }
     };
@@ -282,6 +288,10 @@ export default function App() {
         if (isMounted) {
           syncService = new SyncService(tripConfig.id);
         }
+
+        // Registrazione/aggiornamento heartbeat device su Firestore
+        const deviceRole = storageService.getDeviceRole();
+        registerDeviceOnFirestore(tripConfig.id, deviceRole).catch(console.error);
         
         // Esegui la migrazione automatica dei rifornimenti
         await storageService.ensureRefuels();

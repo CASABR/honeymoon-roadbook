@@ -1534,7 +1534,7 @@ class StorageService {
   getDeviceRole(): DeviceRole {
     if (typeof window === 'undefined') return 'viewer';
     try {
-      const role = localStorage.getItem('app_device_role') as DeviceRole | null;
+      const role = (localStorage.getItem('houni_device_role') || localStorage.getItem('app_device_role')) as DeviceRole | null;
       if (role === 'guida' || role === 'copilota' || role === 'viewer') {
         return role;
       }
@@ -1547,6 +1547,7 @@ class StorageService {
   setDeviceRole(role: DeviceRole): void {
     if (typeof window === 'undefined') return;
     try {
+      localStorage.setItem('houni_device_role', role);
       localStorage.setItem('app_device_role', role);
       idbPut(STORES.SETTINGS, { id: 'device_role_backup', value: role }).catch(() => {});
       // Dispatch custom event to notify listeners across the app
@@ -1554,6 +1555,22 @@ class StorageService {
     } catch (e) {
       console.error('[StorageService] Errore salvataggio device role:', e);
     }
+  }
+
+  getOrCreateDeviceId(): string {
+    if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+      return 'node-device-id';
+    }
+    let deviceId = localStorage.getItem('houni_device_id');
+    if (!deviceId || deviceId.trim() === '') {
+      if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        deviceId = crypto.randomUUID();
+      } else {
+        deviceId = 'dev_' + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+      }
+      localStorage.setItem('houni_device_id', deviceId);
+    }
+    return deviceId;
   }
 
   // --- SEED ATTIVITÀ REALI ---

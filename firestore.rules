@@ -130,7 +130,7 @@ service cloud.firestore {
         allow read, write: if subcol in [
                                'tappe', 'attivita', 'alloggi', 'trasporti', 'spese',
                                'documenti', 'note', 'bagagli', 'giorni', 'settings',
-                               'ristoranti', 'shopping', 'locks'
+                               'ristoranti', 'shopping', 'locks', 'devices'
                              ]
                              && isTripMember(tripId);
       }
