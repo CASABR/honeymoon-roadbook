@@ -44,16 +44,18 @@ export class SyncService {
             }
           }
 
-          // Rimuovi record orfani in locale per collection di dati condivisi se su Firestore esistono record
-          // (per evitare accumuli e somme sballate da vecchi mock locali su PC o mobile)
+          // Sincronizza verso il cloud eventuali record creati/modificati in locale ma non ancora presenti su Firestore
           if (snap.docs.length > 0 && fb !== 'settings') {
             const localItems = await idbGetAll<any>(store);
             for (const localItem of localItems) {
               if (localItem && localItem.id && !serverDocIds.has(localItem.id)) {
-                // Se il record non esiste su Firestore ed è più vecchio dell'avvio o non appartiene al tripId
-                // Elimina l'orfano dal DB locale per mantenere l'allineamento perfetto al centesimo
-                await idbDelete(store, localItem.id);
-                console.log(`[SyncService] Rimosso orfano locale non presente su Cloud: ${fb}/${localItem.id}`);
+                // Non eliminare record locali validi! Pushali a Firestore per garantire la persistenza remota.
+                try {
+                  await setDoc(doc(db, 'trips', this.tripId, fb, localItem.id), this.cleanUndefinedValues(localItem), { merge: true });
+                  console.log(`[SyncService] Sincronizzato record locale verso Cloud: ${fb}/${localItem.id}`);
+                } catch (pushErr) {
+                  console.warn(`[SyncService] Impossibile pushare record locale ${fb}/${localItem.id}:`, pushErr);
+                }
               }
             }
           }
