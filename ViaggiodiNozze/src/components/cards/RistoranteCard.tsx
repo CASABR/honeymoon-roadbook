@@ -68,21 +68,6 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
           )}
         </div>
         <div className="flex items-center gap-2">
-          {!isFree && (
-            <button
-              type="button"
-              onClick={handleTogglePayment}
-              className={`cursor-pointer hover:opacity-85 active:scale-95 transition-all text-[10px] font-bold px-2.5 py-0.5 rounded-full border shadow-2xs ${
-                isPaid
-                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
-                  : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'
-              }`}
-              title="Clicca per cambiare stato (Saldato / Da saldare)"
-            >
-              {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
-            </button>
-          )}
-
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
@@ -117,17 +102,32 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
       <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
           {isFree ? (
-            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+            <span className="text-sm font-semibold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
               Gratuito
             </span>
           ) : costNum === 0 ? (
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              Budget non inserito
+            <span className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400">
+              Budget da definire
             </span>
           ) : (
             <span className="text-slate-900 dark:text-white font-semibold bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md text-sm">
               {costNum.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
             </span>
+          )}
+
+          {!isFree && (
+            <button
+              type="button"
+              onClick={handleTogglePayment}
+              className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
+                isPaid
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-700'
+              }`}
+              title="Clicca per invertire stato: Saldato / Da saldare"
+            >
+              {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
+            </button>
           )}
         </div>
 
