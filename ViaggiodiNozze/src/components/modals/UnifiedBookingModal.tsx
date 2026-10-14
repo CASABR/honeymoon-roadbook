@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { BookingCategory } from '../../services/unifiedBookingService';
 import { BOOKING_CATEGORY_META } from '../../services/unifiedBookingService';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
@@ -57,6 +58,43 @@ export default function UnifiedBookingModal({
   const [uploadError, setUploadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  // Reset campi quando si apre il modale
+  useEffect(() => {
+    if (isOpen) {
+      setCategory(initialCategory);
+      setTitle('');
+      setDate('');
+      setTime('');
+      setCost('');
+      setBookingCode('');
+      setNotes('');
+      setNoteCopilota('');
+      setDepartureLocation('');
+      setArrivalLocation('');
+      setDepartureIata('');
+      setArrivalIata('');
+      setCarrier('');
+      setPosti('');
+      setHotelAddress('');
+      setCheckOutDate('');
+      setCheckOutTime('');
+      setAttachments([]);
+      setFormError('');
+      setUploadError('');
+    }
+  }, [isOpen, initialCategory]);
+
+  // Gestione tasto Escape per chiusura
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -256,9 +294,15 @@ export default function UnifiedBookingModal({
 
   const currentMeta = BOOKING_CATEGORY_META[category];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-fade-in">
-      <div className="bg-[#FAF7F2] dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-fade-in"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-[#FAF7F2] dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header Modal */}
         <div className="flex items-center justify-between px-6 py-4.5 border-b border-slate-200/70 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md">
@@ -722,6 +766,7 @@ export default function UnifiedBookingModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

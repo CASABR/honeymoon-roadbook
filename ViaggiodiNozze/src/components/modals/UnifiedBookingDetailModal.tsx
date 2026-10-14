@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { UnifiedBookingItem } from '../../services/unifiedBookingService';
 import {
   BOOKING_CATEGORY_META,
@@ -28,9 +29,32 @@ export default function UnifiedBookingDetailModal({
   const [uploadError, setUploadError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // Lightbox per anteprima allegato
   const [previewAttachment, setPreviewAttachment] = useState<TransportAttachment | null>(null);
+
+  // Reset tab e stati quando cambia booking o apertura
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab('info');
+      setConfirmDelete(false);
+      setUploadError('');
+    }
+  }, [isOpen, booking]);
+
+  // Gestione tasto Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (previewAttachment) {
+          setPreviewAttachment(null);
+        } else {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, previewAttachment, onClose]);
 
   if (!isOpen || !booking) return null;
 
@@ -94,9 +118,15 @@ export default function UnifiedBookingDetailModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-fade-in">
-      <div className="bg-[#FAF7F2] dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-5 bg-black/60 backdrop-blur-xs animate-fade-in"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-[#FAF7F2] dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header Modale */}
         <div className="flex items-start justify-between px-6 py-5 border-b border-slate-200/70 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 backdrop-blur-md">
@@ -477,6 +507,7 @@ export default function UnifiedBookingDetailModal({
           </div>
         </div>
       )}
-    </div>
+    </div>,
+    document.body
   );
 }
