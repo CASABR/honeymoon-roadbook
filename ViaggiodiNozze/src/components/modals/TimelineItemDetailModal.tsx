@@ -264,12 +264,12 @@ export default function TimelineItemDetailModal({
                         <span className="font-bold text-slate-800">{tr.carrier}</span>
                       </div>
                     )}
-                    {tr.bookingCode && (
+                    {Boolean(tr.bookingCode?.trim()) && (
                       <div>
                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
                           Codice PNR / Prenotazione
                         </span>
-                        <span className="font-mono font-bold text-indigo-600">{tr.bookingCode}</span>
+                        <span className="font-mono font-bold text-indigo-600">{tr.bookingCode?.trim()}</span>
                       </div>
                     )}
                   </div>

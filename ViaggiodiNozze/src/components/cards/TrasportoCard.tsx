@@ -278,7 +278,7 @@ export default function TrasportoCard({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-            {transport.bookingCode && (
+            {Boolean(transport.bookingCode && transport.bookingCode.trim()) && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setIsPNROpen(true); }}
