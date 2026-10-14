@@ -401,11 +401,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       const targetDate = customEvt.detail?.data?.date || customEvt.detail?.data?.data;
       const isCloud = customEvt.detail?.source === 'cloud';
       
+      // Ricarichiamo sempre la timeline e i dati senza forzare il cambio di giornata se l'utente sta consultando un giorno specifico
       if (targetDate && !isCloud) {
-        setSelectedDate(targetDate);
-        fetchTimeline(targetDate);
-      } else if (targetDate && isCloud) {
-        // Se l'evento arriva dal cloud, non spostiamo la schermata dell'utente, ricarichiamo solo i dati in background
+        // Ricarica la timeline del giorno attualmente selezionato e del target
         fetchTimeline();
       } else {
         fetchTimeline();
@@ -413,14 +411,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       loadData();
     };
 
-    const handleActivityUpdated = (e: Event) => {
-      const customEvt = e as CustomEvent<{ date?: string; dayId?: string }>;
-      if (customEvt.detail?.date) {
-        setSelectedDate(customEvt.detail.date);
-        fetchTimeline(customEvt.detail.date);
-      } else {
-        fetchTimeline();
-      }
+    const handleActivityUpdated = () => {
+      fetchTimeline();
       loadData();
     };
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { storageService } from '../../storage/storageService';
 import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa, DeviceRole } from '../../types';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
@@ -244,7 +245,66 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [pendingPhotoUrl, setPendingPhotoUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Compressione immagine su canvas (max 1200px, JPEG 0.75)
+  const [activeViewerIndex, setActiveViewerIndex] = useState<number | null>(null);
+
+  // Raccolta e ordinamento cronologico (dal più vecchio al più recente) di tutte le foto pubblicate nel viaggio
+  const publishedLivePhotos = useMemo(() => {
+    const photos: {
+      id: string;
+      url: string;
+      caption: string;
+      location?: string;
+      timestamp: number;
+    }[] = [];
+
+    // 1. Foto dagli aggiornamenti live
+    liveUpdates.forEach(update => {
+      if (update.photoUrl && update.photoUrl.startsWith('http')) {
+        photos.push({
+          id: update.id,
+          url: update.photoUrl,
+          caption: update.title || update.text || 'Aggiornamento Live',
+          location: update.locationName,
+          timestamp: update.timestamp || 0
+        });
+      }
+    });
+
+    // 2. Foto personalizzata degli sposi ("Ultimo Aggiornamento")
+    if (customPhoto && customPhoto.dataUrl) {
+      let ts = 0;
+      try {
+        ts = new Date(customPhoto.timestamp).getTime();
+      } catch {
+        ts = Date.now();
+      }
+      photos.push({
+        id: 'sposi_custom_photo',
+        url: customPhoto.dataUrl,
+        caption: customPhoto.caption || 'Foto scattata dagli sposi ❤️',
+        timestamp: ts
+      });
+    }
+
+    // Ordina rigorosamente dal più vecchio al più recente (cronologico)
+    return photos.sort((a, b) => a.timestamp - b.timestamp);
+  }, [liveUpdates, customPhoto]);
+
+  // Gestione tastiera per sfogliare la galleria a schermo intero (Frecce Sx/Dx ed Escape)
+  useEffect(() => {
+    if (activeViewerIndex === null) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setActiveViewerIndex(null);
+      } else if (e.key === 'ArrowLeft') {
+        setActiveViewerIndex(prev => (prev !== null && prev > 0 ? prev - 1 : prev));
+      } else if (e.key === 'ArrowRight') {
+        setActiveViewerIndex(prev => (prev !== null && prev < publishedLivePhotos.length - 1 ? prev + 1 : prev));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeViewerIndex, publishedLivePhotos.length]);
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -1668,13 +1728,30 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         </div>
 
         {/* Riquadro fotografico immersivo */}
-        <div className="relative rounded-2xl overflow-hidden aspect-video shadow-xs border border-slate-200/70 group">
+        <div 
+          onClick={() => {
+            const idx = publishedLivePhotos.findIndex(p => p.url === photoUpdateData.url || p.id === 'sposi_custom_photo');
+            if (idx >= 0) {
+              setActiveViewerIndex(idx);
+            } else if (publishedLivePhotos.length > 0) {
+              setActiveViewerIndex(0);
+            }
+          }}
+          className="relative rounded-2xl overflow-hidden aspect-video shadow-xs border border-slate-200/70 group cursor-pointer"
+          title="Clicca per ingrandire e sfogliare tutte le foto del viaggio"
+        >
           <img
             src={photoUpdateData.url}
             alt={photoUpdateData.caption}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
             loading="lazy"
           />
+          {/* Badge ingrandisci */}
+          <div className="absolute top-2.5 right-2.5 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 shadow-xs opacity-90 group-hover:opacity-100 transition-opacity">
+            <span>🔍</span>
+            <span>Espandi ({publishedLivePhotos.length} {publishedLivePhotos.length === 1 ? 'foto' : 'foto'})</span>
+          </div>
+
           {/* Gradiente scuro sul fondo per leggibilità micro-didascalia */}
           <div className="absolute inset-x-0 bottom-0 bg-black/60 p-3 pt-6 flex items-center justify-between gap-2">
             <p className="text-white text-xs font-semibold drop-shadow-xs line-clamp-1">
@@ -1864,6 +1941,28 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
                 {update.text && (
                   <p className="text-xs text-slate-700 leading-relaxed">{update.text}</p>
                 )}
+
+                {update.photoUrl && (
+                  <div 
+                    onClick={() => {
+                      const idx = publishedLivePhotos.findIndex(p => p.url === update.photoUrl);
+                      if (idx >= 0) setActiveViewerIndex(idx);
+                    }}
+                    className="relative rounded-xl overflow-hidden aspect-video border border-slate-200/80 bg-slate-100 group cursor-pointer"
+                    title="Clicca per ingrandire la foto"
+                  >
+                    <img 
+                      src={update.photoUrl} 
+                      alt={update.title} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy" 
+                    />
+                    <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+                      <span>🔍</span>
+                      <span>Espandi</span>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Reactions */}
                 <div className="flex gap-2 pt-2 border-t border-slate-200/60 mt-2">
@@ -2002,6 +2101,123 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
             </div>
           </div>
         </div>
+      )}
+
+      {/* ─── FULLSCREEN LIVE PHOTO GALLERY VIEWER (Portal) ─── */}
+      {activeViewerIndex !== null && publishedLivePhotos[activeViewerIndex] && createPortal(
+        <div 
+          className="fixed inset-0 z-[120] bg-black/95 backdrop-blur-md flex flex-col justify-between p-3 sm:p-6 animate-fade-in select-none"
+          onClick={() => setActiveViewerIndex(null)}
+        >
+          {/* Top Bar: Contatore & Pulsante Chiudi */}
+          <div 
+            className="flex items-center justify-between text-white z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
+                📸 {activeViewerIndex + 1} di {publishedLivePhotos.length}
+              </span>
+              {publishedLivePhotos[activeViewerIndex].location && (
+                <span className="text-xs text-white/80 hidden sm:inline-flex items-center gap-1">
+                  <span>📍</span>
+                  <span>{publishedLivePhotos[activeViewerIndex].location}</span>
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setActiveViewerIndex(null)}
+              className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center font-bold text-lg transition-colors cursor-pointer"
+              title="Chiudi visualizzatore (Esc)"
+            >
+              ✕
+            </button>
+          </div>
+
+          {/* Area Centrale: Immagine e Frecce di Navigazione */}
+          <div className="flex-1 flex items-center justify-between gap-2 sm:gap-4 my-auto relative max-h-[82vh]">
+            {/* Freccia Sinistra (Precedente) */}
+            <button
+              type="button"
+              disabled={activeViewerIndex <= 0}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (activeViewerIndex > 0) setActiveViewerIndex(activeViewerIndex - 1);
+              }}
+              className={`w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center text-white text-xl sm:text-2xl transition-all cursor-pointer shrink-0 z-20 ${
+                activeViewerIndex > 0
+                  ? 'bg-white/20 hover:bg-white/40 active:scale-95'
+                  : 'opacity-20 cursor-not-allowed'
+              }`}
+              title="Foto precedente (Freccia Sinistra)"
+            >
+              ❮
+            </button>
+
+            {/* Immagine attiva centrata senza deformazioni */}
+            <div 
+              className="flex-1 flex flex-col items-center justify-center max-h-full max-w-full overflow-hidden p-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={publishedLivePhotos[activeViewerIndex].url}
+                alt={publishedLivePhotos[activeViewerIndex].caption}
+                className="max-h-[72vh] max-w-full object-contain rounded-2xl shadow-2xl transition-transform duration-200"
+              />
+              {publishedLivePhotos[activeViewerIndex].caption && (
+                <p className="text-white/90 text-center text-xs sm:text-sm font-medium mt-3 px-4 max-w-xl line-clamp-2">
+                  {publishedLivePhotos[activeViewerIndex].caption}
+                </p>
+              )}
+            </div>
+
+            {/* Freccia Destra (Successiva) */}
+            <button
+              type="button"
+              disabled={activeViewerIndex >= publishedLivePhotos.length - 1}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (activeViewerIndex < publishedLivePhotos.length - 1) {
+                  setActiveViewerIndex(activeViewerIndex + 1);
+                }
+              }}
+              className={`w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center text-white text-xl sm:text-2xl transition-all cursor-pointer shrink-0 z-20 ${
+                activeViewerIndex < publishedLivePhotos.length - 1
+                  ? 'bg-white/20 hover:bg-white/40 active:scale-95'
+                  : 'opacity-20 cursor-not-allowed'
+              }`}
+              title="Foto successiva (Freccia Destra)"
+            >
+              ❯
+            </button>
+          </div>
+
+          {/* Bottom Bar: Data di pubblicazione e suggerimento tastiera */}
+          <div 
+            className="flex items-center justify-between text-white/70 text-[11px] z-10 pt-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              {publishedLivePhotos[activeViewerIndex].timestamp > 0 && (
+                <span>
+                  {new Intl.DateTimeFormat('it-IT', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  }).format(new Date(publishedLivePhotos[activeViewerIndex].timestamp))}
+                </span>
+              )}
+            </div>
+            <span className="hidden sm:inline-block opacity-60">
+              Usa le frecce della tastiera ◀ ▶ o Esc per chiudere
+            </span>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );
