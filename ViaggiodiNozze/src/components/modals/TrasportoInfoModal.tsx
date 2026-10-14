@@ -26,9 +26,6 @@ export default function TrasportoInfoModal({ isOpen, onClose, transport }: Trasp
               <span className="text-xs font-mono font-bold text-sky-700 bg-sky-50 px-2.5 py-1 rounded-lg uppercase tracking-wide border border-sky-100">
                 {transport.type}
               </span>
-              {transport.completed && (
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-100">✓ Completato</span>
-              )}
             </div>
             <span className="text-sm font-bold text-slate-700">
               {formatDate(transport.date)}

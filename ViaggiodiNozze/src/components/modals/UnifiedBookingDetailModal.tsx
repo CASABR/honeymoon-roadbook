@@ -8,6 +8,7 @@ import {
 } from '../../services/unifiedBookingService';
 import { processFileForAttachment, formatFileSize } from '../../utils/fileAttachment';
 import type { TransportAttachment } from '../../types';
+import LightboxCarousel from '../common/LightboxCarousel';
 
 interface UnifiedBookingDetailModalProps {
   booking: UnifiedBookingItem | null;
@@ -29,7 +30,7 @@ export default function UnifiedBookingDetailModal({
   const [uploadError, setUploadError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [previewAttachment, setPreviewAttachment] = useState<TransportAttachment | null>(null);
+  const [activeAttachmentIndex, setActiveAttachmentIndex] = useState<number | null>(null);
 
   // Reset tab e stati quando cambia booking o apertura
   useEffect(() => {
@@ -37,6 +38,7 @@ export default function UnifiedBookingDetailModal({
       setActiveTab('info');
       setConfirmDelete(false);
       setUploadError('');
+      setActiveAttachmentIndex(null);
     }
   }, [isOpen, booking]);
 
@@ -45,8 +47,8 @@ export default function UnifiedBookingDetailModal({
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (previewAttachment) {
-          setPreviewAttachment(null);
+        if (activeAttachmentIndex !== null) {
+          setActiveAttachmentIndex(null);
         } else {
           onClose();
         }
@@ -54,7 +56,7 @@ export default function UnifiedBookingDetailModal({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, previewAttachment, onClose]);
+  }, [isOpen, activeAttachmentIndex, onClose]);
 
   if (!isOpen || !booking) return null;
 
@@ -139,7 +141,7 @@ export default function UnifiedBookingDetailModal({
                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${meta.badgeBg} ${meta.badgeText} ${meta.badgeBorder}`}>
                   {meta.label}
                 </span>
-                {booking.status && (
+                {booking.status && booking.status.toLowerCase() !== 'completato' && (
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
                     {booking.status}
                   </span>
@@ -356,12 +358,16 @@ export default function UnifiedBookingDetailModal({
 
               {attachments.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {attachments.map(att => (
+                  {attachments.map((att, idx) => (
                     <div
                       key={att.id}
-                      className="p-3 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 shadow-2xs flex flex-col justify-between gap-2"
+                      className="p-3 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 shadow-2xs flex flex-col justify-between gap-2 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
                     >
-                      <div className="flex items-start gap-2.5">
+                      <div 
+                        className="flex items-start gap-2.5 cursor-pointer"
+                        onClick={() => setActiveAttachmentIndex(idx)}
+                        title="Clicca per visualizzare a schermo intero"
+                      >
                         <span className="text-2xl p-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 shrink-0">
                           {att.type === 'pdf' ? '📄' : '🖼️'}
                         </span>
@@ -370,21 +376,20 @@ export default function UnifiedBookingDetailModal({
                             {att.name}
                           </p>
                           <p className="text-[10px] text-slate-400 mt-0.5">
-                            {formatFileSize(att.size)}
+                            {formatFileSize(att.size)} • Tocca per visualizzare
                           </p>
                         </div>
                       </div>
 
                       <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
-                        {att.type === 'image' && (
-                          <button
-                            type="button"
-                            onClick={() => setPreviewAttachment(att)}
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-bold cursor-pointer"
-                          >
-                            Anteprima
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => setActiveAttachmentIndex(idx)}
+                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-bold cursor-pointer flex items-center gap-1"
+                        >
+                          <span>Sfoglia</span>
+                          <span>🔍</span>
+                        </button>
                         <a
                           href={att.dataUrl}
                           download={att.name}
@@ -489,24 +494,14 @@ export default function UnifiedBookingDetailModal({
         </div>
       </div>
 
-      {/* Lightbox Anteprima Immagine */}
-      {previewAttachment && (
-        <div
-          onClick={() => setPreviewAttachment(null)}
-          className="fixed inset-0 z-60 bg-black/85 flex items-center justify-center p-4 cursor-pointer"
-        >
-          <div className="relative max-w-3xl max-h-[90vh]">
-            <img
-              src={previewAttachment.dataUrl}
-              alt={previewAttachment.name}
-              className="max-w-full max-h-[85vh] rounded-2xl object-contain shadow-2xl"
-            />
-            <p className="text-center text-white text-xs font-bold mt-2">
-              {previewAttachment.name} (tocca per chiudere)
-            </p>
-          </div>
-        </div>
-      )}
+      {/* Carosello Sfogliabile Completo per Immagini e PDF */}
+      <LightboxCarousel
+        isOpen={activeAttachmentIndex !== null}
+        onClose={() => setActiveAttachmentIndex(null)}
+        items={attachments}
+        initialIndex={activeAttachmentIndex ?? 0}
+        title={booking.title || 'Voucher & Documenti'}
+      />
     </div>,
     document.body
   );
