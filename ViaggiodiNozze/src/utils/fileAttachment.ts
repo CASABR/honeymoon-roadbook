@@ -18,43 +18,80 @@ export function dataUrlToBlob(dataUrl: string): Blob {
 
 /**
  * Apre in sicurezza un allegato (PDF o immagine) in una nuova scheda del browser
- * convertendo data URL in Object URL blob temporaneo per massima compatibilità (desktop & mobile).
+ * convertendo Data URL / Base64 in Object URL Blob temporaneo con corretto MIME-type (application/pdf).
+ * Garantisce apertura nativa del visualizzatore PDF del browser (desktop & mobile).
+ * Se il browser blocca il popup, propone un fallback esplicito e scarica/apre in sicurezza.
  */
-export function openAttachmentInNewTab(dataUrl: string, fileName = 'documento.pdf'): void {
+export function openAttachmentInNewTab(dataUrl: string, fileName = 'documento.pdf'): boolean {
+  if (!dataUrl) {
+    console.warn('openAttachmentInNewTab: dataUrl non fornito');
+    return false;
+  }
+
   try {
     let targetUrl = dataUrl;
     let revokeNeeded = false;
 
+    // Se è un data URL, converti in Blob con mime type esplicito
     if (dataUrl.startsWith('data:')) {
-      const blob = dataUrlToBlob(dataUrl);
+      const isPdfByName = fileName.toLowerCase().endsWith('.pdf');
+      let blob = dataUrlToBlob(dataUrl);
+      // Se il nome indica chiaramente che è un PDF ma il MIME era errato o generic octet-stream, forza application/pdf
+      if (isPdfByName && blob.type !== 'application/pdf') {
+        blob = new Blob([blob], { type: 'application/pdf' });
+      }
       targetUrl = URL.createObjectURL(blob);
       revokeNeeded = true;
     }
 
-    const win = window.open(targetUrl, '_blank');
-    if (!win) {
-      // Fallback in caso di blocco popup del browser: download diretto
+    // Tenta apertura immediata (sincrona) per non perdere il context dello user gesture
+    const win = window.open(targetUrl, '_blank', 'noopener,noreferrer');
+    
+    if (!win || win.closed || typeof win.closed === 'undefined') {
+      // Il browser ha bloccato il popup: usa fallback con link <a> nascosto
+      console.warn('Popup bloccato dal browser per:', fileName);
       const a = document.createElement('a');
       a.href = targetUrl;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // Notifica l'interfaccia dell'avvenuto fallback o blocco
+      window.dispatchEvent(new CustomEvent('roadbook_attachment_popup_blocked', {
+        detail: { fileName, targetUrl }
+      }));
+    }
+
+    // Mantieni il blob URL in vita per 5 minuti (tempo ampiamente sufficiente per il rendering PDF nativo)
+    if (revokeNeeded) {
+      setTimeout(() => {
+        try {
+          URL.revokeObjectURL(targetUrl);
+        } catch {
+          // ignore
+        }
+      }, 5 * 60 * 1000);
+    }
+
+    return true;
+  } catch (err) {
+    console.error('Errore apertura documento in nuova scheda:', err);
+    // Fallback estremo download diretto
+    try {
+      const a = document.createElement('a');
+      a.href = dataUrl;
       a.download = fileName;
       a.target = '_blank';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+    } catch {
+      // ignore
     }
-
-    if (revokeNeeded) {
-      setTimeout(() => URL.revokeObjectURL(targetUrl), 60000);
-    }
-  } catch (err) {
-    console.error('Errore apertura documento:', err);
-    // Fallback estremo download
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    return false;
   }
 }
 

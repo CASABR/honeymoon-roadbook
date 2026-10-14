@@ -191,9 +191,9 @@ export default function DocumentFilesModal({
                       </div>
                     ) : (
                       <div 
-                        onClick={() => setZoomedIndex(attIdx)}
+                        onClick={() => handleOpenPdf(att.dataUrl, att.name)}
                         className="w-14 h-14 rounded-xl bg-rose-50 border border-rose-200 flex flex-col items-center justify-center text-rose-600 shrink-0 cursor-pointer hover:bg-rose-100 transition-colors"
-                        title="Tocca per visualizzare e sfogliare il PDF"
+                        title="Tocca per aprire direttamente il PDF in una nuova scheda"
                       >
                         <span className="text-lg font-bold">📄</span>
                         <span className="text-[9px] font-mono font-bold uppercase mt-0.5">PDF</span>
@@ -203,7 +203,13 @@ export default function DocumentFilesModal({
                     {/* Informazioni File */}
                     <div className="min-w-0 flex-1">
                       <p 
-                        onClick={() => setZoomedIndex(attIdx)}
+                        onClick={() => {
+                          if (att.type === 'pdf') {
+                            handleOpenPdf(att.dataUrl, att.name);
+                          } else {
+                            setZoomedIndex(attIdx);
+                          }
+                        }}
                         className="text-xs font-semibold text-slate-900 truncate cursor-pointer hover:text-indigo-600" 
                         title={att.name}
                       >

@@ -72,6 +72,7 @@ export interface ExtractedAttivita {
   date?: string;          // YYYY-MM-DD
   time?: string;          // HH:mm
   cost?: string;
+  bookingCode?: string;
   notes?: string;
 }
 
@@ -115,6 +116,7 @@ export interface AIExtractionResult {
   success: boolean;
   entityType: ExtractedEntityType;
   data?: ExtractedEntity;
+  multipleItems?: ExtractedEntity[];
   raw?: string;
   error?: string;
 }
@@ -132,122 +134,136 @@ const SUGGESTION_SCHEMA = {
 };
 
 // ─── JSON Schema per Gemini Structured Outputs (modalità import) ──────────────
+const SINGLE_BOOKING_PROPERTIES = {
+  entityType: {
+    type: "string",
+    enum: ["alloggio", "tappa", "trasporto", "attivita", "ristorante", "shopping", "info", "sconosciuto"],
+    description: "Tipo di entità estratta"
+  },
+  alloggio: {
+    type: "object",
+    description: "Dati alloggio. Solo per pernottamenti (hotel, resort, b&b, appartamento). NON per attrazioni o tour.",
+    properties: {
+      name: { type: "string", description: "Nome hotel / struttura" },
+      location: { type: "string", description: "Città o zona" },
+      address: { type: "string", description: "Indirizzo completo o link Maps" },
+      checkIn: { type: "string", description: "Data check-in nel formato YYYY-MM-DD" },
+      checkOut: { type: "string", description: "Data check-out nel formato YYYY-MM-DD" },
+      checkInTime: { type: "string", description: "Ora check-in nel formato HH:mm, se specificata" },
+      checkOutTime: { type: "string", description: "Ora check-out nel formato HH:mm, se specificata" },
+      cost: { type: "string", description: "Costo totale in euro o valuta come stringa numerica decimale, es. '199.50'" },
+      bookingCode: { type: "string", description: "Codice prenotazione, PNR o numero conferma" },
+      bookingUrl: { type: "string", description: "URL prenotazione se presente" },
+      notes: { type: "string", description: "Note aggiuntive, tipo camera, condizioni, istruzioni check-in" }
+    },
+    required: ["name", "location", "checkIn", "checkOut"]
+  },
+  tappa: {
+    type: "object",
+    description: "Dati tappa (città, spostamenti generali).",
+    properties: {
+      titolo: { type: "string", description: "Titolo o nome della tappa / destinazione" },
+      data: { type: "string", description: "Data visita nel formato YYYY-MM-DD" },
+      mapsUrl: { type: "string", description: "URL Google Maps o indirizzo" },
+      nota: { type: "string", description: "Note o informazioni sulla tappa" }
+    },
+    required: ["titolo"]
+  },
+  trasporto: {
+    type: "object",
+    description: "Dati trasporto. Per voli con scalo compila l'oggetto layover e usa arrivalDate per l'arrivo finale.",
+    properties: {
+      tipoTrasporto: { type: "string", enum: ["volo", "treno", "traghetto", "auto", "transfer"] },
+      date: { type: "string", description: "Data partenza nel formato YYYY-MM-DD" },
+      departureTime: { type: "string", description: "Orario partenza HH:mm" },
+      arrivalDate: { type: "string", description: "Data arrivo a destinazione finale YYYY-MM-DD se diversa da partenza" },
+      arrivalTime: { type: "string", description: "Orario arrivo alla destinazione finale HH:mm" },
+      departureLocation: { type: "string", description: "Aeroporto/stazione/porto o luogo di partenza" },
+      arrivalLocation: { type: "string", description: "Aeroporto/stazione/porto o luogo di arrivo (destinazione finale)" },
+      layover: {
+        type: "object",
+        description: "Dati scalo intermedio, da compilare SOLO se il volo/viaggio prevede uno scalo.",
+        properties: {
+          airport: { type: "string", description: "Aeroporto o città di scalo" },
+          duration: { type: "string", description: "Durata dello scalo (es. '3h 20m')" },
+          arrivalTime: { type: "string", description: "Orario di arrivo allo scalo HH:mm" },
+          departureTime: { type: "string", description: "Orario di ripartenza dallo scalo HH:mm" },
+          departureDate: { type: "string", description: "Data ripartenza dallo scalo YYYY-MM-DD (se diversa)" },
+          carrier: { type: "string", description: "Compagnia aerea della seconda tratta (se diversa)" }
+        },
+        required: ["airport"]
+      },
+      carrier: { type: "string", description: "Compagnia aerea, numero volo (es. EK412), operatore o fornitore" },
+      bookingCode: { type: "string", description: "Codice prenotazione, PNR o numero biglietto" },
+      cost: { type: "string", description: "Costo come stringa numerica decimale" },
+      notes: { type: "string", description: "Note aggiuntive, posti a sedere, franchigia bagagli, terminal/gate" }
+    },
+    required: ["tipoTrasporto", "date", "departureLocation", "arrivalLocation"]
+  },
+  attivita: {
+    type: "object",
+    description: "Dati attività (musei, parchi, zoo, tour guidati, escursioni, spettacoli, traghetti panoramici, attrazioni).",
+    properties: {
+      title: { type: "string", description: "Nome dell'attività o fornitore" },
+      location: { type: "string", description: "Indirizzo o città dell'attività" },
+      date: { type: "string", description: "Data attività nel formato YYYY-MM-DD" },
+      time: { type: "string", description: "Ora di inizio / ritrovo nel formato HH:mm" },
+      cost: { type: "string", description: "Costo totale dell'attività" },
+      bookingCode: { type: "string", description: "Codice prenotazione, voucher o numero biglietto" },
+      notes: { type: "string", description: "Note aggiuntive, istruzioni accesso, fornitore" }
+    },
+    required: ["title", "location"]
+  },
+  ristorante: {
+    type: "object",
+    description: "Dati ristorante (pranzi, cene, degustazioni).",
+    properties: {
+      name: { type: "string", description: "Nome del ristorante/locale" },
+      location: { type: "string", description: "Indirizzo del locale" },
+      date: { type: "string", description: "Data del pasto nel formato YYYY-MM-DD" },
+      time: { type: "string", description: "Ora della prenotazione nel formato HH:mm" },
+      cost: { type: "string", description: "Costo preventivato/pagato" },
+      notes: { type: "string", description: "Note aggiuntive" }
+    },
+    required: ["name", "location"]
+  },
+  shopping: {
+    type: "object",
+    description: "Dati per shopping, acquisti, mercati, rifornimento carburante o negozi.",
+    properties: {
+      nome: { type: "string", description: "Nome del negozio, mercato o centro commerciale" },
+      indirizzo: { type: "string", description: "Indirizzo o città" },
+      data: { type: "string", description: "Data prevista nel formato YYYY-MM-DD" },
+      orario: { type: "string", description: "Orario nel formato HH:mm" },
+      budget: { type: "string", description: "Budget stimato o spesa (solo numero/importo)" },
+      nota: { type: "string", description: "Cosa comprare, lista o note" },
+      sottocategoria: { type: "string", description: "Es: 'Abbigliamento', 'Souvenir', 'Carburante', 'Alimentari'" }
+    },
+    required: ["nome"]
+  },
+  info: {
+    type: "object",
+    description: "Risposta a una domanda o richiesta dell'utente.",
+    properties: {
+      message: { type: "string", description: "Risposta sintetica con opzioni e link Maps." },
+      suggestions: { type: "array", items: SUGGESTION_SCHEMA }
+    },
+    required: ["message"]
+  }
+};
+
 const EXTRACTION_SCHEMA = {
   type: "object",
   properties: {
-    entityType: {
-      type: "string",
-      enum: ["alloggio", "tappa", "trasporto", "attivita", "ristorante", "shopping", "info", "sconosciuto"],
-      description: "Tipo di entità principale estratta dal testo"
-    },
-    alloggio: {
-      type: "object",
-      description: "Dati alloggio. Solo per pernottamenti (hotel, resort, b&b, appartamento). NON per attrazioni o tour.",
-      properties: {
-        name: { type: "string", description: "Nome hotel / struttura" },
-        location: { type: "string", description: "Città o zona" },
-        address: { type: "string", description: "Indirizzo completo o link Maps" },
-        checkIn: { type: "string", description: "Data check-in nel formato YYYY-MM-DD" },
-        checkOut: { type: "string", description: "Data check-out nel formato YYYY-MM-DD" },
-        checkInTime: { type: "string", description: "Ora check-in nel formato HH:mm, se specificata" },
-        checkOutTime: { type: "string", description: "Ora check-out nel formato HH:mm, se specificata" },
-        cost: { type: "string", description: "Costo totale in euro come stringa numerica, es. '199.50'" },
-        bookingCode: { type: "string", description: "Codice prenotazione o numero conferma" },
-        bookingUrl: { type: "string", description: "URL prenotazione se presente" },
-        notes: { type: "string", description: "Note aggiuntive, istruzioni check-in, informazioni utili" }
-      },
-      required: ["name", "location", "checkIn", "checkOut"]
-    },
-    tappa: {
-      type: "object",
-      description: "Dati tappa (città, spostamenti generali).",
-      properties: {
-        titolo: { type: "string", description: "Titolo o nome della tappa / destinazione" },
-        data: { type: "string", description: "Data visita nel formato YYYY-MM-DD" },
-        mapsUrl: { type: "string", description: "URL Google Maps o indirizzo" },
-        nota: { type: "string", description: "Note o informazioni sulla tappa" }
-      },
-      required: ["titolo"]
-    },
-    trasporto: {
-      type: "object",
-      description: "Dati trasporto. Per voli con scalo compila l'oggetto layover e usa arrivalDate per l'arrivo finale.",
-      properties: {
-        tipoTrasporto: { type: "string", enum: ["volo", "treno", "traghetto", "auto", "transfer"] },
-        date: { type: "string", description: "Data partenza nel formato YYYY-MM-DD" },
-        departureTime: { type: "string", description: "Orario partenza HH:mm" },
-        arrivalDate: { type: "string", description: "Data arrivo a destinazione finale YYYY-MM-DD se diversa da partenza" },
-        arrivalTime: { type: "string", description: "Orario arrivo alla destinazione finale HH:mm" },
-        departureLocation: { type: "string", description: "Aeroporto/stazione di partenza" },
-        arrivalLocation: { type: "string", description: "Aeroporto/stazione di arrivo (destinazione finale)" },
-        layover: {
-          type: "object",
-          description: "Dati scalo intermedio, da compilare SOLO se il volo/viaggio prevede uno scalo.",
-          properties: {
-            airport: { type: "string", description: "Aeroporto o città di scalo" },
-            duration: { type: "string", description: "Durata dello scalo (es. '3h 20m')" },
-            arrivalTime: { type: "string", description: "Orario di arrivo allo scalo HH:mm" },
-            departureTime: { type: "string", description: "Orario di ripartenza dallo scalo HH:mm" },
-            departureDate: { type: "string", description: "Data ripartenza dallo scalo YYYY-MM-DD (se diversa)" },
-            carrier: { type: "string", description: "Compagnia aerea della seconda tratta (se diversa)" }
-          },
-          required: ["airport"]
-        },
-        carrier: { type: "string", description: "Compagnia aerea principale, numero volo o operatore" },
-        bookingCode: { type: "string", description: "Codice prenotazione" },
-        cost: { type: "string", description: "Costo in euro come stringa numerica" },
-        notes: { type: "string", description: "Note aggiuntive" }
-      },
-      required: ["tipoTrasporto", "date", "departureLocation", "arrivalLocation"]
-    },
-    attivita: {
-      type: "object",
-      description: "Dati attività (musei, parchi, zoo, tour, escursioni, spettacoli). NON è un alloggio.",
-      properties: {
-        title: { type: "string", description: "Nome dell'attività (es. Zoo di Fasano, Tour Colosseo)" },
-        location: { type: "string", description: "Indirizzo o città dell'attività" },
-        date: { type: "string", description: "Data attività nel formato YYYY-MM-DD" },
-        time: { type: "string", description: "Ora di inizio nel formato HH:mm" },
-        cost: { type: "string", description: "Costo totale dell'attività" },
-        notes: { type: "string", description: "Note aggiuntive" }
-      },
-      required: ["title", "location"]
-    },
-    ristorante: {
-      type: "object",
-      description: "Dati ristorante (pranzi, cene, degustazioni).",
-      properties: {
-        name: { type: "string", description: "Nome del ristorante/locale" },
-        location: { type: "string", description: "Indirizzo del locale" },
-        date: { type: "string", description: "Data del pasto nel formato YYYY-MM-DD" },
-        time: { type: "string", description: "Ora della prenotazione nel formato HH:mm" },
-        cost: { type: "string", description: "Costo preventivato/pagato" },
-        notes: { type: "string", description: "Note aggiuntive" }
-      },
-      required: ["name", "location"]
-    },
-    shopping: {
-      type: "object",
-      description: "Dati per shopping, acquisti, mercati, rifornimento carburante o negozi.",
-      properties: {
-        nome: { type: "string", description: "Nome del negozio, mercato o centro commerciale" },
-        indirizzo: { type: "string", description: "Indirizzo o città" },
-        data: { type: "string", description: "Data prevista nel formato YYYY-MM-DD" },
-        orario: { type: "string", description: "Orario nel formato HH:mm" },
-        budget: { type: "string", description: "Budget stimato o spesa (solo numero/importo)" },
-        nota: { type: "string", description: "Cosa comprare, lista o note" },
-        sottocategoria: { type: "string", description: "Es: 'Abbigliamento', 'Souvenir', 'Carburante', 'Alimentari'" }
-      },
-      required: ["nome"]
-    },
-    info: {
-      type: "object",
-      description: "Risposta a una domanda o richiesta dell'utente (es. dove mangiare, cosa fare).",
-      properties: {
-        message: { type: "string", description: "Risposta sintetica con 2-3 opzioni e link diretto a Google Maps." },
-        suggestions: { type: "array", items: SUGGESTION_SCHEMA }
-      },
-      required: ["message"]
+    ...SINGLE_BOOKING_PROPERTIES,
+    multipleBookings: {
+      type: "array",
+      description: "Compila questo array SE nel documento/testo sono presenti 2 o più prenotazioni distinte (es. volo andata + volo ritorno, oppure hotel + attività, oppure conferme multiple).",
+      items: {
+        type: "object",
+        properties: SINGLE_BOOKING_PROPERTIES,
+        required: ["entityType"]
+      }
     }
   },
   required: ["entityType"]
@@ -561,6 +577,92 @@ export async function askConcierge(_text: string, contextStr: string, cleanTextO
   return finalResult;
 }
 
+// ─── Helper conversione entità estratta da JSON ────────────────────────────────
+export function parseEntityItem(item: any): ExtractedEntity | null {
+  if (!item || typeof item !== 'object') return null;
+  const entityType: ExtractedEntityType = item.entityType || 'sconosciuto';
+
+  if (entityType === 'alloggio' && item.alloggio) {
+    return { type: 'alloggio', ...item.alloggio } as ExtractedAlloggio;
+  }
+  if (entityType === 'tappa' && item.tappa) {
+    return { type: 'tappa', ...item.tappa } as ExtractedTappa;
+  }
+  if (entityType === 'trasporto' && item.trasporto) {
+    return { type: 'trasporto', ...item.trasporto } as ExtractedTrasporto;
+  }
+  if (entityType === 'attivita' && item.attivita) {
+    return { type: 'attivita', ...item.attivita } as ExtractedAttivita;
+  }
+  if (entityType === 'ristorante' && item.ristorante) {
+    return { type: 'ristorante', ...item.ristorante } as ExtractedRistorante;
+  }
+  if (entityType === 'shopping' && item.shopping) {
+    return { type: 'shopping', ...item.shopping } as ExtractedShopping;
+  }
+  return null;
+}
+
+export function parseAIResponse(rawJsonText: string): AIExtractionResult {
+  let parsed: any;
+  try {
+    parsed = JSON.parse(rawJsonText);
+  } catch {
+    parsed = null;
+  }
+
+  if (parsed?.info?.message) {
+    return infoResult(parsed.info.message, parsed.info.suggestions?.[0], rawJsonText);
+  }
+
+  const multipleItems: ExtractedEntity[] = [];
+  if (Array.isArray(parsed?.multipleBookings) && parsed.multipleBookings.length > 0) {
+    for (const b of parsed.multipleBookings) {
+      const parsedItem = parseEntityItem(b);
+      if (parsedItem) multipleItems.push(parsedItem);
+    }
+  }
+
+  const primaryItem = parseEntityItem(parsed);
+
+  if (multipleItems.length > 1) {
+    const mainItem = primaryItem || multipleItems[0];
+    return {
+      success: true,
+      entityType: mainItem.type,
+      data: mainItem,
+      multipleItems,
+      raw: rawJsonText
+    };
+  }
+
+  if (primaryItem) {
+    return {
+      success: true,
+      entityType: primaryItem.type,
+      data: primaryItem,
+      multipleItems: multipleItems.length > 0 ? multipleItems : undefined,
+      raw: rawJsonText
+    };
+  }
+
+  if (multipleItems.length === 1) {
+    return {
+      success: true,
+      entityType: multipleItems[0].type,
+      data: multipleItems[0],
+      raw: rawJsonText
+    };
+  }
+
+  return {
+    success: false,
+    entityType: 'sconosciuto',
+    raw: rawJsonText,
+    error: 'Impossibile interpretare il formato dei dati.'
+  };
+}
+
 /**
  * Esegue l'estrazione AI dal testo incollato oppure risponde come Concierge.
  * @param text        Testo da estrarre (email, note, ecc.) o domanda
@@ -600,7 +702,7 @@ export async function extractFromText(
     ],
     generationConfig: {
       temperature: 0.1, // Temperatura bassa per estrazione precisa
-      maxOutputTokens: 512,
+      maxOutputTokens: 1024,
       responseMimeType: 'application/json',
       responseSchema: EXTRACTION_SCHEMA
     }
@@ -615,28 +717,40 @@ export async function extractFromText(
     parsed = null;
   }
 
-  const entityType: ExtractedEntityType = parsed?.entityType || 'sconosciuto';
-
-  if (entityType === 'alloggio' && parsed.alloggio) {
-    return { success: true, entityType: 'alloggio', data: { type: 'alloggio', ...parsed.alloggio } as ExtractedAlloggio };
-  }
-  if (entityType === 'tappa' && parsed.tappa) {
-    return { success: true, entityType: 'tappa', data: { type: 'tappa', ...parsed.tappa } as ExtractedTappa };
-  }
-  if (entityType === 'trasporto' && parsed.trasporto) {
-    return { success: true, entityType: 'trasporto', data: { type: 'trasporto', ...parsed.trasporto } as ExtractedTrasporto };
-  }
-  if (entityType === 'attivita' && parsed.attivita) {
-    return { success: true, entityType: 'attivita', data: { type: 'attivita', ...parsed.attivita } as ExtractedAttivita };
-  }
-  if (entityType === 'ristorante' && parsed.ristorante) {
-    return { success: true, entityType: 'ristorante', data: { type: 'ristorante', ...parsed.ristorante } as ExtractedRistorante };
-  }
-  if (entityType === 'shopping' && parsed.shopping) {
-    return { success: true, entityType: 'shopping', data: { type: 'shopping', ...parsed.shopping } as ExtractedShopping };
-  }
   if (parsed?.info?.message) {
     return infoResult(parsed.info.message, parsed.info.suggestions?.[0], res.text);
+  }
+
+  // Controlla prenotazioni multiple
+  const multipleItems: ExtractedEntity[] = [];
+  if (Array.isArray(parsed?.multipleBookings) && parsed.multipleBookings.length > 0) {
+    for (const b of parsed.multipleBookings) {
+      const parsedItem = parseEntityItem(b);
+      if (parsedItem) multipleItems.push(parsedItem);
+    }
+  }
+
+  const primaryItem = parseEntityItem(parsed);
+
+  if (multipleItems.length > 1) {
+    const mainItem = primaryItem || multipleItems[0];
+    return {
+      success: true,
+      entityType: mainItem.type,
+      data: mainItem,
+      multipleItems,
+      raw: res.text
+    };
+  }
+
+  if (primaryItem) {
+    return {
+      success: true,
+      entityType: primaryItem.type,
+      data: primaryItem,
+      multipleItems: multipleItems.length > 0 ? multipleItems : undefined,
+      raw: res.text
+    };
   }
 
   // Fallback: nessuna prenotazione riconosciuta → rispondiamo come Concierge invece di fallire
@@ -648,4 +762,116 @@ export async function extractFromText(
     undefined,
     res.text
   );
+}
+
+/**
+ * Esegue l'estrazione AI da un allegato (PDF o Immagine) tramite input multimodale nativo di Gemini.
+ * @param attachment File attachment con dataUrl (base64) e tipo
+ * @param contextStr Contesto di viaggio corrente
+ */
+export async function extractFromAttachment(
+  attachment: { name: string; type: 'pdf' | 'image'; dataUrl: string },
+  contextStr: string = ''
+): Promise<AIExtractionResult> {
+  if (!attachment || !attachment.dataUrl) {
+    return { success: false, entityType: 'sconosciuto', error: 'Nessun file fornito per l\'analisi.' };
+  }
+
+  // Estrai mimeType e rawBase64
+  let mimeType = attachment.type === 'pdf' ? 'application/pdf' : 'image/jpeg';
+  let base64Data = attachment.dataUrl;
+
+  if (attachment.dataUrl.startsWith('data:')) {
+    const parts = attachment.dataUrl.split(',');
+    const mimeMatch = parts[0].match(/:(.*?);/);
+    if (mimeMatch) mimeType = mimeMatch[1];
+    base64Data = parts[1] || '';
+  }
+
+  const promptText = `CONTESTO DINAMICO: ${contextStr}\n\nEstrai TUTTI i dati della prenotazione dal documento allegato ("${attachment.name}").
+Controlla con la massima precisione:
+- tipologia della prenotazione (volo, hotel/alloggio, attivita/tour, treno, traghetto, noleggio auto, ristorante)
+- nome della compagnia, struttura o fornitore
+- data, orari e fuso orario se presenti
+- luogo/aeroporto di partenza e arrivo o indirizzo completo
+- codice di prenotazione (PNR), numero biglietto o voucher
+- nominativi dei viaggiatori, posti, bagagli
+- prezzo e valuta (riporta il costo come numero senza simboli)
+- note, condizioni di cancellazione, orari check-in/out
+Se il documento contiene più di una prenotazione (es. volo andata e volo ritorno, oppure hotel + transfer), inseriscile nel campo multipleBookings.`;
+
+  const res = await callGemini({
+    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
+    contents: [
+      {
+        role: 'user',
+        parts: [
+          { text: promptText },
+          {
+            inline_data: {
+              mime_type: mimeType,
+              data: base64Data
+            }
+          }
+        ]
+      }
+    ],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 1024,
+      responseMimeType: 'application/json',
+      responseSchema: EXTRACTION_SCHEMA
+    }
+  });
+
+  if (!res.ok) return { success: false, entityType: 'sconosciuto', error: res.error };
+
+  let parsed: any = null;
+  try {
+    parsed = JSON.parse(res.text);
+  } catch {
+    parsed = null;
+  }
+
+  if (!parsed) {
+    return { success: false, entityType: 'sconosciuto', error: 'Risposta non valida dall\'AI.' };
+  }
+
+  // Controlla se sono state estratte prenotazioni multiple
+  const multipleItems: ExtractedEntity[] = [];
+  if (Array.isArray(parsed.multipleBookings) && parsed.multipleBookings.length > 0) {
+    for (const b of parsed.multipleBookings) {
+      const parsedItem = parseEntityItem(b);
+      if (parsedItem) multipleItems.push(parsedItem);
+    }
+  }
+
+  const primaryItem = parseEntityItem(parsed);
+
+  if (multipleItems.length > 1) {
+    const mainItem = primaryItem || multipleItems[0];
+    return {
+      success: true,
+      entityType: mainItem.type,
+      data: mainItem,
+      multipleItems,
+      raw: res.text
+    };
+  }
+
+  if (primaryItem) {
+    return {
+      success: true,
+      entityType: primaryItem.type,
+      data: primaryItem,
+      multipleItems: multipleItems.length > 0 ? multipleItems : undefined,
+      raw: res.text
+    };
+  }
+
+  return {
+    success: false,
+    entityType: 'sconosciuto',
+    error: 'Non è stato possibile identificare una prenotazione valida (alloggio, trasporto o attività) in questo allegato. Verifica che il testo o l\'immagine siano nitidi.'
+  };
 }
