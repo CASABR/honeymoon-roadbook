@@ -24,6 +24,7 @@ interface DesktopNavigationProps {
   onOpenSmartInsert: () => void;
   tripConfig: TripConfig | null;
   bookingsCount?: number;
+  onToggleMobileView?: () => void;
 }
 
 export default function DesktopNavigation({
@@ -31,7 +32,8 @@ export default function DesktopNavigation({
   onSelectSection,
   onOpenSmartInsert,
   tripConfig,
-  bookingsCount = 0
+  bookingsCount = 0,
+  onToggleMobileView
 }: DesktopNavigationProps) {
   const { role, isGuida, isCopilota } = useDeviceRole();
 
@@ -155,15 +157,29 @@ export default function DesktopNavigation({
           </p>
         </div>
 
-        {/* Pulsante Rapido Smart AI */}
-        <button
-          type="button"
-          onClick={onOpenSmartInsert}
-          className="w-full mt-3 flex items-center justify-center gap-2 py-2.5 px-3 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/20 active:scale-95 transition-all cursor-pointer"
-        >
-          <span>✨</span>
-          <span>Inserimento Smart AI</span>
-        </button>
+        {/* Pulsanti Rapidi: Smart AI & Visualizzazione Mobile */}
+        <div className="mt-3 space-y-1.5">
+          <button
+            type="button"
+            onClick={onOpenSmartInsert}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/20 active:scale-95 transition-all cursor-pointer"
+          >
+            <span>✨</span>
+            <span>Inserimento Smart AI</span>
+          </button>
+
+          {onToggleMobileView && (
+            <button
+              type="button"
+              onClick={onToggleMobileView}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs border border-slate-200/80 dark:border-slate-700 active:scale-95 transition-all cursor-pointer"
+              title="Passa al layout compatto smartphone"
+            >
+              <span>📱</span>
+              <span>Visualizzazione mobile</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ─── VOCI DI NAVIGAZIONE SCORREVOLI ───────────────────────────── */}

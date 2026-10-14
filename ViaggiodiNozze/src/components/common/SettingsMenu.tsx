@@ -141,10 +141,12 @@ export default function SettingsMenu() {
           <>
             <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
             <div className="absolute right-0 top-11 z-50 w-64 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden">
+              {/* SEZIONE 1: VIAGGIO & PARTECIPANTI */}
               <p className="text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-700">
-                Dispositivo
+                Viaggio &amp; Dispositivo
               </p>
 
+              {/* Ruolo Dispositivo */}
               <button
                 type="button"
                 onClick={() => {
@@ -167,8 +169,9 @@ export default function SettingsMenu() {
                 <span className="text-slate-400 text-xs">›</span>
               </button>
 
+              {/* Codice Viaggio con copia rapida */}
               {tripId && (
-                <div className="w-full flex items-center justify-between px-4 py-3 text-xs border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40">
+                <div className="w-full flex items-center justify-between px-4 py-2.5 text-xs border-t border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/40">
                   <div className="text-left">
                     <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Codice Viaggio</span>
                     <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-mono select-all">{tripId}</span>
@@ -179,18 +182,19 @@ export default function SettingsMenu() {
                       navigator.clipboard.writeText(tripId);
                       showToast('ok', 'Codice copiato negli appunti!');
                     }}
-                    className="p-2 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
+                    className="px-2 py-1 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-xs text-[11px] font-bold text-slate-600 dark:text-slate-300 hover:text-blue-600 transition-colors cursor-pointer"
                   >
                     📋 Copia
                   </button>
                 </div>
               )}
 
+              {/* Invita Co-pilota (apre popup dedicato con link e pulsante di condivisione) */}
               <button
                 type="button"
                 onClick={() => {
                   setOpen(false);
-                  window.dispatchEvent(new CustomEvent('navigate_to', { detail: { view: 'altro', subView: 'gestione' } }));
+                  setShowInviteModal(true);
                 }}
                 className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
               >
@@ -198,172 +202,18 @@ export default function SettingsMenu() {
                   <span className="text-base">🤝</span>
                   <div className="text-left">
                     <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Invita Co-pilota</span>
-                    <span className="block text-[10px] text-slate-400 font-normal">Genera codice d'invito sicuro</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">Condividi link e codice d'invito</span>
                   </div>
                 </div>
                 <span className="text-slate-400 text-xs">›</span>
               </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  window.dispatchEvent(new CustomEvent('navigate_to', { detail: { view: 'altro', subView: 'gestione' } }));
-                }}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-base">👥</span>
-                  <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Gestione Viaggio</span>
-                    <span className="block text-[10px] text-slate-400 font-normal">Gestisci accessi e collaboratori</span>
-                  </div>
-                </div>
-                <span className="text-slate-400 text-xs">›</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm('Vuoi bloccare l\'app e richiedere nuovamente il PIN di accesso?')) {
-                    clearDeviceSession();
-                    clearTripConfig();
-                    window.location.reload();
-                  }
-                }}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors border-t border-slate-100 dark:border-slate-700 cursor-pointer"
-              >
-                <div className="flex items-center gap-2">
-                  <span>🔒</span>
-                  <span>Blocca App / Logout PIN</span>
-                </div>
-                <span className="text-slate-400 text-xs">›</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={async () => {
-                  if (confirm('Sei sicuro di voler uscire da questo viaggio? I dati non sincronizzati andranno persi.')) {
-                    clearDeviceSession();
-                    await idbClearAll();
-                    clearTripConfig();
-                    setOpen(false);
-                    window.location.reload();
-                  }
-                }}
-                className="w-full flex items-center justify-center px-4 py-2 text-xs font-bold text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors border-t border-slate-100 dark:border-slate-700 cursor-pointer"
-              >
-                Esci dal viaggio / Cambia dispositivo
-              </button>
-
+              {/* SEZIONE 2: INTELLIGENZA ARTIFICIALE & NOTIFICHE */}
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-slate-100 dark:border-slate-700">
-                Houni AI & Gmail
+                Assistente &amp; Avvisi
               </p>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  window.dispatchEvent(new CustomEvent('open_smart_insert', { detail: { mode: 'gmail' } }));
-                }}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-base">📧</span>
-                  <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Cerca in Gmail</span>
-                    <span className="block text-[10px] text-slate-400 font-normal">Importa email di prenotazione</span>
-                  </div>
-                </div>
-                <span className="text-slate-400 text-xs">›</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpen(false);
-                  window.dispatchEvent(new CustomEvent('open_smart_insert', { detail: { mode: 'copilot' } }));
-                }}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-base">🤖</span>
-                  <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Copilota AI</span>
-                    <span className="block text-[10px] text-slate-400 font-normal">Chiedi al Concierge intelligente</span>
-                  </div>
-                </div>
-                <span className="text-slate-400 text-xs">›</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const current = localStorage.getItem('gemini_api_key') || '';
-                  const key = window.prompt('Inserisci la chiave API Gemini:', current);
-                  if (key !== null) {
-                    localStorage.setItem('gemini_api_key', key.trim());
-                    showToast('ok', 'Chiave API Gemini salvata!');
-                  }
-                  setOpen(false);
-                }}
-                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-base">🔑</span>
-                  <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Chiave API Gemini</span>
-                    <span className="block text-[10px] text-slate-400 font-normal">Configura l'accesso all'IA</span>
-                  </div>
-                </div>
-                <span className="text-slate-400 text-xs">›</span>
-              </button>
-
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-b border-slate-100 dark:border-slate-700">
-                Backup & Ripristino
-              </p>
-
-              <button
-                type="button"
-                disabled={exporting}
-                onClick={handleExport}
-                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer disabled:opacity-50"
-              >
-                <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                {exporting ? 'Esportazione...' : 'Esporta backup JSON'}
-              </button>
-
-              <button
-                type="button"
-                disabled={importing}
-                onClick={() => fileRef.current?.click()}
-                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer disabled:opacity-50 border-t border-slate-100 dark:border-slate-700"
-              >
-                <svg className="w-4 h-4 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                </svg>
-                {importing ? 'Importazione...' : 'Importa backup JSON'}
-              </button>
-
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-b border-slate-100 dark:border-slate-700">
-                Sincronizzazione Cloud
-              </p>
-
-              <button
-                type="button"
-                onClick={() => {
-                  window.dispatchEvent(new CustomEvent('force_cloud_sync_requested'));
-                  showToast('ok', 'Sincronizzazione forzata avviata nel cloud!');
-                  setOpen(false);
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
-              >
-                <svg className="w-4 h-4 text-sky-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Forza Sincronizzazione al Cloud
-              </button>
-
+              {/* Notifiche Push */}
               <button
                 type="button"
                 disabled={isSubscribing}
@@ -389,7 +239,7 @@ export default function SettingsMenu() {
                     showToast('error', err.message || 'Errore durante la modifica delle notifiche.');
                   }
                 }}
-                className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700 ${isSubscribing ? 'opacity-70 cursor-not-allowed' : ''}`}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer ${isSubscribing ? 'opacity-70 cursor-not-allowed' : ''}`}
               >
                 <span className="text-base shrink-0">{subscription ? '🔔' : '🔕'}</span>
                 <div className="text-left flex-1">
@@ -412,11 +262,159 @@ export default function SettingsMenu() {
                     OFF
                   </span>
                 )}
-                {!isSubscribing && !subscription && permission === 'denied' && (
-                  <span className="text-[10px] font-bold text-rose-600 bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-full border border-rose-100 dark:border-rose-800">
-                    BLOCCATE
-                  </span>
-                )}
+              </button>
+
+              {/* Cerca in Gmail */}
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  window.dispatchEvent(new CustomEvent('open_smart_insert', { detail: { mode: 'gmail' } }));
+                }}
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">📧</span>
+                  <div className="text-left">
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Cerca in Gmail</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">Importa voucher e biglietti</span>
+                  </div>
+                </div>
+                <span className="text-slate-400 text-xs">›</span>
+              </button>
+
+              {/* Chiave API Gemini */}
+              <button
+                type="button"
+                onClick={() => {
+                  const current = localStorage.getItem('gemini_api_key') || '';
+                  const key = window.prompt('Inserisci la chiave API Gemini:', current);
+                  if (key !== null) {
+                    localStorage.setItem('gemini_api_key', key.trim());
+                    showToast('ok', 'Chiave API Gemini salvata!');
+                  }
+                  setOpen(false);
+                }}
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-700"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">🔑</span>
+                  <div className="text-left">
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Chiave API Gemini</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">Configura il modello IA</span>
+                  </div>
+                </div>
+                <span className="text-slate-400 text-xs">›</span>
+              </button>
+
+              {/* SEZIONE 3: DATI, SINCRONIZZAZIONE E BACKUP */}
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-b border-slate-100 dark:border-slate-700">
+                Sincronizzazione &amp; Dati
+              </p>
+
+              {/* Forza Sincronizzazione */}
+              <button
+                type="button"
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('force_cloud_sync_requested'));
+                  showToast('ok', 'Sincronizzazione forzata avviata nel cloud!');
+                  setOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
+              >
+                <svg className="w-4 h-4 text-sky-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Forza Allineamento Cloud</span>
+              </button>
+
+              {/* Esporta Backup JSON */}
+              <button
+                type="button"
+                disabled={exporting}
+                onClick={handleExport}
+                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer disabled:opacity-50 border-t border-slate-100 dark:border-slate-700"
+              >
+                <svg className="w-4 h-4 text-amber-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span>{exporting ? 'Esportazione...' : 'Esporta backup JSON'}</span>
+              </button>
+
+              {/* Importa Backup JSON */}
+              <button
+                type="button"
+                disabled={importing}
+                onClick={() => fileRef.current?.click()}
+                className="w-full flex items-center gap-3 px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer disabled:opacity-50 border-t border-slate-100 dark:border-slate-700"
+              >
+                <svg className="w-4 h-4 text-purple-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                <span>{importing ? 'Importazione...' : 'Importa backup JSON'}</span>
+              </button>
+
+              {/* SEZIONE 4: SESSIONE & GUIDA */}
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-b border-slate-100 dark:border-slate-700">
+                Sessione &amp; Aiuto
+              </p>
+
+              {/* Riavvia Tutorial / Onboarding */}
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  localStorage.removeItem('houni_onboarding_completed_v1');
+                  localStorage.removeItem('walkthrough_seen');
+                  window.dispatchEvent(new CustomEvent('replay_tutorial_requested'));
+                  showToast('ok', 'Tutorial e guida riavviati');
+                }}
+                className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">💡</span>
+                  <div className="text-left">
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Ripeti Guida / Tutorial</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">Rivedi i passaggi introduttivi</span>
+                  </div>
+                </div>
+                <span className="text-slate-400 text-xs">›</span>
+              </button>
+
+              {/* Blocca App / Logout PIN */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm('Vuoi bloccare l\'app e richiedere nuovamente il PIN di accesso?')) {
+                    clearDeviceSession();
+                    clearTripConfig();
+                    window.location.reload();
+                  }
+                }}
+                className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-bold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors border-t border-slate-100 dark:border-slate-700 cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <span>🔒</span>
+                  <span>Blocca App / Logout PIN</span>
+                </div>
+                <span className="text-slate-400 text-xs">›</span>
+              </button>
+
+              {/* Esci dal viaggio */}
+              <button
+                type="button"
+                onClick={async () => {
+                  if (confirm('Sei sicuro di voler uscire da questo viaggio? I dati non sincronizzati andranno persi.')) {
+                    clearDeviceSession();
+                    await idbClearAll();
+                    clearTripConfig();
+                    setOpen(false);
+                    window.location.reload();
+                  }
+                }}
+                className="w-full flex items-center justify-center px-4 py-2.5 text-xs font-bold text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors border-t border-slate-100 dark:border-slate-700 cursor-pointer"
+              >
+                Esci dal viaggio / Cambia dispositivo
               </button>
 
               <input

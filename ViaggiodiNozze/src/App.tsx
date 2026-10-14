@@ -74,6 +74,10 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     if (typeof localStorage === 'undefined') return false;
     const session = getPersistedSession();
+    if (session.isAuthenticated) {
+      // Se l'utente è già autenticato da una sessione precedente, segna l'onboarding completato
+      localStorage.setItem('houni_onboarding_completed_v1', 'true');
+    }
     return session.isAuthenticated;
   });
 
@@ -363,6 +367,14 @@ export default function App() {
     return false;
   });
 
+  useEffect(() => {
+    const handleReplayTutorial = () => {
+      setIsWalkthroughOpen(true);
+    };
+    window.addEventListener('replay_tutorial_requested', handleReplayTutorial);
+    return () => window.removeEventListener('replay_tutorial_requested', handleReplayTutorial);
+  }, []);
+
   const handleCloseWalkthrough = () => {
     setIsWalkthroughOpen(false);
     if (typeof localStorage !== 'undefined') {
@@ -446,6 +458,25 @@ export default function App() {
 
   const [desktopSection, setDesktopSection] = useState<DesktopNavSection>('prenotazioni');
 
+  // Modalità di visualizzazione: 'desktop' (standard workspace a schermo intero) o 'mobile' (shell smartphone centrata)
+  const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('houni_view_mode');
+      if (saved === 'mobile' || saved === 'desktop') return saved;
+    }
+    return 'desktop';
+  });
+
+  const toggleViewMode = () => {
+    setViewMode(prev => {
+      const next = prev === 'desktop' ? 'mobile' : 'desktop';
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('houni_view_mode', next);
+      }
+      return next;
+    });
+  };
+
   const handleSelectDesktopSection = (section: DesktopNavSection) => {
     setDesktopSection(section);
     if (section === 'itinerario') {
@@ -483,27 +514,49 @@ export default function App() {
     }
   };
 
+  const isForcedMobileView = viewMode === 'mobile';
+
   return (
-    <div className="min-h-screen bg-[#FAF7F2] dark:bg-slate-950 text-[#172033] dark:text-slate-100 flex flex-col md:flex-row selection:bg-rose-500 selection:text-white font-sans antialiased">
+    <div className={`min-h-screen bg-[#FAF7F2] dark:bg-slate-950 text-[#172033] dark:text-slate-100 flex flex-col ${isForcedMobileView ? 'items-center justify-start bg-slate-200/70 dark:bg-slate-900/90' : 'md:flex-row'} selection:bg-rose-500 selection:text-white font-sans antialiased`}>
       
-      {/* ─── DESKTOP SIDEBAR NAVIGATION (Schermi md+) ─────────────────── */}
-      <div className="hidden md:block">
-        <DesktopNavigation
-          currentSection={desktopSection}
-          onSelectSection={handleSelectDesktopSection}
-          onOpenSmartInsert={() => {
-            setSmartInsertMode('manual');
-            setIsSmartInsertOpen(true);
-          }}
-          tripConfig={tripConfig}
-        />
-      </div>
+      {/* ─── FLOATING BAR PER TORNARE A DESKTOP (Mostrata su schermi md+ se attiva la vista mobile) ─── */}
+      {isForcedMobileView && (
+        <div className="hidden md:flex fixed top-3 left-1/2 -translate-x-1/2 z-50 items-center gap-3 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-4 py-2 rounded-full border border-slate-300 dark:border-slate-700 shadow-xl animate-fade-in">
+          <span className="flex items-center gap-1.5 text-xs font-black text-slate-700 dark:text-slate-200">
+            <span>📱</span>
+            <span>Modalità Mobile attiva</span>
+          </span>
+          <button
+            type="button"
+            onClick={toggleViewMode}
+            className="px-3 py-1 rounded-full text-xs font-bold bg-[#FF6B5F] hover:bg-[#ff5547] text-white shadow-sm transition-all cursor-pointer"
+          >
+            Torna a Desktop ↗
+          </button>
+        </div>
+      )}
+
+      {/* ─── DESKTOP SIDEBAR NAVIGATION (Schermi md+ e solo se non in vista mobile forzata) ─── */}
+      {!isForcedMobileView && (
+        <div className="hidden md:block">
+          <DesktopNavigation
+            currentSection={desktopSection}
+            onSelectSection={handleSelectDesktopSection}
+            onOpenSmartInsert={() => {
+              setSmartInsertMode('manual');
+              setIsSmartInsertOpen(true);
+            }}
+            tripConfig={tripConfig}
+            onToggleMobileView={toggleViewMode}
+          />
+        </div>
+      )}
 
       {/* ─── MAIN CONTENT CONTAINER (Responsive: mobile centered shell, desktop full workspace) ─ */}
-      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-y-auto">
+      <div className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#FAF7F2] dark:bg-slate-950 relative pb-20' : 'h-screen overflow-y-auto'}`}>
         
-        {/* Top Header Mobile / Tablet Header */}
-        <header className="w-full flex md:hidden items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-slate-200/60 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md">
+        {/* Top Header Mobile / Tablet Header (o sempre in modalità mobile forzata) */}
+        <header className={`w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-slate-200/60 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-30`}>
           <div className="flex items-center gap-1.5">
             <img src="/favicon.svg" alt="Hounigo" className="h-6 w-auto object-contain max-w-[100px]" />
             {typeof __BUILD_TIME__ !== 'undefined' && (
@@ -526,9 +579,9 @@ export default function App() {
         </header>
 
         {/* Workspace Body */}
-        <main className="flex-1 px-3 sm:px-6 md:px-8 py-3 md:py-6 max-w-7xl w-full mx-auto pb-24 md:pb-12">
-          {/* Sezione Desktop Esclusiva Hub Prenotazioni */}
-          {desktopSection === 'prenotazioni' ? (
+        <main className={`flex-1 px-3 sm:px-6 md:px-8 py-3 md:py-6 ${isForcedMobileView ? 'max-w-md w-full px-4 py-3' : 'max-w-7xl w-full mx-auto pb-24 md:pb-12'}`}>
+          {/* Sezione Desktop Esclusiva Hub Prenotazioni (disponibile solo in modalità desktop piena) */}
+          {!isForcedMobileView && desktopSection === 'prenotazioni' ? (
             <div className="hidden md:block">
               <PrenotazioniWorkspaceView
                 onOpenSmartInsert={() => {
@@ -540,8 +593,8 @@ export default function App() {
             </div>
           ) : null}
 
-          {/* Viste Standard (Visibili sempre su mobile, e su desktop quando selezionate dalla sidebar) */}
-          <div className={desktopSection === 'prenotazioni' ? 'block md:hidden' : 'block'}>
+          {/* Viste Standard (Visibili sempre su mobile o in modalità mobile forzata, e su desktop quando selezionate dalla sidebar) */}
+          <div className={!isForcedMobileView && desktopSection === 'prenotazioni' ? 'block md:hidden' : 'block'}>
             {activeTab === 'oggi' && <OggiView onNavigateTab={handleTabChange} />}
             
             {activeTab === 'mappa' && <MappaView />}
@@ -564,8 +617,8 @@ export default function App() {
         </main>
       </div>
 
-      {/* ─── MOBILE BOTTOM BAR (Visibile solo su schermi < md) ───────────── */}
-      <div className="block md:hidden">
+      {/* ─── MOBILE BOTTOM BAR (Visibile su schermi < md oppure quando forzata la modalità mobile) ─ */}
+      <div className={`block ${isForcedMobileView ? 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40' : 'md:hidden'}`}>
         <NavBar
           activeTab={activeTab}
           onTabChange={handleTabChange}
