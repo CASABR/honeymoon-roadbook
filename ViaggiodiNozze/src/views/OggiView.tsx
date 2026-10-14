@@ -490,6 +490,20 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     await fetchTimeline();
   };
 
+  const handleDeleteTransportFromForm = async () => {
+    if (!editingTransportItem) return;
+    await storageService.deleteTransport(editingTransportItem.id);
+    setEditingTransportItem(null);
+    await fetchTimeline();
+  };
+
+  const handleDeleteTappaFromForm = async () => {
+    if (!editingTappaItem) return;
+    await storageService.deleteTappa(editingTappaItem.id);
+    setEditingTappaItem(null);
+    await fetchTimeline();
+  };
+
   const handleSaveTappa = async (data: Omit<Tappa, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const tappaToSave: Tappa = {
       ...data,
@@ -1406,6 +1420,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           initialData={editingTransportItem}
           onSave={handleSaveTransport}
           onCancel={() => setEditingTransportItem(null)}
+          onDelete={handleDeleteTransportFromForm}
         />
       </Modal>
 
@@ -1421,6 +1436,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           defaultDate={selectedDate}
           onSave={handleSaveTappa}
           onCancel={() => setEditingTappaItem(null)}
+          onDelete={handleDeleteTappaFromForm}
         />
       </Modal>
 

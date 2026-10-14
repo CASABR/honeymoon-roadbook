@@ -146,7 +146,7 @@ class StorageService {
     }
   }
 
-  // --- GENERIC SETTINGS ---
+  // --- GENERIC SETTINGS & TOMBSTONES ---
   async getSetting<T = any>(key: string): Promise<T | null> {
     const setting = await idbGet<any>(STORES.SETTINGS, key);
     return setting ? setting.value : null;
@@ -161,6 +161,36 @@ class StorageService {
       await idbPut(STORES.SETTINGS, data);
       notifyDataChanged('settings', 'save', data);
     }
+  }
+
+  /**
+   * Registra una pietra tombale (tombstone) per un elemento eliminato intenzionalmente dall'utente.
+   * Evita che seed o sinc reintroducano l'elemento cancellato.
+   */
+  async recordTombstone(entityType: string, id: string): Promise<void> {
+    if (!id) return;
+    const tombstoneKey = `tombstone_${entityType}_${id}`;
+    const tombstoneData = { id: tombstoneKey, value: { entityType, deletedId: id, timestamp: Date.now() } };
+    await idbPut(STORES.SETTINGS, tombstoneData);
+    notifyDataChanged('settings', 'save', tombstoneData);
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(tombstoneKey, 'true');
+      } catch (e) {}
+    }
+  }
+
+  /**
+   * Verifica se un elemento è stato eliminato intenzionalmente.
+   */
+  async isItemDeleted(entityType: string, id: string): Promise<boolean> {
+    if (!id) return false;
+    const tombstoneKey = `tombstone_${entityType}_${id}`;
+    if (typeof localStorage !== 'undefined' && localStorage.getItem(tombstoneKey) === 'true') {
+      return true;
+    }
+    const setting = await idbGet<any>(STORES.SETTINGS, tombstoneKey);
+    return Boolean(setting && setting.value);
   }
 
   /**
@@ -247,25 +277,27 @@ class StorageService {
     const { SEED_ALLOGGI } = await import('./seedAlloggi');
     const { SEED_RISTORANTI } = await import('./seedRistoranti');
 
-    // 1. Inserisci Shopping solo se mancante (nessuna sovrascrittura se presente)
+    // 1. Inserisci Shopping solo se mancante e non eliminato intenzionalmente
     for (const fuel of SEED_SHOPPING) {
       if (!existingShopping.some(s => s.id === fuel.id)) {
+        if (await this.isItemDeleted('shopping', fuel.id)) continue;
         const item = { ...fuel, createdAt: now, updatedAt: now } as import('../types').Shopping;
         await idbPut(STORES.SHOPPING, item);
         notifyDataChanged('shopping', 'save', item);
       }
     }
 
-    // 2. Inserisci Alloggi solo se mancante (nessuna sovrascrittura se presente)
+    // 2. Inserisci Alloggi solo se mancante e non eliminato intenzionalmente
     for (const acc of SEED_ALLOGGI) {
       if (!existingAlloggi.some(s => s.id === acc.id)) {
+        if (await this.isItemDeleted('alloggi', acc.id)) continue;
         const item: import('../types').Alloggio = { ...acc, createdAt: now, updatedAt: now };
         await idbPut(STORES.ALLOGGI, item);
         notifyDataChanged('alloggi', 'save', item);
       }
     }
 
-    // 3. Attività: inserisci SOLO se NON esiste già nel DB (evita reset delle modifiche utente al refresh)
+    // 3. Attività: inserisci SOLO se NON esiste già nel DB e non eliminata intenzionalmente
     const existingActivities = await idbGetAll<import('../types').Attivita>(STORES.ATTIVITA);
     let insertedAnyAct = false;
     for (const act of REAL_ACTIVITIES) {
@@ -275,6 +307,7 @@ class StorageService {
         (e.date === act.date && ((e.title || (e as any).titolo || '').toLowerCase().trim() === actTitle))
       );
       if (!existing) {
+        if (await this.isItemDeleted('attivita', act.id)) continue;
         await idbPut(STORES.ATTIVITA, { ...act, createdAt: now, updatedAt: now });
         insertedAnyAct = true;
       }
@@ -283,7 +316,7 @@ class StorageService {
       notifyDataChanged('attivita', 'save', {});
     }
     
-    // 4. Tappe: inserisci SOLO se NON esiste già nel DB (evita reset delle modifiche utente al refresh)
+    // 4. Tappe: inserisci SOLO se NON esiste già nel DB e non eliminata intenzionalmente
     const { REAL_TAPPE, SEED_TAPPE_VERSION } = await import('./seedTappe');
     const existingTappe = await idbGetAll<import('../types').Tappa>(STORES.TAPPE);
     let insertedAnyTappa = false;
@@ -298,6 +331,7 @@ class StorageService {
       );
 
       if (!existing) {
+        if (await this.isItemDeleted('tappe', tappa.id)) continue;
         await idbPut(STORES.TAPPE, { ...tappa, createdAt: now, updatedAt: now });
         insertedAnyTappa = true;
       }
@@ -309,7 +343,7 @@ class StorageService {
       notifyDataChanged('tappe', 'save', {});
     }
 
-    // 5. Ristoranti: inserisci SOLO se mancante
+    // 5. Ristoranti: inserisci SOLO se mancante e non eliminato
     const existingRist = await idbGetAll<import('../types').Ristorante>(STORES.RISTORANTI);
     let insertedAnyRist = false;
     for (const rist of SEED_RISTORANTI) {
@@ -320,6 +354,7 @@ class StorageService {
       );
 
       if (!existing) {
+        if (await this.isItemDeleted('ristoranti', rist.id)) continue;
         await idbPut(STORES.RISTORANTI, { ...rist, createdAt: now, updatedAt: now });
         insertedAnyRist = true;
       }
@@ -328,7 +363,7 @@ class StorageService {
       notifyDataChanged('ristoranti', 'save', {});
     }
 
-    // 6. Shopping: inserisci SOLO se mancante
+    // 6. Shopping: inserisci SOLO se mancante e non eliminato
     const existingShop = await idbGetAll<import('../types').Shopping>(STORES.SHOPPING);
     let insertedAnyShop = false;
     for (const shop of SEED_SHOPPING) {
@@ -339,6 +374,7 @@ class StorageService {
       );
 
       if (!existing) {
+        if (await this.isItemDeleted('shopping', shop.id)) continue;
         await idbPut(STORES.SHOPPING, { ...shop, createdAt: now, updatedAt: now });
         insertedAnyShop = true;
       }
@@ -347,7 +383,7 @@ class StorageService {
       notifyDataChanged('shopping', 'save', {});
     }
 
-    // 7. Trasporti certificati: inserisci SOLO se mancanti (senza sovrascrivere personalizzazioni utente)
+    // 7. Trasporti certificati: inserisci SOLO se mancanti e non eliminati
     const existingTransports = await idbGetAll<import('../types').Trasporto>(STORES.TRASPORTI);
     const { initialTransports: certifiedTransports } = await import('./seedTransports');
     let insertedAnyTrn = false;
@@ -362,6 +398,7 @@ class StorageService {
       );
 
       if (!existing) {
+        if (await this.isItemDeleted('trasporti', trnId)) continue;
         await idbPut(STORES.TRASPORTI, {
           ...trn,
           id: trnId,
@@ -495,6 +532,7 @@ class StorageService {
   }
 
   async deleteActivity(id: string): Promise<void> {
+    await this.recordTombstone('attivita', id);
     await idbDelete(STORES.ATTIVITA, id);
     notifyDataChanged('attivita', 'delete', { id });
   }
@@ -530,6 +568,7 @@ class StorageService {
   }
 
   async deleteAccommodation(id: string): Promise<void> {
+    await this.recordTombstone('alloggi', id);
     await idbDelete(STORES.ALLOGGI, id);
     notifyDataChanged('alloggi', 'delete', { id });
   }
@@ -591,6 +630,7 @@ class StorageService {
   }
 
   async deleteTransport(id: string): Promise<void> {
+    await this.recordTombstone('trasporti', id);
     await idbDelete(STORES.TRASPORTI, id);
     notifyDataChanged('trasporti', 'delete', { id });
   }
@@ -778,6 +818,7 @@ class StorageService {
   }
 
   async deleteTappa(id: string): Promise<void> {
+    await this.recordTombstone('tappe', id);
     await idbDelete(STORES.TAPPE, id);
     notifyDataChanged('tappe', 'delete', { id });
   }
@@ -866,6 +907,7 @@ class StorageService {
   }
 
   async deleteRistorante(id: string): Promise<void> {
+    await this.recordTombstone('ristoranti', id);
     await idbDelete(STORES.RISTORANTI, id);
     notifyDataChanged('ristoranti', 'delete', { id });
   }
@@ -954,6 +996,7 @@ class StorageService {
   }
 
   async deleteShopping(id: string): Promise<void> {
+    await this.recordTombstone('shopping', id);
     await idbDelete(STORES.SHOPPING, id);
     notifyDataChanged('shopping', 'delete', { id });
   }

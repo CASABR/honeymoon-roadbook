@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import type { TransportAttachment } from '../../types';
+import { dataUrlToBlob, openAttachmentInNewTab } from '../../utils/fileAttachment';
 
 interface LightboxCarouselProps {
   isOpen: boolean;
@@ -74,10 +75,8 @@ export default function LightboxCarousel({
     const minSwipeDistance = 45; // pixel
 
     if (diff > minSwipeDistance) {
-      // Swipe a sinistra -> Prossimo file
       handleNext();
     } else if (diff < -minSwipeDistance) {
-      // Swipe a destra -> File precedente
       handlePrev();
     }
 
@@ -85,10 +84,38 @@ export default function LightboxCarousel({
     touchEndX.current = null;
   };
 
-  if (!isOpen || allItems.length === 0) return null;
-
   const currentItem = allItems[currentIndex] || allItems[0];
-  const isPdf = currentItem.type === 'pdf' || currentItem.name?.toLowerCase().endsWith('.pdf') || currentItem.dataUrl?.startsWith('data:application/pdf');
+  const isPdf = currentItem ? (currentItem.type === 'pdf' || currentItem.name?.toLowerCase().endsWith('.pdf') || currentItem.dataUrl?.startsWith('data:application/pdf')) : false;
+
+  // Crea un Blob URL stabile per il visualizzatore PDF (risolve il blocco delle data URL negli iframe)
+  const currentBlobUrl = useMemo(() => {
+    if (!isOpen || !currentItem || !currentItem.dataUrl) return '';
+    if (isPdf && currentItem.dataUrl.startsWith('data:')) {
+      try {
+        const blob = dataUrlToBlob(currentItem.dataUrl);
+        return URL.createObjectURL(blob);
+      } catch (e) {
+        console.warn('Errore conversione Blob PDF:', e);
+        return currentItem.dataUrl;
+      }
+    }
+    return currentItem.dataUrl;
+  }, [isOpen, currentItem, isPdf]);
+
+  // Rilascia i blob URL temporanei alla chiusura o cambio file
+  useEffect(() => {
+    return () => {
+      if (currentBlobUrl && currentBlobUrl.startsWith('blob:')) {
+        URL.revokeObjectURL(currentBlobUrl);
+      }
+    };
+  }, [currentBlobUrl]);
+
+  if (!isOpen || allItems.length === 0 || !currentItem) return null;
+
+  const handleOpenExternal = () => {
+    openAttachmentInNewTab(currentItem.dataUrl, currentItem.name);
+  };
 
   const lightboxNode = (
     <div
@@ -123,13 +150,24 @@ export default function LightboxCarousel({
         </div>
 
         <div className="flex items-center gap-2">
+          {isPdf && (
+            <button
+              type="button"
+              onClick={handleOpenExternal}
+              className="px-3 py-1.5 rounded-full bg-sky-500/30 hover:bg-sky-500/50 border border-sky-400/40 text-sky-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              title="Apri a schermo intero in una nuova scheda"
+            >
+              <span>Apri a schermo intero</span>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </button>
+          )}
           <a
             href={currentItem.dataUrl}
             download={currentItem.name}
-            target="_blank"
-            rel="noopener noreferrer"
             className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
-            title="Scarica / Apri file"
+            title="Scarica documento"
           >
             <span>Scarica</span>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -167,13 +205,23 @@ export default function LightboxCarousel({
         {/* Visualizzatore: PDF incorporato o Immagine ad alta risoluzione */}
         <div className="w-full h-full max-h-[76vh] bg-slate-900/90 rounded-2xl sm:rounded-3xl shadow-2xl flex items-center justify-center overflow-hidden border border-white/10 p-1 sm:p-2">
           {isPdf ? (
-            <div className="w-full h-full flex flex-col items-center justify-center">
+            <div className="w-full h-full flex flex-col items-center justify-center relative">
               <iframe
                 key={currentItem.id}
-                src={currentItem.dataUrl}
+                src={`${currentBlobUrl}#toolbar=1&navpanes=0`}
                 title={currentItem.name}
                 className="w-full h-full rounded-xl border-0 bg-white"
               />
+              <div className="absolute bottom-2 right-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleOpenExternal}
+                  className="px-3 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-900 text-white text-xs font-bold border border-white/20 shadow-lg cursor-pointer flex items-center gap-1.5 backdrop-blur-sm"
+                >
+                  <span>Apri in nuova scheda</span>
+                  <span>↗</span>
+                </button>
+              </div>
             </div>
           ) : (
             <div className="w-full h-full bg-white/5 rounded-xl flex items-center justify-center overflow-hidden p-2">

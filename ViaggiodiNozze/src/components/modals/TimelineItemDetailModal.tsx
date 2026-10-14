@@ -2,6 +2,7 @@ import type { TimelineItem, Attivita, Trasporto } from '../../types';
 import Modal from '../common/Modal';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
 import { useDeviceRole } from '../../utils/useDeviceRole';
+import { openAttachmentInNewTab } from '../../utils/fileAttachment';
 
 interface TimelineItemDetailModalProps {
   isOpen: boolean;
@@ -213,8 +214,7 @@ export default function TimelineItemDetailModal({
                           onClick={() => {
                             const content = attach.dataUrl;
                             if (content) {
-                              const w = window.open();
-                              if (w) w.document.write(`<iframe src="${content}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
+                              openAttachmentInNewTab(content, attach.name);
                             } else {
                               alert('Allegato non disponibile');
                             }
@@ -322,14 +322,35 @@ export default function TimelineItemDetailModal({
                   </div>
                 )}
 
-                {tr.noteCopilota && (
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-                      Note Operative Copilota
-                    </span>
-                    <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
-                      {tr.noteCopilota}
-                    </p>
+                {tr.attachments && tr.attachments.length > 0 && (
+                  <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 flex flex-col gap-2">
+                    <div className="flex items-center justify-between text-xs text-sky-900">
+                      <span className="font-semibold flex items-center gap-1.5">
+                        <span>🎟️</span>
+                        <span>{tr.attachments.length} biglietti/allegati caricati</span>
+                      </span>
+                      <span className="text-[10px] text-sky-600 font-bold">Disponibili offline</span>
+                    </div>
+                    <div className="grid gap-2">
+                      {tr.attachments.map((attach, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            const content = attach.dataUrl;
+                            if (content) {
+                              openAttachmentInNewTab(content, attach.name);
+                            } else {
+                              alert('Allegato non disponibile');
+                            }
+                          }}
+                          className="w-full text-left px-3 py-2 bg-white rounded-lg border border-sky-100 hover:border-sky-300 transition-colors flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span className="truncate font-medium">{attach.name}</span>
+                          <span className="shrink-0 text-sky-600">Apri ↗</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

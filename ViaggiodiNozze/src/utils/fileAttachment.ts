@@ -1,6 +1,64 @@
 import type { TransportAttachment } from '../types';
 
 /**
+ * Converte un Data URL (base64) in un oggetto Blob nativo con corretto MIME-type.
+ */
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const parts = dataUrl.split(',');
+  const mimeMatch = parts[0].match(/:(.*?);/);
+  const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+  const bstr = atob(parts[1] || '');
+  let n = bstr.length;
+  const u8arr = new Uint8Array(n);
+  while (n--) {
+    u8arr[n] = bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr], { type: mime });
+}
+
+/**
+ * Apre in sicurezza un allegato (PDF o immagine) in una nuova scheda del browser
+ * convertendo data URL in Object URL blob temporaneo per massima compatibilità (desktop & mobile).
+ */
+export function openAttachmentInNewTab(dataUrl: string, fileName = 'documento.pdf'): void {
+  try {
+    let targetUrl = dataUrl;
+    let revokeNeeded = false;
+
+    if (dataUrl.startsWith('data:')) {
+      const blob = dataUrlToBlob(dataUrl);
+      targetUrl = URL.createObjectURL(blob);
+      revokeNeeded = true;
+    }
+
+    const win = window.open(targetUrl, '_blank');
+    if (!win) {
+      // Fallback in caso di blocco popup del browser: download diretto
+      const a = document.createElement('a');
+      a.href = targetUrl;
+      a.download = fileName;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    if (revokeNeeded) {
+      setTimeout(() => URL.revokeObjectURL(targetUrl), 60000);
+    }
+  } catch (err) {
+    console.error('Errore apertura documento:', err);
+    // Fallback estremo download
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  }
+}
+
+/**
  * Converte un File in Base64 Data URL.
  */
 function readFileAsDataUrl(file: File): Promise<string> {
