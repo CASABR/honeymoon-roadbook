@@ -6,7 +6,7 @@ import {
   updateBookingAttachments,
   deleteBookingItem
 } from '../../services/unifiedBookingService';
-import { processFileForAttachment, formatFileSize } from '../../utils/fileAttachment';
+import { processFileForAttachment, formatFileSize, openAttachmentInNewTab } from '../../utils/fileAttachment';
 import type { TransportAttachment } from '../../types';
 import LightboxCarousel from '../common/LightboxCarousel';
 
@@ -389,6 +389,15 @@ export default function UnifiedBookingDetailModal({
                         >
                           <span>Sfoglia</span>
                           <span>🔍</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openAttachmentInNewTab(att.dataUrl, att.name)}
+                          className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 text-[11px] font-bold cursor-pointer flex items-center gap-1"
+                          title="Apri in nuova scheda"
+                        >
+                          <span>Apri</span>
+                          <span>↗</span>
                         </button>
                         <a
                           href={att.dataUrl}

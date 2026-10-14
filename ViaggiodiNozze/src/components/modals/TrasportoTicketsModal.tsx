@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import type { Trasporto, TransportAttachment } from '../../types';
 import Modal from '../common/Modal';
 import LightboxCarousel from '../common/LightboxCarousel';
-import { processFileForAttachment, formatFileSize } from '../../utils/fileAttachment';
+import { processFileForAttachment, formatFileSize, openAttachmentInNewTab } from '../../utils/fileAttachment';
 import { storageService } from '../../storage/storageService';
 
 interface TrasportoTicketsModalProps {
@@ -88,25 +88,7 @@ export default function TrasportoTicketsModal({
   };
 
   const handleOpenPdf = (dataUrl: string, fileName: string) => {
-    try {
-      const win = window.open();
-      if (win) {
-        win.document.write(
-          `<title>${fileName}</title><iframe src="${dataUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`
-        );
-      } else {
-        // Fallback su download diretto
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = fileName;
-        a.click();
-      }
-    } catch {
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = fileName;
-      a.click();
-    }
+    openAttachmentInNewTab(dataUrl, fileName);
   };
 
   return (

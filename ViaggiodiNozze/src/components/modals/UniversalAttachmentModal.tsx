@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import type { TransportAttachment } from '../../types';
 import Modal from '../common/Modal';
 import LightboxCarousel from '../common/LightboxCarousel';
-import { processFileForAttachment, formatFileSize } from '../../utils/fileAttachment';
+import { processFileForAttachment, formatFileSize, openAttachmentInNewTab } from '../../utils/fileAttachment';
 import { Trash2, Plus, Download, FileText } from 'lucide-react';
 
 interface UniversalAttachmentModalProps {
@@ -65,10 +65,7 @@ export default function UniversalAttachmentModal({
   };
 
   const handleOpenPdf = (dataUrl: string, fileName: string) => {
-    const a = document.createElement('a');
-    a.href = dataUrl;
-    a.download = fileName;
-    a.click();
+    openAttachmentInNewTab(dataUrl, fileName);
   };
 
   const renderContent = () => {

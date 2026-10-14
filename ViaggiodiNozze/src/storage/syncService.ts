@@ -32,6 +32,14 @@ export class SyncService {
             const serverData = docSnap.data();
             const docId = docSnap.id;
             serverDocIds.add(docId);
+
+            // Se l'elemento è stato contrassegnato come eliminato (tombstone), non scaricarlo in locale
+            const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${fb}_${docId}`);
+            if (tombstoneSetting && tombstoneSetting.value) {
+              await deleteDoc(doc(db, 'trips', this.tripId, fb, docId)).catch(() => {});
+              continue;
+            }
+
             const localData = await idbGet<any>(store, docId);
 
             if (localData && localData.updatedAt && (localData.updatedAt > (serverData.updatedAt || 0))) {
@@ -213,6 +221,15 @@ export class SyncService {
           if (change.type === 'added' || change.type === 'modified') {
             promises.push(
               (async () => {
+                // Se l'elemento è stato eliminato intenzionalmente (tombstone), non reinserirlo!
+                const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${fb}_${docId}`);
+                if (tombstoneSetting && tombstoneSetting.value) {
+                  console.log(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Elemento contrassegnato da tombstone (eliminato)`);
+                  // Eliminiamo anche da Firestore se ancora presente per allineare il cloud
+                  await deleteDoc(doc(db, 'trips', this.tripId, fb, docId)).catch(() => {});
+                  return;
+                }
+
                 try {
                   const localData = await idbGet<any>(store, docId);
                   if (localData && localData.updatedAt) {
