@@ -19,6 +19,7 @@ import TappaCard from '../components/cards/TappaCard';
 import ShoppingCard from '../components/cards/ShoppingCard';
 import InTransitBanner from '../components/common/InTransitBanner';
 import UniversalCopilotaModal from '../components/modals/UniversalCopilotaModal';
+import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
 import { useDeviceRole } from '../utils/useDeviceRole';
 
 interface OggiViewProps {
@@ -145,6 +146,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [editingAlloggioItem, setEditingAlloggioItem] = useState<Alloggio | null>(null);
   const [editingRistoranteItem, setEditingRistoranteItem] = useState<Ristorante | null>(null);
   const [editingShoppingItem, setEditingShoppingItem] = useState<Shopping | null>(null);
+  const [activeCollision, setActiveCollision] = useState<TimeCollision | null>(null);
 
   const scrollToCurrentEvent = useCallback(() => {
     if (!timeline || timeline.length === 0) return;
@@ -215,6 +217,53 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     }
     
     setTimeline(filteredItems);
+
+    // Rilevamento collisioni orarie (2 o più eventi allo stesso orario non fittizio)
+    try {
+      const byTime: { [time: string]: TimelineItem[] } = {};
+      filteredItems.forEach(item => {
+        if (!item.time || item.time === '00:00' || item.time === '12:00' && item.type === 'tappa') return;
+        // Non considerare segmenti di transito o arrivo collegati dello stesso volo
+        if (item.id.endsWith('_arrival') || item.id.endsWith('_state')) return;
+        if (!byTime[item.time]) byTime[item.time] = [];
+        byTime[item.time].push(item);
+      });
+
+      let foundCollision: TimeCollision | null = null;
+      for (const [tStr, tList] of Object.entries(byTime)) {
+        if (tList.length > 1) {
+          // Filtra coppie note: stesso id base, alloggio su più giorni, o segmenti dello stesso volo
+          const first = tList[0];
+          const second = tList[1];
+          if (first.id === second.id) continue;
+          if (first.originalData?.id && first.originalData.id === second.originalData?.id) continue;
+          
+          // Se entrambi sono segmenti dello stesso itinerario di volo (es. CA950 e CA783)
+          if (first.type === 'trasporto' && second.type === 'trasporto') {
+            const tr1 = first.originalData as Trasporto;
+            const tr2 = second.originalData as Trasporto;
+            if (tr1.bookingCode && tr2.bookingCode && tr1.bookingCode === tr2.bookingCode) {
+              continue; // stesso PNR / codice prenotazione legittima
+            }
+          }
+
+          const collisionKey = `collision_dismissed_${first.id}_${second.id}`;
+          const isDismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey);
+          if (!isDismissed) {
+            foundCollision = {
+              id: collisionKey,
+              time: tStr,
+              itemA: first,
+              itemB: second
+            };
+            break;
+          }
+        }
+      }
+      setActiveCollision(foundCollision);
+    } catch (collErr) {
+      console.warn('[OggiView] Collision check error:', collErr);
+    }
     
     // Day map link
     const link = await storageService.getDayMapLink(target);
@@ -262,10 +311,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     } catch (err) {}
   }, [selectedDate]);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (isInitial = false) => {
     fetchGlobalCopilotNote();
     try {
-      setLoading(true);
+      if (isInitial && daysData.length === 0) {
+        setLoading(true);
+      }
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Timeout caricamento dati (1.5s)')), 1500)
       );
@@ -376,7 +427,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   }, []);
 
   useEffect(() => {
-    loadData();
+    loadData(true);
   }, [loadData]);
 
   useEffect(() => {
@@ -406,19 +457,18 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       const targetDate = customEvt.detail?.data?.date || customEvt.detail?.data?.data;
       const isCloud = customEvt.detail?.source === 'cloud';
       
-      // Ricarichiamo sempre la timeline e i dati senza forzare il cambio di giornata se l'utente sta consultando un giorno specifico
+      // Ricarichiamo la timeline e i dati senza mostrare schermate di caricamento
       if (targetDate && !isCloud) {
-        // Ricarica la timeline del giorno attualmente selezionato e del target
         fetchTimeline();
       } else {
         fetchTimeline();
       }
-      loadData();
+      loadData(false);
     };
 
     const handleActivityUpdated = () => {
       fetchTimeline();
-      loadData();
+      loadData(false);
     };
 
     window.addEventListener('roadbook_data_mutated', handleDataMutated);
@@ -1023,12 +1073,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         </div>
 
 
-        {/* Sequenza Unificata: timeline + eventuale alloggio notturno */}
+        {/* Sequenza Unificata: timeline con sezioni chiare + alloggio fisso in fondo */}
         {(() => {
           // Prepara gli elementi di percorso sequenziali
           const dayItems: {
             id: string;
-            type: 'trasporto' | 'tappa' | 'attivita' | 'ristorante' | 'alloggio' | 'shopping';
+            type: 'trasporto' | 'tappa' | 'attivita' | 'ristorante' | 'alloggio' | 'shopping' | 'checkin_callout';
             time: string;
             title: string;
             location: string;
@@ -1055,7 +1105,15 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             return timeA.localeCompare(timeB);
           });
 
+          // Se l'alloggio notturno ha un check-in orario che cade durante il giorno prima dell'ultimo evento,
+          // generiamo un piccolo richiamo informativo cronologico 'checkin_callout'
+          const checkInTime = tonightsAccommodation?.checkInTime;
+          let addedCheckinCallout = false;
+
           sortedTimeline.forEach(item => {
+            // Evitiamo che la card alloggio completa compaia nel mezzo della giornata
+            if (item.type === 'alloggio') return;
+
             let departurePoint = item.location;
             let arrivalPoint = item.location;
 
@@ -1063,6 +1121,27 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               const tr = item.originalData as Trasporto;
               departurePoint = tr.departureLocation || item.location;
               arrivalPoint = tr.dropoffLocation || tr.arrivalLocation || item.location;
+            }
+
+            // Inserisci richiamo informativo se l'orario di check-in è precedente all'item corrente
+            if (
+              tonightsAccommodation &&
+              checkInTime &&
+              !addedCheckinCallout &&
+              item.time &&
+              item.time >= checkInTime
+            ) {
+              const accLoc = tonightsAccommodation.address || tonightsAccommodation.location || tonightsAccommodation.name;
+              dayItems.push({
+                id: `checkin_callout_${tonightsAccommodation.id}`,
+                type: 'checkin_callout',
+                time: checkInTime,
+                title: `Check-in disponibile: ${tonightsAccommodation.name}`,
+                location: accLoc,
+                coordinate: tonightsAccommodation.coordinate,
+                originalData: tonightsAccommodation
+              });
+              addedCheckinCallout = true;
             }
 
             dayItems.push({
@@ -1083,30 +1162,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             });
           });
 
-          // Aggiungi alloggio notturno come ultima tappa fissa della sequenza se presente (evitando duplicazioni se già presente con stesso id)
-          if (tonightsAccommodation) {
-            const accLoc = tonightsAccommodation.address || tonightsAccommodation.location || tonightsAccommodation.name;
-            const alreadyIn = dayItems.some(item => item.id === tonightsAccommodation.id || item.id === `lodging_${tonightsAccommodation.id}` || item.originalData?.id === tonightsAccommodation.id);
-            if (!alreadyIn) {
-              dayItems.push({
-                id: `lodging_${tonightsAccommodation.id}`,
-                type: 'alloggio',
-                time: tonightsAccommodation.checkInTime || '21:00',
-                title: tonightsAccommodation.name,
-                location: accLoc,
-                departurePoint: accLoc,
-                arrivalPoint: accLoc,
-                coordinate: tonightsAccommodation.coordinate,
-                originalData: tonightsAccommodation,
-                copilota: tonightsAccommodation.copilota
-              });
-            }
-          }
-
           const activeStates = dayItems.filter(i => i.displayMode === 'state');
           const visibleCards = dayItems.filter(i => i.displayMode !== 'state');
 
-          if (dayItems.length === 0) {
+          if (dayItems.length === 0 && !tonightsAccommodation) {
             return (
               <div className="bg-slate-100/60 rounded-3xl border border-slate-200 border-dashed p-6 text-center">
                 <span className="text-2xl mb-1 block">🏖️</span>
@@ -1117,148 +1176,200 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           }
 
           return (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {activeStates.length > 0 && (
                 <div className="flex flex-col gap-2 mb-4">
                   {activeStates.map((stateItem, idx) => (
-                    <div key={`state-${idx}`} className="bg-amber-50 border border-amber-200/90 rounded-2xl p-3 shadow-xs flex items-center justify-center text-center">
+                    <div key={`state-${stateItem.id || idx}`} className="bg-amber-50 border border-amber-200/90 rounded-2xl p-3 shadow-xs flex items-center justify-center text-center">
                        <span className="text-[11px] font-bold text-amber-800 tracking-tight">{stateItem.stateLabel}</span>
                     </div>
                   ))}
                 </div>
               )}
-              {visibleCards.map((item, idx) => {
-                const nextItem = visibleCards[idx + 1];
 
-                // Punti di routing punto-a-punto verso il prossimo elemento
-                // DALL'ARRIVO di questo elemento -> ALLA PARTENZA del prossimo
-                const fromLoc = item.arrivalPoint || item.location;
-                const toLoc = nextItem ? (nextItem.departurePoint || nextItem.location) : '';
-                const fromCoord = item.coordinate;
-                const toCoord = nextItem ? nextItem.coordinate : undefined;
-
-                const isLodging = item.type === 'alloggio';
-                const isTransport = item.type === 'trasporto';
-                const isTappa = item.type === 'tappa';
-                const isRistorante = item.type === 'ristorante';
-                const isShopping = item.type === 'shopping';
-                const isAttivita = item.type === 'attivita';
-
-                return (
-                  <div key={`${item.id}-${idx}`} ref={(el) => { timelineItemRefs.current[item.id] = el; }}>
-                    {/* CARD DELL'ELEMENTO NELLA SEQUENZA */}
-                    {isTransport ? (
-                      item.id.endsWith('_arrival') || item.id.endsWith('_state') ? (
-                        <InTransitBanner transport={item.originalData as Trasporto} dateStr={selectedDate} />
-                      ) : (
-                        /* Card Biglietto di Viaggio / Boarding Pass per i Trasporti */
-                        <TrasportoCard
-                          transport={item.originalData as Trasporto}
-                          variant={item.displayMode === 'compact' ? 'compact' : 'full'}
-                          onEdit={() => setEditingTransportItem(item.originalData as Trasporto)}
-                          onDelete={async () => {
-                            await storageService.deleteTransport(item.originalData?.id || '');
-                            await fetchTimeline();
-                          }}
-                          onUpdate={() => fetchTimeline()}
-                        />
-                      )
-                    ) : isLodging ? (
-                      <AlloggioCard
-                        accommodation={item.originalData}
-                        onEdit={() => {
-                          const found = timeline.find(t => t.id === item.id);
-                          if (found) setDetailItem(found);
-                        }}
-                        onDelete={async () => {
-                          await storageService.deleteAccommodation(item.originalData?.id || '');
-                          await fetchTimeline();
-                        }}
-                      />
-                    ) : isAttivita ? (
-                      <AttivitaCard
-                        activity={item.originalData as Attivita}
-                        onEdit={() => {
-                          const found = timeline.find(t => t.id === item.id);
-                          if (found) setDetailItem(found);
-                        }}
-                        onDelete={async () => {
-                          await storageService.deleteActivity(item.originalData?.id || '');
-                          await fetchTimeline();
-                        }}
-                        onUpdate={() => fetchTimeline()}
-                      />
-                    ) : isRistorante ? (
-                      <RistoranteCard
-                        ristorante={item.originalData}
-                        onEdit={() => {
-                          const found = timeline.find(t => t.id === item.id);
-                          if (found) setDetailItem(found);
-                        }}
-                        onDelete={async () => {
-                          await storageService.deleteRistorante(item.originalData?.id || '');
-                          await fetchTimeline();
-                        }}
-                      />
-                    ) : isShopping ? (
-                      <ShoppingCard
-                        shopping={item.originalData}
-                        onEdit={() => {
-                          const found = timeline.find(t => t.id === item.id);
-                          if (found) setDetailItem(found);
-                        }}
-                        onDelete={async () => {
-                          await storageService.deleteShopping(item.originalData?.id || '');
-                          await fetchTimeline();
-                        }}
-                      />
-                    ) : isTappa ? (
-                      <TappaCard
-                        tappa={item.originalData}
-                        onEdit={() => {
-                          const found = timeline.find(t => t.id === item.id);
-                          if (found) setDetailItem(found);
-                        }}
-                        onDelete={async () => {
-                          await storageService.deleteTappa(item.originalData?.id || '');
-                          await fetchTimeline();
-                        }}
-                      />
-                    ) : (
-                      /* Fallback generico per altri tipi se esistono */
-                      <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm text-center text-slate-500 text-sm">
-                        {item.title} (Supporto non completo)
-                      </div>
-                    )}
-
-                    {/* ROUTEBADGE SEQUENZIALE TRA QUESTO ELEMENTO E IL SUCCESSIVO */}
-                    {nextItem && fromLoc && toLoc && fromLoc.trim().toLowerCase() !== toLoc.trim().toLowerCase() && (
-                      <div className="flex items-center justify-center py-1">
-                        <RouteBadge
-                          routeId={`seq_${item.id}_${nextItem.id}`}
-                          from={fromLoc}
-                          to={toLoc}
-                          fromCoord={fromCoord}
-                          toCoord={toCoord}
-                          className="scale-95 shadow-xs"
-                        />
-                      </div>
-                    )}
+              {/* TIMELINE CRONOLOGICA DEGLI EVENTI DI GIORNATA */}
+              {visibleCards.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 px-1 pt-1">
+                    <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
+                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                      Itinerario &amp; Tappe di Giornata
+                    </span>
                   </div>
-                );
-              })}
+
+                  {visibleCards.map((item, idx) => {
+                    const nextItem = visibleCards[idx + 1];
+
+                    const fromLoc = item.arrivalPoint || item.location;
+                    const toLoc = nextItem ? (nextItem.departurePoint || nextItem.location) : '';
+                    const fromCoord = item.coordinate;
+                    const toCoord = nextItem ? nextItem.coordinate : undefined;
+
+                    const isCheckinCallout = item.type === 'checkin_callout';
+                    const isTransport = item.type === 'trasporto';
+                    const isTappa = item.type === 'tappa';
+                    const isRistorante = item.type === 'ristorante';
+                    const isShopping = item.type === 'shopping';
+                    const isAttivita = item.type === 'attivita';
+
+                    return (
+                      <div key={item.id} ref={(el) => { timelineItemRefs.current[item.id] = el; }}>
+                        {isCheckinCallout ? (
+                          /* Tappa informativa rapida per check-in senza duplicazioni economiche */
+                          <div
+                            onClick={() => {
+                              const targetEl = timelineItemRefs.current[`lodging_${tonightsAccommodation?.id}`];
+                              if (targetEl) {
+                                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              }
+                            }}
+                            className="bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/70 dark:border-purple-800/60 rounded-2xl p-3 flex items-center justify-between gap-3 hover:bg-purple-100/60 transition-all cursor-pointer shadow-2xs"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <span className="w-7 h-7 rounded-xl bg-purple-100 dark:bg-purple-900/60 flex items-center justify-center text-sm shrink-0">
+                                🏨
+                              </span>
+                              <div className="min-w-0">
+                                <span className="block text-[11px] font-extrabold text-purple-900 dark:text-purple-200 truncate">
+                                  {item.title}
+                                </span>
+                                <span className="block text-[10px] text-purple-600 dark:text-purple-400 truncate">
+                                  Dalle ore {item.time} • Clicca per vedere la scheda in basso
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-xs font-bold text-purple-600 dark:text-purple-400 shrink-0">
+                              Vedi alloggio ↓
+                            </span>
+                          </div>
+                        ) : isTransport ? (
+                          item.id.endsWith('_arrival') || item.id.endsWith('_state') ? (
+                            <InTransitBanner transport={item.originalData as Trasporto} dateStr={selectedDate} />
+                          ) : (
+                            <TrasportoCard
+                              transport={item.originalData as Trasporto}
+                              variant={item.displayMode === 'compact' ? 'compact' : 'full'}
+                              onEdit={() => setEditingTransportItem(item.originalData as Trasporto)}
+                              onDelete={async () => {
+                                await storageService.deleteTransport(item.originalData?.id || '');
+                                await fetchTimeline();
+                              }}
+                              onUpdate={() => fetchTimeline()}
+                            />
+                          )
+                        ) : isAttivita ? (
+                          <AttivitaCard
+                            activity={item.originalData as Attivita}
+                            onEdit={() => {
+                              const found = timeline.find(t => t.id === item.id);
+                              if (found) setDetailItem(found);
+                            }}
+                            onDelete={async () => {
+                              await storageService.deleteActivity(item.originalData?.id || '');
+                              await fetchTimeline();
+                            }}
+                            onUpdate={() => fetchTimeline()}
+                          />
+                        ) : isRistorante ? (
+                          <RistoranteCard
+                            ristorante={item.originalData}
+                            onEdit={() => {
+                              const found = timeline.find(t => t.id === item.id);
+                              if (found) setDetailItem(found);
+                            }}
+                            onDelete={async () => {
+                              await storageService.deleteRistorante(item.originalData?.id || '');
+                              await fetchTimeline();
+                            }}
+                          />
+                        ) : isShopping ? (
+                          <ShoppingCard
+                            shopping={item.originalData}
+                            onEdit={() => {
+                              const found = timeline.find(t => t.id === item.id);
+                              if (found) setDetailItem(found);
+                            }}
+                            onDelete={async () => {
+                              await storageService.deleteShopping(item.originalData?.id || '');
+                              await fetchTimeline();
+                            }}
+                          />
+                        ) : isTappa ? (
+                          <TappaCard
+                            tappa={item.originalData}
+                            onEdit={() => {
+                              const found = timeline.find(t => t.id === item.id);
+                              if (found) setDetailItem(found);
+                            }}
+                            onDelete={async () => {
+                              await storageService.deleteTappa(item.originalData?.id || '');
+                              await fetchTimeline();
+                            }}
+                          />
+                        ) : (
+                          <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm text-center text-slate-500 text-sm">
+                            {item.title}
+                          </div>
+                        )}
+
+                        {/* ROUTEBADGE SEQUENZIALE */}
+                        {nextItem && fromLoc && toLoc && fromLoc.trim().toLowerCase() !== toLoc.trim().toLowerCase() && (
+                          <div className="flex items-center justify-center py-1">
+                            <RouteBadge
+                              routeId={`seq_${item.id}_${nextItem.id}`}
+                              from={fromLoc}
+                              to={toLoc}
+                              fromCoord={fromCoord}
+                              toCoord={toCoord}
+                              className="scale-95 shadow-xs"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* SEZIONE SPECIALE: ALLOGGIO PER STANOTTE (Sempre fissa a fine giornata) */}
+              <div className="pt-2">
+                <div className="flex items-center gap-2 px-1 mb-2">
+                  <span className="w-2 h-2 rounded-full bg-purple-500" />
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-600 dark:text-purple-400">
+                    Alloggio per Stanotte
+                  </span>
+                </div>
+
+                {tonightsAccommodation ? (
+                  <div
+                    ref={(el) => {
+                      timelineItemRefs.current[`lodging_${tonightsAccommodation.id}`] = el;
+                    }}
+                  >
+                    <AlloggioCard
+                      accommodation={tonightsAccommodation}
+                      onEdit={() => {
+                        const found = timeline.find(t => t.id === `lodging_${tonightsAccommodation.id}` || t.id === tonightsAccommodation.id);
+                        if (found) setDetailItem(found);
+                        else setEditingAlloggioItem(tonightsAccommodation);
+                      }}
+                      onDelete={async () => {
+                        await storageService.deleteAccommodation(tonightsAccommodation.id);
+                        await fetchTimeline();
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-3.5 text-center text-xs text-slate-500">
+                    <p className="font-semibold text-slate-700 dark:text-slate-300">Nessun alloggio fissato per stanotte</p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">Pernottamento libero, camping van o tratta in volo notturno.</p>
+                  </div>
+                )}
+              </div>
             </div>
           );
         })()}
       </div>
-
-      {/* Se non c'era alloggio per stanotte ma vogliamo comunicarlo chiaramente all'utente */}
-      {!tonightsAccommodation && (
-        <div className="bg-slate-50 rounded-2xl border border-slate-200/80 p-3.5 text-center text-xs text-slate-500">
-          <p className="font-semibold text-slate-700">Nessun alloggio fissato per stanotte</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Pernottamento libero, camping van o tratta in volo notturno.</p>
-        </div>
-      )}
 
       {/* QUICK ACTIONS 2-COLONNE: Emergenze & SOS + Registra Spesa */}
       <div className="grid grid-cols-2 gap-3 mt-1 mb-4">
@@ -1487,6 +1598,41 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           onCancel={() => setEditingShoppingItem(null)}
         />
       </Modal>
+
+      {/* Modale Rilevamento Sovrapposizione Oraria */}
+      <TimeCollisionModal
+        collision={activeCollision}
+        onKeepBoth={() => {
+          if (activeCollision && typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(activeCollision.id, 'keep');
+          }
+          setActiveCollision(null);
+        }}
+        onDeleteItem={async (itemId, itemType) => {
+          try {
+            if (itemType === 'trasporto') await storageService.deleteTransport(itemId);
+            else if (itemType === 'attivita') await storageService.deleteActivity(itemId);
+            else if (itemType === 'ristorante') await storageService.deleteRistorante(itemId);
+            else if (itemType === 'shopping') await storageService.deleteShopping(itemId);
+            else if (itemType === 'tappa') await storageService.deleteTappa(itemId);
+            else if (itemType === 'alloggio') await storageService.deleteAccommodation(itemId);
+            
+            if (activeCollision && typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem(activeCollision.id, 'resolved');
+            }
+            setActiveCollision(null);
+            await fetchTimeline();
+          } catch (err) {
+            console.error('Errore eliminazione collisione:', err);
+          }
+        }}
+        onDismiss={() => {
+          if (activeCollision && typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(activeCollision.id, 'dismissed');
+          }
+          setActiveCollision(null);
+        }}
+      />
 
       {/* Popover / Modale Note del Co-pilota (Stile iOS con modifica diretta) */}
       {copilotPopoverActivity && (

@@ -182,6 +182,9 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
       storageService.ensureRefuels().catch(console.error);
     });
     saveTripConfig(tempConfig);
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('houni_onboarding_completed_v1', 'true');
+    }
     if (onComplete) onComplete(tempConfig);
 
     if (aiAction) {

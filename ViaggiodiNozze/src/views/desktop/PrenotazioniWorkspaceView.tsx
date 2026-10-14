@@ -36,9 +36,11 @@ export default function PrenotazioniWorkspaceView({
   const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<UnifiedBookingItem | null>(null);
   const [isSmartInsertOpen, setIsSmartInsertOpen] = useState(false);
 
-  const loadBookings = useCallback(async () => {
+  const loadBookings = useCallback(async (isInitial = false) => {
     try {
-      setLoading(true);
+      if (isInitial && bookings.length === 0) {
+        setLoading(true);
+      }
       const data = await getAllUnifiedBookings();
       setBookings(data);
     } catch (err) {
@@ -46,16 +48,16 @@ export default function PrenotazioniWorkspaceView({
     } finally {
       setLoading(false);
     }
+  }, [bookings.length]);
+
+  useEffect(() => {
+    loadBookings(true);
   }, []);
 
-  useEffect(() => {
-    loadBookings();
-  }, [loadBookings]);
-
-  // Ascolta mutazioni dati e sincronizzazione cloud
+  // Ascolta mutazioni dati e sincronizzazione cloud senza mostrare lo spinner di caricamento
   useEffect(() => {
     const handleRefresh = () => {
-      loadBookings();
+      loadBookings(false);
     };
     window.addEventListener('roadbook_data_mutated', handleRefresh);
     window.addEventListener('roadbook_cloud_synced', handleRefresh);
