@@ -232,16 +232,21 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     }
   }, [selectedDate]);
 
-  // Auto-scroll cronologico alla tappa/evento più vicino all'orario attuale
+  const hasInitialScrolledRef = useRef<string | null>(null);
+
+  // Auto-scroll cronologico alla tappa/evento più vicino all'orario attuale solo al cambio data iniziale
   useEffect(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     if (selectedDate === todayStr || selectedDate === (tripDays[0]?.dateStr || '2026-11-29')) {
-      const timer = setTimeout(() => {
-        scrollToCurrentEvent();
-      }, 350);
-      return () => clearTimeout(timer);
+      if (hasInitialScrolledRef.current !== selectedDate && timeline.length > 0) {
+        hasInitialScrolledRef.current = selectedDate;
+        const timer = setTimeout(() => {
+          scrollToCurrentEvent();
+        }, 350);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [selectedDate, timeline, scrollToCurrentEvent, tripDays]);
+  }, [selectedDate, timeline.length, scrollToCurrentEvent, tripDays]);
 
   const fetchGlobalCopilotNote = useCallback(async () => {
     try {

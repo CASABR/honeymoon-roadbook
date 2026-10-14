@@ -35,6 +35,16 @@ export const initialTransports: Omit<Trasporto, 'updatedAt' | 'createdAt'>[] = [
     terminalGate: 'Partenza: Terminal 1 (MXP) | Arrivo: Terminal 3 (PEK)',
     checkinCutoff: 'Banchi check-in chiudono 60 min prima (presentarsi entro le 09:30)',
     bagagli: 'Stiva: 2 colli da 23 kg a testa (max 158 cm tot) | Cabina: 1 bagaglio da 5 kg (55x40x20 cm) + 1 accessorio personale',
+    layover: {
+      airport: 'Pechino Capital (PEK)',
+      duration: '18h 35m',
+      arrivalTime: '05:40',
+      departureDate: '2026-12-01',
+      departureTime: '00:25',
+      arrivalDate: '2026-12-01',
+      carrier: 'Air China CA783',
+      notes: 'Tratta 2: Pechino (PEK) -> Auckland (AKL) ore 00:25'
+    },
     noteCopilota: 'Scalo diurno a Pechino di 18h 35m. Uscita con visto di transito 24/144 ore per escursione a Mutianyu (Grande Muraglia) e centro. Pranzo a Siji Minfu con numero virtuale WeChat/Dianping.'
   },
   {
@@ -48,8 +58,10 @@ export const initialTransports: Omit<Trasporto, 'updatedAt' | 'createdAt'>[] = [
     arrivalLocation: 'Auckland Airport',
     departureIata: 'PEK',
     arrivalIata: 'AKL',
-    carrier: 'Air China CA783',
-    cost: '0.00',
+    carrier: 'Air China CA783 (Prosecuzione CA950)',
+    cost: 'Incluso nel pacchetto',
+    packageIncluded: true,
+    paymentStatus: undefined,
     status: 'completato' as StatoTrasporto,
     bookingCode: 'E-Ticket Nunzio: 999-6327079270 | Giusy: 999-6327079271',
     terminalGate: 'Partenza: Terminal 3 (PEK) | Arrivo: Terminal Internazionale (AKL)',

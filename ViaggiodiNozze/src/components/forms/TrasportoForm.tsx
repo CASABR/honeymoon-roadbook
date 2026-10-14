@@ -43,6 +43,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
   const [cost, setCost] = useState('');
   const [depositPaid, setDepositPaid] = useState('');
   const [isSaldato, setIsSaldato] = useState(false);
+  const [packageIncluded, setPackageIncluded] = useState(false);
 
   // Extra
   const [ticketUrl, setTicketUrl] = useState('');
@@ -90,6 +91,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
 
 
       setCost(initialData.cost || '');
+      setPackageIncluded(initialData.packageIncluded === true || (initialData.cost === 'Incluso' || initialData.cost === 'Incluso nel pacchetto'));
       const acconto = initialData.depositPaid || initialData.acconto || '';
       setDepositPaid(acconto);
       
@@ -122,6 +124,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
       setLayoverAirport('');
       setLayoverDuration('');
       setCost('');
+      setPackageIncluded(false);
       setDepositPaid('');
       setIsSaldato(false);
       setTicketUrl('');
@@ -174,16 +177,18 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
       departureLocation: departureLocation.trim(),
       departureIata: departureIata.trim() || undefined,
       
-      cost: cost.trim() || undefined,
-      depositPaid: depositPaid.trim() || undefined,
-      acconto: depositPaid.trim() || undefined,
+      cost: packageIncluded ? 'Incluso nel pacchetto' : (cost.trim() || undefined),
+      packageIncluded,
+      depositPaid: packageIncluded ? '0' : (depositPaid.trim() || undefined),
+      acconto: packageIncluded ? '0' : (depositPaid.trim() || undefined),
       
       ticketUrl: ticketUrl.trim() || undefined,
       noteCopilota: noteCopilota.trim() || undefined,
       terminalGate: terminalGate.trim() || undefined,
       checkinCutoff: checkinCutoff.trim() || undefined,
       copilota: copilota || undefined,
-      status: isSaldato ? 'completato' : (initialData?.status || 'prenotato') as StatoTrasporto,
+      paymentStatus: (packageIncluded ? undefined : (isSaldato ? 'saldato' : 'da_saldare')) as any,
+      status: (packageIncluded || isSaldato) ? 'completato' : (initialData?.status || 'prenotato') as StatoTrasporto,
     };
 
     if (isRental) {
@@ -455,66 +460,96 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
 
         {/* 7. Quadro Economico */}
         <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-          <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-3">
-            Quadro Economico
-          </label>
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                Costo Totale (€)
-              </label>
-              <input
-                type="text"
-                placeholder="es. 150.00"
-                value={cost}
-                onChange={(e) => setCost(e.target.value)}
-                className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-bold focus:outline-none focus:border-[#FF6B5F]"
-              />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                Acconto Versato (€)
-              </label>
-              <input
-                type="text"
-                placeholder="es. 50.00"
-                value={depositPaid}
-                onChange={(e) => {
-                  setDepositPaid(e.target.value);
-                  setIsSaldato(false);
-                }}
-                className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-              />
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-between pt-2 border-t border-slate-200">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => {
-            const newVal = !isSaldato;
-            setIsSaldato(newVal);
-            if (newVal && cost) {
-                setDepositPaid(cost);
-            } else if (!newVal) {
-                setDepositPaid('0');
-            }
-        }}>
+          <div className="flex items-center justify-between mb-3">
+            <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">
+              Quadro Economico
+            </label>
+            <label className="inline-flex items-center gap-1.5 cursor-pointer bg-white px-2.5 py-1 rounded-xl border border-slate-200 shadow-2xs hover:bg-sky-50 transition-colors">
               <input
                 type="checkbox"
-                checked={isSaldato}
-                readOnly
-                className="w-4 h-4 rounded text-emerald-500 bg-white border-slate-300 focus:ring-emerald-500"
+                checked={packageIncluded}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setPackageIncluded(checked);
+                  if (checked) {
+                    setCost('Incluso');
+                    setDepositPaid('0');
+                    setIsSaldato(false);
+                  } else {
+                    setCost('');
+                  }
+                }}
+                className="w-4 h-4 rounded text-sky-600 border-slate-300 focus:ring-sky-500"
               />
-              <span className="text-xs font-bold text-slate-700">Saldato interamente</span>
-            </div>
-            {cost && (
-              <div className="text-right">
-                <span className="text-[10px] uppercase text-slate-500 font-bold block">Saldo Rimanente</span>
-                <span className={`text-sm font-extrabold ${getSaldo() > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                  {getSaldo().toFixed(2)} €
-                </span>
-              </div>
-            )}
+              <span className="text-xs font-bold text-sky-800">Incluso nel pacchetto</span>
+            </label>
           </div>
+
+          {!packageIncluded ? (
+            <>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Costo Totale (€)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="es. 150.00"
+                    value={cost}
+                    onChange={(e) => setCost(e.target.value)}
+                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-bold focus:outline-none focus:border-[#FF6B5F]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                    Acconto Versato (€)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="es. 50.00"
+                    value={depositPaid}
+                    onChange={(e) => {
+                      setDepositPaid(e.target.value);
+                      setIsSaldato(false);
+                    }}
+                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => {
+                  const newVal = !isSaldato;
+                  setIsSaldato(newVal);
+                  if (newVal && cost) {
+                    setDepositPaid(cost);
+                  } else if (!newVal) {
+                    setDepositPaid('0');
+                  }
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={isSaldato}
+                    readOnly
+                    className="w-4 h-4 rounded text-emerald-500 bg-white border-slate-300 focus:ring-emerald-500"
+                  />
+                  <span className="text-xs font-bold text-slate-700">Saldato interamente</span>
+                </div>
+                {cost && (
+                  <div className="text-right">
+                    <span className="text-[10px] uppercase text-slate-500 font-bold block">Saldo Rimanente</span>
+                    <span className={`text-sm font-extrabold ${getSaldo() > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                      {getSaldo().toFixed(2)} €
+                    </span>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="p-3 bg-sky-50 border border-sky-100 rounded-xl text-xs text-sky-800 font-medium">
+              ℹ️ Servizio coperto dal pacchetto di viaggio. Non genera costi autonomi nel bilancio e non richiede pagamenti separati.
+            </div>
+          )}
         </div>
 
         {/* 8. Link & Documento */}

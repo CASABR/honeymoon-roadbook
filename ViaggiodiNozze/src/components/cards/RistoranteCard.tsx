@@ -3,6 +3,7 @@ import { useState } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
 import { resolveMapUrl } from '../../utils/mapsHelper';
+import { resolvePaymentInfo } from '../../utils/priceHelper';
 
 interface RistoranteCardProps {
   ristorante: Ristorante;
@@ -17,21 +18,29 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
   const copilotData = (ristorante as any).noteCopilota || (ristorante as any).notes || '';
   const hasCopilotNotes = Boolean(copilotData.trim());
   
-  const isSaldato = ristorante.status === 'saldato' || Boolean((ristorante as any).completed);
+  const paymentInfo = resolvePaymentInfo({
+    budget: ristorante.budget,
+    paymentStatus: (ristorante as any).paymentStatus || (ristorante.status === 'saldato' ? 'saldato' : 'da_saldare'),
+    status: ristorante.status,
+    completed: (ristorante as any).completed
+  });
+
+  const { isFree, isPaid, costNum } = paymentInfo;
 
   const handleTogglePayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isFree) return;
     try {
-      const newStatus = isSaldato ? 'da_saldare' : 'saldato';
+      const newStatus = isPaid ? 'da_saldare' : 'saldato';
       const updated: Ristorante = {
         ...ristorante,
-        status: newStatus,
-        completed: !isSaldato,
+        status: newStatus as any,
+        completed: !isPaid,
         updatedAt: Date.now()
       };
       await storageService.saveRistorante(updated);
       if (typeof onUpdate === 'function') onUpdate(updated);
-      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update' } }));
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'ristoranti', data: updated } }));
     } catch (e) {
       console.error(e);
     }
@@ -59,19 +68,20 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* Badge Saldato / Da saldare interattivo */}
-          <button
-            type="button"
-            onClick={handleTogglePayment}
-            className={`cursor-pointer hover:opacity-85 active:scale-95 transition-all text-[10px] font-bold px-2.5 py-0.5 rounded-full border shadow-2xs ${
-              isSaldato
-                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
-                : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'
-            }`}
-            title="Clicca per cambiare stato (Saldato / Da saldare)"
-          >
-            {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
-          </button>
+          {!isFree && (
+            <button
+              type="button"
+              onClick={handleTogglePayment}
+              className={`cursor-pointer hover:opacity-85 active:scale-95 transition-all text-[10px] font-bold px-2.5 py-0.5 rounded-full border shadow-2xs ${
+                isPaid
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20'
+              }`}
+              title="Clicca per cambiare stato (Saldato / Da saldare)"
+            >
+              {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
+            </button>
+          )}
 
           <button
             type="button"
@@ -91,7 +101,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
       {/* BODY */}
       <div>
         <div className="flex items-start gap-2 flex-wrap">
-          <h3 className={`text-base font-semibold text-slate-900 dark:text-white leading-snug ${isSaldato ? 'opacity-90' : ''}`}>
+          <h3 className={`text-base font-semibold text-slate-900 dark:text-white leading-snug ${isPaid ? 'opacity-90' : ''}`}>
             {ristorante.nome}
           </h3>
         </div>
@@ -106,13 +116,17 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
       {/* BOTTOM */}
       <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-2">
-          {(!ristorante.budget || isNaN(parseFloat(ristorante.budget)) || parseFloat(ristorante.budget) === 0) ? (
+          {isFree ? (
+            <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md border border-emerald-200 dark:border-emerald-800">
+              Gratuito
+            </span>
+          ) : costNum === 0 ? (
             <span className="text-xs font-medium text-slate-600 dark:text-slate-300">
               Budget non inserito
             </span>
           ) : (
             <span className="text-slate-900 dark:text-white font-semibold bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-md text-sm">
-              {parseFloat(ristorante.budget).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
+              {costNum.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
             </span>
           )}
         </div>

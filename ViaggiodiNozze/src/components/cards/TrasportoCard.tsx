@@ -4,6 +4,7 @@ import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
 import { getTransportMapTargets } from '../../utils/mapsHelper';
+import { resolvePaymentInfo } from '../../utils/priceHelper';
 
 interface TrasportoCardProps {
   transport: Trasporto;
@@ -37,15 +38,22 @@ export default function TrasportoCard({
 
   const activeMapUrl = (mapTargets.departureUrl || mapTargets.pickupUrl || mapTargets.primaryUrl || mapTargets.arrivalUrl || mapTargets.dropoffUrl);
 
-  const costNum = parseFloat(String(transport.cost || '0').replace(/[^0-9,.-]/g, '').replace(',', '.')) || 0;
-  const isIncluded = transport.cost === '0.00' || transport.cost === '0' || costNum === 0;
-  const isSaldato = transport.paymentStatus === 'saldato' || isIncluded || Boolean(transport.depositPaid && parseFloat(String(transport.depositPaid).replace(/[^0-9,.-]/g, '').replace(',', '.')) >= costNum && costNum > 0);
+  const paymentInfo = resolvePaymentInfo({
+    cost: transport.cost,
+    depositPaid: transport.depositPaid || transport.acconto,
+    paymentStatus: transport.paymentStatus,
+    status: transport.status,
+    completed: transport.completed,
+    packageIncluded: transport.packageIncluded
+  });
+
+  const { isFree, isPackageIncluded, isPaid, costNum, displayText } = paymentInfo;
 
   const handleTogglePayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isIncluded) return;
+    if (isFree || isPackageIncluded) return;
     try {
-      const newStatus = isSaldato ? 'da_saldare' : 'saldato';
+      const newStatus = isPaid ? 'da_saldare' : 'saldato';
       const costStr = transport.cost || `${costNum.toFixed(2)} €`;
       const paidVal = newStatus === 'saldato' ? costStr : '0.00 €';
       const updated: Trasporto = {
@@ -162,18 +170,18 @@ export default function TrasportoCard({
             >
               <span className="text-sm">🧭</span>
             </button>
-            {!isIncluded && (
+            {!isFree && !isPackageIncluded && (
               <button
                 type="button"
                 onClick={handleTogglePayment}
                 className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
-                  isSaldato
+                  isPaid
                     ? 'bg-[#E6F4EA] text-[#39734A] border-emerald-300 dark:bg-[#143521] dark:text-[#4ADE80] dark:border-emerald-800'
                     : 'bg-[#FFFDF2] text-amber-900 border-[#FFC857] dark:bg-[#382C0E] dark:text-[#FDE047] dark:border-[#785912]'
                 }`}
                 title="Clicca per invertire stato: Saldato / Da saldare"
               >
-                {isSaldato ? '✓ Saldato' : '⏳ Da saldare'}
+                {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
               </button>
             )}
             {transport.status && transport.status !== 'completato' && (
@@ -249,13 +257,17 @@ export default function TrasportoCard({
         {/* BOTTOM */}
         <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center">
-            {transport.cost === '0.00' || transport.cost === '0' ? (
+            {isPackageIncluded ? (
               <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-sky-700 bg-sky-50 border border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50">
                 Incluso nel pacchetto
               </span>
+            ) : isFree ? (
+              <span className="text-sm font-semibold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
+                Gratuito
+              </span>
             ) : transport.cost ? (
               <span className="text-sm font-medium tracking-normal text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
-                {transport.cost}
+                {displayText}
               </span>
             ) : (
               <span className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400">

@@ -58,6 +58,8 @@ export default function UnifiedBookingModal({
   const [uploadError, setUploadError] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
+  const [packageIncluded, setPackageIncluded] = useState(false);
+
   // Reset campi quando si apre il modale
   useEffect(() => {
     if (isOpen) {
@@ -66,6 +68,7 @@ export default function UnifiedBookingModal({
       setDate('');
       setTime('');
       setCost('');
+      setPackageIncluded(false);
       setBookingCode('');
       setNotes('');
       setNoteCopilota('');
@@ -139,6 +142,7 @@ export default function UnifiedBookingModal({
         else if (category === 'traghetto') typeVal = 'traghetto';
         else if (category === 'auto_camper') typeVal = 'auto';
 
+        const finalCost = packageIncluded ? 'Incluso nel pacchetto' : formattedCost;
         const transportPayload: any = {
           id: uniqueId,
           type: typeVal,
@@ -150,10 +154,11 @@ export default function UnifiedBookingModal({
           arrivalIata: arrivalIata.trim().toUpperCase() || undefined,
           carrier: carrier.trim() || title.trim() || undefined,
           bookingCode: bookingCode.trim() || undefined,
-          cost: formattedCost,
+          cost: finalCost,
+          packageIncluded: packageIncluded || undefined,
           posti: posti.trim() || undefined,
           noteCopilota: noteCopilota.trim() || undefined,
-          status: 'prenotato',
+          status: packageIncluded ? 'completato' : 'prenotato',
           attachments,
           createdAt: now,
           updatedAt: now
@@ -638,15 +643,34 @@ export default function UnifiedBookingModal({
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
-                Costo Totale (€)
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
+                  Costo Totale (€)
+                </label>
+                {(category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper') && (
+                  <label className="inline-flex items-center gap-1.5 cursor-pointer text-[10px] font-bold text-sky-600 dark:text-sky-400">
+                    <input
+                      type="checkbox"
+                      checked={packageIncluded}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        setPackageIncluded(checked);
+                        if (checked) setCost('Incluso');
+                        else setCost('');
+                      }}
+                      className="rounded border-slate-300 text-sky-600 focus:ring-sky-500 w-3.5 h-3.5"
+                    />
+                    <span>Incluso nel pacchetto</span>
+                  </label>
+                )}
+              </div>
               <input
                 type="text"
-                value={cost}
+                disabled={packageIncluded}
+                value={packageIncluded ? 'Incluso nel pacchetto' : cost}
                 onChange={e => setCost(e.target.value)}
                 placeholder="Es. 150.00"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900 font-semibold"
+                className={`w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900 font-semibold ${packageIncluded ? 'opacity-60 bg-slate-100 cursor-not-allowed' : ''}`}
               />
             </div>
           </div>

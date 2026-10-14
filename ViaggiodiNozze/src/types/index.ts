@@ -165,6 +165,7 @@ export interface Trasporto {
   bookingCode?: string;
   ticketUrl?: string;
   cost?: string;
+  packageIncluded?: boolean; // Esplicitamente 'Incluso nel pacchetto'
   posti?: string;
   bagagli?: string;
   terminalGate?: string;

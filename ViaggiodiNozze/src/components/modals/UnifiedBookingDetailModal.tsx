@@ -304,15 +304,21 @@ export default function UnifiedBookingDetailModal({
                   </span>
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-black font-mono text-[#172033] dark:text-white">
-                      {booking.cost && booking.cost > 0 ? `€ ${booking.cost.toFixed(2)}` : 'Incluso / Gratuito'}
+                      {booking.rawItem?.packageIncluded || (booking.costFormatted || '').toLowerCase().includes('incluso')
+                        ? 'Incluso nel pacchetto'
+                        : (!booking.cost || booking.cost === 0 || (booking.costFormatted || '').toLowerCase().includes('gratuito'))
+                        ? 'Gratuito'
+                        : `€ ${booking.cost.toFixed(2)}`}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                      booking.isPaid
-                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        : 'bg-amber-50 text-amber-700 border border-amber-200'
-                    }`}>
-                      {booking.isPaid ? '🟢 Saldato' : '⏳ Da saldare'}
-                    </span>
+                    {!(booking.rawItem?.packageIncluded || (booking.costFormatted || '').toLowerCase().includes('incluso') || !booking.cost || booking.cost === 0 || (booking.costFormatted || '').toLowerCase().includes('gratuito')) && (
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                        booking.isPaid
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-amber-50 text-amber-700 border border-amber-200'
+                      }`}>
+                        {booking.isPaid ? '🟢 Saldato' : '⏳ Da saldare'}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>

@@ -437,6 +437,19 @@ class StorageService {
           }
         }
 
+        // Volo Pechino -> Auckland (CA783): normalizza a segmento di coincidenza incluso senza debito fittizio
+        if (t.type === 'volo' && (t.id === 'trn_03_volo_ca783' || (t.carrier && t.carrier.includes('CA783')))) {
+          const costStr = String(t.cost || '').trim();
+          if (costStr === '1' || costStr === '1 €' || costStr === '1.00' || costStr === '0.00' || costStr === '0' || !t.packageIncluded) {
+            t.cost = 'Incluso nel pacchetto';
+            t.packageIncluded = true;
+            t.paymentStatus = undefined;
+            t.carrier = 'Air China CA783 (Prosecuzione CA950)';
+            await idbPut(STORES.TRASPORTI, t);
+            changedAny = true;
+          }
+        }
+
         // Traghetto 06 Dic - Rimuovi vecchio Interislander mock
         if (t.type === 'traghetto' && t.date === '2026-12-06') {
           if (t.carrier && t.carrier.includes('Interislander')) {
