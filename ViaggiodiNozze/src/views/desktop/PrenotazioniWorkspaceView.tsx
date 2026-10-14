@@ -456,14 +456,12 @@ export default function PrenotazioniWorkspaceView({
 
                       {/* Codice Prenotazione & Costo Footer */}
                       <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs">
-                        {item.bookingCode ? (
+                        {item.bookingCode && item.bookingCode.trim() ? (
                           <span className="font-mono font-bold text-[11px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-lg text-slate-700 dark:text-slate-300 truncate max-w-[140px]">
-                            {item.bookingCode}
+                            {item.bookingCode.trim()}
                           </span>
                         ) : (
-                          <span className="text-[10px] text-slate-400 font-medium italic">
-                            Nessun PNR
-                          </span>
+                          <span />
                         )}
 
                         <div className="flex items-center gap-1.5 font-mono">

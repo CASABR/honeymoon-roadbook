@@ -247,14 +247,14 @@ export default function UnifiedBookingDetailModal({
               </div>
 
               {/* Codice Prenotazione & PNR */}
-              {booking.bookingCode && (
+              {Boolean(booking.bookingCode?.trim()) && (
                 <div className="p-4 rounded-2xl bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
                   <div>
                     <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                       Codice Prenotazione / PNR
                     </span>
                     <span className="text-base font-black tracking-wider font-mono text-[#172033] dark:text-white">
-                      {booking.bookingCode}
+                      {booking.bookingCode?.trim()}
                     </span>
                   </div>
                   <button

@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { TimelineItem } from '../../types';
 
 export interface TimeCollision {
@@ -69,6 +70,25 @@ export default function TimeCollisionModal({
   const [expandedA, setExpandedA] = useState(false);
   const [expandedB, setExpandedB] = useState(false);
 
+  // Blocca lo scroll del body quando il popup è aperto e ripristina esattamente lo stato precedente
+  useEffect(() => {
+    if (!collision) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onDismiss();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [collision, onDismiss]);
+
   if (!collision) return null;
 
   const { itemA, itemB, time } = collision;
@@ -121,13 +141,13 @@ export default function TimeCollisionModal({
     const loc = item.location || raw.address || raw.indirizzo || raw.departureLocation || '';
     const desc = raw.description || raw.descrizione || raw.notes || raw.nota || '';
     const attachmentsCount = (raw.attachments?.length || 0);
-    const bookingCode = raw.bookingCode || raw.pnr || raw.pinCode;
+    const bookingCode = (raw.bookingCode || raw.pnr || raw.pinCode || '').trim();
     const priceText = raw.cost || raw.budget ? `${raw.cost || raw.budget}` : '';
     const isFree = raw.isFree || raw.status === 'gratuito' || raw.cost === '0' || raw.cost === '0 €';
     const isPackage = raw.isPackageIncluded || raw.inclusoPacchetto;
 
     return (
-      <div className={`rounded-2xl p-4 border transition-all flex flex-col justify-between ${
+      <div className={`rounded-2xl p-3.5 sm:p-4 border transition-all flex flex-col justify-between ${
         isWinner
           ? 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800/60 shadow-sm'
           : 'bg-slate-50 dark:bg-slate-800/80 border-slate-200/90 dark:border-slate-700'
@@ -233,11 +253,35 @@ export default function TimeCollisionModal({
     );
   };
 
-  return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200 overflow-y-auto">
-      <div className="fixed inset-0" onClick={onDismiss} />
+  const modalNode = (
+    <div 
+      className="fixed inset-0 z-[100000] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-xs select-none"
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100dvh',
+        minHeight: '100vh',
+      }}
+    >
+      {/* Backdrop overlay per click to dismiss */}
+      <div 
+        className="absolute inset-0 bg-transparent cursor-pointer" 
+        onClick={onDismiss} 
+        aria-hidden="true" 
+      />
       
-      <div className="relative bg-white dark:bg-slate-900 rounded-3xl p-5 sm:p-6 max-w-xl w-full shadow-2xl border border-slate-200/90 dark:border-slate-800 space-y-4 z-10 animate-in zoom-in-95 duration-200 my-auto max-h-[90vh] flex flex-col">
+      {/* Dialog box centrato nella viewport */}
+      <div 
+        className="relative z-10 bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-6 max-w-xl w-full shadow-2xl border border-slate-200/90 dark:border-slate-800 space-y-3.5 flex flex-col pointer-events-auto"
+        style={{
+          maxHeight: 'calc(100dvh - 32px)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header Modale */}
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 dark:border-slate-800 pb-3 shrink-0">
@@ -274,8 +318,14 @@ export default function TimeCollisionModal({
           )}
         </div>
 
-        {/* Confronto Schede con scroll autonomo su schermi bassi */}
-        <div className="overflow-y-auto space-y-3 pr-1 py-1 flex-1">
+        {/* Mini-cards comparative con scroll autonomo su schermi bassi */}
+        <div 
+          className="space-y-3 pr-1 py-1 flex-1 overflow-y-auto"
+          style={{
+            WebkitOverflowScrolling: 'touch',
+            overscrollBehavior: 'contain',
+          }}
+        >
           {renderMiniCard(itemA, itemB, winner === 'A', expandedA, setExpandedA)}
           {renderMiniCard(itemB, itemA, winner === 'B', expandedB, setExpandedB)}
         </div>
@@ -301,4 +351,10 @@ export default function TimeCollisionModal({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalNode, document.body);
+  }
+
+  return modalNode;
 }
