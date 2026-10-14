@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { storageService } from '../../storage/storageService';
 import { getTripConfig, clearTripConfig } from '../../utils/tripConfig';
+import { clearDeviceSession } from '../../utils/deviceSession';
 import { idbClearAll } from '../../storage/indexedDB';
 import type { DeviceRole } from '../../types';
 import DeviceRoleModal from './DeviceRoleModal';
@@ -225,9 +226,7 @@ export default function SettingsMenu() {
                 type="button"
                 onClick={() => {
                   if (confirm('Vuoi bloccare l\'app e richiedere nuovamente il PIN di accesso?')) {
-                    localStorage.removeItem('houni_pin_authenticated');
-                    localStorage.removeItem('houni_auth_time');
-                    localStorage.removeItem('auth_pin_verified');
+                    clearDeviceSession();
                     clearTripConfig();
                     window.location.reload();
                   }
@@ -245,9 +244,7 @@ export default function SettingsMenu() {
                 type="button"
                 onClick={async () => {
                   if (confirm('Sei sicuro di voler uscire da questo viaggio? I dati non sincronizzati andranno persi.')) {
-                    localStorage.removeItem('houni_pin_authenticated');
-                    localStorage.removeItem('houni_auth_time');
-                    localStorage.removeItem('auth_pin_verified');
+                    clearDeviceSession();
                     await idbClearAll();
                     clearTripConfig();
                     setOpen(false);
@@ -256,7 +253,7 @@ export default function SettingsMenu() {
                 }}
                 className="w-full flex items-center justify-center px-4 py-2 text-xs font-bold text-rose-500 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors border-t border-slate-100 dark:border-slate-700 cursor-pointer"
               >
-                Esci / Cambia Viaggio
+                Esci dal viaggio / Cambia dispositivo
               </button>
 
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-t border-slate-100 dark:border-slate-700">

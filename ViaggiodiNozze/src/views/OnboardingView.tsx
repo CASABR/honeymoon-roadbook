@@ -5,6 +5,7 @@ import { storageService } from '../storage/storageService';
 import { auth } from '../firebase';
 import { signInAnonymously } from 'firebase/auth';
 import { withTimeout, rejectAfter } from '../utils/withTimeout';
+import { persistDeviceSession } from '../utils/deviceSession';
 import {
   isMasterTripCode,
   ensureMasterTripMembership,
@@ -100,9 +101,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
 
     // ── PIN master "0000": accesso ISTANTANEO, nessuna attesa di rete o IndexedDB ──
     if (isMasterTripCode(codeClean)) {
-      localStorage.setItem('auth_pin_verified', 'true');
-      localStorage.setItem('houni_pin_authenticated', 'true');
-      localStorage.setItem('houni_auth_time', Date.now().toString());
+      persistDeviceSession(MASTER_TRIP_ID, tempRole);
       setTempConfig(MASTER_TRIP_CONFIG);
       setMode('role');
       setLoading(false);
@@ -174,10 +173,9 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
 
   const handleFinishOnboarding = (aiAction?: 'gmail' | 'manual') => {
     // Ruolo e config salvati in modo sincrono → la transizione è immediata
-    localStorage.setItem('auth_pin_verified', 'true');
-    localStorage.setItem('houni_pin_authenticated', 'true');
-    localStorage.setItem('houni_auth_time', Date.now().toString());
-    localStorage.setItem('app_device_role', tempRole);
+    const targetTripId = tempConfig?.id || '0000';
+    persistDeviceSession(targetTripId, tempRole);
+    
     import('../storage/storageService').then(({ storageService }) => {
       storageService.setDeviceRole(tempRole);
       // Popola i dati locali in background (non blocca il render)
