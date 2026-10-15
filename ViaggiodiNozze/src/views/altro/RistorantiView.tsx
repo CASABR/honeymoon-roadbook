@@ -9,8 +9,10 @@ import DayPickerStrip from '../../components/common/DayPickerStrip';
 import SwipeToDelete from '../../components/common/SwipeToDelete';
 import RistoranteCard from '../../components/cards/RistoranteCard';
 import { useDeviceRole } from '../../utils/useDeviceRole';
-import { getTripDateRange, type TripDayItem } from '../../utils/tripDates';
+import { getTripDateRange, formatDate, type TripDayItem } from '../../utils/tripDates';
 import { enrichRistorante } from '../../services/enrichmentService';
+import TimeCollisionModal, { type TimeCollision } from '../../components/modals/TimeCollisionModal';
+import type { TimelineItem } from '../../types';
 
 interface RistorantiViewProps {
   onBack?: () => void;
@@ -30,9 +32,12 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
   // Dialog eliminazione
   const [deleteTarget, setDeleteTarget] = useState<Ristorante | null>(null);
 
-  const loadData = useCallback(async () => {
+  // Modale collisione / duplicati
+  const [activeCollision, setActiveCollision] = useState<TimeCollision | null>(null);
+
+  const loadData = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Timeout caricamento dati (1.5s)')), 1500)
@@ -77,25 +82,98 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
         }, 3000);
       }
       if (range) setTripDays(range.tripDays);
-      setSelectedDate('tutte');
     } catch (err) {
       console.error('Errore nel caricamento dei ristoranti:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadData();
+    loadData(false);
   }, [loadData]);
 
   useEffect(() => {
-    const handleDataMutated = () => {
-      loadData();
+    const handleDataMutated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.entityType === 'ristorante' && customEvent.detail?.entityId && customEvent.detail?.patch) {
+        setRistoranti(prev => prev.map(r => r.id === customEvent.detail.entityId ? { ...r, ...customEvent.detail.patch } : r));
+        return;
+      }
+      loadData(true);
     };
     window.addEventListener('roadbook_data_mutated', handleDataMutated);
     return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
   }, [loadData]);
+
+  // Rilevamento automatico di ristoranti duplicati/sovrapposti in ordine cronologico
+  useEffect(() => {
+    if (ristoranti.length < 2) {
+      setActiveCollision(null);
+      return;
+    }
+
+    const normalizeStr = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const isSimilarRestaurant = (r1: Ristorante, r2: Ristorante) => {
+      const n1 = normalizeStr(r1.nome);
+      const n2 = normalizeStr(r2.nome);
+      if (!n1 || !n2) return false;
+      if (n1 === n2) return true;
+      if (n1.length > 3 && n2.length > 3 && (n1.includes(n2) || n2.includes(n1))) return true;
+      return false;
+    };
+
+    // Ordina cronologicamente
+    const sorted = [...ristoranti].sort((a, b) => {
+      const dateA = a.data || '';
+      const dateB = b.data || '';
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      const timeA = a.orario || '00:00';
+      const timeB = b.orario || '00:00';
+      return timeA.localeCompare(timeB);
+    });
+
+    let nextCollision: TimeCollision | null = null;
+    for (let i = 0; i < sorted.length; i++) {
+      const rA = sorted[i];
+      for (let j = i + 1; j < sorted.length; j++) {
+        const rB = sorted[j];
+        if (rA.data && rB.data && rA.data === rB.data) {
+          const sameTime = (rA.orario && rB.orario && rA.orario === rB.orario);
+          const similar = isSimilarRestaurant(rA, rB);
+
+          if (sameTime || similar) {
+            const collisionKey = `restaurant_collision_${rA.id}_${rB.id}`;
+            const isDismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey);
+            if (!isDismissed) {
+              const toTimelineItem = (r: Ristorante): TimelineItem => ({
+                id: r.id,
+                type: 'ristorante',
+                time: r.orario || 'Orario non specificato',
+                title: r.nome,
+                location: r.indirizzo || 'Indirizzo non specificato',
+                categoryOrType: r.sottocategoria || 'Ristorante',
+                completed: r.completed,
+                originalData: r
+              });
+
+              nextCollision = {
+                id: collisionKey,
+                time: `${rA.data}${rA.orario ? ' alle ' + rA.orario : ''}`,
+                itemA: toTimelineItem(rA),
+                itemB: toTimelineItem(rB)
+              };
+              break;
+            }
+          }
+        }
+      }
+      if (nextCollision) break;
+    }
+
+    setActiveCollision(nextCollision);
+  }, [ristoranti]);
 
   const handleOpenAdd = () => {
     setEditingRistorante(null);
@@ -125,15 +203,47 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
     await loadData();
   };
 
-  const filteredRistoranti = ristoranti.filter(r => selectedDate === 'tutte' || r.data === selectedDate);
+  const detectRistCountry = (r: Ristorante): string => {
+    const text = `${r.nome || ''} ${r.indirizzo || ''} ${r.nota || ''} ${r.noteCopilota || ''}`.toLowerCase();
+    if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|nz)/.test(text)) return '🇳🇿 Nuova Zelanda';
+    if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|au)/.test(text)) return '🇦🇺 Australia';
+    if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|ph)/.test(text)) return '🇵🇭 Filippine';
+    if (/(italia|roma|milano|italy)/.test(text)) return '🇮🇹 Italia';
+    return '🌍 Altro';
+  };
 
-  // Raggruppamento per data se selezionato 'tutte'
-  const groupedRistoranti = filteredRistoranti.reduce<Record<string, Ristorante[]>>((acc, r) => {
-    const key = r.data || 'Senza Data';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(r);
-    return acc;
-  }, {});
+  const macroOrder = ['🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🇮🇹 Italia', '🌍 Altro'];
+
+  const groupedRistorantiByCountry = useMemo(() => {
+    const countryMap: Record<string, Record<string, Ristorante[]>> = {};
+
+    filteredRistoranti.forEach(r => {
+      const c = detectRistCountry(r);
+      const d = r.data || 'Senza Data';
+      if (!countryMap[c]) countryMap[c] = {};
+      if (!countryMap[c][d]) countryMap[c][d] = [];
+      countryMap[c][d].push(r);
+    });
+
+    const sortedCountries = Object.keys(countryMap).sort((a, b) => {
+      const idxA = macroOrder.indexOf(a);
+      const idxB = macroOrder.indexOf(b);
+      return (idxA > -1 ? idxA : 99) - (idxB > -1 ? idxB : 99);
+    });
+
+    return sortedCountries.map(country => {
+      const datesObj = countryMap[country];
+      const sortedDates = Object.keys(datesObj).sort((a, b) => {
+        if (a === 'Senza Data') return 1;
+        if (b === 'Senza Data') return -1;
+        return a.localeCompare(b);
+      });
+      return {
+        country,
+        dates: sortedDates.map(date => ({ date, items: datesObj[date] }))
+      };
+    });
+  }, [filteredRistoranti]);
 
   return (
     <div className="flex flex-col min-h-full animate-fade-in pb-10">
@@ -233,33 +343,40 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
           />
         )
       ) : (
-        <div className="space-y-6">
-          {Object.entries(groupedRistoranti).map(([groupKey, rGroup]) => (
-            <div key={groupKey} className="space-y-3">
-              {selectedDate === 'tutte' && (
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
-                  {groupKey === 'Senza Data' ? 'Senza Data' : `Data: ${groupKey}`}
+        <div className="space-y-8">
+          {groupedRistorantiByCountry.map(({ country, dates }) => (
+            <div key={country} className="space-y-4">
+              <div className="sticky top-0 z-10 py-1.5 bg-slate-50/95 backdrop-blur-md border-b border-slate-200 flex items-center justify-between">
+                <h2 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                  {country}
                 </h2>
-              )}
+                <span className="text-[11px] font-bold text-slate-400">
+                  {dates.reduce((acc, d) => acc + d.items.length, 0)} {dates.reduce((acc, d) => acc + d.items.length, 0) === 1 ? 'ristorante' : 'ristoranti'}
+                </span>
+              </div>
 
-              <div className="space-y-2.5">
-                {rGroup.map((r) => {
+              <div className="space-y-5">
+                {dates.map(({ date, items: rGroup }) => (
+                  <div key={date} className="space-y-3">
+                    {selectedDate === 'tutte' && (
+                      <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+                        {date === 'Senza Data' ? 'Senza Data' : `Data: ${formatDate(date)}`}
+                      </h3>
+                    )}
 
-
-
-
-                  return (
-                    <SwipeToDelete key={r.id} disabled={!canEdit} onDelete={() => setDeleteTarget(r)}>
-                      <RistoranteCard
-                        ristorante={r}
-                        onEdit={() => handleOpenEdit(r)}
-                        onDelete={() => setDeleteTarget(r)}
-                      />
-                    </SwipeToDelete>
-
-
-                  );
-                })}
+                    <div className="space-y-2.5">
+                      {rGroup.map((r) => (
+                        <SwipeToDelete key={r.id} disabled={!canEdit} onDelete={() => setDeleteTarget(r)}>
+                          <RistoranteCard
+                            ristorante={r}
+                            onEdit={() => handleOpenEdit(r)}
+                            onDelete={() => setDeleteTarget(r)}
+                          />
+                        </SwipeToDelete>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -290,6 +407,36 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
         isDestructive={true}
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* Popup Comparativo Ristoranti Duplicati / Sovrapposti */}
+      <TimeCollisionModal
+        collision={activeCollision}
+        onKeepBoth={() => {
+          if (activeCollision && typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(activeCollision.id, 'keep');
+          }
+          setActiveCollision(null);
+        }}
+        onDeleteItem={async (itemId) => {
+          try {
+            await storageService.deleteRistorante(itemId);
+            setRistoranti(prev => prev.filter(r => r.id !== itemId));
+            if (activeCollision && typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem(activeCollision.id, 'resolved');
+            }
+          } catch (e) {
+            console.error('Errore durante eliminazione ristorante duplicato:', e);
+          } finally {
+            setActiveCollision(null);
+          }
+        }}
+        onDismiss={() => {
+          if (activeCollision && typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(activeCollision.id, 'dismissed');
+          }
+          setActiveCollision(null);
+        }}
       />
     </div>
   );

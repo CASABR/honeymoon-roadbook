@@ -1,13 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import PlaceholderView from './altro/PlaceholderView';
 import DocumentiView from './altro/DocumentiView';
 import AssicurazioneView from './altro/AssicurazioneView';
 import DocumentiGalleriaView from './altro/DocumentiGalleriaView';
-import SpeseBudgetView from './altro/SpeseBudgetView';
-import LiveView from './altro/LiveView';
 import BagagliView from './altro/BagagliView';
 import NoteViaggioView from './altro/NoteViaggioView';
 import GestioneViaggioView from './altro/GestioneViaggioView';
+
+const LiveView = lazy(() => import('./altro/LiveView'));
+const SpeseBudgetView = lazy(() => import('./altro/SpeseBudgetView'));
 import DeviceRoleModal from '../components/common/DeviceRoleModal';
 import { storageService } from '../storage/storageService';
 import type { DeviceRole } from '../types';
@@ -58,12 +59,38 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
 
   const handleBack = () => setActiveSubView(null);
 
-  if (activeSubView === 'live') return <LiveView onBack={handleBack} />;
+  if (activeSubView === 'live') {
+    return (
+      <Suspense fallback={
+        <div className="flex flex-col h-72 items-center justify-center rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60 animate-pulse m-4">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-8 h-8 border-3 border-rose-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento Live Viaggio...</span>
+          </div>
+        </div>
+      }>
+        <LiveView onBack={handleBack} />
+      </Suspense>
+    );
+  }
   if (activeSubView === 'assicurazione') return <AssicurazioneView onBack={handleBack} />;
   if (activeSubView === 'documenti') return <DocumentiView onBack={handleBack} />;
   if (activeSubView === 'emergenza') return <PlaceholderView title="Numeri di Emergenza" icon="📞" onBack={handleBack} />;
   if (activeSubView === 'info') return <PlaceholderView title="Info Utili" icon="ℹ️" onBack={handleBack} />;
-  if (activeSubView === 'spese') return <SpeseBudgetView onBack={handleBack} />;
+  if (activeSubView === 'spese') {
+    return (
+      <Suspense fallback={
+        <div className="flex flex-col h-72 items-center justify-center rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60 animate-pulse m-4">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento spese e budget...</span>
+          </div>
+        </div>
+      }>
+        <SpeseBudgetView onBack={handleBack} />
+      </Suspense>
+    );
+  }
   if (activeSubView === 'bagagli') return <BagagliView onBack={handleBack} />;
   if (activeSubView === 'note') return <NoteViaggioView onBack={handleBack} />;
   if (activeSubView === 'galleria') return <DocumentiGalleriaView onBack={handleBack} />;
@@ -72,9 +99,12 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   return (
     <div className="space-y-4 pt-1 animate-fade-in pb-10">
       <div className="flex flex-col mb-4 px-1">
-        <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
-          Altro
-        </h1>
+        <div className="flex items-center gap-2">
+          <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="h-6 w-auto object-contain" />
+          <h1 className="text-xl font-extrabold text-slate-900 tracking-tight">
+            Altro
+          </h1>
+        </div>
         <p className="text-xs text-slate-500 font-medium mt-1">
           Tutto quello che ti serve, in un unico posto.
         </p>

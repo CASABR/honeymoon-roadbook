@@ -108,3 +108,31 @@ export function resolvePaymentInfo(item: {
     displayText
   };
 }
+
+export const parseEuro = (val: any): number => {
+  if (!val) return 0;
+  if (typeof val === "number") return val;
+  let str = String(val).trim().replace(/[€a-zA-Z\s]/g, "");
+  
+  // Se è un numero tipo "406.075,00", rimuovi i punti come separatori migliaia.
+  if (str.includes(',') && str.includes('.')) {
+    // Il punto è il separatore delle migliaia in formato europeo.
+    str = str.replace(/\./g, '');
+  } else if ((str.match(/\./g) || []).length > 1) {
+    // Multipli punti "1.000.000"
+    str = str.replace(/\./g, '');
+  } else if (str.includes('.') && !str.includes(',')) {
+    // "1000.50" (format US) -> Lasciamo così
+    const parts = str.split('.');
+    if (parts[1].length === 3) {
+      // Se dopo il punto ci sono 3 cifre es. "406.075", era un separatore migliaia
+      str = str.replace(/\./g, '');
+    }
+  }
+
+  // Converti la virgola europea in punto per il parsing
+  str = str.replace(',', '.');
+  const parsed = parseFloat(str);
+  return isNaN(parsed) ? 0 : parsed;
+};
+

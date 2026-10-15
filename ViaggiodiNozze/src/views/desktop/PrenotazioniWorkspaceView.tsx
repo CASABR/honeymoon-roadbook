@@ -9,6 +9,15 @@ import { useDeviceRole } from '../../utils/useDeviceRole';
 import UnifiedBookingModal from '../../components/modals/UnifiedBookingModal';
 import UnifiedBookingDetailModal from '../../components/modals/UnifiedBookingDetailModal';
 import SmartInsertModal from '../../components/modals/SmartInsertModal';
+import Modal from '../../components/common/Modal';
+import TrasportoForm from '../../components/forms/TrasportoForm';
+import AlloggioForm from '../../components/forms/AlloggioForm';
+import AttivitaForm from '../../components/forms/AttivitaForm';
+import RistoranteForm from '../../components/forms/RistoranteForm';
+import ShoppingForm from '../../components/forms/ShoppingForm';
+import DocumentValidityModal from '../../components/modals/DocumentValidityModal';
+import { storageService, notifyDataChanged } from '../../storage/storageService';
+import type { Trasporto, Alloggio, Attivita, Ristorante, Shopping, TravelDocument } from '../../types';
 
 interface PrenotazioniWorkspaceViewProps {
   onOpenSmartInsert?: () => void;
@@ -35,6 +44,161 @@ export default function PrenotazioniWorkspaceView({
   const [addModalInitialCategory, setAddModalInitialCategory] = useState<BookingCategory>('volo');
   const [selectedBookingForDetail, setSelectedBookingForDetail] = useState<UnifiedBookingItem | null>(null);
   const [isSmartInsertOpen, setIsSmartInsertOpen] = useState(false);
+
+  // Modali di Modifica Entità
+  const [editingTransportItem, setEditingTransportItem] = useState<Trasporto | null>(null);
+  const [editingAccommodationItem, setEditingAccommodationItem] = useState<Alloggio | null>(null);
+  const [editingActivityItem, setEditingActivityItem] = useState<Attivita | null>(null);
+  const [editingRestaurantItem, setEditingRestaurantItem] = useState<Ristorante | null>(null);
+  const [editingShoppingItem, setEditingShoppingItem] = useState<Shopping | null>(null);
+  const [editingDocumentItem, setEditingDocumentItem] = useState<TravelDocument | null>(null);
+
+  const handleOpenEditBooking = useCallback((booking: UnifiedBookingItem) => {
+    setSelectedBookingForDetail(null);
+    switch (booking.rawType) {
+      case 'trasporto':
+        setEditingTransportItem(booking.rawItem as Trasporto);
+        break;
+      case 'alloggio':
+        setEditingAccommodationItem(booking.rawItem as Alloggio);
+        break;
+      case 'attivita':
+        setEditingActivityItem(booking.rawItem as Attivita);
+        break;
+      case 'ristorante':
+        setEditingRestaurantItem(booking.rawItem as Ristorante);
+        break;
+      case 'shopping':
+        setEditingShoppingItem(booking.rawItem as Shopping);
+        break;
+      case 'documento':
+        setEditingDocumentItem(booking.rawItem as TravelDocument);
+        break;
+    }
+  }, []);
+
+  const handleSaveTransport = async (data: Omit<Trasporto, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const transportToSave: Trasporto = {
+      ...data,
+      id: data.id || editingTransportItem?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'trans_' + Date.now()),
+      createdAt: editingTransportItem?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+    await storageService.saveTransport(transportToSave);
+    notifyDataChanged('trasporti', 'save', transportToSave);
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+      detail: { entityType: 'trasporti', action: 'save', data: transportToSave }
+    }));
+    setEditingTransportItem(null);
+    await loadBookings();
+  };
+
+  const handleDeleteTransport = async () => {
+    if (!editingTransportItem) return;
+    await storageService.deleteTransport(editingTransportItem.id);
+    notifyDataChanged('trasporti', 'delete', { id: editingTransportItem.id });
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+      detail: { entityType: 'trasporti', action: 'delete', data: { id: editingTransportItem.id } }
+    }));
+    setEditingTransportItem(null);
+    await loadBookings();
+  };
+
+  const handleSaveAccommodation = async (data: Omit<Alloggio, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const alloggioToSave: Alloggio = {
+      ...data,
+      id: data.id || editingAccommodationItem?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'acc_' + Date.now()),
+      createdAt: editingAccommodationItem?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+    await storageService.saveAccommodation(alloggioToSave);
+    notifyDataChanged('alloggi', 'save', alloggioToSave);
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+      detail: { entityType: 'alloggi', action: 'save', data: alloggioToSave }
+    }));
+    setEditingAccommodationItem(null);
+    await loadBookings();
+  };
+
+  const handleDeleteAccommodation = async () => {
+    if (!editingAccommodationItem) return;
+    await storageService.deleteAccommodation(editingAccommodationItem.id);
+    notifyDataChanged('alloggi', 'delete', { id: editingAccommodationItem.id });
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+      detail: { entityType: 'alloggi', action: 'delete', data: { id: editingAccommodationItem.id } }
+    }));
+    setEditingAccommodationItem(null);
+    await loadBookings();
+  };
+
+  const handleSaveActivity = async (data: Omit<Attivita, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const activityToSave: Attivita = {
+      ...data,
+      id: data.id || editingActivityItem?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'act_' + Date.now()),
+      createdAt: editingActivityItem?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+    await storageService.saveActivity(activityToSave);
+    notifyDataChanged('attivita', 'save', activityToSave);
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+      detail: { entityType: 'attivita', action: 'save', data: activityToSave }
+    }));
+    setEditingActivityItem(null);
+    await loadBookings();
+  };
+
+  const handleDeleteActivity = async () => {
+    if (!editingActivityItem) return;
+    await storageService.deleteActivity(editingActivityItem.id);
+    notifyDataChanged('attivita', 'delete', { id: editingActivityItem.id });
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+      detail: { entityType: 'attivita', action: 'delete', data: { id: editingActivityItem.id } }
+    }));
+    setEditingActivityItem(null);
+    await loadBookings();
+  };
+
+  const handleSaveRestaurant = async (data: Omit<Ristorante, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const ristoranteToSave: Ristorante = {
+      ...data,
+      id: data.id || editingRestaurantItem?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'rist_' + Date.now()),
+      createdAt: editingRestaurantItem?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+    await storageService.saveRistorante(ristoranteToSave);
+    notifyDataChanged('ristoranti', 'save', ristoranteToSave);
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+      detail: { entityType: 'ristoranti', action: 'save', data: ristoranteToSave }
+    }));
+    setEditingRestaurantItem(null);
+    await loadBookings();
+  };
+
+  const handleSaveShopping = async (data: Omit<Shopping, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const shoppingToSave: Shopping = {
+      ...data,
+      id: data.id || editingShoppingItem?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'shop_' + Date.now()),
+      createdAt: editingShoppingItem?.createdAt || Date.now(),
+      updatedAt: Date.now()
+    };
+    await storageService.saveShopping(shoppingToSave);
+    notifyDataChanged('shopping', 'save', shoppingToSave);
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+      detail: { entityType: 'shopping', action: 'save', data: shoppingToSave }
+    }));
+    setEditingShoppingItem(null);
+    await loadBookings();
+  };
+
+  const handleSaveDocument = async (updated: TravelDocument) => {
+    await storageService.saveDocument(updated);
+    notifyDataChanged('documenti', 'save', updated);
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+      detail: { entityType: 'documenti', action: 'save', data: updated }
+    }));
+    setEditingDocumentItem(null);
+    await loadBookings();
+  };
 
   const loadBookings = useCallback(async (isInitial = false) => {
     try {
@@ -158,7 +322,7 @@ export default function PrenotazioniWorkspaceView({
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-sm">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#FF6B5F] animate-pulse" />
+            <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="h-4 w-auto object-contain" />
             <span className="text-[11px] font-extrabold uppercase tracking-widest text-[#FF6B5F]">
               Hounigo Desktop • Hub Prenotazioni
             </span>
@@ -427,14 +591,30 @@ export default function PrenotazioniWorkspaceView({
                           </div>
                         </div>
 
-                        {/* Badge Allegati (visibile chiaramente solo se presente un voucher o documento) */}
-                        {item.hasAttachments && (
-                          <div className="shrink-0 flex items-center gap-1">
+                        <div className="shrink-0 flex items-center gap-1.5">
+                          {/* Badge Allegati (visibile chiaramente solo se presente un voucher o documento) */}
+                          {item.hasAttachments && (
                             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 text-[10px] font-bold" title="Voucher / Documento allegato">
                               📎 {item.attachmentsCount}
                             </span>
-                          </div>
-                        )}
+                          )}
+
+                          {/* Pulsante Modifica Rapida Card Desktop */}
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditBooking(item);
+                              }}
+                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-amber-800 dark:bg-slate-800 dark:hover:bg-amber-950/40 dark:text-slate-400 dark:hover:text-amber-300 flex items-center justify-center text-xs font-bold transition-all shadow-2xs border border-slate-200/60 dark:border-slate-700 cursor-pointer"
+                              title="Modifica prenotazione"
+                              aria-label="Modifica prenotazione"
+                            >
+                              ✏️
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       {/* Info Località e Orari */}
@@ -504,6 +684,7 @@ export default function PrenotazioniWorkspaceView({
           loadBookings();
           setSelectedBookingForDetail(null);
         }}
+        onEdit={handleOpenEditBooking}
         canEdit={canEdit}
       />
 
@@ -516,6 +697,89 @@ export default function PrenotazioniWorkspaceView({
           setIsSmartInsertOpen(false);
         }}
         mode="manual"
+      />
+
+      {/* ─── MODALI MODIFICA ENTITÀ (DESKTOP) ─────────────────────────────── */}
+      {/* 1. Modifica Trasporto */}
+      <Modal
+        isOpen={Boolean(editingTransportItem)}
+        onClose={() => setEditingTransportItem(null)}
+        title="Modifica Trasporto"
+        accentVariant="sky"
+      >
+        <TrasportoForm
+          initialData={editingTransportItem}
+          onSave={handleSaveTransport}
+          onCancel={() => setEditingTransportItem(null)}
+          onDelete={handleDeleteTransport}
+        />
+      </Modal>
+
+      {/* 2. Modifica Alloggio */}
+      <Modal
+        isOpen={Boolean(editingAccommodationItem)}
+        onClose={() => setEditingAccommodationItem(null)}
+        title="Modifica Alloggio"
+        accentVariant="purple"
+      >
+        <AlloggioForm
+          initialData={editingAccommodationItem}
+          onSave={handleSaveAccommodation}
+          onCancel={() => setEditingAccommodationItem(null)}
+          onDelete={handleDeleteAccommodation}
+        />
+      </Modal>
+
+      {/* 3. Modifica Attività */}
+      <Modal
+        isOpen={Boolean(editingActivityItem)}
+        onClose={() => setEditingActivityItem(null)}
+        title="Modifica Attività"
+        accentVariant="amber"
+      >
+        <AttivitaForm
+          selectedDayId={editingActivityItem?.dayId}
+          initialData={editingActivityItem}
+          onSave={handleSaveActivity}
+          onCancel={() => setEditingActivityItem(null)}
+          onDelete={handleDeleteActivity}
+        />
+      </Modal>
+
+      {/* 4. Modifica Ristorante */}
+      <Modal
+        isOpen={Boolean(editingRestaurantItem)}
+        onClose={() => setEditingRestaurantItem(null)}
+        title="Modifica Ristorante"
+        accentVariant="emerald"
+      >
+        <RistoranteForm
+          initialData={editingRestaurantItem}
+          onSave={handleSaveRestaurant}
+          onCancel={() => setEditingRestaurantItem(null)}
+        />
+      </Modal>
+
+      {/* 5. Modifica Shopping */}
+      <Modal
+        isOpen={Boolean(editingShoppingItem)}
+        onClose={() => setEditingShoppingItem(null)}
+        title="Modifica Shopping"
+        accentVariant="rose"
+      >
+        <ShoppingForm
+          initialData={editingShoppingItem}
+          onSave={handleSaveShopping}
+          onCancel={() => setEditingShoppingItem(null)}
+        />
+      </Modal>
+
+      {/* 6. Modifica Documento / Voucher */}
+      <DocumentValidityModal
+        isOpen={Boolean(editingDocumentItem)}
+        onClose={() => setEditingDocumentItem(null)}
+        document={editingDocumentItem}
+        onSave={handleSaveDocument}
       />
     </div>
   );

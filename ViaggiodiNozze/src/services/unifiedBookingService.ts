@@ -8,7 +8,7 @@ import type {
   TravelDocument,
   TransportAttachment
 } from '../types';
-import { parseEuro } from '../views/altro/SpeseBudgetView';
+import { parseEuro } from '../utils/priceHelper';
 
 export type BookingCategory = 'volo' | 'treno' | 'alloggio' | 'auto_camper' | 'traghetto' | 'attivita' | 'ristorante' | 'shopping' | 'documento';
 

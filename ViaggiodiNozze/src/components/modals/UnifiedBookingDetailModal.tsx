@@ -15,6 +15,7 @@ interface UnifiedBookingDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdated: () => void;
+  onEdit?: (booking: UnifiedBookingItem) => void;
   canEdit?: boolean;
 }
 
@@ -23,6 +24,7 @@ export default function UnifiedBookingDetailModal({
   isOpen,
   onClose,
   onUpdated,
+  onEdit,
   canEdit = true
 }: UnifiedBookingDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'allegati' | 'note'>('info');
@@ -499,13 +501,28 @@ export default function UnifiedBookingDetailModal({
               )
             )}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-[#172033] hover:bg-slate-800 text-white font-bold text-xs shadow-sm cursor-pointer"
-          >
-            Chiudi
-          </button>
+          <div className="flex items-center gap-2">
+            {canEdit && onEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onEdit(booking);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs shadow-sm cursor-pointer flex items-center gap-1.5 transition-all active:scale-95"
+              >
+                <span>✏️</span>
+                <span>Modifica</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 rounded-xl bg-[#172033] hover:bg-slate-800 text-white font-bold text-xs shadow-sm cursor-pointer"
+            >
+              Chiudi
+            </button>
+          </div>
         </div>
       </div>
 

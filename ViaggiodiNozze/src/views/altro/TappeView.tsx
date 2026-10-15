@@ -5,13 +5,15 @@ import TappaForm from '../../components/forms/TappaForm';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
+import TimeCollisionModal, { type TimeCollision } from '../../components/modals/TimeCollisionModal';
+import type { TimelineItem } from '../../types';
 
 import DayPickerStrip from '../../components/common/DayPickerStrip';
 import RouteBadge from '../../components/common/RouteBadge';
 import SwipeToDelete from '../../components/common/SwipeToDelete';
 import TappaCard from '../../components/cards/TappaCard';
 import { useDeviceRole } from '../../utils/useDeviceRole';
-import { getTripDateRange, type TripDayItem } from '../../utils/tripDates';
+import { getTripDateRange, formatDate, type TripDayItem } from '../../utils/tripDates';
 
 interface TappeViewProps {
   onBack?: () => void;
@@ -32,9 +34,12 @@ export default function TappeView({ onBack }: TappeViewProps) {
   // Dialog eliminazione
   const [deleteTarget, setDeleteTarget] = useState<Tappa | null>(null);
 
-  const loadData = useCallback(async () => {
+  // Modale collisione / duplicati
+  const [activeCollision, setActiveCollision] = useState<TimeCollision | null>(null);
+
+  const loadData = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Timeout caricamento dati (1.5s)')), 1500)
@@ -58,21 +63,95 @@ export default function TappeView({ onBack }: TappeViewProps) {
     } catch (err) {
       console.error('Errore nel caricamento delle tappe:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadData();
+    loadData(false);
   }, [loadData]);
 
   useEffect(() => {
-    const handleDataMutated = () => {
-      loadData();
+    const handleDataMutated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.entityType === 'tappa' && customEvent.detail?.entityId && customEvent.detail?.patch) {
+        setTappe(prev => prev.map(t => t.id === customEvent.detail.entityId ? { ...t, ...customEvent.detail.patch } : t));
+        return;
+      }
+      loadData(true);
     };
     window.addEventListener('roadbook_data_mutated', handleDataMutated);
     return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
   }, [loadData]);
+
+  // Rilevamento automatico di tappe duplicate/sovrapposte in ordine cronologico
+  useEffect(() => {
+    if (tappe.length < 2) {
+      setActiveCollision(null);
+      return;
+    }
+
+    const normalizeStr = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const isSimilarTappa = (t1: Tappa, t2: Tappa) => {
+      const n1 = normalizeStr(t1.titolo);
+      const n2 = normalizeStr(t2.titolo);
+      if (!n1 || !n2) return false;
+      if (n1 === n2) return true;
+      if (n1.length > 3 && n2.length > 3 && (n1.includes(n2) || n2.includes(n1))) return true;
+      return false;
+    };
+
+    // Ordina cronologicamente
+    const sorted = [...tappe].sort((a, b) => {
+      const dateA = a.data || '';
+      const dateB = b.data || '';
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      const timeA = a.orario || '00:00';
+      const timeB = b.orario || '00:00';
+      return timeA.localeCompare(timeB);
+    });
+
+    let nextCollision: TimeCollision | null = null;
+    for (let i = 0; i < sorted.length; i++) {
+      const tA = sorted[i];
+      for (let j = i + 1; j < sorted.length; j++) {
+        const tB = sorted[j];
+        if (tA.data && tB.data && tA.data === tB.data) {
+          const sameTime = (tA.orario && tB.orario && tA.orario === tB.orario);
+          const similar = isSimilarTappa(tA, tB);
+
+          if (sameTime || similar) {
+            const collisionKey = `tappa_collision_${tA.id}_${tB.id}`;
+            const isDismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey);
+            if (!isDismissed) {
+              const toTimelineItem = (t: Tappa): TimelineItem => ({
+                id: t.id,
+                type: 'tappa',
+                time: t.orario || 'Orario non specificato',
+                title: t.titolo,
+                location: t.indirizzo || 'Luogo non specificato',
+                categoryOrType: t.sottocategoria || 'Tappa Itinerario',
+                completed: t.completed,
+                originalData: t
+              });
+
+              nextCollision = {
+                id: collisionKey,
+                time: `${tA.data}${tA.orario ? ' alle ' + tA.orario : ''}`,
+                itemA: toTimelineItem(tA),
+                itemB: toTimelineItem(tB)
+              };
+              break;
+            }
+          }
+        }
+      }
+      if (nextCollision) break;
+    }
+
+    setActiveCollision(nextCollision);
+  }, [tappe]);
 
   const handleOpenAdd = () => {
     setEditingTappa(null);
@@ -102,15 +181,47 @@ export default function TappeView({ onBack }: TappeViewProps) {
     await loadData();
   };
 
-  const filteredTappe = tappe.filter(t => selectedDate === 'tutte' || t.data === selectedDate);
+  const detectTappaCountry = (t: Tappa): string => {
+    const text = `${t.titolo || ''} ${t.indirizzo || ''} ${t.nota || ''} ${t.noteCopilota || ''}`.toLowerCase();
+    if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|nz|hobbiton|te puia|milford|haast)/.test(text)) return '🇳🇿 Nuova Zelanda';
+    if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|au|tullamarine|lorne|torquay|jervis)/.test(text)) return '🇦🇺 Australia';
+    if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|ph)/.test(text)) return '🇵🇭 Filippine';
+    if (/(italia|roma|milano|italy)/.test(text)) return '🇮🇹 Italia';
+    return '🌍 Altro';
+  };
 
-  // Raggruppamento per data se selezionato 'tutte'
-  const groupedTappe = filteredTappe.reduce<Record<string, Tappa[]>>((acc, t) => {
-    const key = t.data || 'Senza Data';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(t);
-    return acc;
-  }, {});
+  const macroOrder = ['🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🇮🇹 Italia', '🌍 Altro'];
+
+  const groupedTappeByCountry = useMemo(() => {
+    const countryMap: Record<string, Record<string, Tappa[]>> = {};
+
+    filteredTappe.forEach(t => {
+      const c = detectTappaCountry(t);
+      const d = t.data || 'Senza Data';
+      if (!countryMap[c]) countryMap[c] = {};
+      if (!countryMap[c][d]) countryMap[c][d] = [];
+      countryMap[c][d].push(t);
+    });
+
+    const sortedCountries = Object.keys(countryMap).sort((a, b) => {
+      const idxA = macroOrder.indexOf(a);
+      const idxB = macroOrder.indexOf(b);
+      return (idxA > -1 ? idxA : 99) - (idxB > -1 ? idxB : 99);
+    });
+
+    return sortedCountries.map(country => {
+      const datesObj = countryMap[country];
+      const sortedDates = Object.keys(datesObj).sort((a, b) => {
+        if (a === 'Senza Data') return 1;
+        if (b === 'Senza Data') return -1;
+        return a.localeCompare(b);
+      });
+      return {
+        country,
+        dates: sortedDates.map(date => ({ date, items: datesObj[date] }))
+      };
+    });
+  }, [filteredTappe]);
 
   return (
     <div className="flex flex-col min-h-full animate-fade-in pb-10">
@@ -224,51 +335,69 @@ export default function TappeView({ onBack }: TappeViewProps) {
           />
         )
       ) : (
-        <div className="space-y-6">
-          {Object.entries(groupedTappe).map(([groupKey, tappeGroup]) => (
-            <div key={groupKey} className="space-y-3">
-              {selectedDate === 'tutte' && (
-                <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
-                  {groupKey === 'Senza Data' ? 'Senza Data' : `Data: ${groupKey}`}
-                </h2>
-              )}
+        <div className="space-y-8">
+          {groupedTappeByCountry.map(({ country, dates }) => (
+            <div key={country} className="space-y-4">
+              <div className="sticky top-14 z-10 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-xs py-1.5 px-2 rounded-lg border-b border-slate-200/60 dark:border-slate-800/60 flex items-center gap-2">
+                <span className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight">
+                  {country}
+                </span>
+                <span className="text-xs text-slate-400 font-medium">
+                  ({dates.reduce((acc, d) => acc + d.items.length, 0)} {dates.reduce((acc, d) => acc + d.items.length, 0) === 1 ? 'tappa' : 'tappe'})
+                </span>
+              </div>
 
-              <div className="space-y-2.5">
-                {tappeGroup.map((tappa, idx) => {
-                  const nextTappa = tappeGroup[idx + 1];
+              <div className="space-y-6 pl-1 sm:pl-2">
+                {dates.map(({ date, items: tappeGroup }) => (
+                  <div key={date} className="space-y-3">
+                    {selectedDate === 'tutte' && (
+                      <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+                        {date === 'Senza Data' ? 'Senza Data' : `Data: ${formatDate(date)}`}
+                      </h2>
+                    )}
 
+                    <div className="space-y-2.5">
+                      {tappeGroup.map((tappa, idx) => {
+                        const nextTappa = tappeGroup[idx + 1];
 
+                        return (
+                          <React.Fragment key={tappa.id}>
+                            <SwipeToDelete disabled={!canEdit} onDelete={() => setDeleteTarget(tappa)}>
+                              <TappaCard
+                                tappa={tappa}
+                                onEdit={() => handleOpenEdit(tappa)}
+                                onDelete={() => setDeleteTarget(tappa)}
+                              />
+                            </SwipeToDelete>
 
-                  return (
-                    <React.Fragment key={tappa.id}>
-                      <SwipeToDelete disabled={!canEdit} onDelete={() => setDeleteTarget(tappa)}>
-                        <TappaCard
-                          tappa={tappa}
-                          onEdit={() => handleOpenEdit(tappa)}
-                          onDelete={() => setDeleteTarget(tappa)}
-                        />
-                      </SwipeToDelete>
-
-
-
-                      {/* RouteBadge tra questa tappa e la successiva */}
-                      {nextTappa && (
-                        <div className="flex items-center justify-center py-1">
-                          <RouteBadge
-                            routeId={`tappa_${tappa.id}_${nextTappa.id}`}
-                            from={tappa.titolo}
-                            to={nextTappa.titolo}
-                            fromCoord={tappa.coordinate}
-                            toCoord={nextTappa.coordinate}
-                          />
-                        </div>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                            {/* RouteBadge tra questa tappa e la successiva con percorso tratteggiato */}
+                            {nextTappa && (
+                              <div className="flex flex-col items-center justify-center my-0.5 relative">
+                                <div className="w-0.5 h-3 border-l-2 border-dashed border-slate-300 dark:border-slate-700" />
+                                <div className="flex items-center justify-center w-full px-4">
+                                  <div className="flex-1 border-t border-dashed border-slate-200 dark:border-slate-800 hidden sm:block" />
+                                  <RouteBadge
+                                    routeId={`tappa_${tappa.id}_${nextTappa.id}`}
+                                    from={tappa.titolo}
+                                    to={nextTappa.titolo}
+                                    fromCoord={tappa.coordinate}
+                                    toCoord={nextTappa.coordinate}
+                                    className="scale-95 shadow-xs mx-2"
+                                  />
+                                  <div className="flex-1 border-t border-dashed border-slate-200 dark:border-slate-800 hidden sm:block" />
+                                </div>
+                                <div className="w-0.5 h-3 border-l-2 border-dashed border-slate-300 dark:border-slate-700" />
+                              </div>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
         </div>
       )}
 
@@ -296,6 +425,36 @@ export default function TappeView({ onBack }: TappeViewProps) {
         isDestructive={true}
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* Popup Comparativo Tappe Duplicate / Sovrapposte */}
+      <TimeCollisionModal
+        collision={activeCollision}
+        onKeepBoth={() => {
+          if (activeCollision && typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(activeCollision.id, 'keep');
+          }
+          setActiveCollision(null);
+        }}
+        onDeleteItem={async (itemId) => {
+          try {
+            await storageService.deleteTappa(itemId);
+            setTappe(prev => prev.filter(t => t.id !== itemId));
+            if (activeCollision && typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem(activeCollision.id, 'resolved');
+            }
+          } catch (e) {
+            console.error('Errore durante eliminazione tappa duplicata:', e);
+          } finally {
+            setActiveCollision(null);
+          }
+        }}
+        onDismiss={() => {
+          if (activeCollision && typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(activeCollision.id, 'dismissed');
+          }
+          setActiveCollision(null);
+        }}
       />
     </div>
   );

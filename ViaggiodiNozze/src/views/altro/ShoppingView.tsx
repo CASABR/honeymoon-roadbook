@@ -5,6 +5,8 @@ import ShoppingForm from '../../components/forms/ShoppingForm';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
+import TimeCollisionModal, { type TimeCollision } from '../../components/modals/TimeCollisionModal';
+import type { TimelineItem } from '../../types';
 
 import DayPickerStrip from '../../components/common/DayPickerStrip';
 import SwipeToDelete from '../../components/common/SwipeToDelete';
@@ -30,9 +32,12 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
   // Dialog eliminazione
   const [deleteTarget, setDeleteTarget] = useState<Shopping | null>(null);
 
-  const loadData = useCallback(async () => {
+  // Modale collisione / duplicati
+  const [activeCollision, setActiveCollision] = useState<TimeCollision | null>(null);
+
+  const loadData = useCallback(async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const [loaded, range] = await Promise.all([
         storageService.getShopping(),
         getTripDateRange()
@@ -52,21 +57,95 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
     } catch (err) {
       console.error('Errore nel caricamento dello shopping:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadData();
+    loadData(false);
   }, [loadData]);
 
   useEffect(() => {
-    const handleDataMutated = () => {
-      loadData();
+    const handleDataMutated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.entityType === 'shopping' && customEvent.detail?.entityId && customEvent.detail?.patch) {
+        setShoppingList(prev => prev.map(s => s.id === customEvent.detail.entityId ? { ...s, ...customEvent.detail.patch } : s));
+        return;
+      }
+      loadData(true);
     };
     window.addEventListener('roadbook_data_mutated', handleDataMutated);
     return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
   }, [loadData]);
+
+  // Rilevamento automatico di shopping duplicati/sovrapposti in ordine cronologico
+  useEffect(() => {
+    if (shoppingList.length < 2) {
+      setActiveCollision(null);
+      return;
+    }
+
+    const normalizeStr = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const isSimilarShopping = (s1: Shopping, s2: Shopping) => {
+      const n1 = normalizeStr(s1.nome);
+      const n2 = normalizeStr(s2.nome);
+      if (!n1 || !n2) return false;
+      if (n1 === n2) return true;
+      if (n1.length > 3 && n2.length > 3 && (n1.includes(n2) || n2.includes(n1))) return true;
+      return false;
+    };
+
+    // Ordina cronologicamente
+    const sorted = [...shoppingList].sort((a, b) => {
+      const dateA = a.data || '';
+      const dateB = b.data || '';
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      const timeA = a.orario || '00:00';
+      const timeB = b.orario || '00:00';
+      return timeA.localeCompare(timeB);
+    });
+
+    let nextCollision: TimeCollision | null = null;
+    for (let i = 0; i < sorted.length; i++) {
+      const sA = sorted[i];
+      for (let j = i + 1; j < sorted.length; j++) {
+        const sB = sorted[j];
+        if (sA.data && sB.data && sA.data === sB.data) {
+          const sameTime = (sA.orario && sB.orario && sA.orario === sB.orario);
+          const similar = isSimilarShopping(sA, sB);
+
+          if (sameTime || similar) {
+            const collisionKey = `shopping_collision_${sA.id}_${sB.id}`;
+            const isDismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey);
+            if (!isDismissed) {
+              const toTimelineItem = (s: Shopping): TimelineItem => ({
+                id: s.id,
+                type: 'shopping',
+                time: s.orario || 'Orario non specificato',
+                title: s.nome,
+                location: s.indirizzo || 'Indirizzo non specificato',
+                categoryOrType: s.sottocategoria || 'Shopping',
+                completed: s.completed,
+                originalData: s
+              });
+
+              nextCollision = {
+                id: collisionKey,
+                time: `${sA.data}${sA.orario ? ' alle ' + sA.orario : ''}`,
+                itemA: toTimelineItem(sA),
+                itemB: toTimelineItem(sB)
+              };
+              break;
+            }
+          }
+        }
+      }
+      if (nextCollision) break;
+    }
+
+    setActiveCollision(nextCollision);
+  }, [shoppingList]);
 
   const handleOpenAdd = () => {
     setEditingShopping(null);
@@ -96,22 +175,56 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
     await loadData();
   };
 
-  const filteredShopping = shoppingList.filter(s => selectedDate === 'tutte' || s.data === selectedDate);
+  const detectShopCountry = (s: Shopping): string => {
+    const text = `${s.nome || ''} ${s.indirizzo || ''} ${s.nota || ''} ${s.noteCopilota || ''}`.toLowerCase();
+    if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|nz)/.test(text)) return '🇳🇿 Nuova Zelanda';
+    if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|au)/.test(text)) return '🇦🇺 Australia';
+    if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|ph)/.test(text)) return '🇵🇭 Filippine';
+    if (/(italia|roma|milano|italy)/.test(text)) return '🇮🇹 Italia';
+    return '🌍 Altro';
+  };
 
-  // Raggruppamento per data se selezionato 'tutte'
-  const groupedShopping = filteredShopping.reduce<Record<string, Shopping[]>>((acc, s) => {
-    const key = s.data || 'Senza Data';
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(s);
-    return acc;
-  }, {});
+  const macroOrder = ['🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🇮🇹 Italia', '🌍 Altro'];
+
+  const groupedShoppingByCountry = useMemo(() => {
+    const countryMap: Record<string, Record<string, Shopping[]>> = {};
+
+    filteredShopping.forEach(s => {
+      const c = detectShopCountry(s);
+      const d = s.data || 'Senza Data';
+      if (!countryMap[c]) countryMap[c] = {};
+      if (!countryMap[c][d]) countryMap[c][d] = [];
+      countryMap[c][d].push(s);
+    });
+
+    const sortedCountries = Object.keys(countryMap).sort((a, b) => {
+      const idxA = macroOrder.indexOf(a);
+      const idxB = macroOrder.indexOf(b);
+      return (idxA > -1 ? idxA : 99) - (idxB > -1 ? idxB : 99);
+    });
+
+    return sortedCountries.map(country => {
+      const datesObj = countryMap[country];
+      const sortedDates = Object.keys(datesObj).sort((a, b) => {
+        if (a === 'Senza Data') return 1;
+        if (b === 'Senza Data') return -1;
+        return a.localeCompare(b);
+      });
+      return {
+        country,
+        dates: sortedDates.map(date => ({ date, items: datesObj[date] }))
+      };
+    });
+  }, [filteredShopping]);
 
   const formatMicroHeaderDate = (dateString: string) => {
     if (dateString === 'Senza Data') return 'SENZA DATA';
     try {
-      const d = new Date(dateString);
-      if (isNaN(d.getTime())) return dateString;
-      return new Intl.DateTimeFormat('it-IT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(d);
+      const [y, m, d] = dateString.split('-');
+      if (y && m && d) {
+        return `${d}-${m}-${y}`;
+      }
+      return dateString;
     } catch {
       return dateString;
     }
@@ -215,27 +328,40 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
           />
         )
       ) : (
-        <div className="space-y-6">
-          {Object.entries(groupedShopping).map(([groupKey, sGroup]) => (
-            <div key={groupKey} className="mt-4 first:mt-1">
-              {selectedDate === 'tutte' && (
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-widest px-1 mb-2">
-                  {formatMicroHeaderDate(groupKey)}
+        <div className="space-y-8">
+          {groupedShoppingByCountry.map(({ country, dates }) => (
+            <div key={country} className="space-y-4">
+              <div className="sticky top-0 z-10 py-1.5 bg-slate-50/95 backdrop-blur-md border-b border-slate-200 flex items-center justify-between">
+                <h2 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                  {country}
                 </h2>
-              )}
+                <span className="text-[11px] font-bold text-slate-400">
+                  {dates.reduce((acc, d) => acc + d.items.length, 0)} {dates.reduce((acc, d) => acc + d.items.length, 0) === 1 ? 'negozio' : 'negozi'}
+                </span>
+              </div>
 
-              <div className="space-y-2.5">
-                {sGroup.map((s) => {
-                  return (
-                    <SwipeToDelete key={s.id} disabled={!canEdit} onDelete={() => setDeleteTarget(s)}>
-                      <ShoppingCard
-                        shopping={s}
-                        onEdit={() => handleOpenEdit(s)}
-                        onDelete={() => setDeleteTarget(s)}
-                      />
-                    </SwipeToDelete>
-                  );
-                })}
+              <div className="space-y-5">
+                {dates.map(({ date, items: sGroup }) => (
+                  <div key={date} className="space-y-3">
+                    {selectedDate === 'tutte' && (
+                      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-widest px-1 mb-2">
+                        {formatMicroHeaderDate(date)}
+                      </h3>
+                    )}
+
+                    <div className="space-y-2.5">
+                      {sGroup.map((s) => (
+                        <SwipeToDelete key={s.id} disabled={!canEdit} onDelete={() => setDeleteTarget(s)}>
+                          <ShoppingCard
+                            shopping={s}
+                            onEdit={() => handleOpenEdit(s)}
+                            onDelete={() => setDeleteTarget(s)}
+                          />
+                        </SwipeToDelete>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           ))}
@@ -266,6 +392,36 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
         isDestructive={true}
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      {/* Popup Comparativo Shopping Duplicati / Sovrapposti */}
+      <TimeCollisionModal
+        collision={activeCollision}
+        onKeepBoth={() => {
+          if (activeCollision && typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(activeCollision.id, 'keep');
+          }
+          setActiveCollision(null);
+        }}
+        onDeleteItem={async (itemId) => {
+          try {
+            await storageService.deleteShopping(itemId);
+            setShoppingList(prev => prev.filter(s => s.id !== itemId));
+            if (activeCollision && typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem(activeCollision.id, 'resolved');
+            }
+          } catch (e) {
+            console.error('Errore durante eliminazione shopping duplicato:', e);
+          } finally {
+            setActiveCollision(null);
+          }
+        }}
+        onDismiss={() => {
+          if (activeCollision && typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(activeCollision.id, 'dismissed');
+          }
+          setActiveCollision(null);
+        }}
       />
     </div>
   );

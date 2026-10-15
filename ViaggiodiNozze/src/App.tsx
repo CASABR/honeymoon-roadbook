@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import type { SectionTab, CategoriaTab } from './types';
 import NavBar from './components/NavBar';
 import CategorieBar from './components/CategorieBar';
@@ -9,10 +9,11 @@ import RistorantiView from './views/altro/RistorantiView';
 import AlloggiView from './views/AlloggiView';
 import TrasportiView from './views/TrasportiView';
 import ShoppingView from './views/altro/ShoppingView';
-import SpeseBudgetView from './views/altro/SpeseBudgetView';
 import AltroView from './views/AltroView';
-import MappaView from './views/MappaView';
 import SettingsMenu from './components/common/SettingsMenu';
+
+const MappaView = lazy(() => import('./views/MappaView'));
+const SpeseBudgetView = lazy(() => import('./views/altro/SpeseBudgetView'));
 import DarkModeToggle from './components/common/DarkModeToggle';
 import UpdateToast from './components/common/UpdateToast';
 import { SyncService } from './storage/syncService';
@@ -26,7 +27,7 @@ import { signInAnonymously, onAuthStateChanged, type User } from 'firebase/auth'
 import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 
-import LiveView from './views/altro/LiveView';
+const LiveView = lazy(() => import('./views/altro/LiveView'));
 import WalkthroughModal from './components/modals/WalkthroughModal';
 import SmartInsertModal from './components/modals/SmartInsertModal';
 import { InstallPWA } from './components/InstallPWA';
@@ -367,6 +368,27 @@ export default function App() {
     return false;
   });
 
+  const [desktopSection, setDesktopSection] = useState<DesktopNavSection>('prenotazioni');
+
+  // Modalità di visualizzazione: 'desktop' (standard workspace a schermo intero) o 'mobile' (shell smartphone centrata)
+  const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>(() => {
+    if (typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('houni_view_mode');
+      if (saved === 'mobile' || saved === 'desktop') return saved;
+    }
+    return 'desktop';
+  });
+
+  const toggleViewMode = () => {
+    setViewMode(prev => {
+      const next = prev === 'desktop' ? 'mobile' : 'desktop';
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('houni_view_mode', next);
+      }
+      return next;
+    });
+  };
+
   useEffect(() => {
     const handleReplayTutorial = () => {
       setIsWalkthroughOpen(true);
@@ -450,32 +472,22 @@ export default function App() {
         </header>
 
         <main className="w-full max-w-md mx-auto flex-1 flex flex-col px-4 pt-1 pb-10">
-          <LiveView isStandaloneExternal={true} tripId={activeTripId} />
+          <Suspense fallback={
+            <div className="flex flex-col h-64 items-center justify-center rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60 animate-pulse">
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-8 h-8 border-3 border-rose-500 border-t-transparent rounded-full animate-spin" />
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento Live Feed...</span>
+              </div>
+            </div>
+          }>
+            <LiveView isStandaloneExternal={true} tripId={activeTripId} />
+          </Suspense>
         </main>
       </div>
     );
   }
 
-  const [desktopSection, setDesktopSection] = useState<DesktopNavSection>('prenotazioni');
 
-  // Modalità di visualizzazione: 'desktop' (standard workspace a schermo intero) o 'mobile' (shell smartphone centrata)
-  const [viewMode, setViewMode] = useState<'desktop' | 'mobile'>(() => {
-    if (typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem('houni_view_mode');
-      if (saved === 'mobile' || saved === 'desktop') return saved;
-    }
-    return 'desktop';
-  });
-
-  const toggleViewMode = () => {
-    setViewMode(prev => {
-      const next = prev === 'desktop' ? 'mobile' : 'desktop';
-      if (typeof localStorage !== 'undefined') {
-        localStorage.setItem('houni_view_mode', next);
-      }
-      return next;
-    });
-  };
 
   const handleSelectDesktopSection = (section: DesktopNavSection) => {
     setDesktopSection(section);
@@ -558,7 +570,7 @@ export default function App() {
         {/* Top Header Mobile / Tablet Header (o sempre in modalità mobile forzata) */}
         <header className={`w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-slate-200/60 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-30`}>
           <div className="flex items-center gap-1.5">
-            <img src="/favicon.svg" alt="Hounigo" className="h-6 w-auto object-contain max-w-[100px]" />
+            <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="h-6 w-auto object-contain max-w-[100px]" />
             {typeof __BUILD_TIME__ !== 'undefined' && (
               <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full">
                 🟢 {__BUILD_TIME__}
@@ -597,7 +609,18 @@ export default function App() {
           <div className={!isForcedMobileView && desktopSection === 'prenotazioni' ? 'block md:hidden' : 'block'}>
             {activeTab === 'oggi' && <OggiView onNavigateTab={handleTabChange} />}
             
-            {activeTab === 'mappa' && <MappaView />}
+            {activeTab === 'mappa' && (
+              <Suspense fallback={
+                <div className="flex flex-col h-[52vh] min-h-[340px] items-center justify-center rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60 animate-pulse">
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento mappa...</span>
+                  </div>
+                </div>
+              }>
+                <MappaView />
+              </Suspense>
+            )}
 
             {activeTab === 'categorie' && (
               <>
@@ -607,7 +630,18 @@ export default function App() {
                 {activeCategoria === 'alloggi' && <AlloggiView />}
                 {activeCategoria === 'trasporti' && <TrasportiView />}
                 {activeCategoria === 'shopping' && <ShoppingView />}
-                {activeCategoria === 'spese' && <SpeseBudgetView />}
+                {activeCategoria === 'spese' && (
+                  <Suspense fallback={
+                    <div className="flex flex-col h-72 items-center justify-center rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60 animate-pulse m-4">
+                      <div className="flex flex-col items-center gap-2">
+                        <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento spese e budget...</span>
+                      </div>
+                    </div>
+                  }>
+                    <SpeseBudgetView />
+                  </Suspense>
+                )}
                 {!activeCategoria && <TappeView />}
               </>
             )}
