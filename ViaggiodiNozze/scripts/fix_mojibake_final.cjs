@@ -1,0 +1,14 @@
+const fs = require('fs');
+let code = fs.readFileSync('src/views/altro/SpeseBudgetView.tsx', 'utf8');
+code = code.replace(/â‚¬/g, '€');
+code = code.replace(/AttivitÃ/g, 'Attività');
+code = code.replace(/âž”/g, '→');
+code = code.replace(/âœ“/g, '✓');
+code = code.replace(/â ³/g, '⏳');
+code = code.replace(/âœ ï¸ /g, '✏️');
+code = code.replace(/ðŸ—‘ï¸ /g, '🗑️');
+code = code.replace(/ðŸŸ¢/g, '🟢');
+code = code.replace(/ðŸŸ¡/g, '🟡');
+code = code.replace(/giÃ/g, 'già');
+fs.writeFileSync('src/views/altro/SpeseBudgetView.tsx', code, 'utf8');
+console.log('Fixed Mojibake texts');

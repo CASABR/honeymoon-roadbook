@@ -76,32 +76,6 @@ export const CATEGORY_CONFIG: Record<
   },
 };
 
-export const parseEuro = (val: any): number => {
-  if (!val) return 0;
-  if (typeof val === "number") return val;
-  let str = String(val).trim().replace(/[€a-zA-Z\\s]/g, "");
-  
-  // Se è un numero tipo "406.075,00", rimuovi i punti come separatori migliaia.
-  if (str.includes(',') && str.includes('.')) {
-    // Il punto è il separatore delle migliaia in formato europeo.
-    str = str.replace(/\\./g, '');
-  } else if ((str.match(/\\./g) || []).length > 1) {
-    // Multipli punti "1.000.000"
-    str = str.replace(/\\./g, '');
-  } else if (str.includes('.') && !str.includes(',')) {
-    // "1000.50" (format US) -> Lasciamo così
-    const parts = str.split('.');
-    if (parts[1].length === 3) {
-      // Se dopo il punto ci sono 3 cifre es. "406.075", era un separatore migliaia
-      str = str.replace(/\\./g, '');
-    }
-  }
-
-  // Converti la virgola europea in punto per il parsing
-  str = str.replace(',', '.');
-  const parsed = parseFloat(str);
-  return isNaN(parsed) ? 0 : parsed;
-};
 
 const formatEuro = (val: number): string => {
   return new Intl.NumberFormat("it-IT", {
@@ -535,11 +509,15 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             {canEdit && (
               <div className="flex items-center gap-1">
                 <button 
-                  type="button" 
+                  type="button"
                   onClick={(ev) => {
                     ev.stopPropagation();
-                    isEditingThis ? setEditingItemId(null) : openItemEdit(item);
-                  }} 
+                    if (isEditingThis) {
+                      setEditingItemId(null);
+                    } else {
+                      openItemEdit(item);
+                    }
+                  }}
                   className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs transition-colors cursor-pointer" 
                   title={isEditingThis ? "Chiudi" : "Modifica"}
                 >

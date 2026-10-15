@@ -219,14 +219,13 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         <div className="rounded-3xl border border-white/10 p-8 text-center space-y-8"
           style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)' }}>
 
-          {/* Icon */}
+          {/* Icon / Logo */}
           <div className="flex flex-col items-center gap-4">
             <div className="relative w-24 h-24 mx-auto">
               <div className="absolute inset-0 rounded-3xl blur-xl opacity-60"
                 style={{ background: 'linear-gradient(135deg, #818cf8, #f472b6)' }} />
-              <div className="relative w-24 h-24 rounded-3xl flex items-center justify-center text-5xl shadow-2xl"
-                style={{ background: 'linear-gradient(135deg, #6366f1, #ec4899)' }}>
-                🗺️
+              <div className="relative w-24 h-24 rounded-3xl flex items-center justify-center p-3 shadow-2xl bg-white/10 backdrop-blur-md border border-white/20">
+                <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="w-full h-full object-contain" />
               </div>
             </div>
             <div>

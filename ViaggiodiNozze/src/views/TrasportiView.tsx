@@ -9,6 +9,11 @@ import EmptyState from '../components/EmptyState';
 import SwipeToDelete from '../components/common/SwipeToDelete';
 import { useDeviceRole } from '../utils/useDeviceRole';
 
+import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
+import type { TimelineItem } from '../types';
+import DayPickerStrip from '../components/common/DayPickerStrip';
+import { getTripDateRange, type TripDayItem } from '../utils/tripDates';
+
 const detectCountry = (t: Trasporto): string => {
   const text = `${t.departureLocation || ''} ${t.arrivalLocation || ''} ${t.layover?.airport || ''} ${t.carrier || ''} ${t.noteCopilota || ''}`.toLowerCase();
   if (/(auckland|akl|chc|wellington|christchurch|picton|queenstown|rotorua|snap rentals|cook strait|sealink|nuova zelanda)/.test(text)) return '🇳🇿 Nuova Zelanda';
@@ -24,6 +29,8 @@ type CountryFilterType = 'tutti' | '🇳🇿 Nuova Zelanda' | '🇦🇺 Australi
 export default function TrasportiView() {
   const { canEdit } = useDeviceRole();
   const [transports, setTransports] = useState<Trasporto[]>([]);
+  const [tripDays, setTripDays] = useState<TripDayItem[]>([]);
+  const [selectedDate, setSelectedDate] = useState<string | 'tutte'>('tutte');
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<FilterType>('tutti');
   const [activeCountryFilter, setActiveCountryFilter] = useState<CountryFilterType>('tutti');
@@ -31,39 +38,126 @@ export default function TrasportiView() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTransport, setEditingTransport] = useState<Trasporto | null>(null);
   const [deletingTransport, setDeletingTransport] = useState<Trasporto | null>(null);
+  const [activeCollision, setActiveCollision] = useState<TimeCollision | null>(null);
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
 
       const timeoutPromise = new Promise((_, reject) =>
         setTimeout(() => reject(new Error('Timeout caricamento dati (1.5s)')), 1500)
       );
 
-      const items = await Promise.race([
-        storageService.getTransports(),
+      const [items, range] = await Promise.race([
+        Promise.all([storageService.getTransports(), getTripDateRange()]),
         timeoutPromise
-      ]) as Trasporto[];
+      ]) as [Trasporto[], any];
 
       setTransports(items || []);
+      if (range) setTripDays(range.tripDays);
     } catch (err) {
       console.error('Errore caricamento trasporti:', err);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData(false);
   }, []);
 
   useEffect(() => {
-    const handleDataMutated = () => {
-      loadData();
+    const handleDataMutated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail?.entityType === 'trasporti' && customEvent.detail?.action === 'update' && customEvent.detail?.data) {
+        const updated = customEvent.detail.data as Trasporto;
+        setTransports(prev => prev.map(item => item.id === updated.id ? updated : item));
+        return;
+      }
+      loadData(true);
     };
     window.addEventListener('roadbook_data_mutated', handleDataMutated);
     return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
   }, []);
+
+  // Rilevamento automatico di trasporti duplicati/sovrapposti in ordine cronologico
+  useEffect(() => {
+    if (transports.length < 2) {
+      setActiveCollision(null);
+      return;
+    }
+
+    const normalizeStr = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+
+    const isSimilarTransport = (t1: Trasporto, t2: Trasporto) => {
+      if (t1.bookingCode && t2.bookingCode && t1.bookingCode === t2.bookingCode && t1.type === 'volo' && t2.type === 'volo') {
+        // Stesso PNR di volo con segmenti diversi non è una collisione
+        if (t1.departureLocation !== t2.departureLocation || t1.arrivalLocation !== t2.arrivalLocation) {
+          return false;
+        }
+      }
+      const dep1 = normalizeStr(t1.departureLocation);
+      const dep2 = normalizeStr(t2.departureLocation);
+      const arr1 = normalizeStr(t1.arrivalLocation);
+      const arr2 = normalizeStr(t2.arrivalLocation);
+
+      if (dep1 && dep2 && arr1 && arr2) {
+        if (dep1 === dep2 && arr1 === arr2) return true;
+        if ((dep1.includes(dep2) || dep2.includes(dep1)) && (arr1.includes(arr2) || arr2.includes(arr1))) return true;
+      }
+      return false;
+    };
+
+    // Ordina cronologicamente
+    const sorted = [...transports].sort((a, b) => {
+      const dateA = a.date || '';
+      const dateB = b.date || '';
+      if (dateA !== dateB) return dateA.localeCompare(dateB);
+      const timeA = a.departureTime || '00:00';
+      const timeB = b.departureTime || '00:00';
+      return timeA.localeCompare(timeB);
+    });
+
+    let nextCollision: TimeCollision | null = null;
+    for (let i = 0; i < sorted.length; i++) {
+      const tA = sorted[i];
+      for (let j = i + 1; j < sorted.length; j++) {
+        const tB = sorted[j];
+        if (tA.date && tB.date && tA.date === tB.date) {
+          const sameDepTime = (tA.departureTime && tB.departureTime && tA.departureTime === tB.departureTime);
+          const similar = isSimilarTransport(tA, tB);
+
+          if (sameDepTime || similar) {
+            const collisionKey = `transport_collision_${tA.id}_${tB.id}`;
+            const isDismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey);
+            if (!isDismissed) {
+              const toTimelineItem = (t: Trasporto): TimelineItem => ({
+                id: t.id,
+                type: 'trasporto',
+                time: t.departureTime || '00:00',
+                title: `${t.type.toUpperCase()}: ${t.departureLocation} ➔ ${t.arrivalLocation}`,
+                location: `${t.departureLocation} → ${t.arrivalLocation}`,
+                categoryOrType: t.type,
+                completed: t.completed,
+                originalData: t
+              });
+
+              nextCollision = {
+                id: collisionKey,
+                time: `${tA.date} alle ${tA.departureTime || 'Partenza'}`,
+                itemA: toTimelineItem(tA),
+                itemB: toTimelineItem(tB)
+              };
+              break;
+            }
+          }
+        }
+      }
+      if (nextCollision) break;
+    }
+
+    setActiveCollision(nextCollision);
+  }, [transports]);
 
   const handleOpenAdd = () => {
     setEditingTransport(null);
@@ -107,8 +201,9 @@ export default function TrasportiView() {
     
     const c = detectCountry(t);
     const countryMatch = (activeCountryFilter === 'tutti') || (activeCountryFilter === c);
+    const dateMatch = (selectedDate === 'tutte') || (t.date === selectedDate);
     
-    return typeMatch && countryMatch;
+    return typeMatch && countryMatch && dateMatch;
   });
 
   // Contatori
@@ -160,13 +255,10 @@ export default function TrasportiView() {
   const formatGroupDateHeader = (dateStr: string) => {
     try {
       const [y, m, d] = dateStr.split('-');
-      const monthNames: Record<string, string> = {
-        '01': 'Gennaio', '02': 'Febbraio', '03': 'Marzo', '04': 'Aprile',
-        '05': 'Maggio', '06': 'Giugno', '07': 'Luglio', '08': 'Agosto',
-        '09': 'Settembre', '10': 'Ottobre', '11': 'Novembre', '12': 'Dicembre'
-      };
-      const month = monthNames[m] || m;
-      return `${d} ${month} ${y}`;
+      if (y && m && d) {
+        return `${d}-${m}-${y}`;
+      }
+      return dateStr;
     } catch {
       return dateStr;
     }
@@ -210,6 +302,20 @@ export default function TrasportiView() {
           )}
         </div>
       </header>
+
+      {/* Selettore DayPickerStrip a scorrimento orizzontale con frecce desktop */}
+      <DayPickerStrip
+        days={tripDays}
+        selectedDate={selectedDate}
+        onSelectDate={setSelectedDate}
+        totalCount={transports.length}
+        itemCounts={transports.reduce<Record<string, number>>((acc, t) => {
+          if (t.date) {
+            acc[t.date] = (acc[t.date] || 0) + 1;
+          }
+          return acc;
+        }, {})}
+      />
 
       {/* Chips Filter Horizontal Bar - Types */}
       {transports.length > 0 && (
@@ -366,6 +472,36 @@ export default function TrasportiView() {
         onConfirm={handleConfirmDelete}
         onCancel={() => setDeletingTransport(null)}
         isDestructive
+      />
+
+      {/* Popup Comparativo Trasporti Duplicati / Sovrapposti */}
+      <TimeCollisionModal
+        collision={activeCollision}
+        onKeepBoth={() => {
+          if (activeCollision && typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(activeCollision.id, 'keep');
+          }
+          setActiveCollision(null);
+        }}
+        onDeleteItem={async (itemId) => {
+          try {
+            await storageService.deleteTransport(itemId);
+            setTransports(prev => prev.filter(t => t.id !== itemId));
+            if (activeCollision && typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem(activeCollision.id, 'resolved');
+            }
+          } catch (e) {
+            console.error('Errore durante eliminazione trasporto duplicato:', e);
+          } finally {
+            setActiveCollision(null);
+          }
+        }}
+        onDismiss={() => {
+          if (activeCollision && typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(activeCollision.id, 'dismissed');
+          }
+          setActiveCollision(null);
+        }}
       />
     </section>
   );

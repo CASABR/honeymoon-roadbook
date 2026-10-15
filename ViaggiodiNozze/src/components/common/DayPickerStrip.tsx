@@ -48,11 +48,44 @@ export default function DayPickerStrip({
     return () => clearTimeout(timer);
   }, [selectedDate, dynamicDays]);
 
+  const handleScrollLeft = () => {
+    if (containerRef.current) {
+      containerRef.current.scrollBy({ left: -260, behavior: 'smooth' });
+    }
+  };
+
+  const handleScrollRight = () => {
+    if (containerRef.current) {
+      containerRef.current.scrollBy({ left: 260, behavior: 'smooth' });
+    }
+  };
+
   return (
-    <div className="-mx-1 mb-4">
+    <div className="-mx-1 mb-4 relative group">
+      {/* Frecce di scorrimento desktop */}
+      <button
+        type="button"
+        onClick={handleScrollLeft}
+        className="hidden md:flex absolute -left-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white/95 dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 shadow-md items-center justify-center text-slate-700 dark:text-slate-200 hover:scale-110 active:scale-95 transition-all cursor-pointer opacity-80 hover:opacity-100"
+        aria-label="Scorri giorni indietro"
+        title="Scorri indietro"
+      >
+        <span className="text-xs font-bold">◀</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={handleScrollRight}
+        className="hidden md:flex absolute -right-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white/95 dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 shadow-md items-center justify-center text-slate-700 dark:text-slate-200 hover:scale-110 active:scale-95 transition-all cursor-pointer opacity-80 hover:opacity-100"
+        aria-label="Scorri giorni avanti"
+        title="Scorri avanti"
+      >
+        <span className="text-xs font-bold">▶</span>
+      </button>
+
       <div 
         ref={containerRef}
-        className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-none snap-x items-center"
+        className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-none snap-x items-center scroll-smooth"
       >
         {/* Chip compatta 'Tutti' fissa a sinistra come UNICO primo elemento */}
         <button

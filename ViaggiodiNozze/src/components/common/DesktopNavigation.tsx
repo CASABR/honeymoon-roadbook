@@ -4,6 +4,8 @@ import { useDeviceRole } from '../../utils/useDeviceRole';
 import DarkModeToggle from '../common/DarkModeToggle';
 import SettingsMenu from '../common/SettingsMenu';
 
+declare const __BUILD_TIME__: string;
+
 export type DesktopNavSection =
   | 'prenotazioni'
   | 'itinerario'
@@ -122,11 +124,16 @@ export default function DesktopNavigation({
       {/* ─── LOGO & TRIP INFO ─────────────────────────────────────────── */}
       <div className="p-5 pb-3">
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <img src="/favicon.svg" alt="Hounigo" className="h-7 w-auto object-contain" />
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="h-7 w-auto object-contain" />
             <span className="font-black text-lg tracking-tight text-[#172033] dark:text-white">
               Hounigo
             </span>
+            {typeof __BUILD_TIME__ !== 'undefined' && (
+              <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full ml-1" title="Orario ultimo deploy">
+                🟢 {__BUILD_TIME__}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5">
             <DarkModeToggle />

@@ -120,13 +120,13 @@ export default function TimeCollisionModal({
   };
 
   const handleDeleteItem = async (toKeep: TimelineItem, toDelete: TimelineItem) => {
-    if (confirm(`Confermi di voler mantenere "${toKeep.title}" ed eliminare "${toDelete.title}"?`)) {
-      setDeletingId(toDelete.id);
-      try {
-        await onDeleteItem(toDelete.id, toDelete.type);
-      } finally {
-        setDeletingId(null);
-      }
+    // L'utente ha già fatto la scelta nel modal cliccando su "Mantieni questa scheda"
+    void toKeep;
+    setDeletingId(toDelete.id);
+    try {
+      await onDeleteItem(toDelete.id, toDelete.type);
+    } finally {
+      setDeletingId(null);
     }
   };
 

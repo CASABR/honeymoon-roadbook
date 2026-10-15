@@ -644,8 +644,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const formatDateHuman = (dateStr: string) => {
     try {
       const [y, m, d] = dateStr.split('-');
-      const months = ['Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'];
-      return `${parseInt(d, 10)} ${months[parseInt(m, 10) - 1]} ${y}`;
+      if (y && m && d) {
+        return `${d}-${m}-${y}`;
+      }
+      return dateStr;
     } catch {
       return dateStr;
     }
@@ -1312,17 +1314,25 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                           </div>
                         )}
 
-                        {/* ROUTEBADGE SEQUENZIALE */}
+                        {/* ROUTEBADGE SEQUENZIALE CON SFONDO/PERCORSO TRATTEGGIATO */}
                         {nextItem && fromLoc && toLoc && fromLoc.trim().toLowerCase() !== toLoc.trim().toLowerCase() && (
-                          <div className="flex items-center justify-center py-1">
-                            <RouteBadge
-                              routeId={`seq_${item.id}_${nextItem.id}`}
-                              from={fromLoc}
-                              to={toLoc}
-                              fromCoord={fromCoord}
-                              toCoord={toCoord}
-                              className="scale-95 shadow-xs"
-                            />
+                          <div className="flex flex-col items-center justify-center my-0.5 relative">
+                            {/* Tratto tratteggiato superiore */}
+                            <div className="w-0.5 h-3 border-l-2 border-dashed border-slate-300 dark:border-slate-700" />
+                            <div className="flex items-center justify-center w-full px-4">
+                              <div className="flex-1 border-t border-dashed border-slate-200 dark:border-slate-800 hidden sm:block" />
+                              <RouteBadge
+                                routeId={`seq_${item.id}_${nextItem.id}`}
+                                from={fromLoc}
+                                to={toLoc}
+                                fromCoord={fromCoord}
+                                toCoord={toCoord}
+                                className="scale-95 shadow-xs mx-2"
+                              />
+                              <div className="flex-1 border-t border-dashed border-slate-200 dark:border-slate-800 hidden sm:block" />
+                            </div>
+                            {/* Tratto tratteggiato inferiore */}
+                            <div className="w-0.5 h-3 border-l-2 border-dashed border-slate-300 dark:border-slate-700" />
                           </div>
                         )}
                       </div>
