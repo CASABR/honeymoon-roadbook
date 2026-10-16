@@ -6,7 +6,6 @@ import DocumentiGalleriaView from './altro/DocumentiGalleriaView';
 import BagagliView from './altro/BagagliView';
 import NoteViaggioView from './altro/NoteViaggioView';
 import GestioneViaggioView from './altro/GestioneViaggioView';
-import AdminDashboardView from './altro/AdminDashboardView';
 
 const LiveView = lazy(() => import('./altro/LiveView'));
 const SpeseBudgetView = lazy(() => import('./altro/SpeseBudgetView'));
@@ -14,7 +13,7 @@ import DeviceRoleModal from '../components/common/DeviceRoleModal';
 import { storageService } from '../storage/storageService';
 import type { DeviceRole } from '../types';
 
-type SubViewType = 'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | 'gestione' | 'admin' | null;
+type SubViewType = 'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | 'gestione' | null;
 
 interface AltroViewProps {
   initialSubView?: SubViewType;
@@ -96,7 +95,6 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   if (activeSubView === 'note') return <NoteViaggioView onBack={handleBack} />;
   if (activeSubView === 'galleria') return <DocumentiGalleriaView onBack={handleBack} />;
   if (activeSubView === 'gestione') return <GestioneViaggioView onBack={handleBack} />;
-  if (activeSubView === 'admin') return <AdminDashboardView onBack={handleBack} />;
 
   return (
     <div className="space-y-4 pt-1 animate-fade-in pb-10">
@@ -199,31 +197,6 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             </div>
           </div>
           <span className="text-indigo-400 text-base font-bold ml-2">›</span>
-        </button>
-
-        {/* Card Console Admin (Solo per Guida / Co-pilota / Admin Sposi) */}
-        <button
-          type="button"
-          onClick={() => setActiveSubView('admin')}
-          className="col-span-2 bg-slate-900 text-white rounded-3xl p-4 border border-slate-800 shadow-sm hover:shadow-md hover:bg-slate-800 transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.99]"
-        >
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-slate-800 flex items-center justify-center text-xl shrink-0 border border-slate-700">
-              🛠️
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-white text-xs sm:text-sm leading-tight">Dashboard Admin &amp; Diagnostica</h3>
-                <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  CONSOLE
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-0.5 line-clamp-1">
-                Spazio disco locale, stato sincronizzazione e monitoraggio
-              </p>
-            </div>
-          </div>
-          <span className="text-slate-400 text-base font-bold ml-2">›</span>
         </button>
 
         {/* Card 1: Assicurazione */}

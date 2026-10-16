@@ -28,6 +28,7 @@ import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 
 const LiveView = lazy(() => import('./views/altro/LiveView'));
+const AdminDashboardView = lazy(() => import('./views/altro/AdminDashboardView'));
 import WalkthroughModal from './components/modals/WalkthroughModal';
 import SmartInsertModal from './components/modals/SmartInsertModal';
 import { InstallPWA } from './components/InstallPWA';
@@ -68,6 +69,19 @@ export default function App() {
       urlParams.get('live') === 'true' ||
       urlParams.get('view') === 'live' ||
       (window.location.hash || '').toLowerCase().includes('live')
+    );
+  });
+
+  // Rileva accesso diretto alla console Admin via URL dedicato autonomo (?admin=1 o #admin)
+  // Nessun pulsante, link o menu rimanda a questa vista dalla PWA pubblica
+  const [isAdminRoute] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const urlParams = new URLSearchParams(window.location.search);
+    return (
+      urlParams.get('admin') === '1' ||
+      urlParams.get('admin') === 'true' ||
+      urlParams.get('view') === 'admin' ||
+      (window.location.hash || '').toLowerCase().includes('admin')
     );
   });
 
@@ -452,6 +466,29 @@ export default function App() {
           setTripConfig(getTripConfig() || normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' }));
         }}
       />
+    );
+  }
+
+  if (isAdminRoute) {
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col p-4 sm:p-6 font-sans antialiased">
+        <Suspense fallback={
+          <div className="flex flex-col h-64 items-center justify-center rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60 animate-pulse">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento Console Admin...</span>
+            </div>
+          </div>
+        }>
+          <AdminDashboardView onBack={() => {
+            const url = new URL(window.location.href);
+            url.searchParams.delete('admin');
+            url.searchParams.delete('view');
+            url.hash = '';
+            window.location.href = url.pathname + (url.search ? url.search : '');
+          }} />
+        </Suspense>
+      </div>
     );
   }
 
