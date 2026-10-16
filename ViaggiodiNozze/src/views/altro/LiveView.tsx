@@ -69,6 +69,7 @@ interface CustomLivePhoto {
 
 import { liveService, type LiveUpdate } from '../../services/liveService';
 import { getTripConfig } from '../../utils/tripConfig';
+import { auth } from '../../firebase';
 
 export default function LiveView({ onBack, isStandaloneExternal = false, tripId }: LiveViewProps) {
   const activeTripId = tripId || getTripConfig()?.id;
@@ -226,6 +227,75 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     if (deviceRole === 'guida' || deviceRole === 'copilota') return true;
     return isSposiAdminManual;
   }, [deviceRole, isSposiAdminManual]);
+
+  // LIVE Text Messages: invio messaggi testuali da parte dei membri
+  const [liveTextMessage, setLiveTextMessage] = useState('');
+  const [liveSenderTitle] = useState(() => {
+    if (deviceRole === 'guida') return 'Sposi (Guida)';
+    if (deviceRole === 'copilota') return 'Sposi (Co-pilota)';
+    return 'Amico di Viaggio';
+  });
+  const [isSendingLiveMsg, setIsSendingLiveMsg] = useState(false);
+  const [liveMsgError, setLiveMsgError] = useState<string | null>(null);
+  const [liveMsgSuccess, setLiveMsgSuccess] = useState<string | null>(null);
+  const [lastLiveMsgSentAt, setLastLiveMsgSentAt] = useState<number>(0);
+
+  const handleSendLiveTextMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLiveMsgError(null);
+    setLiveMsgSuccess(null);
+
+    const cleanMsg = liveTextMessage.trim();
+    if (!cleanMsg) {
+      setLiveMsgError('Il messaggio non può essere vuoto.');
+      return;
+    }
+    if (cleanMsg.length > 500) {
+      setLiveMsgError('Il messaggio non può superare i 500 caratteri.');
+      return;
+    }
+
+    // Anti-spam rate limiting: almeno 5 secondi tra un invio e l'altro
+    const now = Date.now();
+    if (now - lastLiveMsgSentAt < 5000) {
+      const waitSec = Math.ceil((5000 - (now - lastLiveMsgSentAt)) / 1000);
+      setLiveMsgError(`Attendi ${waitSec}s prima di inviare un altro messaggio.`);
+      return;
+    }
+
+    if (!navigator.onLine) {
+      setLiveMsgError('Dispositivo offline: impossibile pubblicare sul feed Live.');
+      return;
+    }
+
+    if (!activeTripId) {
+      setLiveMsgError('Viaggio non configurato.');
+      return;
+    }
+
+    setIsSendingLiveMsg(true);
+    try {
+      // Determina il titolo del mittente in base all'utente autenticato o al ruolo verificato
+      const user = auth.currentUser;
+      const derivedTitle = (user?.displayName && user.displayName.trim()) || liveSenderTitle || (deviceRole === 'guida' ? 'Sposi' : 'Co-pilota');
+
+      await liveService.publishToLive(activeTripId, {
+        title: derivedTitle.slice(0, 60),
+        text: cleanMsg.slice(0, 500),
+        locationName: currentLocation?.city || currentLocation?.title || undefined
+      });
+
+      setLiveTextMessage('');
+      setLastLiveMsgSentAt(Date.now());
+      setLiveMsgSuccess('Messaggio pubblicato nel feed Live!');
+      setTimeout(() => setLiveMsgSuccess(null), 3500);
+    } catch (err: any) {
+      console.error('Errore invio messaggio Live:', err);
+      setLiveMsgError(err?.message || 'Errore durante la pubblicazione del messaggio.');
+    } finally {
+      setIsSendingLiveMsg(false);
+    }
+  };
 
   // Foto personalizzata per "Ultimo aggiornamento"
   const [customPhoto, setCustomPhoto] = useState<CustomLivePhoto | null>(() => {
@@ -1914,10 +1984,78 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
       {/* 7. LIVE FEED PUBBLICO (Gli update espliciti) */}
       <div className="bg-white rounded-3xl p-4 border border-slate-200/80 shadow-xs space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-base">📡</span>
-          <h3 className="font-bold text-slate-900 text-sm">Aggiornamenti Live</h3>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-base">📡</span>
+            <h3 className="font-bold text-slate-900 text-sm">Aggiornamenti Live</h3>
+          </div>
+          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">
+            {liveUpdates.length} {liveUpdates.length === 1 ? 'post' : 'post'}
+          </span>
         </div>
+
+        {/* Form Invio Messaggio Testuale nel Live (riservato agli sposi o membri attivi) */}
+        {!isStandaloneExternal && isSposiAdmin && (
+          <form onSubmit={handleSendLiveTextMessage} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                <span>✍️</span> Invia un messaggio dal vivo
+              </span>
+              <span className={`text-[10px] font-mono font-semibold ${liveTextMessage.length > 450 ? 'text-amber-600' : 'text-slate-400'}`}>
+                {liveTextMessage.length}/500
+              </span>
+            </div>
+
+            <textarea
+              rows={2}
+              value={liveTextMessage}
+              onChange={(e) => {
+                setLiveTextMessage(e.target.value);
+                if (liveMsgError) setLiveMsgError(null);
+              }}
+              placeholder="Scrivi una novità o un aneddoto per gli invitati..."
+              maxLength={500}
+              className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none shadow-2xs"
+            />
+
+            {liveMsgError && (
+              <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-1.5">
+                <span>⚠️</span>
+                <span>{liveMsgError}</span>
+              </div>
+            )}
+
+            {liveMsgSuccess && (
+              <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold flex items-center gap-1.5">
+                <span>✅</span>
+                <span>{liveMsgSuccess}</span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-1">
+              <span className="text-[10px] text-slate-400 truncate max-w-[180px]">
+                Mittente: {liveSenderTitle}
+              </span>
+              <button
+                type="submit"
+                disabled={isSendingLiveMsg || !liveTextMessage.trim()}
+                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+              >
+                {isSendingLiveMsg ? (
+                  <>
+                    <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Invio...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Invia</span>
+                    <span>📨</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        )}
         
         {liveUpdates.length === 0 ? (
           <div className="py-5 text-center text-xs text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">

@@ -707,6 +707,7 @@ class StorageService {
   }
 
   async deleteDocument(id: string): Promise<void> {
+    await this.recordTombstone('documenti', id);
     await idbDelete(STORES.DOCUMENTI, id);
     notifyDataChanged('documenti', 'delete', { id });
   }
@@ -1037,6 +1038,7 @@ class StorageService {
   }
 
   async deleteSpesa(id: string): Promise<void> {
+    await this.recordTombstone('spese', id);
     await idbDelete(STORES.SPESE, id);
     notifyDataChanged('spese', 'delete', { id });
   }
@@ -1064,6 +1066,7 @@ class StorageService {
   }
 
   async deleteNota(id: string): Promise<void> {
+    await this.recordTombstone('note', id);
     await idbDelete(STORES.NOTE, id);
     notifyDataChanged('note', 'delete', { id });
   }
@@ -1514,6 +1517,7 @@ class StorageService {
   }
 
   async deleteBagaglio(id: string): Promise<void> {
+    await this.recordTombstone('bagagli', id);
     await idbDelete(STORES.BAGAGLI, id);
     notifyDataChanged('bagagli', 'delete', { id });
   }
