@@ -170,51 +170,142 @@ function compressImageWithCanvas(
 }
 
 /**
- * Elabora un file (immagine o PDF) con limite fino a 25 MB e compressione automatica.
+ * Limite massimo supportato per singolo allegato (5 MB originali).
+ */
+export const MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+
+export type AttachmentErrorCode = 
+  | 'FILE_TOO_LARGE'
+  | 'INVALID_FORMAT'
+  | 'STORAGE_QUOTA_EXCEEDED'
+  | 'PERMISSION_DENIED'
+  | 'NETWORK_ERROR'
+  | 'READ_ERROR';
+
+export class AttachmentError extends Error {
+  code: AttachmentErrorCode;
+  constructor(message: string, code: AttachmentErrorCode) {
+    super(message);
+    this.name = 'AttachmentError';
+    this.code = code;
+  }
+}
+
+/**
+ * Verifica affidabile dello spazio di archiviazione locale del browser via StorageManager API.
+ * Non inventa percentuali: interroga navigator.storage.estimate().
+ */
+export async function checkStorageAvailability(requiredBytes: number = 0): Promise<{
+  isAvailable: boolean;
+  isLowSpace: boolean;
+  remainingBytes?: number;
+  message?: string;
+}> {
+  if (typeof navigator === 'undefined' || !navigator.storage || !navigator.storage.estimate) {
+    return { isAvailable: true, isLowSpace: false };
+  }
+
+  try {
+    const estimate = await navigator.storage.estimate();
+    if (estimate.quota !== undefined && estimate.usage !== undefined) {
+      const remainingBytes = Math.max(0, estimate.quota - estimate.usage);
+
+      // Se lo spazio residuo è inferiore a quanto richiesto dal file
+      if (requiredBytes > 0 && remainingBytes < requiredBytes) {
+        return {
+          isAvailable: false,
+          isLowSpace: true,
+          remainingBytes,
+          message: `Spazio di archiviazione locale sul dispositivo insufficiente (${formatFileSize(remainingBytes)} disponibili sul browser, richiesti ${formatFileSize(requiredBytes)}). Libera spazio sul dispositivo per salvare il file.`
+        };
+      }
+
+      // Se lo spazio residuo è inferiore a 10 MB, segnala spazio quasi esaurito
+      if (remainingBytes < 10 * 1024 * 1024) {
+        return {
+          isAvailable: true,
+          isLowSpace: true,
+          remainingBytes,
+          message: `Spazio di archiviazione locale sul browser in esaurimento (${formatFileSize(remainingBytes)} liberi sul dispositivo).`
+        };
+      }
+
+      return { isAvailable: true, isLowSpace: false, remainingBytes };
+    }
+  } catch (err) {
+    console.warn('[StorageCheck] Impossibile verificare quota storage:', err);
+  }
+
+  return { isAvailable: true, isLowSpace: false };
+}
+
+/**
+ * Elabora un file (immagine o PDF) con limite di almeno 5 MB e controllo reale dello spazio.
  */
 export async function processFileForAttachment(file: File): Promise<TransportAttachment> {
-  const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25 Megabyte
-
-  if (file.size > MAX_FILE_SIZE) {
-    throw new Error(`Il file "${file.name}" supera il limite massimo di 25 MB (${(file.size / (1024 * 1024)).toFixed(1)} MB).`);
+  if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+    throw new AttachmentError(
+      `Il file "${file.name}" supera il limite massimo di 5 MB (${(file.size / (1024 * 1024)).toFixed(1)} MB). Riduci la dimensione o seleziona un file fino a 5 MB.`,
+      'FILE_TOO_LARGE'
+    );
   }
 
   const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   const isImage = file.type.startsWith('image/');
 
   if (!isPdf && !isImage) {
-    throw new Error('Formato non supportato. Carica immagini (PNG, JPG, WebP) o documenti PDF.');
+    throw new AttachmentError(
+      'Formato file non supportato. Carica documenti PDF o immagini (PNG, JPG, WebP).',
+      'INVALID_FORMAT'
+    );
+  }
+
+  // Verifica lo spazio sul browser per accogliere il file
+  const storageCheck = await checkStorageAvailability(file.size * 1.5); // margine per Base64
+  if (!storageCheck.isAvailable) {
+    throw new AttachmentError(
+      storageCheck.message || 'Spazio di memoria locale esaurito sul browser.',
+      'STORAGE_QUOTA_EXCEEDED'
+    );
   }
 
   const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'att_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
   const createdAt = new Date().toISOString();
 
   if (isPdf) {
-    const dataUrl = await readFileAsDataUrl(file);
-    return {
-      id,
-      name: file.name,
-      type: 'pdf',
-      dataUrl,
-      size: file.size,
-      createdAt
-    };
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      return {
+        id,
+        name: file.name,
+        type: 'pdf',
+        dataUrl,
+        size: file.size,
+        createdAt
+      };
+    } catch (err) {
+      throw new AttachmentError('Impossibile leggere il file PDF selezionato.', 'READ_ERROR');
+    }
   }
 
   // Per immagini: se pesano meno di 600 KB, conserviamo l'originale senza ricodifica
   if (file.size < 600 * 1024) {
-    const dataUrl = await readFileAsDataUrl(file);
-    return {
-      id,
-      name: file.name,
-      type: 'image',
-      dataUrl,
-      size: file.size,
-      createdAt
-    };
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      return {
+        id,
+        name: file.name,
+        type: 'image',
+        dataUrl,
+        size: file.size,
+        createdAt
+      };
+    } catch (err) {
+      throw new AttachmentError('Impossibile leggere l\'immagine selezionata.', 'READ_ERROR');
+    }
   }
 
-  // Altrimenti ottimizziamo via Canvas ad alta risoluzione
+  // Altrimenti ottimizziamo via Canvas ad alta risoluzione mantenendo ottima nitidezza per QR code
   try {
     const optimized = await compressImageWithCanvas(file, 2048, 0.88);
     return {
@@ -227,15 +318,19 @@ export async function processFileForAttachment(file: File): Promise<TransportAtt
     };
   } catch (err) {
     console.warn('Ottimizzazione automatica fallita, salvo file originale:', err);
-    const dataUrl = await readFileAsDataUrl(file);
-    return {
-      id,
-      name: file.name,
-      type: 'image',
-      dataUrl,
-      size: file.size,
-      createdAt
-    };
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      return {
+        id,
+        name: file.name,
+        type: 'image',
+        dataUrl,
+        size: file.size,
+        createdAt
+      };
+    } catch (readErr) {
+      throw new AttachmentError('Impossibile leggere l\'immagine selezionata.', 'READ_ERROR');
+    }
   }
 }
 

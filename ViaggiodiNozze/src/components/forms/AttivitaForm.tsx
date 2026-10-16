@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
-import type { Attivita } from '../../types';
+import type { Attivita, TransportAttachment } from '../../types';
 import { storageService } from '../../storage/storageService';
+import { processFileForAttachment, formatFileSize, openAttachmentInNewTab, checkStorageAvailability } from '../../utils/fileAttachment';
 
 interface AttivitaFormProps {
   days?: any[];
@@ -34,6 +35,21 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<Attivita['status']>('prenotato');
 
+  // Gestione Allegati (PDF / QR Code / Immagini)
+  const [attachments, setAttachments] = useState<TransportAttachment[]>([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [attachmentError, setAttachmentError] = useState('');
+  const [storageWarning, setStorageWarning] = useState('');
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    checkStorageAvailability().then(res => {
+      if (res.isLowSpace && res.message) {
+        setStorageWarning(res.message);
+      }
+    }).catch(() => {});
+  }, []);
+
   const [error, setError] = useState('');
   const [conflictWarning, setConflictWarning] = useState('');
   const [isConflictConfirmed, setIsConflictConfirmed] = useState(false);
@@ -58,6 +74,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       setQrCode(initialData.qrCode || '');
       setNotes(initialData.notes || '');
       setStatus(initialData.status || 'prenotato');
+      setAttachments(initialData.attachments || []);
     } else {
       if (selectedDayId && selectedDayId.startsWith('day_')) {
         setCustomDate(selectedDayId.replace('day_', ''));
@@ -83,6 +100,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       setQrCode('');
       setNotes('');
       setStatus('prenotato');
+      setAttachments([]);
     }
   }, [initialData, selectedDayId]);
 
@@ -108,6 +126,44 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
     setIsConflictConfirmed(false);
     setConflictWarning('');
   }, [orarioInizio, duration, customDate]);
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    const filesArray = Array.from(files);
+    setAttachmentError('');
+    setIsUploadingAttachment(true);
+
+    try {
+      const newAttachments: TransportAttachment[] = [...attachments];
+
+      for (let i = 0; i < filesArray.length; i++) {
+        const file = filesArray[i];
+        const processed = await processFileForAttachment(file);
+        newAttachments.push(processed);
+      }
+
+      setAttachments(newAttachments);
+    } catch (err: unknown) {
+      console.error('Errore durante il caricamento del file:', err);
+      const msg = err instanceof Error ? err.message : 'Errore durante il caricamento del file.';
+      setAttachmentError(msg);
+    } finally {
+      setIsUploadingAttachment(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveAttachment = (id: string) => {
+    setAttachments(prev => prev.filter(att => att.id !== id));
+  };
+
+  const handleOpenPdf = (dataUrl: string, fileName: string) => {
+    openAttachmentInNewTab(dataUrl, fileName);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -180,7 +236,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       qrCode: qrCode.trim() || undefined,
       notes: notes.trim() || undefined,
       status: paymentStatus === 'saldato' ? 'prenotato' : status,
-        attachments: initialData?.attachments,
+      attachments: attachments.length > 0 ? attachments : undefined,
       copilota: initialData?.copilota,
       noteCopilota: initialData?.noteCopilota,
       platform: initialData?.platform
@@ -394,6 +450,146 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F]"
           />
         </div>
+      </div>
+
+      {/* Sezione Allegati Documenti / PDF / QR Code Originali */}
+      <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+              📎 Biglietto PDF &amp; File QR Code
+            </label>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Carica il documento originale ricevuto dall'organizzatore (PDF o immagine con QR). Disponibile 100% offline.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploadingAttachment}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50 shrink-0"
+          >
+            {isUploadingAttachment ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                <span>Caricamento...</span>
+              </>
+            ) : (
+              <>
+                <span>+ Allega File</span>
+              </>
+            )}
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileSelect}
+            accept="image/*,application/pdf"
+            multiple
+            className="hidden"
+          />
+        </div>
+
+        {storageWarning && (
+          <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <span>⚠️</span>
+              <span>{storageWarning}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setStorageWarning('')}
+              className="text-amber-700 font-bold ml-2 hover:opacity-80"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {attachmentError && (
+          <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <span>🚫</span>
+              <span>{attachmentError}</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setAttachmentError('')}
+              className="text-rose-600 font-bold ml-2 hover:opacity-80"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {attachments.length > 0 ? (
+          <div className="space-y-2">
+            {attachments.map((att) => (
+              <div
+                key={att.id}
+                className="flex items-center justify-between gap-3 p-2.5 rounded-xl bg-white border border-slate-200 shadow-2xs"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div
+                    onClick={() => handleOpenPdf(att.dataUrl, att.name)}
+                    className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 text-base shrink-0 cursor-pointer hover:bg-amber-100 transition-colors"
+                    title="Tocca per aprire"
+                  >
+                    {att.type === 'pdf' ? '📄' : '🖼️'}
+                  </div>
+                  <div className="min-w-0">
+                    <p
+                      onClick={() => handleOpenPdf(att.dataUrl, att.name)}
+                      className="text-xs font-bold text-slate-900 truncate cursor-pointer hover:text-amber-700"
+                      title={att.name}
+                    >
+                      {att.name}
+                    </p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      {formatFileSize(att.size)} • <span className="text-emerald-600 font-medium">Offline</span>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenPdf(att.dataUrl, att.name)}
+                    className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-semibold transition-colors cursor-pointer"
+                    title="Apri documento"
+                  >
+                    Apri ↗
+                  </button>
+                  <a
+                    href={att.dataUrl}
+                    download={att.name}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-semibold transition-colors cursor-pointer"
+                    title="Scarica file originale"
+                  >
+                    Scarica ↓
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveAttachment(att.id)}
+                    className="w-7 h-7 rounded-lg text-rose-500 hover:bg-rose-50 flex items-center justify-center font-bold text-xs cursor-pointer"
+                    title="Rimuovi allegato"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            onClick={() => fileInputRef.current?.click()}
+            className="border-2 border-dashed border-slate-200 hover:border-amber-400 rounded-xl p-3.5 text-center cursor-pointer transition-colors bg-white/60"
+          >
+            <span className="text-xl block mb-1">🎫</span>
+            <p className="text-xs font-semibold text-slate-700">Nessun file o voucher allegato</p>
+            <p className="text-[10px] text-slate-400 mt-0.5">Tocca qui per allegare PDF o immagini con QR code della prenotazione</p>
+          </div>
+        )}
       </div>
 
       <div>

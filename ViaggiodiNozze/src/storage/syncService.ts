@@ -43,11 +43,40 @@ export class SyncService {
             const localData = await idbGet<any>(store, docId);
 
             if (localData && localData.updatedAt && (localData.updatedAt > (serverData.updatedAt || 0))) {
-              // Local is newer: push to cloud
-              await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
+              // Local is newer: push to cloud using pushToCloud logic
+              const entityType = this.mapCollectionToEntity(fb);
+              if (entityType) {
+                await this.pushToCloud(entityType, 'save', localData);
+              } else {
+                await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
+              }
             } else {
-              // Cloud is newer or same: store locally
-              await idbPut(store, { ...serverData, id: docId });
+              // Cloud is newer or same: store locally, reconstructing chunks if needed
+              let itemToStore: any = { ...serverData, id: docId };
+              if (Array.isArray(itemToStore.attachments) && itemToStore.attachments.length > 0) {
+                const resolved = [];
+                for (const att of itemToStore.attachments) {
+                  if (att.isChunked && !att.dataUrl) {
+                    const localAtt = (localData as any)?.attachments?.find((la: any) => la.id === att.id);
+                    if (localAtt && localAtt.dataUrl) {
+                      resolved.push({ ...att, dataUrl: localAtt.dataUrl });
+                    } else {
+                      try {
+                        const { downloadAttachmentFromChunks } = await import('./attachmentChunkService');
+                        const reconstructed = await downloadAttachmentFromChunks(this.tripId, att);
+                        resolved.push(reconstructed?.dataUrl ? reconstructed : att);
+                      } catch {
+                        resolved.push(att);
+                      }
+                    }
+                  } else {
+                    resolved.push(att);
+                  }
+                }
+                itemToStore.attachments = resolved;
+              }
+
+              await idbPut(store, itemToStore);
               pulledCount++;
             }
           }
@@ -171,6 +200,16 @@ export class SyncService {
     const docRef = doc(db, 'trips', this.tripId, collectionName, data.id);
 
     if (action === 'delete') {
+      // Se l'elemento eliminato conteneva allegati chunked, ripuliamo i chunk da Firestore
+      if (Array.isArray(data?.attachments)) {
+        for (const att of data.attachments) {
+          if (att.isChunked && att.totalChunks > 0) {
+            import('./attachmentChunkService').then(({ deleteAttachmentChunks }) => {
+              deleteAttachmentChunks(this.tripId, att.id, att.totalChunks);
+            }).catch(() => {});
+          }
+        }
+      }
       await deleteDoc(docRef);
       console.log(`[Cloud Sync] Eliminato ${entityType} ${data.id}`);
     } else {
@@ -178,14 +217,59 @@ export class SyncService {
       const sizeKB = payloadString.length / 1024;
       
       let payloadToSync = { ...data };
-      
-      if (sizeKB > 900 && 'attachments' in payloadToSync) {
-        console.warn(`[SyncService] Payload ${data.id} troppo grande (${sizeKB.toFixed(1)} KB). Rimuovo allegati.`);
-        delete (payloadToSync as any).attachments;
+
+      // Se il documento ha allegati e supera ~700 KB, sincronizziamo gli allegati via chunk
+      // nella sottocollezione protetta 'documenti', evitando il limite di 1 MB di Firestore
+      // e garantendo che nessun allegato venga mai eliminato silenziosamente!
+      if (Array.isArray(payloadToSync.attachments) && payloadToSync.attachments.length > 0) {
+        if (sizeKB > 700) {
+          try {
+            const { uploadAttachmentChunks } = await import('./attachmentChunkService');
+            const sanitizedAttachments = [];
+
+            for (const att of payloadToSync.attachments) {
+              // Se l'allegato ha già dataUrl di grandi dimensioni, salviamo i chunk
+              let effectiveDataUrl = att.dataUrl;
+
+              // Se l'allegato locale per qualche ragione non ha dataUrl nell'oggetto passato ma è chunked,
+              // recuperalo da IndexedDB per assicurarsi che i dati non vadano persi
+              if (!effectiveDataUrl && att.isChunked) {
+                const store = this.getCollectionsToSync().find(c => c.fb === collectionName)?.store;
+                if (store) {
+                  const localRecord = await idbGet<any>(store, data.id);
+                  const foundAtt = localRecord?.attachments?.find((a: any) => a.id === att.id);
+                  if (foundAtt?.dataUrl) effectiveDataUrl = foundAtt.dataUrl;
+                }
+              }
+
+              if (effectiveDataUrl && effectiveDataUrl.length > 300 * 1024) {
+                const chunkMeta = await uploadAttachmentChunks(this.tripId, {
+                  ...att,
+                  dataUrl: effectiveDataUrl
+                });
+                sanitizedAttachments.push({
+                  id: att.id,
+                  name: att.name,
+                  type: att.type,
+                  size: att.size,
+                  createdAt: att.createdAt,
+                  isChunked: true,
+                  totalChunks: chunkMeta.totalChunks
+                });
+              } else {
+                sanitizedAttachments.push(att);
+              }
+            }
+
+            payloadToSync.attachments = sanitizedAttachments;
+          } catch (chunkErr) {
+            console.error(`[SyncService] Errore chunking allegati per ${data.id}:`, chunkErr);
+          }
+        }
       }
 
       const cleanPayload = this.cleanUndefinedValues(payloadToSync);
-        await setDoc(docRef, cleanPayload, { merge: true });
+      await setDoc(docRef, cleanPayload, { merge: true });
       console.log(`[Cloud Sync] Salvato ${entityType} ${data.id}`);
     }
   }
@@ -230,8 +314,9 @@ export class SyncService {
                   return;
                 }
 
+                let localData: any = null;
                 try {
-                  const localData = await idbGet<any>(store, docId);
+                  localData = await idbGet<any>(store, docId);
                   if (localData && localData.updatedAt) {
                     const serverUpdatedAt = data.updatedAt || 0;
                     if (localData.updatedAt > serverUpdatedAt) {
@@ -243,9 +328,42 @@ export class SyncService {
                   }
                 } catch (e) {}
                 
-                await idbPut(store, data);
+                let itemToStore: any = { ...data };
+
+                // Se l'item dal cloud ha allegati salvati in chunk, ricomponiamo i dataUrl
+                // preservando sempre i dataUrl locali se già presenti
+                if (Array.isArray(itemToStore.attachments) && itemToStore.attachments.length > 0) {
+                  const resolvedAttachments = [];
+                  for (const att of itemToStore.attachments) {
+                    if (att.isChunked && !att.dataUrl) {
+                      // Prova a recuperare il dataUrl dal record locale
+                      const localAtt = localData?.attachments?.find((la: any) => la.id === att.id);
+                      if (localAtt && localAtt.dataUrl) {
+                        resolvedAttachments.push({ ...att, dataUrl: localAtt.dataUrl });
+                      } else {
+                        try {
+                          const { downloadAttachmentFromChunks } = await import('./attachmentChunkService');
+                          const reconstructed = await downloadAttachmentFromChunks(this.tripId, att);
+                          if (reconstructed && reconstructed.dataUrl) {
+                            resolvedAttachments.push(reconstructed);
+                          } else {
+                            resolvedAttachments.push(att);
+                          }
+                        } catch (reconstructErr) {
+                          console.warn(`[Cloud Sync] Errore ricomposizione chunk per ${att.id}:`, reconstructErr);
+                          resolvedAttachments.push(att);
+                        }
+                      }
+                    } else {
+                      resolvedAttachments.push(att);
+                    }
+                  }
+                  itemToStore.attachments = resolvedAttachments;
+                }
+                
+                await idbPut(store, itemToStore);
                 const entityType = this.mapCollectionToEntity(fb) || fb;
-                scheduleRefresh(entityType, 'save', data);
+                scheduleRefresh(entityType, 'save', itemToStore);
                 console.log(`[Cloud Sync] Pull ${fb}/${docId}`);
               })().catch(err => console.error(`[Cloud Sync] Errore idbPut ${fb}:`, err))
             );
