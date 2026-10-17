@@ -14,6 +14,8 @@ import { resolvePaymentInfo } from '../../utils/priceHelper';
 export interface UnifiedExpense {
   id: string;
   category: 'trasporti' | 'alloggi' | 'attivita' | 'ristoranti' | 'shopping' | 'altro';
+  subcategory?: string;
+  subcategoryIcon?: string;
   title: string;
   date?: string;
   cost: number;
@@ -172,11 +174,58 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           packageIncluded: item.packageIncluded
         });
 
+        const getSubcategoryInfo = (entity: any, category: string): { name: string; icon: string } => {
+          if (category === 'trasporti') {
+            const tType = (entity.type || 'volo').toLowerCase();
+            switch (tType) {
+              case 'volo': return { name: 'Voli', icon: '✈️' };
+              case 'traghetto': return { name: 'Traghetti', icon: '⛴️' };
+              case 'auto': return { name: 'Noleggio Auto', icon: '🚗' };
+              case 'camper': return { name: 'Camper / Van', icon: '🚐' };
+              case 'transfer': return { name: 'Transfer / Bus', icon: '🚌' };
+              case 'treno': return { name: 'Treni', icon: '🚆' };
+              default: return { name: 'Altri Trasporti', icon: '🚗' };
+            }
+          }
+          if (category === 'alloggi') {
+            const sub = entity.sottocategoria || 'Hotel';
+            switch (sub) {
+              case 'Hotel': return { name: 'Hotel', icon: '🏨' };
+              case 'B&B': return { name: 'B&B', icon: '🏡' };
+              case 'Appartamento': return { name: 'Appartamenti', icon: '🏢' };
+              case 'Campeggio/Piazzola': return { name: 'Campeggi / Piazzole', icon: '⛺' };
+              default: return { name: sub || 'Alloggi', icon: '🛏️' };
+            }
+          }
+          if (category === 'attivita') {
+            const sub = entity.category || entity.sottocategoria || 'Tour & Escursioni';
+            return { name: sub, icon: '🎟️' };
+          }
+          if (category === 'ristoranti') {
+            const sub = (entity.sottocategoria || 'Cena').toLowerCase();
+            if (sub.includes('colazione')) return { name: 'Colazioni', icon: '☕' };
+            if (sub.includes('pranzo')) return { name: 'Pranzi', icon: '🥗' };
+            if (sub.includes('cena')) return { name: 'Cene', icon: '🍷' };
+            if (sub.includes('aperitivo')) return { name: 'Aperitivi', icon: '🍹' };
+            if (sub.includes('street')) return { name: 'Street Food', icon: '🌮' };
+            return { name: entity.sottocategoria || 'Ristoranti', icon: '🍽️' };
+          }
+          if (category === 'shopping') {
+            const sub = entity.sottocategoria || entity.scopo || 'Souvenir & Regali';
+            return { name: sub, icon: '🛍️' };
+          }
+          return { name: entity.category || 'Spese Varie', icon: '📦' };
+        };
+
+        const subInfo = getSubcategoryInfo(item, cat);
+
         // Se è gratuito o incluso nel pacchetto, non è una spesa da saldare né un costo a carico del viaggiatore
         if (paymentInfo.isFree || paymentInfo.isPackageIncluded) {
           list.push({
             id: item.id,
             category: cat as any,
+            subcategory: subInfo.name,
+            subcategoryIcon: subInfo.icon,
             title: item[titleField1] || item[titleField2] || 'Senza titolo',
             date: item[dateField] || item.startDate || item.checkIn || item.data,
             cost: 0,
@@ -195,6 +244,8 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           list.push({
             id: item.id,
             category: cat as any,
+            subcategory: subInfo.name,
+            subcategoryIcon: subInfo.icon,
             title: item[titleField1] || item[titleField2] || 'Senza titolo',
             date: item[dateField] || item.startDate || item.checkIn || item.data,
             cost: costNum,
@@ -219,10 +270,21 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
         packageIncluded: t.packageIncluded
       });
 
+      const tType = (t.type || 'volo').toLowerCase();
+      let subName = 'Voli';
+      let subIcon = '✈️';
+      if (tType === 'traghetto') { subName = 'Traghetti'; subIcon = '⛴️'; }
+      else if (tType === 'auto') { subName = 'Noleggio Auto'; subIcon = '🚗'; }
+      else if (tType === 'camper') { subName = 'Camper / Van'; subIcon = '🚐'; }
+      else if (tType === 'transfer') { subName = 'Transfer / Bus'; subIcon = '🚌'; }
+      else if (tType === 'treno') { subName = 'Treni'; subIcon = '🚆'; }
+
       if (paymentInfo.isFree || paymentInfo.isPackageIncluded) {
         list.push({
           id: t.id,
           category: 'trasporti',
+          subcategory: subName,
+          subcategoryIcon: subIcon,
           title: t.carrier || `${t.departureLocation} → ${t.arrivalLocation}`,
           date: t.date || t.startDate,
           cost: 0,
@@ -240,6 +302,8 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
         list.push({
           id: t.id,
           category: 'trasporti',
+          subcategory: subName,
+          subcategoryIcon: subIcon,
           title: t.carrier || `${t.departureLocation} → ${t.arrivalLocation}`,
           date: t.date || t.startDate,
           cost: costNum,
@@ -465,9 +529,14 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
       >
         <div className="flex items-center justify-between gap-2.5">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
               <h4 className="text-xs font-bold text-slate-900 truncate">{config.icon} {item.title}</h4>
               <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-md ${config.bg} ${config.text}`}>{config.label}</span>
+              {item.subcategory && (
+                <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                  {item.subcategoryIcon ? `${item.subcategoryIcon} ` : ''}{item.subcategory}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
               {item.date && <span>{formatDate(item.date)}</span>}
@@ -755,14 +824,73 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
                     <div className="text-sm font-black text-amber-700 font-mono">{formatEuro(catStats.daSaldare)}</div>
                   </div>
                 </div>
-                
+
                 <div className="h-1 w-full bg-white/50 rounded-full overflow-hidden flex">
                   <div className="h-full bg-emerald-400" style={{ width: `${catStats.total > 0 ? (catStats.saldato / catStats.total) * 100 : 0}%` }} />
                   <div className="h-full bg-amber-400" style={{ width: `${catStats.total > 0 ? (catStats.daSaldare / catStats.total) * 100 : 0}%` }} />
                 </div>
               </div>
 
-              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1 pb-4">
+              {/* Riepilogo per Sottocategoria (Voli, Treni, Auto, ecc.) */}
+              {(() => {
+                const subStatsMap: Record<string, { total: number; saldato: number; daSaldare: number; icon: string; count: number }> = {};
+                items.forEach(e => {
+                  const sName = e.subcategory || 'Altro';
+                  const sIcon = e.subcategoryIcon || '📦';
+                  if (!subStatsMap[sName]) {
+                    subStatsMap[sName] = { total: 0, saldato: 0, daSaldare: 0, icon: sIcon, count: 0 };
+                  }
+                  subStatsMap[sName].total += e.cost;
+                  const paid = e.paidAmount || (e.paid ? e.cost : 0);
+                  subStatsMap[sName].saldato += paid;
+                  subStatsMap[sName].daSaldare += Math.max(0, e.cost - paid);
+                  subStatsMap[sName].count += 1;
+                });
+
+                const subEntries = Object.entries(subStatsMap).sort((a, b) => b[1].total - a[1].total);
+                if (subEntries.length <= 1) return null;
+
+                return (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between px-1">
+                      <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        Ripartizione per Sottocategorie
+                      </span>
+                      <span className="text-[10px] font-semibold text-slate-400">
+                        {subEntries.length} tipi
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {subEntries.map(([sName, sData]) => (
+                        <div
+                          key={sName}
+                          className="bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs flex flex-col justify-between"
+                        >
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="text-xs font-bold text-slate-800 truncate">
+                              {sData.icon} {sName}
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full shrink-0">
+                              {sData.count}
+                            </span>
+                          </div>
+                          <div className="flex items-baseline justify-between mt-0.5">
+                            <span className="text-xs font-black text-slate-900 font-mono">
+                              {formatEuro(sData.total)}
+                            </span>
+                            <span className={`text-[10px] font-bold ${sData.daSaldare > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
+                              {sData.daSaldare > 0 ? `da sald. ${formatEuro(sData.daSaldare)}` : 'Saldato'}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1 pb-4">
                 {items.length === 0 ? (
                   <div className="text-center py-6">
                     <span className="text-slate-400 text-xs">Nessuna spesa in questa categoria.</span>

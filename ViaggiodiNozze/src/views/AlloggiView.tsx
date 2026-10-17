@@ -10,7 +10,9 @@ import SwipeToDelete from '../components/common/SwipeToDelete';
 import AlloggioCard from '../components/cards/AlloggioCard';
 import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
 import { useDeviceRole } from '../utils/useDeviceRole';
-import { getTripDateRange, type TripDayItem } from '../utils/tripDates';
+import { getTripDateRange, formatDate, type TripDayItem } from '../utils/tripDates';
+
+import DesktopEconomySummary from '../components/common/DesktopEconomySummary';
 
 export default function AlloggiView() {
   const { canEdit } = useDeviceRole();
@@ -218,6 +220,9 @@ export default function AlloggiView() {
         )}
       </header>
 
+      {/* Riepilogo Economico Solo Desktop */}
+      <DesktopEconomySummary items={accommodations} categoryName="Alloggi" accentColor="indigo" />
+
       {/* Selettore DayPickerStrip a scorrimento orizzontale */}
       <DayPickerStrip
         days={tripDays}
@@ -362,21 +367,23 @@ export default function AlloggiView() {
         // Raggruppamento per Paese -> Data quando è selezionato 'tutte'
         const detectAccCountry = (acc: Alloggio): string => {
           const text = `${acc.name || ''} ${acc.address || ''} ${acc.location || ''} ${acc.noteCopilota || ''} ${acc.notes || ''}`.toLowerCase();
-          if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|nz)/.test(text)) return '🇳🇿 Nuova Zelanda';
-          if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|au)/.test(text)) return '🇦🇺 Australia';
-          if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|ph)/.test(text)) return '🇵🇭 Filippine';
-          if (/(italia|roma|milano|italy)/.test(text)) return '🇮🇹 Italia';
+          if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|\bau\b|gerringong|werri|jervis|nsw|huskisson|blue mountains)/.test(text)) return '🇦🇺 Australia';
+          if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|\bnz\b|hobbiton|te puia|milford)/.test(text)) return '🇳🇿 Nuova Zelanda';
+          if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|\bph\b)/.test(text)) return '🇵🇭 Filippine';
+          if (/(italia|roma|milano|italy|\bit\b)/.test(text)) return '🇮🇹 Italia';
           return '🌍 Altro';
         };
 
-        const macroOrder = ['🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🇮🇹 Italia', '🌍 Altro'];
+        const macroOrder = ['🇮🇹 Italia', '🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🌍 Altro'];
 
-        // Raggruppa per paese
-        const groupedByCountry = filteredAccommodations.reduce<Record<string, Alloggio[]>>((acc, item) => {
+        // Raggruppa per Paese -> poi per Giorno
+        const groupedByCountry = filteredAccommodations.reduce<Record<string, Record<string, Alloggio[]>>>((accMap, item) => {
           const country = detectAccCountry(item);
-          if (!acc[country]) acc[country] = [];
-          acc[country].push(item);
-          return acc;
+          const dateKey = item.checkIn || 'Senza Data';
+          if (!accMap[country]) accMap[country] = {};
+          if (!accMap[country][dateKey]) accMap[country][dateKey] = [];
+          accMap[country][dateKey].push(item);
+          return accMap;
         }, {});
 
         const sortedCountries = Object.keys(groupedByCountry).sort((a, b) => {
@@ -387,33 +394,56 @@ export default function AlloggiView() {
 
         return (
           <div className="space-y-8">
-            {sortedCountries.map((country) => (
-              <div key={country} className="space-y-4">
-                <div className="sticky top-0 z-10 py-1.5 bg-slate-50/95 backdrop-blur-md border-b border-slate-200 flex items-center justify-between">
-                  <h2 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-                    {country}
-                  </h2>
-                  <span className="text-[11px] font-bold text-slate-400">
-                    {groupedByCountry[country].length} {groupedByCountry[country].length === 1 ? 'struttura' : 'strutture'}
-                  </span>
-                </div>
+            {sortedCountries.map((country) => {
+              const datesObj = groupedByCountry[country];
+              const sortedDates = Object.keys(datesObj).sort((a, b) => {
+                if (a === 'Senza Data') return 1;
+                if (b === 'Senza Data') return -1;
+                return a.localeCompare(b);
+              });
 
-                <div className="space-y-3">
-                  {groupedByCountry[country].map((acc) => (
-                    <SwipeToDelete key={acc.id} disabled={!canEdit} onDelete={() => setDeletingAccommodation(acc)}>
-                      <AlloggioCard
-                        accommodation={acc}
-                        onEdit={() => handleOpenEdit(acc)}
-                        onDelete={() => setDeletingAccommodation(acc)}
-                        onUpdate={(updated) => {
-                          setAccommodations(prev => prev.map(item => item.id === updated.id ? updated : item));
-                        }}
-                      />
-                    </SwipeToDelete>
-                  ))}
+              const totalInCountry = sortedDates.reduce((sum, d) => sum + datesObj[d].length, 0);
+
+              return (
+                <div key={country} className="space-y-4">
+                  <div className="sticky top-0 z-10 py-1.5 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                    <h2 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      {country}
+                    </h2>
+                    <span className="text-[11px] font-bold text-slate-400">
+                      {totalInCountry} {totalInCountry === 1 ? 'struttura' : 'strutture'}
+                    </span>
+                  </div>
+
+                  <div className="space-y-6 pl-1 sm:pl-2">
+                    {sortedDates.map((dateKey) => (
+                      <div key={dateKey} className="space-y-3">
+                        {selectedDate === 'tutte' && (
+                          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider px-1">
+                            {dateKey === 'Senza Data' ? 'Senza Data Check-in' : `Check-in: ${formatDate(dateKey)}`}
+                          </h3>
+                        )}
+
+                        <div className="space-y-3">
+                          {datesObj[dateKey].map((acc) => (
+                            <SwipeToDelete key={acc.id} disabled={!canEdit} onDelete={() => setDeletingAccommodation(acc)}>
+                              <AlloggioCard
+                                accommodation={acc}
+                                onEdit={() => handleOpenEdit(acc)}
+                                onDelete={() => setDeletingAccommodation(acc)}
+                                onUpdate={(updated) => {
+                                  setAccommodations(prev => prev.map(item => item.id === updated.id ? updated : item));
+                                }}
+                              />
+                            </SwipeToDelete>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         );
       })()}

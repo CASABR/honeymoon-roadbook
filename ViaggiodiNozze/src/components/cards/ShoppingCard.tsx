@@ -68,6 +68,12 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20 text-[10px] font-bold tracking-wide uppercase">
             <span className="text-sm">🛍️</span> Shopping
           </span>
+          {(shopping.sottocategoria || shopping.scopo) && (
+            <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800/50 text-[11px] font-semibold tracking-wide">
+              <span>🏷️</span>
+              <span>{shopping.sottocategoria || shopping.scopo}</span>
+            </span>
+          )}
           {shopping.orario && (
             <div className="flex flex-col ml-1">
               <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">

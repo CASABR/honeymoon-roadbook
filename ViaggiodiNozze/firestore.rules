@@ -37,14 +37,29 @@ service cloud.firestore {
       );
     }
 
+    // Verifica se l'utente autenticato ha privilegi di Amministratore Globale
+    function isGlobalAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/system_admins/$(request.auth.uid))
+        || request.auth.token.get('admin', false) == true
+      );
+    }
+
     // =========================================================================
     // 1. VIAGGI (TRIPS) E SOTTOCOLLEZIONI PRIVATE
     // =========================================================================
 
     match /trips/{tripId} {
       
-      // Lettura del documento principale del viaggio:
-      allow read: if isSignedIn();
+      // Lettura di un singolo viaggio per ID: consentita SOLO ai membri effettivi, all'Admin globale o per il viaggio dev 0000
+      allow get: if isSignedIn() && (
+        isTripMember(tripId)
+        || isGlobalAdmin()
+        || tripId == '0000'
+      );
+
+      // Scansione e interrogazione dell'intera collezione viaggi (riservata all'Admin di sistema):
+      allow list: if isGlobalAdmin();
 
       // Creazione di un nuovo viaggio:
       allow create: if isSignedIn()
@@ -63,8 +78,11 @@ service cloud.firestore {
                       )
                       ||
                       (
-                        // Join: un utente si aggiunge ai members
-                        request.auth.uid in request.resource.data.get('members', [])
+                        // Auto-adesione consentita ESCLUSIVAMENTE per il viaggio demo '0000'
+                        // I viaggi ordinari richiedono obbligatoriamente il join tramite Cloud Function 'joinTrip'
+                        tripId == '0000'
+                        && request.auth.uid in request.resource.data.get('members', [])
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
                       )
                     );
 
@@ -79,12 +97,26 @@ service cloud.firestore {
         allow read: if isTripMember(tripId);
 
         // Creazione:
-        // Consentiamo all'utente di creare il proprio member document
+        // L'owner può registrare chiunque. L'utente corrente può auto-registrarsi SOLO se:
+        // 1. È già l'owner riconosciuto a livello di viaggio (bootstrap iniziale in App.tsx)
+        // 2. Oppure si tratta del viaggio demo '0000' (con ruolo copilota o member)
+        // Gli ingressi ordinari da invitato avvengono tramite Cloud Function joinTrip (Admin SDK)
         allow create: if isSignedIn()
                         && request.resource.data.uid == uid
                         && (
                           isTripOwner(tripId)
-                          || uid == request.auth.uid
+                          ||
+                          (
+                            uid == request.auth.uid
+                            && (
+                              // Owner iniziale che allinea il proprio doc membro
+                              resource == null && get(/databases/$(database)/documents/trips/$(tripId)).data.ownerUid == request.auth.uid
+                              ||
+                              // Viaggio demo 0000
+                              tripId == '0000'
+                            )
+                            && request.resource.data.get('role', 'copilota') in ['copilota', 'member', 'viewer', 'guida']
+                          )
                         );
 
         // Modifica:
@@ -128,6 +160,15 @@ service cloud.firestore {
       // Accessibile SOLO via backend / Cloud Functions con Firebase Admin SDK.
       // Nessun client può leggere o manipolare i token hashati direttamente.
       allow read, write: if false;
+    }
+
+    // =========================================================================
+    // 2.1 AMMINISTRATORI DI SISTEMA (WHITELIST GLOBALE)
+    // =========================================================================
+    match /system_admins/{adminUid} {
+      // Solo l'amministratore registrato può verificare la propria esistenza, nessuna scrittura client diretta
+      allow get: if isSignedIn() && request.auth.uid == adminUid;
+      allow list, write: if false;
     }
 
     // Inviti legacy:

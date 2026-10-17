@@ -115,7 +115,12 @@ export default function App() {
     if (!isInitializing) return;
 
     async function hydrateState() {
-      const session = getPersistedSession();
+      let session = getPersistedSession();
+      if (!session.isAuthenticated) {
+        const { restorePersistedSessionFromIndexedDB } = await import('./utils/deviceSession');
+        session = await restorePersistedSessionFromIndexedDB();
+      }
+
       if (!session.isAuthenticated) {
         setIsAuthenticated(false);
         setTripConfig(null);

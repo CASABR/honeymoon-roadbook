@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
+import { resolvePaymentInfo } from '../../utils/priceHelper';
 import type { Alloggio } from '../../types';
 
 interface AlloggioFormProps {
@@ -46,8 +47,15 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
       setPinCode(initialData.pinCode || '');
       setPhone(initialData.phone || '');
       setCost(initialData.cost || '');
-      setAcconto(initialData.acconto || '');
-      setPaymentStatus(initialData.paymentStatus || 'saldato');
+      setAcconto(initialData.acconto || initialData.depositPaid || '');
+      const pInfo = resolvePaymentInfo({
+        cost: initialData.cost,
+        depositPaid: initialData.depositPaid || initialData.acconto,
+        paymentStatus: initialData.paymentStatus,
+        status: initialData.status,
+        completed: initialData.completed
+      });
+      setPaymentStatus(pInfo.isPaid ? 'saldato' : 'da_saldare');
       setCancellazioneGratuitaEntro(initialData.cancellazioneGratuitaEntro || '');
       setNotes(initialData.notes || '');
     } else {

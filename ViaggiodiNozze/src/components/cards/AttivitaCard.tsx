@@ -74,6 +74,12 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-100 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-500/20 text-[11px] font-semibold uppercase tracking-wider">
               <span className="text-sm">{icon}</span> Attività
             </span>
+            {(activity.sottocategoria || activity.category) && (
+              <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50 text-[11px] font-semibold tracking-wide">
+                <span>🎯</span>
+                <span>{activity.sottocategoria || activity.category}</span>
+              </span>
+            )}
             {(ritrovo || inizio || activity.duration) && (
               <div className="flex items-center gap-1.5 ml-1">
                 {(ritrovo || inizio) && (
@@ -154,10 +160,9 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation();
-                  if (hasQRCode) setIsQRModalOpen(true);
-                  else setIsTicketsOpen(true);
+                  setIsTicketsOpen(true);
                 }}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 text-xs font-medium transition-colors shadow-2xs"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 text-xs font-medium transition-colors shadow-2xs cursor-pointer"
               >
                 <span className="text-[10px]">🎫</span> Pass/QR
               </button>

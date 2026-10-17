@@ -80,6 +80,12 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20 text-[11px] font-semibold uppercase tracking-wider">
             <span className="text-sm">🛏️</span> Alloggio
           </span>
+          {accommodation.sottocategoria && (
+            <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/50 text-[11px] font-semibold tracking-wide">
+              <span>{accommodation.sottocategoria.toLowerCase().includes('camp') || accommodation.sottocategoria.toLowerCase().includes('piazz') ? '⛺' : accommodation.sottocategoria.toLowerCase().includes('b&b') ? '🏡' : accommodation.sottocategoria.toLowerCase().includes('appart') ? '🏢' : '🏨'}</span>
+              <span>{accommodation.sottocategoria}</span>
+            </span>
+          )}
           {(accommodation.checkInTime || accommodation.checkOutTime) && (
             <div className="flex items-center gap-1.5 ml-1">
               {accommodation.checkInTime && (

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Tappa } from '../../types';
 import { storageService } from '../../storage/storageService';
 import TappaForm from '../../components/forms/TappaForm';
@@ -181,16 +181,21 @@ export default function TappeView({ onBack }: TappeViewProps) {
     await loadData();
   };
 
+  const filteredTappe = useMemo(() => {
+    if (selectedDate === 'tutte') return tappe;
+    return tappe.filter(t => t.data === selectedDate);
+  }, [tappe, selectedDate]);
+
   const detectTappaCountry = (t: Tappa): string => {
     const text = `${t.titolo || ''} ${t.indirizzo || ''} ${t.nota || ''} ${t.noteCopilota || ''}`.toLowerCase();
-    if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|nz|hobbiton|te puia|milford|haast)/.test(text)) return '🇳🇿 Nuova Zelanda';
-    if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|au|tullamarine|lorne|torquay|jervis)/.test(text)) return '🇦🇺 Australia';
-    if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|ph)/.test(text)) return '🇵🇭 Filippine';
-    if (/(italia|roma|milano|italy)/.test(text)) return '🇮🇹 Italia';
+    if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|\bau\b|tullamarine|lorne|torquay|jervis|gerringong|werri|nsw|huskisson)/.test(text)) return '🇦🇺 Australia';
+    if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|\bnz\b|hobbiton|te puia|milford|haast)/.test(text)) return '🇳🇿 Nuova Zelanda';
+    if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|\bph\b)/.test(text)) return '🇵🇭 Filippine';
+    if (/(italia|roma|milano|italy|\bit\b)/.test(text)) return '🇮🇹 Italia';
     return '🌍 Altro';
   };
 
-  const macroOrder = ['🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🇮🇹 Italia', '🌍 Altro'];
+  const macroOrder = ['🇮🇹 Italia', '🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🌍 Altro'];
 
   const groupedTappeByCountry = useMemo(() => {
     const countryMap: Record<string, Record<string, Tappa[]>> = {};

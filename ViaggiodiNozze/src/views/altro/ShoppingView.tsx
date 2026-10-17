@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Shopping } from '../../types';
 import { storageService } from '../../storage/storageService';
 import ShoppingForm from '../../components/forms/ShoppingForm';
@@ -13,6 +13,7 @@ import SwipeToDelete from '../../components/common/SwipeToDelete';
 import ShoppingCard from '../../components/cards/ShoppingCard';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { getTripDateRange, type TripDayItem } from '../../utils/tripDates';
+import DesktopEconomySummary from '../../components/common/DesktopEconomySummary';
 
 interface ShoppingViewProps {
   onBack?: () => void;
@@ -175,16 +176,21 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
     await loadData();
   };
 
+  const filteredShopping = useMemo(() => {
+    if (selectedDate === 'tutte') return shoppingList;
+    return shoppingList.filter(s => s.data === selectedDate);
+  }, [shoppingList, selectedDate]);
+
   const detectShopCountry = (s: Shopping): string => {
     const text = `${s.nome || ''} ${s.indirizzo || ''} ${s.nota || ''} ${s.noteCopilota || ''}`.toLowerCase();
-    if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|nz)/.test(text)) return '🇳🇿 Nuova Zelanda';
-    if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|au)/.test(text)) return '🇦🇺 Australia';
-    if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|ph)/.test(text)) return '🇵🇭 Filippine';
-    if (/(italia|roma|milano|italy)/.test(text)) return '🇮🇹 Italia';
+    if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|\bau\b|gerringong|werri|jervis|nsw|huskisson)/.test(text)) return '🇦🇺 Australia';
+    if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|\bnz\b|hobbiton|te puia|milford)/.test(text)) return '🇳🇿 Nuova Zelanda';
+    if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|\bph\b)/.test(text)) return '🇵🇭 Filippine';
+    if (/(italia|roma|milano|italy|\bit\b)/.test(text)) return '🇮🇹 Italia';
     return '🌍 Altro';
   };
 
-  const macroOrder = ['🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🇮🇹 Italia', '🌍 Altro'];
+  const macroOrder = ['🇮🇹 Italia', '🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🌍 Altro'];
 
   const groupedShoppingByCountry = useMemo(() => {
     const countryMap: Record<string, Record<string, Shopping[]>> = {};
@@ -268,6 +274,9 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
           </button>
         )}
       </header>
+
+      {/* Riepilogo Economico Solo Desktop */}
+      <DesktopEconomySummary items={shoppingList} categoryName="Shopping" accentColor="emerald" />
 
       {/* Selettore DayPickerStrip standardizzato a scorrimento orizzontale */}
       <DayPickerStrip

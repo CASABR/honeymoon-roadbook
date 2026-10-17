@@ -384,9 +384,9 @@ export default function SettingsMenu() {
               {/* Blocca App / Logout PIN */}
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   if (confirm('Vuoi bloccare l\'app e richiedere nuovamente il PIN di accesso?')) {
-                    clearDeviceSession();
+                    await clearDeviceSession();
                     clearTripConfig();
                     window.location.reload();
                   }
@@ -405,7 +405,7 @@ export default function SettingsMenu() {
                 type="button"
                 onClick={async () => {
                   if (confirm('Sei sicuro di voler uscire da questo viaggio? I dati non sincronizzati andranno persi.')) {
-                    clearDeviceSession();
+                    await clearDeviceSession();
                     await idbClearAll();
                     clearTripConfig();
                     setOpen(false);
