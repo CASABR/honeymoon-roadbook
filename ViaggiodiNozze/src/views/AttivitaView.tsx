@@ -13,6 +13,7 @@ import { useDeviceRole } from '../utils/useDeviceRole';
 import AttivitaCard from '../components/cards/AttivitaCard';
 import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
 import type { TimelineItem } from '../types';
+import DesktopEconomySummary from '../components/common/DesktopEconomySummary';
 
 export default function AttivitaView() {
   const { canEdit } = useDeviceRole();
@@ -262,15 +263,15 @@ export default function AttivitaView() {
 
   const detectActCountry = (act: Attivita): string => {
     const text = `${act.title || ''} ${act.location || ''} ${act.notes || ''} ${act.noteCopilota || ''}`.toLowerCase();
-    if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|nz|hobbiton|te puia|milford)/.test(text)) return '🇳🇿 Nuova Zelanda';
-    if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|au|bondi|manly|great ocean)/.test(text)) return '🇦🇺 Australia';
-    if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|ph|underground river)/.test(text)) return '🇵🇭 Filippine';
-    if (/(italia|roma|milano|italy)/.test(text)) return '🇮🇹 Italia';
+    if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|\bau\b|bondi|manly|great ocean|gerringong|werri|jervis|nsw)/.test(text)) return '🇦🇺 Australia';
+    if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|\bnz\b|hobbiton|te puia|milford)/.test(text)) return '🇳🇿 Nuova Zelanda';
+    if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|\bph\b|underground river)/.test(text)) return '🇵🇭 Filippine';
+    if (/(italia|roma|milano|italy|\bit\b)/.test(text)) return '🇮🇹 Italia';
     return '🌍 Altro';
   };
 
   const groupedActivitiesByCountry = useMemo(() => {
-    const macroOrder = ['🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🇮🇹 Italia', '🌍 Altro'];
+    const macroOrder = ['🇮🇹 Italia', '🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🌍 Altro'];
     const countryMap: Record<string, Record<string, Attivita[]>> = {};
 
     filteredActivities.forEach(a => {
@@ -337,6 +338,9 @@ export default function AttivitaView() {
           </div>
         )}
       </header>
+
+      {/* Riepilogo Economico Solo Desktop */}
+      <DesktopEconomySummary items={activities} categoryName="Attività" accentColor="amber" />
 
       {/* 1. Day Picker Orizzontale Fluido Data-Driven */}
       <DayPickerStrip

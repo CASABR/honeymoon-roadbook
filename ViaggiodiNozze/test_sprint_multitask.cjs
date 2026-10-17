@@ -180,15 +180,174 @@ function testLiveTextMessage() {
   console.log('[PASS] Validazione, mittente autenticato, sanitizzazione e rate-limiting LIVE verificati');
 }
 
-// Esecuzione
-try {
-  testTombstones();
-  testAdminStorageCalculations();
-  testLiveTextMessage();
-  console.log('\n=================================================================');
-  console.log('   ESITO SUITE SPRINT MULTITASK: TUTTI I 3 TEST SUPERATI CON SUCCESSO!');
-  console.log('=================================================================\n');
-} catch (err) {
-  console.error('\n[FAIL] Errore durante i test:', err);
-  process.exit(1);
+// 4. TEST RESILIENZA SESSIONE MOBILE (LOCALSTORAGE EVICTION + INDEXEDDB RESTORE)
+async function testMobileSessionResilience() {
+  console.log('\n--- TEST 4: Resilienza Sessione Mobile (Funzioni di Produzione da deviceSession.ts) ---');
+
+  // Inizializza global.localStorage in-memory per Node.js
+  let storageMap = new Map();
+  global.localStorage = {
+    getItem: (k) => (storageMap.has(k) ? storageMap.get(k) : null),
+    setItem: (k, v) => storageMap.set(k, String(v)),
+    removeItem: (k) => storageMap.delete(k),
+    clear: () => storageMap.clear()
+  };
+  global.window = {
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => {}
+  };
+
+  // Mock dello storage IndexedDB per simulare letture, scritture e cancellazioni
+  let idbMockStore = new Map();
+  let failIdbDelete = false;
+
+  // Carica il modulo di produzione REALE transpilato al volo con il compilatore TypeScript ufficiale
+  const fs = require('fs');
+  const ts = require('typescript');
+  const sessionSource = fs.readFileSync('./src/utils/deviceSession.ts', 'utf8');
+  const sessionCompiled = ts.transpileModule(sessionSource, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
+  }).outputText;
+
+  const mockModule = { exports: {} };
+  const sessionFactory = new Function('require', 'module', 'exports', '__filename', '__dirname', sessionCompiled);
+  sessionFactory((reqPath) => {
+    if (reqPath.includes('indexedDB')) {
+      return {
+        idbGet: async (store, key) => idbMockStore.get(`${store}:${key}`) || null,
+        idbPut: async (store, data) => idbMockStore.set(`${store}:${data.id}`, data),
+        idbDelete: async (store, key) => {
+          if (failIdbDelete) throw new Error('IndexedDB disk failure');
+          idbMockStore.delete(`${store}:${key}`);
+        }
+      };
+    }
+    if (reqPath.includes('firebase')) return { db: null };
+    return require(reqPath);
+  }, mockModule, mockModule.exports, './src/utils/deviceSession.ts', process.cwd());
+
+  const deviceSession = mockModule.exports;
+
+  try {
+    // A. Accesso iniziale / Login reale
+    deviceSession.persistDeviceSession('trip_giappone_2026', 'guida');
+    // Consenti al Promise asincrono di idbPut di completarsi
+    await new Promise(r => setTimeout(r, 20));
+
+    const s1 = deviceSession.getPersistedSession();
+    assert.strictEqual(s1.isAuthenticated, true, 'La sessione iniziale deve risultare autenticata');
+    assert.strictEqual(s1.tripId, 'trip_giappone_2026');
+    assert.strictEqual(s1.role, 'guida');
+
+    // B. Simulazione Eviction Mobile (localStorage ripulito a zero dal browser)
+    storageMap.clear();
+    const sEvicted = deviceSession.getPersistedSession();
+    assert.strictEqual(sEvicted.isAuthenticated, false, 'localStorage vuoto -> getPersistedSession sincrona deve essere false');
+
+    // C. Ripristino automatico tramite restorePersistedSessionFromIndexedDB REALE
+    const sRestored = await deviceSession.restorePersistedSessionFromIndexedDB();
+    assert.strictEqual(sRestored.isAuthenticated, true, 'Sessione ripristinata con successo da IndexedDB');
+    assert.strictEqual(sRestored.tripId, 'trip_giappone_2026');
+    assert.strictEqual(sRestored.role, 'guida');
+    // Verifica che abbia riallineato localStorage senza inventare PIN
+    assert.strictEqual(global.localStorage.getItem('houni_authenticated'), 'true');
+    assert.strictEqual(global.localStorage.getItem('houni_trip_id'), 'trip_giappone_2026');
+    assert.strictEqual(global.localStorage.getItem('houni_pin_authenticated'), null, 'Non deve re-iniettare flag PIN arbitrarie nel ripristino');
+
+    // D. Logout volontario (funzione reale)
+    await deviceSession.clearDeviceSession();
+    const sAfterLogout = deviceSession.getPersistedSession();
+    assert.strictEqual(sAfterLogout.isAuthenticated, false, 'Dopo logout la sessione deve essere revocata');
+    assert.strictEqual(global.localStorage.getItem('houni_explicit_logout'), 'true', 'Marcatore di logout esplicito presente');
+
+    const sRestoreAfterLogout = await deviceSession.restorePersistedSessionFromIndexedDB();
+    assert.strictEqual(sRestoreAfterLogout.isAuthenticated, false, 'Non deve mai ripristinare la sessione dopo logout esplicito');
+
+    // D2. CASO CRITICO: Logout seguito da cancellazione totale di localStorage (conservando solo IndexedDB)
+    // Non deve riesumare la sessione perché il record IndexedDB è stato invalidato (authenticated: false) e rimosso
+    storageMap.clear();
+    const sRestoreAfterStorageWipe = await deviceSession.restorePersistedSessionFromIndexedDB();
+    assert.strictEqual(sRestoreAfterStorageWipe.isAuthenticated, false, 'Anche con localStorage cancellato a zero dopo il logout, la sessione non risorge da IndexedDB');
+
+    // E. Errore o fallimento nella cancellazione IndexedDB durante logout
+    storageMap.clear();
+    // Reinietta una sessione e simula che IndexedDB fallisca la delete
+    deviceSession.persistDeviceSession('trip_giappone_2026', 'guida');
+    await new Promise(r => setTimeout(r, 20));
+    failIdbDelete = true;
+    await deviceSession.clearDeviceSession(); // non deve crashare nonostante l'eccezione IDB
+    failIdbDelete = false;
+
+    // Anche se IndexedDB contenesse ancora i vecchi byte per via dell'errore, il record è stato invalidato con authenticated: false
+    const sBlockedByLogout = await deviceSession.restorePersistedSessionFromIndexedDB();
+    assert.strictEqual(sBlockedByLogout.isAuthenticated, false, 'Anche con errore idbDelete, il backup invalidato impedisce il ripristino');
+
+    // F. Casi negativi di validazione su backup corrotto o ruolo alterato
+    storageMap.clear();
+    // 1. tripId vuoto o fatto di soli spazi
+    idbMockStore.set('settings:device_session_backup', { id: 'device_session_backup', value: { tripId: '   ', role: 'guida', authenticated: true } });
+    const sCorruptTrip = await deviceSession.restorePersistedSessionFromIndexedDB();
+    assert.strictEqual(sCorruptTrip.isAuthenticated, false, 'tripId vuoto/spazi deve essere rifiutato');
+
+    // 2. authenticated non booleano true
+    idbMockStore.set('settings:device_session_backup', { id: 'device_session_backup', value: { tripId: 'trip_123', role: 'guida', authenticated: false } });
+    const sUnauthBackup = await deviceSession.restorePersistedSessionFromIndexedDB();
+    assert.strictEqual(sUnauthBackup.isAuthenticated, false, 'authenticated non true deve essere rifiutato');
+
+    // 3. ruolo non valido -> normalizzazione sicura
+    idbMockStore.set('settings:device_session_backup', { id: 'device_session_backup', value: { tripId: 'trip_123', role: 'admin_hacker', authenticated: true } });
+    const sRoleFallback = await deviceSession.restorePersistedSessionFromIndexedDB();
+    assert.strictEqual(sRoleFallback.isAuthenticated, true);
+    assert.strictEqual(sRoleFallback.role, 'guida', 'Ruolo non ammesso deve ricadere sul fallback sicuro guida');
+
+    // G. Gestione errori IndexedDB su lettura/scrittura: non deve lanciare eccezioni né bloccare l'app
+    storageMap.clear();
+    idbMockStore.delete('settings:device_session_backup');
+    const sEmpty = deviceSession.getPersistedSession();
+    assert.strictEqual(sEmpty.isAuthenticated, false);
+    assert.strictEqual(sEmpty.tripId, null);
+
+    // I. CONDIZIONE DI GARA: Scrittura tardiva obsoleta (es. backup di persistenza completato dopo clearDeviceSession)
+    const oldTime = Date.now() - 50000;
+    idbMockStore.set('settings:device_session_backup', {
+      id: 'device_session_backup',
+      value: { tripId: 'trip_obsoleto', role: 'guida', authenticated: true, updatedAt: oldTime }
+    });
+    const sRaceConditionResult = await deviceSession.restorePersistedSessionFromIndexedDB();
+    assert.strictEqual(sRaceConditionResult.isAuthenticated, false, 'Scrittura asincrona tardiva con timestamp precedente deve essere respinta');
+
+    // J. NUOVO ACCESSO DOPO IL LOGOUT: deve ripristinare pienamente l'autenticazione
+    await deviceSession.persistDeviceSession('trip_nuovo_2027', 'copilota');
+    assert.strictEqual(deviceSession.getPersistedSession().isAuthenticated, true);
+    assert.strictEqual(deviceSession.getPersistedSession().tripId, 'trip_nuovo_2027');
+    assert.strictEqual(deviceSession.getPersistedSession().role, 'copilota');
+
+    // Se poi perdiamo localStorage del nuovo accesso, il restore deve recuperare il NUOVO viaggio
+    storageMap.clear();
+    const sNewRestore = await deviceSession.restorePersistedSessionFromIndexedDB();
+    assert.strictEqual(sNewRestore.isAuthenticated, true);
+    assert.strictEqual(sNewRestore.tripId, 'trip_nuovo_2027');
+    assert.strictEqual(sNewRestore.role, 'copilota');
+
+    console.log('[PASS] Resilienza sessione, race conditions, logout/re-login ed eccezioni verificati con successo su funzioni di produzione');
+  } catch (e) {
+    throw e;
+  }
 }
+
+// Esecuzione
+(async () => {
+  try {
+    testTombstones();
+    testAdminStorageCalculations();
+    testLiveTextMessage();
+    await testMobileSessionResilience();
+    console.log('\n=================================================================');
+    console.log('   ESITO SUITE SPRINT MULTITASK: TUTTI I 4 TEST SUPERATI CON SUCCESSO!');
+    console.log('=================================================================\n');
+  } catch (err) {
+    console.error('\n[FAIL] Errore durante i test:', err);
+    process.exit(1);
+  }
+})();

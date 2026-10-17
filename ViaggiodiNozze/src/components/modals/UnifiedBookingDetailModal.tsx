@@ -6,7 +6,7 @@ import {
   updateBookingAttachments,
   deleteBookingItem
 } from '../../services/unifiedBookingService';
-import { processFileForAttachment, formatFileSize, openAttachmentInNewTab } from '../../utils/fileAttachment';
+import { processFileForAttachment, formatFileSize, openAttachmentInNewTab, checkStorageAvailability } from '../../utils/fileAttachment';
 import type { TransportAttachment } from '../../types';
 import LightboxCarousel from '../common/LightboxCarousel';
 
@@ -30,6 +30,7 @@ export default function UnifiedBookingDetailModal({
   const [activeTab, setActiveTab] = useState<'info' | 'allegati' | 'note'>('info');
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
+  const [storageWarning, setStorageWarning] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [activeAttachmentIndex, setActiveAttachmentIndex] = useState<number | null>(null);
@@ -41,6 +42,13 @@ export default function UnifiedBookingDetailModal({
       setConfirmDelete(false);
       setUploadError('');
       setActiveAttachmentIndex(null);
+      checkStorageAvailability().then(res => {
+        if (res.isLowSpace && res.message) {
+          setStorageWarning(res.message);
+        } else {
+          setStorageWarning('');
+        }
+      }).catch(() => {});
     }
   }, [isOpen, booking]);
 
@@ -353,8 +361,36 @@ export default function UnifiedBookingDetailModal({
                 )}
               </div>
 
+              {storageWarning && (
+                <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 text-xs font-medium flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <span>⚠️</span>
+                    <span>{storageWarning}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setStorageWarning('')}
+                    className="text-amber-700 dark:text-amber-300 font-bold ml-2 hover:opacity-80"
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+
               {uploadError && (
-                <p className="text-rose-600 text-xs font-bold">{uploadError}</p>
+                <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-bold flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <span>🚫</span>
+                    <span>{uploadError}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setUploadError('')}
+                    className="text-rose-600 font-bold ml-2 hover:opacity-80"
+                  >
+                    ✕
+                  </button>
+                </div>
               )}
 
               {isUploading && (

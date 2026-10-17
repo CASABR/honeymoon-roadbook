@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Ristorante } from '../../types';
 import { storageService } from '../../storage/storageService';
 import RistoranteForm from '../../components/forms/RistoranteForm';
@@ -13,6 +13,7 @@ import { getTripDateRange, formatDate, type TripDayItem } from '../../utils/trip
 import { enrichRistorante } from '../../services/enrichmentService';
 import TimeCollisionModal, { type TimeCollision } from '../../components/modals/TimeCollisionModal';
 import type { TimelineItem } from '../../types';
+import DesktopEconomySummary from '../../components/common/DesktopEconomySummary';
 
 interface RistorantiViewProps {
   onBack?: () => void;
@@ -203,16 +204,21 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
     await loadData();
   };
 
+  const filteredRistoranti = useMemo(() => {
+    if (selectedDate === 'tutte') return ristoranti;
+    return ristoranti.filter(r => r.data === selectedDate);
+  }, [ristoranti, selectedDate]);
+
   const detectRistCountry = (r: Ristorante): string => {
     const text = `${r.nome || ''} ${r.indirizzo || ''} ${r.nota || ''} ${r.noteCopilota || ''}`.toLowerCase();
-    if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|nz)/.test(text)) return '🇳🇿 Nuova Zelanda';
-    if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|au)/.test(text)) return '🇦🇺 Australia';
-    if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|ph)/.test(text)) return '🇵🇭 Filippine';
-    if (/(italia|roma|milano|italy)/.test(text)) return '🇮🇹 Italia';
+    if (/(sydney|melbourne|kangaroo island|adelaide|cairns|brisbane|apollo bay|port campbell|grampians|phillip island|australia|\bau\b|gerringong|werri|jervis|nsw|huskisson)/.test(text)) return '🇦🇺 Australia';
+    if (/(auckland|rotorua|queenstown|christchurch|wellington|lake tekapo|franz josef|punakaiki|kaikoura|coromandel|waitomo|nuova zelanda|\bnz\b|hobbiton|te puia|milford)/.test(text)) return '🇳🇿 Nuova Zelanda';
+    if (/(manila|coron|el nido|boracay|cebu|bohol|panglao|siargao|filippine|\bph\b)/.test(text)) return '🇵🇭 Filippine';
+    if (/(italia|roma|milano|italy|\bit\b)/.test(text)) return '🇮🇹 Italia';
     return '🌍 Altro';
   };
 
-  const macroOrder = ['🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🇮🇹 Italia', '🌍 Altro'];
+  const macroOrder = ['🇮🇹 Italia', '🇳🇿 Nuova Zelanda', '🇦🇺 Australia', '🇵🇭 Filippine', '🌍 Altro'];
 
   const groupedRistorantiByCountry = useMemo(() => {
     const countryMap: Record<string, Record<string, Ristorante[]>> = {};
@@ -283,6 +289,9 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
           </button>
         )}
       </header>
+
+      {/* Riepilogo Economico Solo Desktop */}
+      <DesktopEconomySummary items={ristoranti} categoryName="Ristoranti" accentColor="orange" />
 
       {/* Selettore DayPickerStrip standardizzato a scorrimento orizzontale */}
       <DayPickerStrip

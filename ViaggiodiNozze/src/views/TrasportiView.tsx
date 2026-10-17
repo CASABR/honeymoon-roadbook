@@ -13,12 +13,13 @@ import TimeCollisionModal, { type TimeCollision } from '../components/modals/Tim
 import type { TimelineItem } from '../types';
 import DayPickerStrip from '../components/common/DayPickerStrip';
 import { getTripDateRange, type TripDayItem } from '../utils/tripDates';
+import DesktopEconomySummary from '../components/common/DesktopEconomySummary';
 
 const detectCountry = (t: Trasporto): string => {
   const text = `${t.departureLocation || ''} ${t.arrivalLocation || ''} ${t.layover?.airport || ''} ${t.carrier || ''} ${t.noteCopilota || ''}`.toLowerCase();
-  if (/(auckland|akl|chc|wellington|christchurch|picton|queenstown|rotorua|snap rentals|cook strait|sealink|nuova zelanda)/.test(text)) return '🇳🇿 Nuova Zelanda';
-  if (/(syd|mel|adl|adelaide|kangaroo island|sydney|melbourne|virgin australia|jetstar|australia)/.test(text)) return '🇦🇺 Australia';
-  if (/(mnl|mph|eni|usu|ceb|manila|boracay|el nido|tao coron|cebu|filippine|airswift|asia)/.test(text)) return '🇵🇭 Filippine';
+  if (/(syd|mel|adl|adelaide|kangaroo island|sydney|melbourne|virgin australia|jetstar|australia|\bau\b)/.test(text)) return '🇦🇺 Australia';
+  if (/(auckland|akl|chc|wellington|christchurch|picton|queenstown|rotorua|snap rentals|cook strait|sealink|nuova zelanda|\bnz\b)/.test(text)) return '🇳🇿 Nuova Zelanda';
+  if (/(mnl|mph|eni|usu|ceb|manila|boracay|el nido|tao coron|cebu|filippine|airswift|asia|\bph\b)/.test(text)) return '🇵🇭 Filippine';
   if (/(pek|pvg|roma|fco|mxp|malpensa|air china|china airlines|doha)/.test(text) || (t.type === 'volo' && (text.includes('milano') || text.includes('roma') || text.includes('intercontinentale')))) return '✈️ Intercontinentali';
   return '🌍 Altro';
 };
@@ -302,6 +303,9 @@ export default function TrasportiView() {
           )}
         </div>
       </header>
+
+      {/* Riepilogo Economico Solo Desktop */}
+      <DesktopEconomySummary items={transports} categoryName="Trasporti" accentColor="blue" />
 
       {/* Selettore DayPickerStrip a scorrimento orizzontale con frecce desktop */}
       <DayPickerStrip

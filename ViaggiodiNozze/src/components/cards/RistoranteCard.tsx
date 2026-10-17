@@ -59,6 +59,12 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-100 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/20 text-[10px] font-bold tracking-wide uppercase">
             <span className="text-sm">🍽️</span> Ristorante
           </span>
+          {ristorante.sottocategoria && (
+            <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50 text-[11px] font-semibold tracking-wide">
+              <span>{ristorante.sottocategoria.toLowerCase().includes('cena') ? '🍷' : ristorante.sottocategoria.toLowerCase().includes('pranzo') ? '🥗' : ristorante.sottocategoria.toLowerCase().includes('colaz') ? '☕' : '🍴'}</span>
+              <span>{ristorante.sottocategoria}</span>
+            </span>
+          )}
           {ristorante.orario && (
             <div className="flex flex-col ml-1">
               <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300 uppercase">

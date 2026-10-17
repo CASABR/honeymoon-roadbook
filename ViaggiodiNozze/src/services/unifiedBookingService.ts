@@ -8,7 +8,7 @@ import type {
   TravelDocument,
   TransportAttachment
 } from '../types';
-import { parseEuro } from '../utils/priceHelper';
+import { parseEuro, resolvePaymentInfo } from '../utils/priceHelper';
 
 export type BookingCategory = 'volo' | 'treno' | 'alloggio' | 'auto_camper' | 'traghetto' | 'attivita' | 'ristorante' | 'shopping' | 'documento';
 
@@ -135,9 +135,18 @@ export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
     else if (t.type === 'auto' || t.type === 'camper') category = 'auto_camper';
     else if (t.type === 'transfer') category = 'volo';
 
-    const costNum = parseEuro(t.cost);
-    const paidNum = parseEuro(t.depositPaid || t.acconto || t.amountPaid);
-    const isPaid = t.paymentStatus === 'saldato' || t.status === 'completato' || (costNum > 0 && paidNum >= costNum);
+    const paymentInfo = resolvePaymentInfo({
+      cost: t.cost,
+      depositPaid: t.depositPaid || t.acconto || t.amountPaid,
+      paymentStatus: t.paymentStatus,
+      status: t.status,
+      completed: t.completed,
+      packageIncluded: t.packageIncluded
+    });
+
+    const costNum = paymentInfo.costNum;
+    const paidNum = paymentInfo.paidNum;
+    const isPaid = paymentInfo.isPaid || (costNum > 0 && paidNum >= costNum);
 
     const attachments = t.attachments || [];
 
@@ -154,7 +163,7 @@ export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
       locationDetails: t.departureIata || t.arrivalIata ? `${t.departureIata || ''} → ${t.arrivalIata || ''}` : undefined,
       bookingCode: t.bookingCode,
       cost: costNum,
-      costFormatted: t.cost,
+      costFormatted: paymentInfo.displayText || t.cost,
       isPaid,
       paidAmount: paidNum,
       status: t.status,
@@ -172,9 +181,17 @@ export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
 
   // 2. ALLOGGI
   accommodations.forEach((a) => {
-    const costNum = parseEuro(a.cost);
-    const paidNum = parseEuro(a.depositPaid || a.acconto);
-    const isPaid = a.paymentStatus === 'saldato' || a.status === 'completato' || (costNum > 0 && paidNum >= costNum);
+    const paymentInfo = resolvePaymentInfo({
+      cost: a.cost,
+      depositPaid: a.depositPaid || a.acconto,
+      paymentStatus: a.paymentStatus,
+      status: a.status,
+      completed: a.completed
+    });
+
+    const costNum = paymentInfo.costNum;
+    const paidNum = paymentInfo.paidNum;
+    const isPaid = paymentInfo.isPaid || (costNum > 0 && paidNum >= costNum);
     const attachments = a.attachments || [];
 
     items.push({
@@ -190,7 +207,7 @@ export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
       locationDetails: a.address,
       bookingCode: a.bookingCode || a.pinCode,
       cost: costNum,
-      costFormatted: a.cost,
+      costFormatted: paymentInfo.displayText || a.cost,
       isPaid,
       paidAmount: paidNum,
       status: a.status,
@@ -208,9 +225,17 @@ export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
 
   // 3. ATTIVITÀ
   activities.forEach((act) => {
-    const costNum = parseEuro(act.cost);
-    const paidNum = parseEuro(act.acconto);
-    const isPaid = act.paymentStatus === 'saldato' || act.status === 'prenotato' || (costNum > 0 && paidNum >= costNum);
+    const paymentInfo = resolvePaymentInfo({
+      cost: act.cost,
+      depositPaid: act.acconto,
+      paymentStatus: act.paymentStatus,
+      status: act.status,
+      completed: act.completed
+    });
+
+    const costNum = paymentInfo.costNum;
+    const paidNum = paymentInfo.paidNum;
+    const isPaid = paymentInfo.isPaid || (costNum > 0 && paidNum >= costNum);
     const attachments = act.attachments || [];
 
     items.push({
@@ -224,7 +249,7 @@ export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
       locationDetails: act.address,
       bookingCode: act.qrCode,
       cost: costNum,
-      costFormatted: act.cost,
+      costFormatted: paymentInfo.displayText || act.cost,
       isPaid,
       paidAmount: paidNum,
       status: act.status,
