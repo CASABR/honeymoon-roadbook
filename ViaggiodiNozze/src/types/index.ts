@@ -20,6 +20,7 @@ export interface Attivita {
   id: string;
   dayId: string;
   date?: string; // YYYY-MM-DD
+  endDate?: string; // YYYY-MM-DD (per attività multi-giorno o escursioni estese)
   title: string;
   time?: string; // HH:mm
   location: string;
@@ -101,9 +102,10 @@ export interface Alloggio {
   acconto?: string;
   location: string;
   checkIn: string; // YYYY-MM-DD
-  checkInTime?: string; // HH:mm
+  checkInTime?: string; // HH:mm (orario check-in struttura)
+  arrivalTime?: string; // HH:mm (mio orario di arrivo previsto)
   checkOut: string; // YYYY-MM-DD
-  checkOutTime?: string; // HH:mm
+  checkOutTime?: string; // HH:mm (orario check-out struttura)
   address: string;
   cost?: string; // Costo totale in €
   depositPaid?: string; // Somma versata / saldo pagato
@@ -143,8 +145,15 @@ export interface TravelDocument {
   status?: string;
   validity?: string;
   expiresAt?: string;
+  company?: string;
+  policyNumber?: string;
+  assistancePhones?: string;
+  usefulContacts?: string;
+  coverage?: string;
+  notes?: string;
   attachments: TransportAttachment[];
-  updatedAt: string;
+  createdAt?: number | string;
+  updatedAt: string | number;
 }
 
 export interface Trasporto {
@@ -307,4 +316,21 @@ export interface Bagaglio {
   verificato: boolean;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface TombstoneRecord {
+  id: string;
+  entityType: string;
+  deletedId: string;
+  deletedAt: number;
+  timestamp?: number;
+  pending?: boolean;
+}
+
+export interface SyncResultDetail {
+  pushedCount: number;
+  pulledCount: number;
+  deletedCount: number;
+  failedCount: number;
+  timestamp: number;
 }

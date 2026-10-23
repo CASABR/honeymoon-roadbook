@@ -78,16 +78,32 @@ export default function DocumentValidityModal({
   onSave
 }: DocumentValidityModalProps) {
   const [status, setStatus] = useState('Valido');
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [validity, setValidity] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
   const [attachments, setAttachments] = useState<TravelDocument['attachments']>([]);
+  const [company, setCompany] = useState('');
+  const [policyNumber, setPolicyNumber] = useState('');
+  const [assistancePhones, setAssistancePhones] = useState('');
+  const [usefulContacts, setUsefulContacts] = useState('');
+  const [coverage, setCoverage] = useState('');
+  const [notes, setNotes] = useState('');
 
   useEffect(() => {
     if (document) {
       setStatus(document.status || 'Valido');
+      setTitle(document.title || '');
+      setDescription(document.description || '');
       setValidity(document.validity || '');
       setExpiresAt(document.expiresAt || '');
       setAttachments(document.attachments || []);
+      setCompany(document.company || '');
+      setPolicyNumber(document.policyNumber || '');
+      setAssistancePhones(document.assistancePhones || '');
+      setUsefulContacts(document.usefulContacts || '');
+      setCoverage(document.coverage || '');
+      setNotes(document.notes || '');
     }
   }, [document]);
 
@@ -103,9 +119,17 @@ export default function DocumentValidityModal({
     e.preventDefault();
     const updated: TravelDocument = {
       ...document,
+      title: title.trim() || document.title,
+      description: description.trim() || undefined,
       status: status.trim() || 'Valido',
       validity: validity.trim() || undefined,
       expiresAt: expiresAt.trim() || undefined,
+      company: company.trim() || undefined,
+      policyNumber: policyNumber.trim() || undefined,
+      assistancePhones: assistancePhones.trim() || undefined,
+      usefulContacts: usefulContacts.trim() || undefined,
+      coverage: coverage.trim() || undefined,
+      notes: notes.trim() || undefined,
       attachments,
       updatedAt: new Date().toISOString()
     };
@@ -131,6 +155,43 @@ export default function DocumentValidityModal({
             <p className="text-[11px] text-slate-500 line-clamp-1">{document.description || 'Configura stato e durata'}</p>
           </div>
         </div>
+
+        <div className="grid grid-cols-1 gap-3">
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Titolo documento
+            <input value={title} onChange={(event) => setTitle(event.target.value)} className="mt-1.5 w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-indigo-500" />
+          </label>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+            Descrizione
+            <textarea rows={2} value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1.5 w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-indigo-500" />
+          </label>
+        </div>
+
+        {document.category === 'assicurazione' && (
+          <div className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Compagnia
+                <input value={company} onChange={(event) => setCompany(event.target.value)} className="mt-1.5 w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-indigo-500" />
+              </label>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Numero polizza
+                <input value={policyNumber} onChange={(event) => setPolicyNumber(event.target.value)} className="mt-1.5 w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-indigo-500" />
+              </label>
+            </div>
+            {[
+              ['Numeri di assistenza', assistancePhones, setAssistancePhones],
+              ['Contatti utili', usefulContacts, setUsefulContacts],
+              ['Coperture', coverage, setCoverage],
+              ['Note', notes, setNotes]
+            ].map(([label, value, onChange]) => (
+              <label key={label as string} className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                {label as string}
+                <textarea rows={2} value={value as string} onChange={(event) => (onChange as React.Dispatch<React.SetStateAction<string>>)(event.target.value)} className="mt-1.5 w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-white focus:border-indigo-500" />
+              </label>
+            ))}
+          </div>
+        )}
 
         {/* 1. SELEZIONE STATO DI VALIDITÀ */}
         <div>

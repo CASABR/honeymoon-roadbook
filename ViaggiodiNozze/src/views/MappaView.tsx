@@ -5,6 +5,7 @@ import L from 'leaflet';
 import { storageService } from '../storage/storageService';
 import { lookupKnownCoordinate } from '../services/routingService';
 import type { Coordinate } from '../types';
+import { formatDateIT } from '../utils/tripDates';
 
 export type POICategory = 'tappa' | 'alloggio' | 'attivita' | 'ristorante';
 
@@ -485,7 +486,7 @@ export default function MappaView() {
                         </span>
                         {(m.time || m.date) && (
                           <span className="text-[10px] font-medium text-slate-400">
-                            {m.time || m.date}
+                            {m.time ? `${m.time}${m.date ? ` • ${formatDateIT(m.date)}` : ''}` : formatDateIT(m.date)}
                           </span>
                         )}
                       </div>
@@ -553,7 +554,7 @@ export default function MappaView() {
                 </span>
                 {selectedMarker.date && (
                   <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                    📅 {selectedMarker.date}
+                    📅 {formatDateIT(selectedMarker.date)}
                   </span>
                 )}
                 {selectedMarker.time && (

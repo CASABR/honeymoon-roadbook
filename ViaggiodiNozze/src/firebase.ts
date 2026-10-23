@@ -1,7 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 import { getAuth } from "firebase/auth";
-import { getFunctions } from "firebase/functions";
 
 // Configurazione letta da .env.local (prefisso VITE_ obbligatorio per esporla al client).
 // Progetto: app-viaggio-di-nozze — lo stesso su cui vengono deployate le firestore.rules (.firebaserc).
@@ -23,7 +22,6 @@ if (missing.length) {
 
 let dbInstance: any;
 let authInstance: any;
-let functionsInstance: any;
 
 try {
   const app = initializeApp(firebaseConfig);
@@ -39,11 +37,9 @@ try {
     dbInstance = initializeFirestore(app, {});
   }
   authInstance = getAuth(app);
-  functionsInstance = getFunctions(app);
 } catch (e) {
   console.error("Firebase initialization failed:", e);
 }
 
 export const db = dbInstance;
 export const auth = authInstance;
-export const functions = functionsInstance;

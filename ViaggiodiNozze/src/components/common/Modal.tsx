@@ -13,13 +13,21 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') onClose();
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = '';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
     } else {
       document.body.style.overflow = '';
     }
     return () => {
       document.body.style.overflow = '';
     };
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -45,7 +53,7 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
 
       {/* Modal / Sheet Container */}
       <div
-        className={`modal-sheet-container relative z-[100000] w-full max-w-lg flex flex-col overflow-hidden shadow-2xl border-t sm:border rounded-t-3xl sm:rounded-2xl ${accentBorder} text-slate-900 dark:text-slate-100 bg-white dark:bg-[#1E293B] dark:border-slate-700 max-h-[90dvh] sm:my-auto`}
+        className={`modal-sheet-container relative z-[100000] w-full max-w-lg flex flex-col overflow-hidden border-t sm:border rounded-t-3xl sm:rounded-2xl ${accentBorder} text-[#172033] dark:text-slate-100 dark:bg-[#1E293B] dark:border-slate-700 max-h-[90dvh] sm:my-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* iOS Drag Handle Pill on Mobile */}
@@ -54,12 +62,12 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-[#1E293B]/95 backdrop-blur sticky top-0 z-20 shrink-0 min-w-0">
-          <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight truncate break-words min-w-0 mr-3">{title}</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5e3dd] dark:border-slate-800 bg-[#fffdfa]/95 dark:bg-[#1E293B]/95 backdrop-blur sticky top-0 z-20 shrink-0 min-w-0">
+          <h2 className="hounigo-title text-lg dark:text-slate-100 truncate break-words min-w-0 mr-3">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all cursor-pointer"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-[#172033] dark:hover:text-slate-200 hover:bg-[#f1eee7] dark:hover:bg-slate-800 transition-all cursor-pointer"
             aria-label="Chiudi"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -91,4 +99,3 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
 
   return modalNode;
 }
-

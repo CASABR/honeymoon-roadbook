@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { UnifiedBookingItem } from '../../services/unifiedBookingService';
 import {
@@ -9,6 +9,8 @@ import {
 import { processFileForAttachment, formatFileSize, openAttachmentInNewTab, checkStorageAvailability } from '../../utils/fileAttachment';
 import type { TransportAttachment } from '../../types';
 import LightboxCarousel from '../common/LightboxCarousel';
+import DropZone from '../common/DropZone';
+import { formatDateIT } from '../../utils/tripDates';
 
 interface UnifiedBookingDetailModalProps {
   booking: UnifiedBookingItem | null;
@@ -80,8 +82,7 @@ export default function UnifiedBookingDetailModal({
 
   const attachments = booking.attachments || [];
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  const handleFilesBatch = async (files: File[]) => {
     if (!files || files.length === 0) return;
     setUploadError('');
     setIsUploading(true);
@@ -100,7 +101,6 @@ export default function UnifiedBookingDetailModal({
       setUploadError(err.message || 'Errore durante il caricamento del file');
     } finally {
       setIsUploading(false);
-      e.target.value = '';
     }
   };
 
@@ -232,7 +232,7 @@ export default function UnifiedBookingDetailModal({
                     Data &amp; Orario Inizio
                   </span>
                   <div className="text-sm font-black text-[#172033] dark:text-white">
-                    {booking.date ? `🗓️ ${booking.date}` : 'Data non specificata'}
+                    {booking.date ? `🗓️ ${formatDateIT(booking.date)}` : 'Data non specificata'}
                   </div>
                   {booking.time && (
                     <div className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-0.5">
@@ -246,7 +246,7 @@ export default function UnifiedBookingDetailModal({
                     Fine / Rientro / Check-out
                   </span>
                   <div className="text-sm font-black text-[#172033] dark:text-white">
-                    {booking.endDate ? `🗓️ ${booking.endDate}` : '—'}
+                    {booking.endDate ? `🗓️ ${formatDateIT(booking.endDate)}` : '—'}
                   </div>
                   {booking.endTime && (
                     <div className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-0.5">
@@ -255,6 +255,26 @@ export default function UnifiedBookingDetailModal({
                   )}
                 </div>
               </div>
+
+              {/* Dettaglio Orario Arrivo Previsto per Alloggi */}
+              {booking.rawType === 'alloggio' && Boolean((booking.rawItem as any)?.arrivalTime) && (
+                <div className="p-3.5 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-800/60 shadow-2xs flex items-center gap-3">
+                  <span className="text-2xl">🧳</span>
+                  <div>
+                    <span className="block text-[10px] font-extrabold text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">
+                      Mio Arrivo Previsto
+                    </span>
+                    <div className="text-sm font-black text-indigo-950 dark:text-white">
+                      Ore {(booking.rawItem as any).arrivalTime}
+                    </div>
+                    {Boolean((booking.rawItem as any).checkInTime) && (
+                      <span className="text-[11px] text-indigo-600/80 dark:text-indigo-300">
+                        (Check-in consentito dalla struttura: dalle {(booking.rawItem as any).checkInTime})
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Codice Prenotazione & PNR */}
               {Boolean(booking.bookingCode?.trim()) && (
@@ -337,7 +357,7 @@ export default function UnifiedBookingDetailModal({
 
           {activeTab === 'allegati' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <div>
                   <h4 className="font-extrabold text-[#172033] dark:text-white text-xs">
                     File &amp; Documenti Digitali
@@ -347,17 +367,13 @@ export default function UnifiedBookingDetailModal({
                   </p>
                 </div>
                 {canEdit && (
-                  <label className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#172033] hover:bg-slate-800 text-white font-bold text-xs cursor-pointer shadow-xs transition-colors">
-                    <span>+ Carica File</span>
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*,application/pdf"
-                      onChange={handleFileUpload}
-                      className="hidden"
-                      disabled={isUploading}
-                    />
-                  </label>
+                  <DropZone
+                    variant="button"
+                    onFilesSelected={handleFilesBatch}
+                    isUploading={isUploading}
+                    title="+ Carica File"
+                    className="bg-[#172033] hover:bg-slate-800 text-white font-bold text-xs"
+                  />
                 )}
               </div>
 
@@ -401,78 +417,89 @@ export default function UnifiedBookingDetailModal({
               )}
 
               {attachments.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {attachments.map((att, idx) => (
-                    <div
-                      key={att.id}
-                      className="p-3 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 shadow-2xs flex flex-col justify-between gap-2 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
-                    >
-                      <div 
-                        className="flex items-start gap-2.5 cursor-pointer"
-                        onClick={() => setActiveAttachmentIndex(idx)}
-                        title="Clicca per visualizzare a schermo intero"
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {attachments.map((att, idx) => (
+                      <div
+                        key={att.id}
+                        className="p-3 rounded-2xl bg-white dark:bg-slate-800/90 border border-slate-200/80 dark:border-slate-700 shadow-2xs flex flex-col justify-between gap-2 hover:border-indigo-300 dark:hover:border-indigo-600 transition-colors"
                       >
-                        <span className="text-2xl p-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 shrink-0">
-                          {att.type === 'pdf' ? '📄' : '🖼️'}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="font-bold text-slate-900 dark:text-white text-xs truncate">
-                            {att.name}
-                          </p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">
-                            {formatFileSize(att.size)} • Tocca per visualizzare
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
-                        <button
-                          type="button"
+                        <div 
+                          className="flex items-start gap-2.5 cursor-pointer"
                           onClick={() => setActiveAttachmentIndex(idx)}
-                          className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-bold cursor-pointer flex items-center gap-1"
+                          title="Clicca per visualizzare a schermo intero"
                         >
-                          <span>Sfoglia</span>
-                          <span>🔍</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openAttachmentInNewTab(att.dataUrl, att.name)}
-                          className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 text-[11px] font-bold cursor-pointer flex items-center gap-1"
-                          title="Apri in nuova scheda"
-                        >
-                          <span>Apri</span>
-                          <span>↗</span>
-                        </button>
-                        <a
-                          href={att.dataUrl}
-                          download={att.name}
-                          className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold cursor-pointer"
-                        >
-                          Scarica
-                        </a>
-                        {canEdit && (
+                          <span className="text-2xl p-1.5 rounded-xl bg-slate-100 dark:bg-slate-700 shrink-0">
+                            {att.type === 'pdf' ? '📄' : '🖼️'}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-slate-900 dark:text-white text-xs truncate">
+                              {att.name}
+                            </p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">
+                              {formatFileSize(att.size)} • Tocca per visualizzare
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-700/60">
                           <button
                             type="button"
-                            onClick={() => handleRemoveAttachment(att.id)}
-                            className="px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 text-[11px] font-bold cursor-pointer"
+                            onClick={() => setActiveAttachmentIndex(idx)}
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[11px] font-bold cursor-pointer flex items-center gap-1"
                           >
-                            Elimina
+                            <span>Sfoglia</span>
+                            <span>🔍</span>
                           </button>
-                        )}
+                          <button
+                            type="button"
+                            onClick={() => openAttachmentInNewTab(att.dataUrl, att.name)}
+                            className="px-2.5 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 text-[11px] font-bold cursor-pointer flex items-center gap-1"
+                            title="Apri in nuova scheda"
+                          >
+                            <span>Apri</span>
+                            <span>↗</span>
+                          </button>
+                          <a
+                            href={att.dataUrl}
+                            download={att.name}
+                            className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold cursor-pointer"
+                          >
+                            Scarica
+                          </a>
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveAttachment(att.id)}
+                              className="px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 text-[11px] font-bold cursor-pointer"
+                            >
+                              Elimina
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+
+                  {canEdit && (
+                    <DropZone
+                      variant="compact"
+                      onFilesSelected={handleFilesBatch}
+                      isUploading={isUploading}
+                      title="Trascina qui altri voucher, biglietti o QR code"
+                      subtitle="oppure clicca per aggiungere file dalla cartella"
+                    />
+                  )}
+                </>
               ) : (
-                <div className="text-center py-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl bg-white/40 dark:bg-slate-800/40">
-                  <span className="text-3xl block mb-2">📎</span>
-                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                    Nessun documento o voucher allegato
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-1 max-w-sm mx-auto">
-                    Carica biglietti PDF, conferme di prenotazione o screenshot con codice QR per averli sempre a portata di mano.
-                  </p>
-                </div>
+                <DropZone
+                  variant="hero"
+                  onFilesSelected={handleFilesBatch}
+                  isUploading={isUploading}
+                  disabled={!canEdit}
+                  title="Trascina qui Biglietti, Voucher o QR Code"
+                  subtitle="Carica biglietti PDF, conferme di prenotazione o screenshot con codice QR per averli sempre a portata di mano."
+                />
               )}
             </div>
           )}

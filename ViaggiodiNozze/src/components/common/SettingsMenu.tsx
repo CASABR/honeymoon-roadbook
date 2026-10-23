@@ -1,10 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { doc, writeBatch, arrayUnion } from 'firebase/firestore';
+import { db } from '../../firebase';
 import { storageService } from '../../storage/storageService';
 import { getTripConfig, clearTripConfig } from '../../utils/tripConfig';
 import { clearDeviceSession } from '../../utils/deviceSession';
 import { idbClearAll } from '../../storage/indexedDB';
 import type { DeviceRole } from '../../types';
 import DeviceRoleModal from './DeviceRoleModal';
+import IdentityStatusBadge from './IdentityStatusBadge';
+import { useAuthIdentity } from '../../utils/useAuthIdentity';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 
 /**
@@ -12,6 +16,7 @@ import { usePushNotifications } from '../../hooks/usePushNotifications';
  * Gestisce Export JSON e Import JSON del backup completo.
  */
 export default function SettingsMenu() {
+  const { cloudRole, isCloudAuthorized } = useAuthIdentity();
   const [open, setOpen] = useState(false);
   const [importing, setImporting] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -37,11 +42,59 @@ export default function SettingsMenu() {
     try {
       await navigator.clipboard.writeText(url);
       setCopiedInvite(true);
-      showToast('ok', "Link d'invito copiato negli appunti!");
-      setTimeout(() => setCopiedInvite(false), 2500);
     } catch (err) {
       console.warn('Clipboard writeText non disponibile:', err);
       showToast('ok', "Seleziona e copia il link nel riquadro");
+    }
+  };
+
+  const [memberUidInput, setMemberUidInput] = useState('');
+  const [memberNameInput, setMemberNameInput] = useState('');
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [addMemberStatus, setAddMemberStatus] = useState<{ type: 'ok' | 'error'; text: string } | null>(null);
+
+  const handleAuthorizeMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUid = memberUidInput.trim();
+    const cleanName = memberNameInput.trim() || 'Co-pilota';
+    if (!cleanUid) {
+      setAddMemberStatus({ type: 'error', text: 'Inserisci l\'UID del dispositivo.' });
+      return;
+    }
+    const config = getTripConfig();
+    const activeTripId = config?.id || tripId || '0000';
+
+    setIsAddingMember(true);
+    setAddMemberStatus(null);
+    try {
+      if (!db) throw new Error('Database Firebase non inizializzato.');
+      const tripRef = doc(db, 'trips', activeTripId);
+      const memberRef = doc(db, 'trips', activeTripId, 'members', cleanUid);
+      const batch = writeBatch(db);
+      batch.update(tripRef, {
+        members: arrayUnion(cleanUid),
+        updatedAt: Date.now()
+      });
+      batch.set(memberRef, {
+        uid: cleanUid,
+        name: cleanName,
+        role: 'copilota',
+        createdAt: Date.now()
+      }, { merge: true });
+      await batch.commit();
+
+      setAddMemberStatus({ type: 'ok', text: `✓ Dispositivo "${cleanName}" autorizzato con successo!` });
+      setMemberUidInput('');
+      setMemberNameInput('');
+      setTimeout(() => setAddMemberStatus(null), 4000);
+    } catch (err: any) {
+      console.error('[SettingsMenu] Errore autorizzazione copilota:', err);
+      setAddMemberStatus({
+        type: 'error',
+        text: err?.message || 'Permessi insufficienti su Firestore: la sessione attuale non è riconosciuta come Owner del viaggio remoto.'
+      });
+    } finally {
+      setIsAddingMember(false);
     }
   };
   
@@ -140,11 +193,16 @@ export default function SettingsMenu() {
         {open && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-            <div className="absolute right-0 top-11 z-50 w-64 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-xl overflow-hidden">
+            <div className="absolute right-0 top-11 z-50 w-72 sm:w-80 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl overflow-y-auto max-h-[85vh]">
               {/* SEZIONE 1: VIAGGIO & PARTECIPANTI */}
               <p className="text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-widest px-4 pt-3 pb-2 border-b border-slate-100 dark:border-slate-700">
                 Viaggio &amp; Dispositivo
               </p>
+
+              {/* Scheda Identità Cloud & Ruolo con Owner nunzio */}
+              <div className="p-3 border-b border-slate-100 dark:border-slate-700">
+                <IdentityStatusBadge />
+              </div>
 
               {/* Ruolo Dispositivo */}
               <button
@@ -157,12 +215,20 @@ export default function SettingsMenu() {
               >
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">
-                    {deviceRole === 'guida' ? '🟢' : deviceRole === 'copilota' ? '🟡' : '💻'}
+                    {deviceRole === 'guida'
+                      ? (isCloudAuthorized && cloudRole === 'owner' ? '🟢' : '🟡')
+                      : deviceRole === 'copilota'
+                      ? (isCloudAuthorized && (cloudRole === 'copilota' || cloudRole === 'owner') ? '🟢' : '🟡')
+                      : '💻'}
                   </span>
                   <div className="text-left">
                     <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Ruolo Dispositivo</span>
                     <span className="block text-[10px] text-slate-400 font-normal">
-                      {deviceRole === 'guida' ? 'Telefono Guida (GPS)' : deviceRole === 'copilota' ? 'Telefono Co-pilota' : 'Computer / Viewer'}
+                      {deviceRole === 'guida'
+                        ? (isCloudAuthorized && cloudRole === 'owner' ? 'Telefono Guida (GPS)' : 'Telefono Guida (Non verificato)')
+                        : deviceRole === 'copilota'
+                        ? (isCloudAuthorized && (cloudRole === 'copilota' || cloudRole === 'owner') ? 'Telefono Co-pilota (Verificato)' : 'Telefono Co-pilota (Non verificato)')
+                        : 'Computer / Viewer'}
                     </span>
                   </div>
                 </div>
@@ -381,6 +447,30 @@ export default function SettingsMenu() {
                 <span className="text-slate-400 text-xs">›</span>
               </button>
 
+              {/* Console Amministratore: visibile esclusivamente per il viaggio originale 0000 */}
+              {getTripConfig()?.id === '0000' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpen(false);
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('admin', '1');
+                    window.history.pushState({}, '', url.toString());
+                    window.dispatchEvent(new CustomEvent('open_admin_console'));
+                  }}
+                  className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors border-t border-slate-100 dark:border-slate-700 cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base">🛡️</span>
+                    <div className="text-left">
+                      <span className="block text-xs font-bold text-indigo-700 dark:text-indigo-300">Console Amministratore</span>
+                      <span className="block text-[10px] text-indigo-500/80 dark:text-indigo-400/80 font-normal">Gestione globale, backup e viaggi</span>
+                    </div>
+                  </div>
+                  <span className="text-indigo-400 text-xs">›</span>
+                </button>
+              )}
+
               {/* Blocca App / Logout PIN */}
               <button
                 type="button"
@@ -441,7 +531,7 @@ export default function SettingsMenu() {
       {showInviteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="fixed inset-0" onClick={() => setShowInviteModal(false)} />
-          <div className="relative bg-white dark:bg-slate-900 rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 z-10 animate-in zoom-in-95 duration-200">
+          <div className="relative bg-white dark:bg-slate-900 rounded-3xl p-5 max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 z-10 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
               <div className="flex items-center gap-2">
                 <span className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg">
@@ -461,55 +551,101 @@ export default function SettingsMenu() {
               </button>
             </div>
 
-            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              Invia questo link al tuo co-pilota. Aprendolo su qualsiasi smartphone o tablet, accederà direttamente al viaggio con il ruolo Co-pilota già configurato.
-            </p>
-
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Link d'invito
-              </label>
-              <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-2">
+            {/* Form Autorizzazione Dispositivo Co-pilota (Spark) */}
+            <form onSubmit={handleAuthorizeMember} className="p-3.5 rounded-2xl bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 space-y-2.5">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm">🔑</span>
+                <span className="text-[11px] font-bold text-indigo-950 dark:text-indigo-200 uppercase tracking-wider">
+                  Autorizza Dispositivo (Spark)
+                </span>
+              </div>
+              <p className="text-[10px] text-indigo-900/80 dark:text-indigo-300/80 leading-snug">
+                Inserisci l'UID mostrato sul telefono del copilota (in Impostazioni o Benvenuto) per abilitarlo all'accesso:
+              </p>
+              <div className="space-y-1.5">
                 <input
                   type="text"
-                  readOnly
-                  value={generateCopilotInviteUrl()}
-                  onClick={(e) => e.currentTarget.select()}
-                  className="w-full bg-transparent px-1 text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none select-all truncate"
+                  required
+                  value={memberUidInput}
+                  onChange={(e) => setMemberUidInput(e.target.value)}
+                  placeholder="UID Dispositivo Copilota *"
+                  className="w-full px-2.5 py-2 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                />
+                <input
+                  type="text"
+                  value={memberNameInput}
+                  onChange={(e) => setMemberNameInput(e.target.value)}
+                  placeholder="Nome (es. Giusy)"
+                  className="w-full px-2.5 py-2 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                 />
               </div>
-            </div>
 
-            <div className="flex gap-2 pt-1">
+              {addMemberStatus && (
+                <div className={`p-2 rounded-xl text-[10px] font-semibold leading-tight ${
+                  addMemberStatus.type === 'ok'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
+                    : 'bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                }`}>
+                  {addMemberStatus.text}
+                </div>
+              )}
+
               <button
-                type="button"
-                onClick={handleCopyInviteLink}
-                className="flex-1 py-3 px-4 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                type="submit"
+                disabled={isAddingMember || !memberUidInput.trim()}
+                className="w-full py-2.5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
               >
-                <span>{copiedInvite ? '✓' : '📋'}</span>
-                <span>{copiedInvite ? "Copiato negli appunti!" : "Copia Link"}</span>
+                {isAddingMember ? 'Autorizzazione in corso...' : 'Autorizza Co-pilota nel Viaggio'}
               </button>
+            </form>
 
-              {typeof navigator !== 'undefined' && 'share' in navigator && (
+            <div className="border-t border-slate-100 dark:border-slate-800 pt-3">
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Link d'invito
+                </label>
+                <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl p-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={generateCopilotInviteUrl()}
+                    onClick={(e) => e.currentTarget.select()}
+                    className="w-full bg-transparent px-1 text-xs text-slate-800 dark:text-slate-200 font-mono focus:outline-none select-all truncate"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2.5">
                 <button
                   type="button"
-                  onClick={async () => {
-                    try {
-                      await navigator.share({
-                        title: 'Hounigo - Invito Co-pilota',
-                        text: 'Unisciti al Roadbook di Nozze come Co-pilota!',
-                        url: generateCopilotInviteUrl()
-                      });
-                    } catch (e) {
-                      // Annullato
-                    }
-                  }}
-                  className="py-3 px-3 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center justify-center cursor-pointer"
-                  title="Condividi tramite app"
+                  onClick={handleCopyInviteLink}
+                  className="flex-1 py-3 px-4 rounded-xl text-xs font-bold bg-slate-900 hover:bg-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 active:scale-95 text-white shadow-md transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  📤
+                  <span>{copiedInvite ? '✓' : '📋'}</span>
+                  <span>{copiedInvite ? "Copiato negli appunti!" : "Copia Link"}</span>
                 </button>
-              )}
+
+                {typeof navigator !== 'undefined' && 'share' in navigator && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.share({
+                          title: 'Hounigo - Invito Co-pilota',
+                          text: 'Unisciti al Roadbook di Nozze come Co-pilota!',
+                          url: generateCopilotInviteUrl()
+                        });
+                      } catch (e) {
+                        // Annullato
+                      }
+                    }}
+                    className="py-3 px-3 rounded-xl text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors flex items-center justify-center cursor-pointer"
+                    title="Condividi tramite app"
+                  >
+                    📤
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

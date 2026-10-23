@@ -186,6 +186,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
       noteCopilota: noteCopilota.trim() || undefined,
       terminalGate: terminalGate.trim() || undefined,
       checkinCutoff: checkinCutoff.trim() || undefined,
+      bagagli: bagagli.trim() || undefined,
       copilota: copilota || undefined,
       paymentStatus: (packageIncluded ? undefined : (isSaldato ? 'saldato' : 'da_saldare')) as any,
       status: (packageIncluded || isSaldato) ? 'completato' : (initialData?.status || 'prenotato') as StatoTrasporto,

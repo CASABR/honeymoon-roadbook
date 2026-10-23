@@ -1,9 +1,18 @@
-import { useState } from 'react';
-import { doc, setDoc } from 'firebase/firestore';
+import { useState, useEffect } from 'react';
+import { doc, setDoc, collection, getDocs, getDoc, arrayRemove, arrayUnion, writeBatch } from 'firebase/firestore';
 import { signInAnonymously } from 'firebase/auth';
 import { db, auth } from '../../firebase';
 import { getTripConfig, saveTripConfig } from '../../utils/tripConfig';
-import { ensureMasterTripMembership, MASTER_TRIP_ID, isMasterTripCode } from '../../utils/masterTrip';
+import { formatDateIT } from '../../utils/tripDates';
+
+export interface TripMemberInfo {
+  uid: string;
+  name?: string;
+  email?: string;
+  role: 'owner' | 'copilota' | 'member';
+  createdAt?: number;
+  status?: string;
+}
 
 export default function GestioneViaggioView({ onBack }: { onBack: () => void }) {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
@@ -12,10 +21,24 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
 
   const initialConfig = getTripConfig();
   const [title, setTitle] = useState(initialConfig?.title || 'Il nostro viaggio');
+  const [ownerName, setOwnerName] = useState(initialConfig?.ownerName || '');
   const [startDate, setStartDate] = useState(initialConfig?.startDate || '');
   const [endDate, setEndDate] = useState(initialConfig?.endDate || '');
   const [savingDates, setSavingDates] = useState(false);
   const [datesSaved, setDatesSaved] = useState(false);
+
+  // Gestione Partecipanti
+  const [members, setMembers] = useState<TripMemberInfo[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [memberToKick, setMemberToKick] = useState<TripMemberInfo | null>(null);
+  const [isKicking, setIsKicking] = useState(false);
+  const [kickSuccessMsg, setKickSuccessMsg] = useState<string | null>(null);
+  const [kickErrorMsg, setKickErrorMsg] = useState<string | null>(null);
+  const [newMemberUid, setNewMemberUid] = useState('');
+  const [newMemberName, setNewMemberName] = useState('');
+  const [addingMember, setAddingMember] = useState(false);
+  const [addMemberSuccess, setAddMemberSuccess] = useState<string | null>(null);
+  const [addMemberError, setAddMemberError] = useState<string | null>(null);
 
   // Immagine Header Centralizzata
   const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(() => {
@@ -110,6 +133,188 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
     }
   };
 
+  // Caricamento partecipanti
+  const fetchMembers = async () => {
+    const config = getTripConfig();
+    if (!config || !config.id || !db) return;
+    setLoadingMembers(true);
+    try {
+      const tripRef = doc(db, 'trips', config.id);
+      const tripSnap = await getDoc(tripRef).catch(() => null);
+      const tripData = tripSnap?.data();
+
+      const membersColRef = collection(db, 'trips', config.id, 'members');
+      const snap = await getDocs(membersColRef).catch(() => null);
+      const list: TripMemberInfo[] = [];
+
+      if (snap && !snap.empty) {
+        snap.docs.forEach(d => {
+          const m = d.data();
+          const isOwner = tripData?.ownerUid && d.id === tripData.ownerUid;
+          list.push({
+            uid: d.id,
+            name: m.name || m.displayName || (isOwner ? (tripData?.ownerName || (config.id === '0000' ? 'nunzio' : undefined)) : undefined),
+            email: m.email,
+            role: isOwner ? 'owner' : (m.role || 'copilota'),
+            createdAt: m.createdAt,
+            status: m.status
+          });
+        });
+      } else if (tripData) {
+        // Fallback dall'array members del documento trip
+        const memberIds: string[] = Array.isArray(tripData.members) ? tripData.members : (tripData.ownerUid ? [tripData.ownerUid] : []);
+        memberIds.forEach(uid => {
+          const isOwner = tripData.ownerUid && uid === tripData.ownerUid;
+          list.push({
+            uid,
+            name: isOwner ? (tripData.ownerName || (config.id === '0000' ? 'nunzio' : undefined)) : undefined,
+            role: isOwner ? 'owner' : 'copilota'
+          });
+        });
+      }
+
+      // Normalizzazione deterministica per la sola UI:
+      // L'owner effettivo confermato dal documento remoto radice compare sempre UNA sola volta e in cima
+      const trustedOwnerUid = tripData?.ownerUid;
+      if (trustedOwnerUid) {
+        const existingIdx = list.findIndex(m => m.uid === trustedOwnerUid);
+        let ownerItem: TripMemberInfo;
+        if (existingIdx >= 0) {
+          const existing = list[existingIdx];
+          ownerItem = {
+            ...existing,
+            role: 'owner',
+            name: existing.name || tripData?.ownerName || (config.id === '0000' ? 'nunzio' : undefined)
+          };
+          list.splice(existingIdx, 1);
+        } else {
+          ownerItem = {
+            uid: trustedOwnerUid,
+            name: tripData?.ownerName || (config.id === '0000' ? 'nunzio' : undefined),
+            role: 'owner',
+            createdAt: tripData?.createdAt
+          };
+        }
+        list.unshift(ownerItem);
+      }
+
+      setMembers(list);
+    } catch (err) {
+      console.warn('[GestioneViaggio] Errore caricamento membri:', err);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMembers();
+  }, []);
+
+  const handleKickMember = async () => {
+    if (!memberToKick) return;
+    const config = getTripConfig();
+    if (!config?.id) return;
+
+    // Controllo client per sicurezza
+    if (memberToKick.role === 'owner' || memberToKick.uid === config.ownerUid) {
+      alert('Non è possibile espellere l’organizzatore del viaggio.');
+      return;
+    }
+    if (auth?.currentUser && memberToKick.uid === auth.currentUser.uid) {
+      alert('Non puoi espellere te stesso dal viaggio.');
+      return;
+    }
+
+    setIsKicking(true);
+    setKickErrorMsg(null);
+    setKickSuccessMsg(null);
+
+    // Timeout di guardia (15s) per prevenire caricamento infinito su problemi di rete
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Timeout durante l\'operazione di espulsione. Verifica la connessione di rete e riprova.')), 15000)
+    );
+
+    try {
+      if (!db) {
+        throw new Error('Database Firestore non inizializzato.');
+      }
+
+      // Esecuzione atomica client-side Firestore con writeBatch (compatibile Firebase Spark, 0 Cloud Functions)
+      const kickTask = (async () => {
+        const batch = writeBatch(db);
+        const tripRef = doc(db, 'trips', config.id);
+        batch.update(tripRef, {
+          members: arrayRemove(memberToKick.uid),
+          updatedAt: Date.now()
+        });
+
+        const memberRef = doc(db, 'trips', config.id, 'members', memberToKick.uid);
+        batch.delete(memberRef);
+        await batch.commit();
+      })();
+
+      await Promise.race([kickTask, timeoutPromise]);
+
+      setKickSuccessMsg(`Partecipante ${memberToKick.name || memberToKick.uid} espulso con successo dal viaggio.`);
+      setMembers(prev => prev.filter(m => m.uid !== memberToKick.uid));
+      setMemberToKick(null);
+    } catch (err: any) {
+      console.error('[GestioneViaggio] Errore espulsione partecipante:', err);
+      setKickErrorMsg(err?.message || 'Errore durante l\'espulsione del partecipante.');
+    } finally {
+      setIsKicking(false);
+    }
+  };
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanUid = newMemberUid.trim();
+    const cleanName = newMemberName.trim() || 'Co-pilota';
+    if (!cleanUid) {
+      setAddMemberError('Inserisci l\'UID del partecipante.');
+      return;
+    }
+    const config = getTripConfig();
+    if (!config?.id) {
+      setAddMemberError('Nessun viaggio attivo.');
+      return;
+    }
+
+    setAddingMember(true);
+    setAddMemberError(null);
+    setAddMemberSuccess(null);
+
+    try {
+      if (!db) throw new Error('Database Firebase non inizializzato.');
+
+      const tripRef = doc(db, 'trips', config.id);
+      const memberRef = doc(db, 'trips', config.id, 'members', cleanUid);
+      const batch = writeBatch(db);
+      batch.update(tripRef, {
+        members: arrayUnion(cleanUid),
+        updatedAt: Date.now()
+      });
+      batch.set(memberRef, {
+        uid: cleanUid,
+        name: cleanName,
+        role: 'copilota',
+        createdAt: Date.now()
+      }, { merge: true });
+      await batch.commit();
+
+      setAddMemberSuccess(`Partecipante "${cleanName}" (${cleanUid.slice(0, 6)}...) aggiunto con successo come Co-pilota.`);
+      setNewMemberUid('');
+      setNewMemberName('');
+      await fetchMembers();
+      setTimeout(() => setAddMemberSuccess(null), 4000);
+    } catch (err: any) {
+      console.error('[GestioneViaggio] Errore aggiunta membro:', err);
+      setAddMemberError(err?.message || 'Errore durante l\'aggiunta del partecipante. Verifica i permessi di organizzatore.');
+    } finally {
+      setAddingMember(false);
+    }
+  };
+
   const handleSaveTripDates = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!startDate || !endDate) {
@@ -130,9 +335,11 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
       const diffTime = Math.abs(endD.getTime() - startD.getTime());
       const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
+      const cleanOwnerName = ownerName.trim();
       const updated = {
         ...config,
         title: title.trim() || config.title,
+        ownerName: cleanOwnerName || config.ownerName || undefined,
         startDate,
         endDate,
         totalDays,
@@ -144,14 +351,27 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
       if (db && config.id) {
         try {
           const tripRef = doc(db, 'trips', config.id);
-          await setDoc(tripRef, {
+          const tripPayload: any = {
             title: updated.title,
             startDate: updated.startDate,
             endDate: updated.endDate,
             totalDays: updated.totalDays,
             headerImageUrl: updated.headerImageUrl,
             updatedAt: Date.now()
-          }, { merge: true });
+          };
+          if (updated.ownerName) {
+            tripPayload.ownerName = updated.ownerName;
+          }
+          await setDoc(tripRef, tripPayload, { merge: true });
+
+          const curUid = auth?.currentUser?.uid || config.ownerUid;
+          if (curUid && updated.ownerName) {
+            const memberRef = doc(db, 'trips', config.id, 'members', curUid);
+            await setDoc(memberRef, {
+              name: updated.ownerName,
+              updatedAt: Date.now()
+            }, { merge: true });
+          }
         } catch (fbErr) {
           console.warn('[GestioneViaggio] Aggiornamento Firestore opzionale/offline:', fbErr);
         }
@@ -192,44 +412,21 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
         return;
       }
 
-      // Se il viaggio è il master trip ("0000"), il codice master funge da invito istantaneo universale
-      if (isMasterTripCode(config.id)) {
-        if (user) {
-          try {
-            await ensureMasterTripMembership(user.uid, { title: config.title });
-          } catch (mErr) {
-            console.warn('[GestioneViaggio] ensureMasterTripMembership background warning:', mErr);
-          }
-        }
-        setInviteCode(MASTER_TRIP_ID);
-        return;
-      }
-
       if (!user) {
         alert('Devi essere connesso per generare un link di invito per questo viaggio.');
         setLoading(false);
         return;
       }
 
-      // 1. Prova prima tramite la Cloud Function dedicata createInvite
-      try {
-        const { httpsCallable } = await import('firebase/functions');
-        const { functions } = await import('../../firebase');
-        if (functions) {
-          const createInviteFn = httpsCallable<{ tripId: string }, { success: boolean; code: string; expiresAt: number }>(functions, 'createInvite');
-          const res = await createInviteFn({ tripId: config.id });
-          if (res.data?.code) {
-            setInviteCode(res.data.code);
-            return;
-          }
-        }
-      } catch (cfErr: any) {
-        console.warn("Cloud function createInvite non disponibile o permessi server limitati:", cfErr);
-      }
+      // Firebase Spark non puÃ² convalidare un token segreto lato client senza esporlo.
+      // Il link precompila solo l'ID viaggio: l'owner autorizza prima l'UID del copilota.
+      setInviteCode(config.id);
+      return;
 
+      /* Legacy token path intentionally disabled: secure autonomous invites require server-side verification unavailable on Spark.
       // 2. Assicura che l'utente sia registrato come owner nel documento members di Firestore prima di scrivere in inviteTokens
       try {
-        const memberRef = doc(db, 'trips', config.id, 'members', user.uid);
+        const memberRef = doc(db, 'trips', config!.id, 'members', user.uid);
         await setDoc(memberRef, {
           uid: user.uid,
           role: 'owner',
@@ -258,11 +455,11 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
       const tokenHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
       try {
-        const tokenRef = doc(db, 'trips', config.id, 'inviteTokens', tokenId);
+        const tokenRef = doc(db, 'trips', config!.id, 'inviteTokens', tokenId);
         await setDoc(tokenRef, {
           tokenId,
           tokenHash,
-          tripId: config.id,
+          tripId: config!.id,
           createdBy: user.uid,
           createdAt: Date.now(),
           expiresAt,
@@ -274,8 +471,9 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
       } catch (firestoreWriteErr) {
         console.warn('[GestioneViaggio] Firestore write su inviteTokens fallito, fallback su ID viaggio:', firestoreWriteErr);
         // Fallback di continuità: usa l'ID viaggio per consentire la condivisione diretta come copilota
-        setInviteCode(config.id);
+        setInviteCode(config!.id);
       }
+      */
     } catch (err: any) {
       console.error('Errore generazione invito:', err);
       // Se c'è una configurazione valida, genera un link copilota sicuro con l'ID viaggio
@@ -351,6 +549,22 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
               placeholder="Es. Il nostro viaggio di nozze"
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
             />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+              Nome dell’Organizzatore
+            </label>
+            <input
+              type="text"
+              value={ownerName}
+              onChange={(e) => setOwnerName(e.target.value)}
+              placeholder="Es. Mario Rossi"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500"
+            />
+            <p className="text-[10px] text-slate-400 mt-1">
+              Visibile ai partecipanti invitati e nel portale Admin.
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -461,53 +675,271 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
           👥
         </div>
         <h3 className="font-extrabold text-slate-900 text-lg mb-2">Invita un Co-pilota</h3>
-        <p className="text-sm text-slate-600 mb-6 leading-relaxed">
-          Genera un link di invito per permettere a una persona di accedere e modificare questo viaggio come Co-pilota. Il link sarà valido per 7 giorni.
+        <p className="text-sm text-slate-600 mb-4 leading-relaxed">
+          Su Firebase Spark (piano gratuito), l'accesso al viaggio esistente è protetto: per autorizzare il Co-pilota (Giusy), registra qui il suo UID dispositivo. Il Co-pilota potrà poi connettersi tramite il link d'invito o inserendo il codice <strong>{initialConfig?.id || '0000'}</strong>.
         </p>
 
-        {!inviteCode ? (
+        {/* Form Autorizzazione Co-pilota tramite UID (Firebase Spark gratuito) */}
+        <form onSubmit={handleAddMember} className="mb-6 p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">🔑</span>
+            <span className="text-xs font-bold text-indigo-950 uppercase tracking-wider">Autorizza Dispositivo Co-pilota (Spark)</span>
+          </div>
+          <p className="text-[11px] text-indigo-900/80 leading-relaxed">
+            Chiedi a Giusy di aprire l'app o Safari sul suo telefono e copiare <strong>«Il TUO UID Dispositivo»</strong> (visibile nella schermata di benvenuto o in Impostazioni). Incollalo qui sotto:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input
+              type="text"
+              required
+              value={newMemberUid}
+              onChange={(e) => setNewMemberUid(e.target.value)}
+              placeholder="UID dispositivo di Giusy *"
+              className="w-full px-3 py-2 rounded-xl border border-indigo-200 bg-white text-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+            />
+            <input
+              type="text"
+              value={newMemberName}
+              onChange={(e) => setNewMemberName(e.target.value)}
+              placeholder="Nome visualizzato (es. Giusy)"
+              className="w-full px-3 py-2 rounded-xl border border-indigo-200 bg-white text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+            />
+          </div>
+          {addMemberError && (
+            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+              ⚠️ {addMemberError}
+            </div>
+          )}
+          {addMemberSuccess && (
+            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+              ✓ {addMemberSuccess}
+            </div>
+          )}
           <button
-            onClick={generateInvite}
-            disabled={loading}
-            className="w-full py-3.5 rounded-xl font-bold bg-slate-900 text-white shadow-md active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer"
+            type="submit"
+            disabled={addingMember || !newMemberUid.trim()}
+            className="w-full py-2.5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
           >
-            {loading ? 'Generazione...' : 'Genera Link Invito'}
+            {addingMember ? 'Autorizzazione in corso...' : 'Autorizza Co-pilota nel Viaggio'}
           </button>
-        ) : (
-          <div className="space-y-4">
-            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center">
-              <span className="block text-xs text-slate-500 font-medium mb-1">Codice Invito</span>
-              <span className="text-3xl font-black tracking-widest text-slate-900">{inviteCode}</span>
-            </div>
+        </form>
 
-            <div className="space-y-1.5">
-              <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                Link d'Invito Completo
-              </label>
-              <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={getInviteUrl()}
-                  onClick={(e) => e.currentTarget.select()}
-                  className="w-full bg-transparent px-1 text-xs text-slate-800 font-mono focus:outline-none select-all truncate"
-                />
-              </div>
-            </div>
-            
+        {/* Link di accesso dopo autorizzazione UID */}
+        <div className="border-t border-slate-100 pt-5">
+          <span className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">ID viaggio e Link di accesso</span>
+          {!inviteCode ? (
             <button
-              type="button"
-              onClick={copyToClipboard}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold bg-indigo-600 text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700 active:scale-[0.98] transition-all cursor-pointer"
+              onClick={generateInvite}
+              disabled={loading}
+              className="w-full py-3 rounded-xl font-bold bg-slate-900 text-white shadow-md active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer text-xs"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              {copied ? '✓ Link Copiato negli Appunti!' : 'Copia Link'}
+              {loading ? 'Preparazione...' : 'Mostra ID viaggio e Link'}
             </button>
+          ) : (
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center">
+                <span className="block text-xs text-slate-500 font-medium mb-1">Codice Viaggio</span>
+                <span className="text-3xl font-black tracking-widest text-slate-900">{inviteCode}</span>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                  Link con ID viaggio (accesso solo dopo autorizzazione UID)
+                </label>
+                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={getInviteUrl()}
+                    onClick={(e) => e.currentTarget.select()}
+                    className="w-full bg-transparent px-1 text-xs text-slate-800 font-mono focus:outline-none select-all truncate"
+                  />
+                </div>
+              </div>
+              
+              <button
+                type="button"
+                onClick={copyToClipboard}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold bg-indigo-600 text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700 active:scale-[0.98] transition-all cursor-pointer"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                {copied ? '✓ Link Copiato negli Appunti!' : 'Copia Link'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Sezione Partecipanti al Viaggio */}
+      <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-sky-100 text-sky-600 flex items-center justify-center text-2xl">
+              👥
+            </div>
+            <div>
+              <h3 className="font-extrabold text-slate-900 text-lg">Partecipanti al Viaggio</h3>
+              <p className="text-xs text-slate-500">Membri registrati con accesso al roadbook</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={fetchMembers}
+            disabled={loadingMembers}
+            className="p-2 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-100 text-xs font-bold transition-colors cursor-pointer"
+            title="Aggiorna lista"
+          >
+            {loadingMembers ? '⏳' : '🔄'}
+          </button>
+        </div>
+
+        {kickSuccessMsg && (
+          <div className="mb-4 p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+            ✓ {kickSuccessMsg}
+          </div>
+        )}
+        {kickErrorMsg && (
+          <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold">
+            ⚠️ {kickErrorMsg}
+          </div>
+        )}
+
+        {loadingMembers && members.length === 0 ? (
+          <div className="py-8 text-center text-slate-400 text-xs font-medium">
+            Caricamento partecipanti in corso...
+          </div>
+        ) : members.length === 0 ? (
+          <div className="py-6 text-center text-slate-400 text-xs font-medium">
+            Nessun partecipante registrato.
+          </div>
+        ) : (
+          <div className="space-y-2.5">
+            {members.map((m) => {
+              const isOwner = m.role === 'owner' || m.uid === initialConfig?.ownerUid;
+              const isCurrentDeviceUser = auth?.currentUser?.uid === m.uid;
+              const isOwnerOrAdmin = initialConfig?.ownerUid === auth?.currentUser?.uid
+                || members.some(mem => mem.uid === auth?.currentUser?.uid && mem.role === 'owner')
+                || auth?.currentUser?.email === 'nunzio114@gmail.com';
+              const canKickThisMember = !isOwner && !isCurrentDeviceUser && isOwnerOrAdmin;
+
+              return (
+                <div
+                  key={m.uid}
+                  className="p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/80 flex items-center justify-between gap-3"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
+                      isOwner ? 'bg-amber-100 text-amber-700' : 'bg-indigo-100 text-indigo-700'
+                    }`}>
+                      {isOwner ? '👑' : '👤'}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-900 text-xs sm:text-sm truncate">
+                          {m.name || 'Nome non specificato'}
+                        </span>
+                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                          isOwner
+                            ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                            : 'bg-indigo-100 text-indigo-800 border border-indigo-200'
+                        }`}>
+                          {isOwner ? 'Organizzatore' : 'Co-pilota'}
+                        </span>
+                        {isCurrentDeviceUser && (
+                          <span className="text-[10px] text-slate-400 font-semibold">(Tu)</span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-slate-500 mt-0.5">
+                        <span className="truncate">{m.email || 'Email non disponibile'}</span>
+                        {m.createdAt && (
+                          <>
+                            <span>•</span>
+                            <span>Adesione: {formatDateIT(m.createdAt)}</span>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-[10px] font-mono text-slate-400 truncate mt-0.5">
+                        UID: {m.uid}
+                      </div>
+                    </div>
+                  </div>
+
+                  {canKickThisMember && (
+                    <button
+                      type="button"
+                      onClick={() => setMemberToKick(m)}
+                      className="px-3 py-1.5 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition-colors cursor-pointer shrink-0"
+                    >
+                      Espelli
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
+
+      {/* Modal di Conferma Espulsione */}
+      {memberToKick && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-2xl">
+              ⚠️
+            </div>
+            <div>
+              <h3 className="text-lg font-black text-slate-900">Espellere questo partecipante?</h3>
+              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                Stai per revocare l'accesso al viaggio per:
+              </p>
+              <div className="mt-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                <div><strong>Nome:</strong> {memberToKick.name || 'Nome non specificato'}</div>
+                <div><strong>Ruolo:</strong> {memberToKick.role === 'owner' ? 'Organizzatore' : 'Co-pilota'}</div>
+                <div className="font-mono text-[11px] text-slate-500 truncate"><strong>UID:</strong> {memberToKick.uid}</div>
+              </div>
+              <p className="text-[11px] text-rose-600 font-semibold mt-2.5">
+                Questa persona non potrà più visualizzare né modificare i dati privati del viaggio.
+              </p>
+
+              {kickErrorMsg && (
+                <div className="mt-3 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold leading-relaxed">
+                  ⚠️ {kickErrorMsg}
+                </div>
+              )}
+            </div>
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                disabled={isKicking}
+                onClick={() => {
+                  setMemberToKick(null);
+                  setKickErrorMsg(null);
+                }}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                Annulla
+              </button>
+              <button
+                type="button"
+                disabled={isKicking}
+                onClick={handleKickMember}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {isKicking ? (
+                  <>
+                    <span className="inline-block w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin shrink-0" />
+                    <span>Espulsione in corso…</span>
+                  </>
+                ) : (
+                  'Conferma Espulsione'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

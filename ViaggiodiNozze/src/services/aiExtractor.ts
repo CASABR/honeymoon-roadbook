@@ -398,16 +398,23 @@ export async function getWorkingGeminiModel(cleanKey: string): Promise<string> {
   return 'gemini-3.1-flash-lite';
 }
 
-/** Risolve la chiave API: localStorage (utente) → .env con sanitizzazione rigorosa. */
+/**
+ * Risolve la chiave API: 
+ * Modello BYOK (Bring Your Own Key) sicuro.
+ * La chiave viene letta esclusivamente da localStorage ('gemini_api_key'),
+ * memorizzata privatamente sul dispositivo dell'utente.
+ * Nessuna chiave statica di ambiente viene incorporata o letta dal bundle pubblico di produzione.
+ */
 export function resolveGeminiApiKey(): string {
   let apiKey: string | null | undefined = null;
   if (typeof localStorage !== 'undefined') {
     apiKey = localStorage.getItem('gemini_api_key');
   }
-  if (!apiKey || apiKey.includes('la_tua_chiave')) {
-    apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  const cleaned = (apiKey || '').trim().replace(/['"]/g, '').trim();
+  if (cleaned.includes('la_tua_chiave')) {
+    return '';
   }
-  return (apiKey || '').trim().replace(/['"]/g, '').trim();
+  return cleaned;
 }
 
 /** Chiamata a Gemini tramite REST API diretta con fallback automatico e gestione diagnostica HTTP accurata. */
@@ -702,7 +709,7 @@ export async function extractFromText(
     ],
     generationConfig: {
       temperature: 0.1, // Temperatura bassa per estrazione precisa
-      maxOutputTokens: 1024,
+      maxOutputTokens: 4096,
       responseMimeType: 'application/json',
       responseSchema: EXTRACTION_SCHEMA
     }
@@ -818,7 +825,7 @@ Se il documento contiene più di una prenotazione (es. volo andata e volo ritorn
     ],
     generationConfig: {
       temperature: 0.1,
-      maxOutputTokens: 1024,
+      maxOutputTokens: 4096,
       responseMimeType: 'application/json',
       responseSchema: EXTRACTION_SCHEMA
     }

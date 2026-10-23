@@ -3,8 +3,9 @@ import { createPortal } from 'react-dom';
 import { storageService } from '../../storage/storageService';
 import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa, DeviceRole } from '../../types';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
-import { generateTripDays, getTripDateRange } from '../../utils/tripDates';
+import { generateTripDays, getTripDateRange, formatDateTimeIT, formatDateIT } from '../../utils/tripDates';
 import { lookupKnownCoordinate } from '../../services/routingService';
+import { useAuthIdentity } from '../../utils/useAuthIdentity';
 import {
   updateRealLocation,
   getSavedLiveLocation,
@@ -163,9 +164,18 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [tileLoadFailed, setTileLoadFailed] = useState(false);
   const [showMyCurrentGps, setShowMyCurrentGps] = useState(true);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const { cloudRole } = useAuthIdentity();
 
   // Rileva posizione GPS reale su richiesta o automaticamente all'apertura
   const handleDetectGps = useCallback(async (isSilent = false) => {
+    // Il GPS autorevole deve seguire l'owner del viaggio verificato dal cloud
+    if (cloudRole !== 'owner') {
+      if (!isSilent) {
+        setGpsError('Solo l’organizzatore del viaggio verificato dal cloud può trasmettere la posizione GPS autorevole.');
+        setTimeout(() => setGpsError(null), 4000);
+      }
+      return;
+    }
     try {
       if (!isSilent) setIsDetectingGps(true);
       setGpsError(null);
@@ -201,16 +211,17 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     return () => window.removeEventListener('device_role_changed', handleRoleChanged);
   }, []);
 
-  // Richiesta automatica della geolocalizzazione SOLO se il ruolo è 'guida' (mai per viewer o copilota)
+  // Richiesta automatica della geolocalizzazione SOLO se il ruolo è 'guida' E cloudRole è 'owner'
   useEffect(() => {
-    if (deviceRole === 'guida' && typeof navigator !== 'undefined' && navigator.geolocation) {
+    const isCloudOwner = cloudRole === 'owner';
+    if (deviceRole === 'guida' && isCloudOwner && typeof navigator !== 'undefined' && navigator.geolocation) {
       // Esegui la richiesta automatica in modalità non invasiva per sincronizzare la posizione reale
       handleDetectGps(true);
     }
-  }, [deviceRole, handleDetectGps]);
+  }, [deviceRole, cloudRole, handleDetectGps]);
 
   // Modalità Sposi (Admin / Master)
-  // Se il ruolo è 'guida' o 'copilota', i controlli sono abilitati; altrimenti solo se sbloccato con PIN e non viewer
+  // Abilitata SOLO se l'utente ha autorizzazione Cloud effettiva (owner o copilota)
   const [isSposiAdminManual, setIsSposiAdminManual] = useState<boolean>(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem(SPOSI_ADMIN_KEY) === 'true';
@@ -221,12 +232,14 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
 
-  // In modalità viewer i comandi sposi rimangono nascosti a prescindere
+  // In modalità viewer o in assenza di autorizzazione cloud i comandi sposi rimangono nascosti a prescindere
   const isSposiAdmin = useMemo(() => {
+    const isCloudAuthorized = cloudRole === 'owner' || cloudRole === 'copilota';
+    if (!isCloudAuthorized) return false;
     if (deviceRole === 'viewer') return false;
     if (deviceRole === 'guida' || deviceRole === 'copilota') return true;
     return isSposiAdminManual;
-  }, [deviceRole, isSposiAdminManual]);
+  }, [deviceRole, cloudRole, isSposiAdminManual]);
 
   // LIVE Text Messages: invio messaggi testuali da parte dei membri
   const [liveTextMessage, setLiveTextMessage] = useState('');
@@ -248,6 +261,11 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     const cleanMsg = liveTextMessage.trim();
     if (!cleanMsg) {
       setLiveMsgError('Il messaggio non può essere vuoto.');
+      return;
+    }
+
+    if (cloudRole !== 'owner' && cloudRole !== 'copilota') {
+      setLiveMsgError('Solo i membri verificati dal cloud possono pubblicare messaggi nel Live.');
       return;
     }
     if (cleanMsg.length > 500) {
@@ -913,14 +931,18 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   const formatDateInZone = (date: Date, timeZone: string) => {
     try {
-      return new Intl.DateTimeFormat('it-IT', {
+      const parts = new Intl.DateTimeFormat('it-IT', {
         timeZone,
-        weekday: 'short',
-        day: 'numeric',
-        month: 'short'
-      }).format(date);
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      }).formatToParts(date);
+      const d = parts.find(p => p.type === 'day')?.value || String(date.getDate()).padStart(2, '0');
+      const m = parts.find(p => p.type === 'month')?.value || String(date.getMonth() + 1).padStart(2, '0');
+      const y = parts.find(p => p.type === 'year')?.value || String(date.getFullYear());
+      return `${d}-${m}-${y}`;
     } catch {
-      return date.toLocaleDateString('it-IT');
+      return formatDateIT(date);
     }
   };
 
@@ -1257,7 +1279,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
             <button
               type="button"
               onClick={handleShareLiveLink}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold border border-indigo-200/70 transition-all cursor-pointer shadow-2xs active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#fff0ee] hover:bg-[#ffe3df] text-[#c94e45] text-xs font-bold border border-[#ffc9c3] transition-all cursor-pointer shadow-2xs active:scale-95"
               title="Condividi link Live con amici e parenti"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1572,9 +1594,9 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
             }}
           >
             <div className="relative flex items-center justify-center">
-              <span className="absolute w-12 h-12 rounded-full bg-indigo-500/25 animate-ping opacity-75 duration-1000" />
-              <span className="absolute w-7 h-7 rounded-full bg-indigo-500/35 animate-pulse" />
-              <span className="relative w-4 h-4 rounded-full bg-indigo-600 border-2 border-white shadow-md flex items-center justify-center">
+              <span className="absolute w-12 h-12 rounded-full bg-[#FF6B5F]/25 animate-ping opacity-75 duration-1000" />
+              <span className="absolute w-7 h-7 rounded-full bg-[#FF6B5F]/35 animate-pulse" />
+              <span className="relative w-4 h-4 rounded-full bg-[#FF6B5F] border-2 border-white shadow-md flex items-center justify-center">
                 <span className="w-1.5 h-1.5 rounded-full bg-white" />
               </span>
             </div>
@@ -1667,7 +1689,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
                 setMapPan({ x: 0, y: 0 });
               }}
               className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                showMyCurrentGps ? 'bg-indigo-600' : 'bg-slate-300'
+                showMyCurrentGps ? 'bg-[#FF6B5F]' : 'bg-slate-300'
               }`}
             >
               <span
@@ -2039,7 +2061,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
               <button
                 type="submit"
                 disabled={isSendingLiveMsg || !liveTextMessage.trim()}
-                className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                className="px-4 py-1.5 rounded-xl bg-[#FF6B5F] hover:bg-[#ed5d52] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 {isSendingLiveMsg ? (
                   <>
@@ -2068,7 +2090,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
                 <div className="flex justify-between items-start">
                   <h4 className="font-bold text-slate-900 text-sm">{update.title}</h4>
                   <span className="text-[10px] text-slate-400">
-                    {new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'short' }).format(new Date(update.timestamp))}
+                    {formatDateTimeIT(update.timestamp)}
                   </span>
                 </div>
                 {update.locationName && (
@@ -2232,7 +2254,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
               <button
                 type="button"
                 onClick={handleSaveCustomPhoto}
-                className="flex-1 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors cursor-pointer shadow-xs"
+                className="flex-1 py-2 text-xs font-bold text-white bg-[#FF6B5F] hover:bg-[#ed5d52] rounded-xl transition-colors cursor-pointer shadow-xs"
               >
                 Salva e Pubblica
               </button>
@@ -2340,13 +2362,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
             <div>
               {publishedLivePhotos[activeViewerIndex].timestamp > 0 && (
                 <span>
-                  {new Intl.DateTimeFormat('it-IT', {
-                    day: 'numeric',
-                    month: 'long',
-                    year: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
-                  }).format(new Date(publishedLivePhotos[activeViewerIndex].timestamp))}
+                  {formatDateTimeIT(publishedLivePhotos[activeViewerIndex].timestamp)}
                 </span>
               )}
             </div>

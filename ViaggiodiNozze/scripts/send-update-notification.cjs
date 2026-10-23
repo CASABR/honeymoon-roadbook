@@ -15,10 +15,13 @@ try {
 
 const db = getFirestore();
 
-// Chiavi VAPID da environment con fallback sicuro
-const publicVapidKey = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY || 'BGw2M2Mu8UFc2OjWFfhNl9HMzrMpOYfuI8MIwLQi8bkBaxJ4vTPkhd79u8D0SMw7qb0fHCuy0syAQ1exSxMRAR8';
-const privateVapidKey = process.env.VAPID_PRIVATE_KEY || '3VZbx9xCCPy5XGA5Pq99Ldqm9H5oQ36uagTar7C3dWU';
+const publicVapidKey = process.env.VAPID_PUBLIC_KEY || process.env.VITE_VAPID_PUBLIC_KEY;
+const privateVapidKey = process.env.VAPID_PRIVATE_KEY;
 const mailto = process.env.VAPID_MAILTO || 'mailto:admin@hounigo.com';
+
+if (!publicVapidKey || !privateVapidKey) {
+  throw new Error('VAPID_PUBLIC_KEY e VAPID_PRIVATE_KEY sono obbligatorie per inviare notifiche.');
+}
 
 webpush.setVapidDetails(
   mailto,

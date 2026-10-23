@@ -1,6 +1,7 @@
 import type { Giorno } from '../../types';
 import Badge from '../common/Badge';
 import { useDeviceRole } from '../../utils/useDeviceRole';
+import { formatDateIT } from '../../utils/tripDates';
 
 interface GiornoCardProps {
   day: Giorno;
@@ -22,14 +23,9 @@ export default function GiornoCard({
   onAddActivity
 }: GiornoCardProps) {
   const { canEdit } = useDeviceRole();
-  // Format date nicely
+  // Format date nicely in formato uniforme gg-mm-aaaa
   const formatDate = (dateStr: string) => {
-    try {
-      const [y, m, d] = dateStr.split('-');
-      return `${d}/${m}/${y}`;
-    } catch {
-      return dateStr;
-    }
+    return formatDateIT(dateStr);
   };
 
   return (

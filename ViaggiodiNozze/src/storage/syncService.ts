@@ -1,119 +1,375 @@
 import { collection, doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../firebase';
-import { STORES, idbPut, idbDelete, idbGetAll, idbGet } from './indexedDB';
+import { STORES, idbPut, idbDelete, idbGetAll, idbGet, type StoreName } from './indexedDB';
 import { notifyDataChanged } from './storageService';
+import { normalizeTimestamp } from '../utils/tripDates';
+import { isCloudAuthorized } from '../utils/useAuthIdentity';
 
 export class SyncService {
   private unsubscribes: (() => void)[] = [];
-  
+  private domListeners: { target: EventTarget; type: string; listener: EventListener }[] = [];
   private tripId: string;
+  private isSyncing = false;
+  private pendingSyncRequest = false;
+  private autoSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private isDestroyed = false;
+  private pendingSyncTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor(tripId: string) {
     this.tripId = tripId;
     this.setupLocalListeners();
     this.setupCloudListeners();
-    // Avvia sincronizzazione automatica bidirezionale all'avvio (Master e Copilota)
-    this.syncBidirectional().catch(err => console.warn('[SyncService] Errore sync iniziale:', err));
-  }
-
-  public async syncBidirectional(): Promise<void> {
-    try {
-      const { getDocs } = await import('firebase/firestore');
-      const collectionsToSync = this.getCollectionsToSync();
-      let pulledCount = 0;
-
-      for (const { fb, store } of collectionsToSync) {
-        try {
-          const colRef = collection(db, 'trips', this.tripId, fb);
-          const snap = await getDocs(colRef);
-          const serverDocIds = new Set<string>();
-
-          for (const docSnap of snap.docs) {
-            const serverData = docSnap.data();
-            const docId = docSnap.id;
-            serverDocIds.add(docId);
-
-            // Se l'elemento è stato contrassegnato come eliminato (tombstone), non scaricarlo in locale
-            const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${fb}_${docId}`);
-            if (tombstoneSetting && tombstoneSetting.value) {
-              await deleteDoc(doc(db, 'trips', this.tripId, fb, docId)).catch(() => {});
-              continue;
-            }
-
-            const localData = await idbGet<any>(store, docId);
-
-            if (localData && localData.updatedAt && (localData.updatedAt > (serverData.updatedAt || 0))) {
-              // Local is newer: push to cloud using pushToCloud logic
-              const entityType = this.mapCollectionToEntity(fb);
-              if (entityType) {
-                await this.pushToCloud(entityType, 'save', localData);
-              } else {
-                await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
-              }
-            } else {
-              // Cloud is newer or same: store locally, reconstructing chunks if needed
-              let itemToStore: any = { ...serverData, id: docId };
-              if (Array.isArray(itemToStore.attachments) && itemToStore.attachments.length > 0) {
-                const resolved = [];
-                for (const att of itemToStore.attachments) {
-                  if (att.isChunked && !att.dataUrl) {
-                    const localAtt = (localData as any)?.attachments?.find((la: any) => la.id === att.id);
-                    if (localAtt && localAtt.dataUrl) {
-                      resolved.push({ ...att, dataUrl: localAtt.dataUrl });
-                    } else {
-                      try {
-                        const { downloadAttachmentFromChunks } = await import('./attachmentChunkService');
-                        const reconstructed = await downloadAttachmentFromChunks(this.tripId, att);
-                        resolved.push(reconstructed?.dataUrl ? reconstructed : att);
-                      } catch {
-                        resolved.push(att);
-                      }
-                    }
-                  } else {
-                    resolved.push(att);
-                  }
-                }
-                itemToStore.attachments = resolved;
-              }
-
-              await idbPut(store, itemToStore);
-              pulledCount++;
-            }
-          }
-
-          // Sincronizza verso il cloud eventuali record creati/modificati in locale ma non ancora presenti su Firestore
-          if (snap.docs.length > 0 && fb !== 'settings') {
-            const localItems = await idbGetAll<any>(store);
-            for (const localItem of localItems) {
-              if (localItem && localItem.id && !serverDocIds.has(localItem.id)) {
-                // Non eliminare record locali validi! Pushali a Firestore per garantire la persistenza remota.
-                try {
-                  await setDoc(doc(db, 'trips', this.tripId, fb, localItem.id), this.cleanUndefinedValues(localItem), { merge: true });
-                  console.log(`[SyncService] Sincronizzato record locale verso Cloud: ${fb}/${localItem.id}`);
-                } catch (pushErr) {
-                  console.warn(`[SyncService] Impossibile pushare record locale ${fb}/${localItem.id}:`, pushErr);
-                }
-              }
-            }
-          }
-        } catch (colErr) {
-          console.warn(`[SyncService] Errore sync collection ${fb}:`, colErr);
-        }
-      }
-
-      // Se il device ha dati locali non presenti nel cloud, esegui push
-      await this.syncAllLocalToCloud();
-
-      if (pulledCount > 0) {
-        window.dispatchEvent(new Event('roadbook_cloud_synced'));
-      }
-      console.log(`[SyncService] Sync bidirezionale completato (pull: ${pulledCount})`);
-    } catch (err) {
-      console.warn('[SyncService] Sync bidirezionale iniziale fallito (offline):', err);
+    // Avvia sincronizzazione iniziale solo se già autorizzati, altrimenti il listener houni_cloud_role_changed la avvierà non appena confermato
+    if (isCloudAuthorized()) {
+      this.syncBidirectional().catch(err => console.warn('[SyncService] Errore sync iniziale:', err));
+    } else {
+      console.log('[SyncService] Avvio sync iniziale posticipato: in attesa di autorizzazione cloud.');
     }
   }
 
+  public triggerAutomaticSync(reason: string): void {
+    if (this.isDestroyed || typeof window === 'undefined') return;
+    if (this.autoSyncDebounceTimer) {
+      clearTimeout(this.autoSyncDebounceTimer);
+    }
+    this.autoSyncDebounceTimer = setTimeout(() => {
+      this.autoSyncDebounceTimer = null;
+      if (this.isDestroyed) return;
+      if (!isCloudAuthorized()) {
+        console.log(`[SyncService] Sincronizzazione automatica sospesa (${reason}): sessione non autorizzata.`);
+        return;
+      }
+      console.log(`[SyncService] Esecuzione sincronizzazione automatica (${reason})...`);
+      this.syncBidirectional().catch(err => console.warn(`[SyncService] Errore sync (${reason}):`, err));
+    }, 300);
+  }
+
+  public async syncBidirectional(): Promise<void> {
+    if (this.isDestroyed) return;
+    if (this.isSyncing) {
+      this.pendingSyncRequest = true;
+      console.log('[SyncService] Sync già in corso: richiesta successiva accodata.');
+      return;
+    }
+    this.isSyncing = true;
+    try {
+      await this.executeSyncBidirectional();
+    } finally {
+      this.isSyncing = false;
+      if (this.pendingSyncRequest && !this.isDestroyed) {
+        this.pendingSyncRequest = false;
+        if (this.pendingSyncTimeout) clearTimeout(this.pendingSyncTimeout);
+        this.pendingSyncTimeout = setTimeout(() => {
+          this.pendingSyncTimeout = null;
+          if (!this.isDestroyed) {
+            this.triggerAutomaticSync('pending_queued');
+          }
+        }, 100);
+      }
+    }
+  }
+
+  private async executeSyncBidirectional(): Promise<void> {
+    if (this.isDestroyed) return;
+    let pulledCount = 0;
+    let pushedCount = 0;
+    let deletedCount = 0;
+    let failedCount = 0;
+
+    // --- FASE 1: RICONCILIAZIONE PRELIMINARE SETTINGS E TOMBSTONES (FAIL-FAST) ---
+    // I tombstone remoti devono essere acquisiti e applicati PRIMA di qualsiasi push.
+    // Se la Fase 1 fallisce, la Fase 2 viene BLOCCATA per evitare di resuscitare entità cancellate.
+    try {
+      const phase1Result = await this.syncSettingsAndTombstones();
+      pulledCount += phase1Result.pulledCount;
+      pushedCount += phase1Result.pushedCount;
+      deletedCount += phase1Result.deletedCount;
+    } catch (phase1Err) {
+      console.warn('[SyncService] FASE 1 FALLITA (impossibile riconciliare settings/tombstone): push entità operative bloccato per prevenire resurrezioni!', phase1Err);
+      failedCount++;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('roadbook_cloud_sync_error', {
+          detail: { failedCount, reason: 'phase1_tombstones_failed', remainingPending: true }
+        }));
+      }
+      return; // BLOCCO FAIL-FAST: nessuna entità operativa viene sincronizzata!
+    }
+
+    // --- FASE 2: RICONCILIAZIONE ENTITÀ OPERATIVE ---
+    try {
+      const phase2Result = await this.syncOperationalEntities();
+      pulledCount += phase2Result.pulledCount;
+      pushedCount += phase2Result.pushedCount;
+      deletedCount += phase2Result.deletedCount;
+      failedCount += phase2Result.failedCount;
+    } catch (phase2Err) {
+      console.warn('[SyncService] Errore durante la sincronizzazione delle entità operative:', phase2Err);
+      failedCount++;
+    }
+
+    // --- FASE 3: EMISSIONE DEGLI EVENTI DI STATO ---
+    if (typeof window !== 'undefined') {
+      if (failedCount > 0) {
+        window.dispatchEvent(new CustomEvent('roadbook_cloud_sync_error', {
+          detail: { failedCount, remainingPending: true }
+        }));
+      } else if (pushedCount > 0 || pulledCount > 0 || deletedCount > 0) {
+        window.dispatchEvent(new CustomEvent('roadbook_cloud_synced', {
+          detail: { pushedCount, pulledCount, deletedCount, timestamp: Date.now() }
+        }));
+      } else {
+        window.dispatchEvent(new CustomEvent('roadbook_cloud_sync_idle', {
+          detail: { timestamp: Date.now() }
+        }));
+      }
+    }
+
+    console.log(`[SyncService] Sync bidirezionale completato (pull: ${pulledCount}, push: ${pushedCount}, del: ${deletedCount}, err: ${failedCount})`);
+  }
+
+  /**
+   * FASE 1: Sincronizzazione atomica preliminare di Settings e Tombstone.
+   * Se fallisce, solleva eccezione per impedire l'esecuzione della Fase 2.
+   */
+  private async syncSettingsAndTombstones(): Promise<{ pulledCount: number; pushedCount: number; deletedCount: number }> {
+    const { getDocs } = await import('firebase/firestore');
+    const colRef = collection(db, 'trips', this.tripId, 'settings');
+    const snap = await getDocs(colRef);
+
+    let pulledCount = 0;
+    let pushedCount = 0;
+    let deletedCount = 0;
+    const serverDocIds = new Set<string>();
+
+    for (const docSnap of snap.docs) {
+      const serverData = docSnap.data();
+      const docId = docSnap.id;
+      serverDocIds.add(docId);
+
+      if (docId.startsWith('tombstone_')) {
+        const parts = docId.split('_');
+        const entityType = parts[1] || '';
+        const deletedId = serverData?.deletedId || parts.slice(2).join('_');
+        const store = this.getStoreForEntity(entityType);
+
+        if (store && deletedId) {
+          const localItem = await idbGet<any>(store, deletedId);
+          if (localItem) {
+            const localCreated = normalizeTimestamp(localItem.createdAt);
+            const tombstoneDeleted = normalizeTimestamp(serverData.deletedAt || serverData.timestamp);
+
+            if (localCreated > 0 && tombstoneDeleted > 0 && localCreated > tombstoneDeleted) {
+              // Ricreazione valida intenzionale locale: il tombstone remoto è superato
+              console.log(`[SyncService] Rilevata ricreazione valida locale per ${entityType}/${deletedId} - elimino tombstone remoto.`);
+              if (isCloudAuthorized()) {
+                await deleteDoc(doc(db, 'trips', this.tripId, 'settings', docId)).catch(() => {});
+                deletedCount++;
+              }
+              continue;
+            } else {
+              // Cancellazione remota valida: elimina l'elemento dallo store IndexedDB locale
+              console.log(`[SyncService] Applicazione cancellazione remota: eliminato locale ${entityType}/${deletedId}`);
+              await idbDelete(store, deletedId);
+              deletedCount++;
+            }
+          }
+        }
+
+        // Salva il tombstone in STORES.SETTINGS locale e in localStorage
+        await idbPut(STORES.SETTINGS, { id: docId, value: { ...serverData, pending: false } });
+        if (typeof localStorage !== 'undefined') {
+          try { localStorage.setItem(docId, 'true'); } catch (e) {}
+        }
+        pulledCount++;
+      } else {
+        // Setting ordinario
+        await idbPut(STORES.SETTINGS, { id: docId, ...serverData });
+        pulledCount++;
+      }
+    }
+
+    // Push dei tombstone locali non ancora presenti sul server o marcati come pending
+    const localSettings = await idbGetAll<any>(STORES.SETTINGS);
+    let pendingTombstonePushFailure: Error | null = null;
+
+    for (const s of localSettings) {
+      if (s && s.id && s.id.startsWith('tombstone_')) {
+        const isPending = !serverDocIds.has(s.id) || s.value?.pending === true;
+        if (isPending) {
+          if (!isCloudAuthorized()) {
+            pendingTombstonePushFailure = new Error(`Sessione non autorizzata per invio tombstone ${s.id}`);
+            continue;
+          }
+          try {
+            await setDoc(doc(db, 'trips', this.tripId, 'settings', s.id), this.cleanUndefinedValues(s.value || s), { merge: true });
+            await idbPut(STORES.SETTINGS, { ...s, value: { ...(s.value || {}), pending: false } });
+            pushedCount++;
+            console.log(`[SyncService] Sincronizzato tombstone locale verso Cloud: settings/${s.id}`);
+          } catch (err: any) {
+            console.warn(`[SyncService] Impossibile inviare tombstone locale ${s.id}:`, err);
+            if (!pendingTombstonePushFailure) {
+              pendingTombstonePushFailure = err instanceof Error ? err : new Error(String(err));
+            }
+          }
+        }
+      }
+    }
+
+    if (pendingTombstonePushFailure) {
+      throw new Error(`Sincronizzazione tombstone fallita o incompleta: ${pendingTombstonePushFailure.message}`);
+    }
+
+    return { pulledCount, pushedCount, deletedCount };
+  }
+
+  /**
+   * FASE 2: Sincronizzazione delle entità operative (giorni, attività, trasporti, ecc.).
+   * Eseguita ESCLUSIVAMENTE se la Fase 1 ha avuto successo.
+   */
+  private async syncOperationalEntities(): Promise<{ pulledCount: number; pushedCount: number; deletedCount: number; failedCount: number }> {
+    const { getDocs } = await import('firebase/firestore');
+    const operationalCollections = this.getOperationalCollections();
+    let pulledCount = 0;
+    let pushedCount = 0;
+    let deletedCount = 0;
+    let failedCount = 0;
+
+    for (const { fb, store } of operationalCollections) {
+      try {
+        const colRef = collection(db, 'trips', this.tripId, fb);
+        const snap = await getDocs(colRef);
+        const serverDocIds = new Set<string>();
+
+        for (const docSnap of snap.docs) {
+          const serverData = docSnap.data();
+          const docId = docSnap.id;
+          serverDocIds.add(docId);
+
+          if (fb === 'documenti' && docId.startsWith('att_chunk_')) {
+            continue;
+          }
+
+          // Controllo tombstone locale
+          const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${fb}_${docId}`);
+          if (tombstoneSetting && tombstoneSetting.value) {
+            const serverCreated = normalizeTimestamp(serverData.createdAt);
+            const tombstoneDeleted = normalizeTimestamp(tombstoneSetting.value.deletedAt || tombstoneSetting.value.timestamp);
+
+            if (serverCreated > 0 && tombstoneDeleted > 0 && serverCreated > tombstoneDeleted) {
+              // Ricreazione valida sul cloud: rimuovo tombstone locale e consento pull
+              console.log(`[SyncService] Rilevata ricreazione valida su Cloud per ${fb}/${docId} - rimuovo tombstone locale.`);
+              await idbDelete(STORES.SETTINGS, `tombstone_${fb}_${docId}`);
+              if (typeof localStorage !== 'undefined') {
+                try { localStorage.removeItem(`tombstone_${fb}_${docId}`); } catch (e) {}
+              }
+            } else {
+              // Elemento cancellato: se autorizzati, elimina da Firestore per pulizia
+              if (isCloudAuthorized()) {
+                await deleteDoc(doc(db, 'trips', this.tripId, fb, docId)).catch(() => {});
+                deletedCount++;
+              } else {
+                console.warn(`[SyncService] Sospesa eliminazione cloud per tombstone ${fb}/${docId}: in attesa di autorizzazione.`);
+              }
+              continue;
+            }
+          }
+
+          const localData = await idbGet<any>(store, docId);
+          const localUpdated = normalizeTimestamp(localData?.updatedAt);
+          const serverUpdated = normalizeTimestamp(serverData?.updatedAt);
+
+          if (localData && localUpdated > 0 && localUpdated > serverUpdated) {
+            // Local is newer: push to cloud solo se autorizzati
+            if (!isCloudAuthorized()) {
+              console.warn(`[SyncService] Sospeso push per ${fb}/${docId}: modifiche locali preservate in attesa di autorizzazione cloud.`);
+              continue;
+            }
+            const entityType = this.mapCollectionToEntity(fb);
+            if (entityType) {
+              await this.pushToCloud(entityType, 'save', localData);
+            } else {
+              await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
+            }
+            pushedCount++;
+          } else {
+            // Cloud is newer or same: store locally, reconstructing chunks if needed
+            let itemToStore: any = { ...serverData, id: docId };
+            if (Array.isArray(itemToStore.attachments) && itemToStore.attachments.length > 0) {
+              const resolved = [];
+              for (const att of itemToStore.attachments) {
+                if (att.isChunked && !att.dataUrl) {
+                  const localAtt = (localData as any)?.attachments?.find((la: any) => la.id === att.id);
+                  if (localAtt && localAtt.dataUrl) {
+                    resolved.push({ ...att, dataUrl: localAtt.dataUrl });
+                  } else {
+                    try {
+                      const { downloadAttachmentFromChunks } = await import('./attachmentChunkService');
+                      const reconstructed = await downloadAttachmentFromChunks(this.tripId, att);
+                      resolved.push(reconstructed?.dataUrl ? reconstructed : att);
+                    } catch {
+                      resolved.push(att);
+                    }
+                  }
+                } else {
+                  resolved.push(att);
+                }
+              }
+              itemToStore.attachments = resolved;
+            }
+
+            await idbPut(store, itemToStore);
+            pulledCount++;
+          }
+        }
+
+        // Secondo loop: elementi locali non presenti su Firestore
+        const localItems = await idbGetAll<any>(store);
+        for (const localItem of localItems) {
+          if (localItem && localItem.id && !serverDocIds.has(localItem.id)) {
+            // Non sincronizzare se eliminato intenzionalmente da tombstone
+            const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${fb}_${localItem.id}`);
+            if (tombstoneSetting && tombstoneSetting.value) {
+              const localCreated = normalizeTimestamp(localItem.createdAt);
+              const tombstoneDeleted = normalizeTimestamp(tombstoneSetting.value.deletedAt || tombstoneSetting.value.timestamp);
+              if (!(localCreated > 0 && tombstoneDeleted > 0 && localCreated > tombstoneDeleted)) {
+                // Elemento eliminato! Rimuovi da IndexedDB ed evita push (nessuna resurrezione)
+                await idbDelete(store, localItem.id);
+                continue;
+              }
+            }
+            if (!isCloudAuthorized()) {
+              continue;
+            }
+            try {
+              const entityType = this.mapCollectionToEntity(fb);
+              if (entityType) {
+                await this.pushToCloud(entityType, 'save', localItem);
+              } else {
+                await setDoc(doc(db, 'trips', this.tripId, fb, localItem.id), this.cleanUndefinedValues(localItem), { merge: true });
+              }
+              pushedCount++;
+              console.log(`[SyncService] Sincronizzato record locale verso Cloud: ${fb}/${localItem.id}`);
+            } catch (pushErr) {
+              console.warn(`[SyncService] Impossibile pushare record locale ${fb}/${localItem.id}:`, pushErr);
+              failedCount++;
+            }
+          }
+        }
+      } catch (colErr) {
+        console.warn(`[SyncService] Errore sync collection ${fb}:`, colErr);
+        failedCount++;
+      }
+    }
+
+    return { pulledCount, pushedCount, deletedCount, failedCount };
+  }
+
+
   public async syncAllLocalToCloud(): Promise<void> {
+    if (!isCloudAuthorized()) {
+      console.warn('[SyncService] syncAllLocalToCloud annullato: sessione non autorizzata dal Cloud.');
+      return;
+    }
     const collectionsToSync = this.getCollectionsToSync();
     const pushedCounts: Record<string, number> = {};
 
@@ -129,6 +385,47 @@ export class SyncService {
     }
 
     console.log(`[SyncService] Push completo IndexedDB -> Firestore /trips/${this.tripId}`, pushedCounts);
+  }
+
+  private getOperationalCollections() {
+    return [
+      { fb: 'giorni', store: STORES.GIORNI },
+      { fb: 'attivita', store: STORES.ATTIVITA },
+      { fb: 'alloggi', store: STORES.ALLOGGI },
+      { fb: 'trasporti', store: STORES.TRASPORTI },
+      { fb: 'documenti', store: STORES.DOCUMENTI },
+      { fb: 'tappe', store: STORES.TAPPE },
+      { fb: 'ristoranti', store: STORES.RISTORANTI },
+      { fb: 'shopping', store: STORES.SHOPPING },
+      { fb: 'spese', store: STORES.SPESE },
+      { fb: 'note', store: STORES.NOTE },
+      { fb: 'bagagli', store: STORES.BAGAGLI }
+    ] as const;
+  }
+
+  private getStoreForEntity(entity: string): StoreName | null {
+    switch(entity) {
+      case 'giorni': return STORES.GIORNI;
+      case 'attivita':
+      case 'activity': return STORES.ATTIVITA;
+      case 'alloggi':
+      case 'alloggio': return STORES.ALLOGGI;
+      case 'trasporti':
+      case 'trasporto': return STORES.TRASPORTI;
+      case 'documenti': return STORES.DOCUMENTI;
+      case 'tappe':
+      case 'tappa': return STORES.TAPPE;
+      case 'ristoranti':
+      case 'ristorante': return STORES.RISTORANTI;
+      case 'shopping': return STORES.SHOPPING;
+      case 'spese':
+      case 'spesa': return STORES.SPESE;
+      case 'note':
+      case 'nota': return STORES.NOTE;
+      case 'bagagli':
+      case 'bagaglio': return STORES.BAGAGLI;
+      default: return null;
+    }
   }
 
   private getCollectionsToSync() {
@@ -148,9 +445,14 @@ export class SyncService {
     ] as const;
   }
 
+  private addDomListener(target: EventTarget, type: string, listener: EventListener) {
+    target.addEventListener(type, listener);
+    this.domListeners.push({ target, type, listener });
+  }
+
   // --- 1. LOCAL TO CLOUD ---
   private setupLocalListeners() {
-    window.addEventListener('roadbook_data_mutated', async (e: Event) => {
+    this.addDomListener(window, 'roadbook_data_mutated', (async (e: Event) => {
       const custom = e as CustomEvent;
       const { entityType, action, data, source } = custom.detail;
       
@@ -162,9 +464,9 @@ export class SyncService {
       } catch (err) {
         console.error('[SyncService] Errore Push to Cloud:', err);
       }
-    });
+    }) as EventListener);
 
-    window.addEventListener('force_cloud_sync_requested', async () => {
+    this.addDomListener(window, 'force_cloud_sync_requested', (async () => {
       console.log('[SyncService] Avvio sincronizzazione forzata verso il cloud...');
       try {
         await this.syncAllLocalToCloud();
@@ -172,7 +474,26 @@ export class SyncService {
       } catch (err) {
         console.error('[SyncService] Errore Sync Forzato:', err);
       }
-    });
+    }) as EventListener);
+
+    // Ripresa automatica al cambio di ruolo cloud verificato (owner / copilota)
+    this.addDomListener(window, 'houni_cloud_role_changed', ((e: Event) => {
+      const role = (e as CustomEvent)?.detail?.cloudRole;
+      if (role === 'owner' || role === 'copilota') {
+        console.log(`[SyncService] Rilevato ruolo autorizzato (${role}): trigger sincronizzazione automatica.`);
+        this.triggerAutomaticSync('cloud_role_authorized');
+      }
+    }) as EventListener);
+
+    // Ripresa automatica al ritorno della connessione online
+    this.addDomListener(window, 'online', (() => {
+      console.log('[SyncService] Connessione di rete ripristinata (online): verifico autorizzazioni per sync.');
+      setTimeout(() => {
+        if (isCloudAuthorized()) {
+          this.triggerAutomaticSync('network_online');
+        }
+      }, 600);
+    }) as EventListener);
   }
 
   // Rimuove ricorsivamente le chiavi con valore undefined
@@ -193,6 +514,10 @@ export class SyncService {
 
   private async pushToCloud(entityType: string, action: 'save' | 'delete', data: any) {
     if (!data || !data.id) return;
+    if (!isCloudAuthorized()) {
+      console.warn(`[SyncService] Push to cloud annullato: sessione non autorizzata dal Cloud per ${entityType}/${data.id}`);
+      return;
+    }
     
     const collectionName = this.mapEntityToCollection(entityType);
     if (!collectionName) return;
@@ -213,6 +538,17 @@ export class SyncService {
       await deleteDoc(docRef);
       console.log(`[Cloud Sync] Eliminato ${entityType} ${data.id}`);
     } else {
+      // Protezione tombstone: evita di inviare al Cloud record con tombstone attivo non ricreati lecitamente
+      const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${collectionName}_${data.id}`);
+      if (tombstoneSetting && tombstoneSetting.value) {
+        const itemCreated = normalizeTimestamp(data?.createdAt);
+        const tombstoneDeleted = normalizeTimestamp(tombstoneSetting.value.deletedAt || tombstoneSetting.value.timestamp);
+        if (!(itemCreated > 0 && tombstoneDeleted > 0 && itemCreated > tombstoneDeleted)) {
+          console.warn(`[SyncService] pushToCloud bloccato per ${collectionName}/${data.id}: record con tombstone attivo e createdAt non successivo alla cancellazione.`);
+          return;
+        }
+      }
+
       const payloadString = JSON.stringify(data);
       const sizeKB = payloadString.length / 1024;
       
@@ -270,6 +606,9 @@ export class SyncService {
 
       const cleanPayload = this.cleanUndefinedValues(payloadToSync);
       await setDoc(docRef, cleanPayload, { merge: true });
+      if (entityType === 'settings' && typeof data?.id === 'string' && data.id.startsWith('tombstone_')) {
+        await idbPut(STORES.SETTINGS, { ...data, value: { ...(data.value || {}), pending: false } }).catch(() => {});
+      }
       console.log(`[Cloud Sync] Salvato ${entityType} ${data.id}`);
     }
   }
@@ -302,29 +641,55 @@ export class SyncService {
           const data = change.doc.data();
           const docId = change.doc.id;
 
+          // Ignoriamo i chunk degli allegati per non inquinare lo store dei documenti
+          if (fb === 'documenti' && docId.startsWith('att_chunk_')) {
+            return;
+          }
+
           if (change.type === 'added' || change.type === 'modified') {
             promises.push(
               (async () => {
-                // Se l'elemento è stato eliminato intenzionalmente (tombstone), non reinserirlo!
+                // Se l'elemento è stato eliminato intenzionalmente (tombstone), verifica se è una ricreazione valida
                 const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${fb}_${docId}`);
                 if (tombstoneSetting && tombstoneSetting.value) {
-                  console.log(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Elemento contrassegnato da tombstone (eliminato)`);
-                  // Eliminiamo anche da Firestore se ancora presente per allineare il cloud
-                  await deleteDoc(doc(db, 'trips', this.tripId, fb, docId)).catch(() => {});
-                  return;
+                  const serverCreated = normalizeTimestamp(data?.createdAt);
+                  const tombstoneDeleted = normalizeTimestamp(tombstoneSetting.value.deletedAt || tombstoneSetting.value.timestamp);
+                  if (serverCreated > 0 && tombstoneDeleted > 0 && serverCreated > tombstoneDeleted) {
+                    console.log(`[Cloud Sync] Rilevata ricreazione valida su Cloud per ${fb}/${docId} - rimuovo tombstone locale.`);
+                    await idbDelete(STORES.SETTINGS, `tombstone_${fb}_${docId}`);
+                    if (typeof localStorage !== 'undefined') {
+                      try { localStorage.removeItem(`tombstone_${fb}_${docId}`); } catch (e) {}
+                    }
+                  } else {
+                    console.log(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Elemento contrassegnato da tombstone (eliminato)`);
+                    if (isCloudAuthorized()) {
+                      await deleteDoc(doc(db, 'trips', this.tripId, fb, docId)).catch(() => {});
+                    } else {
+                      console.warn(`[Cloud Sync] Sospesa cancellazione remota per ${fb}/${docId}: in attesa di autorizzazione cloud.`);
+                    }
+                    return;
+                  }
                 }
 
                 let localData: any = null;
                 try {
                   localData = await idbGet<any>(store, docId);
-                  if (localData && localData.updatedAt) {
-                    const serverUpdatedAt = data.updatedAt || 0;
-                    if (localData.updatedAt > serverUpdatedAt) {
-                      console.warn(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Il dato locale e' piu' recente`);
+                  const localUpdated = normalizeTimestamp(localData?.updatedAt);
+                  const serverUpdated = normalizeTimestamp(data?.updatedAt);
+                  if (localData && localUpdated > 0 && localUpdated > serverUpdated) {
+                    console.warn(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Il dato locale e' piu' recente`);
+                    if (isCloudAuthorized()) {
                       // Pushiamo il dato locale al server per allinearlo (visto che il server ha dati vecchi)
-                      await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
-                      return;
+                      const entityType = this.mapCollectionToEntity(fb);
+                      if (entityType) {
+                        await this.pushToCloud(entityType, 'save', localData);
+                      } else {
+                        await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
+                      }
+                    } else {
+                      console.warn(`[Cloud Sync] Sospeso push per ${fb}/${docId}: sessione non autorizzata, dato locale piu recente conservato.`);
                     }
+                    return;
                   }
                 } catch (e) {}
                 
@@ -390,8 +755,21 @@ export class SyncService {
   }
 
   public destroy() {
+    this.isDestroyed = true;
+    if (this.autoSyncDebounceTimer) {
+      clearTimeout(this.autoSyncDebounceTimer);
+      this.autoSyncDebounceTimer = null;
+    }
+    if (this.pendingSyncTimeout) {
+      clearTimeout(this.pendingSyncTimeout);
+      this.pendingSyncTimeout = null;
+    }
     this.unsubscribes.forEach(unsub => unsub());
     this.unsubscribes = [];
+    this.domListeners.forEach(({ target, type, listener }) => {
+      target.removeEventListener(type, listener);
+    });
+    this.domListeners = [];
   }
 
   private mapEntityToCollection(entity: string): string | null {

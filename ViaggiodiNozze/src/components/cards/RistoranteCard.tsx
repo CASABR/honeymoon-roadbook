@@ -1,6 +1,7 @@
 import type { Ristorante } from '../../types';
 import { useState } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
+import UniversalAttachmentModal from '../modals/UniversalAttachmentModal';
 import { storageService } from '../../storage/storageService';
 import { resolveMapUrl } from '../../utils/mapsHelper';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
@@ -15,7 +16,8 @@ interface RistoranteCardProps {
 
 export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate }: RistoranteCardProps) {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-  const copilotData = (ristorante as any).noteCopilota || (ristorante as any).notes || '';
+  const [isAttachmentOpen, setIsAttachmentOpen] = useState(false);
+  const copilotData = (ristorante as any).noteCopilota || (ristorante as any).nota || (ristorante as any).notes || '';
   const hasCopilotNotes = Boolean(copilotData.trim());
   
   const paymentInfo = resolvePaymentInfo({
@@ -51,7 +53,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
   return (
     <div 
       onClick={onDetail || onEdit} 
-      className="cursor-pointer rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-3 relative active:scale-[0.99] bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+      className="hounigo-panel cursor-pointer rounded-2xl p-4 hover:shadow-md transition-all duration-200 flex flex-col gap-3 relative active:scale-[0.99] dark:bg-slate-800 dark:border-slate-700"
     >
       {/* TOP */}
       <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700/50">
@@ -60,7 +62,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
             <span className="text-sm">🍽️</span> Ristorante
           </span>
           {ristorante.sottocategoria && (
-            <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50 text-[11px] font-semibold tracking-wide">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700/80 dark:text-slate-200 dark:border-slate-600 text-[10px] font-bold tracking-wide">
               <span>{ristorante.sottocategoria.toLowerCase().includes('cena') ? '🍷' : ristorante.sottocategoria.toLowerCase().includes('pranzo') ? '🥗' : ristorante.sottocategoria.toLowerCase().includes('colaz') ? '☕' : '🍴'}</span>
               <span>{ristorante.sottocategoria}</span>
             </span>
@@ -158,6 +160,30 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
               Prenota ↗
             </a>
           )}
+          {(() => {
+            const hasQrOrAttachment = Boolean(
+              (ristorante as any).bookingCode?.trim() ||
+              (ristorante as any).qrCode?.trim() ||
+              (ristorante.attachments && ristorante.attachments.length > 0)
+            );
+            return (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsAttachmentOpen(true);
+                }}
+                className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer border ${
+                  hasQrOrAttachment
+                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-800'
+                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 dark:text-indigo-300 dark:border-indigo-800'
+                }`}
+                title="Voucher / Ricevuta / QR"
+              >
+                <span className="text-[10px]">🎫</span> Voucher/QR
+              </button>
+            );
+          })()}
           {mapTarget && (
             <a
               href={resolveMapUrl(mapTarget)}
@@ -187,6 +213,22 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
             window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update' }}));
             setIsCopilotOpen(false);
           } catch(e) { console.error(e); }
+        }}
+      />
+      <UniversalAttachmentModal
+        isOpen={isAttachmentOpen}
+        onClose={() => setIsAttachmentOpen(false)}
+        title={`Voucher / Ricevute - ${ristorante.nome}`}
+        attachments={ristorante.attachments || []}
+        onSave={async (newAttachments) => {
+          const updated: Ristorante = {
+            ...ristorante,
+            attachments: newAttachments,
+            updatedAt: Date.now()
+          };
+          await storageService.saveRistorante(updated);
+          if (typeof onUpdate === 'function') onUpdate(updated);
+          window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'ristoranti', data: updated } }));
         }}
       />
     </div>

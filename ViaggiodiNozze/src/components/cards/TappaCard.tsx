@@ -3,6 +3,7 @@ import { useState } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
 import { resolveMapUrl } from '../../utils/mapsHelper';
+import { formatDateIT } from '../../utils/tripDates';
 
 interface TappaCardProps {
   tappa: Tappa;
@@ -14,7 +15,7 @@ interface TappaCardProps {
 
 export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCardProps) {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-  const copilotData = (tappa as any).noteCopilota || (tappa as any).notes || '';
+  const copilotData = (tappa as any).noteCopilota || (tappa as any).nota || (tappa as any).notes || '';
   const hasCopilotNotes = Boolean(copilotData.trim());
   const orario = tappa.orario || (tappa as any).time;
 
@@ -23,7 +24,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
   return (
     <div 
       onClick={onDetail || onEdit} 
-      className="cursor-pointer rounded-2xl border p-3.5 sm:p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 relative active:scale-[0.99] bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+      className="hounigo-panel cursor-pointer rounded-2xl p-3.5 sm:p-4 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 relative active:scale-[0.99] dark:bg-slate-800 dark:border-slate-700"
     >
       {/* TOP */}
       <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
@@ -31,6 +32,12 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-100 dark:bg-pink-500/10 dark:text-pink-400 dark:border-pink-500/20 text-[11px] font-semibold uppercase tracking-wider">
             <span className="text-sm">📍</span> Tappa
           </span>
+          {(tappa as any).sottocategoria && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700/80 dark:text-slate-200 dark:border-slate-600 text-[10px] font-bold tracking-wide">
+              <span>🏷️</span>
+              <span>{(tappa as any).sottocategoria}</span>
+            </span>
+          )}
           {orario ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200 text-[11px] font-medium font-mono">
               ⏰ {orario}
@@ -48,7 +55,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
           {tappa.data && (
             <div className="flex flex-col ml-1">
               <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
-                {tappa.data}
+                {formatDateIT(tappa.data)}
               </span>
             </div>
           )}

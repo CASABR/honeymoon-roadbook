@@ -5,12 +5,11 @@ import type {
   Attivita,
   Ristorante,
   Shopping,
-  TravelDocument,
   TransportAttachment
 } from '../types';
 import { parseEuro, resolvePaymentInfo } from '../utils/priceHelper';
 
-export type BookingCategory = 'volo' | 'treno' | 'alloggio' | 'auto_camper' | 'traghetto' | 'attivita' | 'ristorante' | 'shopping' | 'documento';
+export type BookingCategory = 'volo' | 'treno' | 'alloggio' | 'auto_camper' | 'traghetto' | 'attivita' | 'ristorante' | 'shopping';
 
 export interface UnifiedBookingItem {
   id: string;
@@ -102,13 +101,6 @@ export const BOOKING_CATEGORY_META: Record<BookingCategory, {
     badgeBg: 'bg-pink-50 dark:bg-pink-950/40',
     badgeText: 'text-pink-700 dark:text-pink-300',
     badgeBorder: 'border-pink-200 dark:border-pink-800/40'
-  },
-  documento: {
-    label: 'Passaporti & Visti',
-    icon: '🛂',
-    badgeBg: 'bg-purple-50 dark:bg-purple-950/40',
-    badgeText: 'text-purple-700 dark:text-purple-300',
-    badgeBorder: 'border-purple-200 dark:border-purple-800/40'
   }
 };
 
@@ -116,13 +108,12 @@ export const BOOKING_CATEGORY_META: Record<BookingCategory, {
  * Legge tutte le collezioni del viaggio e restituisce un elenco unificato di prenotazioni.
  */
 export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
-  const [transports, accommodations, activities, restaurants, shoppingItems, travelDocuments] = await Promise.all([
+  const [transports, accommodations, activities, restaurants, shoppingItems] = await Promise.all([
     storageService.getTransports().catch(() => [] as Trasporto[]),
     storageService.getAccommodations().catch(() => [] as Alloggio[]),
     storageService.getActivities().catch(() => [] as Attivita[]),
     storageService.getRistoranti ? storageService.getRistoranti().catch(() => [] as Ristorante[]) : Promise.resolve([] as Ristorante[]),
-    (storageService as any).getShoppingItems ? (storageService as any).getShoppingItems().catch(() => [] as Shopping[]) : Promise.resolve([] as Shopping[]),
-    storageService.getDocuments().catch(() => [] as TravelDocument[])
+    storageService.getShopping ? storageService.getShopping().catch(() => [] as Shopping[]) : Promise.resolve([] as Shopping[])
   ]);
 
   const items: UnifiedBookingItem[] = [];
@@ -245,6 +236,7 @@ export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
       subtitle: act.sottocategoria || act.category,
       date: act.date,
       time: act.time || act.orarioInizio,
+      endDate: act.endDate,
       location: act.location || act.address,
       locationDetails: act.address,
       bookingCode: act.qrCode,
@@ -327,29 +319,6 @@ export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
     });
   });
 
-  // 6. DOCUMENTI DI VIAGGIO (Passaporti, Visti, Polizze con allegati)
-  travelDocuments.forEach((d) => {
-    const attachments = d.attachments || [];
-    items.push({
-      id: d.id,
-      category: 'documento',
-      title: d.title,
-      subtitle: `Documento (${d.category})`,
-      date: d.validity || (d.updatedAt ? d.updatedAt.split('T')[0] : undefined),
-      location: d.category,
-      locationDetails: d.expiresAt ? `Scadenza: ${d.expiresAt}` : undefined,
-      status: d.status || 'Valido',
-      notes: d.description,
-      hasAttachments: attachments.length > 0,
-      attachmentsCount: attachments.length,
-      attachments,
-      carrierOrProvider: d.title,
-      rawType: 'documento',
-      rawItem: d,
-      updatedAt: d.updatedAt
-    });
-  });
-
   // Deduplicazione deterministica per ID
   const mapById = new Map<string, UnifiedBookingItem>();
   for (const item of items) {
@@ -365,10 +334,10 @@ export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
     if (!a.date && !b.date) return (a.title || '').localeCompare(b.title || '');
     if (!a.date) return 1;
     if (!b.date) return -1;
-    const dateComp = a.date.localeCompare(b.date);
+    const dateComp = String(a.date).localeCompare(String(b.date));
     if (dateComp !== 0) return dateComp;
-    const timeA = a.time || '00:00';
-    const timeB = b.time || '00:00';
+    const timeA = String(a.time || '00:00');
+    const timeB = String(b.time || '00:00');
     return timeA.localeCompare(timeB);
   });
 
@@ -383,10 +352,13 @@ export async function updateBookingAttachments(
   newAttachments: TransportAttachment[]
 ): Promise<void> {
   const raw = booking.rawItem;
+  const now = Date.now();
   const updated = {
     ...raw,
     attachments: newAttachments,
-    updatedAt: Date.now()
+    updatedAt: booking.rawType === 'documento' && typeof raw.updatedAt === 'string'
+      ? new Date().toISOString()
+      : now
   };
 
   switch (booking.rawType) {

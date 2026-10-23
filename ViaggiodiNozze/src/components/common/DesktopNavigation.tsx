@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { TripConfig } from '../../utils/tripConfig';
 import { useDeviceRole } from '../../utils/useDeviceRole';
+import { useAuthIdentity } from '../../utils/useAuthIdentity';
 import DarkModeToggle from '../common/DarkModeToggle';
 import SettingsMenu from '../common/SettingsMenu';
 
@@ -9,6 +10,7 @@ declare const __BUILD_TIME__: string;
 export type DesktopNavSection =
   | 'prenotazioni'
   | 'itinerario'
+  | 'tappe'
   | 'attivita'
   | 'alloggi'
   | 'trasporti'
@@ -37,7 +39,14 @@ export default function DesktopNavigation({
   bookingsCount = 0,
   onToggleMobileView
 }: DesktopNavigationProps) {
-  const { role, isGuida, isCopilota } = useDeviceRole();
+  const { role, isGuida, isCopilota, isSimulated, simulatedRole } = useDeviceRole();
+  const {
+    currentUid,
+    shortUid,
+    ownerName,
+    cloudRole,
+    hasDiscrepancy
+  } = useAuthIdentity();
 
   // Ascolta orologio/sync per stato realtime
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -65,6 +74,11 @@ export default function DesktopNavigation({
       id: 'itinerario' as DesktopNavSection,
       label: 'Itinerario Giornaliero',
       icon: '🗺️'
+    },
+    {
+      id: 'tappe' as DesktopNavSection,
+      label: 'Tappe del Viaggio',
+      icon: '📍'
     },
     {
       id: 'alloggi' as DesktopNavSection,
@@ -119,7 +133,7 @@ export default function DesktopNavigation({
   ];
 
   return (
-    <aside className="w-64 xl:w-72 bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border-r border-slate-200/80 dark:border-slate-800 flex flex-col justify-between shrink-0 h-screen sticky top-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)] select-none">
+    <aside className="w-64 xl:w-72 bg-[#fffdfa]/95 dark:bg-slate-900/90 backdrop-blur-xl border-r border-[#e5e3dd] dark:border-slate-800 flex flex-col justify-between shrink-0 h-screen sticky top-0 shadow-[4px_0_24px_rgba(23,32,51,0.035)] select-none">
       
       {/* ─── LOGO & TRIP INFO ─────────────────────────────────────────── */}
       <div className="p-5 pb-3">
@@ -130,7 +144,7 @@ export default function DesktopNavigation({
               Hounigo
             </span>
             {typeof __BUILD_TIME__ !== 'undefined' && (
-              <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full ml-1" title="Orario ultimo deploy">
+              <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full ml-1" title="Orario della build inclusa in questa versione">
                 🟢 {__BUILD_TIME__}
               </span>
             )}
@@ -142,7 +156,7 @@ export default function DesktopNavigation({
         </div>
 
         {/* Card Info Viaggio Attivo */}
-        <div className="bg-[#FAF7F2] dark:bg-slate-800/80 p-3 rounded-2xl border border-slate-200/70 dark:border-slate-700/60">
+        <div className="hounigo-panel-muted dark:bg-slate-800/80 p-3 rounded-2xl dark:border-slate-700/60">
           <div className="flex items-center justify-between gap-1 mb-1">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
               Viaggio Attivo
@@ -169,7 +183,7 @@ export default function DesktopNavigation({
           <button
             type="button"
             onClick={onOpenSmartInsert}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-extrabold text-xs shadow-md shadow-indigo-600/20 active:scale-95 transition-all cursor-pointer"
+            className="hounigo-button-primary w-full flex items-center justify-center gap-2 py-2 px-3 rounded-2xl font-extrabold text-xs active:scale-95 transition-all cursor-pointer"
           >
             <span>✨</span>
             <span>Inserimento Smart AI</span>
@@ -228,23 +242,67 @@ export default function DesktopNavigation({
       </div>
 
       {/* ─── FOOTER UTENTE E RUOLO ─────────────────────────────────────── */}
-      <div className="p-4 border-t border-slate-200/80 dark:border-slate-800 bg-[#FAF7F2]/50 dark:bg-slate-900/50">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs">
-              {isGuida ? '🟢' : isCopilota ? '🟡' : '💻'}
+      <div className="p-3.5 border-t border-[#e5e3dd] dark:border-slate-800 bg-[#f1eee7]/50 dark:bg-slate-900/50 space-y-2">
+        <div className="flex items-start justify-between gap-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs shrink-0">
+              {isGuida ? '🟢' : isCopilota ? '🟢' : (role === 'guida' || role === 'copilota') ? '🟡' : '💻'}
             </span>
             <div className="min-w-0">
-              <span className="block text-[11px] font-extrabold text-[#172033] dark:text-white capitalize truncate">
-                Dispositivo: {role}
-              </span>
-              <span className="block text-[9px] text-slate-400">
-                {isGuida ? 'Accesso Master Completo' : isCopilota ? 'Accesso Copilota' : 'Visualizzazione'}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-extrabold text-[#172033] dark:text-white capitalize truncate">
+                  {role}
+                </span>
+                {isSimulated && (
+                  <span className="text-[9px] font-bold text-purple-700 bg-purple-100 dark:bg-purple-950/60 dark:text-purple-300 px-1.5 py-0.2 rounded">
+                    🧪 {simulatedRole}
+                  </span>
+                )}
+              </div>
+              <span className="block text-[9px] text-slate-500 dark:text-slate-400 truncate">
+                Cloud: {
+                  cloudRole === 'owner' ? `👑 Owner (${ownerName})` :
+                  cloudRole === 'copilota' ? '🤝 Copilota' :
+                  cloudRole === 'admin' ? '🛡️ Admin' :
+                  cloudRole === 'checking' ? '⏳ In verifica...' :
+                  cloudRole === 'offline' ? '📡 Offline' :
+                  cloudRole === 'unverified' ? '⚠️ Non verificato' :
+                  '👁️ Viewer'
+                }
               </span>
             </div>
           </div>
-          <span className="text-[9px] font-mono text-slate-400">v1.2</span>
+          <div className="flex items-center gap-1.5 shrink-0">
+            {tripConfig?.id === '0000' && (
+              <button
+                type="button"
+                onClick={() => {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set('admin', '1');
+                  window.history.pushState({}, '', url.toString());
+                  window.dispatchEvent(new CustomEvent('open_admin_console'));
+                }}
+                title="Apri Console Amministratore"
+                className="px-1.5 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold cursor-pointer transition-colors"
+              >
+                🛡️ Admin
+              </button>
+            )}
+            <span className="text-[9px] font-mono text-slate-400">v1.2</span>
+          </div>
         </div>
+
+        {/* Indicazione discreta Sessione UID & Discrepanza */}
+        <div className="flex items-center justify-between text-[9px] text-slate-400 font-mono px-0.5">
+          <span title={currentUid || ''}>UID: {shortUid}</span>
+          <span title="Owner del viaggio">Owner: {ownerName}</span>
+        </div>
+
+        {hasDiscrepancy && (
+          <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/50 border border-amber-200/80 dark:border-amber-800/60 text-[9px] text-amber-700 dark:text-amber-300 font-semibold leading-tight">
+            ⚠️ Locale ({role}) ≠ Cloud ({cloudRole})
+          </div>
+        )}
       </div>
     </aside>
   );

@@ -3,6 +3,7 @@ import type { Attivita, TransportAttachment } from '../../types';
 import Modal from '../common/Modal';
 import LightboxCarousel from '../common/LightboxCarousel';
 import QRCodeModal from './QRCodeModal';
+import DropZone from '../common/DropZone';
 import { processFileForAttachment, formatFileSize, openAttachmentInNewTab } from '../../utils/fileAttachment';
 import { storageService } from '../../storage/storageService';
 
@@ -24,17 +25,16 @@ export default function AttivitaTicketsModal({
   const [errorMessage, setErrorMessage] = useState('');
   const [zoomedIndex, setZoomedIndex] = useState<number | null>(null);
   const [isQRModalOpen, setIsQRModalOpen] = useState(false);
+  const [isQRDragOver, setIsQRDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   if (!activity) return null;
 
   const attachments = activity.attachments || [];
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const handleFilesBatch = async (filesArray: File[]) => {
+    if (!filesArray || filesArray.length === 0) return;
 
-    const filesArray = Array.from(files);
     setErrorMessage('');
     setIsUploading(true);
     setUploadProgressText(`Elaborazione di ${filesArray.length} ${filesArray.length === 1 ? 'file' : 'file'}...`);
@@ -59,6 +59,9 @@ export default function AttivitaTicketsModal({
       if (onUpdateActivity) {
         onUpdateActivity(updatedActivity);
       }
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { 
+        detail: { action: 'update', entityType: 'attivita', data: updatedActivity } 
+      }));
     } catch (err: unknown) {
       console.error('Errore durante il caricamento del file per attività:', err);
       const msg = err instanceof Error ? err.message : 'Errore imprevisto durante il caricamento del file.';
@@ -70,6 +73,12 @@ export default function AttivitaTicketsModal({
         fileInputRef.current.value = '';
       }
     }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    await handleFilesBatch(Array.from(files));
   };
 
   const handleDeleteAttachment = async (attachmentId: string) => {
@@ -87,6 +96,9 @@ export default function AttivitaTicketsModal({
       if (onUpdateActivity) {
         onUpdateActivity(updatedActivity);
       }
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { 
+        detail: { action: 'update', entityType: 'attivita', data: updatedActivity } 
+      }));
     } catch (err) {
       console.error("Errore durante l'eliminazione:", err);
       setErrorMessage("Errore durante l'eliminazione del file.");
@@ -101,36 +113,27 @@ export default function AttivitaTicketsModal({
     <>
       <Modal isOpen={isOpen} onClose={onClose} title="Biglietti, Pass & QR Code" accentVariant="amber">
         <div className="space-y-4">
-          {/* Header Sintetico */}
-          <div className="flex items-center justify-between gap-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+          {/* Header Sintetico con DropZone Button */}
+          <div className="flex items-center justify-between gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700">
             <div className="min-w-0">
-              <div className="text-xs font-bold text-slate-900 truncate">
+              <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
                 {activity.title}
               </div>
-              <div className="text-[11px] text-slate-500 font-medium">
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                 {attachments.length === 0
                   ? 'Nessun file salvato'
                   : `${attachments.length} ${attachments.length === 1 ? 'file salvato offline' : 'file salvati offline'}`}
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs shadow-md shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
-            >
-              {isUploading ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                  <span>{uploadProgressText || 'Caricamento...'}</span>
-                </>
-              ) : (
-                <>
-                  <span>+ Aggiungi File</span>
-                </>
-              )}
-            </button>
+            <DropZone
+              variant="button"
+              onFilesSelected={handleFilesBatch}
+              isUploading={isUploading}
+              uploadProgressText={uploadProgressText}
+              title="+ Aggiungi File"
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold border-none shadow-amber-500/20"
+            />
             <input
               type="file"
               ref={fileInputRef}
@@ -141,9 +144,33 @@ export default function AttivitaTicketsModal({
             />
           </div>
 
-          {/* QR Code Generato da Testo/Codice (se configurato) */}
+          {/* QR Code Generato da Testo/Codice con supporto Drop diretto */}
           {activity.qrCode && (
-            <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex items-center justify-between gap-3">
+            <div 
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsQRDragOver(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsQRDragOver(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsQRDragOver(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                  handleFilesBatch(Array.from(e.dataTransfer.files));
+                }
+              }}
+              className={`p-3.5 rounded-2xl transition-all flex items-center justify-between gap-3 ${
+                isQRDragOver
+                  ? 'bg-amber-100 dark:bg-amber-950/60 border-2 border-dashed border-amber-500 scale-[1.02] shadow-lg ring-2 ring-amber-400/50'
+                  : 'bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/40'
+              }`}
+            >
               <div className="flex items-center gap-3 min-w-0">
                 <div className="w-12 h-12 bg-white rounded-xl border border-amber-200 p-1 flex items-center justify-center shrink-0">
                   <img
@@ -153,11 +180,14 @@ export default function AttivitaTicketsModal({
                   />
                 </div>
                 <div className="min-w-0">
-                  <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">
-                    QR Code Digitale
+                  <span className="text-[10px] uppercase font-bold text-amber-800 dark:text-amber-400 tracking-wider block">
+                    {isQRDragOver ? '📥 Rilascia il file qui!' : 'QR Code Digitale'}
                   </span>
-                  <p className="text-xs font-mono font-bold text-slate-900 truncate">
+                  <p className="text-xs font-mono font-bold text-slate-900 dark:text-white truncate">
                     {activity.qrCode}
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 hidden sm:block">
+                    {isQRDragOver ? 'Carica subito il biglietto' : 'Trascina qui il file o clicca Ingrandisci'}
                   </p>
                 </div>
               </div>
@@ -186,23 +216,16 @@ export default function AttivitaTicketsModal({
             </div>
           )}
 
-          {/* Lista Biglietti / Allegati */}
+          {/* Lista Biglietti / Allegati con supporto Drag & Drop */}
           {attachments.length === 0 && !activity.qrCode ? (
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-300 hover:border-amber-500 rounded-3xl p-6 text-center cursor-pointer transition-colors bg-slate-50 hover:bg-slate-100/70"
-            >
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 text-2xl mb-2.5">
-                📱
-              </div>
-              <h4 className="text-sm font-bold text-slate-900">Carica Biglietto, Pass o QR Code</h4>
-              <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-                Tocca qui per caricare i file dei biglietti, immagini con QR code o documenti PDF (fino a 25 MB ciascuno).
-              </p>
-              <span className="inline-block mt-3 px-3 py-1 text-[11px] font-semibold text-amber-800 bg-amber-50 rounded-full border border-amber-200">
-                Disponibili 100% offline
-              </span>
-            </div>
+            <DropZone
+              variant="hero"
+              onFilesSelected={handleFilesBatch}
+              isUploading={isUploading}
+              uploadProgressText={uploadProgressText}
+              title="Trascina qui il tuo Biglietto, Pass o QR Code"
+              subtitle="Rilascia direttamente dal desktop oppure clicca per sfogliare la cartella (PDF o immagini)."
+            />
           ) : (
             <div className="space-y-3">
               {attachments.map((att, attIdx) => {
@@ -294,6 +317,18 @@ export default function AttivitaTicketsModal({
               })}
             </div>
           )}
+
+          {/* Se ci sono già allegati, mostra DropZone compatta per aggiungerne altri */}
+          {attachments.length > 0 && (
+            <DropZone
+              variant="compact"
+              onFilesSelected={handleFilesBatch}
+              isUploading={isUploading}
+              uploadProgressText={uploadProgressText}
+              title="Trascina qui altri biglietti, voucher o QR code"
+              subtitle="oppure clicca per selezionare dalla cartella"
+            />
+          )}
         </div>
       </Modal>
 
@@ -306,13 +341,15 @@ export default function AttivitaTicketsModal({
         title={activity.title || 'Pass & QR Code'}
       />
 
-      {/* Modal QR Code Ingrandito */}
+      {/* Modal QR Code Ingrandito con supporto Drag & Drop */}
       {activity.qrCode && (
         <QRCodeModal
           isOpen={isQRModalOpen}
           onClose={() => setIsQRModalOpen(false)}
           code={activity.qrCode}
           title={activity.title}
+          onFilesSelected={handleFilesBatch}
+          isUploading={isUploading}
         />
       )}
     </>

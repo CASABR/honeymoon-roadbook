@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
-import type { Ristorante } from '../../types';
+import type { Ristorante, Coordinate } from '../../types';
 import { storageService } from '../../storage/storageService';
+import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
+import type { PlaceSuggestion } from '../../services/photonService';
 
 interface RistoranteFormProps {
   initialData?: Ristorante | null;
@@ -23,6 +25,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
   const [budget, setBudget] = useState('');
   const [nota, setNota] = useState('');
   const [status, setStatus] = useState<'da_saldare' | 'saldato'>('da_saldare');
+  const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
   
   const [error, setError] = useState('');
   const [conflictWarning, setConflictWarning] = useState('');
@@ -44,6 +47,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       setBudget(initialData.budget || '');
       setNota(initialData.nota || '');
       setStatus(initialData.status === 'saldato' || (initialData as any).completed ? 'saldato' : 'da_saldare');
+      setCoordinate(initialData.coordinate);
     } else {
       const today = new Date();
       const yyyy = today.getFullYear();
@@ -59,6 +63,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       setLinkPrenotazione('');
       setBudget('');
       setNota('');
+      setCoordinate(undefined);
       setStatus('da_saldare');
     }
   }, [initialData]);
@@ -98,7 +103,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
     
     const dayId = `day_${data}`;
     setIsGeocoding(true);
-    let finalCoord = initialData?.coordinate;
+    let finalCoord = coordinate || initialData?.coordinate;
 
     if (indirizzo && indirizzo.trim()) {
       try {
@@ -139,6 +144,24 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
     });
   };
 
+  const handleSelectPlace = (place: PlaceSuggestion) => {
+    setNome(place.title);
+    if (place.address) {
+      setIndirizzo(place.address);
+    }
+    if (place.coordinate) {
+      setCoordinate(place.coordinate);
+    }
+    if (place.rawLocalItem) {
+      const raw = place.rawLocalItem;
+      if (raw.nota && !nota) setNota(raw.nota);
+      if (raw.sottocategoria && !sottocategoria) setSottocategoria(raw.sottocategoria);
+      if (raw.budget && !budget) setBudget(raw.budget);
+      if (raw.telefono && !telefono) setTelefono(raw.telefono);
+      if (raw.orario && !orario) setOrario(raw.orario);
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="space-y-4 pb-4">
       {isLockedByOther && (
@@ -161,19 +184,14 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
         </div>
       )}
 
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Nome Locale / Ristorante *
-        </label>
-        <input
-          type="text"
-          placeholder="es. Da Mario"
-          value={nome}
-          onChange={(e) => setNome(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] transition-colors placeholder:text-slate-400"
-          required
-        />
-      </div>
+      <PlaceAutocompleteInput
+        value={nome}
+        onChange={setNome}
+        onSelectPlace={handleSelectPlace}
+        label="Nome Locale / Ristorante"
+        placeholder="es. Da Mario, Pizzeria, Cafè..."
+        required
+      />
 
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">

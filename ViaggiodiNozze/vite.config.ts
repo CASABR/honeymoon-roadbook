@@ -26,6 +26,8 @@ export default defineConfig(({ command }) => ({
       hour: '2-digit', 
       minute: '2-digit' 
     })),
+    'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(''),
+    'import.meta.env.VITE_GEMINI_API_KEY_B64': JSON.stringify(''),
   },
   plugins: [
     react(),

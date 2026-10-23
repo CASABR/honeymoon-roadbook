@@ -3,6 +3,7 @@
  * Isolato all'interno del layer di storage.
  */
 const DB_NAME = 'ViaggiodiNozzeDB';
+const MASTER_TRIP_ID = '0000';
 const DB_VERSION = 8;
 
 export const STORES = {
@@ -23,12 +24,32 @@ export const STORES = {
 
 export type StoreName = typeof STORES[keyof typeof STORES];
 
-let dbPromise: Promise<IDBDatabase> | null = null;
+const dbPromises = new Map<string, Promise<IDBDatabase>>();
 
-function openDatabase(): Promise<IDBDatabase> {
-  if (dbPromise) return dbPromise;
+function getActiveTripId(): string {
+  if (typeof localStorage === 'undefined') return MASTER_TRIP_ID;
+  try {
+    const config = JSON.parse(localStorage.getItem('roadbook_trip_config') || '{}');
+    const tripId = String(config?.id || MASTER_TRIP_ID).trim();
+    return tripId || MASTER_TRIP_ID;
+  } catch {
+    return MASTER_TRIP_ID;
+  }
+}
 
-  dbPromise = new Promise((resolve, reject) => {
+function getDatabaseName(tripId: string): string {
+  // Il database storico non cambia nome: nessuna migrazione o scrittura sui dati di 0000.
+  if (tripId === MASTER_TRIP_ID || tripId === 'default') return DB_NAME;
+  return `${DB_NAME}_${encodeURIComponent(tripId)}`;
+}
+
+function openDatabase(tripIdOverride?: string): Promise<IDBDatabase> {
+  const tripId = tripIdOverride || getActiveTripId();
+  const dbName = getDatabaseName(tripId);
+  const existing = dbPromises.get(dbName);
+  if (existing) return existing;
+
+  const dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
     if (typeof window === 'undefined' || !window.indexedDB) {
       reject(new Error('IndexedDB non disponibile in questo ambiente'));
       return;
@@ -38,7 +59,7 @@ function openDatabase(): Promise<IDBDatabase> {
       reject(new Error('Timeout connessione IndexedDB (2000ms)'));
     }, 2000);
 
-    const request = window.indexedDB.open(DB_NAME, DB_VERSION);
+    const request = window.indexedDB.open(dbName, DB_VERSION);
 
     request.onblocked = () => {
       console.warn('IndexedDB bloccato da una versione precedente aperta.');
@@ -125,6 +146,7 @@ function openDatabase(): Promise<IDBDatabase> {
     };
   });
 
+  dbPromises.set(dbName, dbPromise);
   return dbPromise;
 }
 
@@ -147,6 +169,17 @@ export async function idbGet<T>(storeName: StoreName, id: string): Promise<T | u
     const store = tx.objectStore(storeName);
     const request = store.get(id);
 
+    request.onsuccess = () => resolve(request.result as T | undefined);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/** Legge un backup dal database del viaggio indicato, senza alterare il viaggio attivo. */
+export async function idbGetForTrip<T>(tripId: string, storeName: StoreName, id: string): Promise<T | undefined> {
+  const db = await openDatabase(tripId);
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, 'readonly');
+    const request = tx.objectStore(storeName).get(id);
     request.onsuccess = () => resolve(request.result as T | undefined);
     request.onerror = () => reject(request.error);
   });

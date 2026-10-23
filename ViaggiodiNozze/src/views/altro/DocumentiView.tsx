@@ -6,6 +6,7 @@ import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import SwipeToDelete from '../../components/common/SwipeToDelete';
 import { useDeviceRole } from '../../utils/useDeviceRole';
+import { formatDateIT } from '../../utils/tripDates';
 
 interface DocumentiViewProps {
   onBack: () => void;
@@ -105,11 +106,7 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
   const loadDocs = useCallback(async () => {
     try {
       setLoading(true);
-      let loaded = await storageService.getDocuments();
-      if (loaded.length === 0) {
-        await storageService.initInitialSeedData();
-        loaded = await storageService.getDocuments();
-      }
+      const loaded = await storageService.ensureGenericDocumentTemplates();
       setDocuments(loaded);
     } catch (err) {
       console.error('Errore caricamento documenti:', err);
@@ -173,7 +170,18 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
     await loadDocs();
   };
 
+  const [showEmptyPlaceholders, setShowEmptyPlaceholders] = useState(true);
+
+  // Identifica i segnaposto predefiniti senza allegati
+  const emptyPlaceholdersCount = documents.filter(d => (!d.attachments || d.attachments.length === 0) && d.id.startsWith('doc_')).length;
+
   const filteredDocs = documents.filter(d => {
+    // Non mostrare frammenti o chunk errati
+    if (typeof d.id === 'string' && d.id.startsWith('att_chunk_')) return false;
+    if (!d.title?.trim() && !d.category) return false;
+    if (!showEmptyPlaceholders && (!d.attachments || d.attachments.length === 0) && d.id.startsWith('doc_')) {
+      return false;
+    }
     if (selectedFilter === 'tutti') return true;
     return d.category === selectedFilter;
   });
@@ -237,15 +245,28 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
           </div>
         </div>
 
-        {canEdit && (
-          <button
-            onClick={handleOpenAddModal}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm shadow-indigo-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
-          >
-            <span>+</span>
-            <span>Nuovo Documento</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {emptyPlaceholdersCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowEmptyPlaceholders(v => !v)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition-all cursor-pointer active:scale-95 shrink-0"
+              title="Mostra o nascondi i documenti predefiniti senza allegati"
+            >
+              <span>{showEmptyPlaceholders ? '👁️ Nascondi segnaposto' : '📂 Mostra tutti'}</span>
+              <span className="text-[10px] text-slate-500 font-bold">({emptyPlaceholdersCount})</span>
+            </button>
+          )}
+          {canEdit && (
+            <button
+              onClick={handleOpenAddModal}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm shadow-indigo-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
+            >
+              <span>+</span>
+              <span>Nuovo Documento</span>
+            </button>
+          )}
+        </div>
       </header>
 
       {/* FILTRI A PILLOLE PER CATEGORIA */}
@@ -299,7 +320,7 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
               <SwipeToDelete key={doc.id} disabled={!canEdit} onDelete={() => setDeleteTarget(doc)}>
                 <div
                   onClick={() => setValidityModalDoc(doc)}
-                  className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs hover:shadow-sm hover:border-slate-300 transition-all cursor-pointer flex flex-col gap-2.5 active:scale-[0.99]"
+                  className="w-full min-w-0 max-w-full overflow-hidden bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs hover:shadow-sm hover:border-slate-300 transition-all cursor-pointer flex flex-col gap-2.5 active:scale-[0.99]"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -327,7 +348,7 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
                     </div>
                   </div>
 
-                  <p className="text-xs text-slate-600 leading-relaxed line-clamp-2 pl-0.5">
+                  <p className="min-w-0 break-words text-xs text-slate-600 leading-relaxed line-clamp-2 pl-0.5">
                     {doc.description || 'Nessuna descrizione.'}
                   </p>
 
@@ -337,7 +358,7 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
                         <span className="truncate">🗓️ {doc.validity}</span>
                       )}
                       {doc.expiresAt && (
-                        <span className="font-semibold text-rose-600">⏳ Scad: {doc.expiresAt}</span>
+                        <span className="font-semibold text-rose-600">⏳ Scad: {formatDateIT(doc.expiresAt)}</span>
                       )}
                     </div>
 

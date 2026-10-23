@@ -100,7 +100,9 @@ export const liveService = {
     const tripSnap = await getDoc(doc(db, 'trips', tripId));
     const tripData = tripSnap.exists() ? tripSnap.data() : null;
     const members: string[] = Array.isArray(tripData?.members) ? tripData!.members : [];
-    if (!members.includes(user.uid)) {
+    const isOwner = tripData?.ownerUid === user.uid;
+    const isMember = members.includes(user.uid);
+    if (!isOwner && !isMember) {
       throw new Error('Solo i membri del viaggio possono pubblicare nel Live.');
     }
 

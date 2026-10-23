@@ -3,6 +3,7 @@ import Modal from '../common/Modal';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { openAttachmentInNewTab } from '../../utils/fileAttachment';
+import { formatDateIT } from '../../utils/tripDates';
 
 interface TimelineItemDetailModalProps {
   isOpen: boolean;
@@ -386,7 +387,7 @@ export default function TimelineItemDetailModal({
                       <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
                         Data Programmata
                       </span>
-                      <p className="font-semibold text-slate-700">📅 {tp.data}</p>
+                      <p className="font-semibold text-slate-700">📅 {formatDateIT(tp.data)}</p>
                     </div>
                   )}
                   {(tp.orario || (tp as any).time) && (

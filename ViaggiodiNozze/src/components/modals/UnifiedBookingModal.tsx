@@ -1,16 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { BookingCategory } from '../../services/unifiedBookingService';
 import { BOOKING_CATEGORY_META } from '../../services/unifiedBookingService';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
 import { processFileForAttachment, formatFileSize } from '../../utils/fileAttachment';
-import type { TransportAttachment } from '../../types';
+import type { TransportAttachment, Attivita, Tappa, Alloggio, Ristorante, Trasporto } from '../../types';
+import { formatDateIT } from '../../utils/tripDates';
 
 interface UnifiedBookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
   initialCategory?: BookingCategory;
+}
+
+export interface RoadbookSuggestion {
+  id: string;
+  sourceType: 'attivita' | 'tappa' | 'alloggio' | 'ristorante' | 'trasporto';
+  title: string;
+  subtitle?: string;
+  date?: string;
+  time?: string;
+  location?: string;
+  cost?: string;
+  notes?: string;
+  categoryOrSubcategory?: string;
 }
 
 export default function UnifiedBookingModal({
@@ -60,6 +74,213 @@ export default function UnifiedBookingModal({
   const [formError, setFormError] = useState('');
   const [packageIncluded, setPackageIncluded] = useState(false);
 
+  // Autocomplete elementi del viaggio attivo
+  const [roadbookItems, setRoadbookItems] = useState<RoadbookSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const autocompleteContainerRef = useRef<HTMLDivElement>(null);
+
+  // Caricamento elementi del viaggio attivo per autocomplete
+  useEffect(() => {
+    if (!isOpen) return;
+
+    let isMounted = true;
+    const fetchTripItems = async () => {
+      try {
+        const [acts, tps, accs, rists, trs] = await Promise.all([
+          storageService.getActivities().catch(() => [] as Attivita[]),
+          storageService.getTappe().catch(() => [] as Tappa[]),
+          storageService.getAccommodations().catch(() => [] as Alloggio[]),
+          storageService.getRistoranti ? storageService.getRistoranti().catch(() => [] as Ristorante[]) : Promise.resolve([] as Ristorante[]),
+          storageService.getTransports().catch(() => [] as Trasporto[])
+        ]);
+
+        if (!isMounted) return;
+
+        const suggestions: RoadbookSuggestion[] = [];
+
+        // 1. Attività
+        acts.forEach(a => {
+          if (a.title) {
+            suggestions.push({
+              id: a.id,
+              sourceType: 'attivita',
+              title: a.title,
+              subtitle: a.sottocategoria || a.category,
+              date: a.date,
+              time: a.time,
+              location: a.location || a.address,
+              cost: a.cost,
+              notes: a.notes,
+              categoryOrSubcategory: a.sottocategoria
+            });
+          }
+        });
+
+        // 2. Tappe Roadbook
+        tps.forEach(t => {
+          const tTitle = t.titolo;
+          if (tTitle) {
+            suggestions.push({
+              id: t.id,
+              sourceType: 'tappa',
+              title: tTitle,
+              subtitle: t.sottocategoria || 'Tappa Roadbook',
+              date: t.data || t.date,
+              time: t.orario || t.time,
+              location: t.indirizzo || t.mapsUrl,
+              notes: t.nota
+            });
+          }
+        });
+
+        // 3. Alloggi
+        accs.forEach(h => {
+          if (h.name) {
+            suggestions.push({
+              id: h.id,
+              sourceType: 'alloggio',
+              title: h.name,
+              subtitle: h.sottocategoria || 'Struttura ricettiva',
+              date: h.checkIn,
+              location: h.location || h.address,
+              cost: h.cost,
+              notes: h.notes,
+              categoryOrSubcategory: h.sottocategoria
+            });
+          }
+        });
+
+        // 4. Ristoranti
+        rists.forEach(r => {
+          if (r.nome) {
+            suggestions.push({
+              id: r.id,
+              sourceType: 'ristorante',
+              title: r.nome,
+              subtitle: r.sottocategoria ? `Ristorante (${r.sottocategoria})` : 'Ristorante',
+              date: r.data || r.date,
+              time: r.orario,
+              location: r.indirizzo,
+              cost: r.budget,
+              notes: r.nota,
+              categoryOrSubcategory: r.sottocategoria
+            });
+          }
+        });
+
+        // 5. Trasporti
+        trs.forEach(tr => {
+          const trTitle = tr.carrier || `${tr.departureLocation} → ${tr.arrivalLocation}`;
+          if (trTitle) {
+            suggestions.push({
+              id: tr.id,
+              sourceType: 'trasporto',
+              title: trTitle,
+              subtitle: `${tr.departureLocation} → ${tr.arrivalLocation}`,
+              date: tr.date,
+              time: tr.departureTime,
+              location: tr.departureLocation,
+              cost: tr.cost,
+              notes: tr.noteCopilota
+            });
+          }
+        });
+
+        // Deduplica per ID
+        const seen = new Set<string>();
+        const unique = suggestions.filter(s => {
+          const key = `${s.sourceType}_${s.id}_${s.title}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+
+        setRoadbookItems(unique);
+      } catch (err) {
+        console.warn('[UnifiedBookingModal] Errore caricamento suggerimenti roadbook:', err);
+      }
+    };
+
+    fetchTripItems();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
+
+  // Gestione click esterno per chiudere i suggerimenti
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (autocompleteContainerRef.current && !autocompleteContainerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Filtra i suggerimenti pertinenti
+  const filteredSuggestions = useMemo(() => {
+    if (!roadbookItems.length) return [];
+    const q = title.trim().toLowerCase();
+
+    return roadbookItems.filter(item => {
+      let isCategoryMatch = false;
+      if (category === 'attivita') {
+        isCategoryMatch = item.sourceType === 'attivita' || item.sourceType === 'tappa';
+      } else if (category === 'alloggio') {
+        isCategoryMatch = item.sourceType === 'alloggio' || item.sourceType === 'tappa';
+      } else if (category === 'ristorante') {
+        isCategoryMatch = item.sourceType === 'ristorante' || item.sourceType === 'tappa';
+      } else if (category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper') {
+        isCategoryMatch = item.sourceType === 'trasporto' || item.sourceType === 'tappa';
+      } else {
+        isCategoryMatch = true;
+      }
+
+      if (!q) {
+        return isCategoryMatch;
+      }
+
+      const matchText = `${item.title} ${item.subtitle || ''} ${item.location || ''}`.toLowerCase();
+      return matchText.includes(q);
+    }).slice(0, 7);
+  }, [roadbookItems, title, category]);
+
+  const handleSelectSuggestion = (s: RoadbookSuggestion) => {
+    setTitle(s.title);
+
+    // Precompila i campi compatibili preservando quelli già inseriti manualmente dall'utente
+    if (!date && s.date) setDate(s.date);
+    if (!time && s.time) setTime(s.time);
+    if (!cost && s.cost) setCost(s.cost.replace('€', '').trim());
+
+    if (s.location) {
+      if (category === 'alloggio' && !hotelAddress) {
+        setHotelAddress(s.location);
+      } else if (category === 'ristorante' && !ristoranteIndirizzo) {
+        setRistoranteIndirizzo(s.location);
+      } else if ((category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper') && !departureLocation) {
+        setDepartureLocation(s.location);
+      }
+    }
+
+    if (s.notes && !notes) {
+      setNotes(s.notes);
+    }
+
+    if (s.categoryOrSubcategory) {
+      if (category === 'attivita' && ['Escursione', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'].includes(s.categoryOrSubcategory)) {
+        setAttivitaSottocategoria(s.categoryOrSubcategory as any);
+      } else if (category === 'alloggio' && ['Hotel', 'B&B', 'Appartamento', 'Campeggio/Piazzola', 'Altro'].includes(s.categoryOrSubcategory)) {
+        setSottocategoriaAlloggio(s.categoryOrSubcategory as any);
+      } else if (category === 'ristorante' && ['Colazione', 'Pranzo', 'Cena', 'Aperitivo', 'Street Food', 'Altro'].includes(s.categoryOrSubcategory)) {
+        setRistorantePasto(s.categoryOrSubcategory as any);
+      }
+    }
+
+    setShowSuggestions(false);
+  };
+
   // Reset campi quando si apre il modale
   useEffect(() => {
     if (isOpen) {
@@ -84,6 +305,7 @@ export default function UnifiedBookingModal({
       setAttachments([]);
       setFormError('');
       setUploadError('');
+      setShowSuggestions(false);
     }
   }, [isOpen, initialCategory]);
 
@@ -212,6 +434,7 @@ export default function UnifiedBookingModal({
           id: uniqueId,
           dayId: 'giorno_' + (date || '1'),
           date: date || new Date().toISOString().split('T')[0],
+          endDate: checkOutDate || undefined,
           time: time || undefined,
           title: title.trim(),
           location: title.trim(),
@@ -260,30 +483,6 @@ export default function UnifiedBookingModal({
         notifyDataChanged('ristoranti', 'save', restaurantPayload);
         window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
           detail: { entityType: 'ristoranti', action: 'save', data: restaurantPayload }
-        }));
-      } else if (category === 'documento') {
-        if (!title.trim()) {
-          setFormError('Inserisci il titolo del documento');
-          setSaving(false);
-          return;
-        }
-
-        const docPayload: any = {
-          id: uniqueId,
-          category: 'passaporto',
-          title: title.trim(),
-          description: notes.trim() || undefined,
-          status: 'Valido',
-          validity: date || undefined,
-          expiresAt: checkOutDate || undefined,
-          attachments,
-          updatedAt: new Date().toISOString()
-        };
-
-        await storageService.saveDocument(docPayload);
-        notifyDataChanged('documenti', 'save', docPayload);
-        window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-          detail: { entityType: 'documenti', action: 'save', data: docPayload }
         }));
       }
 
@@ -377,22 +576,77 @@ export default function UnifiedBookingModal({
                   ? 'Nome Ristorante / Locale *'
                   : 'Titolo / Denominazione *'}
               </label>
-              <input
-                type="text"
-                required
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                placeholder={
-                  category === 'volo'
-                    ? 'Es. Volo Emirates EK98 / Air China CA950'
-                    : category === 'alloggio'
-                    ? 'Es. Hotel Grand Chancellor / Airbnb'
-                    : category === 'attivita'
-                    ? 'Es. Biglietto Hobbiton Movie Set Tour'
-                    : 'Es. Nome prenotazione'
-                }
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900 text-slate-900 dark:text-white font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B5F]/40"
-              />
+              <div ref={autocompleteContainerRef} className="relative">
+                <input
+                  type="text"
+                  required
+                  value={title}
+                  onFocus={() => setShowSuggestions(true)}
+                  onChange={e => {
+                    setTitle(e.target.value);
+                    setShowSuggestions(true);
+                  }}
+                  placeholder={
+                    category === 'volo'
+                      ? 'Es. Volo Emirates EK98 / Air China CA950'
+                      : category === 'alloggio'
+                      ? 'Es. Hotel Grand Chancellor / Airbnb'
+                      : category === 'attivita'
+                      ? 'Es. Biglietto Hobbiton Movie Set Tour'
+                      : category === 'ristorante'
+                      ? 'Es. Ristorante / Trattoria tipica'
+                      : 'Es. Nome prenotazione'
+                  }
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900 text-slate-900 dark:text-white font-semibold text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B5F]/40"
+                />
+
+                {showSuggestions && filteredSuggestions.length > 0 && (
+                  <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl max-h-56 overflow-y-auto p-1.5 divide-y divide-slate-100 dark:divide-slate-800">
+                    <div className="px-3 py-1 flex items-center justify-between text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                      <span>Attività & tappe del viaggio ({filteredSuggestions.length})</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowSuggestions(false)}
+                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-bold"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {filteredSuggestions.map(item => (
+                      <button
+                        key={`${item.sourceType}_${item.id}`}
+                        type="button"
+                        onClick={() => handleSelectSuggestion(item)}
+                        className="w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/80 flex items-start justify-between gap-2 transition-colors cursor-pointer"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-sm">
+                              {item.sourceType === 'attivita' ? '🎟️' : item.sourceType === 'tappa' ? '📍' : item.sourceType === 'alloggio' ? '🏨' : item.sourceType === 'ristorante' ? '🍽️' : '✈️'}
+                            </span>
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                              {item.title}
+                            </span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-medium whitespace-nowrap">
+                              {item.sourceType === 'attivita' ? 'Attività' : item.sourceType === 'tappa' ? 'Tappa' : item.sourceType === 'alloggio' ? 'Alloggio' : item.sourceType === 'ristorante' ? 'Ristorante' : 'Trasporto'}
+                            </span>
+                          </div>
+                          {(item.location || item.subtitle) && (
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5 pl-5">
+                              {item.location || item.subtitle}
+                            </div>
+                          )}
+                        </div>
+                        {item.date && (
+                          <div className="text-[10px] font-mono text-slate-400 dark:text-slate-500 whitespace-nowrap pt-0.5">
+                            {formatDateIT(item.date)}
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Dettagli per Trasporti (Partenza / Arrivo) */}
@@ -601,12 +855,12 @@ export default function UnifiedBookingModal({
               />
             </div>
 
-            {/* Fine per Alloggio o Noleggio */}
-            {(category === 'alloggio' || category === 'auto_camper') && (
+            {/* Fine per Alloggio, Noleggio o Attività */}
+            {(category === 'alloggio' || category === 'auto_camper' || category === 'attivita') && (
               <>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    {category === 'alloggio' ? 'Data Check-out' : 'Data Riconsegna'}
+                    {category === 'alloggio' ? 'Data Check-out' : category === 'auto_camper' ? 'Data Riconsegna' : 'Data Termine (Opzionale)'}
                   </label>
                   <input
                     type="date"
@@ -615,17 +869,19 @@ export default function UnifiedBookingModal({
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900 font-semibold"
                   />
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    {category === 'alloggio' ? 'Orario Check-out' : 'Orario Riconsegna'}
-                  </label>
-                  <input
-                    type="time"
-                    value={checkOutTime}
-                    onChange={e => setCheckOutTime(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900 font-semibold"
-                  />
-                </div>
+                {category !== 'attivita' && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
+                      {category === 'alloggio' ? 'Orario Check-out' : 'Orario Riconsegna'}
+                    </label>
+                    <input
+                      type="time"
+                      value={checkOutTime}
+                      onChange={e => setCheckOutTime(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900 font-semibold"
+                    />
+                  </div>
+                )}
               </>
             )}
 

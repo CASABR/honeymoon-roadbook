@@ -113,9 +113,9 @@ export default function CategorieBar({
 
       {/* Dock popup a 2 file da 3 icone */}
       <div className="fixed bottom-20 left-4 right-4 max-w-sm mx-auto z-50 animate-slide-up">
-        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 p-3.5">
-          <div className="flex items-center justify-between px-2 mb-2 pb-1.5 border-b border-slate-100 dark:border-slate-800">
-            <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+        <div className="hounigo-panel dark:bg-slate-900/95 backdrop-blur-xl rounded-3xl p-3.5">
+          <div className="flex items-center justify-between px-2 mb-2 pb-1.5 border-b border-[#e5e3dd] dark:border-slate-800">
+            <span className="hounigo-section-kicker dark:text-slate-400 flex items-center gap-1.5">
               <span>🗂️</span> Sfoglia e Gestisci Categorie
             </span>
             <button
@@ -141,8 +141,8 @@ export default function CategorieBar({
                   }}
                   className={`group flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-150 cursor-pointer min-h-[76px] border ${
                     isActive
-                      ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-900 dark:border-slate-100 shadow-md shadow-slate-900/20 scale-[1.02]'
-                      : 'bg-white dark:bg-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 border-slate-200/70 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 shadow-xs active:scale-95'
+                      ? 'bg-[#172033] dark:bg-slate-100 text-white dark:text-slate-900 border-[#172033] dark:border-slate-100 shadow-md shadow-[#172033]/15 scale-[1.02]'
+                      : 'bg-[#fffdfa] dark:bg-slate-800/80 hover:bg-[#f1eee7] dark:hover:bg-slate-800 text-[#172033] dark:text-slate-100 border-[#e5e3dd] dark:border-slate-700 hover:border-[#d6d1c7] dark:hover:border-slate-600 active:scale-95'
                   }`}
                 >
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg mb-1.5 transition-transform duration-150 ${

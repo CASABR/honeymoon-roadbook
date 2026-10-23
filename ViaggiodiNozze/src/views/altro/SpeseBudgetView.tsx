@@ -259,8 +259,29 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
 
     addToList(spese, 'altro', 'title', 'notes', 'date', 'amount', 'amount');
     
-    // Custom per trasporti
+    // Custom per trasporti con deduplicazione tratte multi-giorno
+    const seenFlightTickets = new Set<string>();
+
     trasporti.forEach((t) => {
+      const tType = (t.type || 'volo').toLowerCase();
+      const carrierStr = (t.carrier || '').toLowerCase();
+
+      // Salta tratte di prosecuzione / coincidenza che si ripercuotono su più giorni
+      if (carrierStr.includes('prosecuzione') || carrierStr.includes('coincidenza')) {
+        return;
+      }
+
+      // Se due tratte aeree condividono lo stesso bookingCode o PNR, mostriamo la spesa una sola volta
+      if (tType === 'volo') {
+        const ticketKey = (t.bookingCode?.trim() || t.pnr?.trim() || '').toLowerCase();
+        if (ticketKey && seenFlightTickets.has(ticketKey)) {
+          return;
+        }
+        if (ticketKey) {
+          seenFlightTickets.add(ticketKey);
+        }
+      }
+
       const paymentInfo = resolvePaymentInfo({
         cost: t.cost,
         depositPaid: t.depositPaid || t.acconto || t.amountPaid,
@@ -270,7 +291,6 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
         packageIncluded: t.packageIncluded
       });
 
-      const tType = (t.type || 'volo').toLowerCase();
       let subName = 'Voli';
       let subIcon = '✈️';
       if (tType === 'traghetto') { subName = 'Traghetti'; subIcon = '⛴️'; }
@@ -280,6 +300,10 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
       else if (tType === 'treno') { subName = 'Treni'; subIcon = '🚆'; }
 
       if (paymentInfo.isFree || paymentInfo.isPackageIncluded) {
+        // Se è un volo gratuito/incluso (tratta di coincidenza o layover), non mostrare doppioni a 0€
+        if (tType === 'volo') {
+          return;
+        }
         list.push({
           id: t.id,
           category: 'trasporti',
