@@ -1,9 +1,10 @@
-import React, { useState, useRef } from 'react';
+import { useState } from 'react';
 import type { TransportAttachment } from '../../types';
 import Modal from '../common/Modal';
 import LightboxCarousel from '../common/LightboxCarousel';
+import DropZone from '../common/DropZone';
 import { processFileForAttachment, formatFileSize, openAttachmentInNewTab } from '../../utils/fileAttachment';
-import { Trash2, Plus, Download, FileText } from 'lucide-react';
+import { Trash2, Download, FileText } from 'lucide-react';
 
 interface UniversalAttachmentModalProps {
   isOpen: boolean;
@@ -26,13 +27,10 @@ export default function UniversalAttachmentModal({
   const [uploadProgressText, setUploadProgressText] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [zoomedIndex, setZoomedIndex] = useState<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const handleFilesBatch = async (filesArray: File[]) => {
+    if (!filesArray || filesArray.length === 0) return;
 
-    const filesArray = Array.from(files);
     setErrorMessage('');
     setIsUploading(true);
     setUploadProgressText(`Elaborazione di ${filesArray.length} ${filesArray.length === 1 ? 'file' : 'file'}...`);
@@ -47,11 +45,10 @@ export default function UniversalAttachmentModal({
       await onSave(newAttachments);
     } catch (err: any) {
       console.error('Errore:', err);
-      setErrorMessage(err.message || 'Errore imprevisto.');
+      setErrorMessage(err.message || 'Errore imprevisto durante il caricamento.');
     } finally {
       setIsUploading(false);
       setUploadProgressText('');
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -71,24 +68,15 @@ export default function UniversalAttachmentModal({
   const renderContent = () => {
     if (attachments.length === 0) {
       return (
-        <div className="flex flex-col items-center justify-center p-8 text-center bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-dashed border-slate-300 dark:border-slate-600">
-          <div className="w-16 h-16 bg-[#FFF0ED] text-[#FF6B5F] rounded-full flex items-center justify-center mb-4">
-            <FileText className="w-8 h-8" />
-          </div>
-          <h3 className="text-[#172033] dark:text-white font-bold mb-2">Nessun Pass caricato</h3>
-          <p className="text-slate-500 dark:text-slate-400 text-sm mb-6 max-w-[250px]">
-            Carica biglietti, QR code o ricevute in formato PDF o Immagine per averli sempre a portata di mano (anche offline).
-          </p>
-          {canEdit && (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="bg-[#FF6B5F] hover:bg-[#e85c50] text-white px-6 py-3 rounded-xl font-bold flex items-center gap-2 transition-colors active:scale-95 shadow-md shadow-[#FF6B5F]/20"
-            >
-              <Plus className="w-5 h-5" />
-              Carica Biglietto
-            </button>
-          )}
-        </div>
+        <DropZone
+          variant="hero"
+          onFilesSelected={handleFilesBatch}
+          isUploading={isUploading}
+          uploadProgressText={uploadProgressText}
+          disabled={!canEdit}
+          title="Trascina qui il tuo Voucher, Biglietto o QR Code"
+          subtitle="Rilascia direttamente dal desktop o clicca per sfogliare (PDF o immagini)"
+        />
       );
     }
 
@@ -148,13 +136,14 @@ export default function UniversalAttachmentModal({
         </div>
 
         {canEdit && (
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="w-full py-3.5 mt-2 bg-[#F0FAF9] dark:bg-slate-800 hover:bg-[#DDF4F5] dark:hover:bg-slate-700 text-[#172033] dark:text-white rounded-xl font-bold flex items-center justify-center gap-2 border border-[#DDF4F5] dark:border-slate-600 transition-colors active:scale-[0.98]"
-          >
-            <Plus className="w-5 h-5" />
-            Aggiungi altri biglietti
-          </button>
+          <DropZone
+            variant="compact"
+            onFilesSelected={handleFilesBatch}
+            isUploading={isUploading}
+            uploadProgressText={uploadProgressText}
+            title="Trascina qui altri voucher o QR code"
+            subtitle="oppure clicca per aggiungere file"
+          />
         )}
       </div>
     );
@@ -163,15 +152,6 @@ export default function UniversalAttachmentModal({
   return (
     <>
       <Modal isOpen={isOpen} onClose={onClose} title={title} accentVariant="sky">
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileSelect}
-          className="hidden"
-          accept="image/jpeg,image/png,image/webp,application/pdf"
-          multiple
-        />
-        
         {errorMessage && (
           <div className="p-3 mb-4 bg-rose-50 text-rose-700 rounded-xl text-sm border border-rose-200">
             {errorMessage}

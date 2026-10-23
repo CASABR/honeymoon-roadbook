@@ -22,10 +22,12 @@ import { getTripConfig, saveTripConfig, normalizeTripConfig, type TripConfig } f
 import { getPersistedSession, registerDeviceOnFirestore } from './utils/deviceSession';
 import { withTimeout } from './utils/withTimeout';
 import { storageService } from './storage/storageService';
+import { useAuthIdentity } from './utils/useAuthIdentity';
 import { auth } from './firebase';
 import { signInAnonymously, onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
+import { recordUserAccess } from './services/userAccessService';
 
 const LiveView = lazy(() => import('./views/altro/LiveView'));
 const AdminDashboardView = lazy(() => import('./views/altro/AdminDashboardView'));
@@ -72,9 +74,8 @@ export default function App() {
     );
   });
 
-  // Rileva accesso diretto alla console Admin via URL dedicato autonomo (?admin=1 o #admin)
-  // Nessun pulsante, link o menu rimanda a questa vista dalla PWA pubblica
-  const [isAdminRoute] = useState<boolean>(() => {
+  // Rileva accesso diretto alla console Admin via URL dedicato autonomo (?admin=1 o #admin) o evento interno
+  const [isAdminRoute, setIsAdminRoute] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     const urlParams = new URLSearchParams(window.location.search);
     return (
@@ -84,6 +85,27 @@ export default function App() {
       (window.location.hash || '').toLowerCase().includes('admin')
     );
   });
+
+  useEffect(() => {
+    const checkAdmin = () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const isAdm = (
+        urlParams.get('admin') === '1' ||
+        urlParams.get('admin') === 'true' ||
+        urlParams.get('view') === 'admin' ||
+        (window.location.hash || '').toLowerCase().includes('admin')
+      );
+      setIsAdminRoute(isAdm);
+    };
+    window.addEventListener('popstate', checkAdmin);
+    window.addEventListener('hashchange', checkAdmin);
+    window.addEventListener('open_admin_console', () => setIsAdminRoute(true));
+    return () => {
+      window.removeEventListener('popstate', checkAdmin);
+      window.removeEventListener('hashchange', checkAdmin);
+      window.removeEventListener('open_admin_console', () => setIsAdminRoute(true));
+    };
+  }, []);
 
   // PRIMISSIMA operazione sincrona: verifica se la sessione del dispositivo è autenticata
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -97,6 +119,7 @@ export default function App() {
   });
 
   const [tripConfig, setTripConfig] = useState<TripConfig | null>(getInitialTripConfig);
+  const { isSimulated, simulatedRole, setSimulatedRole } = useAuthIdentity();
 
   const [isInitializing, setIsInitializing] = useState(() => {
     if (typeof localStorage === 'undefined') return false;
@@ -132,8 +155,12 @@ export default function App() {
       let config = tripConfig;
       if (!config) {
         try {
-          const { idbGet } = await import('./storage/indexedDB');
-          const storedConfig = await withTimeout(idbGet<any>('settings', 'trip_config_backup'), 1500, undefined);
+          const { idbGetForTrip } = await import('./storage/indexedDB');
+          const storedConfig = await withTimeout(
+            idbGetForTrip<any>(session.tripId || '0000', 'settings', 'trip_config_backup'),
+            1500,
+            undefined
+          );
           if (storedConfig && storedConfig.value) {
             config = storedConfig.value;
             if (typeof localStorage !== 'undefined') {
@@ -257,6 +284,9 @@ export default function App() {
         signInAnonymously(auth).catch((error) => {
           console.error('[Auth] Errore signInAnonymously:', error);
         });
+      } else {
+        // Registrazione ultimo accesso utente compatibile Firebase Spark
+        recordUserAccess(user, tripConfig?.id);
       }
     });
     return () => unsubscribe();
@@ -265,6 +295,9 @@ export default function App() {
   useEffect(() => {
     // Aspettiamo di avere sia il config del viaggio sia l'autenticazione prima di avviare il sync
     if (!tripConfig || !authUser) return;
+
+    // Aggiornamento associazione viaggio per l'ultimo accesso
+    recordUserAccess(authUser, tripConfig.id);
     
     let isMounted = true;
     let syncService: SyncService | null = null;
@@ -278,32 +311,50 @@ export default function App() {
           
           if (!snapshot || !snapshot.exists()) {
             const batch = writeBatch(db);
-            batch.set(tripRef, {
+            const tripPayload: any = {
               ownerUid: authUser.uid,
               members: [authUser.uid],
               title: tripConfig.title,
               startDate: tripConfig.startDate,
               endDate: tripConfig.endDate,
               createdAt: Date.now()
-            }, { merge: true });
-            batch.set(memberRef, {
+            };
+            if (tripConfig.ownerName) {
+              tripPayload.ownerName = tripConfig.ownerName;
+            }
+            batch.set(tripRef, tripPayload, { merge: true });
+
+            const memberPayload: any = {
               uid: authUser.uid,
               role: 'owner',
               createdAt: Date.now()
-            }, { merge: true });
+            };
+            if (tripConfig.ownerName) {
+              memberPayload.name = tripConfig.ownerName;
+            }
+            batch.set(memberRef, memberPayload, { merge: true });
             await batch.commit().catch(err => {
               console.warn("[Auth] Impossibile creare il viaggio / membro owner:", err);
             });
           } else {
             const tripData = snapshot.data();
+            // Se il cloud ha già ownerName e il config locale no, sincronizza in locale
+            if (tripData?.ownerName && !tripConfig.ownerName) {
+              const updatedCfg = { ...tripConfig, ownerName: tripData.ownerName };
+              saveTripConfig(updatedCfg);
+            }
             if (tripData?.ownerUid === authUser.uid) {
               const memSnap = await getDoc(memberRef).catch(() => null);
               if (!memSnap || !memSnap.exists()) {
-                await setDoc(memberRef, {
+                const memData: any = {
                   uid: authUser.uid,
                   role: 'owner',
                   createdAt: Date.now()
-                }, { merge: true }).catch(err => {
+                };
+                if (tripConfig.ownerName || tripData?.ownerName) {
+                  memData.name = tripConfig.ownerName || tripData?.ownerName;
+                }
+                await setDoc(memberRef, memData, { merge: true }).catch(err => {
                   console.warn("[Auth] Impossibile allineare membro owner:", err);
                 });
               }
@@ -462,18 +513,6 @@ export default function App() {
     );
   }
 
-  // Se l'utente non è ancora autenticato e non siamo in vista ospite Live esterna
-  if (!isAuthenticated && !(isExternalLive && externalTripId)) {
-    return (
-      <OnboardingView
-        onComplete={() => {
-          setIsAuthenticated(true);
-          setTripConfig(getTripConfig() || normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' }));
-        }}
-      />
-    );
-  }
-
   if (isAdminRoute) {
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col p-4 sm:p-6 font-sans antialiased">
@@ -490,10 +529,23 @@ export default function App() {
             url.searchParams.delete('admin');
             url.searchParams.delete('view');
             url.hash = '';
-            window.location.href = url.pathname + (url.search ? url.search : '');
+            window.history.pushState({}, '', url.pathname + (url.search ? url.search : ''));
+            setIsAdminRoute(false);
           }} />
         </Suspense>
       </div>
+    );
+  }
+
+  // Se l'utente non è ancora autenticato e non siamo in vista ospite Live esterna
+  if (!isAuthenticated && !(isExternalLive && externalTripId)) {
+    return (
+      <OnboardingView
+        onComplete={() => {
+          setIsAuthenticated(true);
+          setTripConfig(getTripConfig() || normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' }));
+        }}
+      />
     );
   }
 
@@ -536,6 +588,9 @@ export default function App() {
     if (section === 'itinerario') {
       setActiveTab('oggi');
       setActiveCategoria(null);
+    } else if (section === 'tappe') {
+      setActiveTab('categorie');
+      setActiveCategoria('tappe');
     } else if (section === 'alloggi') {
       setActiveTab('categorie');
       setActiveCategoria('alloggi');
@@ -571,11 +626,30 @@ export default function App() {
   const isForcedMobileView = viewMode === 'mobile';
 
   return (
-    <div className={`min-h-screen bg-[#FAF7F2] dark:bg-slate-950 text-[#172033] dark:text-slate-100 flex flex-col ${isForcedMobileView ? 'items-center justify-start bg-slate-200/70 dark:bg-slate-900/90' : 'md:flex-row'} selection:bg-rose-500 selection:text-white font-sans antialiased`}>
+    <div className="flex flex-col min-h-screen">
+      {/* ─── BANNER MODALITÀ TEST SIMULATA (Solo ambiente Dev) ────────────────────────── */}
+      {isSimulated && (
+        <div className="w-full bg-amber-500 text-slate-950 px-4 py-2 text-xs font-black flex items-center justify-between sticky top-0 z-50 shadow-lg border-b border-amber-600">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🧪</span>
+            <span>MODALITÀ TEST SIMULATA ATTIVA: <strong>{simulatedRole?.toUpperCase()}</strong></span>
+            <span className="hidden sm:inline text-amber-950/80 font-normal text-[11px]">— Solo simulazione locale dell'interfaccia. Nessun dato reale né permessi Firestore modificati.</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSimulatedRole(null)}
+            className="px-2.5 py-1 bg-slate-900 text-white hover:bg-slate-800 rounded-lg text-[10px] font-extrabold cursor-pointer transition-colors shadow-xs"
+          >
+            Ripristina Reale ✕
+          </button>
+        </div>
+      )}
+
+      <div className={`flex-1 min-h-screen bg-[#F8F7F3] dark:bg-slate-950 text-[#172033] dark:text-slate-100 flex flex-col ${isForcedMobileView ? 'items-center justify-start bg-[#e9e5dd] dark:bg-slate-900/90' : 'md:flex-row'} selection:bg-[#FF6B5F] selection:text-white font-sans antialiased`}>
       
       {/* ─── FLOATING BAR PER TORNARE A DESKTOP (Mostrata su schermi md+ se attiva la vista mobile) ─── */}
       {isForcedMobileView && (
-        <div className="hidden md:flex fixed top-3 left-1/2 -translate-x-1/2 z-50 items-center gap-3 bg-white/95 dark:bg-slate-800/95 backdrop-blur-md px-4 py-2 rounded-full border border-slate-300 dark:border-slate-700 shadow-xl animate-fade-in">
+        <div className="hidden md:flex fixed top-3 left-1/2 -translate-x-1/2 z-50 items-center gap-3 bg-[#fffdfa]/95 dark:bg-slate-800/95 backdrop-blur-md px-4 py-2 rounded-full border border-[#e5e3dd] dark:border-slate-700 shadow-xl animate-fade-in">
           <span className="flex items-center gap-1.5 text-xs font-black text-slate-700 dark:text-slate-200">
             <span>📱</span>
             <span>Modalità Mobile attiva</span>
@@ -583,7 +657,7 @@ export default function App() {
           <button
             type="button"
             onClick={toggleViewMode}
-            className="px-3 py-1 rounded-full text-xs font-bold bg-[#FF6B5F] hover:bg-[#ff5547] text-white shadow-sm transition-all cursor-pointer"
+            className="hounigo-button-primary px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer"
           >
             Torna a Desktop ↗
           </button>
@@ -607,10 +681,10 @@ export default function App() {
       )}
 
       {/* ─── MAIN CONTENT CONTAINER (Responsive: mobile centered shell, desktop full workspace) ─ */}
-      <div className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#FAF7F2] dark:bg-slate-950 relative pb-20' : 'h-screen overflow-y-auto'}`}>
+      <div className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-[#e5e3dd] dark:border-slate-800 bg-[#F8F7F3] dark:bg-slate-950 relative pb-20' : 'h-screen overflow-y-auto'}`}>
         
         {/* Top Header Mobile / Tablet Header (o sempre in modalità mobile forzata) */}
-        <header className={`w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-slate-200/60 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-30`}>
+        <header className={`w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-[#e5e3dd] dark:border-slate-800 bg-[#fffdfa]/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-30`}>
           <div className="flex items-center gap-1.5">
             <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="h-6 w-auto object-contain max-w-[100px]" />
             {typeof __BUILD_TIME__ !== 'undefined' && (
@@ -619,7 +693,7 @@ export default function App() {
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => setIsWalkthroughOpen(true)}
               className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
@@ -731,8 +805,7 @@ export default function App() {
 
       {/* PWA Install Button */}
       <InstallPWA />
+      </div>
     </div>
   );
 }
-
-

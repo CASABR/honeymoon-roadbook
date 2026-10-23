@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
-import type { Tappa } from '../../types';
+import DestinationSearchModal from '../modals/DestinationSearchModal';
+import type { Tappa, Coordinate } from '../../types';
+import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
+import type { PlaceSuggestion } from '../../services/photonService';
 
 interface TappaFormProps {
   initialData?: Tappa | null;
@@ -19,10 +22,12 @@ export default function TappaForm({ initialData, defaultDate, onSave, onCancel, 
   const [titolo, setTitolo] = useState('');
   const [orario, setOrario] = useState('');
   const [indirizzo, setIndirizzo] = useState('');
+  const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
   const [noteCopilota, setNoteCopilota] = useState('');
   const [nota, setNota] = useState('');
   const [error, setError] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   useEffect(() => {
     if (initialData) {
@@ -43,6 +48,21 @@ export default function TappaForm({ initialData, defaultDate, onSave, onCancel, 
       setNota('');
     }
   }, [initialData, defaultDate]);
+
+  const handleSelectPlace = (place: PlaceSuggestion) => {
+    setTitolo(place.title);
+    if (place.address) {
+      setIndirizzo(place.address);
+    }
+    if (place.coordinate) {
+      setCoordinate(place.coordinate);
+    }
+    if (place.rawLocalItem) {
+      const raw = place.rawLocalItem;
+      if (raw.noteCopilota && !noteCopilota) setNoteCopilota(raw.noteCopilota);
+      if (raw.nota && !nota) setNota(raw.nota);
+    }
+  };
 
   const processSave = async () => {
     setError('');
@@ -163,17 +183,27 @@ export default function TappaForm({ initialData, defaultDate, onSave, onCancel, 
         </div>
       </div>
 
-      {/* 2. Nome / Titolo */}
-      <div>
-        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-          Nome / Punto di Interesse
-        </label>
-        <input
-          type="text"
-          placeholder="es. Lake Pukaki Viewpoint"
+      {/* 2. Nome / Titolo con Autocomplete Integrato */}
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            Cerca o digita luogo
+          </span>
+          <button
+            type="button"
+            onClick={() => setIsSearchModalOpen(true)}
+            className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+          >
+            <span>🔍</span>
+            <span>Ricerca Avanzata &amp; Confronto</span>
+          </button>
+        </div>
+        <PlaceAutocompleteInput
           value={titolo}
-          onChange={(e) => setTitolo(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-750 focus:border-[#FF6B5F] transition-colors"
+          onChange={setTitolo}
+          onSelectPlace={handleSelectPlace}
+          label="Nome / Punto di Interesse"
+          placeholder="es. Lake Pukaki Viewpoint, Cape Reinga..."
           required
         />
       </div>
@@ -248,6 +278,24 @@ export default function TappaForm({ initialData, defaultDate, onSave, onCancel, 
           </button>
         )}
       </div>
+
+      {/* Modale Ricerca Meta Gratuita OpenStreetMap */}
+      <DestinationSearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        entityType="tappa"
+        initialQuery={titolo || indirizzo}
+        currentValues={{
+          name: titolo,
+          address: indirizzo,
+          coordinate: coordinate
+        }}
+        onApply={(applied) => {
+          if (applied.name) setTitolo(applied.name);
+          if (applied.address) setIndirizzo(applied.address);
+          if (applied.coordinate) setCoordinate(applied.coordinate);
+        }}
+      />
 
     </form>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   getAllUnifiedBookings,
   BOOKING_CATEGORY_META,
@@ -16,8 +16,9 @@ import AttivitaForm from '../../components/forms/AttivitaForm';
 import RistoranteForm from '../../components/forms/RistoranteForm';
 import ShoppingForm from '../../components/forms/ShoppingForm';
 import DocumentValidityModal from '../../components/modals/DocumentValidityModal';
-import { storageService, notifyDataChanged } from '../../storage/storageService';
+import { storageService } from '../../storage/storageService';
 import type { Trasporto, Alloggio, Attivita, Ristorante, Shopping, TravelDocument } from '../../types';
+import { formatDateIT, normalizeDateToISO } from '../../utils/tripDates';
 
 interface PrenotazioniWorkspaceViewProps {
   onOpenSmartInsert?: () => void;
@@ -32,6 +33,14 @@ export default function PrenotazioniWorkspaceView({
 
   const [bookings, setBookings] = useState<UnifiedBookingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [isSlowLoading, setIsSlowLoading] = useState(false);
+
+  const isFetchingRef = useRef(false);
+  const debounceTimerRef = useRef<any>(null);
+  const slowTimerRef = useRef<any>(null);
+  const bookingsRef = useRef<UnifiedBookingItem[]>([]);
+  bookingsRef.current = bookings;
 
   // Filtri & Ricerca
   const [searchQuery, setSearchQuery] = useState('');
@@ -85,10 +94,6 @@ export default function PrenotazioniWorkspaceView({
       updatedAt: Date.now()
     };
     await storageService.saveTransport(transportToSave);
-    notifyDataChanged('trasporti', 'save', transportToSave);
-    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-      detail: { entityType: 'trasporti', action: 'save', data: transportToSave }
-    }));
     setEditingTransportItem(null);
     await loadBookings();
   };
@@ -96,10 +101,6 @@ export default function PrenotazioniWorkspaceView({
   const handleDeleteTransport = async () => {
     if (!editingTransportItem) return;
     await storageService.deleteTransport(editingTransportItem.id);
-    notifyDataChanged('trasporti', 'delete', { id: editingTransportItem.id });
-    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-      detail: { entityType: 'trasporti', action: 'delete', data: { id: editingTransportItem.id } }
-    }));
     setEditingTransportItem(null);
     await loadBookings();
   };
@@ -112,10 +113,6 @@ export default function PrenotazioniWorkspaceView({
       updatedAt: Date.now()
     };
     await storageService.saveAccommodation(alloggioToSave);
-    notifyDataChanged('alloggi', 'save', alloggioToSave);
-    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-      detail: { entityType: 'alloggi', action: 'save', data: alloggioToSave }
-    }));
     setEditingAccommodationItem(null);
     await loadBookings();
   };
@@ -123,10 +120,6 @@ export default function PrenotazioniWorkspaceView({
   const handleDeleteAccommodation = async () => {
     if (!editingAccommodationItem) return;
     await storageService.deleteAccommodation(editingAccommodationItem.id);
-    notifyDataChanged('alloggi', 'delete', { id: editingAccommodationItem.id });
-    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-      detail: { entityType: 'alloggi', action: 'delete', data: { id: editingAccommodationItem.id } }
-    }));
     setEditingAccommodationItem(null);
     await loadBookings();
   };
@@ -139,10 +132,6 @@ export default function PrenotazioniWorkspaceView({
       updatedAt: Date.now()
     };
     await storageService.saveActivity(activityToSave);
-    notifyDataChanged('attivita', 'save', activityToSave);
-    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-      detail: { entityType: 'attivita', action: 'save', data: activityToSave }
-    }));
     setEditingActivityItem(null);
     await loadBookings();
   };
@@ -150,10 +139,6 @@ export default function PrenotazioniWorkspaceView({
   const handleDeleteActivity = async () => {
     if (!editingActivityItem) return;
     await storageService.deleteActivity(editingActivityItem.id);
-    notifyDataChanged('attivita', 'delete', { id: editingActivityItem.id });
-    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-      detail: { entityType: 'attivita', action: 'delete', data: { id: editingActivityItem.id } }
-    }));
     setEditingActivityItem(null);
     await loadBookings();
   };
@@ -166,10 +151,6 @@ export default function PrenotazioniWorkspaceView({
       updatedAt: Date.now()
     };
     await storageService.saveRistorante(ristoranteToSave);
-    notifyDataChanged('ristoranti', 'save', ristoranteToSave);
-    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-      detail: { entityType: 'ristoranti', action: 'save', data: ristoranteToSave }
-    }));
     setEditingRestaurantItem(null);
     await loadBookings();
   };
@@ -182,52 +163,65 @@ export default function PrenotazioniWorkspaceView({
       updatedAt: Date.now()
     };
     await storageService.saveShopping(shoppingToSave);
-    notifyDataChanged('shopping', 'save', shoppingToSave);
-    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-      detail: { entityType: 'shopping', action: 'save', data: shoppingToSave }
-    }));
     setEditingShoppingItem(null);
     await loadBookings();
   };
 
   const handleSaveDocument = async (updated: TravelDocument) => {
     await storageService.saveDocument(updated);
-    notifyDataChanged('documenti', 'save', updated);
-    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-      detail: { entityType: 'documenti', action: 'save', data: updated }
-    }));
     setEditingDocumentItem(null);
     await loadBookings();
   };
 
   const loadBookings = useCallback(async (isInitial = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
+    if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+    slowTimerRef.current = setTimeout(() => {
+      setIsSlowLoading(true);
+    }, 6000);
+
     try {
-      if (isInitial && bookings.length === 0) {
+      if (isInitial && bookingsRef.current.length === 0) {
         setLoading(true);
       }
       const data = await getAllUnifiedBookings();
       setBookings(data);
-    } catch (err) {
+      setLoadError(null);
+    } catch (err: any) {
       console.error('Errore caricamento prenotazioni:', err);
+      setLoadError(err?.message || 'Si è verificato un errore durante il caricamento delle prenotazioni.');
     } finally {
+      if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+      setIsSlowLoading(false);
       setLoading(false);
+      isFetchingRef.current = false;
     }
-  }, [bookings.length]);
+  }, []);
 
   useEffect(() => {
     loadBookings(true);
-  }, []);
+    return () => {
+      if (slowTimerRef.current) clearTimeout(slowTimerRef.current);
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    };
+  }, [loadBookings]);
 
-  // Ascolta mutazioni dati e sincronizzazione cloud senza mostrare lo spinner di caricamento
+  // Ascolta mutazioni dati e sincronizzazione cloud con debounce per evitare chiamate ripetute
   useEffect(() => {
     const handleRefresh = () => {
-      loadBookings(false);
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        loadBookings(false);
+      }, 250);
     };
     window.addEventListener('roadbook_data_mutated', handleRefresh);
     window.addEventListener('roadbook_cloud_synced', handleRefresh);
     window.addEventListener('storage', handleRefresh);
 
     return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
       window.removeEventListener('roadbook_data_mutated', handleRefresh);
       window.removeEventListener('roadbook_cloud_synced', handleRefresh);
       window.removeEventListener('storage', handleRefresh);
@@ -277,11 +271,14 @@ export default function PrenotazioniWorkspaceView({
       }
 
       // 3. Filtro temporale
-      if (timeFilter === 'future' && b.date && b.date < todayStr) {
-        return false;
-      }
-      if (timeFilter === 'passate' && b.date && b.date >= todayStr) {
-        return false;
+      if (timeFilter !== 'tutte') {
+        const isoDate = normalizeDateToISO(b.date);
+        if (timeFilter === 'future' && isoDate && isoDate < todayStr) {
+          return false;
+        }
+        if (timeFilter === 'passate' && isoDate && isoDate >= todayStr) {
+          return false;
+        }
       }
 
       // 4. Ricerca testuale
@@ -505,12 +502,45 @@ export default function PrenotazioniWorkspaceView({
       </div>
 
       {/* ─── ELENCO PRINCIPALE PRENOTAZIONI RAGGRUPPATO ─────────────────── */}
-      {loading ? (
+      {loadError && bookings.length === 0 ? (
+        <div className="bg-rose-50/90 dark:bg-rose-950/40 rounded-3xl p-10 text-center border border-rose-200 dark:border-rose-900/50 shadow-sm space-y-3">
+          <span className="text-4xl block">⚠️</span>
+          <h3 className="text-base font-black text-rose-900 dark:text-rose-200">
+            Impossibile caricare le prenotazioni
+          </h3>
+          <p className="text-xs text-rose-700 dark:text-rose-300 max-w-md mx-auto">
+            {loadError}
+          </p>
+          <div className="pt-2 flex justify-center">
+            <button
+              type="button"
+              onClick={() => loadBookings(true)}
+              className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md cursor-pointer transition-colors"
+            >
+              🔄 Riprova Caricamento
+            </button>
+          </div>
+        </div>
+      ) : loading && bookings.length === 0 ? (
         <div className="py-20 flex flex-col items-center justify-center gap-3">
           <div className="w-8 h-8 border-3 border-[#FF6B5F] border-t-transparent rounded-full animate-spin" />
           <span className="text-xs font-bold text-slate-400">
             Caricamento e unificazione prenotazioni in corso...
           </span>
+          {isSlowLoading && (
+            <div className="mt-2 flex flex-col items-center gap-2 animate-fade-in">
+              <span className="text-xs text-amber-600 dark:text-amber-400">
+                Il caricamento sta impiegando più tempo del previsto.
+              </span>
+              <button
+                type="button"
+                onClick={() => loadBookings(true)}
+                className="px-3.5 py-1.5 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold hover:bg-slate-300 cursor-pointer"
+              >
+                Forza Ricaricamento
+              </button>
+            </div>
+          )}
         </div>
       ) : filteredBookings.length === 0 ? (
         <div className="bg-white/80 dark:bg-slate-900/80 rounded-3xl p-12 text-center border border-slate-200/80 dark:border-slate-800 shadow-sm space-y-3">
@@ -556,7 +586,7 @@ export default function PrenotazioniWorkspaceView({
               {/* Header Giorno / Sezione */}
               <div className="flex items-center gap-3 px-1">
                 <span className="text-xs font-black text-[#172033] dark:text-white tracking-wide uppercase">
-                  🗓️ {date}
+                  🗓️ {formatDateIT(date)}
                 </span>
                 <div className="flex-1 h-px bg-slate-200/80 dark:border-slate-800" />
                 <span className="text-[11px] font-bold text-slate-400">

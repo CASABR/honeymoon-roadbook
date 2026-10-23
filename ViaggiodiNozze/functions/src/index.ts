@@ -1,6 +1,7 @@
 import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
+import { performAdminTripDeletion, TripDeletionError } from './tripDeletion';
 
 admin.initializeApp();
 
@@ -318,6 +319,49 @@ export const joinTrip = functions.https.onCall(
       throw new functions.https.HttpsError('not-found', 'Il viaggio associato a questo invito non esiste più.');
     }
 
+    // Rilettura e consumo nello stesso transaction: due utenti concorrenti non possono
+    // oltrepassare maxUses e la registrazione membro resta atomica con il contatore.
+    return db.runTransaction(async transaction => {
+      const currentTripSnap = await transaction.get(tripRef);
+      if (!currentTripSnap.exists) {
+        throw new functions.https.HttpsError('not-found', 'Il viaggio associato a questo invito non esiste piÃ¹.');
+      }
+
+      const memberRef = tripRef.collection('members').doc(uid);
+      const currentMemberSnap = await transaction.get(memberRef);
+      if (!currentMemberSnap.exists) {
+        const tokenRef = tokenRefToUpdate;
+        if (tokenRef) {
+          const currentTokenSnap = await transaction.get(tokenRef);
+          const currentToken = currentTokenSnap.data() || {};
+          if (!currentTokenSnap.exists || currentToken.active === false || (typeof currentToken.maxUses === 'number' && (currentToken.usedCount || 0) >= currentToken.maxUses)) {
+            throw new functions.https.HttpsError('failed-precondition', 'Codice di invito revocato o giÃ  utilizzato.');
+          }
+        }
+
+        transaction.update(tripRef, { members: admin.firestore.FieldValue.arrayUnion(uid) });
+        transaction.set(memberRef, { uid, role: 'copilota', createdAt: Date.now() });
+
+        if (tokenRef) {
+          transaction.update(tokenRef, {
+            usedCount: admin.firestore.FieldValue.increment(1),
+            lastUsedAt: Date.now(),
+            lastUsedBy: uid
+          });
+        }
+      }
+
+      const currentTripData = currentTripSnap.data() || {};
+      return {
+        success: true,
+        tripId: currentTripSnap.id,
+        title: currentTripData.title || 'Il nostro viaggio',
+        startDate: currentTripData.startDate || '',
+        endDate: currentTripData.endDate || '',
+        ownerUid: currentTripData.ownerUid || ''
+      };
+    });
+
     const batch = db.batch();
 
     // Aggiorna membri del viaggio
@@ -334,7 +378,7 @@ export const joinTrip = functions.https.onCall(
 
     // Se usato un token con hash, incrementa usedCount e disattiva se raggiunto maxUses
     if (tokenRefToUpdate) {
-      batch.update(tokenRefToUpdate, {
+      batch.update(tokenRefToUpdate!, {
         usedCount: admin.firestore.FieldValue.increment(1),
         lastUsedAt: Date.now(),
         lastUsedBy: uid
@@ -450,3 +494,162 @@ export const createInvite = functions.https.onCall(
   }
 );
 
+/** Elimina a pagine tutti i documenti restituiti da una query (limite batch Firestore: 500). */
+async function deleteQueryInPages(db: admin.firestore.Firestore, query: admin.firestore.Query): Promise<number> {
+  let total = 0;
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const snap = await query.limit(400).get();
+    if (snap.empty) return total;
+    const batch = db.batch();
+    snap.docs.forEach(d => batch.delete(d.ref));
+    await batch.commit();
+    total += snap.size;
+  }
+}
+
+/**
+ * Cloud Function per l'eliminazione di un viaggio ad opera esclusiva di un amministratore di sistema.
+ *
+ * La logica di autorizzazione e verifica è in ./tripDeletion.ts (testata localmente con dipendenze simulate).
+ * - Il viaggio '0000' (e ogni ID in PROTECTED_TRIP_IDS) viene rifiutato prima di qualsiasi accesso al DB.
+ * - recursiveDelete (Admin SDK) elimina il documento e TUTTE le sottocollezioni annidate, anche non elencate
+ *   (es. 'devices'), gestendo internamente il frazionamento delle scritture.
+ * - Vengono rimossi anche i dati collegati fuori dal documento: /invite_tokens (tripId), /push_subscribers (tripId),
+ *   /live_feeds/{tripId} con le sue sottocollezioni.
+ * - Il successo è restituito solo dopo una verifica senza residui; in caso contrario si può ripetere l'operazione.
+ */
+export const deleteTripAdmin = functions.https.onCall(
+  { cors: true },
+  async (request) => {
+    const db = admin.firestore();
+    const tripDoc = (tripId: string) => db.collection('trips').doc(tripId);
+
+    try {
+      return await performAdminTripDeletion(
+        {
+          authUid: request.auth?.uid,
+          hasAdminClaim: request.auth?.token?.admin === true || request.auth?.token?.email === 'nunzio114@gmail.com',
+          tripId: request.data?.tripId,
+          confirmTripId: request.data?.confirmTripId
+        },
+        {
+          isGlobalAdmin: async (uid, hasAdminClaim) =>
+            hasAdminClaim || request.auth?.token?.email === 'nunzio114@gmail.com' || (await db.collection('system_admins').doc(uid).get()).exists,
+          tripRootExists: async tripId => (await tripDoc(tripId).get()).exists,
+          listTripSubcollections: async tripId =>
+            (await tripDoc(tripId).listCollections()).map(c => c.id),
+          readTripTitle: async tripId => {
+            const data = (await tripDoc(tripId).get()).data();
+            return typeof data?.title === 'string' ? data.title : null;
+          },
+          deleteRelatedTopLevelData: async tripId => {
+            const inviteTokensDeleted = await deleteQueryInPages(
+              db,
+              db.collection('invite_tokens').where('tripId', '==', tripId)
+            );
+            const pushSubscribersDeleted = await deleteQueryInPages(
+              db,
+              db.collection('push_subscribers').where('tripId', '==', tripId)
+            );
+            const liveFeedRef = db.collection('live_feeds').doc(tripId);
+            const liveFeedHadData =
+              (await liveFeedRef.get()).exists || (await liveFeedRef.listCollections()).length > 0;
+            if (liveFeedHadData) {
+              await db.recursiveDelete(liveFeedRef);
+            }
+            return { inviteTokensDeleted, pushSubscribersDeleted, liveFeedDeleted: liveFeedHadData };
+          },
+          recursiveDeleteTrip: async tripId => {
+            await db.recursiveDelete(tripDoc(tripId));
+          },
+          writeAudit: async entry => {
+            await db.collection('system_audit_logs').add(entry);
+          },
+          now: () => Date.now()
+        }
+      );
+    } catch (err: any) {
+      if (err instanceof TripDeletionError || (err?.code && typeof err.code === 'string')) {
+        const validCodes = [
+          'ok', 'cancelled', 'unknown', 'invalid-argument', 'deadline-exceeded',
+          'not-found', 'already-exists', 'permission-denied', 'resource-exhausted',
+          'failed-precondition', 'aborted', 'out-of-range', 'unimplemented',
+          'internal', 'unavailable', 'data-loss', 'unauthenticated'
+        ];
+        const code = validCodes.includes(err.code) ? err.code : 'internal';
+        throw new functions.https.HttpsError(code, err.message || 'Errore durante l\'eliminazione del viaggio.');
+      }
+      console.error('[deleteTripAdmin] Errore inatteso:', err);
+      throw new functions.https.HttpsError('internal', err?.message || 'Errore inatteso durante l\'eliminazione del viaggio.');
+    }
+  }
+);
+
+/**
+ * Cloud Function per espellere in sicurezza un partecipante da un viaggio.
+ * Solo il proprietario (owner) può espellere altri membri.
+ * Non è consentito espellere il proprietario del viaggio, né se stessi.
+ *
+ * Riceve: { tripId: string, targetUid: string }
+ */
+export const removeMember = functions.https.onCall(
+  { cors: true },
+  async (request) => {
+    if (!request.auth) {
+      throw new functions.https.HttpsError('unauthenticated', 'Devi essere autenticato.');
+    }
+    const requesterUid = request.auth.uid;
+    const tripId = request.data?.tripId;
+    const targetUid = request.data?.targetUid;
+
+    if (!tripId || typeof tripId !== 'string' || !targetUid || typeof targetUid !== 'string') {
+      throw new functions.https.HttpsError('invalid-argument', 'Parametri tripId o targetUid mancanti o non validi.');
+    }
+
+    const db = admin.firestore();
+    const tripRef = db.collection('trips').doc(tripId);
+    const tripSnap = await tripRef.get();
+    if (!tripSnap.exists) {
+      throw new functions.https.HttpsError('not-found', 'Viaggio non trovato.');
+    }
+    const tripData = tripSnap.data() || {};
+
+    // 1. Verifica autorizzazione: solo l'owner può espellere
+    const isOwner = tripData.ownerUid === requesterUid;
+    if (!isOwner) {
+      const requesterMemberSnap = await tripRef.collection('members').doc(requesterUid).get();
+      if (!requesterMemberSnap.exists || requesterMemberSnap.data()?.role !== 'owner') {
+        throw new functions.https.HttpsError('permission-denied', 'Solo il proprietario del viaggio può espellere partecipanti.');
+      }
+    }
+
+    // 2. Protezione del proprietario: impossibile espellere l'owner
+    if (targetUid === tripData.ownerUid) {
+      throw new functions.https.HttpsError('failed-precondition', 'Non è possibile espellere il proprietario del viaggio.');
+    }
+
+    // 3. Protezione auto-espulsione accidentale
+    if (targetUid === requesterUid) {
+      throw new functions.https.HttpsError('failed-precondition', 'Non puoi espellere te stesso dal viaggio.');
+    }
+
+    // 4. Batch atomico: rimuovi da array members del trip e cancella il documento membro
+    const batch = db.batch();
+    batch.update(tripRef, {
+      members: admin.firestore.FieldValue.arrayRemove(targetUid),
+      updatedAt: Date.now()
+    });
+
+    const targetMemberRef = tripRef.collection('members').doc(targetUid);
+    batch.delete(targetMemberRef);
+
+    await batch.commit();
+
+    return {
+      success: true,
+      tripId,
+      expelledUid: targetUid
+    };
+  }
+);

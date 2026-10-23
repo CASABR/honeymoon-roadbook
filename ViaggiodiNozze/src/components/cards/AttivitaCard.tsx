@@ -6,6 +6,8 @@ import { resolveMapUrl } from '../../utils/mapsHelper';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
 import AttivitaTicketsModal from '../modals/AttivitaTicketsModal';
 import QRCodeModal from '../modals/QRCodeModal';
+import { formatDateIT } from '../../utils/tripDates';
+import { processFileForAttachment } from '../../utils/fileAttachment';
 
 interface AttivitaCardProps {
   activity: Attivita;
@@ -55,10 +57,6 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
   const icon = '📌';
 
   const mapLink = activity.location ? resolveMapUrl(activity.location) : '';
-  const attachmentsCount = activity.attachments?.length || 0;
-  const hasQRCode = Boolean(activity.qrCode);
-  const canHavePass = hasQRCode || attachmentsCount > 0;
-
   const ritrovo = activity.orarioRitrovo || activity.time;
   const inizio = activity.orarioInizio;
 
@@ -66,7 +64,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
     <>
       <div 
         onClick={onDetail || onEdit} 
-        className="cursor-pointer rounded-2xl border p-3.5 sm:p-4 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 relative active:scale-[0.99] bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
+        className="hounigo-panel cursor-pointer rounded-2xl p-3.5 sm:p-4 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 relative active:scale-[0.99] dark:bg-slate-800 dark:border-slate-700"
       >
         {/* TOP */}
         <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
@@ -75,13 +73,13 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
               <span className="text-sm">{icon}</span> Attività
             </span>
             {(activity.sottocategoria || activity.category) && (
-              <span className="hidden md:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50 text-[11px] font-semibold tracking-wide">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700/80 dark:text-slate-200 dark:border-slate-600 text-[10px] font-bold tracking-wide">
                 <span>🎯</span>
                 <span>{activity.sottocategoria || activity.category}</span>
               </span>
             )}
-            {(ritrovo || inizio || activity.duration) && (
-              <div className="flex items-center gap-1.5 ml-1">
+            {(ritrovo || inizio || activity.duration || activity.endDate) && (
+              <div className="flex items-center gap-1.5 ml-1 flex-wrap">
                 {(ritrovo || inizio) && (
                   <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
                     {ritrovo ? `Ore ${ritrovo}` : `Inizio ${inizio}`}
@@ -90,6 +88,11 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 {activity.duration && (
                   <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
                     • {activity.duration}
+                  </span>
+                )}
+                {activity.endDate && (
+                  <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                    • fino al {formatDateIT(activity.endDate)}
                   </span>
                 )}
               </div>
@@ -156,16 +159,38 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-            {canHavePass && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation();
-                  setIsTicketsOpen(true);
-                }}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 text-xs font-medium transition-colors shadow-2xs cursor-pointer"
+            {(() => {
+              const hasQrOrAttachment = Boolean(activity.qrCode?.trim() || (activity.attachments && activity.attachments.length > 0));
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsTicketsOpen(true);
+                  }}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer border ${
+                    hasQrOrAttachment
+                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-800'
+                      : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 dark:text-indigo-300 dark:border-indigo-800'
+                  }`}
+                  title="Pass / Biglietto / QR"
+                >
+                  <span className="text-[10px]">🎫</span> Pass/QR
+                </button>
+              );
+            })()}
+            {activity.link && (
+              <a
+                href={activity.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600 dark:text-slate-200 text-xs font-medium transition-colors"
+                title="Sito ufficiale / Prenotazione"
               >
-                <span className="text-[10px]">🎫</span> Pass/QR
-              </button>
+                <span className="text-[10px]">🌐</span> 
+                <span>Sito</span>
+              </a>
             )}
             {mapLink && (
               <a
@@ -211,6 +236,27 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
           code={activity.qrCode}
           title={activity.title}
           subtitle="Pass / Biglietto"
+          onFilesSelected={async (files) => {
+            try {
+              const currentAtts = activity.attachments || [];
+              const added = [];
+              for (const f of files) {
+                added.push(await processFileForAttachment(f));
+              }
+              const updated = {
+                ...activity,
+                attachments: [...currentAtts, ...added],
+                updatedAt: Date.now()
+              };
+              await storageService.saveActivity(updated);
+              if (typeof onUpdate === 'function') onUpdate(updated);
+              window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { 
+                detail: { action: 'update', entityType: 'attivita', data: updated } 
+              }));
+            } catch (e) {
+              console.error('Errore drop file su QR code in AttivitaCard:', e);
+            }
+          }}
         />
       )}
     </>

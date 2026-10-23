@@ -11,11 +11,10 @@ export default function AttachmentUploader({ attachments = [], onChange, maxSize
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCounterRef = useRef(0);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const processSingleFile = async (file: File) => {
     setError(null);
 
     // Controlli base
@@ -111,6 +110,51 @@ export default function AttachmentUploader({ attachments = [], onChange, maxSize
     }
   };
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processSingleFile(file);
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current += 1;
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragOver(true);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragOver) setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current -= 1;
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0;
+      setIsDragOver(false);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current = 0;
+    setIsDragOver(false);
+
+    if (isUploading) return;
+
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      await processSingleFile(file);
+    }
+  };
+
   const handleRemove = (id: string) => {
     onChange(attachments.filter(a => a.id !== id));
   };
@@ -123,14 +167,28 @@ export default function AttachmentUploader({ attachments = [], onChange, maxSize
 
   return (
     <div className="space-y-3">
-      {/* Zona di Drop / Pulsante */}
+      {/* Zona di Drop / Pulsante con supporto Drag & Drop desktop */}
       <div 
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         onClick={() => fileInputRef.current?.click()}
-        className="w-full border-2 border-dashed border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 hover:border-indigo-400 transition-colors p-4 flex flex-col items-center justify-center cursor-pointer text-center group"
+        className={`w-full border-2 border-dashed rounded-2xl transition-all p-5 flex flex-col items-center justify-center cursor-pointer text-center group select-none ${
+          isDragOver
+            ? 'border-indigo-500 bg-indigo-50/80 scale-[1.02] shadow-lg ring-2 ring-indigo-400/50'
+            : 'border-slate-300 rounded-xl bg-slate-50 hover:bg-slate-100 hover:border-indigo-400'
+        }`}
       >
-        <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">📤</span>
-        <p className="text-xs font-bold text-slate-700">Carica Documento (Offline)</p>
-        <p className="text-[10px] text-slate-400 mt-0.5">JPG, PNG (comp. automatica) o PDF (max {maxSizeMB} MB)</p>
+        <span className="text-2xl mb-1 group-hover:scale-110 transition-transform">
+          {isDragOver ? '📥' : '📤'}
+        </span>
+        <p className="text-xs font-bold text-slate-700">
+          {isDragOver ? 'Rilascia il file qui!' : 'Trascina qui il file o clicca per caricare'}
+        </p>
+        <p className="text-[10px] text-slate-400 mt-0.5">
+          JPG, PNG (comp. automatica) o PDF (max {maxSizeMB} MB) • Offline
+        </p>
         
         {isUploading && (
           <div className="mt-2 text-[10px] text-indigo-600 font-bold animate-pulse">

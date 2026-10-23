@@ -33,3 +33,10 @@ honeymoon-roadbookzip/
 # Credenziali segrete (NON caricare su Git)
 serviceAccountKey.json
 *.pem
+
+# Diagnostica locale che puÃ² contenere token OAuth o interrogare risorse remote.
+scripts/diag_phase_*.cjs
+scripts/check_deployed_functions.cjs
+scripts/create_valid_invite_token.cjs
+scripts/test_oauth_firestore.cjs
+scripts/inspect_invites.cjs

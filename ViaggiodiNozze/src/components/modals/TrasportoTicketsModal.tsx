@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import type { Trasporto, TransportAttachment } from '../../types';
 import Modal from '../common/Modal';
 import LightboxCarousel from '../common/LightboxCarousel';
+import DropZone from '../common/DropZone';
 import { processFileForAttachment, formatFileSize, openAttachmentInNewTab } from '../../utils/fileAttachment';
 import { storageService } from '../../storage/storageService';
 
@@ -28,11 +29,9 @@ export default function TrasportoTicketsModal({
 
   const attachments = transport.attachments || [];
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const handleFilesBatch = async (filesArray: File[]) => {
+    if (!filesArray || filesArray.length === 0) return;
 
-    const filesArray = Array.from(files);
     setErrorMessage('');
     setIsUploading(true);
     setUploadProgressText(`Elaborazione di ${filesArray.length} ${filesArray.length === 1 ? 'file' : 'file'}...`);
@@ -55,6 +54,9 @@ export default function TrasportoTicketsModal({
 
       await storageService.saveTransport(updatedTransport);
       onUpdateTransport(updatedTransport);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { 
+        detail: { action: 'update', entityType: 'trasporti', data: updatedTransport } 
+      }));
     } catch (err: unknown) {
       console.error('Errore durante il caricamento del file:', err);
       const msg = err instanceof Error ? err.message : 'Errore imprevisto durante il caricamento del file.';
@@ -66,6 +68,12 @@ export default function TrasportoTicketsModal({
         fileInputRef.current.value = '';
       }
     }
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    await handleFilesBatch(Array.from(files));
   };
 
   const handleDeleteAttachment = async (attachmentId: string) => {
@@ -81,6 +89,9 @@ export default function TrasportoTicketsModal({
     try {
       await storageService.saveTransport(updatedTransport);
       onUpdateTransport(updatedTransport);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { 
+        detail: { action: 'update', entityType: 'trasporti', data: updatedTransport } 
+      }));
     } catch (err) {
       console.error('Errore durante l\'eliminazione:', err);
       setErrorMessage('Errore durante l\'eliminazione del file.');
@@ -95,39 +106,27 @@ export default function TrasportoTicketsModal({
     <>
       <Modal isOpen={isOpen} onClose={onClose} title="Biglietti, Pass & QR Code" accentVariant="sky">
         <div className="space-y-4">
-          {/* Header Sintetico */}
-          <div className="flex items-center justify-between gap-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80">
+          {/* Header Sintetico con DropZone Button */}
+          <div className="flex items-center justify-between gap-2 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700">
             <div className="min-w-0">
-              <div className="text-xs font-bold text-slate-900 truncate">
+              <div className="text-xs font-bold text-slate-900 dark:text-white truncate">
                 {transport.carrier || `${transport.departureLocation} ➔ ${transport.arrivalLocation}`}
               </div>
-              <div className="text-[11px] text-slate-500 font-medium">
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                 {attachments.length === 0
                   ? 'Nessun file salvato'
                   : `${attachments.length} ${attachments.length === 1 ? 'file salvato offline' : 'file salvati offline'}`}
               </div>
             </div>
 
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-500 hover:bg-sky-400 active:scale-95 text-slate-950 font-bold text-xs shadow-md shadow-sky-500/20 transition-all cursor-pointer disabled:opacity-50"
-            >
-              {isUploading ? (
-                <>
-                  <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                  <span>{uploadProgressText || 'Caricamento...'}</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
-                  </svg>
-                  <span>Aggiungi File</span>
-                </>
-              )}
-            </button>
+            <DropZone
+              variant="button"
+              onFilesSelected={handleFilesBatch}
+              isUploading={isUploading}
+              uploadProgressText={uploadProgressText}
+              title="+ Aggiungi File"
+              className="bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold border-none shadow-sky-500/20"
+            />
             <input
               type="file"
               ref={fileInputRef}
@@ -152,23 +151,16 @@ export default function TrasportoTicketsModal({
             </div>
           )}
 
-          {/* Lista Biglietti / Allegati */}
+          {/* Lista Biglietti / Allegati con Drag & Drop */}
           {attachments.length === 0 ? (
-            <div
-              onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-slate-300 hover:border-sky-500 rounded-3xl p-6 text-center cursor-pointer transition-colors bg-slate-50 hover:bg-slate-100/70"
-            >
-              <div className="w-12 h-12 mx-auto rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600 text-2xl mb-2.5">
-                📱
-              </div>
-              <h4 className="text-sm font-bold text-slate-900">Carica Biglietto, Pass o QR Code</h4>
-              <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
-                Tocca qui per caricare più file contemporaneamente: carte d'imbarco, QR code o PDF (fino a 25 MB ciascuno).
-              </p>
-              <span className="inline-block mt-3 px-3 py-1 text-[11px] font-semibold text-sky-700 bg-sky-50 rounded-full border border-sky-200">
-                Disponibili 100% offline
-              </span>
-            </div>
+            <DropZone
+              variant="hero"
+              onFilesSelected={handleFilesBatch}
+              isUploading={isUploading}
+              uploadProgressText={uploadProgressText}
+              title="Trascina qui Carte d'Imbarco, Biglietti o QR Code"
+              subtitle="Rilascia direttamente dal desktop oppure clicca per sfogliare la cartella (PDF o immagini)."
+            />
           ) : (
             <div className="space-y-3">
               {attachments.map((att, attIdx) => {
@@ -259,6 +251,18 @@ export default function TrasportoTicketsModal({
                 );
               })}
             </div>
+          )}
+
+          {/* Se ci sono già allegati, mostra DropZone compatta per aggiungerne altri */}
+          {attachments.length > 0 && (
+            <DropZone
+              variant="compact"
+              onFilesSelected={handleFilesBatch}
+              isUploading={isUploading}
+              uploadProgressText={uploadProgressText}
+              title="Trascina qui altri biglietti, voucher o QR code"
+              subtitle="oppure clicca per selezionare dalla cartella"
+            />
           )}
 
           {/* Footer del Modal */}

@@ -8,6 +8,8 @@ import {
 } from './indexedDB';
 import { REAL_ACTIVITIES } from './seedActivities';
 import { initialTransports } from './seedTransports';
+import { formatDateIT, normalizeTimestamp } from '../utils/tripDates';
+import { assertCanMutate } from '../utils/useAuthIdentity';
 
 export const SEED_FLAG_KEY = 'honeymoon_roadbook_seeded_v1';
 
@@ -93,11 +95,53 @@ export function notifyDataChanged(entityType: string, action: 'save' | 'delete',
  * o estesa per sincronizzazione remota senza intaccare i componenti.
  */
 class StorageService {
+  private memoryCache: Map<string, any[]> = new Map();
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('roadbook_data_mutated', (e: any) => {
+        const entityType = e?.detail?.entityType;
+        if (entityType) {
+          const storeMap: Record<string, string> = {
+            giorni: STORES.GIORNI,
+            attivita: STORES.ATTIVITA,
+            alloggi: STORES.ALLOGGI,
+            trasporti: STORES.TRASPORTI,
+            tappe: STORES.TAPPE,
+            tappa: STORES.TAPPE,
+            ristoranti: STORES.RISTORANTI,
+            shopping: STORES.SHOPPING,
+            spese: STORES.SPESE,
+            documenti: STORES.DOCUMENTI
+          };
+          const targetStore = storeMap[entityType] || entityType;
+          this.memoryCache.delete(targetStore);
+        } else {
+          this.memoryCache.clear();
+        }
+      });
+
+      window.addEventListener('roadbook_cloud_synced', () => {
+        this.memoryCache.clear();
+      });
+    }
+  }
+
+  clearMemoryCache(store?: string): void {
+    if (store) this.memoryCache.delete(store);
+    else this.memoryCache.clear();
+  }
+
   // --- GIORNI ---
   async getDays(): Promise<Giorno[]> {
     try {
+      if (this.memoryCache.has(STORES.GIORNI)) {
+        return [...this.memoryCache.get(STORES.GIORNI)!];
+      }
       const items = await idbGetAll<Giorno>(STORES.GIORNI);
-      return items.sort((a, b) => ((a.date || '').split('-').length === 3 && (a.date || '').split('-')[0].length === 2 ? (a.date || '').split('-').reverse().join('-') : (a.date || '')).localeCompare(((b.date || '').split('-').length === 3 && (b.date || '').split('-')[0].length === 2 ? (b.date || '').split('-').reverse().join('-') : (b.date || ''))));
+      const sorted = items.sort((a, b) => ((a.date || '').split('-').length === 3 && (a.date || '').split('-')[0].length === 2 ? (a.date || '').split('-').reverse().join('-') : (a.date || '')).localeCompare(((b.date || '').split('-').length === 3 && (b.date || '').split('-')[0].length === 2 ? (b.date || '').split('-').reverse().join('-') : (b.date || ''))));
+      this.memoryCache.set(STORES.GIORNI, sorted);
+      return [...sorted];
     } catch (err) {
       console.error('[StorageService] Errore lettura giorni:', err);
       return [];
@@ -105,17 +149,30 @@ class StorageService {
   }
 
   async saveDay(day: Giorno): Promise<void> {
+    assertCanMutate('giorni');
     const now = Date.now();
     const item: Giorno = {
       ...day,
       createdAt: day.createdAt || now,
       updatedAt: now
     };
+    if (!await this.validateSaveAgainstTombstone('giorni', item.id, item.createdAt)) {
+      return;
+    }
+    this.memoryCache.delete(STORES.GIORNI);
     await idbPut(STORES.GIORNI, item);
     notifyDataChanged('giorni', 'save', item);
+    try {
+      await this.removeTombstoneIfRecreated('giorni', item.id, item.createdAt);
+    } catch (err) {
+      console.warn('[StorageService] Errore rimozione tombstone post-ricreazione giorni:', err);
+    }
   }
 
   async deleteDay(id: string): Promise<void> {
+    assertCanMutate('giorni');
+    this.memoryCache.delete(STORES.GIORNI);
+    await this.recordTombstone('giorni', id);
     await idbDelete(STORES.GIORNI, id);
     notifyDataChanged('giorni', 'delete', { id });
     try {
@@ -135,6 +192,7 @@ class StorageService {
   }
 
   async saveDayMapLink(date: string, link: string): Promise<void> {
+    assertCanMutate('settings');
     const id = `day_maps_link_${date}`;
     if (link) {
       const data = { id, value: link };
@@ -153,6 +211,7 @@ class StorageService {
   }
 
   async saveSetting(key: string, value: any): Promise<void> {
+    assertCanMutate('settings');
     if (value === null || value === undefined) {
       await idbDelete(STORES.SETTINGS, key);
       notifyDataChanged('settings', 'delete', { id: key });
@@ -169,8 +228,18 @@ class StorageService {
    */
   async recordTombstone(entityType: string, id: string): Promise<void> {
     if (!id) return;
+    const now = Date.now();
     const tombstoneKey = `tombstone_${entityType}_${id}`;
-    const tombstoneData = { id: tombstoneKey, value: { entityType, deletedId: id, timestamp: Date.now() } };
+    const tombstoneData = {
+      id: tombstoneKey,
+      value: {
+        entityType,
+        deletedId: id,
+        timestamp: now,
+        deletedAt: now,
+        pending: true
+      }
+    };
     await idbPut(STORES.SETTINGS, tombstoneData);
     notifyDataChanged('settings', 'save', tombstoneData);
     if (typeof localStorage !== 'undefined') {
@@ -179,6 +248,58 @@ class StorageService {
       } catch (e) {}
     }
   }
+
+  /**
+   * Valida se un salvataggio è lecito in presenza di un eventuale tombstone attivo.
+   * Criterio coerente con removeTombstoneIfRecreated e pushToCloud:
+   * Consente il salvataggio solo se l'elemento è una ricreazione intenzionale con data di creazione
+   * strettamente posteriore alla data di eliminazione registrata (createdAt > deletedAt).
+   * Blocca il salvataggio di copie obsolete o zombie memorizzati prima della cancellazione.
+   */
+  async validateSaveAgainstTombstone(entityType: string, id: string, createdAt?: number): Promise<boolean> {
+    if (!id) return true;
+    const tombstoneKey = `tombstone_${entityType}_${id}`;
+    const setting = await idbGet<any>(STORES.SETTINGS, tombstoneKey);
+    if (!setting || !setting.value) return true;
+
+    const deletedAt = normalizeTimestamp(setting.value.deletedAt || setting.value.timestamp);
+    const itemCreatedAt = normalizeTimestamp(createdAt);
+
+    if (itemCreatedAt > 0 && deletedAt > 0 && itemCreatedAt > deletedAt) {
+      return true;
+    }
+
+    console.warn(`[StorageService] Rifiutato salvataggio per ${entityType}/${id}: tombstone attivo (cancellato a ${new Date(deletedAt).toISOString()}), elemento creato a ${itemCreatedAt > 0 ? new Date(itemCreatedAt).toISOString() : 'sconosciuto'}.`);
+    return false;
+  }
+
+  /**
+   * Rimuove il tombstone se l'elemento è stato ricreato intenzionalmente con timestamp successivo alla cancellazione.
+   * Ritorna true se il tombstone è stato rimosso, false altrimenti.
+   */
+  async removeTombstoneIfRecreated(entityType: string, id: string, createdAt?: number): Promise<boolean> {
+    if (!id) return false;
+    const tombstoneKey = `tombstone_${entityType}_${id}`;
+    const setting = await idbGet<any>(STORES.SETTINGS, tombstoneKey);
+    if (!setting || !setting.value) return false;
+
+    const deletedAt = normalizeTimestamp(setting.value.deletedAt || setting.value.timestamp);
+    const itemCreatedAt = normalizeTimestamp(createdAt);
+
+    // Se l'elemento ha una data di creazione valida e successiva alla cancellazione, è una ricreazione valida
+    if (itemCreatedAt > 0 && deletedAt > 0 && itemCreatedAt > deletedAt) {
+      await idbDelete(STORES.SETTINGS, tombstoneKey);
+      if (typeof localStorage !== 'undefined') {
+        try { localStorage.removeItem(tombstoneKey); } catch (e) {}
+      }
+      // Non inviamo notifyDataChanged('settings', 'delete') sul Cloud qui:
+      // il tombstone condiviso su Firestore non deve essere rimosso prima che tutti i dispositivi
+      // abbiano potuto sincronizzare e scartare le proprie copie zombie pre-cancellazione.
+      return true;
+    }
+    return false;
+  }
+
 
   /**
    * Verifica se un elemento è stato eliminato intenzionalmente.
@@ -507,9 +628,13 @@ class StorageService {
   // --- ATTIVITA ---
   async getActivities(dayId?: string): Promise<Attivita[]> {
     try {
-      const items = await idbGetAll<Attivita>(STORES.ATTIVITA);
+      let items = this.memoryCache.get(STORES.ATTIVITA);
+      if (!items) {
+        items = await idbGetAll<Attivita>(STORES.ATTIVITA);
+        this.memoryCache.set(STORES.ATTIVITA, items);
+      }
       const filtered = dayId ? items.filter(a => a.dayId === dayId) : items;
-      return filtered.sort((a, b) => {
+      return [...filtered].sort((a, b) => {
         if (a.time && b.time) return a.time.localeCompare(b.time);
         if (a.time) return -1;
         if (b.time) return 1;
@@ -522,6 +647,7 @@ class StorageService {
   }
 
   async saveActivity(activity: Attivita): Promise<void> {
+    assertCanMutate('attivita');
     const now = Date.now();
     let finalDayId = activity.dayId;
     let finalDate = activity.date;
@@ -540,11 +666,22 @@ class StorageService {
       createdAt: activity.createdAt || now,
       updatedAt: now
     };
+    if (!await this.validateSaveAgainstTombstone('attivita', item.id, item.createdAt)) {
+      return;
+    }
+    this.memoryCache.delete(STORES.ATTIVITA);
     await idbPut(STORES.ATTIVITA, item);
     notifyDataChanged('attivita', 'save', item);
+    try {
+      await this.removeTombstoneIfRecreated('attivita', item.id, item.createdAt);
+    } catch (err) {
+      console.warn('[StorageService] Errore rimozione tombstone post-ricreazione attivita:', err);
+    }
   }
 
   async deleteActivity(id: string): Promise<void> {
+    assertCanMutate('attivita');
+    this.memoryCache.delete(STORES.ATTIVITA);
     await this.recordTombstone('attivita', id);
     await idbDelete(STORES.ATTIVITA, id);
     notifyDataChanged('attivita', 'delete', { id });
@@ -553,8 +690,13 @@ class StorageService {
   // --- ALLOGGI ---
   async getAccommodations(): Promise<Alloggio[]> {
     try {
+      if (this.memoryCache.has(STORES.ALLOGGI)) {
+        return [...this.memoryCache.get(STORES.ALLOGGI)!];
+      }
       const items = await idbGetAll<Alloggio>(STORES.ALLOGGI);
-      return items.sort((a, b) => ((a.checkIn || '').split('-').length === 3 && (a.checkIn || '').split('-')[0].length === 2 ? (a.checkIn || '').split('-').reverse().join('-') : (a.checkIn || '')).localeCompare(((b.checkIn || '').split('-').length === 3 && (b.checkIn || '').split('-')[0].length === 2 ? (b.checkIn || '').split('-').reverse().join('-') : (b.checkIn || ''))));
+      const sorted = items.sort((a, b) => ((a.checkIn || '').split('-').length === 3 && (a.checkIn || '').split('-')[0].length === 2 ? (a.checkIn || '').split('-').reverse().join('-') : (a.checkIn || '')).localeCompare(((b.checkIn || '').split('-').length === 3 && (b.checkIn || '').split('-')[0].length === 2 ? (b.checkIn || '').split('-').reverse().join('-') : (b.checkIn || ''))));
+      this.memoryCache.set(STORES.ALLOGGI, sorted);
+      return [...sorted];
     } catch (err) {
       console.error('[StorageService] Errore lettura alloggi:', err);
       return [];
@@ -566,14 +708,24 @@ class StorageService {
   }
 
   async saveAccommodation(acc: Alloggio): Promise<void> {
+    assertCanMutate('alloggi');
     const now = Date.now();
     const item: Alloggio = {
       ...acc,
       createdAt: acc.createdAt || now,
       updatedAt: now
     };
+    if (!await this.validateSaveAgainstTombstone('alloggi', item.id, item.createdAt)) {
+      return;
+    }
+    this.memoryCache.delete(STORES.ALLOGGI);
     await idbPut(STORES.ALLOGGI, item);
     notifyDataChanged('alloggi', 'save', item);
+    try {
+      await this.removeTombstoneIfRecreated('alloggi', item.id, item.createdAt);
+    } catch (err) {
+      console.warn('[StorageService] Errore rimozione tombstone post-ricreazione alloggi:', err);
+    }
   }
 
   async saveAlloggio(acc: Alloggio): Promise<void> {
@@ -581,6 +733,8 @@ class StorageService {
   }
 
   async deleteAccommodation(id: string): Promise<void> {
+    assertCanMutate('alloggi');
+    this.memoryCache.delete(STORES.ALLOGGI);
     await this.recordTombstone('alloggi', id);
     await idbDelete(STORES.ALLOGGI, id);
     notifyDataChanged('alloggi', 'delete', { id });
@@ -615,16 +769,19 @@ class StorageService {
 
   async getTransports(): Promise<Trasporto[]> {
     try {
+      if (this.memoryCache.has(STORES.TRASPORTI)) {
+        return [...this.memoryCache.get(STORES.TRASPORTI)!];
+      }
       const items = await idbGetAll<Trasporto>(STORES.TRASPORTI);
       
-      // MIGRATION RIMOSSA
-
-      return items.sort((a, b) => {
+      const sorted = items.sort((a, b) => {
         const dateCompare = ((a.date || '').split('-').length === 3 && (a.date || '').split('-')[0].length === 2 ? (a.date || '').split('-').reverse().join('-') : (a.date || '')).localeCompare(((b.date || '').split('-').length === 3 && (b.date || '').split('-')[0].length === 2 ? (b.date || '').split('-').reverse().join('-') : (b.date || '')));
         if (dateCompare !== 0) return dateCompare;
         if (a.departureTime && b.departureTime) return a.departureTime.localeCompare(b.departureTime);
         return 0;
       });
+      this.memoryCache.set(STORES.TRASPORTI, sorted);
+      return [...sorted];
     } catch (err) {
       console.error('[StorageService] Errore lettura trasporti:', err);
       return [];
@@ -632,17 +789,29 @@ class StorageService {
   }
 
   async saveTransport(transport: Trasporto): Promise<void> {
+    assertCanMutate('trasporti');
     const now = Date.now();
     const item: Trasporto = {
       ...transport,
       createdAt: transport.createdAt || now,
       updatedAt: now
     };
+    if (!await this.validateSaveAgainstTombstone('trasporti', item.id, item.createdAt)) {
+      return;
+    }
+    this.memoryCache.delete(STORES.TRASPORTI);
     await idbPut(STORES.TRASPORTI, item);
     notifyDataChanged('trasporti', 'save', item);
+    try {
+      await this.removeTombstoneIfRecreated('trasporti', item.id, item.createdAt);
+    } catch (err) {
+      console.warn('[StorageService] Errore rimozione tombstone post-ricreazione trasporti:', err);
+    }
   }
 
   async deleteTransport(id: string): Promise<void> {
+    assertCanMutate('trasporti');
+    this.memoryCache.delete(STORES.TRASPORTI);
     await this.recordTombstone('trasporti', id);
     await idbDelete(STORES.TRASPORTI, id);
     notifyDataChanged('trasporti', 'delete', { id });
@@ -651,41 +820,44 @@ class StorageService {
   // --- DOCUMENTI ---
   async getDocuments(): Promise<TravelDocument[]> {
     try {
-      const items = await idbGetAll<TravelDocument>(STORES.DOCUMENTI);
-      if (items.length === 0) {
-        // Inizializza con i documenti predefiniti
-        for (const doc of DEFAULT_DOCUMENTS) {
-          await idbPut(STORES.DOCUMENTI, doc);
+      const rawItems = await idbGetAll<any>(STORES.DOCUMENTI);
+      const validItems: TravelDocument[] = [];
+
+      for (const doc of rawItems) {
+        if (!doc || !doc.id) continue;
+        // Purge proattivo di vecchi chunk scaricati erroneamente nello store documenti
+        if (typeof doc.id === 'string' && doc.id.startsWith('att_chunk_')) {
+          await idbDelete(STORES.DOCUMENTI, doc.id).catch(() => {});
+          continue;
         }
-        return DEFAULT_DOCUMENTS;
+        validItems.push(doc as TravelDocument);
       }
-      // Assicura che tutti i documenti standard esistano se ne mancano alcuni
-      const existingIds = new Set(items.map(d => d.id));
-      for (const defDoc of DEFAULT_DOCUMENTS) {
-        if (!existingIds.has(defDoc.id)) {
-          await idbPut(STORES.DOCUMENTI, defDoc);
-          items.push(defDoc);
-        }
-      }
-      // Integra status o validity predefiniti se assenti
-      for (let i = 0; i < items.length; i++) {
-        const doc = items[i];
-        const defDoc = DEFAULT_DOCUMENTS.find(d => d.id === doc.id);
-        if (defDoc && (!doc.validity || !doc.status)) {
-          const updated: TravelDocument = {
-            ...doc,
-            status: doc.status || defDoc.status,
-            validity: doc.validity || defDoc.validity
-          };
-          await idbPut(STORES.DOCUMENTI, updated);
-          items[i] = updated;
-        }
-      }
-      return items;
+
+      return validItems;
     } catch (err) {
       console.error('[StorageService] Errore lettura documenti:', err);
-      return DEFAULT_DOCUMENTS;
+      return [];
     }
+  }
+
+  async ensureGenericDocumentTemplates(): Promise<TravelDocument[]> {
+    const tripId = (() => {
+      try {
+        return JSON.parse(localStorage.getItem('roadbook_trip_config') || '{}')?.id || '0000';
+      } catch {
+        return '0000';
+      }
+    })();
+    const existing = await this.getDocuments();
+    if (tripId === '0000' || existing.length > 0) return existing;
+
+    const now = new Date().toISOString();
+    const templates: TravelDocument[] = [
+      { id: 'doc_template_passaporto', category: 'passaporto', title: 'Passaporto', description: '', status: 'Da verificare', attachments: [], updatedAt: now },
+      { id: 'doc_template_identita', category: 'altro', title: "Carta d'identità", description: '', status: 'Da verificare', attachments: [], updatedAt: now }
+    ];
+    for (const template of templates) await this.saveDocument(template);
+    return templates;
   }
 
   async getDocumentById(id: string): Promise<TravelDocument | undefined> {
@@ -698,15 +870,27 @@ class StorageService {
   }
 
   async saveDocument(doc: TravelDocument): Promise<void> {
+    assertCanMutate('documenti');
+    const now = Date.now();
     const item: TravelDocument = {
       ...doc,
+      createdAt: (doc as any).createdAt || now,
       updatedAt: new Date().toISOString()
     };
+    if (!await this.validateSaveAgainstTombstone('documenti', item.id, (item as any).createdAt)) {
+      return;
+    }
     await idbPut(STORES.DOCUMENTI, item);
     notifyDataChanged('documenti', 'save', item);
+    try {
+      await this.removeTombstoneIfRecreated('documenti', item.id, (item as any).createdAt);
+    } catch (err) {
+      console.warn('[StorageService] Errore rimozione tombstone post-ricreazione documenti:', err);
+    }
   }
 
   async deleteDocument(id: string): Promise<void> {
+    assertCanMutate('documenti');
     await this.recordTombstone('documenti', id);
     await idbDelete(STORES.DOCUMENTI, id);
     notifyDataChanged('documenti', 'delete', { id });
@@ -745,8 +929,11 @@ class StorageService {
   // --- TAPPE ---
   async getTappe(): Promise<Tappa[]> {
     try {
+      if (this.memoryCache.has(STORES.TAPPE)) {
+        return [...this.memoryCache.get(STORES.TAPPE)!];
+      }
       const items = await idbGetAll<Tappa>(STORES.TAPPE);
-      return items.sort((a, b) => {
+      const sorted = items.sort((a, b) => {
         const dateA = a.data || a.date || '';
         const dateB = b.data || b.date || '';
         if (dateA !== dateB) return dateA.localeCompare(dateB);
@@ -758,6 +945,8 @@ class StorageService {
         }
         return a.titolo.localeCompare(b.titolo);
       });
+      this.memoryCache.set(STORES.TAPPE, sorted);
+      return [...sorted];
     } catch (err) {
       console.error('[StorageService] Errore lettura tappe:', err);
       return [];
@@ -775,24 +964,31 @@ class StorageService {
   }
 
   async addTappa(tappa: Omit<Tappa, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<Tappa> {
+    assertCanMutate('tappe');
     const now = Date.now();
     const cleanDate = tappa.data || tappa.date || '';
     const dayId = tappa.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
+    const targetId = tappa.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'tappa_' + now);
+    if (tappa.id && !await this.validateSaveAgainstTombstone('tappe', targetId, undefined)) {
+      throw new Error(`Impossibile aggiungere la tappa: ID ${targetId} contrassegnato da tombstone attivo.`);
+    }
     const newTappa: Tappa = {
       ...tappa,
       data: cleanDate,
       date: cleanDate,
       dayId,
-      id: tappa.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'tappa_' + now),
+      id: targetId,
       createdAt: now,
       updatedAt: now
     };
+    this.memoryCache.delete(STORES.TAPPE);
     await idbPut(STORES.TAPPE, newTappa);
     notifyDataChanged('tappe', 'save', newTappa);
     return newTappa;
   }
 
   async updateTappa(id: string, partial: Partial<Tappa>): Promise<void> {
+    assertCanMutate('tappe');
     try {
       const existing = await idbGet<Tappa>(STORES.TAPPE, id);
       if (!existing) throw new Error(`Tappa con id ${id} non trovata`);
@@ -807,6 +1003,7 @@ class StorageService {
         id, // Garantisce che l'ID primario non venga alterato
         updatedAt: Date.now()
       };
+      this.memoryCache.delete(STORES.TAPPE);
       await idbPut(STORES.TAPPE, updated);
       notifyDataChanged('tappe', 'save', updated);
     } catch (err) {
@@ -816,6 +1013,7 @@ class StorageService {
   }
 
   async saveTappa(tappa: Tappa): Promise<void> {
+    assertCanMutate('tappe');
     const now = Date.now();
     const cleanDate = tappa.data || tappa.date || '';
     const dayId = tappa.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
@@ -827,11 +1025,22 @@ class StorageService {
       createdAt: tappa.createdAt || now,
       updatedAt: now
     };
+    if (!await this.validateSaveAgainstTombstone('tappe', item.id, item.createdAt)) {
+      return;
+    }
+    this.memoryCache.delete(STORES.TAPPE);
     await idbPut(STORES.TAPPE, item);
     notifyDataChanged('tappe', 'save', item);
+    try {
+      await this.removeTombstoneIfRecreated('tappe', item.id, item.createdAt);
+    } catch (err) {
+      console.warn('[StorageService] Errore rimozione tombstone post-ricreazione tappe:', err);
+    }
   }
 
   async deleteTappa(id: string): Promise<void> {
+    assertCanMutate('tappe');
+    this.memoryCache.delete(STORES.TAPPE);
     await this.recordTombstone('tappe', id);
     await idbDelete(STORES.TAPPE, id);
     notifyDataChanged('tappe', 'delete', { id });
@@ -840,13 +1049,18 @@ class StorageService {
   // --- RISTORANTI ---
   async getRistoranti(): Promise<Ristorante[]> {
     try {
+      if (this.memoryCache.has(STORES.RISTORANTI)) {
+        return [...this.memoryCache.get(STORES.RISTORANTI)!];
+      }
       const items = await idbGetAll<Ristorante>(STORES.RISTORANTI);
-      return items.sort((a, b) => {
+      const sorted = items.sort((a, b) => {
         if (a.data && b.data) return ((a.data || '').split('-').length === 3 && (a.data || '').split('-')[0].length === 2 ? (a.data || '').split('-').reverse().join('-') : (a.data || '')).localeCompare(((b.data || '').split('-').length === 3 && (b.data || '').split('-')[0].length === 2 ? (b.data || '').split('-').reverse().join('-') : (b.data || '')));
         if (a.data) return -1;
         if (b.data) return 1;
         return a.nome.localeCompare(b.nome);
       });
+      this.memoryCache.set(STORES.RISTORANTI, sorted);
+      return [...sorted];
     } catch (err) {
       console.error('[StorageService] Errore lettura ristoranti:', err);
       return [];
@@ -864,24 +1078,31 @@ class StorageService {
   }
 
   async addRistorante(ristorante: Omit<Ristorante, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<Ristorante> {
+    assertCanMutate('ristoranti');
     const now = Date.now();
     const cleanDate = ristorante.data || ristorante.date || '';
     const dayId = ristorante.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
+    const targetId = ristorante.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'ristorante_' + now);
+    if (ristorante.id && !await this.validateSaveAgainstTombstone('ristoranti', targetId, undefined)) {
+      throw new Error(`Impossibile aggiungere il ristorante: ID ${targetId} contrassegnato da tombstone attivo.`);
+    }
     const newRistorante: Ristorante = {
       ...ristorante,
       data: cleanDate,
       date: cleanDate,
       dayId,
-      id: ristorante.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'ristorante_' + now),
+      id: targetId,
       createdAt: now,
       updatedAt: now
     };
+    this.memoryCache.delete(STORES.RISTORANTI);
     await idbPut(STORES.RISTORANTI, newRistorante);
     notifyDataChanged('ristoranti', 'save', newRistorante);
     return newRistorante;
   }
 
   async updateRistorante(id: string, partial: Partial<Ristorante>): Promise<void> {
+    assertCanMutate('ristoranti');
     try {
       const existing = await idbGet<Ristorante>(STORES.RISTORANTI, id);
       if (!existing) throw new Error(`Ristorante con id ${id} non trovato`);
@@ -896,6 +1117,7 @@ class StorageService {
         id, // ID primario preservato
         updatedAt: Date.now()
       };
+      this.memoryCache.delete(STORES.RISTORANTI);
       await idbPut(STORES.RISTORANTI, updated);
       notifyDataChanged('ristoranti', 'save', updated);
     } catch (err) {
@@ -905,6 +1127,7 @@ class StorageService {
   }
 
   async saveRistorante(r: Ristorante): Promise<void> {
+    assertCanMutate('ristoranti');
     const now = Date.now();
     const cleanDate = r.data || r.date || '';
     const dayId = r.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
@@ -916,11 +1139,22 @@ class StorageService {
       createdAt: r.createdAt || now,
       updatedAt: now
     };
+    if (!await this.validateSaveAgainstTombstone('ristoranti', item.id, item.createdAt)) {
+      return;
+    }
+    this.memoryCache.delete(STORES.RISTORANTI);
     await idbPut(STORES.RISTORANTI, item);
     notifyDataChanged('ristoranti', 'save', item);
+    try {
+      await this.removeTombstoneIfRecreated('ristoranti', item.id, item.createdAt);
+    } catch (err) {
+      console.warn('[StorageService] Errore rimozione tombstone post-ricreazione ristoranti:', err);
+    }
   }
 
   async deleteRistorante(id: string): Promise<void> {
+    assertCanMutate('ristoranti');
+    this.memoryCache.delete(STORES.RISTORANTI);
     await this.recordTombstone('ristoranti', id);
     await idbDelete(STORES.RISTORANTI, id);
     notifyDataChanged('ristoranti', 'delete', { id });
@@ -929,13 +1163,18 @@ class StorageService {
   // --- SHOPPING ---
   async getShopping(): Promise<Shopping[]> {
     try {
+      if (this.memoryCache.has(STORES.SHOPPING)) {
+        return [...this.memoryCache.get(STORES.SHOPPING)!];
+      }
       const items = await idbGetAll<Shopping>(STORES.SHOPPING);
-      return items.sort((a, b) => {
+      const sorted = items.sort((a, b) => {
         if (a.data && b.data) return ((a.data || '').split('-').length === 3 && (a.data || '').split('-')[0].length === 2 ? (a.data || '').split('-').reverse().join('-') : (a.data || '')).localeCompare(((b.data || '').split('-').length === 3 && (b.data || '').split('-')[0].length === 2 ? (b.data || '').split('-').reverse().join('-') : (b.data || '')));
         if (a.data) return -1;
         if (b.data) return 1;
         return a.nome.localeCompare(b.nome);
       });
+      this.memoryCache.set(STORES.SHOPPING, sorted);
+      return [...sorted];
     } catch (err) {
       console.error('[StorageService] Errore lettura shopping:', err);
       return [];
@@ -953,24 +1192,31 @@ class StorageService {
   }
 
   async addShopping(shopping: Omit<Shopping, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<Shopping> {
+    assertCanMutate('shopping');
     const now = Date.now();
     const cleanDate = shopping.data || shopping.date || '';
     const dayId = shopping.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
+    const targetId = shopping.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'shopping_' + now);
+    if (shopping.id && !await this.validateSaveAgainstTombstone('shopping', targetId, undefined)) {
+      throw new Error(`Impossibile aggiungere lo shopping: ID ${targetId} contrassegnato da tombstone attivo.`);
+    }
     const newShopping: Shopping = {
       ...shopping,
       data: cleanDate,
       date: cleanDate,
       dayId,
-      id: shopping.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'shopping_' + now),
+      id: targetId,
       createdAt: now,
       updatedAt: now
     };
+    this.memoryCache.delete(STORES.SHOPPING);
     await idbPut(STORES.SHOPPING, newShopping);
     notifyDataChanged('shopping', 'save', newShopping);
     return newShopping;
   }
 
   async updateShopping(id: string, partial: Partial<Shopping>): Promise<void> {
+    assertCanMutate('shopping');
     try {
       const existing = await idbGet<Shopping>(STORES.SHOPPING, id);
       if (!existing) throw new Error(`Shopping con id ${id} non trovato`);
@@ -985,6 +1231,7 @@ class StorageService {
         id, // ID primario preservato
         updatedAt: Date.now()
       };
+      this.memoryCache.delete(STORES.SHOPPING);
       await idbPut(STORES.SHOPPING, updated);
       notifyDataChanged('shopping', 'save', updated);
     } catch (err) {
@@ -994,6 +1241,7 @@ class StorageService {
   }
 
   async saveShopping(s: Shopping): Promise<void> {
+    assertCanMutate('shopping');
     const now = Date.now();
     const cleanDate = s.data || s.date || '';
     const dayId = s.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
@@ -1005,11 +1253,22 @@ class StorageService {
       createdAt: s.createdAt || now,
       updatedAt: now
     };
+    if (!await this.validateSaveAgainstTombstone('shopping', item.id, item.createdAt)) {
+      return;
+    }
+    this.memoryCache.delete(STORES.SHOPPING);
     await idbPut(STORES.SHOPPING, item);
     notifyDataChanged('shopping', 'save', item);
+    try {
+      await this.removeTombstoneIfRecreated('shopping', item.id, item.createdAt);
+    } catch (err) {
+      console.warn('[StorageService] Errore rimozione tombstone post-ricreazione shopping:', err);
+    }
   }
 
   async deleteShopping(id: string): Promise<void> {
+    assertCanMutate('shopping');
+    this.memoryCache.delete(STORES.SHOPPING);
     await this.recordTombstone('shopping', id);
     await idbDelete(STORES.SHOPPING, id);
     notifyDataChanged('shopping', 'delete', { id });
@@ -1027,17 +1286,27 @@ class StorageService {
   }
 
   async saveSpesa(spesa: Spesa): Promise<void> {
+    assertCanMutate('spese');
     const now = Date.now();
     const item: Spesa = {
       ...spesa,
       createdAt: spesa.createdAt || now,
       updatedAt: now
     };
+    if (!await this.validateSaveAgainstTombstone('spese', item.id, item.createdAt)) {
+      return;
+    }
     await idbPut(STORES.SPESE, item);
     notifyDataChanged('spese', 'save', item);
+    try {
+      await this.removeTombstoneIfRecreated('spese', item.id, item.createdAt);
+    } catch (err) {
+      console.warn('[StorageService] Errore rimozione tombstone post-ricreazione spese:', err);
+    }
   }
 
   async deleteSpesa(id: string): Promise<void> {
+    assertCanMutate('spese');
     await this.recordTombstone('spese', id);
     await idbDelete(STORES.SPESE, id);
     notifyDataChanged('spese', 'delete', { id });
@@ -1047,7 +1316,7 @@ class StorageService {
   async getNote(): Promise<NotaViaggio[]> {
     try {
       const items = await idbGetAll<NotaViaggio>(STORES.NOTE);
-      return items.sort((a, b) => b.updatedAt - a.updatedAt);
+      return items.sort((a, b) => normalizeTimestamp(b.updatedAt) - normalizeTimestamp(a.updatedAt));
     } catch (err) {
       console.error('[StorageService] Errore lettura note:', err);
       return [];
@@ -1055,17 +1324,27 @@ class StorageService {
   }
 
   async saveNota(nota: NotaViaggio): Promise<void> {
+    assertCanMutate('note');
     const now = Date.now();
     const item: NotaViaggio = {
       ...nota,
       createdAt: nota.createdAt || now,
       updatedAt: now
     };
+    if (!await this.validateSaveAgainstTombstone('note', item.id, item.createdAt)) {
+      return;
+    }
     await idbPut(STORES.NOTE, item);
     notifyDataChanged('note', 'save', item);
+    try {
+      await this.removeTombstoneIfRecreated('note', item.id, item.createdAt);
+    } catch (err) {
+      console.warn('[StorageService] Errore rimozione tombstone post-ricreazione note:', err);
+    }
   }
 
   async deleteNota(id: string): Promise<void> {
+    assertCanMutate('note');
     await this.recordTombstone('note', id);
     await idbDelete(STORES.NOTE, id);
     notifyDataChanged('note', 'delete', { id });
@@ -1144,7 +1423,7 @@ class StorageService {
       throw new Error('Struttura dati del backup non valida.');
     }
 
-    // Svuota e reinserisci per ogni store
+    // Svuota e reinserisci per ogni store dopo pre-validazione
     const stores = [
       { key: 'giorni', store: STORES.GIORNI },
       { key: 'attivita', store: STORES.ATTIVITA },
@@ -1156,17 +1435,68 @@ class StorageService {
       { key: 'shopping', store: STORES.SHOPPING },
       { key: 'spese', store: STORES.SPESE },
       { key: 'routes', store: STORES.ROUTES },
+      { key: 'bagagli', store: STORES.BAGAGLI },
+      { key: 'note', store: STORES.NOTE },
     ] as const;
 
+    // FASE 1: Pre-validazione, sanificazione e filtraggio tombstone in memoria (staging)
+    // Se la struttura generale è corrotta o contiene elementi non validi, non tocchiamo né svuotiamo alcuno store IndexedDB!
+    const stagedData = new Map<string, any[]>();
+
+    for (const { key } of stores) {
+      const rawList = (data as Record<string, unknown>)[key];
+      if (rawList === undefined || rawList === null) {
+        continue;
+      }
+      if (!Array.isArray(rawList)) {
+        console.warn(`[StorageService] importAllData: Valore non array per store "${key}", saltato.`);
+        continue;
+      }
+
+      const validItems: any[] = [];
+      for (const item of rawList) {
+        // 1. Validazione tipo: deve essere un oggetto valido (non null, non primitivo, non array)
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          console.warn(`[StorageService] importAllData: Scartato elemento non valido in "${key}" (non è un oggetto):`, item);
+          continue;
+        }
+
+        // 2. Validazione chiave primaria obbligatoria (keyPath 'id' deve essere una stringa non vuota)
+        const itemObj = item as Record<string, any>;
+        if (!itemObj.id || typeof itemObj.id !== 'string' || itemObj.id.trim() === '') {
+          console.warn(`[StorageService] importAllData: Scartato elemento in "${key}" senza ID valido:`, itemObj);
+          continue;
+        }
+
+        // 3. Controllo tombstone attivo
+        const isAllowed = await this.validateSaveAgainstTombstone(key, itemObj.id, itemObj.createdAt);
+        if (!isAllowed) {
+          console.warn(`[StorageService] importAllData: Scartato elemento ${key}/${itemObj.id} da backup perché contrassegnato da tombstone.`);
+          continue;
+        }
+
+        validItems.push(itemObj);
+      }
+
+      stagedData.set(key, validItems);
+    }
+
+    // FASE 2: Applicazione sequenziale agli store IndexedDB
+    // Nota architetturale: il ripristino è sequenziale per singolo store e non costituisce una singola transazione atomica multi-store.
     for (const { key, store } of stores) {
-      const items = Array.isArray(data[key]) ? data[key] : [];
-      // Elimina tutti gli esistenti
+      if (!stagedData.has(key)) {
+        continue; // Se lo store non era presente o valido nel backup, preserva i dati locali esistenti
+      }
+      const validItems = stagedData.get(key) || [];
+
+      // Svuota i record correnti dello store
       const existing = await idbGetAll<{ id: string }>(store);
       for (const item of existing) {
         await idbDelete(store, item.id);
       }
-      // Reinserisci dal backup
-      for (const item of items) {
+
+      // Inserisci gli elementi pre-validati
+      for (const item of validItems) {
         await idbPut(store, item);
       }
     }
@@ -1317,7 +1647,7 @@ class StorageService {
               categoryOrType: t.type,
               originalData: t,
               displayMode: 'state',
-              stateLabel: `${t.type === 'auto' ? '🚗' : '🚐'} Veicolo attivo: ${t.carrier?.split('(')[0]?.trim() || 'Veicolo'} • Riconsegna il ${t.dropoffDate ? new Date(t.dropoffDate).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }) : '...'} a ${t.dropoffLocation?.split('(')[0]?.trim() || t.arrivalLocation || 'destinazione'}`
+              stateLabel: `${t.type === 'auto' ? '🚗' : '🚐'} Veicolo attivo: ${t.carrier?.split('(')[0]?.trim() || 'Veicolo'} • Riconsegna il ${t.dropoffDate ? formatDateIT(t.dropoffDate) : '...'} a ${t.dropoffLocation?.split('(')[0]?.trim() || t.arrivalLocation || 'destinazione'}`
             });
           }
           return;
@@ -1498,7 +1828,7 @@ class StorageService {
   async getBagagli(): Promise<Bagaglio[]> {
     try {
       const items = await idbGetAll<Bagaglio>(STORES.BAGAGLI);
-      return items.sort((a, b) => b.createdAt - a.createdAt);
+      return items.sort((a, b) => normalizeTimestamp(b.createdAt) - normalizeTimestamp(a.createdAt));
     } catch (err) {
       console.error('[StorageService] Errore lettura bagagli:', err);
       return [];
@@ -1506,23 +1836,34 @@ class StorageService {
   }
 
   async saveBagaglio(bagaglio: Bagaglio): Promise<void> {
+    assertCanMutate('bagagli');
     const now = Date.now();
     const item: Bagaglio = {
       ...bagaglio,
       createdAt: bagaglio.createdAt || now,
       updatedAt: now
     };
+    if (!await this.validateSaveAgainstTombstone('bagagli', item.id, item.createdAt)) {
+      return;
+    }
     await idbPut(STORES.BAGAGLI, item);
     notifyDataChanged('bagagli', 'save', item);
+    try {
+      await this.removeTombstoneIfRecreated('bagagli', item.id, item.createdAt);
+    } catch (err) {
+      console.warn('[StorageService] Errore rimozione tombstone post-ricreazione bagagli:', err);
+    }
   }
 
   async deleteBagaglio(id: string): Promise<void> {
+    assertCanMutate('bagagli');
     await this.recordTombstone('bagagli', id);
     await idbDelete(STORES.BAGAGLI, id);
     notifyDataChanged('bagagli', 'delete', { id });
   }
 
   async toggleBagaglioVerificato(id: string): Promise<void> {
+    assertCanMutate('bagagli');
     try {
       const item = await idbGet<Bagaglio>(STORES.BAGAGLI, id);
       if (item) {

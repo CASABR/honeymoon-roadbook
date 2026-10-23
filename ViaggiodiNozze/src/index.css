@@ -1,6 +1,22 @@
 @import "tailwindcss";
 @custom-variant dark (&:is(.dark *));
 
+@theme {
+  --font-sans: "Manrope", system-ui, sans-serif;
+  --color-hounigo-navy: #172033;
+  --color-hounigo-coral: #FF6B5F;
+  --color-hounigo-cloud: #F8F7F3;
+}
+
+:root {
+  --hounigo-navy: #172033;
+  --hounigo-coral: #FF6B5F;
+  --hounigo-cloud: #F8F7F3;
+  --hounigo-surface: #fffdfa;
+  --hounigo-line: #e5e3dd;
+  --hounigo-muted: #637083;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -9,15 +25,15 @@ html, body, #root {
   min-height: 100%;
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', system-ui, Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-  background-color: #f8fafc; /* bg-slate-50 */
-  color: #0f172a; /* text-slate-900 */
+  font-family: "Manrope", system-ui, sans-serif;
+  background-color: var(--hounigo-cloud);
+  color: var(--hounigo-navy);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 html.dark, html.dark body, html.dark #root {
-  background-color: #020617; /* dark:bg-slate-950 */
+  background-color: #101827;
   color: #f1f5f9; /* dark:text-slate-100 */
   color-scheme: dark;
 }
@@ -39,6 +55,47 @@ button, a, input, select {
 }
 .safe-pb {
   padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+.hounigo-panel {
+  background: var(--hounigo-surface);
+  border: 1px solid var(--hounigo-line);
+  box-shadow: 0 10px 30px rgba(23, 32, 51, 0.045);
+}
+
+.hounigo-panel-muted {
+  background: #f1eee7;
+  border: 1px solid var(--hounigo-line);
+}
+
+.hounigo-button-primary {
+  background: var(--hounigo-coral);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(255, 107, 95, 0.22);
+}
+
+.hounigo-button-primary:hover {
+  background: #ed5d52;
+}
+
+.hounigo-button-secondary {
+  background: transparent;
+  border: 1px solid var(--hounigo-line);
+  color: var(--hounigo-navy);
+}
+
+.hounigo-section-kicker {
+  color: var(--hounigo-muted);
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.hounigo-title {
+  color: var(--hounigo-navy);
+  font-weight: 800;
+  letter-spacing: -0.035em;
 }
 
 /* Scrollbar invisibile e scorrevole */
@@ -106,7 +163,7 @@ input[type="url"] {
   display: flex !important;
   align-items: flex-end !important;
   justify-content: center !important;
-  background-color: rgba(15, 23, 42, 0.55) !important;
+  background-color: rgba(23, 32, 51, 0.62) !important;
   backdrop-filter: blur(8px) !important;
   -webkit-backdrop-filter: blur(8px) !important;
 }
@@ -128,8 +185,8 @@ input[type="url"] {
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
-  background-color: #ffffff !important;
-  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important;
+  background-color: var(--hounigo-surface) !important;
+  box-shadow: 0 25px 50px -12px rgba(23, 32, 51, 0.28) !important;
 }
 
 .modal-sheet-body {

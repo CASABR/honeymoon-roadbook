@@ -2,7 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
-import type { Alloggio } from '../../types';
+import DestinationSearchModal from '../modals/DestinationSearchModal';
+import type { Alloggio, Coordinate } from '../../types';
+import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
+import type { PlaceSuggestion } from '../../services/photonService';
 
 interface AlloggioFormProps {
   initialData?: Alloggio | null;
@@ -16,9 +19,12 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
 
   const [sottocategoria, setSottocategoria] = useState<Alloggio['sottocategoria'] | ''>('');
   const [name, setName] = useState('');
+  const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
   const [checkInTime, setCheckInTime] = useState('');
+  const [arrivalTime, setArrivalTime] = useState('');
   const [checkOutTime, setCheckOutTime] = useState('');
   const [address, setAddress] = useState('');
   const [pinCode, setPinCode] = useState('');
@@ -42,6 +48,7 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
       setCheckIn(initialData.checkIn || '');
       setCheckOut(initialData.checkOut || '');
       setCheckInTime(initialData.checkInTime || '');
+      setArrivalTime(initialData.arrivalTime || '');
       setCheckOutTime(initialData.checkOutTime || '');
       setAddress(initialData.address || '');
       setPinCode(initialData.pinCode || '');
@@ -93,6 +100,23 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
     return c - a;
   };
 
+  const handleSelectPlace = (place: PlaceSuggestion) => {
+    setName(place.title);
+    if (place.address) {
+      setAddress(place.address);
+    }
+    if (place.coordinate) {
+      setCoordinate(place.coordinate);
+    }
+    if (place.rawLocalItem) {
+      const raw = place.rawLocalItem;
+      if (raw.notes && !notes) setNotes(raw.notes);
+      if (raw.sottocategoria && !sottocategoria) setSottocategoria(raw.sottocategoria);
+      if (raw.cost && !cost) setCost(raw.cost);
+      if (raw.phone && !phone) setPhone(raw.phone);
+    }
+  };
+
   const processSave = async () => {
     setIsGeocoding(true);
     let finalCoord = initialData?.coordinate;
@@ -126,6 +150,7 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
       checkIn,
       checkOut,
       checkInTime: checkInTime.trim() || undefined,
+      arrivalTime: arrivalTime.trim() || undefined,
       checkOutTime: checkOutTime.trim() || undefined,
       address: address.trim() || name.trim(),
       pinCode: pinCode.trim() || undefined,
@@ -194,16 +219,26 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
         </div>
       </div>
 
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Nome Struttura *
-        </label>
-        <input
-          type="text"
-          placeholder="es. Grand Hotel"
+      <div className="space-y-1">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+            Cerca o digita nome
+          </span>
+          <button
+            type="button"
+            onClick={() => setIsSearchModalOpen(true)}
+            className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 flex items-center gap-1 cursor-pointer"
+          >
+            <span>🔍</span>
+            <span>Ricerca Avanzata &amp; Confronto</span>
+          </button>
+        </div>
+        <PlaceAutocompleteInput
           value={name}
-          onChange={(e) => setName(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors placeholder:text-slate-400"
+          onChange={setName}
+          onSelectPlace={handleSelectPlace}
+          label="Nome Struttura"
+          placeholder="es. Grand Hotel, Hilton, Airbnb..."
           required
         />
       </div>
@@ -235,28 +270,47 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* Griglia Orari: Check-in struttura, Mio arrivo previsto, Check-out struttura */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Ora Check-in
+            Check-in struttura
           </label>
           <input
             type="time"
             value={checkInTime}
             onChange={(e) => setCheckInTime(e.target.value)}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F]"
+            title="Orario consentito dalla struttura"
           />
+          <span className="text-[10px] text-slate-400 mt-0.5 block">Es. dalle 15:00</span>
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-indigo-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
+            <span>🧳</span>
+            <span>Arrivo previsto</span>
+          </label>
+          <input
+            type="time"
+            value={arrivalTime}
+            onChange={(e) => setArrivalTime(e.target.value)}
+            className="w-full h-11 px-3 bg-indigo-50/60 border border-indigo-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:bg-white focus:border-indigo-500"
+            title="Il tuo orario stimato di arrivo in alloggio"
+          />
+          <span className="text-[10px] text-indigo-600 font-semibold mt-0.5 block">Mio orario (es. 18:30)</span>
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Ora Check-out
+            Check-out struttura
           </label>
           <input
             type="time"
             value={checkOutTime}
             onChange={(e) => setCheckOutTime(e.target.value)}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F]"
+            title="Orario massimo rilascio camera"
           />
+          <span className="text-[10px] text-slate-400 mt-0.5 block">Es. entro le 10:00</span>
         </div>
       </div>
 
@@ -430,6 +484,24 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
           </div>
         )}
       </div>
+
+      {/* Modale Ricerca Struttura / Alloggio */}
+      <DestinationSearchModal
+        isOpen={isSearchModalOpen}
+        onClose={() => setIsSearchModalOpen(false)}
+        entityType="alloggio"
+        initialQuery={name || address}
+        currentValues={{
+          name: name,
+          address: address,
+          coordinate: coordinate
+        }}
+        onApply={(applied) => {
+          if (applied.name) setName(applied.name);
+          if (applied.address) setAddress(applied.address);
+          if (applied.coordinate) setCoordinate(applied.coordinate);
+        }}
+      />
     </form>
   );
 }

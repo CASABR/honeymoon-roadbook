@@ -5,6 +5,7 @@ export interface TripConfig {
   endDate: string; // YYYY-MM-DD
   totalDays?: number;
   ownerUid?: string; // UID del creatore per sicurezza Firestore
+  ownerName?: string; // Nome visualizzato del proprietario del viaggio
   headerImageUrl?: string | null;
   budgetConfig?: Record<string, any>;
   infoAltro?: {
@@ -33,6 +34,8 @@ export function normalizeTripConfig(config: TripConfig): TripConfig {
     normalized.startDate = normalized.startDate || MASTER_TRIP_START_DATE;
     normalized.endDate = normalized.endDate || MASTER_TRIP_END_DATE;
     normalized.totalDays = normalized.totalDays || MASTER_TRIP_TOTAL_DAYS;
+    normalized.ownerName = normalized.ownerName || 'nunzio';
+    // ownerUid non è hardcoded: proviene dal documento Firestore attendibile
     return normalized;
   }
 

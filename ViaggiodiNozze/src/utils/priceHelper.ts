@@ -124,7 +124,7 @@ export const parseEuro = (val: any): number => {
   } else if (str.includes('.') && !str.includes(',')) {
     // "1000.50" (format US) -> Lasciamo così
     const parts = str.split('.');
-    if (parts[1].length === 3) {
+    if (parts[1] && parts[1].length === 3) {
       // Se dopo il punto ci sono 3 cifre es. "406.075", era un separatore migliaia
       str = str.replace(/\./g, '');
     }

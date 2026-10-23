@@ -1,16 +1,17 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
-import PlaceholderView from './altro/PlaceholderView';
 import DocumentiView from './altro/DocumentiView';
 import AssicurazioneView from './altro/AssicurazioneView';
 import DocumentiGalleriaView from './altro/DocumentiGalleriaView';
 import BagagliView from './altro/BagagliView';
 import NoteViaggioView from './altro/NoteViaggioView';
 import GestioneViaggioView from './altro/GestioneViaggioView';
+import { EmergenzeView, TravelToolkitView } from './altro/EmergenzeToolkitView';
 
 const LiveView = lazy(() => import('./altro/LiveView'));
 const SpeseBudgetView = lazy(() => import('./altro/SpeseBudgetView'));
 import DeviceRoleModal from '../components/common/DeviceRoleModal';
 import { storageService } from '../storage/storageService';
+import { useAuthIdentity } from '../utils/useAuthIdentity';
 import type { DeviceRole } from '../types';
 
 type SubViewType = 'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | 'gestione' | null;
@@ -23,6 +24,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   const [activeSubView, setActiveSubView] = useState<SubViewType>(initialSubView);
   const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
   const [showRoleModal, setShowRoleModal] = useState(false);
+  const { cloudRole, isCloudAuthorized } = useAuthIdentity();
 
   useEffect(() => {
     if (initialSubView) {
@@ -75,8 +77,8 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   }
   if (activeSubView === 'assicurazione') return <AssicurazioneView onBack={handleBack} />;
   if (activeSubView === 'documenti') return <DocumentiView onBack={handleBack} />;
-  if (activeSubView === 'emergenza') return <PlaceholderView title="Numeri di Emergenza" icon="📞" onBack={handleBack} />;
-  if (activeSubView === 'info') return <PlaceholderView title="Info Utili" icon="ℹ️" onBack={handleBack} />;
+  if (activeSubView === 'emergenza') return <EmergenzeView onBack={handleBack} />;
+  if (activeSubView === 'info') return <TravelToolkitView onBack={handleBack} />;
   if (activeSubView === 'spese') {
     return (
       <Suspense fallback={
@@ -150,19 +152,27 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
         >
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-2xl bg-slate-100 flex items-center justify-center text-xl shrink-0 shadow-2xs border border-slate-200/60">
-              {deviceRole === 'guida' ? '🟢' : deviceRole === 'copilota' ? '🟡' : '💻'}
+              {deviceRole === 'guida'
+                ? (isCloudAuthorized && cloudRole === 'owner' ? '🟢' : '🟡')
+                : deviceRole === 'copilota'
+                ? (isCloudAuthorized && (cloudRole === 'copilota' || cloudRole === 'owner') ? '🟢' : '🟡')
+                : '💻'}
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm leading-tight">Ruolo Dispositivo</h3>
                 <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
                   deviceRole === 'guida'
-                    ? 'bg-[#FFF0ED] text-[#172033]'
+                    ? (isCloudAuthorized && cloudRole === 'owner' ? 'bg-[#FFF0ED] text-[#172033]' : 'bg-amber-100 text-amber-800')
                     : deviceRole === 'copilota'
-                    ? 'bg-amber-100 text-amber-800'
+                    ? (isCloudAuthorized && (cloudRole === 'copilota' || cloudRole === 'owner') ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800')
                     : 'bg-slate-200 text-slate-700'
                 }`}>
-                  {deviceRole === 'guida' ? 'Telefono Guida' : deviceRole === 'copilota' ? 'Co-pilota' : 'Viewer / PC'}
+                  {deviceRole === 'guida'
+                    ? (isCloudAuthorized && cloudRole === 'owner' ? 'Telefono Guida' : 'Guida (Non verificato)')
+                    : deviceRole === 'copilota'
+                    ? (isCloudAuthorized && (cloudRole === 'copilota' || cloudRole === 'owner') ? 'Co-pilota (Verificato)' : 'Co-pilota (Non verificato)')
+                    : 'Viewer / PC'}
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">
@@ -219,7 +229,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <span className="text-2xl">📞</span>
           <div>
             <h3 className="font-extrabold text-slate-900 text-sm leading-tight">Emergenze</h3>
-            <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">111 NZ, 000 AU, 911 PH, Consolati</p>
+            <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">Contatti, strutture e note del viaggio</p>
           </div>
         </button>
 
@@ -230,8 +240,8 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
         >
           <span className="text-2xl">ℹ️</span>
           <div>
-            <h3 className="font-extrabold text-slate-900 text-sm leading-tight">Info utili</h3>
-            <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">Fuso orario, valuta, prese elettriche</p>
+            <h3 className="font-extrabold text-slate-900 text-sm leading-tight">Travel Toolkit</h3>
+            <p className="text-[10px] text-slate-500 mt-1 line-clamp-2">Checklist e strumenti per la partenza</p>
           </div>
         </button>
 

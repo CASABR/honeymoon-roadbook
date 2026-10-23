@@ -2,9 +2,11 @@ import { useState } from 'react';
 import type { Trasporto, TipoTrasporto } from '../../types';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
+import TrasportoBagagliModal from '../modals/TrasportoBagagliModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
 import { getTransportMapTargets } from '../../utils/mapsHelper';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
+import { formatDateIT } from '../../utils/tripDates';
 
 interface TrasportoCardProps {
   transport: Trasporto;
@@ -25,16 +27,9 @@ export default function TrasportoCard({
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
   const [isPNROpen, setIsPNROpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [isBagagliOpen, setIsBagagliOpen] = useState(false);
 
-  const attachmentsCount = transport.attachments?.length || 0;
   const mapTargets = getTransportMapTargets(transport);
-  const canHaveTickets =
-    transport.type === 'volo' ||
-    transport.type === 'traghetto' ||
-    transport.type === 'treno' ||
-    transport.type === 'auto' ||
-    transport.type === 'camper' ||
-    Boolean(transport.bookingCode || transport.ticketUrl || attachmentsCount > 0);
 
   const activeMapUrl = (mapTargets.departureUrl || mapTargets.pickupUrl || mapTargets.primaryUrl || mapTargets.arrivalUrl || mapTargets.dropoffUrl);
 
@@ -126,20 +121,14 @@ export default function TrasportoCard({
   }[transport.status] || transport.status;
 
   const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '';
-    try {
-      const [y, m, d] = dateStr.split('-');
-      return `${d}/${m}/${y}`;
-    } catch {
-      return dateStr;
-    }
+    return formatDateIT(dateStr);
   };
 
   return (
     <>
       <div 
         onClick={onDetail || onEdit}
-        className={`w-full rounded-2xl ${variant === 'compact' ? 'p-3' : 'p-3.5 sm:p-4'} border shadow-sm relative overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700`}
+        className={`hounigo-panel w-full rounded-2xl ${variant === 'compact' ? 'p-3' : 'p-3.5 sm:p-4'} relative overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer dark:bg-slate-800 dark:border-slate-700`}
       >
         {/* Decorazione tacche laterali stile Boarding Pass Wallet (cerchietti ritagliati) */}
         <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-700 pointer-events-none" />
@@ -163,6 +152,19 @@ export default function TrasportoCard({
                 {statusLabel}
               </span>
             )}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIsBagagliOpen(true); }}
+              className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all cursor-pointer shadow-2xs ${
+                transport.bagagli
+                  ? 'bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800/50 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/60'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-400 opacity-60 hover:opacity-100'
+              }`}
+              title="Informazioni Bagagli"
+              aria-label="Informazioni Bagagli"
+            >
+              <span className="text-xs">🧳</span>
+            </button>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
@@ -217,27 +219,50 @@ export default function TrasportoCard({
               )}
             </div>
 
-            {/* DESTINAZIONE */}
+            {/* DESTINAZIONE / RICONSEGNA */}
             <div className="flex-1 min-w-0 text-right">
               <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono">
                 {destInfo.code}
               </div>
               <p className="text-sm font-medium tracking-normal text-slate-600 dark:text-slate-300 truncate mt-0.5">
-                {destInfo.name}
+                {transport.dropoffLocation || destInfo.name}
               </p>
               <p className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400 mt-0.5">
-                {transport.arrivalTime ? `h ${transport.arrivalTime}` : 'Arrivo'}
+                {(transport.type === 'auto' || transport.type === 'camper') && (transport.dropoffTime || transport.dropoffDate)
+                  ? `Riconsegna: ${transport.dropoffDate ? formatDate(transport.dropoffDate) : ''} ${transport.dropoffTime ? 'h ' + transport.dropoffTime : ''}`
+                  : transport.arrivalTime ? `h ${transport.arrivalTime}` : 'Arrivo'}
               </p>
             </div>
           </div>
 
-          {transport.posti && (
-            <div className="mt-2 flex flex-col items-start">
-              <div className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 inline-flex items-center gap-1">
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            {transport.posti && (
+              <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 inline-flex items-center gap-1">
                 💺 Posti: {transport.posti}
-              </div>
-            </div>
-          )}
+              </span>
+            )}
+            {transport.terminalGate && (
+              <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40 inline-flex items-center gap-1">
+                🚪 Gate/Term: {transport.terminalGate}
+              </span>
+            )}
+            {transport.checkinCutoff && (
+              <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-amber-800 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40 inline-flex items-center gap-1">
+                ⏱️ Check-in entro: {transport.checkinCutoff}
+              </span>
+            )}
+            {transport.ticketUrl && (
+              <a
+                href={transport.ticketUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                className="text-[11px] font-semibold px-2 py-0.5 rounded-full text-sky-700 bg-sky-50 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200/60 dark:border-sky-800/40 inline-flex items-center gap-1 hover:underline"
+              >
+                🔗 Biglietto online
+              </a>
+            )}
+          </div>
         </div>
 
         {/* BOTTOM */}
@@ -287,15 +312,29 @@ export default function TrasportoCard({
                 <span className="text-[10px]">#️⃣</span> PNR
               </button>
             )}
-            {canHaveTickets && (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setIsTicketsOpen(true); }}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-100 text-xs font-medium transition-colors shadow-2xs"
-              >
-                <span className="text-[10px]">🎫</span> Biglietto
-              </button>
-            )}
+            {(() => {
+              const hasQrOrAttachment = Boolean(
+                (transport as any).qrCode?.trim() ||
+                transport.bookingCode?.trim() ||
+                (transport as any).pnr?.trim() ||
+                transport.ticketUrl?.trim() ||
+                (transport.attachments && transport.attachments.length > 0)
+              );
+              return (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setIsTicketsOpen(true); }}
+                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer border ${
+                    hasQrOrAttachment
+                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-800'
+                      : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 dark:text-indigo-300 dark:border-indigo-800'
+                  }`}
+                  title="Pass / Biglietto / QR"
+                >
+                  <span className="text-[10px]">🎫</span> Biglietto/QR
+                </button>
+              );
+            })()}
             {activeMapUrl && (
               <a
                 href={activeMapUrl}
@@ -368,6 +407,11 @@ export default function TrasportoCard({
           </div>
         </div>
       )}
+      <TrasportoBagagliModal
+        isOpen={isBagagliOpen}
+        onClose={() => setIsBagagliOpen(false)}
+        transport={transport}
+      />
     </>
   );
 }

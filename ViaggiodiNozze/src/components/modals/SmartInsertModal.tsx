@@ -6,7 +6,7 @@ import type { TransportAttachment } from '../../types';
 
 import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
+import { GoogleAuthProvider } from 'firebase/auth';
 
 interface SmartInsertModalProps {
   isOpen: boolean;
@@ -38,7 +38,7 @@ function renderMessage(message: string) {
         href={part}
         target="_blank"
         rel="noopener noreferrer"
-        className="text-violet-300 underline underline-offset-2 break-all hover:text-violet-200"
+        className="text-[#FF9a91] underline underline-offset-2 break-all hover:text-[#ffd2ce]"
       >
         {part.includes('google.com/maps') ? '📍 Apri in Maps' : part}
       </a>
@@ -82,36 +82,110 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
     try {
       const provider = new GoogleAuthProvider();
       provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
-      const result = await signInWithPopup(auth, provider);
-      const credential = GoogleAuthProvider.credentialFromResult(result);
-      const token = credential?.accessToken;
       
-      if (!token) throw new Error('Token non disponibile');
+      let token: string | undefined;
+
+      // Protezione identità Firebase:
+      // Se l'utente è attualmente anonimo (sessione standard del dispositivo),
+      // signInWithPopup terminerebbe la sessione anonima e creerebbe un NUOVO UID Google,
+      // facendo perdere al dispositivo il ruolo di owner o copilota nel viaggio!
+      if (auth.currentUser) {
+        const { linkWithPopup, reauthenticateWithPopup } = await import('firebase/auth');
+        if (auth.currentUser.isAnonymous) {
+          try {
+            const linkResult = await linkWithPopup(auth.currentUser, provider);
+            const cred = GoogleAuthProvider.credentialFromResult(linkResult);
+            token = cred?.accessToken;
+          } catch (linkErr: any) {
+            if (linkErr?.code === 'auth/credential-already-in-use') {
+              throw new Error(
+                'Questo account Google è già registrato su un altro profilo. Per proteggere l\'identità del dispositivo corrente ed evitare la perdita dei permessi del viaggio, il collegamento è stato interrotto. Usa l\'inserimento manuale o incolla il testo della conferma.'
+              );
+            }
+            throw linkErr;
+          }
+        } else {
+          try {
+            const reauthResult = await reauthenticateWithPopup(auth.currentUser, provider);
+            const cred = GoogleAuthProvider.credentialFromResult(reauthResult);
+            token = cred?.accessToken;
+          } catch (reauthErr: any) {
+            // Se l'utente non ha ancora collegato Google al profilo attuale, prova il collegamento senza cambiare UID
+            try {
+              const linkResult = await linkWithPopup(auth.currentUser, provider);
+              const cred = GoogleAuthProvider.credentialFromResult(linkResult);
+              token = cred?.accessToken;
+            } catch (linkErr: any) {
+              if (linkErr?.code === 'auth/credential-already-in-use') {
+                throw new Error(
+                  'Questo account Google è già registrato su un altro profilo. Per proteggere i permessi del viaggio su questo dispositivo, il collegamento è stato interrotto.'
+                );
+              }
+              throw new Error(
+                'Autorizzazione Gmail non riuscita (' + (linkErr?.message || reauthErr?.message || 'errore autorizzazione') + ').'
+              );
+            }
+          }
+        }
+      } else {
+        throw new Error('Nessuna sessione di autenticazione attiva. Ricarica la pagina e riprova.');
+      }
+      
+      if (!token) throw new Error('Token di autorizzazione Google non disponibile.');
 
       const config = getTripConfig();
-      if (!config) throw new Error('Viaggio non configurato');
+      if (!config) throw new Error('Viaggio non configurato.');
 
-      const start = config.startDate.replace(/-/g, '/');
-      const end = config.endDate.replace(/-/g, '/');
-      const query = `after:${start} before:${end} (booking OR reservation OR flight OR hotel OR tour OR ticket OR conferma OR volo OR biglietto)`;
+      // Le conferme di prenotazione arrivano tipicamente mesi prima della partenza.
+      // Non vincolare after:startDate per non escludere tutte le prenotazioni anticipate.
+      const end = config.endDate ? config.endDate.replace(/-/g, '/') : '';
+      const dateFilter = end ? `before:${end}` : '';
+      const query = `${dateFilter} (booking OR reservation OR flight OR hotel OR tour OR ticket OR conferma OR volo OR biglietto OR alloggio OR treno)`.trim();
 
       const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=5`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
       if (!data.messages || data.messages.length === 0) {
-        throw new Error('Nessuna email rilevante trovata in quelle date.');
+        throw new Error('Nessuna email di viaggio trovata con le parole chiave di prenotazione.');
       }
 
       let combinedText = '';
       for (const msg of data.messages) {
-        const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=snippet`, {
+        const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`, {
            headers: { Authorization: `Bearer ${token}` }
         });
         const msgData = await msgRes.json();
-        if (msgData.snippet) {
-           combinedText += `[Email]: ${msgData.snippet}\n\n`;
+        let emailText = '';
+
+        const headers = msgData?.payload?.headers || [];
+        const subject = headers.find((h: any) => h.name?.toLowerCase() === 'subject')?.value;
+        if (subject) emailText += `[Oggetto]: ${subject}\n`;
+        if (msgData.snippet) emailText += `[Anteprima]: ${msgData.snippet}\n`;
+
+        // Tentativo decodifica body testuale
+        try {
+          let bodyEncoded = msgData?.payload?.body?.data;
+          if (!bodyEncoded && Array.isArray(msgData?.payload?.parts)) {
+            const textPart = msgData.payload.parts.find((p: any) => p.mimeType === 'text/plain') || msgData.payload.parts[0];
+            bodyEncoded = textPart?.body?.data;
+          }
+          if (bodyEncoded && typeof atob === 'function') {
+            const sanitizedB64 = bodyEncoded.replace(/-/g, '+').replace(/_/g, '/');
+            const decoded = atob(sanitizedB64);
+            if (decoded && decoded.trim()) {
+              emailText += `[Dettagli Prenotazione]:\n${decoded.slice(0, 1500)}\n`;
+            }
+          }
+        } catch {}
+
+        if (emailText.trim()) {
+          combinedText += `=== EMAIL PRENOTAZIONE ===\n${emailText}\n\n`;
         }
+      }
+
+      if (!combinedText.trim()) {
+        throw new Error('Nessun testo leggibile estratto dalle email trovate.');
       }
 
       setText(combinedText);
@@ -218,17 +292,32 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       existingItem = all.find(a => a.titolo.toLowerCase().includes(initial.title.toLowerCase()) && (a.data === initial.dateStart || a.date === initial.dateStart));
     } else if (cat === 'trasporto') {
       initial.title = `${d.departureLocation || ''} -> ${d.arrivalLocation || ''}`;
+      initial.tipoTrasporto = d.tipoTrasporto || 'volo';
       initial.carrier = d.carrier || '';
       initial.dateStart = d.date || '';
       initial.dateEnd = d.arrivalDate || '';
       initial.cost = d.cost || '';
       initial.time = d.departureTime || '';
+      initial.arrivalTime = d.arrivalTime || '';
       initial.bookingCode = d.bookingCode || '';
       initial.notes = d.notes || '';
+      initial.layover = d.layover || null;
       const all = await storageService.getTransports();
       existingItem = all.find(a => (
         (initial.bookingCode && a.bookingCode && a.bookingCode.trim().toLowerCase() === initial.bookingCode.trim().toLowerCase()) ||
         (a.date === initial.dateStart && a.departureLocation?.toLowerCase() === d.departureLocation?.toLowerCase())
+      ));
+    } else if (cat === 'shopping') {
+      initial.title = d.nome || '';
+      initial.location = d.indirizzo || '';
+      initial.dateStart = d.data || '';
+      initial.time = d.orario || '';
+      initial.cost = d.budget || '';
+      initial.sottocategoria = d.sottocategoria || 'Altro';
+      initial.notes = d.nota || '';
+      const all = await storageService.getShopping();
+      existingItem = all.find(s => (
+        s.nome.toLowerCase().includes(initial.title.toLowerCase()) && (s.data === initial.dateStart || s.date === initial.dateStart)
       ));
     }
 
@@ -409,6 +498,29 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
           await storageService.updateRistorante(existingData.id, updated);
           notifyDataChanged('ristoranti', 'save', updated);
           window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'ristoranti', data: updated } }));
+        } else if (cat === 'shopping') {
+          const existingAtts = existingData.attachments || [];
+          const updatedAtts = att ? [...existingAtts.filter((a: any) => a.id !== att.id), att] : existingAtts;
+          const updated = {
+            ...existingData,
+            nome: editData.title || existingData.nome,
+            indirizzo: editData.location || existingData.indirizzo,
+            data: editData.dateStart || existingData.data,
+            date: editData.dateStart || existingData.date,
+            dayId: editData.dateStart ? `day_${editData.dateStart}` : existingData.dayId,
+            orario: editData.time || existingData.orario,
+            budget: editData.cost || existingData.budget,
+            cost: editData.cost || existingData.cost,
+            sottocategoria: editData.sottocategoria || existingData.sottocategoria || 'Altro',
+            nota: editData.notes || existingData.nota,
+            attachments: updatedAtts,
+            updatedAt: now
+          };
+          await storageService.saveShopping(updated);
+          notifyDataChanged('shopping', 'save', updated);
+          window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'shopping', data: updated } }));
+        } else {
+          throw new Error(`Tipologia '${cat}' non supportata per l'aggiornamento.`);
         }
       } else {
         // CREATE (Nuovo inserimento con persistenza e sincronizzazione)
@@ -454,6 +566,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
             arrivalLocation: parts[1] || '',
             cost: editData.cost || '',
             departureTime: editData.time || '',
+            arrivalTime: editData.arrivalTime || '',
             bookingCode: editData.bookingCode || '',
             notes: editData.notes || '',
             status: 'prenotato',
@@ -502,10 +615,32 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
           await storageService.saveRistorante(newRist as any);
           notifyDataChanged('ristoranti', 'save', newRist);
           window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'ristoranti', data: newRist } }));
+        } else if (cat === 'shopping') {
+          const newShop = {
+            id: generateId('shop'),
+            nome: editData.title,
+            data: editData.dateStart || '',
+            date: editData.dateStart || '',
+            dayId: editData.dateStart ? `day_${editData.dateStart}` : 'day_1',
+            indirizzo: editData.location || '',
+            budget: editData.cost || '',
+            cost: editData.cost || '',
+            orario: editData.time || '',
+            sottocategoria: editData.sottocategoria || 'Altro',
+            nota: editData.notes || '',
+            attachments: att ? [att] : [],
+            createdAt: now,
+            updatedAt: now
+          };
+          await storageService.saveShopping(newShop as any);
+          notifyDataChanged('shopping', 'save', newShop);
+          window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'shopping', data: newShop } }));
+        } else {
+          throw new Error(`Tipologia '${cat}' non supportata per la creazione.`);
         }
       }
       
-      onSaved?.(cat === 'alloggio' ? 'alloggio' : (cat === 'trasporto' ? 'trasporto' : 'tappa'));
+      onSaved?.(cat as any);
       setStep('done');
       setTimeout(() => onClose(), 1800);
     } catch (err) {
@@ -518,9 +653,10 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   const entityLabel: Record<string, string> = {
     alloggio: '🏨 Alloggio',
     tappa: '📍 Tappa',
-    trasporto: '✈️ Trasporto',
+    trasporto: '🚆/✈️ Trasporto',
     attivita: '🎫 Attività',
     ristorante: '🍝 Ristorante',
+    shopping: '🛍️ Shopping / Spesa',
     sconosciuto: '❓ Sconosciuto',
   };
 
@@ -548,7 +684,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
           {/* ─── Header ─── */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 shrink-0 rounded-2xl bg-[#FF6B5F]/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+              <div className="w-10 h-10 shrink-0 rounded-2xl bg-[#FF6B5F]/10 border border-[#FF6B5F]/25 flex items-center justify-center text-[#FF9a91]">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
                 </svg>
@@ -610,7 +746,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   {chatMessages.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       {msg.role === 'ai' && (
-                        <div className="w-8 h-8 shrink-0 rounded-full bg-[#FF6B5F]/20 border border-violet-500/30 flex items-center justify-center text-sm mr-2 mt-1">✨</div>
+                        <div className="w-8 h-8 shrink-0 rounded-full bg-[#FF6B5F]/20 border border-[#FF6B5F]/30 flex items-center justify-center text-sm mr-2 mt-1">✨</div>
                       )}
                       <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl whitespace-pre-wrap break-words text-sm ${
                         msg.role === 'user' 
@@ -647,7 +783,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   ))}
                   {step === 'extracting' && inputMode === 'chat' && (
                     <div className="flex justify-start">
-                       <div className="w-8 h-8 shrink-0 rounded-full bg-[#FF6B5F]/20 border border-violet-500/30 flex items-center justify-center text-sm mr-2 animate-pulse">✨</div>
+                       <div className="w-8 h-8 shrink-0 rounded-full bg-[#FF6B5F]/20 border border-[#FF6B5F]/30 flex items-center justify-center text-sm mr-2 animate-pulse">✨</div>
                        <div className="bg-slate-800/80 px-4 py-2.5 rounded-2xl rounded-tl-sm text-slate-400 text-sm italic">Sto analizzando...</div>
                     </div>
                   )}
@@ -656,9 +792,9 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
               {/* Box Allegato Caricato (se presente) */}
               {attachedFile && (
-                <div className="p-3 bg-slate-800/90 border border-violet-500/30 rounded-2xl flex items-center justify-between gap-3 shrink-0">
+                <div className="p-3 bg-slate-800/90 border border-[#FF6B5F]/30 rounded-2xl flex items-center justify-between gap-3 shrink-0">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-violet-500/20 text-violet-300 flex items-center justify-center text-lg shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#FF6B5F]/20 text-[#FFb6b0] flex items-center justify-center text-lg shrink-0">
                       {attachedFile.type === 'pdf' ? '📄' : '🖼️'}
                     </div>
                     <div className="min-w-0">
@@ -689,6 +825,14 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                 </div>
               )}
 
+              {/* Avviso Privacy AI */}
+              <div className="p-2.5 bg-slate-800/60 border border-slate-700/60 rounded-xl flex items-start gap-2 text-[11px] text-slate-400 leading-snug shrink-0">
+                <span className="text-slate-300 text-sm">🔒</span>
+                <span>
+                  <strong className="text-slate-300">Privacy AI:</strong> I testi o documenti allegati vengono elaborati via Google Gemini per estrarre la prenotazione. Non caricare documenti d'identità o passaporti non necessari. Nessun dato personale viene salvato su server terzi né divulgato.
+                </span>
+              </div>
+
               {/* Area Input Testo */}
               <div className="shrink-0 relative">
                 <textarea
@@ -708,7 +852,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                         : "Incolla il testo della conferma oppure usa '📎 Allega prenotazione' per caricare PDF o immagini..."
                       : "Scrivi un messaggio o chiedi un consiglio al Concierge..."
                   }
-                  className={`w-full p-4 bg-slate-800/70 border border-slate-700 text-slate-200 text-sm resize-none focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/50 placeholder:text-slate-500 ${inputMode === 'chat' ? 'h-20 rounded-2xl pr-14' : 'h-32 rounded-2xl leading-relaxed'}`}
+                  className={`w-full p-4 bg-slate-800/70 border border-slate-700 text-slate-200 text-sm resize-none focus:outline-none focus:border-[#FF6B5F] focus:ring-1 focus:ring-[#FF6B5F]/50 placeholder:text-slate-500 ${inputMode === 'chat' ? 'h-20 rounded-2xl pr-14' : 'h-32 rounded-2xl leading-relaxed'}`}
                 />
                 {inputMode === 'chat' && (
                   <button
@@ -728,10 +872,10 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isProcessingFile}
-                  className="flex-1 sm:flex-none px-4 py-3 rounded-xl font-bold bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/40 text-violet-200 text-xs flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer shadow-sm hover:border-violet-400"
+                  className="flex-1 sm:flex-none px-4 py-3 rounded-xl font-bold bg-[#FF6B5F]/15 hover:bg-[#FF6B5F]/25 border border-[#FF6B5F]/40 text-[#ffd2ce] text-xs flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer shadow-sm hover:border-[#FF9a91]"
                   title="Carica documento PDF, biglietto o screenshot di prenotazione"
                 >
-                  <svg className="w-4 h-4 text-violet-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-[#FF9a91] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                   </svg>
                   <span className="truncate">{attachedFile ? 'Sostituisci File' : '📎 Allega prenotazione'}</span>
@@ -758,7 +902,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
           {step === 'extracting' && inputMode === 'import' && (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <div className="relative w-16 h-16">
-                <div className="absolute inset-0 rounded-full border-4 border-slate-800 border-t-violet-500 animate-spin" />
+                <div className="absolute inset-0 rounded-full border-4 border-slate-800 border-t-[#FF6B5F] animate-spin" />
                 <div className="absolute inset-3 rounded-full bg-slate-800 flex items-center justify-center text-xl">✨</div>
               </div>
               <div className="text-center">
@@ -874,7 +1018,49 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   </select>
                 </div>
 
+                {editData.category === 'trasporto' && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 mb-1 block">Mezzo di Trasporto</label>
+                    <select
+                      value={editData.tipoTrasporto || 'volo'}
+                      onChange={(e) => setEditData({...editData, tipoTrasporto: e.target.value})}
+                      className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                    >
+                      <option value="volo">✈️ Volo</option>
+                      <option value="treno">🚆 Treno</option>
+                      <option value="traghetto">⛴️ Traghetto</option>
+                      <option value="auto">🚗 Noleggio Auto</option>
+                      <option value="camper">🚐 Camper</option>
+                      <option value="transfer">🚐 Transfer</option>
+                    </select>
+                  </div>
+                )}
+
+                {editData.category === 'shopping' && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-400 mb-1 block">Sottocategoria Spesa</label>
+                    <select
+                      value={editData.sottocategoria || 'Altro'}
+                      onChange={(e) => setEditData({...editData, sottocategoria: e.target.value})}
+                      className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                    >
+                      <option value="Souvenir">Souvenir & Artigianato</option>
+                      <option value="Abbigliamento">Abbigliamento & Attrezzatura</option>
+                      <option value="Alimentari">Alimentari & Supermercato</option>
+                      <option value="Carburante">Carburante</option>
+                      <option value="Altro">Altro</option>
+                    </select>
+                  </div>
+                )}
+
                 <div className="overflow-y-auto max-h-[45vh] pr-1 pb-2 custom-scrollbar space-y-3 min-w-0">
+                  {editData.category === 'trasporto' && editData.layover?.airport && (
+                    <div className="p-2.5 bg-violet-950/40 border border-violet-500/30 rounded-xl text-xs text-violet-200 flex items-center gap-2">
+                      <span>🔄</span>
+                      <span><strong>Scalo previsto:</strong> {editData.layover.airport} {editData.layover.duration ? `(${editData.layover.duration})` : ''}</span>
+                    </div>
+                  )}
+
                   <div className="min-w-0">
                     <label className="text-xs font-semibold text-slate-400 mb-1 block truncate">Fornitore / Nome / Titolo</label>
                     <input 
@@ -920,6 +1106,17 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                           type="time" 
                           value={editData.time || ''} 
                           onChange={(e) => setEditData({...editData, time: e.target.value})}
+                          className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500 [color-scheme:dark]"
+                        />
+                      </div>
+                    )}
+                    {editData.category === 'trasporto' && (
+                      <div>
+                        <label className="text-xs font-semibold text-slate-400 mb-1 block">Orario Arrivo (opzionale)</label>
+                        <input 
+                          type="time" 
+                          value={editData.arrivalTime || ''} 
+                          onChange={(e) => setEditData({...editData, arrivalTime: e.target.value})}
                           className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500 [color-scheme:dark]"
                         />
                       </div>
@@ -1110,16 +1307,19 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
               </button>
               <button
                 onClick={() => {
+                  setExistingData(null);
+                  setAttachedFile(null);
                   setEditData({
                     category: pendingSuggestion.category || (pendingSuggestion.name ? 'ristorante' : 'attivita'),
-                    title: pendingSuggestion.title || pendingSuggestion.name || pendingSuggestion.nome,
+                    title: pendingSuggestion.title || pendingSuggestion.name || pendingSuggestion.nome || '',
                     location: pendingSuggestion.location || pendingSuggestion.indirizzo || '',
                     dateStart: pickerDate,
                     time: pickerTime,
-                    cost: pendingSuggestion.cost || '',
-                    notes: pendingSuggestion.notes || ''
+                    cost: pendingSuggestion.cost || pendingSuggestion.budget || '',
+                    notes: pendingSuggestion.notes || pendingSuggestion.nota || ''
                   });
                   setPendingSuggestion(null);
+                  setStep('review');
                 }}
                 className="flex-1 py-2.5 rounded-xl font-bold text-white bg-[#FF6B5F] hover:bg-[#e85c50] shadow-md shadow-rose-500/20 transition"
               >

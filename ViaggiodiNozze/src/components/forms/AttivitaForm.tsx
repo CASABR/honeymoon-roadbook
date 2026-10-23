@@ -1,9 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
-import type { Attivita, TransportAttachment } from '../../types';
+import type { Attivita, TransportAttachment, Coordinate } from '../../types';
 import { storageService } from '../../storage/storageService';
 import { processFileForAttachment, formatFileSize, openAttachmentInNewTab, checkStorageAvailability } from '../../utils/fileAttachment';
+import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
+import DropZone from '../common/DropZone';
+import type { PlaceSuggestion } from '../../services/photonService';
 
 interface AttivitaFormProps {
   days?: any[];
@@ -22,10 +25,12 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
   const [sottocategoria, setSottocategoria] = useState<Attivita['sottocategoria'] | ''>('');
   const [title, setTitle] = useState('');
   const [customDate, setCustomDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [orarioRitrovo, setOrarioRitrovo] = useState('');
   const [orarioInizio, setOrarioInizio] = useState('');
   const [duration, setDuration] = useState('');
   const [address, setAddress] = useState('');
+  const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
   
   const [cost, setCost] = useState('');
   const [acconto, setAcconto] = useState('');
@@ -62,10 +67,12 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       setTitle(initialData.title);
       const dateVal = initialData.date || (initialData.dayId.startsWith('day_') ? initialData.dayId.replace('day_', '') : '');
       setCustomDate(dateVal);
+      setEndDate(initialData.endDate || '');
       setOrarioRitrovo(initialData.orarioRitrovo || initialData.time || '');
       setOrarioInizio(initialData.orarioInizio || '');
       setDuration(initialData.duration || '');
       setAddress(initialData.address || initialData.location || '');
+      setCoordinate(initialData.coordinate);
       
       setCost(initialData.cost || '');
       setAcconto(initialData.acconto || '');
@@ -87,12 +94,14 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
         const dd = String(today.getDate()).padStart(2, '0');
         setCustomDate(`${yyyy}-${mm}-${dd}`);
       }
+      setEndDate('');
       setSottocategoria('');
       setTitle('');
       setOrarioRitrovo('');
       setOrarioInizio('');
       setDuration('');
       setAddress('');
+      setCoordinate(undefined);
       setCost('');
       setAcconto('');
       setPaymentStatus('da_saldare');
@@ -127,11 +136,9 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
     setConflictWarning('');
   }, [orarioInizio, duration, customDate]);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const handleFilesBatch = async (filesArray: File[]) => {
+    if (!filesArray || filesArray.length === 0) return;
 
-    const filesArray = Array.from(files);
     setAttachmentError('');
     setIsUploadingAttachment(true);
 
@@ -157,8 +164,31 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
     }
   };
 
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    await handleFilesBatch(Array.from(files));
+  };
+
   const handleRemoveAttachment = (id: string) => {
     setAttachments(prev => prev.filter(att => att.id !== id));
+  };
+
+  const handleSelectPlace = (place: PlaceSuggestion) => {
+    setTitle(place.title);
+    if (place.address) {
+      setAddress(place.address);
+    }
+    if (place.coordinate) {
+      setCoordinate(place.coordinate);
+    }
+    if (place.rawLocalItem) {
+      const raw = place.rawLocalItem;
+      if (raw.notes && !notes) setNotes(raw.notes);
+      if (raw.sottocategoria && !sottocategoria) setSottocategoria(raw.sottocategoria);
+      if (raw.time && !orarioInizio) setOrarioInizio(raw.time);
+      if (raw.cost && !cost) setCost(raw.cost);
+    }
   };
 
   const handleOpenPdf = (dataUrl: string, fileName: string) => {
@@ -215,10 +245,13 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
 
     setIsGeocoding(false);
 
+    const finalCoordToSave = coordinate || finalCoord;
+
     onSave({
       id: initialData?.id,
       dayId: `day_${customDate}`,
       date: customDate,
+      endDate: endDate.trim() || undefined,
       title: title.trim(),
       sottocategoria: sottocategoria || undefined,
       category: 'visita', // fallback obbligatorio
@@ -228,7 +261,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       duration: duration || undefined,
       address: address.trim() || undefined,
       location: address.trim() || title.trim(),
-      coordinate: finalCoord,
+      coordinate: finalCoordToSave,
       cost: cost.trim() || undefined,
       acconto: acconto.trim() || undefined,
       paymentStatus,
@@ -294,31 +327,40 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
         </div>
       </div>
 
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Titolo Attività *
-        </label>
-        <input
-          type="text"
-          placeholder="es. Safari in Jeep"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors placeholder:text-slate-400"
-          required
-        />
-      </div>
+      <PlaceAutocompleteInput
+        value={title}
+        onChange={setTitle}
+        onSelectPlace={handleSelectPlace}
+        label="Titolo Attività"
+        placeholder="es. Safari in Jeep, Hobbiton..."
+        required
+      />
 
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Data *
-        </label>
-        <input
-          type="date"
-          value={customDate}
-          onChange={(e) => setCustomDate(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors"
-          required
-        />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Data Inizio *
+          </label>
+          <input
+            type="date"
+            value={customDate}
+            onChange={(e) => setCustomDate(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors"
+            required
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Data Fine (Opzionale)
+          </label>
+          <input
+            type="date"
+            value={endDate}
+            min={customDate || undefined}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] transition-colors"
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -463,23 +505,13 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
               Carica il documento originale ricevuto dall'organizzatore (PDF o immagine con QR). Disponibile 100% offline.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploadingAttachment}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50 shrink-0"
-          >
-            {isUploadingAttachment ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
-                <span>Caricamento...</span>
-              </>
-            ) : (
-              <>
-                <span>+ Allega File</span>
-              </>
-            )}
-          </button>
+          <DropZone
+            variant="button"
+            onFilesSelected={handleFilesBatch}
+            isUploading={isUploadingAttachment}
+            title="+ Allega File"
+            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold border-none"
+          />
           <input
             type="file"
             ref={fileInputRef}
@@ -579,16 +611,23 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
                 </div>
               </div>
             ))}
+
+            <DropZone
+              variant="compact"
+              onFilesSelected={handleFilesBatch}
+              isUploading={isUploadingAttachment}
+              title="Trascina qui altri biglietti o QR code"
+              subtitle="oppure clicca per selezionare dalla cartella"
+            />
           </div>
         ) : (
-          <div
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-slate-200 hover:border-amber-400 rounded-xl p-3.5 text-center cursor-pointer transition-colors bg-white/60"
-          >
-            <span className="text-xl block mb-1">🎫</span>
-            <p className="text-xs font-semibold text-slate-700">Nessun file o voucher allegato</p>
-            <p className="text-[10px] text-slate-400 mt-0.5">Tocca qui per allegare PDF o immagini con QR code della prenotazione</p>
-          </div>
+          <DropZone
+            variant="hero"
+            onFilesSelected={handleFilesBatch}
+            isUploading={isUploadingAttachment}
+            title="Trascina qui il tuo Biglietto, Pass o QR Code"
+            subtitle="Rilascia direttamente dal desktop oppure clicca per sfogliare la cartella (PDF o immagini)."
+          />
         )}
       </div>
 

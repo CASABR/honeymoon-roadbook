@@ -21,6 +21,7 @@ import InTransitBanner from '../components/common/InTransitBanner';
 import UniversalCopilotaModal from '../components/modals/UniversalCopilotaModal';
 import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
 import { useDeviceRole } from '../utils/useDeviceRole';
+import { formatDateIT } from '../utils/tripDates';
 
 interface OggiViewProps {
   onNavigateTab?: (tab: SectionTab, categoria?: CategoriaTab, subView?: any) => void;
@@ -617,6 +618,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   };
 
   const handleSaveDayMapLink = () => {
+    if (!canEdit) return;
     storageService.saveDayMapLink(selectedDate, editMapLinkUrl);
     setDayMapLink(editMapLinkUrl || null);
     setIsMapLinkModalOpen(false);
@@ -642,15 +644,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     : null;
 
   const formatDateHuman = (dateStr: string) => {
-    try {
-      const [y, m, d] = dateStr.split('-');
-      if (y && m && d) {
-        return `${d}-${m}-${y}`;
-      }
-      return dateStr;
-    } catch {
-      return dateStr;
-    }
+    return formatDateIT(dateStr);
   };
 
   // --- Hero customization handlers ---
@@ -1024,7 +1018,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         <div 
           className={`mx-1 rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow transition-shadow ${!dayMapLink ? 'cursor-pointer active:bg-slate-50' : ''}`}
           onClick={() => {
-            if (!dayMapLink) {
+            if (canEdit && !dayMapLink) {
               setEditMapLinkUrl(''); 
               setIsMapLinkModalOpen(true);
             }

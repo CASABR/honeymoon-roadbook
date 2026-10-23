@@ -1,5 +1,15 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "ignorePatterns": [
+    "scripts/SpeseBudgetView.backup.tsx",
+    "scripts/update_spese.cjs",
+    "scripts/create_migration.cjs",
+    "scripts/diag_phase_*.cjs",
+    "scripts/check_deployed_functions.cjs",
+    "scripts/create_valid_invite_token.cjs",
+    "scripts/test_oauth_firestore.cjs",
+    "scripts/inspect_invites.cjs"
+  ],
   "plugins": ["react", "typescript", "oxc"],
   "rules": {
     "react/rules-of-hooks": "error",

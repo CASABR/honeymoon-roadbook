@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import type { TravelDocument } from '../../types';
 import { storageService } from '../../storage/storageService';
 import DocumentValidityModal from '../../components/modals/DocumentValidityModal';
+import { getTripConfig } from '../../utils/tripConfig';
 
 interface AssicurazioneViewProps {
   onBack: () => void;
@@ -13,35 +14,14 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [copiedPolicy, setCopiedPolicy] = useState(false);
   const [expandedAccordion, setExpandedAccordion] = useState<string | null>('ospedale');
-
-  const policyNumber = 'DA INSERIRE';
-
-  const handleCopyPolicy = async () => {
-    try {
-      await navigator.clipboard.writeText(policyNumber);
-      setCopiedPolicy(true);
-      setTimeout(() => setCopiedPolicy(false), 2000);
-    } catch {
-      // fallback
-    }
-  };
+  const isLegacyTrip = getTripConfig()?.id === '0000';
+  const policyNumber = doc?.policyNumber || (doc as any)?.bookingCode || (isLegacyTrip ? 'EA-2026-NOSTOP' : '');
   
   const loadDoc = async () => {
     try {
       setLoading(true);
       const loaded = await storageService.getDocuments();
-      let insurance = loaded.find(d => d.category === 'assicurazione');
-      if (!insurance) {
-        // Create an empty one
-        insurance = {
-          id: 'doc_assicurazione',
-          category: 'assicurazione',
-          title: 'Assicurazione di Viaggio',
-          attachments: [],
-          updatedAt: new Date().toISOString()
-        };
-      }
-      setDoc(insurance);
+      setDoc(loaded.find(d => d.category === 'assicurazione') || null);
     } catch (err) {
       console.error('Errore caricamento assicurazione:', err);
     } finally {
@@ -92,6 +72,24 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
         <div className="flex-1 flex items-center justify-center min-h-[200px]">
           <div className="w-6 h-6 border-2 border-indigo-400 border-t-transparent rounded-full animate-spin" />
         </div>
+      ) : !doc ? (
+        <div className="px-1">
+          <div className="rounded-3xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+            <div className="text-3xl mb-3">🛡️</div>
+            <h2 className="text-lg font-black text-slate-900">Nessuna assicurazione salvata</h2>
+            <p className="mt-2 text-sm leading-relaxed text-slate-500">Aggiungi i dati della polizza, i contatti di assistenza e gli allegati che ti servono durante il viaggio.</p>
+            <button
+              type="button"
+              onClick={() => {
+                setDoc({ id: 'doc_assicurazione', category: 'assicurazione', title: 'Assicurazione di viaggio', attachments: [], updatedAt: new Date().toISOString() });
+                setIsEditing(true);
+              }}
+              className="mt-5 rounded-xl bg-[#FF6B5F] px-4 py-3 text-sm font-bold text-white"
+            >
+              Aggiungi assicurazione
+            </button>
+          </div>
+        </div>
       ) : (
         <div className="px-1 space-y-4">
           {/* ─── SEZIONE 1: ASSICURAZIONE ─────────────────────────────────── */}
@@ -106,10 +104,10 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
             <div className="flex justify-between items-start gap-2 mb-3">
               <div className="min-w-0">
                 <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">
-                  NOME COMPAGNIA
+                  {doc?.company || (doc as any)?.carrier || (isLegacyTrip ? 'Europ Assistance' : 'Compagnia da aggiungere')}
                 </span>
                 <h2 className="text-lg font-black text-slate-900 mt-1.5 leading-snug">
-                  Polizza Assicurativa
+                  {doc?.title || 'Polizza Assicurativa Viaggio'}
                 </h2>
                 
                 {/* Numero Polizza in evidenza con tasto "Copia" */}
@@ -117,11 +115,19 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
                   <div className="inline-flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-xl border border-slate-200">
                     <span className="text-[11px] font-bold text-slate-500 uppercase">N°:</span>
                     <span className="font-mono text-xs font-black text-slate-900">
-                      {policyNumber}
+                      {policyNumber || 'Numero da aggiungere'}
                     </span>
                     <button
                       type="button"
-                      onClick={handleCopyPolicy}
+                      onClick={async () => {
+                        const num = policyNumber;
+                        if (!num) return;
+                        try {
+                          await navigator.clipboard.writeText(num);
+                          setCopiedPolicy(true);
+                          setTimeout(() => setCopiedPolicy(false), 2000);
+                        } catch {}
+                      }}
                       className="ml-1 text-[11px] font-bold text-indigo-700 hover:text-indigo-900 transition-colors cursor-pointer"
                       title="Copia numero polizza"
                     >
@@ -131,6 +137,11 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
                   <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
                     ✓ H24 ATTIVA
                   </span>
+                  {doc?.attachments && doc.attachments.length > 0 && (
+                    <span className="inline-flex items-center text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      📎 {doc.attachments.length} {doc.attachments.length === 1 ? 'allegato' : 'allegati'}
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -145,16 +156,27 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
             <div className="grid grid-cols-2 gap-2.5 pt-3.5 border-t border-slate-100 text-xs">
               <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Validità</span>
-                <span className="font-bold text-slate-800 text-[11px] block mt-0.5">Da inserire</span>
+                <span className="font-bold text-slate-800 text-[11px] block mt-0.5 truncate" title={doc?.validity}>
+                  {doc?.validity || (isLegacyTrip ? 'Intero viaggio (28 Nov 2026 – 12 Gen 2027)' : 'Da aggiungere')}
+                </span>
               </div>
               <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Copertura Paesi</span>
-                <span className="font-bold text-slate-800 text-[11px] block mt-0.5">Da inserire</span>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Copertura / Dettagli</span>
+                <span className="font-bold text-slate-800 text-[11px] block mt-0.5 truncate" title={doc?.description}>
+                  {doc?.coverage || doc?.description || (isLegacyTrip ? 'Nuova Zelanda, Australia, Filippine' : 'Da aggiungere')}
+                </span>
               </div>
             </div>
           </div>
 
           {/* ─── SEZIONE 2: EMERGENZE & SOS ──────────────────────────────── */}
+          {!isLegacyTrip && (
+            <p className="rounded-2xl bg-slate-50 p-3 text-xs leading-relaxed text-slate-600">
+              Inserisci i contatti di assistenza nella polizza e i riferimenti locali nella sezione Emergenze.
+            </p>
+          )}
+
+          {isLegacyTrip && <>
           <div className="flex items-center gap-2 mt-4 mb-2">
             <div className="flex-1 h-px bg-slate-200" />
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-rose-500 px-1">🚨 Emergenze & SOS</span>
@@ -354,6 +376,7 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
               )}
             </div>
           </div>
+          </>}
         </div>
       )}
 
