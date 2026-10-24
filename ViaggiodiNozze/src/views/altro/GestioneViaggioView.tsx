@@ -676,7 +676,7 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
         </div>
         <h3 className="font-extrabold text-slate-900 text-lg mb-2">Invita un Co-pilota</h3>
         <p className="text-sm text-slate-600 mb-4 leading-relaxed">
-          Su Firebase Spark (piano gratuito), l'accesso al viaggio esistente è protetto: per autorizzare il Co-pilota (***REMOVED***), registra qui il suo UID dispositivo. Il Co-pilota potrà poi connettersi tramite il link d'invito o inserendo il codice <strong>{initialConfig?.id || '0000'}</strong>.
+          Su Firebase Spark (piano gratuito), l'accesso al viaggio esistente è protetto: per autorizzare il Co-pilota{initialConfig?.id === '0000' ? ' (***REMOVED***)' : ''}, registra qui il suo UID dispositivo. Il Co-pilota potrà poi connettersi tramite il link d'invito o inserendo il codice <strong>{initialConfig?.id || '0000'}</strong>.
         </p>
 
         {/* Form Autorizzazione Co-pilota tramite UID (Firebase Spark gratuito) */}
@@ -686,7 +686,7 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
             <span className="text-xs font-bold text-indigo-950 uppercase tracking-wider">Autorizza Dispositivo Co-pilota (Spark)</span>
           </div>
           <p className="text-[11px] text-indigo-900/80 leading-relaxed">
-            Chiedi a ***REMOVED*** di aprire l'app o Safari sul suo telefono e copiare <strong>«Il TUO UID Dispositivo»</strong> (visibile nella schermata di benvenuto o in Impostazioni). Incollalo qui sotto:
+            {initialConfig?.id === '0000' ? 'Chiedi a ***REMOVED***' : 'Chiedi al Co-pilota'} di aprire l'app o Safari sul suo telefono e copiare <strong>«Il TUO UID Dispositivo»</strong> (visibile nella schermata di benvenuto o in Impostazioni). Incollalo qui sotto:
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <input
@@ -694,14 +694,14 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
               required
               value={newMemberUid}
               onChange={(e) => setNewMemberUid(e.target.value)}
-              placeholder="UID dispositivo di ***REMOVED*** *"
+              placeholder={initialConfig?.id === '0000' ? 'UID dispositivo di ***REMOVED*** *' : 'UID dispositivo Co-pilota *'}
               className="w-full px-3 py-2 rounded-xl border border-indigo-200 bg-white text-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
             />
             <input
               type="text"
               value={newMemberName}
               onChange={(e) => setNewMemberName(e.target.value)}
-              placeholder="Nome visualizzato (es. ***REMOVED***)"
+              placeholder={initialConfig?.id === '0000' ? 'Nome visualizzato (es. ***REMOVED***)' : 'Nome visualizzato (es. Co-pilota)'}
               className="w-full px-3 py-2 rounded-xl border border-indigo-200 bg-white text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
             />
           </div>

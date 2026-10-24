@@ -36,14 +36,16 @@ export async function registerDeviceOnFirestore(tripId: string, role: DeviceRole
   const deviceId = getOrCreateDeviceId();
 
   try {
-    const { db } = await import('../firebase');
+    const { db, auth } = await import('../firebase');
     const { doc, setDoc } = await import('firebase/firestore');
     if (!db) return;
 
     const deviceDocRef = doc(db, 'trips', tripId, 'devices', deviceId);
     await setDoc(deviceDocRef, {
       deviceId,
+      uid: auth.currentUser?.uid || '',
       role,
+      label: role === 'guida' ? 'Dispositivo guida' : role === 'copilota' ? 'Dispositivo copilota' : 'Dispositivo viewer',
       lastSeen: Date.now()
     }, { merge: true });
   } catch (err) {

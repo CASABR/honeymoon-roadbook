@@ -180,7 +180,11 @@ function MapController({
   return null;
 }
 
-export default function MappaView() {
+export interface MappaViewProps {
+  onNavigateTab?: (tab: any, categoria?: any) => void;
+}
+
+export default function MappaView({ onNavigateTab }: MappaViewProps = {}) {
   const [markers, setMarkers] = useState<MapMarkerData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<POICategory | 'all'>('all');
@@ -425,8 +429,35 @@ export default function MappaView() {
               <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento mappa e pin...</span>
             </div>
           </div>
+        ) : markers.length === 0 ? (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center p-6 text-center bg-[#F8F7F3] dark:bg-slate-900">
+            <div className="w-20 h-20 rounded-full bg-white dark:bg-slate-800 shadow-md border border-slate-200/80 dark:border-slate-700 flex items-center justify-center text-4xl mb-4 animate-bounce">
+              🗺️
+            </div>
+            <h2 className="text-base font-extrabold text-[#172033] dark:text-white tracking-tight mb-1">
+              Mappa vuota: nessun punto registrato
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs mb-5 leading-relaxed font-medium">
+              Inizia a costruire il tuo itinerario. Aggiungi la tua prima tappa per vederla comparire sulla mappa interattiva.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (onNavigateTab) {
+                  onNavigateTab('categorie', 'tappe');
+                } else {
+                  window.dispatchEvent(new CustomEvent('navigate_tab', { detail: { tab: 'categorie', categoria: 'tappe' } }));
+                }
+              }}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-[#FF6B5F] hover:bg-[#e0564a] text-white text-xs font-bold shadow-lg shadow-[#FF6B5F]/25 transition-all active:scale-95 cursor-pointer"
+            >
+              <span className="text-sm">+</span>
+              <span>Aggiungi la prima tappa</span>
+            </button>
+          </div>
         ) : (
           <MapContainer
+            key={`map_${storageService.getCurrentTripId()}_${markers.length}`}
             center={defaultCenter}
             zoom={filteredMarkers.length > 0 ? 11 : 4}
             style={{ height: '100%', width: '100%', zIndex: 0 }}

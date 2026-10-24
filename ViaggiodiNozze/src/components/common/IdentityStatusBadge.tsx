@@ -188,7 +188,7 @@ export default function IdentityStatusBadge({ compact = false }: IdentityStatusB
             {currentUid || 'Non connesso'}
           </div>
           <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-tight">
-            Questo è l'identificativo di questo dispositivo da comunicare a ***REMOVED*** per l'autorizzazione.
+            Questo è l'identificativo di questo dispositivo da comunicare al proprietario del viaggio per l'autorizzazione.
           </p>
         </div>
 

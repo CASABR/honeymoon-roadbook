@@ -71,6 +71,9 @@ interface CustomLivePhoto {
 import { liveService, type LiveUpdate } from '../../services/liveService';
 import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
+import LiveEditorialExperience from './LiveEditorialExperience';
+import { liveGpsService, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation } from '../../services/liveGpsService';
+import { registerDeviceOnFirestore } from '../../utils/deviceSession';
 
 export default function LiveView({ onBack, isStandaloneExternal = false, tripId }: LiveViewProps) {
   const activeTripId = tripId || getTripConfig()?.id;
@@ -82,6 +85,18 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [transports, setTransports] = useState<Trasporto[]>([]);
   const [tappe, setTappe] = useState<Tappa[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Live Feed Data from Firestore
   const [liveUpdates, setLiveUpdates] = useState<LiveUpdate[]>([]);
@@ -149,6 +164,13 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [liveGpsState, setLiveGpsState] = useState<GeolocationState | null>(() => getSavedLiveLocation());
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
+  const [gpsFeedback, setGpsFeedback] = useState<string | null>(null);
+  const [remoteGpsLease, setRemoteGpsLease] = useState<LiveGpsLease | null>(null);
+  const [remoteGpsLocation, setRemoteGpsLocation] = useState<LiveGpsLocation | null>(null);
+  const [gpsDevices, setGpsDevices] = useState<LiveGpsDevice[]>([]);
+  const gpsWatchRef = useRef<number | null>(null);
+  const lastGpsPublishRef = useRef(0);
+  const remoteLocationRef = useRef<LiveGpsLocation | null>(null);
   // Toggle chiara visualizzazione: 'reale' (Dove siamo ora) vs 'programmato' (Dove dovremmo essere)
   const [mapLocationMode, setMapLocationMode] = useState<'reale' | 'programmato'>('reale');
 
@@ -164,7 +186,56 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [tileLoadFailed, setTileLoadFailed] = useState(false);
   const [showMyCurrentGps, setShowMyCurrentGps] = useState(true);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
-  const { cloudRole } = useAuthIdentity();
+  const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
+  const { cloudRole, currentUid } = useAuthIdentity();
+
+  useEffect(() => {
+    remoteLocationRef.current = remoteGpsLocation;
+  }, [remoteGpsLocation]);
+
+  useEffect(() => {
+    if (!activeTripId) return;
+    const unsubscribeLocation = liveGpsService.subscribePublicLocation(activeTripId, setRemoteGpsLocation);
+    const staleTimer = window.setInterval(() => {
+      setRemoteGpsLocation(current => current && Date.now() - current.updatedAt.getTime() < 120_000 ? current : null);
+    }, 5000);
+    return () => {
+      unsubscribeLocation();
+      window.clearInterval(staleTimer);
+    };
+  }, [activeTripId]);
+
+  useEffect(() => {
+    if (!activeTripId || (cloudRole !== 'owner' && cloudRole !== 'copilota')) {
+      setRemoteGpsLease(null);
+      setGpsDevices([]);
+      return;
+    }
+    registerDeviceOnFirestore(activeTripId, deviceRole).catch(() => {});
+    const unsubscribeLease = liveGpsService.subscribeLease(activeTripId, setRemoteGpsLease, (err) => setGpsError(err.message));
+    const unsubscribeDevices = cloudRole === 'owner'
+      ? liveGpsService.subscribeDevices(activeTripId, setGpsDevices)
+      : () => {};
+    return () => {
+      unsubscribeLease();
+      unsubscribeDevices();
+    };
+  }, [activeTripId, cloudRole, deviceRole]);
+
+  useEffect(() => {
+    const ownsActiveLease = remoteGpsLease?.status === 'active'
+      && remoteGpsLease.holderUid === currentUid
+      && remoteGpsLease.holderDeviceId === liveGpsService.getDeviceId()
+      && remoteGpsLease.expiresAt.getTime() > Date.now();
+    if (!ownsActiveLease && gpsWatchRef.current !== null) {
+      navigator.geolocation?.clearWatch(gpsWatchRef.current);
+      gpsWatchRef.current = null;
+    }
+  }, [remoteGpsLease, currentUid]);
+
+  useEffect(() => () => {
+    if (gpsWatchRef.current !== null) navigator.geolocation?.clearWatch(gpsWatchRef.current);
+  }, []);
 
   // Rileva posizione GPS reale su richiesta o automaticamente all'apertura
   const handleDetectGps = useCallback(async (isSilent = false) => {
@@ -197,9 +268,103 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     }
   }, []);
 
-  // Ruolo del dispositivo: 'guida' | 'copilota' | 'viewer' (default 'viewer')
-  const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
+  const publishBrowserPosition = useCallback(async (position: GeolocationPosition) => {
+    if (!activeTripId || Date.now() - lastGpsPublishRef.current < 16_000) return;
+    lastGpsPublishRef.current = Date.now();
+    await liveGpsService.publishLocation(activeTripId, {
+      lat: position.coords.latitude,
+      lng: position.coords.longitude,
+      accuracy: position.coords.accuracy,
+      city: remoteLocationRef.current?.city || '',
+      country: remoteLocationRef.current?.country || ''
+    });
+  }, [activeTripId]);
 
+  const startGpsWatcher = useCallback(() => {
+    if (!navigator.geolocation || gpsWatchRef.current !== null) return;
+    gpsWatchRef.current = navigator.geolocation.watchPosition(
+      position => publishBrowserPosition(position).catch(error => setGpsError(error.message)),
+      error => setGpsError(error.code === error.PERMISSION_DENIED
+        ? 'Permesso GPS negato. Abilitalo nelle impostazioni del browser.'
+        : 'Segnale GPS non disponibile. La condivisione resta sospesa.'),
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 10_000 }
+    );
+  }, [publishBrowserPosition]);
+
+  const handleStartGps = useCallback(async () => {
+    if (!activeTripId || !currentUid || (cloudRole !== 'owner' && cloudRole !== 'copilota')) return;
+    setIsDetectingGps(true);
+    setGpsError(null);
+    setGpsFeedback(null);
+    try {
+      const deviceId = liveGpsService.getDeviceId();
+      const ownsLease = remoteGpsLease?.holderUid === currentUid && remoteGpsLease.holderDeviceId === deviceId;
+      if (!ownsLease) {
+        if (cloudRole !== 'owner') throw new Error('L’Organizzatore deve prima assegnare la guida a questo dispositivo.');
+        await liveGpsService.assignGuide(activeTripId, currentUid, deviceId);
+      } else if (remoteGpsLease?.status !== 'active') {
+        if (cloudRole !== 'owner') throw new Error('Solo l’Organizzatore può riprendere una condivisione sospesa.');
+        await liveGpsService.resume(activeTripId, currentUid, deviceId);
+      }
+      const detected = await updateRealLocation({ enableHighAccuracy: true, timeout: 12_000, maximumAge: 10_000 });
+      setLiveGpsState(detected);
+      lastGpsPublishRef.current = 0;
+      await liveGpsService.publishLocation(activeTripId, {
+        lat: detected.coords.lat,
+        lng: detected.coords.lng,
+        accuracy: detected.accuracy,
+        city: detected.city,
+        country: detected.country
+      });
+      lastGpsPublishRef.current = Date.now();
+      startGpsWatcher();
+      setGpsFeedback('Posizione condivisa e confermata dal server.');
+    } catch (error) {
+      const candidate = error as { code?: number; message?: string };
+      setGpsError(candidate.code === 1
+        ? 'Permesso GPS negato. Nessuna posizione è stata condivisa.'
+        : candidate.message || 'Impossibile avviare la condivisione GPS.');
+    } finally {
+      setIsDetectingGps(false);
+    }
+  }, [activeTripId, cloudRole, currentUid, remoteGpsLease, startGpsWatcher]);
+
+  const handlePauseOrStopGps = useCallback(async (status: 'paused' | 'stopped') => {
+    if (!activeTripId) return;
+    setIsDetectingGps(true);
+    setGpsError(null);
+    try {
+      await liveGpsService.pauseOrStop(activeTripId, status);
+      if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
+      gpsWatchRef.current = null;
+      setRemoteGpsLocation(null);
+      setLiveGpsState(null);
+      setGpsFeedback(status === 'paused' ? 'Condivisione sospesa.' : 'Condivisione interrotta.');
+    } catch (error) {
+      setGpsError((error as Error)?.message || 'Impossibile aggiornare la condivisione.');
+    } finally {
+      setIsDetectingGps(false);
+    }
+  }, [activeTripId]);
+
+  const handleTransferGps = useCallback(async (uid: string, deviceId: string) => {
+    if (!activeTripId || cloudRole !== 'owner') return;
+    setIsDetectingGps(true);
+    setGpsError(null);
+    try {
+      await liveGpsService.assignGuide(activeTripId, uid, deviceId);
+      if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
+      gpsWatchRef.current = null;
+      setRemoteGpsLocation(null);
+      setGpsFeedback('Guida trasferita. Il nuovo dispositivo deve consentire il GPS.');
+    } catch (error) {
+      setGpsError((error as Error)?.message || 'Trasferimento guida non riuscito.');
+    } finally {
+      setIsDetectingGps(false);
+    }
+  }, [activeTripId, cloudRole]);
+
+  // Ruolo del dispositivo: 'guida' | 'copilota' | 'viewer' (default 'viewer')
   useEffect(() => {
     const handleRoleChanged = (e: Event) => {
       const customEvent = e as CustomEvent<{ role: DeviceRole }>;
@@ -211,14 +376,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     return () => window.removeEventListener('device_role_changed', handleRoleChanged);
   }, []);
 
-  // Richiesta automatica della geolocalizzazione SOLO se il ruolo è 'guida' E cloudRole è 'owner'
-  useEffect(() => {
-    const isCloudOwner = cloudRole === 'owner';
-    if (deviceRole === 'guida' && isCloudOwner && typeof navigator !== 'undefined' && navigator.geolocation) {
-      // Esegui la richiesta automatica in modalità non invasiva per sincronizzare la posizione reale
-      handleDetectGps(true);
-    }
-  }, [deviceRole, cloudRole, handleDetectGps]);
+  // La condivisione della posizione NON si attiva mai automaticamente.
+  // L'aggiornamento GPS avviene solo su esplicita richiesta dell'utente tramite pulsante dedicato.
 
   // Modalità Sposi (Admin / Master)
   // Abilitata SOLO se l'utente ha autorizzazione Cloud effettiva (owner o copilota)
@@ -575,19 +734,21 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         getTripDateRange()
       ]);
 
-      setDays(dList);
-      setAccommodations(accList);
-      setTransports(trList);
-      setTappe(tpList);
+      setDays(dList || []);
+      setAccommodations(accList || []);
+      setTransports(trList || []);
+      setTappe(tpList || []);
       setTripRange(range);
 
       // Se la data odierna rientra nel viaggio usa todayStr, altrimenti usa la prima data programmata
-      const tripDaysList = range.tripDays;
-      const isInTrip = tripDaysList.some(item => item.dateStr === todayStr);
-      const targetDate = isInTrip ? todayStr : range.minTripDate;
+      const tripDaysList = range?.tripDays || [];
+      const isInTrip = Array.isArray(tripDaysList) && tripDaysList.some(item => item?.dateStr === todayStr);
+      const targetDate = isInTrip ? todayStr : (range?.minTripDate || todayStr);
 
-      const items = await storageService.getTimelineForDate(targetDate);
-      setTimelineItems(items);
+      if (targetDate) {
+        const items = await storageService.getTimelineForDate(targetDate);
+        setTimelineItems(items || []);
+      }
     } catch (err) {
       console.error('Errore nel caricamento dei dati Live:', err);
     } finally {
@@ -623,7 +784,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     const diffMs = startDate.getTime() - today.getTime();
     const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
     const isPreTrip = diffDays > 0;
-    const isInTrip = tripDaysList.some(item => item.dateStr === todayStr);
+    const isInTrip = Array.isArray(tripDaysList) && tripDaysList.some(item => item && item.dateStr === todayStr);
 
     return {
       isPreTrip,
@@ -1239,6 +1400,78 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     }
   };
 
+  const liveDeviceLabel = cloudRole === 'owner'
+    ? `Organizzatore · ${deviceRole === 'guida' ? 'dispositivo guida' : deviceRole}`
+    : cloudRole === 'copilota'
+      ? 'Copilota verificato · sola pubblicazione diario'
+      : 'Viewer / ospite · sola lettura';
+
+  const isGpsHolder = Boolean(
+    remoteGpsLease?.status === 'active' &&
+    remoteGpsLease.holderDeviceId === liveGpsService.getDeviceId()
+  );
+
+  if (typeof document !== 'undefined') return (
+    <LiveEditorialExperience
+      isExternal={isStandaloneExternal}
+      onBack={onBack}
+      location={currentLocation}
+      realLocation={remoteGpsLocation || realLocation}
+      mapSearchUrl={
+        remoteGpsLocation
+          ? `https://www.google.com/maps/search/?api=1&query=${remoteGpsLocation.lat},${remoteGpsLocation.lng}`
+          : mapSearchUrl
+      }
+      tileGrid={tileGrid}
+      tileLoadFailed={tileLoadFailed}
+      onTileError={() => setTileLoadFailed(true)}
+      gpsError={gpsError}
+      gpsFeedback={gpsFeedback}
+      isDetectingGps={isDetectingGps}
+      canControlGps={cloudRole === 'owner' || isGpsHolder}
+      deviceLabel={liveDeviceLabel}
+      onDetectGps={() => handleDetectGps(false)}
+      remoteGpsLease={remoteGpsLease}
+      remoteGpsLocation={remoteGpsLocation}
+      isGpsHolder={isGpsHolder}
+      isOwner={cloudRole === 'owner'}
+      isCopilota={cloudRole === 'copilota'}
+      gpsDevices={gpsDevices}
+      onStartGps={handleStartGps}
+      onPauseGps={() => handlePauseOrStopGps('paused')}
+      onResumeGps={handleStartGps}
+      onStopGps={() => handlePauseOrStopGps('stopped')}
+      onTransferGps={handleTransferGps}
+      onRevokeGps={() => currentUid && handleTransferGps(currentUid, liveGpsService.getDeviceId())}
+      statusMessage={statusMessage}
+      statusUpdatedAt={statusUpdatedAt}
+      canPublish={isSposiAdmin && (cloudRole === 'owner' || cloudRole === 'copilota')}
+      isEditingStatus={isEditingStatus}
+      tempStatus={tempStatus}
+      onTempStatusChange={setTempStatus}
+      onToggleStatusEdit={() => {
+        setTempStatus(statusMessage);
+        setIsEditingStatus(value => !value);
+      }}
+      onSaveStatus={handleSaveStatus}
+      liveTextMessage={liveTextMessage}
+      onLiveTextChange={(value) => {
+        setLiveTextMessage(value);
+        if (liveMsgError) setLiveMsgError(null);
+      }}
+      onSendMessage={handleSendLiveTextMessage}
+      isSendingMessage={isSendingLiveMsg}
+      messageError={liveMsgError}
+      messageSuccess={liveMsgSuccess}
+      updates={liveUpdates}
+      reactions={localReactions}
+      onReaction={handleReaction}
+      onShare={handleShareLiveLink}
+      copiedLink={copiedLink}
+      online={isOnline}
+    />
+  );
+
   return (
     <div className="flex flex-col h-full animate-fade-in pb-12 space-y-4">
       {/* 1. HEADER MINIMALE E PULITO */}
@@ -1702,19 +1935,21 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         )}
 
         {/* Dati di Navigazione & Contesto Emozionale */}
-        <div className={`grid ${distanceToPlannedKm !== null ? 'grid-cols-3' : 'grid-cols-2'} gap-2 pt-0.5`}>
-          {/* Coordinate Geografiche */}
-          <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
-            <span className="text-sm">🧭</span>
-            <div className="min-w-0">
-              <div className="text-[9px] uppercase tracking-wider font-bold text-slate-400">
-                Coordinate GPS
-              </div>
-              <div className="text-[11px] font-bold text-slate-800 font-mono truncate">
-                {formattedCoords}
+        <div className={`grid ${distanceToPlannedKm !== null && !isStandaloneExternal ? 'grid-cols-3' : (!isStandaloneExternal ? 'grid-cols-2' : 'grid-cols-1')} gap-2 pt-0.5`}>
+          {/* Coordinate Geografiche (Riservate all'app interna, mai esposte a visitatori esterni) */}
+          {!isStandaloneExternal && (
+            <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
+              <span className="text-sm">🧭</span>
+              <div className="min-w-0">
+                <div className="text-[9px] uppercase tracking-wider font-bold text-slate-400">
+                  Coordinate GPS
+                </div>
+                <div className="text-[11px] font-bold text-slate-800 font-mono truncate">
+                  {formattedCoords}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Distanza da Casa / Italia */}
           <div className="flex items-center gap-2 p-2.5 rounded-2xl bg-slate-50 border border-slate-100">
@@ -2371,7 +2606,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
             </span>
           </div>
         </div>,
-        document.body
+        globalThis.document.body
       )}
     </div>
   );

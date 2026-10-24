@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
-import type { Attivita, TransportAttachment, Coordinate } from '../../types';
+import type { Attivita, TransportAttachment, Coordinate, TipologiaPercorsoTrekking } from '../../types';
 import { storageService } from '../../storage/storageService';
 import { processFileForAttachment, formatFileSize, openAttachmentInNewTab, checkStorageAvailability } from '../../utils/fileAttachment';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import DropZone from '../common/DropZone';
 import type { PlaceSuggestion } from '../../services/photonService';
+import { isTrekkingActivity, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
 
 interface AttivitaFormProps {
   days?: any[];
@@ -20,7 +21,7 @@ interface AttivitaFormProps {
 export default function AttivitaForm({ selectedDayId, initialData, onSave, onCancel, onDelete }: AttivitaFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
-  const SOTTOCATEGORIE: Attivita['sottocategoria'][] = ['Escursione', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'];
+  const SOTTOCATEGORIE: Attivita['sottocategoria'][] = ['Trekking', 'Escursione', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'];
 
   const [sottocategoria, setSottocategoria] = useState<Attivita['sottocategoria'] | ''>('');
   const [title, setTitle] = useState('');
@@ -29,6 +30,13 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
   const [orarioRitrovo, setOrarioRitrovo] = useState('');
   const [orarioInizio, setOrarioInizio] = useState('');
   const [duration, setDuration] = useState('');
+  const [distanceKm, setDistanceKm] = useState('');
+  const [elevationGainM, setElevationGainM] = useState('');
+  const [hikingHours, setHikingHours] = useState('');
+  const [hikingMinutes, setHikingMinutes] = useState('');
+  const [routeType, setRouteType] = useState<TipologiaPercorsoTrekking | ''>('');
+  const [currency, setCurrency] = useState('EUR');
+  const [difficulty, setDifficulty] = useState('');
   const [address, setAddress] = useState('');
   const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
   
@@ -71,6 +79,14 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       setOrarioRitrovo(initialData.orarioRitrovo || initialData.time || '');
       setOrarioInizio(initialData.orarioInizio || '');
       setDuration(initialData.duration || '');
+      setDistanceKm(initialData.distanceKm?.toString() || '');
+      setElevationGainM(initialData.elevationGainM?.toString() || '');
+      const walkingMinutes = initialData.hikingDurationMinutes || 0;
+      setHikingHours(walkingMinutes ? Math.floor(walkingMinutes / 60).toString() : '');
+      setHikingMinutes(walkingMinutes ? (walkingMinutes % 60).toString() : '');
+      setRouteType(initialData.routeType || '');
+      setCurrency(initialData.currency || 'EUR');
+      setDifficulty(initialData.difficulty || '');
       setAddress(initialData.address || initialData.location || '');
       setCoordinate(initialData.coordinate);
       
@@ -100,6 +116,13 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       setOrarioRitrovo('');
       setOrarioInizio('');
       setDuration('');
+      setDistanceKm('');
+      setElevationGainM('');
+      setHikingHours('');
+      setHikingMinutes('');
+      setRouteType('');
+      setCurrency('EUR');
+      setDifficulty('');
       setAddress('');
       setCoordinate(undefined);
       setCost('');
@@ -247,18 +270,29 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
 
     const finalCoordToSave = coordinate || finalCoord;
 
+    const parsedDistance = distanceKm ? Number(distanceKm.replace(',', '.')) : undefined;
+    const parsedElevation = elevationGainM ? Number(elevationGainM) : undefined;
+    const totalHikingMinutes = (Number(hikingHours) || 0) * 60 + (Number(hikingMinutes) || 0);
+    const trekking = isTrekking;
+
     onSave({
       id: initialData?.id,
       dayId: `day_${customDate}`,
       date: customDate,
       endDate: endDate.trim() || undefined,
       title: title.trim(),
-      sottocategoria: sottocategoria || undefined,
+      sottocategoria: trekking ? 'Trekking' : (sottocategoria || undefined),
       category: 'visita', // fallback obbligatorio
       orarioRitrovo: orarioRitrovo || undefined,
       time: orarioInizio || orarioRitrovo || undefined, // legacy support
       orarioInizio: orarioInizio || undefined,
       duration: duration || undefined,
+      distanceKm: trekking && parsedDistance && parsedDistance > 0 ? parsedDistance : initialData?.distanceKm,
+      elevationGainM: trekking && parsedElevation && parsedElevation > 0 ? parsedElevation : initialData?.elevationGainM,
+      hikingDurationMinutes: trekking && totalHikingMinutes > 0 ? totalHikingMinutes : initialData?.hikingDurationMinutes,
+      routeType: trekking && routeType ? routeType : initialData?.routeType,
+      currency: trekking && cost.trim() ? currency : initialData?.currency,
+      difficulty: trekking && difficulty.trim() ? difficulty.trim() : initialData?.difficulty,
       address: address.trim() || undefined,
       location: address.trim() || title.trim(),
       coordinate: finalCoordToSave,
@@ -282,6 +316,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
     return c - a;
   };
   const saldo = calculateSaldo();
+  const isTrekking = sottocategoria === 'Trekking' || Boolean(initialData && isTrekkingActivity(initialData));
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 pb-4">
@@ -331,11 +366,51 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
         value={title}
         onChange={setTitle}
         onSelectPlace={handleSelectPlace}
-        label="Titolo Attività"
-        placeholder="es. Safari in Jeep, Hobbiton..."
+        label={isTrekking ? 'Titolo del trekking' : 'Titolo Attività'}
+        placeholder={isTrekking ? 'es. Tongariro Alpine Crossing' : 'es. Safari in Jeep, Hobbiton...'}
         required
       />
 
+      {isTrekking && (
+        <div className="hounigo-panel rounded-2xl p-4 space-y-4 dark:bg-slate-800 dark:border-slate-700">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
+              <span className="block uppercase tracking-wider mb-1.5">Data *</span>
+              <input type="date" value={customDate} onChange={(e) => setCustomDate(e.target.value)} required className="w-full h-11 px-3 hounigo-card-subtle rounded-xl text-sm" />
+            </label>
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
+              <span className="block uppercase tracking-wider mb-1.5">Ora di partenza</span>
+              <input type="time" value={orarioInizio} onChange={(e) => setOrarioInizio(e.target.value)} className="w-full h-11 px-3 hounigo-card-subtle rounded-xl text-sm" />
+            </label>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Distanza km</span><input type="number" min="0" step="0.1" inputMode="decimal" value={distanceKm} onChange={(e) => setDistanceKm(e.target.value)} placeholder="19,4" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
+            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Dislivello + m</span><input type="number" min="0" step="1" inputMode="numeric" value={elevationGainM} onChange={(e) => setElevationGainM(e.target.value)} placeholder="765" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
+            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Cammino ore</span><input type="number" min="0" step="1" inputMode="numeric" value={hikingHours} onChange={(e) => setHikingHours(e.target.value)} placeholder="7" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
+            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Minuti</span><input type="number" min="0" max="59" step="1" inputMode="numeric" value={hikingMinutes} onChange={(e) => setHikingMinutes(e.target.value)} placeholder="30" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
+          </div>
+          <div>
+            <span className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1.5">Tipologia percorso</span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {(Object.entries(TREKKING_ROUTE_LABELS) as [TipologiaPercorsoTrekking, string][]).map(([value, label]) => (
+                <button key={value} type="button" onClick={() => setRouteType(routeType === value ? '' : value)} className={`min-h-10 px-3 rounded-xl border text-xs font-semibold ${routeType === value ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900' : 'hounigo-card-subtle text-slate-700 dark:text-slate-200'}`}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-200"><span className="block uppercase tracking-wider mb-1.5">Punto di partenza</span><input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Parcheggio, trailhead o indirizzo" className="w-full h-11 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
+          <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
+            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Prezzo</span><input type="number" min="0" step="0.01" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Facoltativo" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
+            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Valuta</span><input type="text" maxLength={3} value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm uppercase" /></label>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Link percorso o traccia</span><input type="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
+            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Difficoltà</span><input type="text" value={difficulty} onChange={(e) => setDifficulty(e.target.value)} placeholder="Facile, media, impegnativa…" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
+          </div>
+          <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Note</span><textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Indicazioni utili, attrezzatura, meteo…" className="w-full p-3 hounigo-card-subtle rounded-xl text-sm resize-none" /></label>
+        </div>
+      )}
+
+      {!isTrekking && <>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -631,7 +706,9 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
         )}
       </div>
 
-      <div>
+      </>}
+
+      {!isTrekking && <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
           Note Libere / Cosa portare
         </label>
@@ -642,7 +719,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
           onChange={(e) => setNotes(e.target.value)}
           className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] placeholder:text-slate-400 resize-none"
         />
-      </div>
+      </div>}
 
       <div className="flex flex-col gap-3 pt-4 mt-2 border-t border-slate-100">
         <button

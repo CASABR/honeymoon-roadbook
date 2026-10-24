@@ -203,11 +203,22 @@ interface StorageEstimateData {
   measuredAt: string;
 }
 
+export type GlobalAdminAccessStatus =
+  | 'checking'
+  | 'authorized'
+  | 'unauthorized'
+  | 'network_error'
+  | 'empty_database'
+  | 'error';
+
 export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
   const currentTripConfig = getTripConfig();
 
   // Tab di navigazione interna all'Admin
   const [activeAdminTab, setActiveAdminTab] = useState<'trips' | 'copilots' | 'users' | 'diagnostics'>('trips');
+
+  // Stato autorizzazione e query globale dalle Firestore Security Rules
+  const [accessStatus, setAccessStatus] = useState<GlobalAdminAccessStatus>('checking');
 
   // Stato consultazione ultimi accessi utenti con paginazione reale a cursori
   const [usersList, setUsersList] = useState<UserAccessEntry[]>([]);
@@ -401,8 +412,18 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
   const fetchGlobalTrips = async () => {
     setLoadingTrips(true);
     setTripsError(null);
+    setAccessStatus('checking');
+
+    // 1. Controllo di rete preventivo
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      setAccessStatus('network_error');
+      setTripsError('Dispositivo offline. Connessione internet non disponibile.');
+      setLoadingTrips(false);
+      return;
+    }
 
     if (!db) {
+      setAccessStatus('error');
       setTripsError('Inizializzazione database non disponibile.');
       setLoadingTrips(false);
       return;
@@ -410,8 +431,17 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
 
     try {
       const tripsCol = collection(db, 'trips');
-      // Tentativo di lettura collezione globale autorizzata
+      // Tentativo di lettura collezione globale protetta da Firestore Security Rules (isGlobalAdmin)
       const snap = await getDocs(tripsCol);
+
+      // Distinzione tra assenza reale di viaggi ed errore di autorizzazione
+      if (snap.empty) {
+        setTrips([]);
+        setAccessStatus('empty_database');
+        logDiag('Query globale completata: nessun viaggio presente nel database', 'info');
+        setLoadingTrips(false);
+        return;
+      }
 
       const now = Date.now();
       const todayStr = new Date().toISOString().slice(0, 10);
@@ -504,15 +534,24 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
       });
 
       setTrips(parsedList);
+      setAccessStatus('authorized');
       logDiag(`Caricati ${parsedList.length} viaggi da Firestore`, 'success');
     } catch (err: any) {
       console.warn('[AdminDashboard] Errore caricamento viaggi globali:', err);
-      // Gestione sicura degli errori di autorizzazione Firestore
+      // Gestione sicura e rigorosa degli errori di autorizzazione Firestore
       if (err?.code === 'permission-denied') {
+        setAccessStatus('unauthorized');
+        setTrips([]);
         setTripsError(
-          'Permesso negato da Firestore Security Rules. L\'account attualmente autenticato non dispone dei privilegi di amministratore globale per elencare tutti i viaggi del database.'
+          'Permesso negato dalle Firestore Security Rules. L\'account attualmente autenticato non dispone dei privilegi di amministratore globale per elencare tutti i viaggi del database.'
         );
+      } else if (err?.code === 'unavailable' || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+        setAccessStatus('network_error');
+        setTrips([]);
+        setTripsError('Impossibile contattare i server Firestore. Connessione di rete non disponibile o instabile.');
       } else {
+        setAccessStatus('error');
+        setTrips([]);
         setTripsError(err?.message || 'Impossibile completare la lettura dei viaggi globali.');
       }
       logDiag('Accesso collezione trips bloccato o fallito', 'warn');
@@ -982,6 +1021,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
       await signOut(auth);
       setCurrentAdminUser(null);
       setTrips([]);
+      setAccessStatus('unauthorized');
       setTripsError('Sessione terminata. Esegui il login per accedere alla console.');
       logDiag('Disconnessione account amministratore eseguita', 'info');
     } catch (err: any) {
@@ -996,9 +1036,13 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
     const handleOnline = () => {
       setIsOnline(true);
       logDiag('Connessione internet ripristinata', 'success');
+      fetchGlobalTrips();
     };
     const handleOffline = () => {
       setIsOnline(false);
+      setAccessStatus('network_error');
+      setTrips([]);
+      setTripsError('Dispositivo offline. Connessione internet non disponibile.');
       logDiag('Dispositivo offline: modalità locale attiva', 'warn');
     };
 
@@ -1148,8 +1192,22 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                 Console Admin Globale
               </h1>
-              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border border-rose-200 dark:border-rose-900/40">
-                PROPRIETARIO
+              <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                accessStatus === 'authorized' || accessStatus === 'empty_database'
+                  ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/40'
+                  : accessStatus === 'unauthorized'
+                  ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border-amber-200 dark:border-amber-900/40'
+                  : accessStatus === 'network_error'
+                  ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300 border-rose-200 dark:border-rose-900/40'
+                  : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+              }`}>
+                {accessStatus === 'authorized' || accessStatus === 'empty_database'
+                  ? 'ADMIN GLOBALE'
+                  : accessStatus === 'unauthorized'
+                  ? 'ACCESSO NON AUTORIZZATO'
+                  : accessStatus === 'network_error'
+                  ? 'OFFLINE / RETE'
+                  : 'VERIFICA IN CORSO...'}
               </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
@@ -1170,7 +1228,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
               }`}
             >
-              🗺️ Viaggi ({trips.length})
+              🗺️ Viaggi {accessStatus === 'authorized' ? `(${trips.length})` : accessStatus === 'empty_database' ? '(0)' : accessStatus === 'unauthorized' ? '(Non autorizzato)' : accessStatus === 'network_error' ? '(Offline)' : ''}
             </button>
             <button
               type="button"
@@ -1233,9 +1291,23 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                 Totale Viaggi
               </span>
               <div className="text-2xl font-black text-slate-900 dark:text-white">
-                {metrics.total}
+                {accessStatus === 'authorized'
+                  ? metrics.total
+                  : accessStatus === 'empty_database'
+                  ? 0
+                  : '—'}
               </div>
-              <span className="text-[10px] text-slate-400 mt-1 block">Tutti i record su Firestore</span>
+              <span className="text-[10px] text-slate-400 mt-1 block">
+                {accessStatus === 'authorized'
+                  ? 'Tutti i record su Firestore'
+                  : accessStatus === 'empty_database'
+                  ? 'Nessun record presente'
+                  : accessStatus === 'unauthorized'
+                  ? 'Query bloccata da Rules'
+                  : accessStatus === 'network_error'
+                  ? 'Dispositivo offline'
+                  : 'Verifica permessi...'}
+              </span>
             </div>
 
             {/* Viaggi Attivi */}
@@ -1244,7 +1316,11 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                 Attivi (&le;14gg)
               </span>
               <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                {metrics.activeCount}
+                {accessStatus === 'authorized'
+                  ? metrics.activeCount
+                  : accessStatus === 'empty_database'
+                  ? 0
+                  : '—'}
               </div>
               <span className="text-[10px] text-slate-400 mt-1 block">Con modifiche recenti</span>
             </div>
@@ -1255,7 +1331,11 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                 In Corso Ora
               </span>
               <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400">
-                {metrics.inProgressCount}
+                {accessStatus === 'authorized'
+                  ? metrics.inProgressCount
+                  : accessStatus === 'empty_database'
+                  ? 0
+                  : '—'}
               </div>
               <span className="text-[10px] text-slate-400 mt-1 block">Vacanza attualmente in atto</span>
             </div>
@@ -1266,7 +1346,11 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                 Futuri
               </span>
               <div className="text-2xl font-black text-sky-600 dark:text-sky-400">
-                {metrics.upcomingCount}
+                {accessStatus === 'authorized'
+                  ? metrics.upcomingCount
+                  : accessStatus === 'empty_database'
+                  ? 0
+                  : '—'}
               </div>
               <span className="text-[10px] text-slate-400 mt-1 block">Partenza programmata</span>
             </div>
@@ -1277,7 +1361,11 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                 Dormienti (&gt;14gg)
               </span>
               <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
-                {metrics.dormantCount}
+                {accessStatus === 'authorized'
+                  ? metrics.dormantCount
+                  : accessStatus === 'empty_database'
+                  ? 0
+                  : '—'}
               </div>
               <span className="text-[10px] text-slate-400 mt-1 block">Nessun accesso recente</span>
             </div>
@@ -1288,7 +1376,11 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                 Abbandonati (&gt;60gg)
               </span>
               <div className="text-2xl font-black text-rose-600 dark:text-rose-400">
-                {metrics.abandonedCount}
+                {accessStatus === 'authorized'
+                  ? metrics.abandonedCount
+                  : accessStatus === 'empty_database'
+                  ? 0
+                  : '—'}
               </div>
               <span className="text-[10px] text-slate-400 mt-1 block">Fermo prolungato</span>
             </div>
@@ -1314,10 +1406,22 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                       {currentAdminUser && !currentAdminUser.isAnonymous ? 'PERSISTENTE (RECUPERABILE)' : 'EFFIMERA (ANONIMA)'}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 font-mono">
-                    UID: {currentAdminUser?.uid || 'Non autenticato'}{' '}
-                    {currentAdminUser?.email ? `• ${currentAdminUser.email}` : ''}
-                  </p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+                      UID: {currentAdminUser?.uid || 'Non autenticato'}{' '}
+                      {currentAdminUser?.email ? `• ${currentAdminUser.email}` : ''}
+                    </p>
+                    {currentAdminUser?.uid && (
+                      <button
+                        type="button"
+                        onClick={() => handleCopyUid(currentAdminUser.uid)}
+                        className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-colors cursor-pointer"
+                        title="Copia identificativo utente"
+                      >
+                        {copiedUid === currentAdminUser.uid ? '✓ Copiato' : 'Copia UID'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1400,28 +1504,127 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
               </form>
             )}
 
-            {/* Esito Permessi Firestore */}
-            {tripsError ? (
-              <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-900/60 rounded-2xl p-4 text-amber-900 dark:text-amber-200 space-y-2">
+            {/* Distinzione Ruoli: Owner Viaggio vs Amministratore Globale */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
+              <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-800 text-xs space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                    <span>📍</span>
+                    <span>Ruolo Viaggio Locale</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
+                    Viaggio {currentTripConfig?.id || '0000'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  L'utente è riconosciuto come Organizzatore del proprio viaggio locale. I permessi locali sono isolati e non autorizzano l'accesso al database globale.
+                </p>
+              </div>
+
+              <div className={`p-3.5 rounded-2xl border text-xs space-y-1 ${
+                accessStatus === 'authorized' || accessStatus === 'empty_database'
+                  ? 'bg-emerald-50/70 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50'
+                  : accessStatus === 'unauthorized'
+                  ? 'bg-amber-50/70 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900/50'
+                  : accessStatus === 'network_error'
+                  ? 'bg-rose-50/70 dark:bg-rose-950/30 border-rose-200 dark:border-rose-900/50'
+                  : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200/80 dark:border-slate-800'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <span className="font-extrabold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+                    <span>🌐</span>
+                    <span>Console Admin Globale</span>
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                    accessStatus === 'authorized' || accessStatus === 'empty_database'
+                      ? 'bg-emerald-200 text-emerald-900 dark:bg-emerald-900 dark:text-emerald-200'
+                      : accessStatus === 'unauthorized'
+                      ? 'bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-200'
+                      : accessStatus === 'network_error'
+                      ? 'bg-rose-200 text-rose-900 dark:bg-rose-900 dark:text-rose-200'
+                      : 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-300'
+                  }`}>
+                    {accessStatus === 'authorized' && 'AUTORIZZATO'}
+                    {accessStatus === 'empty_database' && 'AUTORIZZATO (VUOTO)'}
+                    {accessStatus === 'unauthorized' && 'NON AUTORIZZATO'}
+                    {accessStatus === 'network_error' && 'OFFLINE / ERRORE'}
+                    {accessStatus === 'checking' && 'VERIFICA IN CORSO...'}
+                    {accessStatus === 'error' && 'ERRORE'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {accessStatus === 'authorized' && 'Regole Firestore: autorizzazione globale confermata. Accesso a tutti i record attivo.'}
+                  {accessStatus === 'empty_database' && 'Regole Firestore: autorizzazione globale confermata. Nessun viaggio registrato nel database.'}
+                  {accessStatus === 'unauthorized' && 'Regole Firestore: autorizzazione globale non presente per questo account. Query bloccata server-side.'}
+                  {accessStatus === 'network_error' && 'Connessione di rete non disponibile. Impossibile verificare i privilegi con i server Firestore.'}
+                  {accessStatus === 'checking' && 'Verifica dello stato autorizzativo sulle Firestore Security Rules in corso…'}
+                  {accessStatus === 'error' && (tripsError || 'Errore durante la verifica dei privilegi.')}
+                </p>
+              </div>
+            </div>
+
+            {/* 4 STATI: Banner Dettagliato di Stato */}
+            {accessStatus === 'unauthorized' && (
+              <div className="bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300/80 dark:border-amber-900/60 rounded-2xl p-4 text-amber-950 dark:text-amber-200 space-y-2.5">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">🔒</span>
-                  <h4 className="font-extrabold text-xs">Query Globale Bloccata dalle Firestore Security Rules</h4>
+                  <h4 className="font-extrabold text-xs">Accesso Globale Riservato agli Amministratori di Sistema</h4>
                 </div>
-                <p className="text-xs leading-relaxed opacity-90">{tripsError}</p>
-                <div className="text-[11px] bg-white/80 dark:bg-slate-900/80 p-3 rounded-xl border border-amber-200 dark:border-amber-800 text-slate-600 dark:text-slate-300 space-y-1">
-                  <p>
-                    <strong>Istruzioni Whitelist per il Proprietario:</strong> Per autorizzare questo account in modo permanente e recuperabile da qualsiasi computer:
-                  </p>
-                  <ol className="list-decimal pl-4 space-y-0.5 font-mono text-[10px]">
-                    <li>Accedi con Google o Email persistente cliccando il pulsante sopra.</li>
-                    <li>Copia il tuo UID: <code className="font-bold text-indigo-600 dark:text-indigo-400">{currentAdminUser?.uid || 'UID_NON_DISPONIBILE'}</code>.</li>
-                    <li>Nella Firebase Console &gt; Firestore, crea il documento: <code className="font-bold">/system_admins/{currentAdminUser?.uid || '<TUO_UID>'}</code>.</li>
-                    <li>Ricarica questa pagina: Firestore autorizzerà la lettura globale e popolerà tutti i dati.</li>
-                  </ol>
+                <p className="text-xs leading-relaxed opacity-95">
+                  L'account attualmente connesso è autenticato, ma non dispone dei privilegi di amministratore globale. Le Firestore Security Rules proteggono l'elenco di tutti i viaggi dei viaggiatori e impediscono la scansione non autorizzata.
+                </p>
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-amber-200/60 dark:border-amber-900/60 text-[11px]">
+                  <span className="text-slate-600 dark:text-slate-300">
+                    Per richiedere l'abilitazione, fornisci il tuo UID all'amministratore dell'infrastruttura.
+                  </span>
+                  {currentAdminUser?.uid && (
+                    <button
+                      type="button"
+                      onClick={() => handleCopyUid(currentAdminUser.uid)}
+                      className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold cursor-pointer transition-colors shadow-2xs"
+                    >
+                      {copiedUid === currentAdminUser.uid ? '✓ UID Copiato' : 'Copia UID'}
+                    </button>
+                  )}
                 </div>
               </div>
-            ) : (
-              <div className="bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/50 rounded-2xl px-4 py-2.5 flex items-center justify-between text-xs text-indigo-900 dark:text-indigo-200">
+            )}
+
+            {accessStatus === 'network_error' && (
+              <div className="bg-rose-50/80 dark:bg-rose-950/40 border border-rose-300/80 dark:border-rose-900/60 rounded-2xl p-4 text-rose-950 dark:text-rose-200 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">📶</span>
+                  <h4 className="font-extrabold text-xs">Connessione di Rete Non Disponibile</h4>
+                </div>
+                <p className="text-xs leading-relaxed opacity-95">
+                  Il dispositivo è offline o i server Firestore non sono momentaneamente raggiungibili. Riconnettiti alla rete per verificare i privilegi globali.
+                </p>
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => fetchGlobalTrips()}
+                    className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                  >
+                    Riprova Connessione
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {accessStatus === 'empty_database' && (
+              <div className="bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200/60 dark:border-indigo-900/50 rounded-2xl px-4 py-3 flex items-center justify-between text-xs text-indigo-950 dark:text-indigo-200">
+                <div className="flex items-center gap-2">
+                  <span>ℹ️</span>
+                  <span>
+                    Consultazione globale autorizzata con successo dalle Rules. Nessun viaggio è attualmente presente nel cloud.
+                  </span>
+                </div>
+                <span className="text-[10px] opacity-75 font-mono">0 record trovati</span>
+              </div>
+            )}
+
+            {accessStatus === 'authorized' && (
+              <div className="bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/60 dark:border-emerald-900/50 rounded-2xl px-4 py-2.5 flex items-center justify-between text-xs text-emerald-950 dark:text-emerald-200">
                 <div className="flex items-center gap-2">
                   <span>🟢</span>
                   <span>
@@ -1429,7 +1632,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                     <strong>{formatDate(metrics.latestActivityTimestamp || undefined)}</strong>
                   </span>
                 </div>
-                <span className="text-[10px] opacity-75 font-mono">Modalità sola lettura protetta</span>
+                <span className="text-[10px] opacity-75 font-mono">Modalità protetta attiva</span>
               </div>
             )}
           </div>
@@ -1538,6 +1741,51 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                         </div>
                       </td>
                     </tr>
+                  ) : accessStatus === 'unauthorized' ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 px-4">
+                        <div className="flex flex-col items-center gap-2 max-w-md mx-auto">
+                          <span className="text-2xl">🔒</span>
+                          <span className="text-sm font-extrabold text-slate-800 dark:text-slate-100">
+                            Accesso Globale Negato dalle Firestore Rules
+                          </span>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                            Questo account non dispone dei privilegi di amministratore globale per elencare i viaggi nel database. La visualizzazione è bloccata server-side dalle Firestore Security Rules.
+                          </p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : accessStatus === 'network_error' ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 px-4">
+                        <div className="flex flex-col items-center gap-2 max-w-md mx-auto">
+                          <span className="text-2xl">📶</span>
+                          <span className="text-sm font-extrabold text-rose-700 dark:text-rose-400">
+                            Dispositivo Offline o Errore di Rete
+                          </span>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                            Impossibile stabilire una connessione con i server Firestore.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => fetchGlobalTrips()}
+                            className="mt-1 px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                          >
+                            Riprova Caricamento
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : accessStatus === 'empty_database' ? (
+                    <tr>
+                      <td colSpan={7} className="text-center py-12 text-slate-400 dark:text-slate-500">
+                        <div className="flex flex-col items-center gap-1.5">
+                          <span className="text-xl">ℹ️</span>
+                          <span className="font-bold text-xs text-slate-700 dark:text-slate-300">Nessun viaggio presente nel database</span>
+                          <span className="text-[11px]">La query è stata autorizzata, ma la collezione /trips non contiene attualmente record.</span>
+                        </div>
+                      </td>
+                    </tr>
                   ) : tripsError ? (
                     <tr>
                       <td colSpan={7} className="text-center py-10 text-amber-600 dark:text-amber-400">
@@ -1557,7 +1805,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                   ) : paginatedTrips.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="text-center py-10 text-slate-400">
-                        {trips.length === 0 ? 'Nessun viaggio registrato nel database.' : 'Nessun viaggio corrispondente ai filtri selezionati.'}
+                        Nessun viaggio corrispondente ai filtri selezionati.
                       </td>
                     </tr>
                   ) : (
@@ -2097,7 +2345,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                                   type="text"
                                   value={editingCopilotName}
                                   onChange={e => setEditingCopilotName(e.target.value)}
-                                  placeholder="Es. ***REMOVED***"
+                                  placeholder="Es. Co-pilota"
                                   className="px-2.5 py-1 text-xs rounded-lg border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 w-36"
                                   autoFocus
                                   disabled={isSaving}

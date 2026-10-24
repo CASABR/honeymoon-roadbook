@@ -500,6 +500,42 @@ export default function TrasportiView() {
             setActiveCollision(null);
           }
         }}
+        onUpdateTime={async (itemId, _type, newTime) => {
+          try {
+            const found = transports.find(t => t.id === itemId);
+            if (found) {
+              let newArrivalTime = found.arrivalTime;
+              if (found.departureTime && found.arrivalTime) {
+                const [oldDH, oldDM] = found.departureTime.split(':').map(Number);
+                const [oldAH, oldAM] = found.arrivalTime.split(':').map(Number);
+                if (!isNaN(oldDH) && !isNaN(oldDM) && !isNaN(oldAH) && !isNaN(oldAM)) {
+                  let durationMin = (oldAH * 60 + oldAM) - (oldDH * 60 + oldDM);
+                  if (durationMin < 0) durationMin += 24 * 60;
+                  const [newDH, newDM] = newTime.split(':').map(Number);
+                  if (!isNaN(newDH) && !isNaN(newDM)) {
+                    const totalArrivalMin = (newDH * 60 + newDM + durationMin) % (24 * 60);
+                    const arrH = String(Math.floor(totalArrivalMin / 60)).padStart(2, '0');
+                    const arrM = String(totalArrivalMin % 60).padStart(2, '0');
+                    newArrivalTime = `${arrH}:${arrM}`;
+                  }
+                }
+              }
+              const updated = { ...found, departureTime: newTime, arrivalTime: newArrivalTime, updatedAt: Date.now() };
+              await storageService.saveTransport(updated);
+              setTransports(prev => prev.map(t => t.id === itemId ? updated : t));
+            }
+            if (activeCollision && typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem(activeCollision.id, 'resolved');
+            }
+          } finally {
+            setActiveCollision(null);
+          }
+        }}
+        onOpenEditForm={(item) => {
+          const found = transports.find(t => t.id === item.id);
+          if (found) setEditingTransport(found);
+          setActiveCollision(null);
+        }}
         onDismiss={() => {
           if (activeCollision && typeof sessionStorage !== 'undefined') {
             sessionStorage.setItem(activeCollision.id, 'dismissed');

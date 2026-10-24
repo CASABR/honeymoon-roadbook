@@ -553,6 +553,26 @@ export default function AttivitaView() {
             setActiveCollision(null);
           }
         }}
+        onUpdateTime={async (itemId, _type, newTime) => {
+          try {
+            const found = activities.find(a => a.id === itemId);
+            if (found) {
+              const updated = { ...found, time: newTime, orarioInizio: newTime, updatedAt: Date.now() };
+              await storageService.saveActivity(updated);
+              setActivities(prev => prev.map(a => a.id === itemId ? updated : a));
+            }
+            if (activeCollision && typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem(activeCollision.id, 'resolved');
+            }
+          } finally {
+            setActiveCollision(null);
+          }
+        }}
+        onOpenEditForm={(item) => {
+          const found = activities.find(a => a.id === item.id);
+          if (found) setEditingActivity(found);
+          setActiveCollision(null);
+        }}
         onDismiss={() => {
           if (activeCollision && typeof sessionStorage !== 'undefined') {
             sessionStorage.setItem(activeCollision.id, 'dismissed');

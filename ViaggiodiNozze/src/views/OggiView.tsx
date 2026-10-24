@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante, Shopping } from '../types';
 import { storageService } from '../storage/storageService';
@@ -56,6 +56,19 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [accommodations, setAccommodations] = useState<Alloggio[]>([]);
   const [daysData, setDaysData] = useState<Giorno[]>([]);
   const [, setLoading] = useState(true);
+  const [isOnline, setIsOnline] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
+  const [bookingCodeCopied, setBookingCodeCopied] = useState(false);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Calcolo dinamico Countdown rispetto alla partenza reale
   const calculateCountdown = () => {
@@ -717,89 +730,247 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     storageService.saveSetting('hero_bg_image', null);
   };
 
+  // ─── LIVELLO 1: Calcolo prossimo evento focale / Prossimo Passo ───
+  const nextEventItem = useMemo(() => {
+    if (!timeline || timeline.length === 0) return null;
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const isToday = selectedDate === todayStr;
+
+    if (isToday) {
+      const currentMin = now.getHours() * 60 + now.getMinutes();
+      const upcoming = timeline.find(item => {
+        if (!item.time || item.time === '00:00' || (item.time === '12:00' && item.type === 'tappa')) return false;
+        const [h, m] = item.time.split(':').map(Number);
+        if (isNaN(h)) return false;
+        return (h * 60 + (m || 0)) >= currentMin;
+      });
+      if (upcoming) return upcoming;
+    }
+
+    const firstWithTime = timeline.find(item => item.time && item.time !== '00:00' && item.type !== 'tappa');
+    return firstWithTime || timeline[0] || null;
+  }, [timeline, selectedDate]);
+
+  const nextEventBookingCode = useMemo(() => {
+    if (!nextEventItem?.originalData) return null;
+    const orig = nextEventItem.originalData as any;
+    return orig.bookingCode || orig.codicePrenotazione || orig.pnr || orig.conferma || orig.bookingReference || null;
+  }, [nextEventItem]);
+
   return (
     <div className="space-y-4 pt-1 animate-fade-in pb-20 sm:pb-24">
-      {/* 1. HEADER HERO / COPERTINA COMPATTA */}
-      <div
-        className="relative overflow-hidden rounded-2xl text-white shadow-lg border border-white/5"
-        style={heroBgImage
-          ? { backgroundImage: `url(${heroBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
-          : {}}
-      >
-        {/* Default gradient (hidden when image set) */}
-        {!heroBgImage && (
-          <div className="absolute inset-0 bg-slate-900" />
-        )}
-        {/* Dark overlay when image */}
-        {heroBgImage && (
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px]" />
-        )}
+      {/* ─── LIVELLO 1: MASTHEAD EDITORIALE CARTOGRAFICO & FOCUS IMMEDIATO ─── */}
+      <div className="space-y-3">
+        {/* Masthead Editoriale / Diario di Bordo */}
+        <div
+          className={`relative overflow-hidden rounded-2xl border transition-all ${
+            heroBgImage
+              ? 'text-white border-white/10 shadow-md'
+              : 'bg-[#fffdfa] dark:bg-slate-900 border-[#e5e3dd] dark:border-slate-800 text-[#172033] dark:text-white'
+          }`}
+          style={heroBgImage
+            ? { backgroundImage: `url(${heroBgImage})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+            : {}}
+        >
+          {heroBgImage && (
+            <div className="absolute inset-0 bg-black/55 backdrop-blur-[0.5px]" />
+          )}
 
-        {/* Accent stripe top */}
-        <div className="relative h-[2px] w-full bg-slate-200 dark:bg-slate-700" />
-
-        <div className="relative z-10 px-4 py-3 space-y-2.5">
-          {/* Row 1: Badge countdown + data + edit button */}
-          <div className="flex items-center justify-between">
-            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/10 border border-white/10 text-[10px] font-bold text-rose-300 tracking-wide uppercase">
-              <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
-              <span>{calculateCountdown()}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              {currentDayMeta && (
-                <span className="text-[10px] font-semibold text-slate-400">
-                  {formatDateHuman(selectedDate)}
+          <div className="relative z-10 p-4 sm:p-5 space-y-3">
+            {/* Riga 1: Kicker Cartografico & Status */}
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="flex items-center gap-2">
+                <span className={`text-[10px] font-black uppercase tracking-widest ${heroBgImage ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>
+                  {currentDayMeta && currentDayMeta.dayNum > 0
+                    ? `GIORNO ${currentDayMeta.dayNum} DI ${tripDays.length} • ${formatDateHuman(selectedDate).toUpperCase()}`
+                    : `PRE-VIAGGIO • ${formatDateHuman(selectedDate).toUpperCase()}`}
                 </span>
-              )}
+                
+                {/* Indicatore Stato: Viaggio Futuro vs In Corso vs Offline */}
+                {(() => {
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  const startDateStr = tripDays[0]?.dateStr || '2026-11-28';
+                  const isFuture = todayStr < startDateStr;
+                  const isToday = selectedDate === todayStr;
+
+                  if (isToday) {
+                    return (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        OGGI IN CORSO
+                      </span>
+                    );
+                  }
+                  if (isFuture) {
+                    return (
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold ${
+                        heroBgImage ? 'bg-white/20 text-white' : 'bg-[#FFF0ED] text-[#FF6B5F] dark:bg-rose-950/40 dark:text-rose-300 border border-[#FF6B5F]/20'
+                      }`}>
+                        {calculateCountdown()}
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
+
+                {!isOnline && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    OFFLINE • ROADBOOK LOCALE
+                  </span>
+                )}
+              </div>
+
+              {/* Azioni Personalizzazione Header */}
               {canEdit && (
                 <button
                   type="button"
                   onClick={handleOpenHeroEdit}
-                  className="w-6 h-6 rounded-full bg-white/10 border border-white/15 flex items-center justify-center text-white/70 hover:bg-white/20 transition-all cursor-pointer"
-                  title="Personalizza header"
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all cursor-pointer ${
+                    heroBgImage
+                      ? 'bg-white/20 hover:bg-white/30 text-white'
+                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700'
+                  }`}
+                  title="Personalizza titolo o sfondo"
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536M9 11l6.232-6.232a2 2 0 012.828 2.828L11.828 13.828a2 2 0 01-1.414.586H8v-2.414a2 2 0 01.586-1.414z" />
-                  </svg>
+                  <span>✏️</span>
+                  <span className="hidden sm:inline">Modifica copertina</span>
                 </button>
               )}
             </div>
-          </div>
 
-          {/* Row 2: Title */}
-          <div>
-            <h1 className="text-base font-extrabold tracking-tight text-white leading-tight">
-              {dynamicCountries}
-            </h1>
-            <p className="text-[10px] text-slate-400 font-medium mt-0.5">
-              {tripConfig ? `${formatDateHuman(tripConfig.startDate)} – ${formatDateHuman(tripConfig.endDate)} • ${tripDays.length} giorni` : `${tripDays.length} giorni di viaggio`}
-            </p>
-          </div>
-
-        {/* Row 3: Tappa + location */}
-        {currentDayMeta && (
-          <div className="flex items-center justify-between pt-1 border-t border-white/10">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-bold text-white/60 uppercase tracking-widest">
-                Giorno {currentDayMeta.dayNum}/{tripDays.length}
-              </span>
-                {currentDayData?.title && (
-                  <span className="text-[10px] font-semibold text-rose-300 truncate max-w-[140px]">
-                    📍 {currentDayData.title}
+            {/* Riga 2: Destinazione Principale & Riferimento Cartografico */}
+            <div>
+              <h1 className={`text-xl sm:text-2xl font-black tracking-tight leading-tight ${
+                heroBgImage ? 'text-white' : 'text-[#172033] dark:text-white'
+              }`}>
+                {currentDayData?.title || dynamicCountries || 'Diario di Viaggio'}
+              </h1>
+              
+              <div className="flex items-center gap-3 mt-1 text-xs">
+                {currentDayData?.location && (
+                  <span className={`font-semibold flex items-center gap-1 ${
+                    heroBgImage ? 'text-rose-200' : 'text-slate-600 dark:text-slate-300'
+                  }`}>
+                    <span>📍</span>
+                    <span>{currentDayData.location}</span>
+                  </span>
+                )}
+                {tripConfig && (
+                  <span className={`text-[11px] font-medium ${
+                    heroBgImage ? 'text-white/70' : 'text-slate-400'
+                  }`}>
+                    {tripConfig.startDate} → {tripConfig.endDate}
                   </span>
                 )}
               </div>
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Background glow (only without image) */}
-        {!heroBgImage && (
-          <>
-            <div className="absolute -right-6 -bottom-8 w-36 h-36 rounded-full bg-transparent blur-2xl pointer-events-none" />
-            <div className="absolute -left-4 top-0 w-24 h-24 rounded-full bg-indigo-500/10 blur-2xl pointer-events-none" />
-          </>
-        )}
+        {/* ─── LIVELLO 1: CARD PROSSIMO PASSO / FOCUS IMMEDIATO ─── */}
+        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-4 shadow-xs space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF6B5F] flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
+                {(() => {
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  if (selectedDate === todayStr) return 'In questo momento • Prossimo passo';
+                  return 'Attività / Trasferimento Principale';
+                })()}
+              </span>
+            </div>
+
+            {nextEventItem?.time && (
+              <span className="font-mono text-xs font-black text-[#172033] dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700">
+                ⏰ {nextEventItem.time}
+              </span>
+            )}
+          </div>
+
+          {nextEventItem ? (
+            <div className="space-y-2">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                  <h2 className="text-base font-extrabold text-[#172033] dark:text-white leading-snug">
+                    {nextEventItem.title}
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 flex items-center gap-1 truncate">
+                    <span>📍</span>
+                    <span>
+                      {(() => {
+                        if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
+                          const tr = nextEventItem.originalData as Trasporto;
+                          const dep = tr.departureLocation || nextEventItem.location;
+                          const arr = tr.dropoffLocation || tr.arrivalLocation;
+                          if (dep && arr && dep !== arr) return `${dep} ➔ ${arr}`;
+                        }
+                        return nextEventItem.location || 'Posizione da itinerario';
+                      })()}
+                    </span>
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setDetailItem(nextEventItem)}
+                  className="shrink-0 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#172033] hover:text-white dark:hover:bg-white dark:hover:text-[#172033] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
+                >
+                  Dettagli ➔
+                </button>
+              </div>
+
+              {/* Informazione critica immediatamente visibile: PNR / Voucher / Note */}
+              <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px]">
+                {nextEventBookingCode && (
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        await navigator.clipboard.writeText(nextEventBookingCode);
+                        setBookingCodeCopied(true);
+                        setTimeout(() => setBookingCodeCopied(false), 2000);
+                      } catch {}
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition-colors cursor-pointer text-[11px]"
+                    title="Clicca per copiare il codice di prenotazione / PNR"
+                  >
+                    <span>🎫</span>
+                    <span className="font-mono">Prenotazione: {nextEventBookingCode}</span>
+                    <span className="text-[9px] opacity-70 ml-0.5 font-sans">{bookingCodeCopied ? '✓ Copiato' : 'Copia'}</span>
+                  </button>
+                )}
+                {nextEventItem.coordinate && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = `https://www.google.com/maps/search/?api=1&query=${nextEventItem.coordinate?.lat},${nextEventItem.coordinate?.lng}`;
+                      window.open(url, '_blank');
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold border border-sky-200/60 dark:border-sky-800/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors cursor-pointer"
+                  >
+                    <span>🧭</span>
+                    <span>Naviga su Mappa ↗</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="py-2">
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                Giornata libera senza trasferimenti programmati
+              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                {tonightsAccommodation
+                  ? `Pernottamento previsto presso ${tonightsAccommodation.name}. Tempo a disposizione per visite ed esplorazioni.`
+                  : 'Nessun impegno a orario fisso registrato nel roadbook.'}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* HERO EDIT MODAL */}
@@ -809,17 +980,17 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           onClick={() => setIsHeroEditOpen(false)}
         >
           <div
-            className="modal-sheet-container rounded-t-3xl sm:rounded-3xl border border-slate-200 bg-white"
+            className="modal-sheet-container rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
             onClick={e => e.stopPropagation()}
           >
             {/* Handle */}
             <div className="w-full flex justify-center pt-2.5 pb-1 sm:hidden shrink-0">
-              <div className="w-10 h-1.5 rounded-full bg-slate-300" />
+              <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
             </div>
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 bg-white/95 sticky top-0 z-20 shrink-0">
-              <h2 className="text-lg font-bold text-slate-900">✏️ Personalizza Header</h2>
-              <button type="button" onClick={() => setIsHeroEditOpen(false)} className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 cursor-pointer">
+            <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 sticky top-0 z-20 shrink-0">
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">✏️ Personalizza Header</h2>
+              <button type="button" onClick={() => setIsHeroEditOpen(false)} className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
@@ -827,7 +998,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             <div className="modal-sheet-body space-y-5">
               {/* Titolo Destinazioni */}
               <div className="space-y-3">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Destinazioni / Titolo</label>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">Destinazioni / Titolo</label>
                 <div className="flex gap-2 mb-2">
                   <button
                     type="button"
@@ -835,7 +1006,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                       heroTitleMode === 'custom'
                         ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
                   >✍️ Manuale</button>
                   <button
@@ -844,7 +1015,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                       heroTitleMode === 'auto'
                         ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700'
                     }`}
                   >🔄 Da Tappe</button>
                 </div>
@@ -854,11 +1025,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     value={heroEditTitle}
                     onChange={e => setHeroEditTitle(e.target.value)}
                     placeholder="es. New Zealand, Australia & Philippines"
-                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    className="w-full px-3 py-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-sm text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-indigo-400"
                   />
                 )}
                 {heroTitleMode === 'auto' && (
-                  <p className="text-xs text-slate-500 bg-slate-50 rounded-xl p-3 border border-slate-200">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/60 rounded-xl p-3 border border-slate-200 dark:border-slate-700">
                     Il titolo verrà generato automaticamente raccogliendo le <strong>location</strong> di tutte le Tappe del viaggio (senza duplicati).
                   </p>
                 )}
@@ -866,10 +1037,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
               {/* Sfondo */}
               <div className="space-y-3">
-                <label className="text-xs font-bold text-slate-600 uppercase tracking-wider block">Immagine di Sfondo</label>
+                <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">Immagine di Sfondo</label>
                 {heroBgImage ? (
                   <div className="space-y-2">
-                    <div className="w-full h-24 rounded-xl overflow-hidden border border-slate-200 relative">
+                    <div className="w-full h-24 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 relative">
                       <img src={heroBgImage} alt="Sfondo" className="w-full h-full object-cover" />
                       <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
                         <span className="text-white text-xs font-bold bg-black/50 px-2 py-1 rounded-full">Immagine attiva</span>
@@ -879,12 +1050,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                       <button
                         type="button"
                         onClick={() => heroBgInputRef.current?.click()}
-                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 transition cursor-pointer"
+                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 transition cursor-pointer"
                       >🖼️ Cambia</button>
                       <button
                         type="button"
                         onClick={handleRemoveHeroBg}
-                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
+                        className="flex-1 py-2 rounded-xl text-xs font-bold bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition cursor-pointer"
                       >🗑️ Rimuovi</button>
                     </div>
                   </div>
@@ -892,7 +1063,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   <button
                     type="button"
                     onClick={() => heroBgInputRef.current?.click()}
-                    className="w-full py-4 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 text-xs font-semibold hover:border-indigo-400 hover:text-indigo-600 transition cursor-pointer"
+                    className="w-full py-4 rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 text-slate-500 dark:text-slate-400 text-xs font-semibold hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition cursor-pointer"
                   >
                     ➕ Carica un'immagine
                   </button>
@@ -909,7 +1080,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               <button
                 type="button"
                 onClick={handleSaveHeroTitle}
-                className="w-full py-3 rounded-2xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-500 transition active:scale-95 cursor-pointer"
+                className="w-full py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-sm transition active:scale-95 cursor-pointer shadow-md shadow-indigo-600/20"
               >
                 Salva Modifiche
               </button>
@@ -928,7 +1099,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           <div className="flex items-center gap-2">
             <label
               title="Scegli data dal calendario"
-              className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer transition-colors border border-slate-200"
+              className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors border border-slate-200 dark:border-slate-700"
             >
               <input
                 type="date"
@@ -964,17 +1135,17 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 onClick={() => setSelectedDate(item.dateStr)}
                 className={`snap-start shrink-0 flex flex-col items-center justify-center w-14 py-2.5 rounded-2xl transition-all duration-200 cursor-pointer ${
                   isSelected
-                    ? 'bg-slate-900 text-white font-bold shadow-md shadow-slate-900/20 scale-[1.03]'
-                    : 'bg-white text-slate-700 border border-slate-200/80 hover:border-slate-300 hover:bg-slate-50/80'
+                    ? 'bg-[#172033] text-white dark:bg-white dark:text-[#172033] font-bold shadow-xs scale-[1.03]'
+                    : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200/80 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/80 dark:hover:bg-slate-800/80'
                 }`}
               >
-                <span className={`text-[10px] uppercase tracking-tight ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
+                <span className={`text-[10px] uppercase tracking-tight ${isSelected ? 'text-slate-300 dark:text-slate-600' : 'text-slate-400 dark:text-slate-500'}`}>
                   {item.dayNameShort}
                 </span>
                 <span className="text-base font-extrabold my-0.5 leading-none">
                   {item.dayOfMonth}
                 </span>
-                <span className={`text-[10px] font-medium ${isSelected ? 'text-rose-300' : 'text-slate-500'}`}>
+                <span className={`text-[10px] font-medium ${isSelected ? 'text-[#FF6B5F]' : 'text-slate-500 dark:text-slate-400'}`}>
                   {item.monthShort}
                 </span>
               </button>
@@ -997,7 +1168,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 return selectedDate === todayStr ? 'Programma di Oggi' : 'Itinerario del Giorno';
               })()}
             </span>
-            <span className="text-[11px] font-semibold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">
+            <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200/50 dark:border-slate-700/50">
               {formatDateHuman(selectedDate)}
             </span>
           </div>
@@ -1016,7 +1187,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
         {/* Card Link Google Maps Giornata - Stile Essenziale */}
         <div 
-          className={`mx-1 rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow transition-shadow ${!dayMapLink ? 'cursor-pointer active:bg-slate-50' : ''}`}
+          className={`mx-1 rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs hover:border-slate-300 dark:hover:border-slate-700 transition-colors ${!dayMapLink ? 'cursor-pointer active:bg-slate-50 dark:active:bg-slate-800/60' : ''}`}
           onClick={() => {
             if (canEdit && !dayMapLink) {
               setEditMapLinkUrl(''); 
@@ -1024,12 +1195,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             }
           }}
         >
-          <div className="px-3 py-2.5 flex items-center justify-between">
+          <div className="px-3.5 py-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <span className="text-xl">📍</span>
+              <span className="w-7 h-7 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-800/60 flex items-center justify-center text-xs shrink-0">📍</span>
               <div>
-                <span className="block text-[13px] font-bold text-slate-800 leading-tight">Itinerario su Maps</span>
-                <span className="block text-[10px] text-slate-500 font-medium">
+                <span className="block text-[13px] font-bold text-slate-800 dark:text-slate-200 leading-tight">Itinerario su Maps</span>
+                <span className="block text-[10px] text-slate-500 dark:text-slate-400 font-medium">
                   {!dayMapLink ? 'Clicca per aggiungere il link' : 'Visualizza percorso completo'}
                 </span>
               </div>
@@ -1039,7 +1210,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               {!dayMapLink ? (
                 <button
                   type="button"
-                  className="flex items-center gap-1 text-[11px] font-bold text-sky-600 bg-sky-50 border border-sky-100 px-3 py-1.5 rounded-lg hover:bg-sky-100 transition-colors pointer-events-none"
+                  className="flex items-center gap-1 text-[11px] font-bold text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-800 px-3 py-1.5 rounded-lg hover:bg-sky-100 dark:hover:bg-sky-900/50 transition-colors pointer-events-none"
                 >
                   + Inserisci
                 </button>
@@ -1048,7 +1219,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   <button
                     type="button"
                     onClick={() => window.open(dayMapLink, '_blank')}
-                    className="text-[11px] font-bold text-sky-700 bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-100 hover:bg-sky-100 hover:border-sky-200 cursor-pointer flex items-center gap-1 transition-all"
+                    className="text-[11px] font-bold text-sky-700 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/40 px-3 py-1.5 rounded-lg border border-sky-100 dark:border-sky-800 hover:bg-sky-100 dark:hover:bg-sky-900/50 cursor-pointer flex items-center gap-1 transition-all"
                   >
                     Apri ↗
                   </button>
@@ -1056,7 +1227,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     <button
                       type="button"
                       onClick={() => { setEditMapLinkUrl(dayMapLink); setIsMapLinkModalOpen(true); }}
-                      className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                      className="w-7 h-7 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                       title="Modifica link"
                     >
                       ✏️
@@ -1067,6 +1238,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             </div>
           </div>
         </div>
+
 
 
         {/* Sequenza Unificata: timeline con sezioni chiare + alloggio fisso in fondo */}
@@ -1163,10 +1335,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           if (dayItems.length === 0 && !tonightsAccommodation) {
             return (
-              <div className="bg-slate-100/60 rounded-3xl border border-slate-200 border-dashed p-6 text-center">
-                <span className="text-2xl mb-1 block">🏖️</span>
-                <p className="text-xs font-bold text-slate-700">Nessuna attività programmata per oggi</p>
-                <p className="text-[11px] text-slate-400 mt-0.5">Giornata libera per relax, esplorazione spontanea o spostamento.</p>
+              <div className="bg-slate-50 dark:bg-slate-900/60 rounded-3xl border border-slate-200/80 dark:border-slate-800 border-dashed p-6 text-center">
+                <span className="text-2xl mb-1 block">🧭</span>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Nessuna attività programmata per oggi</p>
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Giornata libera per relax, esplorazione spontanea o spostamento.</p>
               </div>
             );
           }
@@ -1176,8 +1348,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               {activeStates.length > 0 && (
                 <div className="flex flex-col gap-2 mb-4">
                   {activeStates.map((stateItem, idx) => (
-                    <div key={`state-${stateItem.id || idx}`} className="bg-amber-50 border border-amber-200/90 rounded-2xl p-3 shadow-xs flex items-center justify-center text-center">
-                       <span className="text-[11px] font-bold text-amber-800 tracking-tight">{stateItem.stateLabel}</span>
+                    <div key={`state-${stateItem.id || idx}`} className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800/60 rounded-2xl p-3 shadow-xs flex items-center justify-center text-center">
+                       <span className="text-[11px] font-bold text-amber-800 dark:text-amber-200 tracking-tight">{stateItem.stateLabel}</span>
                     </div>
                   ))}
                 </div>
@@ -1377,18 +1549,18 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
       {/* QUICK ACTIONS 2-COLONNE: Nuova Spesa ed Emergenze */}
       <div className="grid grid-cols-2 gap-3 mt-1 mb-4">
-        {/* Pulsante 1: Nuova Spesa */}
+        {/* Pulsante 1: Nuova Spesa (verde tenue coerente con token semantici) */}
         <button
           type="button"
           onClick={() => setIsQuickExpenseOpen(true)}
-          className="bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shadow-sm hover:border-slate-300 dark:hover:border-slate-600 active:scale-[0.98] rounded-xl py-3 px-3.5 flex items-center gap-2.5 transition-all cursor-pointer text-left w-full text-slate-800 dark:text-slate-100"
+          className="bg-emerald-50/70 hover:bg-emerald-100/70 dark:bg-emerald-950/30 dark:hover:bg-emerald-950/50 border border-emerald-200/70 dark:border-emerald-800/60 shadow-sm active:scale-[0.98] rounded-xl py-3 px-3.5 flex items-center gap-2.5 transition-all cursor-pointer text-left w-full text-emerald-950 dark:text-emerald-100"
         >
-          <span className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-base shrink-0">
+          <span className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 flex items-center justify-center text-base shrink-0">
             💳
           </span>
           <div className="min-w-0">
-            <p className="text-[14px] font-semibold text-slate-800 dark:text-slate-100 leading-tight">Nuova Spesa</p>
-            <p className="text-[12px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5 truncate">Registra o converti</p>
+            <p className="text-[14px] font-semibold text-emerald-800 dark:text-emerald-200 leading-tight">Nuova Spesa</p>
+            <p className="text-[12px] text-emerald-700/80 dark:text-emerald-300/80 leading-tight mt-0.5 truncate">Registra o converti</p>
           </div>
         </button>
 
@@ -1409,18 +1581,18 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       </div>
 
       {/* 5. SEZIONE "COSA FARAI DOMANI" (GIORNO SUCCESSIVO) CON CAROSELLO A SCORRIMENTO ORIZZONTALE */}
-      <div className="bg-white rounded-3xl border border-slate-200/80 p-4 shadow-sm space-y-3">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/80 dark:border-slate-800 p-4 shadow-xs space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-sm font-bold shadow-2xs border border-blue-100">
+            <span className="w-7 h-7 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center text-sm font-bold shadow-2xs border border-blue-100 dark:border-blue-900/50">
               🌅
             </span>
             <div>
-              <h2 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
+              <h2 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider">
                 Cosa farai domani
               </h2>
               {nextDayMeta && (
-                <p className="text-[11px] text-slate-500 font-medium">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
                   {formatDateHuman(nextDayMeta.dateStr)} • Tappa {nextDayMeta.dayNum}
                 </p>
               )}
@@ -1430,7 +1602,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             <button
               type="button"
               onClick={() => setSelectedDate(nextDayMeta.dateStr)}
-              className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer px-2.5 py-1 rounded-xl bg-blue-50 hover:bg-blue-100"
+              className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50"
             >
               Vedi giornata ➔
             </button>
@@ -1448,12 +1620,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               const isShopping = item.type === 'shopping';
 
               const icon = isLodging ? '🛏️' : isTransport ? '✈️' : isTappa ? '📍' : isRistorante ? '🍽️' : isShopping ? '🛍️' : '🌿';
-              const badgeBg = isLodging ? 'bg-purple-50 text-purple-700 border-purple-100' :
-                              isTransport ? 'bg-sky-50 text-sky-700 border-sky-100' :
-                              isTappa ? 'bg-rose-50 text-rose-700 border-rose-100' :
-                              isRistorante ? 'bg-[#FFF0ED] text-[#172033] border-[#FFF0ED]' :
-                              isShopping ? 'bg-pink-50 text-pink-700 border-pink-100' :
-                              'bg-amber-50 text-amber-700 border-amber-100';
+              const badgeBg = isLodging ? 'bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border-purple-100 dark:border-purple-800' :
+                              isTransport ? 'bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 border-sky-100 dark:border-sky-800' :
+                              isTappa ? 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border-rose-100 dark:border-rose-800' :
+                              isRistorante ? 'bg-[#FFF0ED] dark:bg-rose-950/30 text-[#172033] dark:text-rose-200 border-[#FFF0ED] dark:border-rose-900/40' :
+                              isShopping ? 'bg-pink-50 dark:bg-pink-950/40 text-pink-700 dark:text-pink-300 border-pink-100 dark:border-pink-800' :
+                              'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-100 dark:border-amber-800';
 
               return (
                 <div
@@ -1461,23 +1633,23 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   onClick={() => {
                     if (nextDayMeta) setSelectedDate(nextDayMeta.dateStr);
                   }}
-                  className="min-w-[200px] max-w-[240px] bg-white rounded-xl p-3 border border-slate-200/80 shadow-sm shrink-0 snap-start flex flex-col justify-between hover:border-slate-300 transition-all cursor-pointer active:scale-[0.98]"
+                  className="min-w-[200px] max-w-[240px] bg-white dark:bg-slate-800/90 rounded-xl p-3 border border-slate-200/80 dark:border-slate-700 shadow-xs shrink-0 snap-start flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-pointer active:scale-[0.98]"
                 >
                   <div>
                     <div className="flex items-center justify-between gap-1.5 mb-1.5">
                       <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-xs font-bold border ${badgeBg}`}>
                         {icon}
                       </span>
-                      <span className="text-[11px] font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-md">
+                      <span className="text-[11px] font-mono font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700/80 px-2 py-0.5 rounded-md">
                         {item.time || '12:00'}
                       </span>
                     </div>
-                    <h4 className="text-xs font-bold text-slate-900 line-clamp-2 leading-snug">
+                    <h4 className="text-xs font-bold text-slate-900 dark:text-white line-clamp-2 leading-snug">
                       {item.title}
                     </h4>
                   </div>
                   {item.location && (
-                    <p className="text-[11px] text-slate-500 font-medium truncate mt-2">
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate mt-2">
                       📍 {item.location}
                     </p>
                   )}
@@ -1486,11 +1658,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             })}
           </div>
         ) : (
-          <div className="bg-slate-50 rounded-2xl border border-slate-200/70 p-3.5 text-center">
-            <p className="text-xs font-semibold text-slate-600">
+          <div className="bg-slate-50 dark:bg-slate-800/40 rounded-2xl border border-slate-200/70 dark:border-slate-700 p-3.5 text-center">
+            <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
               Nessuna attività programmata per domani
             </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
               {nextDayData?.title
                 ? nextDayData.title
                 : nextDayAccommodation 
@@ -1630,6 +1802,88 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             console.error('Errore eliminazione collisione:', err);
           }
         }}
+        onUpdateTime={async (itemId, itemType, newTime) => {
+          try {
+            if (itemType === 'attivita') {
+              const activities = await storageService.getActivities();
+              const found = activities.find(a => a.id === itemId);
+              if (found) {
+                const updated = { ...found, time: newTime, orarioInizio: newTime, updatedAt: Date.now() };
+                await storageService.saveActivity(updated);
+              }
+            } else if (itemType === 'trasporto') {
+              const transports = await storageService.getTransports();
+              const found = transports.find(t => t.id === itemId);
+              if (found) {
+                let newArrivalTime = found.arrivalTime;
+                if (found.departureTime && found.arrivalTime) {
+                  const [oldDH, oldDM] = found.departureTime.split(':').map(Number);
+                  const [oldAH, oldAM] = found.arrivalTime.split(':').map(Number);
+                  if (!isNaN(oldDH) && !isNaN(oldDM) && !isNaN(oldAH) && !isNaN(oldAM)) {
+                    let durationMin = (oldAH * 60 + oldAM) - (oldDH * 60 + oldDM);
+                    if (durationMin < 0) durationMin += 24 * 60;
+                    const [newDH, newDM] = newTime.split(':').map(Number);
+                    if (!isNaN(newDH) && !isNaN(newDM)) {
+                      const totalArrivalMin = (newDH * 60 + newDM + durationMin) % (24 * 60);
+                      const arrH = String(Math.floor(totalArrivalMin / 60)).padStart(2, '0');
+                      const arrM = String(totalArrivalMin % 60).padStart(2, '0');
+                      newArrivalTime = `${arrH}:${arrM}`;
+                    }
+                  }
+                }
+                const updated = { ...found, departureTime: newTime, arrivalTime: newArrivalTime, updatedAt: Date.now() };
+                await storageService.saveTransport(updated);
+              }
+            } else if (itemType === 'ristorante') {
+              const items = await storageService.getRistoranti();
+              const found = items.find(r => r.id === itemId);
+              if (found) {
+                const updated = { ...found, time: newTime, orario: newTime, updatedAt: Date.now() };
+                await storageService.saveRistorante(updated);
+              }
+            } else if (itemType === 'alloggio') {
+              const items = await storageService.getAccommodations();
+              const found = items.find(a => a.id === itemId);
+              if (found) {
+                const updated = { ...found, checkInTime: newTime, updatedAt: Date.now() };
+                await storageService.saveAccommodation(updated);
+              }
+            } else if (itemType === 'shopping') {
+              await storageService.updateShopping(itemId, { orario: newTime });
+            } else if (itemType === 'tappa') {
+              const items = await storageService.getTappe();
+              const found = items.find(t => t.id === itemId);
+              if (found) {
+                const updated = { ...found, time: newTime, orarioVisita: newTime, updatedAt: Date.now() };
+                await storageService.saveTappa(updated);
+              }
+            }
+
+            if (activeCollision && typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem(activeCollision.id, 'resolved');
+            }
+            setActiveCollision(null);
+            await fetchTimeline();
+          } catch (err) {
+            console.error('Errore modifica orario collisione:', err);
+          }
+        }}
+        onOpenEditForm={(item) => {
+          if (item.type === 'trasporto' && item.originalData) {
+            setEditingTransportItem(item.originalData as Trasporto);
+          } else if (item.type === 'attivita') {
+            setDetailItem(item);
+          } else if (item.type === 'ristorante' && item.originalData) {
+            setEditingRistoranteItem(item.originalData);
+          } else if (item.type === 'alloggio' && item.originalData) {
+            setEditingAlloggioItem(item.originalData);
+          } else if (item.type === 'tappa' && item.originalData) {
+            setEditingTappaItem(item.originalData);
+          } else if (item.type === 'shopping' && item.originalData) {
+            setEditingShoppingItem(item.originalData);
+          }
+          setActiveCollision(null);
+        }}
         onDismiss={() => {
           if (activeCollision && typeof sessionStorage !== 'undefined') {
             sessionStorage.setItem(activeCollision.id, 'dismissed');
@@ -1648,19 +1902,19 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           }}
         >
           <div 
-            className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-slate-200/80 animate-scale-up space-y-3.5"
+            className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-2xl border border-slate-200/80 dark:border-slate-800 animate-scale-up space-y-3.5"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between pb-2 border-b border-[#FFF0ED]">
+            <div className="flex items-center justify-between pb-2 border-b border-[#FFF0ED] dark:border-slate-800">
               <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-xl bg-[#FFF0ED] text-[#172033] flex items-center justify-center text-sm font-bold">
+                <span className="w-8 h-8 rounded-xl bg-[#FFF0ED] dark:bg-rose-950/40 text-[#172033] dark:text-rose-300 flex items-center justify-center text-sm font-bold">
                   🧭
                 </span>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 leading-tight">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">
                     Note Co-pilota • {copilotPopoverActivity.title}
                   </h3>
-                  <p className="text-[10px] text-[#172033] font-semibold truncate max-w-[190px]">
+                  <p className="text-[10px] text-[#172033] dark:text-rose-300 font-semibold truncate max-w-[190px]">
                     Promemoria e raccomandazioni
                   </p>
                 </div>
@@ -1668,7 +1922,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               <button
                 type="button"
                 onClick={() => setCopilotPopoverActivity(null)}
-                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
+                className="w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center text-xs font-bold transition-colors cursor-pointer"
               >
                 ✕
               </button>
@@ -1676,7 +1930,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
             {/* Area di testo per lettura / modifica immediata */}
             <div className="space-y-1.5">
-              <label className="text-[11px] font-bold text-slate-600">
+              <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
                 {canEdit ? 'Note & Suggerimenti di viaggio:' : 'Note consultabili:'}
               </label>
               {canEdit ? (
@@ -1685,10 +1939,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   value={copilotPopoverText}
                   onChange={(e) => setCopilotPopoverText(e.target.value)}
                   placeholder="Inserisci note, consigli parcheggio, orari migliori, promemoria per la guida..."
-                  className="w-full rounded-2xl bg-slate-50 border border-slate-200 focus:border-[#FF6B5F] focus:ring-2 focus:ring-[#FF6B5F]/20 p-3 text-xs text-slate-800 leading-relaxed outline-none transition-all resize-none"
+                  className="w-full rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:border-[#FF6B5F] focus:ring-2 focus:ring-[#FF6B5F]/20 p-3 text-xs text-slate-800 dark:text-white leading-relaxed outline-none transition-all resize-none"
                 />
               ) : (
-                <div className="bg-[#FFF0ED]/60 p-3.5 rounded-2xl border border-[#FFF0ED] text-xs text-slate-700 leading-relaxed font-medium min-h-[80px]">
+                <div className="bg-[#FFF0ED]/60 dark:bg-rose-950/30 p-3.5 rounded-2xl border border-[#FFF0ED] dark:border-rose-900/40 text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-medium min-h-[80px]">
                   {copilotPopoverActivity.noteCopilota?.trim() ? (
                     copilotPopoverActivity.noteCopilota
                   ) : (
@@ -1704,7 +1958,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               <button
                 type="button"
                 onClick={() => setCopilotPopoverActivity(null)}
-                className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer"
               >
                 Chiudi
               </button>
@@ -1785,29 +2039,29 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         accentVariant="sky"
       >
         <div className="space-y-4">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Incolla qui il link dell'itinerario Google Maps creato per questa giornata. Sarà accessibile rapidamente dalla timeline.
           </p>
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">URL Google Maps</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">URL Google Maps</label>
             <input
               type="url"
               placeholder="https://maps.app.goo.gl/..."
               value={editMapLinkUrl}
               onChange={(e) => setEditMapLinkUrl(e.target.value)}
-              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-white focus:border-blue-500 transition-colors"
+              className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-sm focus:outline-none focus:bg-white dark:focus:bg-slate-800 focus:border-blue-500 transition-colors"
             />
           </div>
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
             <button
               onClick={() => setIsMapLinkModalOpen(false)}
-              className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+              className="px-4 py-2 rounded-xl text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
               Annulla
             </button>
             <button
               onClick={handleSaveDayMapLink}
-              className="px-6 py-2 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-500 shadow-md transition-colors"
+              className="px-6 py-2 rounded-xl text-sm font-bold bg-blue-600 text-white hover:bg-blue-500 shadow-md transition-colors cursor-pointer"
             >
               Salva Link
             </button>
@@ -1824,24 +2078,24 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Descrizione *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Descrizione *</label>
             <input
               type="text"
               autoFocus
               value={quickExpenseTitle}
               onChange={e => setQuickExpenseTitle(e.target.value)}
               placeholder="es. Cena al porto, Souvenir, Transfer..."
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] bg-white"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] bg-white dark:bg-slate-800"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Importo *</label>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">Importo *</label>
             <div className="flex gap-2">
               <select
                 value={quickExpenseCurrency}
                 onChange={e => setQuickExpenseCurrency(e.target.value as 'EUR'|'NZD'|'AUD'|'PHP')}
-                className="px-2 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-700 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] shrink-0"
+                className="px-2 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] shrink-0"
               >
                 <option value="EUR">🇪🇺 EUR</option>
                 <option value="NZD">🇳🇿 NZD</option>
@@ -1856,22 +2110,22 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 value={quickExpenseAmount}
                 onChange={e => setQuickExpenseAmount(e.target.value)}
                 placeholder="0.00"
-                className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] bg-white"
+                className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 text-sm font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] bg-white dark:bg-slate-800"
               />
             </div>
             {quickExpenseCurrency !== 'EUR' && quickAmountNum > 0 && (
-              <p className="text-[11px] text-slate-500 mt-1.5 px-1 font-medium">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5 px-1 font-medium">
                 ≈ <span className="font-bold text-[#FF6B5F]">{quickEur.toFixed(2)} €</span>
                 <span className="opacity-70"> (tasso approx. 1€ = {QUICK_RATES[quickExpenseCurrency]} {quickExpenseCurrency})</span>
               </p>
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
             <button
               type="button"
               onClick={() => setIsQuickExpenseOpen(false)}
-              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
               Annulla
             </button>

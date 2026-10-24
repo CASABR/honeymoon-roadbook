@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import type { DeviceRole } from '../../types';
 
 interface DeviceRoleModalProps {
@@ -13,15 +15,30 @@ export default function DeviceRoleModal({
   currentRole,
   onSelectRole,
 }: DeviceRoleModalProps) {
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div 
-        className="fixed inset-0" 
-        onClick={onClose} 
-      />
-      <div className="relative bg-white dark:bg-slate-900 rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 z-10 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
+  if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      onClick={onClose}
+      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        tabIndex={-1}
+        className="relative bg-white dark:bg-slate-900 rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 z-10 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto outline-none"
+      >
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2">
             <span className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-lg">
@@ -110,7 +127,7 @@ export default function DeviceRoleModal({
               Accesso a modifiche, spese, note e itinerario. Non invia il segnale GPS per non sovrascrivere la posizione del Telefono Guida.
             </p>
             <div className="flex items-center gap-1.5 text-[10px] font-semibold text-amber-800 dark:text-amber-400 pl-7 pt-0.5">
-              <span>✓ Gestione note & spese</span>
+              <span>✓ Gestione note &amp; spese</span>
               <span>•</span>
               <span>✓ Mappa ancorata alla guida</span>
             </div>
@@ -163,6 +180,7 @@ export default function DeviceRoleModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

@@ -32,49 +32,49 @@ export const CATEGORY_CONFIG: Record<
     label: "Trasporti",
     icon: "✈️",
     color: "bg-sky-500",
-    bg: "bg-sky-50",
-    border: "border-sky-200",
-    text: "text-sky-800",
+    bg: "bg-sky-50 dark:bg-sky-950/40",
+    border: "border-sky-200 dark:border-sky-800/50",
+    text: "text-sky-800 dark:text-sky-300",
   },
   alloggi: {
     label: "Alloggi",
     icon: "🏨",
     color: "bg-purple-500",
-    bg: "bg-purple-50",
-    border: "border-purple-200",
-    text: "text-purple-700",
+    bg: "bg-purple-50 dark:bg-purple-950/40",
+    border: "border-purple-200 dark:border-purple-800/50",
+    text: "text-purple-700 dark:text-purple-300",
   },
   attivita: {
     label: "Attività",
     icon: "🎟️",
     color: "bg-amber-500",
-    bg: "bg-amber-50",
-    border: "border-amber-200",
-    text: "text-amber-800",
+    bg: "bg-amber-50 dark:bg-amber-950/40",
+    border: "border-amber-200 dark:border-amber-800/50",
+    text: "text-amber-800 dark:text-amber-300",
   },
   ristoranti: {
     label: "Ristoranti",
     icon: "🍽️",
     color: "bg-amber-600",
-    bg: "bg-amber-100",
-    border: "border-amber-300",
-    text: "text-amber-900",
+    bg: "bg-amber-100 dark:bg-amber-950/50",
+    border: "border-amber-300 dark:border-amber-700/50",
+    text: "text-amber-900 dark:text-amber-200",
   },
   shopping: {
     label: "Shopping",
     icon: "🛍️",
     color: "bg-pink-500",
-    bg: "bg-pink-50",
-    border: "border-pink-200",
-    text: "text-pink-700",
+    bg: "bg-pink-50 dark:bg-pink-950/40",
+    border: "border-pink-200 dark:border-pink-800/50",
+    text: "text-pink-700 dark:text-pink-300",
   },
   altro: {
     label: "Extra",
     icon: "📦",
     color: "bg-slate-500",
-    bg: "bg-slate-50",
-    border: "border-slate-200",
-    text: "text-slate-700",
+    bg: "bg-slate-50 dark:bg-slate-800/60",
+    border: "border-slate-200 dark:border-slate-700",
+    text: "text-slate-700 dark:text-slate-300",
   },
 };
 
@@ -107,6 +107,19 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<CategoriaSpesa | "tutte" | "shopping">("tutte");
   const [drillDownCategory, setDrillDownCategory] = useState<CategoriaSpesa | "shopping" | null>(null);
 
+  // Target Budget
+  const [targetBudget, setTargetBudget] = useState<{ amount: number; updatedAt: number } | null>(null);
+  const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
+  const [budgetInput, setBudgetInput] = useState("");
+
+  // Nuova Spesa
+  const [isNewExpenseModalOpen, setIsNewExpenseModalOpen] = useState(false);
+  const [newExpenseTitle, setNewExpenseTitle] = useState("");
+  const [newExpenseAmount, setNewExpenseAmount] = useState("");
+  const [newExpenseCategory, setNewExpenseCategory] = useState<CategoriaSpesa | "shopping">("altro");
+  const [newExpensePaid, setNewExpensePaid] = useState(true);
+  const [isSavingExpense, setIsSavingExpense] = useState(false);
+
   // Editor Inline
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [editingItemCost, setEditingItemCost] = useState("");
@@ -119,13 +132,8 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
   // CARICAMENTO E AUTO-FIX
   // ============================================================================
   const loadAllData = async () => {
-    // Esegue l'allineamento richiesto
-    
-    
     setSpese(await storageService.getSpese());
     let tList = await storageService.getTransports();
-    
-    // Rimosso auto-fix per evitare loop di render.
     
     setTrasporti(tList);
     setAlloggi(await storageService.getAccommodations());
@@ -136,6 +144,9 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
     
     const s = (storageService as any).getShoppingItems ? await (storageService as any).getShoppingItems() : (storageService as any).getShopping ? await (storageService as any).getShopping() : [];
     setShoppingItemsList(s);
+
+    const bg = await storageService.getTripBudget();
+    setTargetBudget(bg);
   };
 
   useEffect(() => {
@@ -530,6 +541,61 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
     await loadAllData();
   };
 
+  const handleOpenBudgetModal = () => {
+    setBudgetInput(targetBudget ? String(targetBudget.amount) : "");
+    setIsBudgetModalOpen(true);
+  };
+
+  const handleSaveBudget = async () => {
+    const trimmed = budgetInput.trim();
+    if (trimmed === "") {
+      await storageService.saveTripBudget(null);
+      setTargetBudget(null);
+    } else {
+      const num = parseFloat(trimmed.replace(",", "."));
+      if (!isNaN(num) && num >= 0) {
+        await storageService.saveTripBudget(num);
+        setTargetBudget({ amount: num, updatedAt: Date.now() });
+      }
+    }
+    setIsBudgetModalOpen(false);
+  };
+
+  const handleClearBudget = async () => {
+    await storageService.saveTripBudget(null);
+    setTargetBudget(null);
+    setIsBudgetModalOpen(false);
+  };
+
+  const handleSaveNewExpense = async () => {
+    if (!newExpenseTitle.trim() || !newExpenseAmount.trim()) return;
+    const num = parseFloat(newExpenseAmount.replace(",", "."));
+    if (isNaN(num)) return;
+    setIsSavingExpense(true);
+    try {
+      const now = Date.now();
+      const spesaItem: Spesa = {
+        id: `spesa_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        title: newExpenseTitle.trim(),
+        amount: num,
+        category: (newExpenseCategory === 'shopping' ? 'altro' : newExpenseCategory) as CategoriaSpesa,
+        date: new Date().toISOString().split('T')[0],
+        status: newExpensePaid ? 'saldato' : 'da_saldare',
+        createdAt: now,
+        updatedAt: now
+      };
+      await storageService.saveSpesa(spesaItem);
+      setIsNewExpenseModalOpen(false);
+      setNewExpenseTitle("");
+      setNewExpenseAmount("");
+      await loadAllData();
+    } catch (e) {
+      console.error("Errore salvataggio nuova spesa:", e);
+    } finally {
+      setIsSavingExpense(false);
+    }
+  };
+
   // ============================================================================
   // COMPONENTE RIGA (Condiviso tra Drill-Down e Lista Principale)
   // ============================================================================
@@ -669,46 +735,116 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
     <div className="flex flex-col h-full animate-fade-in pb-20">
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
         
-        {/* Header di navigazione con pulsante di ritorno ad Altro */}
-        <header className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={_onBack || (() => window.history.back())}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs border border-slate-200/60"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
-            </svg>
-            <span>Torna ad Altro</span>
-          </button>
-          <div className="min-w-0">
-            <h1 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-1.5 truncate">
-              <span>💳</span> Spese &amp; Budget
-            </h1>
+        {/* Header di navigazione con pulsante di ritorno ad Altro e Nuova Spesa */}
+        <header className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={_onBack || (() => window.history.back())}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-all active:scale-95 cursor-pointer shadow-2xs border border-slate-200/60"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+              </svg>
+              <span>Torna ad Altro</span>
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-1.5 truncate">
+                <span>💳</span> Spese &amp; Budget
+              </h1>
+            </div>
           </div>
+          {canEdit && (
+            <button
+              type="button"
+              onClick={() => setIsNewExpenseModalOpen(true)}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#172033] hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer"
+            >
+              <span>+</span>
+              <span>Nuova spesa</span>
+            </button>
+          )}
         </header>
 
-        {/* Riepilogo Totali (Migliorato con progress bar) */}
-        <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 rounded-full blur-3xl -mr-10 -mt-10 opacity-60"></div>
+        {/* Card 1: Budget Obiettivo Viaggio (Distinto da totale spese) */}
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden">
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-400 uppercase tracking-wider block">Tetto di spesa</span>
+              <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">Budget Obiettivo</h2>
+            </div>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={handleOpenBudgetModal}
+                className="text-xs font-bold text-[#FF6B5F] hover:text-[#e0564a] bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+              >
+                {targetBudget === null ? '+ Imposta budget' : 'Modifica'}
+              </button>
+            )}
+          </div>
+
+          {targetBudget === null ? (
+            <div className="py-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🎯</span>
+                <span className="text-sm font-bold text-slate-600 dark:text-slate-300">Nessun budget fissato</span>
+              </div>
+              <p className="text-xs text-slate-400 dark:text-slate-400 mt-1">
+                Non hai ancora impostato un tetto di spesa per questo viaggio.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2 pt-1">
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
+                  {formatEuro(targetBudget.amount)}
+                </div>
+                {targetBudget.amount === 0 ? (
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">
+                    Fissato a 0 €
+                  </span>
+                ) : (
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${targetBudget.amount >= stats.totGenerale ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-200' : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-200'}`}>
+                    {targetBudget.amount >= stats.totGenerale
+                      ? `Rimanenti ${formatEuro(targetBudget.amount - stats.totGenerale)}`
+                      : `Superato di ${formatEuro(stats.totGenerale - targetBudget.amount)}`}
+                  </span>
+                )}
+              </div>
+              {targetBudget.amount > 0 && (
+                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all duration-500 ${stats.totGenerale > targetBudget.amount ? 'bg-rose-500' : 'bg-[#FF6B5F]'}`}
+                    style={{ width: `${Math.min(100, (stats.totGenerale / targetBudget.amount) * 100)}%` }}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Card 2: Totale Spese Registrate */}
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 dark:bg-indigo-950/30 rounded-full blur-3xl -mr-10 -mt-10 opacity-60"></div>
           <div className="relative">
-            <h2 className="text-sm font-bold text-slate-500 mb-1">Budget Totale Allocato</h2>
-            <div className="text-3xl font-black text-slate-900 tracking-tight font-mono mb-4">
+            <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">Totale Spese Registrate</h2>
+            <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono mb-4">
               {formatEuro(stats.totGenerale)}
             </div>
             <div className="flex gap-2">
-              <div className="flex-1 bg-emerald-50/50 rounded-2xl p-3 border border-emerald-100/50">
-                <div className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-0.5">Già Saldato</div>
-                <div className="text-sm font-black text-emerald-700 font-mono">{formatEuro(stats.totSaldato)}</div>
+              <div className="flex-1 bg-emerald-50/50 dark:bg-emerald-950/40 rounded-2xl p-3 border border-emerald-100/50 dark:border-emerald-800/40">
+                <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-300 uppercase tracking-wider mb-0.5">Già Saldato</div>
+                <div className="text-sm font-black text-emerald-700 dark:text-emerald-200 font-mono">{formatEuro(stats.totSaldato)}</div>
               </div>
-              <div className="flex-1 bg-amber-50/50 rounded-2xl p-3 border border-amber-100/50">
-                <div className="text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-0.5">Da Saldare</div>
-                <div className="text-sm font-black text-amber-700 font-mono">{formatEuro(stats.totDaSaldare)}</div>
+              <div className="flex-1 bg-amber-50/50 dark:bg-amber-950/40 rounded-2xl p-3 border border-amber-100/50 dark:border-amber-800/40">
+                <div className="text-[10px] font-bold text-amber-600 dark:text-amber-300 uppercase tracking-wider mb-0.5">Da Saldare</div>
+                <div className="text-sm font-black text-amber-700 dark:text-amber-200 font-mono">{formatEuro(stats.totDaSaldare)}</div>
               </div>
             </div>
             
             {/* ProgressBar Generale */}
-            <div className="mt-4 h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex">
+            <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden flex">
               <div className="h-full bg-emerald-400" style={{ width: `${stats.totGenerale > 0 ? (stats.totSaldato / stats.totGenerale) * 100 : 0}%` }} />
               <div className="h-full bg-amber-400" style={{ width: `${stats.totGenerale > 0 ? (stats.totDaSaldare / stats.totGenerale) * 100 : 0}%` }} />
             </div>
@@ -717,7 +853,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
 
         {/* Drill Down Categorie (Orizzontale / Liste Compatte) */}
         <div>
-          <h3 className="text-sm font-bold text-slate-900 mb-3 px-1">Spese per Categoria</h3>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3 px-1">Spese per Categoria</h3>
           <div className="flex flex-col gap-2">
             {(Object.entries(CATEGORY_CONFIG) as [CategoriaSpesa | "shopping", any][]).map(([catKey, config]) => {
               const catStats = stats.catStats[catKey];
@@ -729,7 +865,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
                 <div 
                   key={catKey} 
                   onClick={() => setDrillDownCategory(catKey)} 
-                  className={`bg-white px-3 py-3 rounded-2xl border border-slate-100 shadow-sm cursor-pointer hover:shadow-md transition-all active:scale-95 flex items-center gap-3`}
+                  className={`bg-white dark:bg-slate-800 px-3 py-3 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm cursor-pointer hover:shadow-md transition-all active:scale-95 flex items-center gap-3`}
                 >
                   <div className={`w-10 h-10 shrink-0 rounded-xl flex items-center justify-center text-lg ${config.bg}`}>
                     {config.icon}
@@ -800,7 +936,27 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           </div>
 
           <div className="mt-4 space-y-3">
-            {filteredUnifiedExpenses.length === 0 ? (
+            {unifiedExpenses.length === 0 ? (
+              <div className="text-center py-12 px-4 rounded-3xl border border-dashed border-slate-200 bg-white/50">
+                <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl">
+                  💳
+                </div>
+                <h4 className="text-sm font-extrabold text-slate-900 mb-1">Nessuna spesa registrata</h4>
+                <p className="text-xs text-slate-500 max-w-xs mx-auto mb-4">
+                  Il totale delle spese è attualmente 0 €. Aggiungi la tua prima spesa per monitorare il viaggio.
+                </p>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={() => setIsNewExpenseModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#172033] hover:bg-slate-800 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer"
+                  >
+                    <span>+</span>
+                    <span>Aggiungi prima spesa</span>
+                  </button>
+                )}
+              </div>
+            ) : filteredUnifiedExpenses.length === 0 ? (
               <div className="text-center py-8">
                 <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
                   <span className="text-2xl opacity-50">💸</span>
@@ -938,6 +1094,148 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             </div>
           );
         })()}
+      </Modal>
+
+      {/* Modale Imposta/Modifica Budget Obiettivo */}
+      <Modal
+        isOpen={isBudgetModalOpen}
+        onClose={() => setIsBudgetModalOpen(false)}
+        title="Budget Obiettivo del Viaggio"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            Fissa un tetto massimo di spesa per il viaggio. Questo valore rimarrà associato esclusivamente a questo viaggio.
+          </p>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+              Importo massimo (€)
+            </label>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              placeholder="es. 3500 oppure 0"
+              value={budgetInput}
+              onChange={(e) => setBudgetInput(e.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] bg-slate-50"
+            />
+          </div>
+          <div className="flex gap-2 pt-2">
+            {targetBudget !== null && (
+              <button
+                type="button"
+                onClick={handleClearBudget}
+                className="px-3 py-2.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 transition-colors cursor-pointer"
+              >
+                Rimuovi
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setIsBudgetModalOpen(false)}
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+            >
+              Annulla
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveBudget}
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-[#FF6B5F] hover:bg-[#e0564a] shadow-sm transition-all cursor-pointer"
+            >
+              Salva Budget
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modale Registrazione Nuova Spesa */}
+      <Modal
+        isOpen={isNewExpenseModalOpen}
+        onClose={() => setIsNewExpenseModalOpen(false)}
+        title="Registra Nuova Spesa"
+      >
+        <div className="space-y-3">
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+              Descrizione / Titolo *
+            </label>
+            <input
+              type="text"
+              placeholder="es. Cena tipica, Souvenir, Benzina..."
+              value={newExpenseTitle}
+              onChange={(e) => setNewExpenseTitle(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] bg-slate-50"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+              Importo (€) *
+            </label>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              placeholder="es. 45.00"
+              value={newExpenseAmount}
+              onChange={(e) => setNewExpenseAmount(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] bg-slate-50"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+              Categoria
+            </label>
+            <select
+              value={newExpenseCategory}
+              onChange={(e) => setNewExpenseCategory(e.target.value as any)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] bg-slate-50"
+            >
+              {(Object.entries(CATEGORY_CONFIG) as [CategoriaSpesa | "shopping", any][]).map(([k, c]) => (
+                <option key={k} value={k}>
+                  {c.icon} {c.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
+              Stato pagamento
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setNewExpensePaid(true)}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${newExpensePaid ? 'bg-emerald-50 text-emerald-700 border-emerald-300' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
+              >
+                ✓ Già Saldato
+              </button>
+              <button
+                type="button"
+                onClick={() => setNewExpensePaid(false)}
+                className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all ${!newExpensePaid ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-slate-50 text-slate-500 border-slate-200'}`}
+              >
+                ⏳ Da Saldare
+              </button>
+            </div>
+          </div>
+          <div className="flex gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setIsNewExpenseModalOpen(false)}
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+            >
+              Annulla
+            </button>
+            <button
+              type="button"
+              disabled={!newExpenseTitle.trim() || !newExpenseAmount.trim() || isSavingExpense}
+              onClick={handleSaveNewExpense}
+              className="flex-1 py-2.5 rounded-xl text-xs font-bold text-white bg-[#172033] hover:bg-slate-800 disabled:opacity-50 transition-all cursor-pointer shadow-sm"
+            >
+              {isSavingExpense ? 'Salvataggio...' : 'Aggiungi Spesa'}
+            </button>
+          </div>
+        </div>
       </Modal>
 
     </div>

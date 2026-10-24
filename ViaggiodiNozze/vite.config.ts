@@ -16,6 +16,18 @@ export default defineConfig(({ command }) => ({
       "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
     },
   },
+  optimizeDeps: {
+    include: [
+      "react",
+      "react-dom",
+      "leaflet",
+      "react-leaflet",
+      "firebase/app",
+      "firebase/auth",
+      "firebase/firestore",
+      "lucide-react"
+    ],
+  },
   // In dev locale ('npm run dev') la radice è '/' per navigare direttamente su http://localhost:5173/
   // In produzione ('npm run build') la base è '/honeymoon-roadbook/' per GitHub Pages
   base: command === "serve" ? "/" : "/honeymoon-roadbook/",

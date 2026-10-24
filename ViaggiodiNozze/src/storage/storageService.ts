@@ -4,7 +4,9 @@ import {
   idbGetAll,
   idbGet,
   idbPut,
-  idbDelete
+  idbDelete,
+  getActiveTripId,
+  MASTER_TRIP_ID
 } from './indexedDB';
 import { REAL_ACTIVITIES } from './seedActivities';
 import { initialTransports } from './seedTransports';
@@ -125,6 +127,10 @@ class StorageService {
         this.memoryCache.clear();
       });
     }
+  }
+
+  getCurrentTripId(): string {
+    return getActiveTripId();
   }
 
   clearMemoryCache(store?: string): void {
@@ -332,6 +338,9 @@ class StorageService {
   }
 
   async ensureMasterTripSeedData(): Promise<void> {
+    if (this.getCurrentTripId() !== MASTER_TRIP_ID) {
+      return;
+    }
     const transports = await idbGetAll<Trasporto>(STORES.TRASPORTI);
     if (transports.length > 0) {
       await this.logLocalDataCounts('[StorageService] Re-seed 0000 non necessario');
@@ -383,6 +392,9 @@ class StorageService {
   }
 
   async ensureRefuels(): Promise<void> {
+    if (this.getCurrentTripId() !== MASTER_TRIP_ID) {
+      return;
+    }
     // Rimozione proattiva di vecchi mockup/placeholder
     await idbDelete(STORES.ALLOGGI, 'acc_01_auckland').catch(() => {});
     await idbDelete(STORES.TAPPE, 'tappa_01_auckland').catch(() => {});
@@ -746,6 +758,7 @@ class StorageService {
 
   // --- TRASPORTI ---
   async seedTransports(force = false): Promise<void> {
+    if (this.getCurrentTripId() !== MASTER_TRIP_ID) return;
     try {
       const existing = await idbGetAll<Trasporto>(STORES.TRASPORTI);
       if (!force && existing.length > 0) return;
@@ -1312,6 +1325,29 @@ class StorageService {
     notifyDataChanged('spese', 'delete', { id });
   }
 
+  async getTripBudget(): Promise<{ amount: number; updatedAt: number } | null> {
+    try {
+      const setting = await idbGet<{ id: string; amount: number; updatedAt: number }>(STORES.SETTINGS, 'trip_budget_goal');
+      if (!setting || typeof setting.amount !== 'number') return null;
+      return { amount: setting.amount, updatedAt: setting.updatedAt || Date.now() };
+    } catch {
+      return null;
+    }
+  }
+
+  async saveTripBudget(amount: number | null): Promise<void> {
+    try {
+      if (amount === null) {
+        await idbDelete(STORES.SETTINGS, 'trip_budget_goal');
+      } else {
+        await idbPut(STORES.SETTINGS, { id: 'trip_budget_goal', amount, updatedAt: Date.now() });
+      }
+      notifyDataChanged('settings', 'save', { key: 'trip_budget_goal', amount });
+    } catch (err) {
+      console.error('[StorageService] Errore salvataggio budget target:', err);
+    }
+  }
+
   // --- NOTE DI VIAGGIO (Post-it) ---
   async getNote(): Promise<NotaViaggio[]> {
     try {
@@ -1324,7 +1360,6 @@ class StorageService {
   }
 
   async saveNota(nota: NotaViaggio): Promise<void> {
-    assertCanMutate('note');
     const now = Date.now();
     const item: NotaViaggio = {
       ...nota,
@@ -1344,7 +1379,6 @@ class StorageService {
   }
 
   async deleteNota(id: string): Promise<void> {
-    assertCanMutate('note');
     await this.recordTombstone('note', id);
     await idbDelete(STORES.NOTE, id);
     notifyDataChanged('note', 'delete', { id });

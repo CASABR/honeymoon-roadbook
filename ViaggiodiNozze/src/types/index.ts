@@ -1,5 +1,6 @@
 export type StatoAttivita = 'prenotato' | 'da_valutare' | 'non_bloccato' | 'libero';
 export type CategoriaAttivita = 'visita' | 'cibo' | 'relax' | 'shopping' | 'natura' | 'cultura' | 'altro';
+export type TipologiaPercorsoTrekking = 'anello' | 'andata_ritorno' | 'lineare';
 
 export interface Giorno {
   id: string;
@@ -26,8 +27,14 @@ export interface Attivita {
   location: string;
   cost?: string; // Costo in €
   category: CategoriaAttivita;
-  sottocategoria?: 'Escursione' | 'Tour Guidato' | 'Museo' | 'Adrenalina' | 'Altro';
+  sottocategoria?: 'Trekking' | 'Escursione' | 'Tour Guidato' | 'Museo' | 'Adrenalina' | 'Altro';
   duration?: string;
+  distanceKm?: number;
+  elevationGainM?: number;
+  hikingDurationMinutes?: number;
+  routeType?: TipologiaPercorsoTrekking;
+  currency?: string;
+  difficulty?: string;
   orarioRitrovo?: string; // HH:mm
   orarioInizio?: string; // HH:mm
   address?: string;

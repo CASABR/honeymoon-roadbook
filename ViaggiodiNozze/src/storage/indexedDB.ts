@@ -3,8 +3,8 @@
  * Isolato all'interno del layer di storage.
  */
 const DB_NAME = 'ViaggiodiNozzeDB';
-const MASTER_TRIP_ID = '0000';
-const DB_VERSION = 8;
+export const MASTER_TRIP_ID = '0000';
+export const DB_VERSION = 8;
 
 export const STORES = {
   GIORNI: 'giorni',
@@ -26,14 +26,17 @@ export type StoreName = typeof STORES[keyof typeof STORES];
 
 const dbPromises = new Map<string, Promise<IDBDatabase>>();
 
-function getActiveTripId(): string {
+export function getActiveTripId(): string {
   if (typeof localStorage === 'undefined') return MASTER_TRIP_ID;
   try {
     const config = JSON.parse(localStorage.getItem('roadbook_trip_config') || '{}');
-    const tripId = String(config?.id || MASTER_TRIP_ID).trim();
-    return tripId || MASTER_TRIP_ID;
-  } catch {
+    const fromConfig = String(config?.id || '').trim();
+    if (fromConfig) return fromConfig;
+    const fromHouni = String(localStorage.getItem('houni_trip_id') || '').trim();
+    if (fromHouni) return fromHouni;
     return MASTER_TRIP_ID;
+  } catch {
+    return String(localStorage.getItem('houni_trip_id') || MASTER_TRIP_ID).trim() || MASTER_TRIP_ID;
   }
 }
 

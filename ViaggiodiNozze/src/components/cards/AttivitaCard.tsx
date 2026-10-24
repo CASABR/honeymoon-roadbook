@@ -8,6 +8,7 @@ import AttivitaTicketsModal from '../modals/AttivitaTicketsModal';
 import QRCodeModal from '../modals/QRCodeModal';
 import { formatDateIT } from '../../utils/tripDates';
 import { processFileForAttachment } from '../../utils/fileAttachment';
+import { formatHikingDuration, isTrekkingActivity, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
 
 interface AttivitaCardProps {
   activity: Attivita;
@@ -59,6 +60,11 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
   const mapLink = activity.location ? resolveMapUrl(activity.location) : '';
   const ritrovo = activity.orarioRitrovo || activity.time;
   const inizio = activity.orarioInizio;
+  const isTrekking = isTrekkingActivity(activity);
+  const hikingDuration = formatHikingDuration(activity.hikingDurationMinutes) || activity.duration || null;
+  const trekkingPrice = activity.cost?.trim()
+    ? `${activity.cost.trim()} ${activity.currency || 'EUR'}`
+    : null;
 
   return (
     <>
@@ -70,7 +76,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
         <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-100 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-500/20 text-[11px] font-semibold uppercase tracking-wider">
-              <span className="text-sm">{icon}</span> Attività
+              <span className="text-sm">{icon}</span> {isTrekking ? 'Trekking' : 'Attività'}
             </span>
             {(activity.sottocategoria || activity.category) && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700/80 dark:text-slate-200 dark:border-slate-600 text-[10px] font-bold tracking-wide">
@@ -78,7 +84,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 <span>{activity.sottocategoria || activity.category}</span>
               </span>
             )}
-            {(ritrovo || inizio || activity.duration || activity.endDate) && (
+            {!isTrekking && (ritrovo || inizio || activity.duration || activity.endDate) && (
               <div className="flex items-center gap-1.5 ml-1 flex-wrap">
                 {(ritrovo || inizio) && (
                   <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
@@ -127,12 +133,23 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
               <span className="truncate">{activity.location}</span>
             </p>
           )}
+          {isTrekking && (
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 border-t border-slate-100 dark:border-slate-700/60 pt-3">
+              {(inizio || ritrovo) && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Partenza</span><strong className="text-sm text-slate-900 dark:text-white">{inizio || ritrovo}</strong></div>}
+              {activity.distanceKm != null && activity.distanceKm > 0 && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Distanza</span><strong className="text-sm text-slate-900 dark:text-white">{activity.distanceKm.toLocaleString('it-IT')} km</strong></div>}
+              {activity.elevationGainM != null && activity.elevationGainM > 0 && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Dislivello +</span><strong className="text-sm text-slate-900 dark:text-white">{activity.elevationGainM.toLocaleString('it-IT')} m</strong></div>}
+              {hikingDuration && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Cammino</span><strong className="text-sm text-slate-900 dark:text-white">{hikingDuration}</strong></div>}
+              {activity.routeType && <div className="col-span-2 sm:col-span-4"><span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{TREKKING_ROUTE_LABELS[activity.routeType]}</span>{activity.difficulty && <span className="text-xs text-slate-400"> · {activity.difficulty}</span>}</div>}
+            </div>
+          )}
         </div>
 
         {/* BOTTOM */}
         <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
-            {isFree ? (
+            {isTrekking ? (
+              trekkingPrice && <span className="text-sm font-semibold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">{trekkingPrice}</span>
+            ) : isFree ? (
               <span className="text-sm font-semibold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
                 Gratuito
               </span>
@@ -142,7 +159,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
               </span>
             )}
             
-            {!isFree && (
+            {!isTrekking && !isFree && (
               <button 
                 type="button"
                 onClick={handleTogglePayment}
@@ -189,7 +206,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 title="Sito ufficiale / Prenotazione"
               >
                 <span className="text-[10px]">🌐</span> 
-                <span>Sito</span>
+                <span>{isTrekking ? 'Traccia' : 'Sito'}</span>
               </a>
             )}
             {mapLink && (

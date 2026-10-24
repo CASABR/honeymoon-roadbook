@@ -9,10 +9,12 @@ export interface TimeCollision {
   itemB: TimelineItem;
 }
 
-interface TimeCollisionModalProps {
+export interface TimeCollisionModalProps {
   collision: TimeCollision | null;
   onKeepBoth: () => void;
   onDeleteItem: (itemId: string, itemType: string) => Promise<void>;
+  onUpdateTime?: (itemId: string, itemType: string, newTime: string) => Promise<void>;
+  onOpenEditForm?: (item: TimelineItem) => void;
   onDismiss: () => void;
 }
 
@@ -64,9 +66,14 @@ export default function TimeCollisionModal({
   collision,
   onKeepBoth,
   onDeleteItem,
+  onUpdateTime,
+  onOpenEditForm,
   onDismiss
 }: TimeCollisionModalProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingTimeItemId, setEditingTimeItemId] = useState<string | null>(null);
+  const [customTime, setCustomTime] = useState<string>('');
+  const [savingTime, setSavingTime] = useState(false);
   const [expandedA, setExpandedA] = useState(false);
   const [expandedB, setExpandedB] = useState(false);
 
@@ -235,20 +242,114 @@ export default function TimeCollisionModal({
           )}
         </div>
 
-        {/* Action: Mantieni questa ed elimina l'altra */}
-        <div className="pt-3 mt-3 border-t border-slate-200/70 dark:border-slate-700/70 flex justify-end">
-          <button
-            type="button"
-            disabled={deletingId === otherItem.id}
-            onClick={() => handleDeleteItem(item, otherItem)}
-            className="w-full sm:w-auto px-3.5 py-2 rounded-xl text-xs font-bold bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-800 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-300 dark:border-slate-600 hover:border-rose-300 dark:hover:border-rose-800 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-1.5 disabled:opacity-50"
-          >
-            <span>✓</span>
-            <span>
-              {deletingId === otherItem.id ? 'Eliminazione in corso...' : `Mantieni questa ed elimina l'altra`}
-            </span>
-          </button>
-        </div>
+        {/* Azioni: Modifica Orario vs Mantieni ed elimina l'altra */}
+        {editingTimeItemId === item.id ? (
+          <div className="mt-3 pt-3 border-t border-slate-200/80 dark:border-slate-700/80 space-y-2.5">
+            <div className="flex items-center justify-between gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
+              <span className="flex items-center gap-1">
+                <span>⏰</span>
+                <span>Nuovo orario:</span>
+              </span>
+              <input
+                type="time"
+                value={customTime}
+                onChange={(e) => setCustomTime(e.target.value)}
+                className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold text-slate-900 dark:text-white"
+              />
+            </div>
+
+            {/* Quick shift buttons */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-slate-400 font-semibold mr-1">Sposta rapido:</span>
+              {['-30m', '+30m', '+1h', '+2h'].map(shift => (
+                <button
+                  key={shift}
+                  type="button"
+                  onClick={() => {
+                    const [h, m] = (customTime || item.time || '12:00').split(':').map(Number);
+                    let total = (isNaN(h) ? 12 : h) * 60 + (isNaN(m) ? 0 : m);
+                    if (shift === '-30m') total -= 30;
+                    if (shift === '+30m') total += 30;
+                    if (shift === '+1h') total += 60;
+                    if (shift === '+2h') total += 120;
+                    if (total < 0) total += 24 * 60;
+                    total = total % (24 * 60);
+                    const newH = String(Math.floor(total / 60)).padStart(2, '0');
+                    const newM = String(total % 60).padStart(2, '0');
+                    setCustomTime(`${newH}:${newM}`);
+                  }}
+                  className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-200/70 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 transition-colors cursor-pointer"
+                >
+                  {shift}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between pt-1 gap-2">
+              {onOpenEditForm && (
+                <button
+                  type="button"
+                  onClick={() => onOpenEditForm(item)}
+                  className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                >
+                  Modifica dettagli completi ↗
+                </button>
+              )}
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setEditingTimeItemId(null)}
+                  className="px-2.5 py-1 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="button"
+                  disabled={savingTime || !customTime}
+                  onClick={async () => {
+                    if (!customTime || !onUpdateTime) return;
+                    setSavingTime(true);
+                    try {
+                      await onUpdateTime(item.id, item.type, customTime);
+                    } finally {
+                      setSavingTime(false);
+                      setEditingTimeItemId(null);
+                    }
+                  }}
+                  className="hounigo-button-primary px-3 py-1.5 text-xs font-bold disabled:opacity-50 shadow-xs cursor-pointer"
+                >
+                  {savingTime ? 'Salvataggio…' : 'Applica orario ✓'}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="pt-3 mt-3 border-t border-slate-200/70 dark:border-slate-700/70 flex items-center justify-between gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => {
+                setEditingTimeItemId(item.id);
+                setCustomTime(item.time || '12:00');
+              }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60 transition-all cursor-pointer flex items-center gap-1.5"
+            >
+              <span>✏️</span>
+              <span>Modifica orario</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={deletingId === otherItem.id}
+              onClick={() => handleDeleteItem(item, otherItem)}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-900 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-800 dark:text-slate-200 hover:text-rose-600 dark:hover:text-rose-400 border border-slate-300 dark:border-slate-600 hover:border-rose-300 dark:hover:border-rose-800 transition-all cursor-pointer shadow-2xs flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              <span>✓</span>
+              <span>
+                {deletingId === otherItem.id ? 'Eliminazione in corso...' : `Mantieni ed elimina l'altra`}
+              </span>
+            </button>
+          </div>
+        )}
       </div>
     );
   };

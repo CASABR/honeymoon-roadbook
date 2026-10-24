@@ -8,6 +8,7 @@ import type {
   TransportAttachment
 } from '../types';
 import { parseEuro, resolvePaymentInfo } from '../utils/priceHelper';
+import { formatHikingDuration, isTrekkingActivity } from '../utils/activityType';
 
 export type BookingCategory = 'volo' | 'treno' | 'alloggio' | 'auto_camper' | 'traghetto' | 'attivita' | 'ristorante' | 'shopping';
 
@@ -233,7 +234,9 @@ export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
       id: act.id,
       category: 'attivita',
       title: act.title,
-      subtitle: act.sottocategoria || act.category,
+      subtitle: isTrekkingActivity(act)
+        ? ['Trekking', act.distanceKm ? `${act.distanceKm} km` : null, formatHikingDuration(act.hikingDurationMinutes) || act.duration].filter(Boolean).join(' · ')
+        : (act.sottocategoria || act.category),
       date: act.date,
       time: act.time || act.orarioInizio,
       endDate: act.endDate,

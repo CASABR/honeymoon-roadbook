@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import type { SectionTab, CategoriaTab } from './types';
 import NavBar from './components/NavBar';
 import CategorieBar from './components/CategorieBar';
@@ -11,9 +11,11 @@ import TrasportiView from './views/TrasportiView';
 import ShoppingView from './views/altro/ShoppingView';
 import AltroView from './views/AltroView';
 import SettingsMenu from './components/common/SettingsMenu';
+import { lazyWithRetry } from './utils/lazyWithRetry';
+import RouteErrorBoundary from './components/common/RouteErrorBoundary';
 
-const MappaView = lazy(() => import('./views/MappaView'));
-const SpeseBudgetView = lazy(() => import('./views/altro/SpeseBudgetView'));
+const MappaView = lazyWithRetry(() => import('./views/MappaView'), 'MappaView');
+const SpeseBudgetView = lazyWithRetry(() => import('./views/altro/SpeseBudgetView'), 'SpeseBudgetView');
 import DarkModeToggle from './components/common/DarkModeToggle';
 import UpdateToast from './components/common/UpdateToast';
 import { SyncService } from './storage/syncService';
@@ -29,8 +31,8 @@ import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { recordUserAccess } from './services/userAccessService';
 
-const LiveView = lazy(() => import('./views/altro/LiveView'));
-const AdminDashboardView = lazy(() => import('./views/altro/AdminDashboardView'));
+const LiveView = lazyWithRetry(() => import('./views/altro/LiveView'), 'LiveView');
+const AdminDashboardView = lazyWithRetry(() => import('./views/altro/AdminDashboardView'), 'AdminDashboardView');
 import WalkthroughModal from './components/modals/WalkthroughModal';
 import SmartInsertModal from './components/modals/SmartInsertModal';
 import { InstallPWA } from './components/InstallPWA';
@@ -479,11 +481,24 @@ export default function App() {
     setIsCategorieOpen(false);
     if (tab === 'oggi') {
       setActiveCategoria(null);
+      setDesktopSection('itinerario');
+    } else if (tab === 'mappa') {
+      setDesktopSection('mappa');
     } else if (tab === 'altro') {
       setActiveCategoria(null);
       setAltroSubView(subView || null);
+      if (subView === 'live') {
+        setDesktopSection('live');
+      } else {
+        setDesktopSection('documenti');
+      }
+      if (!subView) {
+        window.dispatchEvent(new CustomEvent('reset_altro_root'));
+      }
     } else if (tab === 'categorie') {
-      setActiveCategoria(categoria || activeCategoria || 'tappe');
+      const cat = categoria || activeCategoria || 'tappe';
+      setActiveCategoria(cat);
+      setDesktopSection(cat as DesktopNavSection);
     }
   };
 
@@ -666,7 +681,7 @@ export default function App() {
 
       {/* ─── DESKTOP SIDEBAR NAVIGATION (Schermi md+ e solo se non in vista mobile forzata) ─── */}
       {!isForcedMobileView && (
-        <div className="hidden md:block">
+        <div className="hidden md:block shrink-0 w-72 lg:w-80">
           <DesktopNavigation
             currentSection={desktopSection}
             onSelectSection={handleSelectDesktopSection}
@@ -726,16 +741,18 @@ export default function App() {
             {activeTab === 'oggi' && <OggiView onNavigateTab={handleTabChange} />}
             
             {activeTab === 'mappa' && (
-              <Suspense fallback={
-                <div className="flex flex-col h-[52vh] min-h-[340px] items-center justify-center rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60 animate-pulse">
-                  <div className="flex flex-col items-center gap-2">
-                    <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento mappa...</span>
+              <RouteErrorBoundary fallbackTitle="Impossibile caricare la Mappa">
+                <Suspense fallback={
+                  <div className="flex flex-col h-[52vh] min-h-[340px] items-center justify-center rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60 animate-pulse">
+                    <div className="flex flex-col items-center gap-2">
+                      <div className="w-8 h-8 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                      <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento mappa...</span>
+                    </div>
                   </div>
-                </div>
-              }>
-                <MappaView />
-              </Suspense>
+                }>
+                  <MappaView onNavigateTab={handleTabChange} />
+                </Suspense>
+              </RouteErrorBoundary>
             )}
 
             {activeTab === 'categorie' && (
@@ -747,16 +764,18 @@ export default function App() {
                 {activeCategoria === 'trasporti' && <TrasportiView />}
                 {activeCategoria === 'shopping' && <ShoppingView />}
                 {activeCategoria === 'spese' && (
-                  <Suspense fallback={
-                    <div className="flex flex-col h-72 items-center justify-center rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60 animate-pulse m-4">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-                        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento spese e budget...</span>
+                  <RouteErrorBoundary fallbackTitle="Impossibile caricare Spese e Budget">
+                    <Suspense fallback={
+                      <div className="flex flex-col h-72 items-center justify-center rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60 animate-pulse m-4">
+                        <div className="flex flex-col items-center gap-2">
+                          <div className="w-8 h-8 border-3 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento spese e budget...</span>
+                        </div>
                       </div>
-                    </div>
-                  }>
-                    <SpeseBudgetView />
-                  </Suspense>
+                    }>
+                      <SpeseBudgetView />
+                    </Suspense>
+                  </RouteErrorBoundary>
                 )}
                 {!activeCategoria && <TappeView />}
               </>

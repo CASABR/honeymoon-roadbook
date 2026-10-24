@@ -472,7 +472,7 @@ runTest('11. Matrice completa delle regole Firestore private (get, list, system_
 
   // Regola 6: match /trips/{tripId}/{subcol}/{docId} allow read, write
   function allowAccessSubcollection(auth, tripId, subcol) {
-    const allowed = ['tappe', 'attivita', 'alloggi', 'trasporti', 'spese', 'documenti', 'note', 'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping', 'locks'];
+    const allowed = ['tappe', 'attivita', 'alloggi', 'trasporti', 'spese', 'documenti', 'note', 'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping', 'locks', 'devices'];
     if (!allowed.includes(subcol)) return false;
     return isTripMember(auth, tripId);
   }
@@ -643,6 +643,156 @@ runTest('12. Verifica Critica Scrittura: Auto-join negato ovunque (incluso 0000)
   // Già convalidato: allow write: if false
 });
 
+// CASO 13: Matrice Completa Admin, Organizzatore, Copilota, Estraneo & Tentativi di Escalation
+runTest('13. Matrice Completa Ruoli: Amministratore, Organizzatore, Copilota ed Estraneo (Query globali ed escalation)', () => {
+  const systemAdmins = { 'super_admin_uid': true };
+
+  function isGlobalAdmin(auth) {
+    if (!auth) return false;
+    return Boolean(systemAdmins[auth.uid]) || Boolean(auth.token && auth.token.admin === true);
+  }
+
+  function isTripOwner(auth, trip) {
+    if (!auth || !trip) return false;
+    return trip.ownerUid === auth.uid;
+  }
+
+  function isTripMember(auth, trip) {
+    if (!auth || !trip) return false;
+    if (trip.ownerUid === auth.uid) return true;
+    if (Array.isArray(trip.members) && trip.members.includes(auth.uid)) return true;
+    return false;
+  }
+
+  // 1. allow list on /trips
+  function canListTrips(auth) {
+    return isGlobalAdmin(auth);
+  }
+
+  // 2. allow get on /trips/{tripId}
+  function canGetTrip(auth, trip) {
+    if (!auth) return false;
+    return isTripMember(auth, trip) || isGlobalAdmin(auth);
+  }
+
+  // 3. allow update on /trips/{tripId}
+  function canUpdateTrip(auth, existingTrip, updatedTrip) {
+    if (!auth) return false;
+    if (updatedTrip.ownerUid !== existingTrip.ownerUid) return false; // ownerUid immutabile
+
+    if (isTripOwner(auth, existingTrip)) return true;
+
+    if (isTripMember(auth, existingTrip)) {
+      // Un membro ordinario NON può toccare members né primaryDeviceUid
+      const membersEqual = JSON.stringify(existingTrip.members || []) === JSON.stringify(updatedTrip.members || []);
+      const deviceEqual = (existingTrip.primaryDeviceUid || null) === (updatedTrip.primaryDeviceUid || null);
+      return membersEqual && deviceEqual;
+    }
+    return false;
+  }
+
+  // 4. allow delete on /trips/{tripId} (solo l'owner può eliminare, admin non ha permessi di eliminazione)
+  function canDeleteTrip(auth, tripId, existingTrip) {
+    if (!auth) return false;
+    if (tripId === '0000') return false; // Blocco assoluto 0000
+    return isTripOwner(auth, existingTrip);
+  }
+
+  // 5. allow write on /system_admins/{adminId}
+  function canWriteSystemAdmins(auth) {
+    return false; // allow read, write: if false
+  }
+
+  // 6. allow update on /trips/{tripId}/members/{uid} (solo l'owner può aggiornare membri)
+  function canUpdateMemberRole(auth, trip, existingMember, updatedMember) {
+    if (!auth) return false;
+    const isAuthorized = isTripOwner(auth, trip);
+    if (!isAuthorized) return false;
+    return existingMember.uid === updatedMember.uid && existingMember.role === updatedMember.role;
+  }
+
+  const adminWithDoc = { uid: 'super_admin_uid' };
+  const adminWithClaim = { uid: 'claim_admin_uid', token: { admin: true } };
+  const ownerA = { uid: 'owner_A' };
+  const copilotA = { uid: 'copilot_A' };
+  const outsider = { uid: 'outsider_user' };
+  const unauthenticated = null;
+
+  const tripA = {
+    id: 'trip_A',
+    ownerUid: 'owner_A',
+    members: ['owner_A', 'copilot_A'],
+    primaryDeviceUid: 'dev_A'
+  };
+
+  const tripB = {
+    id: 'trip_B',
+    ownerUid: 'owner_B',
+    members: ['owner_B'],
+    primaryDeviceUid: 'dev_B'
+  };
+
+  const trip0000 = {
+    id: '0000',
+    ownerUid: 'owner_0000',
+    members: ['owner_0000'],
+    primaryDeviceUid: 'dev_0000'
+  };
+
+  // --- QUERY GLOBALI ---
+  assert.strictEqual(canListTrips(adminWithDoc), true, 'Admin via doc può interrogare tutti i viaggi');
+  assert.strictEqual(canListTrips(adminWithClaim), true, 'Admin via claim può interrogare tutti i viaggi');
+  assert.strictEqual(canListTrips(ownerA), false, 'Organizzatore NON può eseguire query globale su tutti i viaggi');
+  assert.strictEqual(canListTrips(copilotA), false, 'Copilota NON può eseguire query globale');
+  assert.strictEqual(canListTrips(outsider), false, 'Estraneo NON può eseguire query globale');
+  assert.strictEqual(canListTrips(unauthenticated), false, 'Non autenticato NON può eseguire query globale');
+
+  // --- LETTURA PUNTUALE VIAGGIO ---
+  assert.strictEqual(canGetTrip(adminWithDoc, tripA), true, 'Admin può leggere qualsiasi viaggio (trip A)');
+  assert.strictEqual(canGetTrip(adminWithDoc, tripB), true, 'Admin può leggere qualsiasi viaggio (trip B)');
+  assert.strictEqual(canGetTrip(ownerA, tripA), true, 'Owner può leggere il proprio viaggio');
+  assert.strictEqual(canGetTrip(ownerA, tripB), false, 'Owner NON può leggere il viaggio altrui');
+  assert.strictEqual(canGetTrip(copilotA, tripA), true, 'Copilota può leggere il viaggio di cui è membro');
+  assert.strictEqual(canGetTrip(copilotA, tripB), false, 'Copilota NON può leggere il viaggio altrui');
+  assert.strictEqual(canGetTrip(outsider, tripA), false, 'Estraneo NON può leggere il viaggio altrui');
+  assert.strictEqual(canGetTrip(outsider, trip0000), false, 'Estraneo NON può leggere 0000');
+  assert.strictEqual(canGetTrip(adminWithDoc, trip0000), true, 'Admin può leggere 0000');
+
+  // --- TENTATIVI DI ESCALATION & LIMITI ADMIN ---
+  // Admin NON ha permessi di modifica o cancellazione viaggio (minimo privilegio)
+  assert.strictEqual(canUpdateTrip(adminWithDoc, tripA, { ...tripA, title: 'Modificato da Admin' }), false, 'Admin NON ha permessi di modifica viaggio');
+  assert.strictEqual(canDeleteTrip(adminWithDoc, 'trip_A', tripA), false, 'Admin NON ha permessi di eliminazione viaggio');
+  assert.strictEqual(canUpdateMemberRole(adminWithDoc, tripA, { uid: 'copilot_A', role: 'copilota' }, { uid: 'copilot_A', role: 'copilota' }), false, 'Admin NON ha permessi di modifica membri');
+
+  // Copilota tenta di promuoversi a owner cambiando role
+  assert.strictEqual(canUpdateMemberRole(copilotA, tripA, { uid: 'copilot_A', role: 'copilota' }, { uid: 'copilot_A', role: 'owner' }), false, 'Copilota NON può promuoversi a owner');
+  // Owner tenta di cambiare role del membro su update (non consentito senza ricreazione)
+  assert.strictEqual(canUpdateMemberRole(ownerA, tripA, { uid: 'copilot_A', role: 'copilota' }, { uid: 'copilot_A', role: 'owner' }), false, 'Immutabilità role preservata');
+  // Copilota tenta di alterare ownerUid del viaggio
+  assert.strictEqual(canUpdateTrip(copilotA, tripA, { ...tripA, ownerUid: 'copilot_A' }), false, 'Copilota NON può alterare ownerUid');
+  // Organizzatore tenta di alterare ownerUid del viaggio
+  assert.strictEqual(canUpdateTrip(ownerA, tripA, { ...tripA, ownerUid: 'another_user' }), false, 'Owner NON può alterare ownerUid');
+  // Copilota tenta di aggiungere un estraneo alla lista members
+  assert.strictEqual(canUpdateTrip(copilotA, tripA, { ...tripA, members: [...tripA.members, 'outsider'] }), false, 'Copilota NON può aggiungere membri al viaggio');
+  // Estraneo tenta di auto-aggiungersi a members
+  assert.strictEqual(canUpdateTrip(outsider, tripA, { ...tripA, members: [...tripA.members, 'outsider'] }), false, 'Estraneo NON può aggiungersi a members');
+
+  // --- ELIMINAZIONE VIAGGIO & PROTEZIONE 0000 ---
+  assert.strictEqual(canDeleteTrip(adminWithDoc, '0000', trip0000), false, 'Admin NON può eliminare 0000');
+  assert.strictEqual(canDeleteTrip(ownerA, '0000', trip0000), false, 'Owner NON può eliminare 0000');
+  assert.strictEqual(canDeleteTrip(copilotA, 'trip_A', tripA), false, 'Copilota NON può eliminare il viaggio');
+  assert.strictEqual(canDeleteTrip(outsider, 'trip_A', tripA), false, 'Estraneo NON può eliminare il viaggio');
+  assert.strictEqual(canDeleteTrip(ownerA, 'trip_A', tripA), true, 'Owner può eliminare il proprio viaggio ordinario');
+
+
+  // --- IMMUTABILITÀ CLIENT DI system_admins ---
+  assert.strictEqual(canWriteSystemAdmins(outsider), false, 'Estraneo non può scrivere su system_admins');
+  assert.strictEqual(canWriteSystemAdmins(copilotA), false, 'Copilota non può scrivere su system_admins');
+  assert.strictEqual(canWriteSystemAdmins(ownerA), false, 'Owner non può scrivere su system_admins');
+  assert.strictEqual(canWriteSystemAdmins(adminWithDoc), false, 'Admin stesso non può scrivere da client su system_admins');
+});
+
 console.log('\n-----------------------------------------------------------------');
 console.log(`RISULTATO FINALE: ${passedTests}/${totalTests} TEST COMPLETATI CON SUCCESSO!`);
 console.log('-----------------------------------------------------------------\n');
+

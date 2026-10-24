@@ -5,8 +5,7 @@ export default function DarkModeToggle() {
 
   useEffect(() => {
     const saved = localStorage.getItem('houni_theme') || localStorage.getItem('theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (saved === 'dark' || (!saved && prefersDark)) {
+    if (saved === 'dark') {
       setIsDark(true);
       document.documentElement.classList.add('dark');
     } else {
@@ -35,7 +34,7 @@ export default function DarkModeToggle() {
   return (
     <button
       onClick={toggleDarkMode}
-      className="relative flex items-center justify-center w-8 h-8 rounded-full bg-slate-200/50 hover:bg-slate-300/50 transition-colors cursor-pointer overflow-hidden"
+      className="relative flex items-center justify-center w-8 h-8 rounded-full bg-slate-200/60 dark:bg-slate-800 hover:bg-slate-300/60 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer overflow-hidden focus-visible:ring-2 focus-visible:ring-[#FF6B5F] outline-hidden"
       aria-label="Toggle Dark Mode"
       title={isDark ? 'Passa alla Modalità Chiara' : 'Passa alla Modalità Scura'}
     >
