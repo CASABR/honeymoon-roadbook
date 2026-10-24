@@ -1388,7 +1388,7 @@ class StorageService {
 
   /** Esporta tutti i dati in una stringa JSON con metadati. */
   async exportAllData(): Promise<string> {
-    const [giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, shopping, spese, routes] = await Promise.all([
+    const [giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, shopping, spese, routes, bagagli, note] = await Promise.all([
       idbGetAll<Giorno>(STORES.GIORNI),
       idbGetAll<Attivita>(STORES.ATTIVITA),
       idbGetAll<Alloggio>(STORES.ALLOGGI),
@@ -1399,6 +1399,8 @@ class StorageService {
       idbGetAll<Shopping>(STORES.SHOPPING),
       idbGetAll<Spesa>(STORES.SPESE),
       idbGetAll<RoutingCacheItem>(STORES.ROUTES),
+      idbGetAll<Bagaglio>(STORES.BAGAGLI),
+      idbGetAll<NotaViaggio>(STORES.NOTE),
     ]);
 
     // Include live_status e preferenze da localStorage per un backup a 360 gradi
@@ -1419,8 +1421,9 @@ class StorageService {
 
     const backup = {
       version: 1,
+      tripId: this.getCurrentTripId(),
       exportedAt: new Date().toISOString(),
-      data: { giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, shopping, spese, routes },
+      data: { giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, shopping, spese, routes, bagagli, note },
       live_status: liveStatus
     };
     return JSON.stringify(backup, null, 2);
@@ -1447,9 +1450,13 @@ class StorageService {
       throw new Error('Formato backup non riconosciuto (campi version/data mancanti).');
     }
 
-    const backup = parsed as { version: number; data: Record<string, unknown[]>; live_status?: Record<string, any> };
+    const backup = parsed as { version: number; tripId?: string; data: Record<string, unknown[]>; live_status?: Record<string, any> };
     if (backup.version !== 1) {
       throw new Error(`Versione backup non supportata (trovata: ${backup.version}, attesa: 1).`);
+    }
+
+    if (this.getCurrentTripId() === MASTER_TRIP_ID && backup.tripId && backup.tripId !== MASTER_TRIP_ID) {
+      throw new Error(`Operazione bloccata: impossibile importare un backup del viaggio "${backup.tripId}" all'interno del viaggio protetto 0000.`);
     }
 
     const { data, live_status } = backup;

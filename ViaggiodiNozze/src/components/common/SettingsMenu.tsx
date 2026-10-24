@@ -208,11 +208,20 @@ export default function SettingsMenu() {
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const confirmRestore = window.confirm(
+      'Attenzione: il ripristino del backup sostituirà i dati locali correnti con quelli contenuti nel file selezionato.\n\nVuoi procedere con l\'importazione?'
+    );
+    if (!confirmRestore) {
+      if (fileRef.current) fileRef.current.value = '';
+      return;
+    }
+
     setImporting(true);
     try {
       const text = await file.text();
       await storageService.importAllData(text);
-      showToast('ok', 'Dati ripristinati. La pagina si aggiornerà.');
+      showToast('ok', 'Dati ripristinati con successo. La pagina si aggiornerà.');
       setTimeout(() => window.location.reload(), 1500);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Errore durante l\'importazione.';

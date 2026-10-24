@@ -47,15 +47,31 @@ webpush.setVapidDetails(
 );
 
 async function sendNotifications() {
-  const args = process.argv.slice(2);
+  const rawArgs = process.argv.slice(2);
+  const isLive = rawArgs.includes('--live') || rawArgs.includes('--send');
+  const args = rawArgs.filter(a => !a.startsWith('--'));
   const targetTripId = args[0] ? args[0].trim() : null;
   const message = args[1] || 'Sono state caricate nuove modifiche al tuo itinerario.';
 
   // SICUREZZA: Rifiuta categoricamente l'invio globale/broadcast non associato a un tripId
   if (!targetTripId || targetTripId === 'all') {
     console.error("ERRORE DI SICUREZZA: È obbligatorio specificare un tripId valido come primo argomento.");
-    console.error("Uso corretto: node scripts/send-update-notification.cjs <tripId> [messaggio]");
+    console.error("Uso corretto: node scripts/send-update-notification.cjs <tripId> [messaggio] [--live]");
+    console.error("Nota: Per impostazione predefinita lo script opera in modalità provvisoria DRY-RUN. Aggiungere --live per trasmettere realmente.");
     process.exit(1);
+  }
+
+  // PROTEZIONE SPECIALE: Il viaggio 0000 reale non può ricevere notifiche accidentali
+  if (targetTripId === '0000' && isLive && !rawArgs.includes('--force-trip-0000')) {
+    console.error("ERRORE DI SICUREZZA: L'invio reale sul viaggio protetto '0000' è bloccato per prevenire notifiche accidentali agli sposi.");
+    console.error("Utilizzare la modalità provvisoria DRY-RUN (senza --live) oppure specificare un tripId di test.");
+    process.exit(1);
+  }
+
+  if (!isLive) {
+    console.log(`[DRY-RUN ATTIVO] Modalità simulazione sicura per il viaggio "${targetTripId}". Nessun messaggio reale verrà inviato ai dispositivi.`);
+  } else {
+    console.log(`[MODALITÀ LIVE] Invio reale autorizzato con flag --live per il viaggio "${targetTripId}".`);
   }
 
   console.log(`Recupero dispositivi registrati per il viaggio "${targetTripId}" da Firestore...`);
@@ -75,6 +91,16 @@ async function sendNotifications() {
 
   if (validDocs.length === 0) {
     console.log(`Nessuna sottoscrizione valida trovata per il viaggio "${targetTripId}".`);
+    process.exit(0);
+  }
+
+  console.log(`Rilevati ${validDocs.length} dispositivo/i registrato/i per il viaggio "${targetTripId}".`);
+
+  if (!isLive) {
+    validDocs.forEach(({ id, data }) => {
+      console.log(`[DRY-RUN SIMULAZIONE] -> Dispositivo ${id} (Ruolo: ${data.role || 'ospite'}) avrebbe ricevuto: "${message}"`);
+    });
+    console.log("[DRY-RUN COMPLETATO] Nessun pacchetto WebPush trasmesso (specificare --live per trasmettere).");
     process.exit(0);
   }
 

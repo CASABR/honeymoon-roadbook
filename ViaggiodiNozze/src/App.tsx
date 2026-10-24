@@ -128,6 +128,7 @@ export default function App() {
     const session = getPersistedSession();
     return !session.isAuthenticated;
   });
+  const [initError, setInitError] = useState<string | null>(null);
 
   // Rete di sicurezza: lo spinner iniziale non può mai durare più di 1s
   useEffect(() => {
@@ -140,56 +141,62 @@ export default function App() {
     if (!isInitializing) return;
 
     async function hydrateState() {
-      let session = getPersistedSession();
-      if (!session.isAuthenticated) {
-        const { restorePersistedSessionFromIndexedDB } = await import('./utils/deviceSession');
-        session = await restorePersistedSessionFromIndexedDB();
-      }
+      try {
+        let session = getPersistedSession();
+        if (!session.isAuthenticated) {
+          const { restorePersistedSessionFromIndexedDB } = await import('./utils/deviceSession');
+          session = await restorePersistedSessionFromIndexedDB();
+        }
 
-      if (!session.isAuthenticated) {
-        setIsAuthenticated(false);
-        setTripConfig(null);
-        setIsInitializing(false);
-        return;
-      }
+        if (!session.isAuthenticated) {
+          setIsAuthenticated(false);
+          setTripConfig(null);
+          setIsInitializing(false);
+          return;
+        }
 
-      setIsAuthenticated(true);
-      let config = tripConfig;
-      if (!config) {
-        try {
-          const { idbGetForTrip } = await import('./storage/indexedDB');
-          const storedConfig = await withTimeout(
-            idbGetForTrip<any>(session.tripId || '0000', 'settings', 'trip_config_backup'),
-            1500,
-            undefined
-          );
-          if (storedConfig && storedConfig.value) {
-            config = storedConfig.value;
-            if (typeof localStorage !== 'undefined') {
-              localStorage.setItem('roadbook_trip_config', JSON.stringify(config));
+        setIsAuthenticated(true);
+        let config = tripConfig;
+        if (!config) {
+          try {
+            const { idbGetForTrip } = await import('./storage/indexedDB');
+            const storedConfig = await withTimeout(
+              idbGetForTrip<any>(session.tripId || '0000', 'settings', 'trip_config_backup'),
+              1500,
+              undefined
+            );
+            if (storedConfig && storedConfig.value) {
+              config = storedConfig.value;
+              if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('roadbook_trip_config', JSON.stringify(config));
+              }
             }
-          }
-        } catch (e) { console.error(e); }
-      }
+          } catch (e) { console.error(e); }
+        }
 
-      if (typeof localStorage !== 'undefined' && !localStorage.getItem('houni_device_role') && !localStorage.getItem('app_device_role')) {
-        try {
-          const { idbGet } = await import('./storage/indexedDB');
-          const storedRole = await withTimeout(idbGet<any>('settings', 'device_role_backup'), 1500, undefined);
-          if (storedRole && storedRole.value) {
-            localStorage.setItem('houni_device_role', storedRole.value);
-            localStorage.setItem('app_device_role', storedRole.value);
-            window.dispatchEvent(new CustomEvent('device_role_changed', { detail: { role: storedRole.value } }));
-          }
-        } catch (e) { console.error(e); }
-      }
+        if (typeof localStorage !== 'undefined' && !localStorage.getItem('houni_device_role') && !localStorage.getItem('app_device_role')) {
+          try {
+            const { idbGet } = await import('./storage/indexedDB');
+            const storedRole = await withTimeout(idbGet<any>('settings', 'device_role_backup'), 1500, undefined);
+            if (storedRole && storedRole.value) {
+              localStorage.setItem('houni_device_role', storedRole.value);
+              localStorage.setItem('app_device_role', storedRole.value);
+              window.dispatchEvent(new CustomEvent('device_role_changed', { detail: { role: storedRole.value } }));
+            }
+          } catch (e) { console.error(e); }
+        }
 
-      if (config && config.id === 'default') {
-        config = normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' });
-      }
+        if (config && config.id === 'default') {
+          config = normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' });
+        }
 
-      setTripConfig(config);
-      setIsInitializing(false);
+        setTripConfig(config);
+      } catch (err: any) {
+        console.warn('[App] Errore ripristino stato sessione:', err);
+        setInitError(err.message || 'Errore di lettura memoria');
+      } finally {
+        setIsInitializing(false);
+      }
     }
     
     hydrateState();
@@ -520,10 +527,31 @@ export default function App() {
   const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const externalTripId = urlParams.get('tripId');
   
+  if (initError && !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#F8F7F3] dark:bg-[#172033] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-12 h-12 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mb-4 text-xl font-bold">
+          !
+        </div>
+        <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">Impossibile completare il caricamento</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm mb-6">{initError}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-5 py-2.5 bg-[#FF6B5F] hover:bg-[#ff5545] text-white text-sm font-semibold rounded-xl shadow-sm transition"
+        >
+          Riprova
+        </button>
+      </div>
+    );
+  }
+
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center">
-        <div className="animate-spin text-4xl">⏳</div>
+      <div className="min-h-screen bg-[#F8F7F3] dark:bg-[#172033] flex flex-col items-center justify-center p-4">
+        <div className="w-10 h-10 border-3 border-[#FF6B5F] border-t-transparent rounded-full animate-spin mb-3" />
+        <span className="text-xs font-semibold tracking-wider uppercase text-slate-400 dark:text-slate-500">
+          HOUNIGO
+        </span>
       </div>
     );
   }
@@ -556,9 +584,10 @@ export default function App() {
   if (!isAuthenticated && !(isExternalLive && externalTripId)) {
     return (
       <OnboardingView
-        onComplete={() => {
+        onComplete={(newCfg) => {
           setIsAuthenticated(true);
-          setTripConfig(getTripConfig() || normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' }));
+          const finalCfg = newCfg || getTripConfig() || normalizeTripConfig({ id: '0000', title: 'Viaggio Originale', startDate: '', endDate: '' });
+          setTripConfig(finalCfg);
         }}
       />
     );
