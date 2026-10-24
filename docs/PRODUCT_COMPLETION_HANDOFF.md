@@ -132,10 +132,10 @@
 ---
 
 ## 6. Ultimo Bundle Pubblicato e Stato Deploy
-- **Data e Ora Deploy:** 25 Ottobre 2026, 00:00 (CEST)
+- **Data e Ora Deploy:** 25 Ottobre 2026, 00:25 (CEST)
 - **URL Produzione:** `https://casabr.github.io/honeymoon-roadbook/`
-- **Main JS Bundle:** `assets/index-CqO_srYn.js`
+- **Main JS Bundle:** `assets/index-BMeGkqWj.js`
 - **Main CSS Bundle:** `assets/index-CTk3pXe3.css`
-- **Ramo sorgente locale:** `work/product-completion` (commit `cfa1f7e` / `1c77591`)
-- **Ramo di pubblicazione:** `origin/gh-pages` (commit `96b754f`)
-- **Stato Deploy:** Pubblicazione automatica Live Intelligence & Transport Editorial completata con successo su GitHub Pages.
+- **Ramo sorgente locale:** `work/product-completion` (commit `dc30ede`)
+- **Ramo di pubblicazione:** `origin/gh-pages` (commit `6982749`)
+- **Stato Deploy:** Pubblicazione automatica Live Intelligence & Transport Editorial completata con successo su GitHub Pages. Asset verificati online con HTTP 200.
