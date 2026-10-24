@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { storageService } from '../../storage/storageService';
-import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa, DeviceRole } from '../../types';
+import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa, DeviceRole, Attivita } from '../../types';
+import { deriveLiveIntelligence, type LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
 import { generateTripDays, getTripDateRange, formatDateTimeIT, formatDateIT } from '../../utils/tripDates';
 import { lookupKnownCoordinate } from '../../services/routingService';
@@ -84,6 +85,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [accommodations, setAccommodations] = useState<Alloggio[]>([]);
   const [transports, setTransports] = useState<Trasporto[]>([]);
   const [tappe, setTappe] = useState<Tappa[]>([]);
+  const [activities, setActivities] = useState<Attivita[]>([]);
+  const [mapCenterMode, setMapCenterMode] = useState<'both' | 'real' | 'planned'>('both');
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
 
@@ -726,11 +729,12 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const [dList, accList, trList, tpList, range] = await Promise.all([
+      const [dList, accList, trList, tpList, actList, range] = await Promise.all([
         storageService.getDays(),
         storageService.getAccommodations(),
         storageService.getTransports(),
         storageService.getTappe(),
+        storageService.getActivities(),
         getTripDateRange()
       ]);
 
@@ -738,6 +742,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       setAccommodations(accList || []);
       setTransports(trList || []);
       setTappe(tpList || []);
+      setActivities(actList || []);
       setTripRange(range);
 
       // Se la data odierna rientra nel viaggio usa todayStr, altrimenti usa la prima data programmata
@@ -979,6 +984,69 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     return Math.round(R * c);
   }, [realLocation, plannedLocation]);
 
+  // Motore di Live Intelligence (itinerario in tempo reale, evento in corso, prossima tappa)
+  const liveIntelligence = useMemo<LiveIntelligenceState | null>(() => {
+    return deriveLiveIntelligence({
+      giorni: days,
+      attivita: activities,
+      tappe,
+      alloggi: accommodations,
+      trasporti: transports,
+      currentDateTime: now,
+      tripStartDate: tripRange?.minTripDate,
+      tripEndDate: tripRange?.maxTripDate,
+      realGpsCoords: remoteGpsLocation ? { lat: remoteGpsLocation.lat, lng: remoteGpsLocation.lng } : (liveGpsState?.coords || null),
+      gpsAccuracyMeters: remoteGpsLocation?.accuracy || liveGpsState?.accuracy,
+      isExternalGuest: isStandaloneExternal
+    });
+  }, [days, activities, tappe, accommodations, transports, now, tripRange, remoteGpsLocation, liveGpsState, isStandaloneExternal]);
+
+  const realCoords = useMemo(() => {
+    if (remoteGpsLocation) return { lat: remoteGpsLocation.lat, lng: remoteGpsLocation.lng };
+    if (liveGpsState?.isLiveGps && liveGpsState.coords) return liveGpsState.coords;
+    return null;
+  }, [remoteGpsLocation, liveGpsState]);
+
+  const plannedCoords = useMemo(() => {
+    return liveIntelligence?.plannedLocation?.coords || plannedLocation.coords || null;
+  }, [liveIntelligence, plannedLocation]);
+
+  const effectiveMapCenter = useMemo(() => {
+    if (mapCenterMode === 'real' && realCoords) return realCoords;
+    if (mapCenterMode === 'planned' && plannedCoords) return plannedCoords;
+    if (mapCenterMode === 'both' && realCoords && plannedCoords) {
+      return {
+        lat: (realCoords.lat + plannedCoords.lat) / 2,
+        lng: (realCoords.lng + plannedCoords.lng) / 2
+      };
+    }
+    return realCoords || plannedCoords || currentLocation.coords || { lat: -36.8485, lng: 174.7633 };
+  }, [mapCenterMode, realCoords, plannedCoords, currentLocation.coords]);
+
+  const getPixelOffset = (target: { lat: number; lng: number } | null, center: { lat: number; lng: number }, zoom: number) => {
+    if (!target) return null;
+    const n = Math.pow(2, zoom);
+    const tx = ((target.lng + 180) / 360) * n * 256;
+    const tLatRad = (target.lat * Math.PI) / 180;
+    const ty = (1 - Math.log(Math.tan(tLatRad) + 1 / Math.cos(tLatRad)) / Math.PI) / 2 * n * 256;
+
+    const cx = ((center.lng + 180) / 360) * n * 256;
+    const cLatRad = (center.lat * Math.PI) / 180;
+    const cy = (1 - Math.log(Math.tan(cLatRad) + 1 / Math.cos(cLatRad)) / Math.PI) / 2 * n * 256;
+
+    return { dx: Math.round(tx - cx), dy: Math.round(ty - cy) };
+  };
+
+  const realMarkerOffset = useMemo(() => {
+    if (!realCoords || !effectiveMapCenter) return null;
+    return getPixelOffset(realCoords, effectiveMapCenter, mapZoom);
+  }, [realCoords, effectiveMapCenter, mapZoom]);
+
+  const plannedMarkerOffset = useMemo(() => {
+    if (!plannedCoords || !effectiveMapCenter) return null;
+    return getPixelOffset(plannedCoords, effectiveMapCenter, mapZoom);
+  }, [plannedCoords, effectiveMapCenter, mapZoom]);
+
   // Chiamata leggera Open-Meteo per meteo locale e prossima tappa
   useEffect(() => {
     const fetchWeather = async () => {
@@ -1181,10 +1249,11 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   // Griglia dinamica 3x3 di Tile per la mappa interattiva (Esri ArcGIS World Street Map)
   const tileGrid = useMemo(() => {
-    if (!currentLocation.coords || !currentLocation.coords.lat || !currentLocation.coords.lng) {
+    const center = effectiveMapCenter || currentLocation.coords;
+    if (!center || !center.lat || !center.lng) {
       return null;
     }
-    const { lat, lng } = currentLocation.coords;
+    const { lat, lng } = center;
     const zoom = mapZoom;
     const latRad = (lat * Math.PI) / 180;
     const n = Math.pow(2, zoom);
@@ -1443,6 +1512,11 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       onStopGps={() => handlePauseOrStopGps('stopped')}
       onTransferGps={handleTransferGps}
       onRevokeGps={() => currentUid && handleTransferGps(currentUid, liveGpsService.getDeviceId())}
+      liveIntelligence={liveIntelligence}
+      mapCenterMode={mapCenterMode}
+      onChangeMapCenterMode={setMapCenterMode}
+      realMarkerOffset={realMarkerOffset}
+      plannedMarkerOffset={plannedMarkerOffset}
       statusMessage={statusMessage}
       statusUpdatedAt={statusUpdatedAt}
       canPublish={isSposiAdmin && (cloudRole === 'owner' || cloudRole === 'copilota')}

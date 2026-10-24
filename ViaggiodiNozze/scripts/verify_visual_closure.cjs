@@ -343,6 +343,72 @@ async function run() {
   `);
   console.log('[VERIFICA] Esito CRUD Note:', noteCrudResult);
 
+  // --- VERIFICA 9: Card Trasporto Travel Editorial (iPhone 15 Pro: 393 × 852 px) ---
+  console.log('\n--- Test 1.9: Card Trasporto Travel Editorial - iPhone 15 Pro ---');
+  await client.send('Emulation.setDeviceMetricsOverride', {
+    width: 393,
+    height: 852,
+    deviceScaleFactor: 3,
+    mobile: true
+  });
+
+  await client.eval(`
+    window.dispatchEvent(new CustomEvent('navigate_to', { detail: { view: 'trasporti' } }));
+    localStorage.setItem('theme', 'light');
+    document.documentElement.classList.remove('dark');
+    window.dispatchEvent(new CustomEvent('theme_changed', { detail: { theme: 'light' } }));
+  `);
+  await sleep(2000);
+  await saveScreenshot('transport_editorial_iphone15_light.png');
+
+  await client.eval(`
+    localStorage.setItem('theme', 'dark');
+    document.documentElement.classList.add('dark');
+    window.dispatchEvent(new CustomEvent('theme_changed', { detail: { theme: 'dark' } }));
+  `);
+  await sleep(1000);
+  await saveScreenshot('transport_editorial_iphone15_dark.png');
+
+  const transportCheck = await client.eval(`
+    (() => {
+      const text = document.body.innerText;
+      const hasCards = document.querySelectorAll('.rounded-2xl').length > 0;
+      const noOverflow = document.documentElement.scrollWidth <= window.innerWidth;
+      return { hasCards, noOverflow, hasAirChina: text.includes('Air China') || text.includes('MXP') };
+    })()
+  `);
+  console.log('[VERIFICA TRASPORTI] Card caricate e formattate:', transportCheck);
+
+  // --- VERIFICA 10: LIVE Intelligence & Dual Map (iPhone 15 Pro: 393 × 852 px) ---
+  console.log('\n--- Test 1.10: LIVE Intelligence & Dual Reference Map - iPhone 15 Pro ---');
+  await client.eval(`
+    window.dispatchEvent(new CustomEvent('navigate_to', { detail: { view: 'altro', subView: 'live' } }));
+    window.dispatchEvent(new CustomEvent('navigate_subview', { detail: { subView: 'live' } }));
+  `);
+  await sleep(2500);
+  await saveScreenshot('live_dual_reference_iphone15_dark.png');
+
+  await client.eval(`
+    localStorage.setItem('theme', 'light');
+    document.documentElement.classList.remove('dark');
+    window.dispatchEvent(new CustomEvent('theme_changed', { detail: { theme: 'light' } }));
+  `);
+  await sleep(1000);
+  await saveScreenshot('live_dual_reference_iphone15_light.png');
+
+  const liveCheck = await client.eval(`
+    (() => {
+      const text = document.body.innerText;
+      return {
+        hasPosition: text.includes('01 · Posizione') || text.includes('Dove siamo'),
+        hasDiario: text.includes('02 · Diario') || text.includes('Diario'),
+        hasControls: text.includes('Avvia') || text.includes('LIVE') || text.includes('Dispositivo autorizzato'),
+        noOverflow: document.documentElement.scrollWidth <= window.innerWidth
+      };
+    })()
+  `);
+  console.log('[VERIFICA LIVE INTELLIGENCE] Elementi e responsive verificati:', liveCheck);
+
   // Close browser
   client.close();
   chromeProc.kill();

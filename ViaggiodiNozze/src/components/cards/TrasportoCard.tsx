@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import type { Trasporto, TipoTrasporto } from '../../types';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
@@ -8,13 +8,51 @@ import { getTransportMapTargets } from '../../utils/mapsHelper';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 
-interface TrasportoCardProps {
+export interface TrasportoCardProps {
   transport: Trasporto;
-  variant?: 'full' | 'compact';
+  variant?: 'full' | 'compact' | 'standard';
   onEdit: () => void;
   onDelete?: () => void;
   onDetail?: () => void;
   onUpdate?: (updated: Trasporto) => void;
+}
+
+export function getCheckinDisplayInfo(transport: Trasporto): {
+  cutoffTime?: string;
+  airportArrivalTime?: string;
+  notice?: string;
+} {
+  if (transport.checkinCutoff && /^\d{1,2}:\d{2}$/.test(transport.checkinCutoff.trim())) {
+    return {
+      cutoffTime: transport.checkinCutoff.trim(),
+      notice: `Chiusura check-in: ${transport.checkinCutoff.trim()}`
+    };
+  }
+
+  if (transport.departureTime && /^\d{1,2}:\d{2}$/.test(transport.departureTime.trim())) {
+    const [h, m] = transport.departureTime.trim().split(':').map(Number);
+    const depTotalMin = h * 60 + m;
+
+    const cutoffMin = (depTotalMin - 60 + 24 * 60) % (24 * 60);
+    const cutoffH = String(Math.floor(cutoffMin / 60)).padStart(2, '0');
+    const cutoffM = String(cutoffMin % 60).padStart(2, '0');
+    const calculatedCutoff = `${cutoffH}:${cutoffM}`;
+
+    const airportMin = (depTotalMin - 180 + 24 * 60) % (24 * 60);
+    const airportH = String(Math.floor(airportMin / 60)).padStart(2, '0');
+    const airportM = String(airportMin % 60).padStart(2, '0');
+    const recommendedAirport = `${airportH}:${airportM}`;
+
+    return {
+      cutoffTime: transport.checkinCutoff || calculatedCutoff,
+      airportArrivalTime: recommendedAirport,
+      notice: transport.checkinCutoff
+        ? `Check-in: ${transport.checkinCutoff}`
+        : `Check-in entro ${calculatedCutoff} (consigliato in aeroporto: ${recommendedAirport})`
+    };
+  }
+
+  return {};
 }
 
 export default function TrasportoCard({
@@ -28,9 +66,10 @@ export default function TrasportoCard({
   const [isPNROpen, setIsPNROpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isBagagliOpen, setIsBagagliOpen] = useState(false);
+  const [pnrCopied, setPnrCopied] = useState(false);
 
+  const isCompact = variant === 'compact';
   const mapTargets = getTransportMapTargets(transport);
-
   const activeMapUrl = (mapTargets.departureUrl || mapTargets.pickupUrl || mapTargets.primaryUrl || mapTargets.arrivalUrl || mapTargets.dropoffUrl);
 
   const paymentInfo = resolvePaymentInfo({
@@ -68,6 +107,20 @@ export default function TrasportoCard({
     }
   };
 
+  const handleCopyPnr = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!transport.bookingCode) return;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(transport.bookingCode.trim());
+        setPnrCopied(true);
+        setTimeout(() => setPnrCopied(false), 2000);
+      }
+    } catch (err) {
+      console.warn('Errore copia PNR:', err);
+    }
+  };
+
   const extractCodeOrCity = (locationStr: string): { code: string; name: string } => {
     if (!locationStr) return { code: 'LOC', name: 'Destinazione' };
     const match = locationStr.match(/\(([A-Z]{3})\)/i);
@@ -95,13 +148,13 @@ export default function TrasportoCard({
     const firstWord = parts[0] || 'LOC';
     return {
       code: firstWord.slice(0, 4).toUpperCase(),
-      name: locationStr.length > 25 ? locationStr.slice(0, 22) + '...' : locationStr
+      name: locationStr.length > 25 ? locationStr.slice(0, 22) + '…' : locationStr
     };
   };
 
   const originInfo = extractCodeOrCity(transport.departureLocation);
   const destInfo = extractCodeOrCity(transport.dropoffLocation || transport.arrivalLocation);
-  
+
   const typeConfig: Record<TipoTrasporto, { label: string; icon: string; modeIcon: string }> = {
     volo: { label: 'Volo', icon: '✈️', modeIcon: '✈️' },
     traghetto: { label: 'Traghetto', icon: '⛴️', modeIcon: '🚢' },
@@ -111,251 +164,263 @@ export default function TrasportoCard({
     treno: { label: 'Treno', icon: '🚆', modeIcon: '🚆' }
   };
   const currentType = typeConfig[transport.type] || typeConfig.transfer;
-  
-  const statusLabel = {
-    pianificato: 'Pianificato',
-    prenotato: 'Confermato',
-    da_prenotare: 'In attesa',
-    completato: 'Completato',
-    annullato: 'Annullato'
-  }[transport.status] || transport.status;
 
-  const formatDate = (dateStr?: string) => {
-    return formatDateIT(dateStr);
-  };
+  const isNextDayArrival = Boolean(
+    (transport.arrivalDate && transport.date && transport.arrivalDate > transport.date) ||
+    (transport.arrivalTime && transport.departureTime && transport.arrivalTime < transport.departureTime && !transport.dropoffDate)
+  );
+
+  const checkinInfo = getCheckinDisplayInfo(transport);
+
+  const hasTicket = Boolean(
+    transport.ticketUrl?.trim() ||
+    (transport.attachments && transport.attachments.length > 0)
+  );
+
+  const hasPnr = Boolean(transport.bookingCode && transport.bookingCode.trim());
 
   return (
     <>
-      <div 
+      <div
         onClick={onDetail || onEdit}
-        className={`hounigo-panel w-full rounded-2xl ${variant === 'compact' ? 'p-3' : 'p-3.5 sm:p-4'} relative overflow-hidden transition-all duration-200 hover:shadow-md cursor-pointer dark:bg-slate-800 dark:border-slate-700`}
+        className={`w-full rounded-2xl relative overflow-hidden transition-all duration-200 cursor-pointer border bg-white dark:bg-[#172033] border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md ${
+          isCompact ? 'p-3' : 'p-4 sm:p-5'
+        }`}
       >
-        {/* Decorazione tacche laterali stile Boarding Pass Wallet (cerchietti ritagliati) */}
-        <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-700 pointer-events-none" />
-        <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-slate-50 dark:bg-slate-950 border border-slate-200/60 dark:border-slate-700 pointer-events-none" />
+        {/* TACCHE LATERALI BOARDING PASS EDITORIAL */}
+        <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#F8F7F3] dark:bg-slate-950 border border-slate-200 dark:border-slate-800 pointer-events-none" />
+        <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#F8F7F3] dark:bg-slate-950 border border-slate-200 dark:border-slate-800 pointer-events-none" />
 
-        {/* TOP */}
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 text-[11px] font-semibold uppercase tracking-wider">
-              <span className="text-sm">{currentType.icon}</span> {currentType.label}
-            </span>
-            <div className="flex flex-col ml-1">
-              <span className="font-semibold text-base leading-snug tracking-tight text-slate-900 dark:text-white">
-                {transport.carrier || currentType.label}
+        {/* 1. HEADER: COMPAGNIA + CODICE VOLO / MEZZO + DATA */}
+        <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-800 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base shrink-0">{currentType.icon}</span>
+            <div className="min-w-0">
+              <span className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-white truncate block">
+                {transport.carrier ? `${transport.carrier}` : currentType.label}
+                {transport.type === 'volo' && transport.bookingCode && !transport.carrier?.includes(transport.bookingCode)
+                  ? ` · ${transport.bookingCode}`
+                  : ''}
+              </span>
+              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mt-0.5">
+                {formatDateIT(transport.date)}
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {transport.status && transport.status !== 'completato' && (
-              <span className="inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700/50 dark:text-slate-300 dark:border-slate-600">
-                {statusLabel}
-              </span>
-            )}
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {/* Bagagli Button */}
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsBagagliOpen(true); }}
-              className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all cursor-pointer shadow-2xs ${
+              className={`w-7 h-7 rounded-lg flex items-center justify-center border transition-all cursor-pointer ${
                 transport.bagagli
-                  ? 'bg-sky-50 dark:bg-sky-950/40 border-sky-200 dark:border-sky-800/50 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/60'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-400 opacity-60 hover:opacity-100'
+                  ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-200 dark:border-sky-800 text-sky-700 dark:text-sky-300'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 opacity-60 hover:opacity-100'
               }`}
-              title="Informazioni Bagagli"
-              aria-label="Informazioni Bagagli"
+              title="Bagagli"
+              aria-label="Bagagli"
             >
               <span className="text-xs">🧳</span>
             </button>
+
+            {/* Copilota Button */}
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-              className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all cursor-pointer shadow-2xs ${
+              className={`w-7 h-7 rounded-lg flex items-center justify-center border transition-all cursor-pointer ${
                 (transport.noteCopilota || transport.copilota)
-                  ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400'
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-400 opacity-60 hover:opacity-100'
+                  ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400'
+                  : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 opacity-60 hover:opacity-100'
               }`}
               title="Note Copilota"
+              aria-label="Note Copilota"
             >
-              <span className="text-sm">🧭</span>
+              <span className="text-xs">🧭</span>
             </button>
           </div>
         </div>
 
-        {/* BODY */}
-        <div className="py-2.5">
-          <div className="flex items-center justify-between gap-3">
+        {/* 2. ***REMOVED***: ORIGINE -> DESTINAZIONE (NUMERI TABULARI, ORARI CHIARI) */}
+        <div className="py-3">
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
             {/* ORIGINE */}
-            <div className="flex-1 min-w-0 text-left">
-              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono">
-                {originInfo.code}
+            <div className="min-w-0 text-left">
+              <div className="text-2xl sm:text-3xl font-black text-slate-950 dark:text-white tracking-tight font-mono tabular-nums leading-none">
+                {transport.departureTime || originInfo.code}
               </div>
-              <p className="text-sm font-medium tracking-normal text-slate-600 dark:text-slate-300 truncate mt-0.5">
-                {originInfo.name}
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide truncate mt-1">
+                {originInfo.code} · {originInfo.name}
               </p>
-              <p className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400 mt-0.5">
-                {formatDate(transport.date)} {transport.departureTime ? `• ${transport.departureTime}` : ''}
-              </p>
+              {transport.departureLocation && transport.departureLocation !== originInfo.name && (
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                  {transport.departureLocation}
+                </p>
+              )}
             </div>
 
-            {/* ***REMOVED*** CENTRALE */}
-            <div className="flex-1 flex flex-col items-center justify-center px-1">
-              <div className="relative w-full flex items-center justify-center">
-                <div className="w-full border-t-2 border-dashed border-slate-300 dark:border-slate-600" />
-                <span className="absolute p-1 bg-white dark:bg-slate-800 rounded-full border border-slate-200 dark:border-slate-700 text-xs">
+            {/* SEGNO GRAFICO MINIMALE ***REMOVED*** */}
+            <div className="flex flex-col items-center justify-center px-1 sm:px-2">
+              <div className="w-12 sm:w-16 flex items-center justify-center relative">
+                <div className="w-full border-t border-slate-300 dark:border-slate-700" />
+                <span className="absolute bg-white dark:bg-[#172033] px-1 text-[11px] text-slate-400">
                   {currentType.modeIcon}
                 </span>
               </div>
               {transport.layover ? (
-                <div className="mt-1 text-center">
-                  <span className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400">
-                    Scalo {transport.layover.airport.split(' ')[0]}
-                  </span>
-                </div>
+                <span className="text-[10px] font-bold text-[#FF6B5F] mt-1 text-center whitespace-nowrap">
+                  Scalo {transport.layover.airport.split(' ')[0]}
+                </span>
               ) : (
-                <div className="mt-1 text-center">
-                  <span className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400">
-                    Diretto
-                  </span>
-                </div>
+                <span className="text-[10px] font-semibold text-slate-400 mt-1">
+                  Diretto
+                </span>
               )}
             </div>
 
-            {/* DESTINAZIONE / RICONSEGNA */}
-            <div className="flex-1 min-w-0 text-right">
-              <div className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono">
-                {destInfo.code}
+            {/* DESTINAZIONE */}
+            <div className="min-w-0 text-right">
+              <div className="text-2xl sm:text-3xl font-black text-slate-950 dark:text-white tracking-tight font-mono tabular-nums leading-none flex items-center justify-end gap-1">
+                <span>{transport.arrivalTime || transport.dropoffTime || destInfo.code}</span>
+                {isNextDayArrival && (
+                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-[#FF6B5F]/15 text-[#FF6B5F] align-top">
+                    +1
+                  </span>
+                )}
               </div>
-              <p className="text-sm font-medium tracking-normal text-slate-600 dark:text-slate-300 truncate mt-0.5">
-                {transport.dropoffLocation || destInfo.name}
+              <p className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide truncate mt-1">
+                {destInfo.code} · {destInfo.name}
               </p>
-              <p className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400 mt-0.5">
-                {(transport.type === 'auto' || transport.type === 'camper') && (transport.dropoffTime || transport.dropoffDate)
-                  ? `Riconsegna: ${transport.dropoffDate ? formatDate(transport.dropoffDate) : ''} ${transport.dropoffTime ? 'h ' + transport.dropoffTime : ''}`
-                  : transport.arrivalTime ? `h ${transport.arrivalTime}` : 'Arrivo'}
-              </p>
+              {(transport.dropoffLocation || transport.arrivalLocation) && (
+                <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                  {transport.dropoffLocation || transport.arrivalLocation}
+                </p>
+              )}
             </div>
           </div>
 
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            {transport.posti && (
-              <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40 inline-flex items-center gap-1">
-                💺 Posti: {transport.posti}
-              </span>
-            )}
-            {transport.terminalGate && (
-              <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-indigo-700 bg-indigo-50 dark:bg-indigo-950/40 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/40 inline-flex items-center gap-1">
-                🚪 Gate/Term: {transport.terminalGate}
-              </span>
-            )}
-            {transport.checkinCutoff && (
-              <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-amber-800 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40 inline-flex items-center gap-1">
-                ⏱️ Check-in entro: {transport.checkinCutoff}
-              </span>
-            )}
-            {transport.ticketUrl && (
-              <a
-                href={transport.ticketUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="text-[11px] font-semibold px-2 py-0.5 rounded-full text-sky-700 bg-sky-50 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-200/60 dark:border-sky-800/40 inline-flex items-center gap-1 hover:underline"
-              >
-                🔗 Biglietto online
-              </a>
-            )}
-          </div>
+          {/* 3. INFORMAZIONI OPERATIVE ADATTIVE (SOLO SE PRESENTI) */}
+          {Boolean(transport.terminalGate || transport.posti || transport.bagagli || (transport.type === 'auto' && transport.dropoffDate)) && (
+            <div className="mt-3 pt-2.5 border-t border-dashed border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2 text-xs">
+              {transport.terminalGate && (
+                <div className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium">
+                  <span className="text-slate-400 mr-1 text-[10px] uppercase font-bold">Gate/Term:</span>
+                  <strong>{transport.terminalGate}</strong>
+                </div>
+              )}
+              {transport.posti && (
+                <div className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium">
+                  <span className="text-slate-400 mr-1 text-[10px] uppercase font-bold">Posto:</span>
+                  <strong>{transport.posti}</strong>
+                </div>
+              )}
+              {transport.type === 'auto' && transport.dropoffDate && (
+                <div className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium">
+                  <span className="text-slate-400 mr-1 text-[10px] uppercase font-bold">Riconsegna:</span>
+                  <strong>{formatDateIT(transport.dropoffDate)} {transport.dropoffTime || ''}</strong>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 4. AVVISO CHECK-IN E CHIUSURA (SEGNALAZIONE COMPATTA ED ELEGANTE) */}
+          {checkinInfo.notice && !isCompact && (
+            <div className="mt-2.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2">
+              <span className="shrink-0 text-xs">⏱️</span>
+              <span className="truncate">{checkinInfo.notice}</span>
+            </div>
+          )}
         </div>
 
-        {/* BOTTOM */}
-        <div className="pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between gap-2 flex-wrap">
+        {/* 5. FOOTER: PREZZO/PAGAMENTO A SINISTRA, AZIONI OPERATIVE A DESTRA */}
+        <div className="pt-2.5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap">
+          {/* STATO ECONOMICO */}
           <div className="flex items-center gap-2">
             {isPackageIncluded ? (
-              <span className="text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full text-sky-700 bg-sky-50 border border-sky-100 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800/50">
-                Incluso nel pacchetto
+              <span className="text-[11px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border border-sky-100 dark:border-sky-800">
+                Incluso
               </span>
             ) : isFree ? (
-              <span className="text-sm font-semibold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 Gratuito
               </span>
             ) : transport.cost ? (
-              <span className="text-sm font-medium tracking-normal text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
-                {displayText}
-              </span>
-            ) : (
-              <span className="text-xs font-normal leading-relaxed text-slate-500 dark:text-slate-400">
-                Costo da definire
-              </span>
-            )}
-
-            {!isFree && !isPackageIncluded && (
-              <button
-                type="button"
-                onClick={handleTogglePayment}
-                className={`inline-flex items-center text-[11px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full border transition-all cursor-pointer hover:scale-105 active:scale-95 shadow-2xs ${
-                  isPaid
-                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800'
-                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-700'
-                }`}
-                title="Clicca per invertire stato: Saldato / Da saldare"
-              >
-                {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
-              </button>
-            )}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-extrabold text-slate-900 dark:text-white tabular-nums">
+                  {displayText}
+                </span>
+                {!isCompact && (
+                  <button
+                    type="button"
+                    onClick={handleTogglePayment}
+                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md border transition-all cursor-pointer ${
+                      isPaid
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                        : 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                    }`}
+                    title="Inverti stato pagamento"
+                  >
+                    {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
+                  </button>
+                )}
+              </div>
+            ) : null}
           </div>
 
+          {/* AZIONI OPERATIVE */}
           <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-            {Boolean(transport.bookingCode && transport.bookingCode.trim()) && (
+            {/* COPIA PNR (SE PRESENTE) */}
+            {hasPnr && (
               <button
                 type="button"
-                onClick={(e) => { e.stopPropagation(); setIsPNROpen(true); }}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600 dark:text-slate-200 text-xs font-medium transition-colors"
+                onClick={handleCopyPnr}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 text-xs font-bold transition-all border border-slate-200 dark:border-slate-700"
+                title={`Copia PNR: ${transport.bookingCode}`}
               >
-                <span className="text-[10px]">#️⃣</span> PNR
+                <span>{pnrCopied ? '✓' : '#️⃣'}</span>
+                <span>{pnrCopied ? 'Copiato' : transport.bookingCode}</span>
               </button>
             )}
-            {(() => {
-              const hasQrOrAttachment = Boolean(
-                (transport as any).qrCode?.trim() ||
-                transport.bookingCode?.trim() ||
-                (transport as any).pnr?.trim() ||
-                transport.ticketUrl?.trim() ||
-                (transport.attachments && transport.attachments.length > 0)
-              );
-              return (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setIsTicketsOpen(true); }}
-                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer border ${
-                    hasQrOrAttachment
-                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-800'
-                      : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 dark:text-indigo-300 dark:border-indigo-800'
-                  }`}
-                  title="Pass / Biglietto / QR"
-                >
-                  <span className="text-[10px]">🎫</span> Biglietto/QR
-                </button>
-              );
-            })()}
+
+            {/* APRI BIGLIETTO / QR (SOLO SE PRESENTE UN DOCUMENTO) */}
+            {hasTicket && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setIsTicketsOpen(true); }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#172033] hover:bg-slate-800 text-white dark:bg-[#FF6B5F] dark:hover:bg-[#ff5545] text-xs font-bold transition-all shadow-2xs"
+                title="Apri Biglietto o Carta d'Imbarco"
+              >
+                <span>🎫</span>
+                <span>Biglietto</span>
+              </button>
+            )}
+
+            {/* LINK MAPS */}
             {activeMapUrl && (
               <a
                 href={activeMapUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600 dark:text-slate-200 text-xs font-medium transition-colors"
+                className="inline-flex items-center justify-center w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 text-xs transition-colors"
+                title="Apri su Google Maps"
+                aria-label="Apri su Google Maps"
               >
-                <span className="text-[10px]">📍</span> Maps
+                📍
               </a>
             )}
           </div>
         </div>
       </div>
 
+      {/* MODALI OPERATIVI */}
       <TrasportoTicketsModal
         isOpen={isTicketsOpen}
         onClose={() => setIsTicketsOpen(false)}
         transport={transport}
         onUpdateTransport={(updated) => { if (onUpdate) onUpdate(updated); }}
       />
+
       <UniversalCopilotaModal
         isOpen={isCopilotOpen}
         onClose={() => setIsCopilotOpen(false)}
@@ -379,34 +444,36 @@ export default function TrasportoCard({
           }
         }}
       />
+
       {isPNROpen && transport.bookingCode && (
-        <div 
+        <div
           className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
           onClick={(e) => { e.stopPropagation(); setIsPNROpen(false); }}
         >
-          <div 
-            className="w-full max-w-sm bg-white rounded-3xl p-5 shadow-2xl border border-slate-200 text-center relative"
+          <div
+            className="w-full max-w-sm bg-white dark:bg-[#172033] rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-center relative"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center text-2xl mx-auto mb-3 shadow-2xs">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-2xl mx-auto mb-3 shadow-2xs">
               🎟️
             </div>
-            <h3 className="text-sm font-extrabold uppercase tracking-wider text-slate-500">Codice PNR</h3>
-            <div className="my-4 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl">
-              <span className="font-mono text-xl sm:text-2xl font-black text-slate-900 tracking-wider select-all break-all">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">Codice PNR</h3>
+            <div className="my-4 p-3.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl">
+              <span className="font-mono text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-wider select-all break-all">
                 {transport.bookingCode}
               </span>
             </div>
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsPNROpen(false); }}
-              className="py-3 px-4 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-100 transition-colors w-full cursor-pointer"
+              className="py-3 px-4 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors w-full cursor-pointer"
             >
               Chiudi
             </button>
           </div>
         </div>
       )}
+
       <TrasportoBagagliModal
         isOpen={isBagagliOpen}
         onClose={() => setIsBagagliOpen(false)}

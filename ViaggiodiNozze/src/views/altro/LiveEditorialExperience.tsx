@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { LiveUpdate } from '../../services/liveService';
 import type { LiveGpsLease, LiveGpsLocation, LiveGpsDevice } from '../../services/liveGpsService';
+import type { LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
 
 export interface LiveEditorialExperienceProps {
   isExternal: boolean;
@@ -30,6 +31,12 @@ export interface LiveEditorialExperienceProps {
   onStopGps?: () => void;
   onTransferGps?: (uid: string, deviceId: string) => void;
   onRevokeGps?: () => void;
+  // Live Intelligence & Dual Map Markers
+  liveIntelligence?: LiveIntelligenceState | null;
+  mapCenterMode?: 'both' | 'real' | 'planned';
+  onChangeMapCenterMode?: (mode: 'both' | 'real' | 'planned') => void;
+  realMarkerOffset?: { dx: number; dy: number } | null;
+  plannedMarkerOffset?: { dx: number; dy: number } | null;
   // Status & Diary
   statusMessage: string;
   statusUpdatedAt: string;
@@ -132,6 +139,39 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
         {/* MAPPA CARTOGRAFICA EDITORIALE */}
         <div className="relative overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 min-h-[330px] sm:min-h-[440px]">
+          {/* CAMERA FOCUS CONTROLS */}
+          {!props.isExternal && props.liveIntelligence?.plannedLocation?.coords && (
+            <div className="absolute top-3 right-3 z-20 flex items-center gap-1 bg-slate-900/85 backdrop-blur-md p-1 rounded-xl border border-white/20 text-[11px] font-bold text-white shadow-lg">
+              <button
+                type="button"
+                onClick={() => props.onChangeMapCenterMode?.('both')}
+                className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                  props.mapCenterMode === 'both' ? 'bg-[#FF6B5F] text-white' : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                Entrambi
+              </button>
+              <button
+                type="button"
+                onClick={() => props.onChangeMapCenterMode?.('real')}
+                className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                  props.mapCenterMode === 'real' ? 'bg-[#FF6B5F] text-white' : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                GPS
+              </button>
+              <button
+                type="button"
+                onClick={() => props.onChangeMapCenterMode?.('planned')}
+                className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                  props.mapCenterMode === 'planned' ? 'bg-[#FF6B5F] text-white' : 'text-slate-300 hover:text-white'
+                }`}
+              >
+                Itinerario
+              </button>
+            </div>
+          )}
+
           {props.tileGrid && !props.tileLoadFailed ? (
             <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
               <div className="absolute left-1/2 top-1/2 w-[768px] h-[768px] -translate-x-1/2 -translate-y-1/2 grid grid-cols-3 grid-rows-3 opacity-90 dark:opacity-60">
@@ -146,31 +186,64 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-transparent" />
           
-          {/* PIN CARTOGRAFICO CENTRATO */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center">
-            {hasFreshRemoteLocation && (
-              <span className="absolute w-12 h-12 rounded-full bg-[#FF6B5F]/35 animate-ping" />
-            )}
-            <div className="w-5 h-5 rounded-full bg-[#FF6B5F] border-4 border-white shadow-xl relative z-10" />
-          </div>
+          {/* MARKER 1: POSIZIONE GPS REALE (CORAL CIRCLE + PING) */}
+          {(hasFreshRemoteLocation || props.realLocation) && (
+            <div
+              className="absolute left-1/2 top-1/2 flex flex-col items-center justify-center transition-all duration-300 pointer-events-none z-10"
+              style={{
+                transform: props.realMarkerOffset
+                  ? `translate(calc(-50% + ${props.realMarkerOffset.dx}px), calc(-50% + ${props.realMarkerOffset.dy}px))`
+                  : 'translate(-50%, -50%)'
+              }}
+            >
+              {hasFreshRemoteLocation && (
+                <span className="absolute w-12 h-12 rounded-full bg-[#FF6B5F]/35 animate-ping" />
+              )}
+              <div className="w-5 h-5 rounded-full bg-[#FF6B5F] border-3 border-white shadow-xl relative z-10 flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-white" />
+              </div>
+              <span className="mt-1 px-2 py-0.5 rounded-md bg-[#FF6B5F] text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md whitespace-nowrap">
+                {props.isGpsHolder ? 'Sei qui' : 'Posizione condivisa'}
+              </span>
+            </div>
+          )}
+
+          {/* MARKER 2: POSIZIONE PREVISTA SECONDO ITINERARIO (NAVY DIAMOND + COMPASS) */}
+          {!props.isExternal && props.liveIntelligence?.plannedLocation?.coords && (
+            <div
+              className="absolute left-1/2 top-1/2 flex flex-col items-center justify-center transition-all duration-300 pointer-events-none z-10"
+              style={{
+                transform: props.plannedMarkerOffset
+                  ? `translate(calc(-50% + ${props.plannedMarkerOffset.dx}px), calc(-50% + ${props.plannedMarkerOffset.dy}px))`
+                  : (hasFreshRemoteLocation || props.realLocation) ? 'translate(calc(-50% + 40px), calc(-50% - 40px))' : 'translate(-50%, -50%)'
+              }}
+            >
+              <div className="w-6 h-6 rounded-lg rotate-45 bg-[#172033] border-2 border-white shadow-xl relative z-10 flex items-center justify-center">
+                <span className="-rotate-45 text-[10px]">🗓️</span>
+              </div>
+              <span className="mt-1 px-2 py-0.5 rounded-md bg-[#172033] text-white text-[10px] font-extrabold tracking-wider shadow-md whitespace-nowrap border border-white/20">
+                Secondo itinerario
+              </span>
+            </div>
+          )}
 
           {/* OVERLAY INFORMAZIONI POSIZIONE */}
-          <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+          <div className="absolute inset-x-0 bottom-0 p-5 text-white z-10">
             <p className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#FF6B5F]">
               {hasFreshRemoteLocation
-                ? '📍 Posizione in tempo reale'
+                ? '📍 Posizione GPS in tempo reale'
                 : isLeasePaused
                   ? '⏸️ Trasmissione in pausa'
-                  : '🗺️ Tappa programmata roadbook'}
+                  : '🗺️ Posizione itinerario'}
             </p>
             <h3 className="text-xl sm:text-2xl font-extrabold leading-tight mt-0.5">
               {props.remoteGpsLocation?.city
                 ? `${props.remoteGpsLocation.city}${props.remoteGpsLocation.country ? `, ${props.remoteGpsLocation.country}` : ''}`
-                : props.location?.city || props.location?.title || 'Posizione itinerario'}
+                : props.location?.city || props.location?.title || 'Posizione programmata'}
             </h3>
             <p className="mt-1 text-xs text-white/80">
               {hasFreshRemoteLocation && props.remoteGpsLocation
-                ? `Trasmesso dal dispositivo guida • Aggiornato ${formatRelativeTime(props.remoteGpsLocation.updatedAt)} (±${Math.round(props.remoteGpsLocation.accuracy)}m)`
+                ? `Dispositivo guida • Aggiornato ${formatRelativeTime(props.remoteGpsLocation.updatedAt)} (±${Math.round(props.remoteGpsLocation.accuracy)}m)`
                 : isLeasePaused
                   ? 'La trasmissione è stata temporaneamente sospesa dal viaggiatore.'
                   : props.location?.updateNotice || 'Nessuna trasmissione GPS attiva in questo momento.'}
@@ -186,6 +259,88 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             </a>
           </div>
         </div>
+
+        {/* ─── LIVE INTELLIGENCE: ADESSO, PROGRAMMA E PROSSIMA TAPPA ─── */}
+        {!props.isExternal && props.liveIntelligence && (
+          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 animate-fade-in">
+            {/* ADESSO */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-[#172033] border border-slate-200/90 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#FF6B5F]">
+                  ADESSO
+                </span>
+                {props.liveIntelligence.currentEvent?.timeRange && (
+                  <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
+                    {props.liveIntelligence.currentEvent.timeRange}
+                  </span>
+                )}
+              </div>
+              <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
+                {props.liveIntelligence.currentEvent?.title || 'Nessuna attività programmata in questo orario'}
+              </h4>
+              {props.liveIntelligence.currentEvent?.subtitle && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {props.liveIntelligence.currentEvent.subtitle}
+                </p>
+              )}
+              {props.liveIntelligence.currentEvent?.transportDetails && (
+                <div className="mt-2.5 text-xs font-semibold px-3 py-2 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200 border border-indigo-100 dark:border-indigo-800/50">
+                  ✈️ {props.liveIntelligence.currentEvent.transportDetails.message}
+                </div>
+              )}
+            </div>
+
+            {/* PROSSIMA ATTIVITÀ */}
+            <div className="p-4 rounded-2xl bg-white dark:bg-[#172033] border border-slate-200/90 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                  PROSSIMA ATTIVITÀ
+                </span>
+                {props.liveIntelligence.nextEvent?.time && (
+                  <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
+                    {props.liveIntelligence.nextEvent.time}
+                  </span>
+                )}
+              </div>
+              <h4 className="text-base font-extrabold text-slate-900 dark:text-white">
+                {props.liveIntelligence.nextEvent?.title || 'Nessuna attività futura registrata'}
+              </h4>
+              {props.liveIntelligence.nextEvent?.locationName && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  📍 {props.liveIntelligence.nextEvent.locationName}
+                </p>
+              )}
+            </div>
+
+            {/* CONFRONTO OPERATIVO TRA POSIZIONE REALE E PREVISTA */}
+            <div className="md:col-span-2 p-3.5 rounded-2xl bg-[#F8F7F3] dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-[#172033] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                  ⚖️
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <strong className="text-slate-900 dark:text-white font-bold text-xs">
+                      {props.liveIntelligence.comparison ? props.liveIntelligence.comparison.label : 'Posizione prevista'}
+                    </strong>
+                    {props.liveIntelligence.comparison?.status === 'coincident' && (
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold text-[10px]">
+                        In linea
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                    {props.remoteGpsLocation
+                      ? `GPS reale: ±${Math.round(props.remoteGpsLocation.accuracy)}m`
+                      : 'Posizione reale non condivisa'}
+                    {' · '}
+                    Previsto: {props.liveIntelligence.plannedLocation?.title || props.liveIntelligence.plannedLocation?.locationName || 'Nessuna'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* FEEDBACK E NOTIFICHE OPERATIVE */}
         {props.gpsFeedback && (
