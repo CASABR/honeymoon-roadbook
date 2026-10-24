@@ -128,9 +128,10 @@
 ---
 
 ## 6. Ultimo Bundle Pubblicato e Stato Deploy
-- **Data e Ora Deploy:** 24 Ottobre 2026, 18:19 (CEST)
+- **Data e Ora Deploy:** 24 Ottobre 2026, 18:25 (CEST)
 - **URL Produzione:** `https://casabr.github.io/honeymoon-roadbook/`
-- **Main JS Bundle:** `assets/index-elHwhbSQ.js` (HTTP 200 OK verificato)
+- **Main JS Bundle:** `assets/index-qlleYZj-.js` (HTTP 200 OK verificato)
 - **Main CSS Bundle:** `assets/index-ucWgcUzm.css` (HTTP 200 OK verificato)
-- **Ramo sorgente locale:** `work/product-completion` (commit `0334155`)
-- **Stato Deploy:** Pubblicazione automatica completata con successo su `gh-pages`.
+- **Ramo sorgente locale:** `work/product-completion` (commit `632c7ee`)
+- **Ramo di pubblicazione:** `origin/gh-pages` (commit `d324d36`)
+- **Stato Deploy:** Pubblicazione automatica completata con successo su GitHub Pages.
