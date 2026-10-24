@@ -109,7 +109,9 @@
 | `test_closure_sprint_verification.cjs` | 13 | PASS (13/13) |
 | `test_security_suite.cjs` | 13 | PASS (13/13) |
 | `test_sync_multidevice_tombstones_suite.cjs` | 26 | PASS (26/26) |
-| *****REMOVED***** | **164** | **164/164 PASS** |
+| `scripts/test_live_intelligence.cjs` | 7 | PASS (7/7) |
+| `scripts/test_transport_card_editorial.cjs` | 5 | PASS (5/5) |
+| *****REMOVED***** | **176** | **176/176 PASS** |
 
 ---
 
@@ -121,7 +123,9 @@
 - `src/views/OnboardingView.tsx` (rimozione auth anonima al mount, 3 scelte, rimozione UID/gergo)
 - `src/views/OggiView.tsx` (pulsante Nuova Spesa verde tenue, cartografia discreta, collegamenti collisioni)
 - `src/views/TrasportiView.tsx` & `src/views/AttivitaView.tsx` (collegamento modifica collisioni)
-- `src/views/altro/LiveEditorialExperience.tsx` & `LiveView.tsx` (lease GPS, passaggio guida, revoca, throttle)
+- `src/views/altro/LiveEditorialExperience.tsx` & `LiveView.tsx` (doppio marker mappa, focus camera, pannello Adesso/Prossima tappa/Confronto neutro, lease GPS, throttle)
+- `src/utils/liveIntelligenceHelper.ts` (calcolo orario reale vs programmato, gestione trasporti in corso senza allucinazione coordinate, distanza ortodromica Haversine)
+- `src/components/cards/TrasportoCard.tsx` (redesign completo Boarding Pass Travel Editorial, tabulari orari, calcolo check-in 11:30 vs 09:30, copia PNR 1-tap)
 - `src/services/liveGpsService.ts` (servizio client lease e location pubblica conformi alle Rules)
 - `src/storage/storageService.ts` & `src/storage/syncService.ts` (tombstone engine, 12 collezioni cloud)
 
@@ -132,6 +136,6 @@
 - **URL Produzione:** `https://casabr.github.io/honeymoon-roadbook/`
 - **Main JS Bundle:** `assets/index-CqO_srYn.js`
 - **Main CSS Bundle:** `assets/index-CTk3pXe3.css`
-- **Ramo sorgente locale:** `work/product-completion` (commit `cfa1f7e`)
+- **Ramo sorgente locale:** `work/product-completion` (commit `cfa1f7e` / `1c77591`)
 - **Ramo di pubblicazione:** `origin/gh-pages` (commit `96b754f`)
 - **Stato Deploy:** Pubblicazione automatica Live Intelligence & Transport Editorial completata con successo su GitHub Pages.
