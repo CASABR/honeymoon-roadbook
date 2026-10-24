@@ -1,7 +1,7 @@
 # HOUNIGO — PRODUCT COMPLETION & BETA RELEASE CANDIDATE HANDOFF
 
 ## 1. Fase Corrente
-**FASE 11: Beta Hardening, Release Gate & Pubblicazione Release Candidate**
+**FASE 12: Live Intelligence & Transport Editorial (Boarding Pass, Mappa Dual-Reference e Motore d'Intelligenza Itinerario)**
 
 ---
 
@@ -128,10 +128,10 @@
 ---
 
 ## 6. Ultimo Bundle Pubblicato e Stato Deploy
-- **Data e Ora Deploy:** 24 Ottobre 2026, 19:44 (CEST)
+- **Data e Ora Deploy:** 25 Ottobre 2026, 00:00 (CEST)
 - **URL Produzione:** `https://casabr.github.io/honeymoon-roadbook/`
-- **Main JS Bundle:** `assets/index-dTdsU67J.js`
-- **Main CSS Bundle:** `assets/index-CPAHVyc6.css`
-- **Ramo sorgente locale:** `work/product-completion` (commit `9f6f3ed`)
-- **Ramo di pubblicazione:** `origin/gh-pages` (commit `09d8c13`)
-- **Stato Deploy:** Pubblicazione automatica Release Candidate completata con successo su GitHub Pages.
+- **Main JS Bundle:** `assets/index-CqO_srYn.js`
+- **Main CSS Bundle:** `assets/index-CTk3pXe3.css`
+- **Ramo sorgente locale:** `work/product-completion` (commit `cfa1f7e`)
+- **Ramo di pubblicazione:** `origin/gh-pages` (commit `96b754f`)
+- **Stato Deploy:** Pubblicazione automatica Live Intelligence & Transport Editorial completata con successo su GitHub Pages.
