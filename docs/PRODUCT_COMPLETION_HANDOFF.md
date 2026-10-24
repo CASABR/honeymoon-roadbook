@@ -127,7 +127,10 @@
 
 ---
 
-## 6. Prossima Azione Esatta
-- Commit locale di checkpoint su `work/product-completion`.
-- Esecuzione deploy frontend automatico (`npm run deploy`) verso GitHub Pages.
-- Verifica del bundle online pubblicato e redazione del Product Completion Report finale.
+## 6. Ultimo Bundle Pubblicato e Stato Deploy
+- **Data e Ora Deploy:** 24 Ottobre 2026, 18:19 (CEST)
+- **URL Produzione:** `https://casabr.github.io/honeymoon-roadbook/`
+- **Main JS Bundle:** `assets/index-elHwhbSQ.js` (HTTP 200 OK verificato)
+- **Main CSS Bundle:** `assets/index-ucWgcUzm.css` (HTTP 200 OK verificato)
+- **Ramo sorgente locale:** `work/product-completion` (commit `0334155`)
+- **Stato Deploy:** Pubblicazione automatica completata con successo su `gh-pages`.
