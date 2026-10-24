@@ -13,7 +13,7 @@ export interface TimeCollisionModalProps {
   collision: TimeCollision | null;
   onKeepBoth: () => void;
   onDeleteItem: (itemId: string, itemType: string) => Promise<void>;
-  onUpdateTime?: (itemId: string, itemType: string, newTime: string) => Promise<void>;
+  onUpdateTime?: (itemId: string, itemType: string, newTime: string, dateDeltaDays?: number) => Promise<void>;
   onOpenEditForm?: (item: TimelineItem) => void;
   onDismiss: () => void;
 }
@@ -73,6 +73,7 @@ export default function TimeCollisionModal({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingTimeItemId, setEditingTimeItemId] = useState<string | null>(null);
   const [customTime, setCustomTime] = useState<string>('');
+  const [dateOffsetDays, setDateOffsetDays] = useState<number>(0);
   const [savingTime, setSavingTime] = useState(false);
   const [expandedA, setExpandedA] = useState(false);
   const [expandedB, setExpandedB] = useState(false);
@@ -246,9 +247,18 @@ export default function TimeCollisionModal({
         {editingTimeItemId === item.id ? (
           <div className="mt-3 pt-3 border-t border-slate-200/80 dark:border-slate-700/80 space-y-2.5">
             <div className="flex items-center justify-between gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 flex-wrap">
                 <span>⏰</span>
                 <span>Nuovo orario:</span>
+                {dateOffsetDays !== 0 && (
+                  <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded ${
+                    dateOffsetDays > 0 
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 border border-amber-300 dark:border-amber-700' 
+                      : 'bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300 border border-purple-300 dark:border-purple-700'
+                  }`}>
+                    {dateOffsetDays > 0 ? `+${dateOffsetDays} gg (data succ.)` : `${dateOffsetDays} gg (data prec.)`}
+                  </span>
+                )}
               </span>
               <input
                 type="time"
@@ -267,13 +277,24 @@ export default function TimeCollisionModal({
                   type="button"
                   onClick={() => {
                     const [h, m] = (customTime || item.time || '12:00').split(':').map(Number);
-                    let total = (isNaN(h) ? 12 : h) * 60 + (isNaN(m) ? 0 : m);
-                    if (shift === '-30m') total -= 30;
-                    if (shift === '+30m') total += 30;
-                    if (shift === '+1h') total += 60;
-                    if (shift === '+2h') total += 120;
-                    if (total < 0) total += 24 * 60;
-                    total = total % (24 * 60);
+                    let deltaM = 0;
+                    if (shift === '-30m') deltaM = -30;
+                    if (shift === '+30m') deltaM = 30;
+                    if (shift === '+1h') deltaM = 60;
+                    if (shift === '+2h') deltaM = 120;
+
+                    let total = (isNaN(h) ? 12 : h) * 60 + (isNaN(m) ? 0 : m) + deltaM;
+                    let dayShift = 0;
+                    if (total < 0) {
+                      dayShift = Math.floor(total / (24 * 60));
+                      total = (total % (24 * 60) + 24 * 60) % (24 * 60);
+                    } else if (total >= 24 * 60) {
+                      dayShift = Math.floor(total / (24 * 60));
+                      total = total % (24 * 60);
+                    }
+                    if (dayShift !== 0) {
+                      setDateOffsetDays(prev => prev + dayShift);
+                    }
                     const newH = String(Math.floor(total / 60)).padStart(2, '0');
                     const newM = String(total % 60).padStart(2, '0');
                     setCustomTime(`${newH}:${newM}`);
@@ -298,7 +319,10 @@ export default function TimeCollisionModal({
               <div className="flex items-center gap-2 ml-auto">
                 <button
                   type="button"
-                  onClick={() => setEditingTimeItemId(null)}
+                  onClick={() => {
+                    setEditingTimeItemId(null);
+                    setDateOffsetDays(0);
+                  }}
                   className="px-2.5 py-1 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 cursor-pointer"
                 >
                   Annulla
@@ -310,10 +334,11 @@ export default function TimeCollisionModal({
                     if (!customTime || !onUpdateTime) return;
                     setSavingTime(true);
                     try {
-                      await onUpdateTime(item.id, item.type, customTime);
+                      await onUpdateTime(item.id, item.type, customTime, dateOffsetDays);
                     } finally {
                       setSavingTime(false);
                       setEditingTimeItemId(null);
+                      setDateOffsetDays(0);
                     }
                   }}
                   className="hounigo-button-primary px-3 py-1.5 text-xs font-bold disabled:opacity-50 shadow-xs cursor-pointer"
@@ -330,6 +355,7 @@ export default function TimeCollisionModal({
               onClick={() => {
                 setEditingTimeItemId(item.id);
                 setCustomTime(item.time || '12:00');
+                setDateOffsetDays(0);
               }}
               className="px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60 transition-all cursor-pointer flex items-center gap-1.5"
             >

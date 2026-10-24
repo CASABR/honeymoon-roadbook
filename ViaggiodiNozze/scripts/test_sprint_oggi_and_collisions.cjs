@@ -78,4 +78,23 @@ test('La collisione risolta viene salvata in sessionStorage e ricalcolata', () =
   assert.ok(oggi.includes('await fetchTimeline()'));
 });
 
-console.log(`\nRISULTATO: ${passed}/8 TEST OGGI & CONFLITTI SUPERATI CON SUCCESSO!\n`);
+test('Spostamento oltre mezzanotte aggiorna la data del giorno successivo o precedente', () => {
+  assert.ok(modal.includes('dateOffsetDays'), 'TimeCollisionModal traccia dateOffsetDays per scavalco mezzanotte');
+  assert.ok(modal.includes('dateDeltaDays'), 'TimeCollisionModal passa dateDeltaDays al callback');
+  assert.ok(oggi.includes('shiftDateStr'), 'OggiView supporta aggiornamento data con shiftDateStr');
+  assert.ok(trasporti.includes('shiftDateStr'), 'TrasportiView supporta aggiornamento data con shiftDateStr');
+  assert.ok(attivita.includes('shiftDateStr'), 'AttivitaView supporta aggiornamento data con shiftDateStr');
+
+  const shiftDateStr = (dateStr, delta) => {
+    if (!dateStr || !delta) return dateStr;
+    const d = new Date(dateStr + 'T12:00:00Z');
+    d.setUTCDate(d.getUTCDate() + delta);
+    return d.toISOString().split('T')[0];
+  };
+
+  assert.equal(shiftDateStr('2026-08-10', 1), '2026-08-11', 'Scavalco mezzanotte +1 giorno');
+  assert.equal(shiftDateStr('2026-08-10', -1), '2026-08-09', 'Scavalco mezzanotte -1 giorno');
+  assert.equal(shiftDateStr('2026-02-28', 1), '2026-03-01', 'Scavalco fine mese');
+});
+
+console.log(`\nRISULTATO: ${passed}/9 TEST OGGI & CONFLITTI SUPERATI CON SUCCESSO!\n`);

@@ -553,11 +553,26 @@ export default function AttivitaView() {
             setActiveCollision(null);
           }
         }}
-        onUpdateTime={async (itemId, _type, newTime) => {
+        onUpdateTime={async (itemId, _type, newTime, dateDeltaDays) => {
           try {
+            const shiftDateStr = (dateStr?: string, delta?: number) => {
+              if (!dateStr || !delta) return dateStr;
+              const d = new Date(dateStr + 'T12:00:00Z');
+              if (isNaN(d.getTime())) return dateStr;
+              d.setUTCDate(d.getUTCDate() + delta);
+              return d.toISOString().split('T')[0];
+            };
+
             const found = activities.find(a => a.id === itemId);
             if (found) {
-              const updated = { ...found, time: newTime, orarioInizio: newTime, updatedAt: Date.now() };
+              const newDate = shiftDateStr(found.date, dateDeltaDays);
+              const updated = {
+                ...found,
+                time: newTime,
+                orarioInizio: newTime,
+                ...(newDate ? { date: newDate } : {}),
+                updatedAt: Date.now()
+              };
               await storageService.saveActivity(updated);
               setActivities(prev => prev.map(a => a.id === itemId ? updated : a));
             }

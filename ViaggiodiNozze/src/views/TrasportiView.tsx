@@ -500,8 +500,16 @@ export default function TrasportiView() {
             setActiveCollision(null);
           }
         }}
-        onUpdateTime={async (itemId, _type, newTime) => {
+        onUpdateTime={async (itemId, _type, newTime, dateDeltaDays) => {
           try {
+            const shiftDateStr = (dateStr?: string, delta?: number) => {
+              if (!dateStr || !delta) return dateStr;
+              const d = new Date(dateStr + 'T12:00:00Z');
+              if (isNaN(d.getTime())) return dateStr;
+              d.setUTCDate(d.getUTCDate() + delta);
+              return d.toISOString().split('T')[0];
+            };
+
             const found = transports.find(t => t.id === itemId);
             if (found) {
               let newArrivalTime = found.arrivalTime;
@@ -520,7 +528,16 @@ export default function TrasportiView() {
                   }
                 }
               }
-              const updated = { ...found, departureTime: newTime, arrivalTime: newArrivalTime, updatedAt: Date.now() };
+              const newDate = shiftDateStr(found.date, dateDeltaDays);
+              const newArrivalDate = shiftDateStr(found.arrivalDate, dateDeltaDays);
+              const updated = {
+                ...found,
+                departureTime: newTime,
+                arrivalTime: newArrivalTime,
+                ...(newDate ? { date: newDate } : {}),
+                ...(newArrivalDate ? { arrivalDate: newArrivalDate } : {}),
+                updatedAt: Date.now()
+              };
               await storageService.saveTransport(updated);
               setTransports(prev => prev.map(t => t.id === itemId ? updated : t));
             }

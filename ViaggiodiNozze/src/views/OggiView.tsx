@@ -1802,13 +1802,28 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             console.error('Errore eliminazione collisione:', err);
           }
         }}
-        onUpdateTime={async (itemId, itemType, newTime) => {
+        onUpdateTime={async (itemId, itemType, newTime, dateDeltaDays) => {
           try {
+            const shiftDateStr = (dateStr?: string, delta?: number) => {
+              if (!dateStr || !delta) return dateStr;
+              const d = new Date(dateStr + 'T12:00:00Z');
+              if (isNaN(d.getTime())) return dateStr;
+              d.setUTCDate(d.getUTCDate() + delta);
+              return d.toISOString().split('T')[0];
+            };
+
             if (itemType === 'attivita') {
               const activities = await storageService.getActivities();
               const found = activities.find(a => a.id === itemId);
               if (found) {
-                const updated = { ...found, time: newTime, orarioInizio: newTime, updatedAt: Date.now() };
+                const newDate = shiftDateStr(found.date, dateDeltaDays);
+                const updated = {
+                  ...found,
+                  time: newTime,
+                  orarioInizio: newTime,
+                  ...(newDate ? { date: newDate } : {}),
+                  updatedAt: Date.now()
+                };
                 await storageService.saveActivity(updated);
               }
             } else if (itemType === 'trasporto') {
@@ -1831,21 +1846,43 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     }
                   }
                 }
-                const updated = { ...found, departureTime: newTime, arrivalTime: newArrivalTime, updatedAt: Date.now() };
+                const newDate = shiftDateStr(found.date, dateDeltaDays);
+                const newArrivalDate = shiftDateStr(found.arrivalDate, dateDeltaDays);
+                const updated = {
+                  ...found,
+                  departureTime: newTime,
+                  arrivalTime: newArrivalTime,
+                  ...(newDate ? { date: newDate } : {}),
+                  ...(newArrivalDate ? { arrivalDate: newArrivalDate } : {}),
+                  updatedAt: Date.now()
+                };
                 await storageService.saveTransport(updated);
               }
             } else if (itemType === 'ristorante') {
               const items = await storageService.getRistoranti();
               const found = items.find(r => r.id === itemId);
               if (found) {
-                const updated = { ...found, time: newTime, orario: newTime, updatedAt: Date.now() };
+                const newDate = shiftDateStr(found.date || found.data, dateDeltaDays);
+                const updated = {
+                  ...found,
+                  time: newTime,
+                  orario: newTime,
+                  ...(newDate ? { date: newDate, data: newDate } : {}),
+                  updatedAt: Date.now()
+                };
                 await storageService.saveRistorante(updated);
               }
             } else if (itemType === 'alloggio') {
               const items = await storageService.getAccommodations();
               const found = items.find(a => a.id === itemId);
               if (found) {
-                const updated = { ...found, checkInTime: newTime, updatedAt: Date.now() };
+                const newCheckIn = shiftDateStr(found.checkIn, dateDeltaDays);
+                const updated = {
+                  ...found,
+                  checkInTime: newTime,
+                  ...(newCheckIn ? { checkIn: newCheckIn } : {}),
+                  updatedAt: Date.now()
+                };
                 await storageService.saveAccommodation(updated);
               }
             } else if (itemType === 'shopping') {
@@ -1854,7 +1891,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               const items = await storageService.getTappe();
               const found = items.find(t => t.id === itemId);
               if (found) {
-                const updated = { ...found, time: newTime, orarioVisita: newTime, updatedAt: Date.now() };
+                const newDate = shiftDateStr(found.date || found.data, dateDeltaDays);
+                const updated = {
+                  ...found,
+                  time: newTime,
+                  orarioVisita: newTime,
+                  ...(newDate ? { date: newDate, data: newDate } : {}),
+                  updatedAt: Date.now()
+                };
                 await storageService.saveTappa(updated);
               }
             }
