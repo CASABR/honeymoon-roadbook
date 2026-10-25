@@ -40,3 +40,4 @@ scripts/check_deployed_functions.cjs
 scripts/create_valid_invite_token.cjs
 scripts/test_oauth_firestore.cjs
 scripts/inspect_invites.cjs
+screenshots/live/.profile/
