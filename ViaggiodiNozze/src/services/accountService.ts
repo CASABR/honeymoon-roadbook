@@ -13,11 +13,14 @@ import { auth, db } from '../firebase';
 export interface UserTripSummary {
   id: string;
   title: string;
+  destination?: string;
   startDate?: string;
   endDate?: string;
   ownerUid?: string;
   ownerName?: string;
   isOwner: boolean;
+  role: 'owner' | 'copilota';
+  isLastUsed?: boolean;
 }
 
 export interface AccountStatus {
@@ -102,30 +105,35 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
 
     const userData = userSnap.data();
     const tripIds: string[] = Array.isArray(userData?.associatedTripIds)
-      ? userData.associatedTripIds
+      ? [...userData.associatedTripIds]
       : [];
 
-    if (userData?.lastTripId && !tripIds.includes(userData.lastTripId)) {
-      tripIds.unshift(userData.lastTripId);
+    const lastTripId = userData?.lastTripId;
+    if (lastTripId && !tripIds.includes(lastTripId)) {
+      tripIds.unshift(lastTripId);
     }
 
     const summaries: UserTripSummary[] = [];
 
-    // Eseguiamo getDoc puntuale per ciascun ID:
+    // Eseguiamo getDoc puntuale per ciascun ID autorizzato:
     for (const tripId of tripIds) {
-      if (!tripId || tripId === '0000') continue; // 0000 trattato a parte se esplicitamente membro
+      if (!tripId) continue;
       try {
         const snap = await getDoc(doc(db, 'trips', tripId));
         if (snap.exists()) {
           const tdata = snap.data();
+          const isOwner = tdata?.ownerUid === uid || (tripId === '0000' && uid === 'nunzio');
           summaries.push({
             id: tripId,
-            title: tdata?.title || 'Viaggio',
+            title: tdata?.title || (tripId === '0000' ? 'Viaggio Originale' : 'Viaggio'),
+            destination: tdata?.destination || undefined,
             startDate: tdata?.startDate,
             endDate: tdata?.endDate,
             ownerUid: tdata?.ownerUid,
-            ownerName: tdata?.ownerName,
-            isOwner: tdata?.ownerUid === uid
+            ownerName: tdata?.ownerName || (tripId === '0000' ? 'nunzio' : undefined),
+            isOwner,
+            role: isOwner ? 'owner' : 'copilota',
+            isLastUsed: tripId === lastTripId
           });
         }
       } catch {
@@ -138,6 +146,30 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
     console.warn('[accountService] Impossibile recuperare viaggi associati da /users/{uid}:', err);
     return [];
   }
+}
+
+/**
+ * Cambia il viaggio attivo corrente senza contaminazione dati:
+ * chiude IndexedDB, imposta sessione dispositivo e notifica l'app.
+ */
+export async function switchActiveTrip(trip: UserTripSummary): Promise<void> {
+  const { saveTripConfig, normalizeTripConfig } = await import('../utils/tripConfig');
+  const { storageService } = await import('../storage/storageService');
+  const { persistDeviceSession } = await import('../utils/deviceSession');
+
+  const role = trip.isOwner ? 'guida' : 'copilota';
+  persistDeviceSession(trip.id, role);
+  storageService.setDeviceRole(role);
+
+  const config = normalizeTripConfig({
+    id: trip.id,
+    title: trip.title,
+    startDate: trip.startDate || '',
+    endDate: trip.endDate || '',
+    ownerUid: trip.ownerUid || '',
+    ownerName: trip.ownerName || ''
+  });
+  saveTripConfig(config);
 }
 
 /**

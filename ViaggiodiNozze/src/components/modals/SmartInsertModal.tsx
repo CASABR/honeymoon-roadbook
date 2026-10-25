@@ -7,6 +7,7 @@ import type { TransportAttachment } from '../../types';
 import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
 import { GoogleAuthProvider } from 'firebase/auth';
+import GmailConnectionRow from '../common/GmailConnectionRow';
 
 interface SmartInsertModalProps {
   isOpen: boolean;
@@ -832,6 +833,15 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   <strong className="text-slate-300">Privacy AI:</strong> I testi o documenti allegati vengono elaborati via Google Gemini per estrarre la prenotazione. Non caricare documenti d'identità o passaporti non necessari. Nessun dato personale viene salvato su server terzi né divulgato.
                 </span>
               </div>
+
+              {/* Collegamento Gmail Compatto (1 riga) */}
+              {inputMode === 'import' && (
+                <GmailConnectionRow
+                  compactDark
+                  onSearchEmails={handleGmailImport}
+                  className="shrink-0"
+                />
+              )}
 
               {/* Area Input Testo */}
               <div className="shrink-0 relative">

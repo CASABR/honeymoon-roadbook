@@ -35,15 +35,21 @@ import { getTripConfig } from '../utils/tripConfig';
 const TRIP_START_DATE = '2026-11-28';
 const TRIP_END_DATE = '2027-01-10';
 
-function getDefaultSelectedDate(startDate = TRIP_START_DATE, endDate = TRIP_END_DATE): string {
+function getDefaultSelectedDate(startDate?: string, endDate?: string, tripId?: string): string {
+  const isMasterTrip = !tripId || tripId === '0000';
   const todayStr = new Date().toISOString().split('T')[0];
-  if (todayStr >= startDate && todayStr <= endDate) return todayStr;
-  return startDate;
+  const start = startDate || (isMasterTrip ? TRIP_START_DATE : todayStr);
+  const end = endDate || (isMasterTrip ? TRIP_END_DATE : start);
+  if (todayStr >= start && todayStr <= end) return todayStr;
+  return start;
 }
 
 export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const { canEdit } = useDeviceRole();
   const tripConfig = getTripConfig();
+  const isMasterTrip = !tripConfig || tripConfig.id === '0000';
+  const tripId = tripConfig?.id || '0000';
+
   const [copilotPopoverActivity, setCopilotPopoverActivity] = useState<Attivita | null>(null);
   const [copilotPopoverText, setCopilotPopoverText] = useState('');
   const [isSavingCopilotNote, setIsSavingCopilotNote] = useState(false);
@@ -53,7 +59,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   const [tripDays, setTripDays] = useState<TripDayItem[]>(() => generateTripDays());
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return getDefaultSelectedDate(tripConfig?.startDate, tripConfig?.endDate);
+    return getDefaultSelectedDate(tripConfig?.startDate, tripConfig?.endDate, tripConfig?.id);
   });
   const [accommodations, setAccommodations] = useState<Alloggio[]>([]);
   const [daysData, setDaysData] = useState<Giorno[]>([]);
@@ -74,7 +80,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   // Calcolo dinamico Countdown rispetto alla partenza reale
   const calculateCountdown = () => {
-    const startDate = tripConfig?.startDate || tripDays[0]?.dateStr || '2026-11-28';
+    const todayStr = new Date().toISOString().split('T')[0];
+    const startDate = tripConfig?.startDate || tripDays[0]?.dateStr || (isMasterTrip ? '2026-11-28' : todayStr);
     const target = new Date(`${startDate}T00:00:00`);
     const now = new Date();
     const diffMs = target.getTime() - now.getTime();
@@ -87,7 +94,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     } else if (diffDays === 0) {
       return '🎉 Oggi si parte!';
     } else {
-      const endDateStr = tripConfig?.endDate || '2027-01-10';
+      const endDateStr = tripConfig?.endDate || (isMasterTrip ? '2027-01-10' : startDate);
       const end = new Date(`${endDateStr}T23:59:59`);
       if (now <= end) {
         return '✨ Viaggio in corso!';
@@ -101,7 +108,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [dynamicCountries, setDynamicCountries] = useState<string>(tripConfig?.title || 'Il mio Viaggio');
   const [heroBgImage, setHeroBgImage] = useState<string | null>(() => {
     if (typeof localStorage !== 'undefined') {
-      return localStorage.getItem('trip_header_image') || localStorage.getItem('hero_bg_image') || null;
+      if (tripConfig?.headerImageUrl) return tripConfig.headerImageUrl;
+      if (isMasterTrip) {
+        return localStorage.getItem('trip_header_image') || localStorage.getItem('hero_bg_image') || null;
+      }
+      return localStorage.getItem(`hero_bg_image_${tripId}`) || null;
     }
     return null;
   });
@@ -352,8 +363,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       if (heroBg) {
         setHeroBgImage(heroBg);
         if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('trip_header_image', heroBg);
-          localStorage.setItem('hero_bg_image', heroBg);
+          if (isMasterTrip) {
+            localStorage.setItem('trip_header_image', heroBg);
+            localStorage.setItem('hero_bg_image', heroBg);
+          } else {
+            localStorage.setItem(`hero_bg_image_${tripId}`, heroBg);
+          }
         }
       }
       if (heroMode) setHeroTitleMode(heroMode as 'custom' | 'auto');
@@ -361,70 +376,74 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       setAccommodations(accs || []);
       setDaysData(days || []);
 
-      // Calcolo dinamico paesi visitati aggregando dai dati del DB
-      const countrySet = new Set<string>();
-      const detectCountry = (text?: string) => {
-        if (!text) return;
-        const lower = text.toLowerCase();
-        if (lower.includes('zealand') || lower.includes('zelanda') || lower.includes('auckland') || lower.includes('rotorua') || lower.includes('queenstown') || lower.includes('christchurch') || lower.includes('wellington')) {
-          countrySet.add('Nuova Zelanda');
-        }
-        if (lower.includes('australia') || lower.includes('sydney') || lower.includes('melbourne') || lower.includes('cairns') || lower.includes('brisbane')) {
-          countrySet.add('Australia');
-        }
-        if (lower.includes('filippine') || lower.includes('philippines') || lower.includes('manila') || lower.includes('el nido') || lower.includes('coron') || lower.includes('boracay') || lower.includes('cebu')) {
-          countrySet.add('Filippine');
-        }
-        if (lower.includes('cook') || lower.includes('rarotonga') || lower.includes('aitutaki')) {
-          countrySet.add('Isole Cook');
-        }
-        if (lower.includes('italia') || lower.includes('italy') || lower.includes('milano') || lower.includes('roma')) {
-          countrySet.add('Italia');
-        }
-      };
+      // Calcolo dinamico paesi visitati: eseguito ESCLUSIVAMENTE per il viaggio storico Nuova Zelanda (0000)
+      if (isMasterTrip) {
+        const countrySet = new Set<string>();
+        const detectCountry = (text?: string) => {
+          if (!text) return;
+          const lower = text.toLowerCase();
+          if (lower.includes('zealand') || lower.includes('zelanda') || lower.includes('auckland') || lower.includes('rotorua') || lower.includes('queenstown') || lower.includes('christchurch') || lower.includes('wellington')) {
+            countrySet.add('Nuova Zelanda');
+          }
+          if (lower.includes('australia') || lower.includes('sydney') || lower.includes('melbourne') || lower.includes('cairns') || lower.includes('brisbane')) {
+            countrySet.add('Australia');
+          }
+          if (lower.includes('filippine') || lower.includes('philippines') || lower.includes('manila') || lower.includes('el nido') || lower.includes('coron') || lower.includes('boracay') || lower.includes('cebu')) {
+            countrySet.add('Filippine');
+          }
+          if (lower.includes('cook') || lower.includes('rarotonga') || lower.includes('aitutaki')) {
+            countrySet.add('Isole Cook');
+          }
+          if (lower.includes('italia') || lower.includes('italy') || lower.includes('milano') || lower.includes('roma')) {
+            countrySet.add('Italia');
+          }
+        };
 
-      transports.forEach(t => {
-        detectCountry(t.departureLocation);
-        detectCountry(t.arrivalLocation);
-      });
-      tappe.forEach(tp => {
-        detectCountry(tp.titolo);
-        detectCountry(tp.nota);
-      });
-      accs.forEach(a => {
-        detectCountry(a.location);
-        detectCountry(a.address);
-      });
-      days.forEach(d => {
-        detectCountry(d.location);
-        detectCountry(d.title);
-      });
-
-      if (countrySet.size > 0) {
-        // Ordina mettendo Nuova Zelanda, Australia, Filippine prima se presenti
-        const order = ['Nuova Zelanda', 'Australia', 'Filippine', 'Isole Cook', 'Italia'];
-        const sorted = Array.from(countrySet).sort((a, b) => {
-          const idxA = order.indexOf(a);
-          const idxB = order.indexOf(b);
-          if (idxA !== -1 && idxB !== -1) return idxA - idxB;
-          if (idxA !== -1) return -1;
-          if (idxB !== -1) return 1;
-          return a.localeCompare(b);
+        transports.forEach(t => {
+          detectCountry(t.departureLocation);
+          detectCountry(t.arrivalLocation);
         });
-        setDynamicCountries(sorted.join(', '));
+        tappe.forEach(tp => {
+          detectCountry(tp.titolo);
+          detectCountry(tp.nota);
+        });
+        accs.forEach(a => {
+          detectCountry(a.location);
+          detectCountry(a.address);
+        });
+        days.forEach(d => {
+          detectCountry(d.location);
+          detectCountry(d.title);
+        });
+
+        if (countrySet.size > 0) {
+          const order = ['Nuova Zelanda', 'Australia', 'Filippine', 'Isole Cook', 'Italia'];
+          const sorted = Array.from(countrySet).sort((a, b) => {
+            const idxA = order.indexOf(a);
+            const idxB = order.indexOf(b);
+            if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+            if (idxA !== -1) return -1;
+            if (idxB !== -1) return 1;
+            return a.localeCompare(b);
+          });
+          setDynamicCountries(sorted.join(', '));
+        } else {
+          setDynamicCountries(tripConfig?.title || 'Viaggio Originale');
+        }
       } else {
+        // Qualunque nuovo viaggio mostra ESCLUSIVAMENTE il proprio titolo configurato
         setDynamicCountries(tripConfig?.title || 'Il mio Viaggio');
       }
 
       const dynamicDays = range?.tripDays || [];
       setTripDays(dynamicDays);
 
-      // Implementazione deterministica fissa richiesta dall'utente
+      // Data selezionata: per 0000 usa periodo storico, per altri viaggi usa le date del viaggio o oggi
       const todayStr = new Date().toISOString().split('T')[0];
-      const configStartDate = tripConfig?.startDate || '2026-11-28';
-      const configEndDate = tripConfig?.endDate || '2027-01-10';
+      const configStartDate = tripConfig?.startDate || (isMasterTrip ? '2026-11-28' : todayStr);
+      const configEndDate = tripConfig?.endDate || (isMasterTrip ? '2027-01-10' : configStartDate);
       
-      const forcedDate = getDefaultSelectedDate(configStartDate, configEndDate);
+      const forcedDate = getDefaultSelectedDate(configStartDate, configEndDate, tripConfig?.id);
       
       setSelectedDate(prev => {
         if (prev && dynamicDays.some((d: { dateStr: string }) => d.dateStr === prev)) {
@@ -703,8 +722,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
           setHeroBgImage(dataUrl);
           if (typeof localStorage !== 'undefined') {
-            localStorage.setItem('trip_header_image', dataUrl);
-            localStorage.setItem('hero_bg_image', dataUrl);
+            if (isMasterTrip) {
+              localStorage.setItem('trip_header_image', dataUrl);
+              localStorage.setItem('hero_bg_image', dataUrl);
+            } else {
+              localStorage.setItem(`hero_bg_image_${tripId}`, dataUrl);
+            }
           }
           storageService.saveSetting('trip_header_image', dataUrl);
           storageService.saveSetting('hero_bg_image', dataUrl);
@@ -718,8 +741,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const handleRemoveHeroBg = () => {
     setHeroBgImage(null);
     if (typeof localStorage !== 'undefined') {
-      localStorage.removeItem('trip_header_image');
-      localStorage.removeItem('hero_bg_image');
+      if (isMasterTrip) {
+        localStorage.removeItem('trip_header_image');
+        localStorage.removeItem('hero_bg_image');
+      } else {
+        localStorage.removeItem(`hero_bg_image_${tripId}`);
+      }
     }
     storageService.saveSetting('trip_header_image', null);
     storageService.saveSetting('hero_bg_image', null);

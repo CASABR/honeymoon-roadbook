@@ -82,12 +82,63 @@
   - Console nascosta dalla navigazione standard dei tester.
   - Interfaccia semplificata in stato non autorizzato senza stack trace invasivi.
 
+### 8. Hotfix Beta — Inviti Copilota, Isolamento Dati e Regressioni UI (25 Ottobre 2026)
+- **HOTFIX-01 — Risoluzione Errore Invito Copilota**:
+  - Priorità: P0 (Critica / Bloccante)
+  - Stato: TESTATO (19/19 test superati)
+  - Modifiche: Scrittura immediata `/trips/{id}` e `/members/{ownerUid}` su Firestore, parsing sicuro link/codice invito copilota, auto-join con assegnazione ruolo 'copilota', aggiornamento minimo Security Rules per custom trips.
+- **HOTFIX-02 — Isolamento Totale Dati & Cache Multi-Viaggio**:
+  - Priorità: P0 (Critica / Bloccante)
+  - Stato: TESTATO (19/19 test superati)
+  - Modifiche: Chiusura e reset connessioni IndexedDB su cambio viaggio (`closeAndResetDatabases`), flush immediato della memoria in-memory di `StorageService`, isolamento seed Nuova Zelanda esclusivamente su viaggio `0000`, eliminazione fallbacks hardcoded in `tripDates.ts` e `OggiView.tsx`.
+- **HOTFIX-03 — Ripristino Card Google Maps Compatta 2 Righe**:
+  - Priorità: P1
+  - Stato: TESTATO / VERIFICATO IN BROWSER
+  - Modifiche: Card a due righe immediate (Auto / A piedi) con azioni Apri/Modifica/Aggiungi senza sottocard e senza ingombri sproporzionati su smartphone.
+- **HOTFIX-04 — Ripristino Sezione Altro Compatta**:
+  - Priorità: P1
+  - Stato: TESTATO / VERIFICATO IN BROWSER
+  - Modifiche: Rimozione riquadri decorativi e intestazioni duplicate, griglia compatta a 2 colonne, accesso pulito a Gestione Viaggio e Ruolo Dispositivo.
+
+### 9. Chiusura Beta 28 Ottobre — Modalità Jarvis (25 Ottobre 2026)
+- **P0-A — GPS LIVE del Proprietario (Risoluzione "Non attivata" & Action Card)**:
+  - Priorità: P0 (Critica / Bloccante)
+  - Stato: TESTATO / PRONTO PER VERIFICA SU DISPOSITIVO REALE
+  - Modifiche: Corretta omissione di `online` prop in `LiveEditorialExperience`, gestione 7 stati di inattività (`not_started`, `permission_denied`, `acquiring`, `other_device_active`, `offline`, `paused`, `technical_error`), Action Card GPS in evidenza, istruzioni contestuali iOS/Safari, separazione esplicita posizione programmata da GPS reale.
+- **P0-B — Invito Copilota Sicuro & Crittografico (Firebase Spark Compatible)**:
+  - Priorità: P0 (Critica / Bloccante)
+  - Stato: TESTATO (14/14 suite completa)
+  - Modifiche: Architettura con token 128-bit imprevedibile (`crypto.randomUUID()`), collezione `/trips/{tripId}/invites/{token}`, scadenza a 7 giorni, monouso, validazione atomica server-side in `firestore.rules` con `getAfter(...)` compatibile con piano gratuito Spark (0 Cloud Functions, $0 costi), divieto assoluto auto-join con solo `tripId`, protezione assoluta viaggio master `0000`.
+- **P1-A — Selezione dei Viaggi Dopo il Login & Isolamento Dati**:
+  - Priorità: P1
+  - Stato: TESTATO
+  - Modifiche: Query sicura da `/users/{uid}/associatedTripIds` ed esecuzione di singoli `getDoc`, classificazione Organizzatore vs Copilota, indicazione ultimo viaggio utilizzato, `TripSelectorModal.tsx`, `switchActiveTrip` con azzeramento IndexedDB e flush cache di memoria.
+- **P1-B — Gestione Gmail Ultra-Compatta a Riga Singola**:
+  - Priorità: P1
+  - Stato: TESTATO
+  - Modifiche: Nuovo componente `GmailConnectionRow.tsx` a riga singola orizzontale, cassetto informativo comprimibile per dettagli permessi `gmail.readonly`, preservazione identità Firebase senza alterazione UID.
+- **P1-C — Riorganizzazione Sezione Altro Basata sui Compiti (Task-Based)**:
+  - Priorità: P1
+  - Stato: TESTATO / VERIFICATO IN BROWSER
+  - Modifiche: Riorganizzazione completa in 4 macro-compiti (LIVE & Posizione, Documenti & Risorse, Sicurezza & Assistenza, Gestione Viaggio & Dispositivo), eliminazione riquadri ridondanti, responsive testato a 393px, 320px e desktop.
+
 ---
 
 ## TABELLA DI AVANZAMENTO GLOBALE
 
+| ID | Attività | Priorità | Stato | Data |
+| :--- | :--- | :--- | :--- | :--- |
+| JARVIS-P0A | GPS LIVE del Proprietario (Risoluzione bug 'Non attivata', 7 stati, GPS Action Card) | P0 | TESTATO | 25/10/2026 |
+| JARVIS-P0B | Invito Copilota Sicuro Crittografico (Token 128-bit, Spark-Compatible, Blocco auto-join) | P0 | TESTATO | 25/10/2026 |
+| JARVIS-P1A | Selezione Viaggi Dopo il Login (Organizzatore/Copilota, Switch con Reset Cache) | P1 | TESTATO | 25/10/2026 |
+| JARVIS-P1B | Gestione Gmail Compatta (Riga singola orizzontale, Drawer info comprimibile) | P1 | TESTATO | 25/10/2026 |
+| JARVIS-P1C | Sezione Altro Task-Based (4 Aree di Compito, Zero Ridondanze, Responsive) | P1 | TESTATO | 25/10/2026 |
+| HOTFIX-01 | Risoluzione Errore Invito Copilota & Auto-join Multi-Identità | P0 | TESTATO | 25/10/2026 |
+| HOTFIX-02 | Isolamento Totale Dati & Cache Multi-Viaggio (Zero Contaminazione) | P0 | TESTATO | 25/10/2026 |
+| HOTFIX-03 | Ripristino Card Google Maps Compatta (Auto/Piedi 2 righe) | P1 | TESTATO | 25/10/2026 |
+| HOTFIX-04 | Ripristino Sezione Altro Compatta & Pulita | P1 | TESTATO | 25/10/2026 |
 | P0-01 | Risoluzione Regressione LIVE Desktop & Rimozione Fallback '0000' | P0 | PUBBLICATO | 25/10/2026 |
-| P0-02 | Audit Sincronizzazione Galleria Fotografica Multi-Device | P0 | BLOCCATO | 25/10/2026 |
+| P0-02 | Audit Sincronizzazione Galleria Fotografica Multi-Device | P0 | BLOCCATO (Post-Beta) | 25/10/2026 |
 | P1-01 | Riorganizzazione Compatta LIVE Experience Mobile | P1 | PUBBLICATO | 25/10/2026 |
 | P1-02 | Restyling Compatto Card Trasporti (Check-in su riga singola) | P1 | PUBBLICATO | 25/10/2026 |
 | P1-03 | Audit Architettura Informativa Sezione Altro & Impostazioni | P1 | PUBBLICATO | 25/10/2026 |

@@ -15,8 +15,10 @@ export interface TripDayItem {
 export function generateTripDays(startDateStr?: string, endDateStr?: string): TripDayItem[] {
   const days: TripDayItem[] = [];
   const config = getTripConfig();
-  const defaultStart = config ? config.startDate : DEFAULT_TRIP_START_DATE;
-  const defaultEnd = config ? config.endDate : DEFAULT_TRIP_END_DATE;
+  const isMasterTrip = !config || config.id === '0000';
+  const todayIso = new Date().toISOString().split('T')[0];
+  const defaultStart = config?.startDate || (isMasterTrip ? DEFAULT_TRIP_START_DATE : todayIso);
+  const defaultEnd = config?.endDate || (isMasterTrip ? DEFAULT_TRIP_END_DATE : defaultStart);
   
   // Se specificata una data d'inizio valida, usala; altrimenti usa defaultStart
   let start: Date;
@@ -25,7 +27,8 @@ export function generateTripDays(startDateStr?: string, endDateStr?: string): Tr
     const [y, m, d] = startToUse.split('-').map(Number);
     start = new Date(y, m - 1, d);
   } else {
-    const [y, m, d] = DEFAULT_TRIP_START_DATE.split('-').map(Number);
+    const fallbackDate = isMasterTrip ? DEFAULT_TRIP_START_DATE : todayIso;
+    const [y, m, d] = fallbackDate.split('-').map(Number);
     start = new Date(y, m - 1, d);
   }
 
@@ -35,7 +38,8 @@ export function generateTripDays(startDateStr?: string, endDateStr?: string): Tr
     const [y, m, d] = endToUse.split('-').map(Number);
     end = new Date(y, m - 1, d);
   } else {
-    const [y, m, d] = DEFAULT_TRIP_END_DATE.split('-').map(Number);
+    const fallbackDate = isMasterTrip ? DEFAULT_TRIP_END_DATE : todayIso;
+    const [y, m, d] = fallbackDate.split('-').map(Number);
     end = new Date(y, m - 1, d);
   }
 
@@ -82,7 +86,9 @@ export function generateTripDays(startDateStr?: string, endDateStr?: string): Tr
  */
 export function calculateEarliestTripDate(dates: (string | undefined | null)[]): string {
   const config = getTripConfig();
-  const defaultStart = config?.startDate || DEFAULT_TRIP_START_DATE;
+  const isMasterTrip = !config || config.id === '0000';
+  const todayIso = new Date().toISOString().split('T')[0];
+  const defaultStart = config?.startDate || (isMasterTrip ? DEFAULT_TRIP_START_DATE : todayIso);
   const validDates = dates.filter((d): d is string => Boolean(d && /^\d{4}-\d{2}-\d{2}$/.test(d)));
 
   let minDate = defaultStart;
@@ -101,7 +107,9 @@ export function calculateEarliestTripDate(dates: (string | undefined | null)[]):
  */
 export function calculateLatestTripDate(dates: (string | undefined | null)[]): string {
   const config = getTripConfig();
-  const defaultEnd = config?.endDate || DEFAULT_TRIP_END_DATE;
+  const isMasterTrip = !config || config.id === '0000';
+  const todayIso = new Date().toISOString().split('T')[0];
+  const defaultEnd = config?.endDate || (isMasterTrip ? DEFAULT_TRIP_END_DATE : todayIso);
   const validDates = dates.filter((d): d is string => Boolean(d && /^\d{4}-\d{2}-\d{2}$/.test(d)));
 
   let maxDate = defaultEnd;
@@ -127,6 +135,9 @@ if (typeof window !== 'undefined') {
     cachedTripDateRange = null;
   });
   window.addEventListener('roadbook_cloud_synced', () => {
+    cachedTripDateRange = null;
+  });
+  window.addEventListener('trip_config_changed', () => {
     cachedTripDateRange = null;
   });
 }
@@ -184,8 +195,10 @@ export async function getTripDateRange(extraDates: (string | undefined | null)[]
     });
 
     const config = getTripConfig();
-    const officialStart = config?.startDate || DEFAULT_TRIP_START_DATE;
-    const officialEnd = config?.endDate || DEFAULT_TRIP_END_DATE;
+    const isMasterTrip = !config || config.id === '0000';
+    const todayIso = new Date().toISOString().split('T')[0];
+    const officialStart = config?.startDate || (isMasterTrip ? DEFAULT_TRIP_START_DATE : todayIso);
+    const officialEnd = config?.endDate || (isMasterTrip ? DEFAULT_TRIP_END_DATE : officialStart);
 
     // 1. Date antecedenti a officialStart: SOLO se effettivamente presenti tra i dati salvati
     const antecedentDates = Array.from(populatedDatesSet)

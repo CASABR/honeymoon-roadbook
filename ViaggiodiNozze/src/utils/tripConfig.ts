@@ -39,13 +39,6 @@ export function normalizeTripConfig(config: TripConfig): TripConfig {
     return normalized;
   }
 
-  if (normalized.startDate === '2026-01-01') {
-    normalized.startDate = MASTER_TRIP_START_DATE;
-  }
-  if (normalized.endDate === '2026-12-31') {
-    normalized.endDate = MASTER_TRIP_END_DATE;
-  }
-
   return normalized;
 }
 
@@ -72,19 +65,36 @@ export function getTripConfig(): TripConfig | null {
 
 export function saveTripConfig(config: TripConfig): void {
   if (typeof localStorage === 'undefined') return;
+  const oldStored = localStorage.getItem(CONFIG_KEY);
+  let oldId: string | null = null;
+  if (oldStored) {
+    try {
+      oldId = JSON.parse(oldStored)?.id;
+    } catch {}
+  }
+
   const normalized = normalizeTripConfig(config);
   localStorage.setItem(CONFIG_KEY, JSON.stringify(normalized));
   
+  if (oldId && oldId !== normalized.id) {
+    import('../storage/indexedDB').then(({ closeAndResetDatabases }) => {
+      closeAndResetDatabases().catch(() => {});
+    });
+  }
+
   import('../storage/indexedDB').then(({ idbPut }) => {
     idbPut('settings', { id: 'trip_config_backup', value: normalized }).catch(() => {});
   });
   
-  // Dispatch event so App.tsx can re-render if needed
+  // Dispatch event so App.tsx and views can re-render if needed
   window.dispatchEvent(new Event('trip_config_changed'));
 }
 
 export function clearTripConfig(): void {
   if (typeof localStorage === 'undefined') return;
   localStorage.removeItem(CONFIG_KEY);
+  import('../storage/indexedDB').then(({ closeAndResetDatabases }) => {
+    closeAndResetDatabases().catch(() => {});
+  });
   window.dispatchEvent(new Event('trip_config_changed'));
 }

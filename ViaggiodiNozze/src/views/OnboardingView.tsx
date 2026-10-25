@@ -12,6 +12,11 @@ import {
   verifyTripOwnership,
   type UserTripSummary
 } from '../services/accountService';
+import {
+  createTripInvite,
+  validateTripInvite,
+  redeemTripInvite
+} from '../services/tripInviteService';
 
 export type OnboardingMode =
   | 'select'
@@ -32,14 +37,24 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   const [ownerName, setOwnerName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [createdInviteUrl, setCreatedInviteUrl] = useState('');
 
   // Invite state in creation flow
   const [copiedInviteLink, setCopiedInviteLink] = useState(false);
   const [sharedInviteSuccess, setSharedInviteSuccess] = useState(false);
 
-  // Join state
+  // Join state & Cryptographic Invite State (P0-B)
   const [inviteCode, setInviteCode] = useState('');
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+  const [inviteDetails, setInviteDetails] = useState<{
+    tripId: string;
+    tripTitle?: string;
+    ownerName?: string;
+    expiresAt?: number;
+  } | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
   // Multi-device account login state
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -49,30 +64,162 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   const [authenticatedUser, setAuthenticatedUser] = useState<User | null>(null);
   const [manualTripId, setManualTripId] = useState('');
 
+  const executeJoin = async (codeToJoin: string, tokenOverride?: string | null) => {
+    const codeClean = codeToJoin.trim();
+    if (!codeClean) return;
+    const token = tokenOverride !== undefined ? tokenOverride : inviteToken;
+
+    setLoading(true);
+    setInviteError(null);
+
+    try {
+      if (!auth) {
+        throw new Error('Autenticazione Firebase non inizializzata.');
+      }
+
+      let user = auth.currentUser;
+      if (!user) {
+        const userCredential = await withTimeout(signInAnonymously(auth), 8000, undefined);
+        if (!userCredential) {
+          throw new Error('Autenticazione non disponibile.');
+        }
+        user = userCredential.user;
+      }
+
+      // Se c'è un token crittografico d'invito valido, riscatta l'invito atomico
+      if (token && codeClean !== '0000') {
+        const redeemRes = await redeemTripInvite(codeClean, token, user);
+        if (!redeemRes.success) {
+          throw new Error(redeemRes.error || 'Riscatto invito non riuscito.');
+        }
+
+        const { doc, getDoc } = await import('firebase/firestore');
+        const tripSnap = await getDoc(doc(db, 'trips', codeClean));
+        const directTripData = tripSnap.data() || {};
+
+        const config = normalizeTripConfig({
+          id: codeClean,
+          title: directTripData.title || 'Il nostro viaggio',
+          startDate: directTripData.startDate || '',
+          endDate: directTripData.endDate || '',
+          ownerUid: directTripData.ownerUid || '',
+          ownerName: directTripData.ownerName || ''
+        });
+
+        setTempConfig(config);
+        setTempRole('copilota');
+        handleFinishOnboarding(undefined, config, 'copilota');
+        return;
+      }
+
+      // Fallback speciale per viaggio originale legacy 0000
+      if (codeClean === '0000') {
+        const { doc, getDoc } = await import('firebase/firestore');
+        let directTripData: any = null;
+        if (db && user) {
+          try {
+            const tripSnap = await getDoc(doc(db, 'trips', '0000'));
+            if (tripSnap.exists()) directTripData = tripSnap.data();
+          } catch {}
+        }
+        const legacyCfg = normalizeTripConfig({
+          id: '0000',
+          title: directTripData?.title || 'Viaggio Originale',
+          startDate: directTripData?.startDate || '2026-11-28',
+          endDate: directTripData?.endDate || '2027-01-10',
+          ownerUid: directTripData?.ownerUid || user.uid,
+          ownerName: directTripData?.ownerName || 'nunzio'
+        });
+        setTempConfig(legacyCfg);
+        setTempRole('guida');
+        handleFinishOnboarding(undefined, legacyCfg, 'guida');
+        return;
+      }
+
+      // Nessun token fornito: verifica se l'utente autenticato è GIÀ membro autorizzato
+      const { doc, getDoc } = await import('firebase/firestore');
+      const tripSnap = await getDoc(doc(db, 'trips', codeClean));
+      if (!tripSnap.exists()) {
+        throw new Error(`Nessun viaggio trovato con codice "${codeClean}".`);
+      }
+      const directTripData = tripSnap.data();
+      const members = Array.isArray(directTripData.members) ? directTripData.members : [];
+      const isAlreadyMember = members.includes(user.uid) || directTripData.ownerUid === user.uid;
+
+      if (!isAlreadyMember) {
+        throw new Error(
+          'Per unirti a questo viaggio è necessario un link d’invito fornito dall’organizzatore. Chiedi all’organizzatore di condividere il link d’invito protetto.'
+        );
+      }
+
+      const config = normalizeTripConfig({
+        id: codeClean,
+        title: directTripData.title || 'Il nostro viaggio',
+        startDate: directTripData.startDate || '',
+        endDate: directTripData.endDate || '',
+        ownerUid: directTripData.ownerUid || '',
+        ownerName: directTripData.ownerName || ''
+      });
+
+      setTempConfig(config);
+      const assignedRole = (directTripData.ownerUid === user.uid) ? 'guida' : 'copilota';
+      setTempRole(assignedRole);
+      handleFinishOnboarding(undefined, config, assignedRole);
+    } catch (err: any) {
+      console.error('[Onboarding] Errore adesione viaggio:', err);
+      setInviteError(err?.message || 'Impossibile verificare il viaggio.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const joinCode = urlParams.get('join');
+    const tokenParam = urlParams.get('token');
     const roleParam = urlParams.get('role');
+
     if (roleParam === 'copilota' || roleParam === 'guida' || roleParam === 'viewer') {
       setTempRole(roleParam as any);
       storageService.setDeviceRole(roleParam as any);
     }
+
     if (joinCode) {
       setInviteCode(joinCode);
       setMode('join');
+
+      if (tokenParam) {
+        setInviteToken(tokenParam);
+        validateTripInvite(joinCode, tokenParam).then(res => {
+          if (res.valid) {
+            setInviteDetails({
+              tripId: joinCode,
+              tripTitle: res.tripTitle,
+              ownerName: res.ownerName,
+              expiresAt: res.expiresAt
+            });
+          } else {
+            setInviteError(res.error || 'Invito non valido o scaduto.');
+          }
+        }).catch(err => {
+          setInviteError(err?.message || 'Errore convalida invito.');
+        });
+      }
     }
-    if (joinCode || roleParam || urlParams.get('invite')) {
-      // Clean up the URL
+
+    if (joinCode || roleParam || tokenParam) {
+      // Pulisce l'URL mantenendo i dati nello stato del componente
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
 
   // Genera URL di invito per il viaggio appena creato
   const getCreatedTripInviteUrl = (): string => {
+    if (createdInviteUrl) return createdInviteUrl;
     if (typeof window === 'undefined') return '';
     const baseUrl = `${window.location.origin}${window.location.pathname}`;
     const targetId = tempConfig?.id || '';
-    return `${baseUrl}?role=copilota&invite=true&join=${encodeURIComponent(targetId)}`;
+    return `${baseUrl}?join=${encodeURIComponent(targetId)}`;
   };
 
   const handleCopyCreatedInviteUrl = async () => {
@@ -120,20 +267,74 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
     }
     setLoading(true);
     let ownerUid = 'local_fallback';
+    let userObj: any = null;
     if (auth) {
       try {
         const authPromise = signInAnonymously(auth);
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 3000));
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 4000));
         const userCredential = (await Promise.race([authPromise, timeoutPromise])) as any;
         ownerUid = userCredential.user.uid;
+        userObj = userCredential.user;
       } catch (err) {
         console.warn('Errore autenticazione (fallback locale):', err);
+        if (auth.currentUser) {
+          ownerUid = auth.currentUser.uid;
+          userObj = auth.currentUser;
+        }
       }
     }
 
     const id = 'trip_' + Math.random().toString(36).substring(2, 9);
-    setTempConfig({ id, title: cleanTitle, startDate, endDate, ownerUid, ownerName: cleanOwnerName });
+    const newConfig = { id, title: cleanTitle, startDate, endDate, ownerUid, ownerName: cleanOwnerName };
+    setTempConfig(newConfig);
     setTempRole('guida');
+
+    // Scrittura immediata su Firestore per rendere il viaggio e l'invito istantaneamente disponibili sul cloud
+    if (db && ownerUid && ownerUid !== 'local_fallback') {
+      try {
+        const { doc, writeBatch } = await import('firebase/firestore');
+        const batch = writeBatch(db);
+        const tripRef = doc(db, 'trips', id);
+        const memberRef = doc(db, 'trips', id, 'members', ownerUid);
+
+        batch.set(tripRef, {
+          id,
+          title: cleanTitle,
+          startDate,
+          endDate,
+          ownerUid,
+          ownerName: cleanOwnerName,
+          members: [ownerUid],
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        });
+
+        batch.set(memberRef, {
+          uid: ownerUid,
+          role: 'owner',
+          name: cleanOwnerName,
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        });
+
+        await batch.commit();
+
+        try {
+          const invRes = await createTripInvite(id);
+          setCreatedInviteUrl(invRes.inviteLink);
+        } catch (invErr) {
+          console.warn('[Onboarding] Creazione invito crittografico iniziale:', invErr);
+        }
+
+        const { recordUserAccess } = await import('../services/userAccessService');
+        if (userObj) {
+          recordUserAccess(userObj, id).catch(() => {});
+        }
+      } catch (cloudErr) {
+        console.warn('[Onboarding] Errore salvataggio immediato viaggio su Firestore:', cloudErr);
+      }
+    }
+
     // Requisito B: Passa subito al passaggio di scelta invito facoltativo
     setMode('invite_choice');
     setLoading(false);
@@ -142,69 +343,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inviteCode.trim()) return;
-    const codeClean = inviteCode.trim();
-
-    setLoading(true);
-
-    try {
-      if (!auth) {
-        throw new Error('Autenticazione Firebase non inizializzata.');
-      }
-
-      let user = auth.currentUser;
-      if (!user) {
-        const userCredential = await withTimeout(signInAnonymously(auth), 8000, undefined);
-        if (!userCredential) {
-          throw new Error('Autenticazione non disponibile.');
-        }
-        user = userCredential.user;
-      }
-
-      // Verifica in sola lettura se il codice inserito corrisponde ad un viaggio in cui questo UID è già autorizzato
-      const { doc, getDoc } = await import('firebase/firestore');
-      let isAuthorizedMember = false;
-      let directTripData: any = null;
-
-      try {
-        if (db && user) {
-          const tripSnap = await getDoc(doc(db, 'trips', codeClean));
-          if (tripSnap.exists()) {
-            directTripData = tripSnap.data();
-            const members = Array.isArray(directTripData?.members) ? directTripData.members : [];
-            if (members.includes(user.uid) || directTripData?.ownerUid === user.uid) {
-              isAuthorizedMember = true;
-            }
-          }
-        }
-      } catch (checkErr) {
-        console.warn('[Onboarding] Verifica diretta membro (normale se non ancora aggiunto su Spark):', checkErr);
-      }
-
-      if (isAuthorizedMember && directTripData) {
-        setTempConfig({
-          id: codeClean,
-          title: directTripData.title || (codeClean === '0000' ? 'Viaggio Originale' : 'Il nostro viaggio'),
-          startDate: directTripData.startDate || '',
-          endDate: directTripData.endDate || '',
-          ownerUid: directTripData.ownerUid || '',
-          ownerName: directTripData.ownerName || ''
-        });
-        setMode('role');
-        return;
-      }
-
-      // Se non è ancora membro autorizzato: messaggio comprensibile e orientato all'invito
-      const tripLabel = codeClean === '0000' ? 'il viaggio principale' : `il viaggio "${codeClean}"`;
-      alert(
-        `Non è stato possibile collegarsi a ${tripLabel}.\n\n` +
-        'Assicurati che il codice sia corretto oppure chiedi all’organizzatore di condividere il link d’invito diretto.'
-      );
-    } catch (err: any) {
-      console.error('[Onboarding] Errore adesione viaggio:', err);
-      alert('Impossibile verificare il viaggio. Controlla il codice e la connessione Internet.');
-    } finally {
-      setLoading(false);
-    }
+    await executeJoin(inviteCode.trim());
   };
 
   // Login con Account Esistente (Multi-Dispositivo)
@@ -247,16 +386,13 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           id: '0000',
           title: 'Viaggio Originale (0000)',
           isOwner: true,
+          role: 'owner',
           ownerUid: user.uid,
           ownerName: legacyCheck.ownerName || 'nunzio'
         });
       }
 
       setRecoveredTrips(trips);
-      if (trips.length === 1) {
-        // Se c'è un solo viaggio, proponilo direttamente
-        selectRecoveredTrip(trips[0]);
-      }
     } catch (err) {
       console.warn('[Onboarding] Errore recupero viaggi utente:', err);
     } finally {
@@ -294,7 +430,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         endDate: data?.endDate,
         ownerUid: data?.ownerUid,
         ownerName: data?.ownerName,
-        isOwner
+        isOwner,
+        role: isOwner ? 'owner' : 'copilota'
       });
     } catch (err: any) {
       console.warn('[Onboarding] Errore verifica viaggio manuale:', err);
@@ -716,30 +853,113 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             ⏳ Ricerca viaggi sincronizzati in corso…
           </div>
         ) : recoveredTrips.length > 0 ? (
-          <div className="space-y-3">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-300">
-              I tuoi viaggi sincronizzati:
-            </p>
-            {recoveredTrips.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => selectRecoveredTrip(t)}
-                className="w-full p-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-left transition-all active:scale-95 cursor-pointer space-y-1"
-              >
+          <div className="space-y-4">
+            {recoveredTrips.length === 1 ? (
+              /* Accesso rapido se c'è un solo viaggio */
+              <div className="p-4 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 text-left space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-white text-sm">{t.title}</span>
-                  <span
-                    className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
-                      t.isOwner ? 'bg-amber-400/20 text-amber-300' : 'bg-emerald-400/20 text-emerald-300'
-                    }`}
-                  >
-                    {t.isOwner ? '👑 Organizzatore' : '🤝 Copilota'}
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-300">
+                    Accesso Rapido al Tuo Viaggio
+                  </span>
+                  <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                    recoveredTrips[0].isOwner ? 'bg-amber-400/20 text-amber-300' : 'bg-emerald-400/20 text-emerald-300'
+                  }`}>
+                    {recoveredTrips[0].isOwner ? '👑 Organizzatore' : '🤝 Copilota'}
                   </span>
                 </div>
-                <div className="text-[11px] text-slate-400 font-mono">ID: {t.id}</div>
-              </button>
-            ))}
+                <div>
+                  <h3 className="text-base font-extrabold text-white">{recoveredTrips[0].title}</h3>
+                  {recoveredTrips[0].startDate && (
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      📅 {recoveredTrips[0].startDate} {recoveredTrips[0].endDate ? `– ${recoveredTrips[0].endDate}` : ''}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => selectRecoveredTrip(recoveredTrips[0])}
+                  className="w-full py-3 rounded-xl font-bold text-sm bg-[#FF6B5F] hover:bg-[#e85c50] text-white shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <span>Entra nel Viaggio</span>
+                  <span>→</span>
+                </button>
+              </div>
+            ) : (
+              /* Elenco raggruppato se sono presenti più viaggi */
+              <div className="space-y-3 text-left">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                  I tuoi viaggi sincronizzati ({recoveredTrips.length}):
+                </p>
+
+                {/* Organizzatore */}
+                {recoveredTrips.filter(t => t.isOwner).length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-[11px] font-extrabold text-amber-300 uppercase tracking-wider block">
+                      👑 Organizzatore
+                    </span>
+                    {recoveredTrips.filter(t => t.isOwner).map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => selectRecoveredTrip(t)}
+                        className="w-full p-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-left transition-all active:scale-95 cursor-pointer space-y-1 block"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-white text-sm truncate">{t.title}</span>
+                          {t.isLastUsed && (
+                            <span className="text-[9px] font-bold bg-indigo-500/30 text-indigo-200 px-1.5 py-0.5 rounded">
+                              Ultimo usato
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-300 flex items-center gap-2">
+                          {t.startDate && <span>📅 {t.startDate}</span>}
+                          <span className="font-mono text-slate-400">ID: {t.id}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Co-pilota */}
+                {recoveredTrips.filter(t => !t.isOwner).length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <span className="text-[11px] font-extrabold text-emerald-300 uppercase tracking-wider block">
+                      🤝 Co-pilota
+                    </span>
+                    {recoveredTrips.filter(t => !t.isOwner).map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => selectRecoveredTrip(t)}
+                        className="w-full p-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-left transition-all active:scale-95 cursor-pointer space-y-1 block"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-white text-sm truncate">{t.title}</span>
+                          {t.isLastUsed && (
+                            <span className="text-[9px] font-bold bg-indigo-500/30 text-indigo-200 px-1.5 py-0.5 rounded">
+                              Ultimo usato
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-slate-300 flex items-center gap-2">
+                          {t.startDate && <span>📅 {t.startDate}</span>}
+                          <span className="font-mono text-slate-400">ID: {t.id}</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setMode('create')}
+              className="w-full py-2.5 text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
+            >
+              + Crea un altro viaggio con questo account
+            </button>
           </div>
         ) : authenticatedUser ? (
           <div className="space-y-4">
@@ -896,38 +1116,80 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           </div>
         </div>
 
-        <form onSubmit={handleJoin} className="space-y-5">
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-300">
-              Codice o ID del Viaggio
-            </label>
-            <input
-              required
-              type="text"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              placeholder="Es. trip_ab12cd oppure 0000"
-              className="w-full px-4 py-3.5 rounded-xl font-bold text-center tracking-widest text-base outline-none transition-all border border-white/15 focus:border-[#FF6B5F] uppercase"
-              style={{ background: 'rgba(255,255,255,0.08)', color: 'white', colorScheme: 'dark' }}
-            />
-          </div>
+        {inviteDetails ? (
+          <div className="space-y-4">
+            <div className="p-4 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 text-left space-y-2">
+              <div className="flex items-center gap-2 text-indigo-300 font-extrabold text-xs uppercase tracking-wider">
+                <span>🤝</span>
+                <span>Invito Co-pilota Valido</span>
+              </div>
+              <h3 className="text-lg font-black text-white">{inviteDetails.tripTitle || 'Il nostro viaggio'}</h3>
+              {inviteDetails.ownerName && (
+                <p className="text-xs text-slate-300">
+                  Organizzato da: <strong className="text-white">{inviteDetails.ownerName}</strong>
+                </p>
+              )}
+              <p className="text-[11px] text-slate-400">
+                Sei stato invitato come Co-pilota. Potrai consultare il roadbook, aggiornare spese e note, e seguire la navigazione.
+              </p>
+            </div>
 
-          <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1.5 text-xs text-left">
-            <span className="font-bold text-white block">💡 Come funziona l'accesso:</span>
-            <p className="text-[11px] text-slate-300 leading-relaxed">
-              Se l'organizzatore ti ha inviato un link d'invito (via WhatsApp o email), aprilo direttamente per collegarti all'istante senza dover digitare codici.
-            </p>
-          </div>
+            {inviteError && (
+              <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs font-semibold leading-relaxed">
+                ⚠️ {inviteError}
+              </div>
+            )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-95 hover:opacity-90 cursor-pointer disabled:opacity-60 shadow-md"
-            style={{ background: '#FF6B5F', color: '#ffffff' }}
-          >
-            {loading ? '⏳ Connessione…' : 'Connettiti al Viaggio 🔗'}
-          </button>
-        </form>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => executeJoin(inviteDetails.tripId, inviteToken)}
+              className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-95 hover:opacity-90 cursor-pointer disabled:opacity-60 shadow-md"
+              style={{ background: '#FF6B5F', color: '#ffffff' }}
+            >
+              {loading ? '⏳ Accesso in corso…' : 'Accetta Invito e Inizia 🚀'}
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={handleJoin} className="space-y-5">
+            {inviteError && (
+              <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs font-semibold leading-relaxed">
+                ⚠️ {inviteError}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-300">
+                Codice o ID del Viaggio
+              </label>
+              <input
+                required
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="Es. trip_ab12cd oppure 0000"
+                className="w-full px-4 py-3.5 rounded-xl font-bold text-center tracking-widest text-base outline-none transition-all border border-white/15 focus:border-[#FF6B5F] uppercase"
+                style={{ background: 'rgba(255,255,255,0.08)', color: 'white', colorScheme: 'dark' }}
+              />
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1.5 text-xs text-left">
+              <span className="font-bold text-white block">💡 Come funziona l'accesso:</span>
+              <p className="text-[11px] text-slate-300 leading-relaxed">
+                Per motivi di sicurezza, per i nuovi viaggi è necessario aprire il <strong>link di invito completo</strong> condiviso dall'organizzatore. Il solo codice ID è utilizzabile solo se sei già stato autorizzato.
+              </p>
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-95 hover:opacity-90 cursor-pointer disabled:opacity-60 shadow-md"
+              style={{ background: '#FF6B5F', color: '#ffffff' }}
+            >
+              {loading ? '⏳ Connessione…' : 'Connettiti al Viaggio 🔗'}
+            </button>
+          </form>
+        )}
       </div>
     );
   }

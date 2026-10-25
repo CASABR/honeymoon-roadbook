@@ -40,6 +40,16 @@ export function getActiveTripId(): string {
   }
 }
 
+export async function closeAndResetDatabases(): Promise<void> {
+  for (const [, promise] of dbPromises.entries()) {
+    try {
+      const db = await promise;
+      db.close();
+    } catch {}
+  }
+  dbPromises.clear();
+}
+
 function getDatabaseName(tripId: string): string {
   // Il database storico non cambia nome: nessuna migrazione o scrittura sui dati di 0000.
   if (tripId === MASTER_TRIP_ID || tripId === 'default') return DB_NAME;

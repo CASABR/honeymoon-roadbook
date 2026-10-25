@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { doc, setDoc, collection, getDocs, getDoc, arrayRemove, arrayUnion, writeBatch } from 'firebase/firestore';
-import { signInAnonymously } from 'firebase/auth';
 import { db, auth } from '../../firebase';
 import { getTripConfig, saveTripConfig } from '../../utils/tripConfig';
 import { formatDateIT } from '../../utils/tripDates';
+import { createTripInvite } from '../../services/tripInviteService';
 
 export interface TripMemberInfo {
   uid: string;
@@ -16,6 +16,7 @@ export interface TripMemberInfo {
 
 export default function GestioneViaggioView({ onBack }: { onBack: () => void }) {
   const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -395,103 +396,34 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
   const generateInvite = async () => {
     try {
       setLoading(true);
-      let user = auth?.currentUser;
-      if (!user && auth) {
-        try {
-          const cred = await signInAnonymously(auth);
-          user = cred.user;
-        } catch (authErr) {
-          console.warn('Accesso anonimo non riuscito o offline:', authErr);
-        }
-      }
-
       const config = getTripConfig();
-      if (!config) {
+      if (!config || !config.id) {
         alert('Nessun viaggio attivo trovato. Seleziona o crea un viaggio.');
-        setLoading(false);
         return;
       }
 
-      if (!user) {
-        alert('Devi essere connesso per generare un link di invito per questo viaggio.');
-        setLoading(false);
+      if (config.id === '0000') {
+        alert('Il viaggio master 0000 non supporta inviti copilota aperti.');
         return;
       }
 
-      // Firebase Spark non puÃ² convalidare un token segreto lato client senza esporlo.
-      // Il link precompila solo l'ID viaggio: l'owner autorizza prima l'UID del copilota.
-      setInviteCode(config.id);
-      return;
-
-      /* Legacy token path intentionally disabled: secure autonomous invites require server-side verification unavailable on Spark.
-      // 2. Assicura che l'utente sia registrato come owner nel documento members di Firestore prima di scrivere in inviteTokens
-      try {
-        const memberRef = doc(db, 'trips', config!.id, 'members', user.uid);
-        await setDoc(memberRef, {
-          uid: user.uid,
-          role: 'owner',
-          updatedAt: Date.now()
-        }, { merge: true });
-      } catch (permPrepErr) {
-        console.warn('[GestioneViaggio] Impossibile aggiornare member record:', permPrepErr);
-      }
-
-      // 3. Fallback: genera codice casuale e salva SOLO l'hash SHA-256 in /trips/{tripId}/inviteTokens/{tokenId}
-      const charset = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-      let code = '';
-      const randomValues = new Uint8Array(8);
-      window.crypto.getRandomValues(randomValues);
-      for (let i = 0; i < 8; i++) {
-        code += charset[randomValues[i] % charset.length];
-      }
-
-      const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
-      const tokenId = 'tok_' + Math.random().toString(36).substring(2, 10);
-
-      // Calcola hash SHA-256 nel browser (nessun codice in chiaro salvato)
-      const encoder = new TextEncoder();
-      const hashBuffer = await window.crypto.subtle.digest('SHA-256', encoder.encode(code));
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      const tokenHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-      try {
-        const tokenRef = doc(db, 'trips', config!.id, 'inviteTokens', tokenId);
-        await setDoc(tokenRef, {
-          tokenId,
-          tokenHash,
-          tripId: config!.id,
-          createdBy: user.uid,
-          createdAt: Date.now(),
-          expiresAt,
-          maxUses: 1,
-          usedCount: 0,
-          active: true
-        });
-        setInviteCode(code);
-      } catch (firestoreWriteErr) {
-        console.warn('[GestioneViaggio] Firestore write su inviteTokens fallito, fallback su ID viaggio:', firestoreWriteErr);
-        // Fallback di continuità: usa l'ID viaggio per consentire la condivisione diretta come copilota
-        setInviteCode(config!.id);
-      }
-      */
+      const res = await createTripInvite(config.id);
+      setInviteCode(res.inviteToken);
+      setInviteUrl(res.inviteLink);
     } catch (err: any) {
-      console.error('Errore generazione invito:', err);
-      // Se c'è una configurazione valida, genera un link copilota sicuro con l'ID viaggio
-      const cfg = getTripConfig();
-      if (cfg?.id) {
-        setInviteCode(cfg.id);
-      } else {
-        alert('Impossibile generare l\'invito. Verifica la connessione e i permessi del viaggio.');
-      }
+      console.error('Errore generazione invito crittografico:', err);
+      alert(err?.message || 'Impossibile generare il link d\'invito. Verifica la connessione e i permessi.');
     } finally {
       setLoading(false);
     }
   };
 
   const getInviteUrl = () => {
+    if (inviteUrl) return inviteUrl;
     if (!inviteCode) return '';
+    const config = getTripConfig();
     const baseUrl = `${window.location.origin}${window.location.pathname}`;
-    return `${baseUrl}?role=copilota&invite=true&join=${encodeURIComponent(inviteCode)}`;
+    return `${baseUrl}?join=${encodeURIComponent(config?.id || '')}&token=${encodeURIComponent(inviteCode)}`;
   };
 
   const copyToClipboard = async () => {
@@ -676,99 +608,98 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
         </div>
         <h3 className="font-extrabold text-slate-900 text-lg mb-2">Invita un Co-pilota</h3>
         <p className="text-sm text-slate-600 mb-4 leading-relaxed">
-          Su Firebase Spark (piano gratuito), l'accesso al viaggio esistente è protetto: per autorizzare il Co-pilota{initialConfig?.id === '0000' ? ' (***REMOVED***)' : ''}, registra qui il suo UID dispositivo. Il Co-pilota potrà poi connettersi tramite il link d'invito o inserendo il codice <strong>{initialConfig?.id || '0000'}</strong>.
+          Genera un link di invito protetto da token crittografico monouso (valido 7 giorni). Il copilota potrà unirsi direttamente cliccando sul link dal suo smartphone, senza bisogno di inserire codici manuali.
         </p>
 
-        {/* Form Autorizzazione Co-pilota tramite UID (Firebase Spark gratuito) */}
-        <form onSubmit={handleAddMember} className="mb-6 p-4 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm">🔑</span>
-            <span className="text-xs font-bold text-indigo-950 uppercase tracking-wider">Autorizza Dispositivo Co-pilota (Spark)</span>
-          </div>
-          <p className="text-[11px] text-indigo-900/80 leading-relaxed">
-            {initialConfig?.id === '0000' ? 'Chiedi a ***REMOVED***' : 'Chiedi al Co-pilota'} di aprire l'app o Safari sul suo telefono e copiare <strong>«Il TUO UID Dispositivo»</strong> (visibile nella schermata di benvenuto o in Impostazioni). Incollalo qui sotto:
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <input
-              type="text"
-              required
-              value={newMemberUid}
-              onChange={(e) => setNewMemberUid(e.target.value)}
-              placeholder={initialConfig?.id === '0000' ? 'UID dispositivo di ***REMOVED*** *' : 'UID dispositivo Co-pilota *'}
-              className="w-full px-3 py-2 rounded-xl border border-indigo-200 bg-white text-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-            />
-            <input
-              type="text"
-              value={newMemberName}
-              onChange={(e) => setNewMemberName(e.target.value)}
-              placeholder={initialConfig?.id === '0000' ? 'Nome visualizzato (es. ***REMOVED***)' : 'Nome visualizzato (es. Co-pilota)'}
-              className="w-full px-3 py-2 rounded-xl border border-indigo-200 bg-white text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-            />
-          </div>
-          {addMemberError && (
-            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
-              ⚠️ {addMemberError}
-            </div>
-          )}
-          {addMemberSuccess && (
-            <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
-              ✓ {addMemberSuccess}
-            </div>
-          )}
-          <button
-            type="submit"
-            disabled={addingMember || !newMemberUid.trim()}
-            className="w-full py-2.5 rounded-xl font-bold bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
-          >
-            {addingMember ? 'Autorizzazione in corso...' : 'Autorizza Co-pilota nel Viaggio'}
-          </button>
-        </form>
-
-        {/* Link di accesso dopo autorizzazione UID */}
-        <div className="border-t border-slate-100 pt-5">
-          <span className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">ID viaggio e Link di accesso</span>
+        {/* Generazione Link Crittografico */}
+        <div className="mb-6">
           {!inviteCode ? (
             <button
               onClick={generateInvite}
               disabled={loading}
-              className="w-full py-3 rounded-xl font-bold bg-slate-900 text-white shadow-md active:scale-[0.98] transition-all disabled:opacity-50 cursor-pointer text-xs"
+              className="w-full py-3.5 rounded-2xl font-bold bg-indigo-600 hover:bg-indigo-700 active:scale-[0.98] text-white shadow-md shadow-indigo-600/20 transition-all disabled:opacity-50 cursor-pointer text-sm flex items-center justify-center gap-2"
             >
-              {loading ? 'Preparazione...' : 'Mostra ID viaggio e Link'}
+              <span>🔗</span>
+              <span>{loading ? 'Generazione link sicuro...' : 'Genera Link d\'Invito Sicuro'}</span>
             </button>
           ) : (
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 text-center">
-                <span className="block text-xs text-slate-500 font-medium mb-1">Codice Viaggio</span>
-                <span className="text-3xl font-black tracking-widest text-slate-900">{inviteCode}</span>
+            <div className="space-y-3 p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-indigo-950 uppercase tracking-wider">Link di invito attivo</span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">Scadenza: 7 giorni</span>
               </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider">
-                  Link con ID viaggio (accesso solo dopo autorizzazione UID)
-                </label>
-                <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl p-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={getInviteUrl()}
-                    onClick={(e) => e.currentTarget.select()}
-                    className="w-full bg-transparent px-1 text-xs text-slate-800 font-mono focus:outline-none select-all truncate"
-                  />
-                </div>
+              <div className="flex items-center gap-2 bg-white border border-indigo-200 rounded-xl p-2.5">
+                <input
+                  type="text"
+                  readOnly
+                  value={getInviteUrl()}
+                  onClick={(e) => e.currentTarget.select()}
+                  className="w-full bg-transparent px-1 text-xs text-slate-800 font-mono focus:outline-none select-all truncate"
+                />
               </div>
-              
               <button
                 type="button"
                 onClick={copyToClipboard}
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-bold bg-indigo-600 text-white shadow-md shadow-indigo-600/20 hover:bg-indigo-700 active:scale-[0.98] transition-all cursor-pointer"
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 active:scale-[0.98] transition-all cursor-pointer text-xs"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
-                {copied ? '✓ Link Copiato negli Appunti!' : 'Copia Link'}
+                {copied ? '✓ Link Copiato negli Appunti!' : 'Copia Link d\'Invito'}
               </button>
             </div>
           )}
+        </div>
+
+        {/* Autorizzazione Alternativa tramite UID */}
+        <div className="border-t border-slate-100 pt-5">
+          <details className="group">
+            <summary className="flex items-center justify-between cursor-pointer text-xs font-bold text-slate-500 uppercase tracking-wider select-none hover:text-slate-800 transition-colors">
+              <span>Metodo alternativo: Autorizza UID Dispositivo</span>
+              <span className="transition-transform group-open:rotate-180">▾</span>
+            </summary>
+            <div className="mt-3 pt-2">
+              <form onSubmit={handleAddMember} className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  Se preferisci autorizzare manualmente il dispositivo del copilota senza link con token, inserisci il suo UID dispositivo qui sotto:
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <input
+                    type="text"
+                    required
+                    value={newMemberUid}
+                    onChange={(e) => setNewMemberUid(e.target.value)}
+                    placeholder={initialConfig?.id === '0000' ? 'UID dispositivo di ***REMOVED*** *' : 'UID dispositivo Co-pilota *'}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                  />
+                  <input
+                    type="text"
+                    value={newMemberName}
+                    onChange={(e) => setNewMemberName(e.target.value)}
+                    placeholder={initialConfig?.id === '0000' ? 'Nome visualizzato (es. ***REMOVED***)' : 'Nome visualizzato (es. Co-pilota)'}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                  />
+                </div>
+                {addMemberError && (
+                  <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+                    ⚠️ {addMemberError}
+                  </div>
+                )}
+                {addMemberSuccess && (
+                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                    ✓ {addMemberSuccess}
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={addingMember || !newMemberUid.trim()}
+                  className="w-full py-2.5 rounded-xl font-bold bg-slate-800 hover:bg-slate-900 active:scale-[0.98] text-white text-xs shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                >
+                  {addingMember ? 'Autorizzazione in corso...' : 'Autorizza UID'}
+                </button>
+              </form>
+            </div>
+          </details>
         </div>
       </div>
 

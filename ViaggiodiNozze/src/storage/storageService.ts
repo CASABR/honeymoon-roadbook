@@ -126,6 +126,10 @@ class StorageService {
       window.addEventListener('roadbook_cloud_synced', () => {
         this.memoryCache.clear();
       });
+
+      window.addEventListener('trip_config_changed', () => {
+        this.memoryCache.clear();
+      });
     }
   }
 
@@ -2015,6 +2019,9 @@ class StorageService {
 
   // --- SEED ATTIVITÀ REALI ---
   async seedRealActivities(): Promise<void> {
+    if (this.getCurrentTripId() !== MASTER_TRIP_ID) {
+      return;
+    }
     try {
       console.log('[StorageService] Avvio seeding forzato attività reali...');
       const now = Date.now();

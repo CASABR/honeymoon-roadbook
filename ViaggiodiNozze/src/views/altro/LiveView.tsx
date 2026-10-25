@@ -7,6 +7,7 @@ import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
 import { generateTripDays, getTripDateRange, formatDateTimeIT, formatDateIT } from '../../utils/tripDates';
 import { lookupKnownCoordinate } from '../../services/routingService';
 import { useAuthIdentity } from '../../utils/useAuthIdentity';
+import { persistDeviceSession } from '../../utils/deviceSession';
 import {
   updateRealLocation,
   getSavedLiveLocation,
@@ -316,6 +317,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       if (!ownsLease) {
         if (cloudRole !== 'owner') throw new Error('L’Organizzatore deve prima assegnare la guida a questo dispositivo.');
         await liveGpsService.assignGuide(activeTripId, currentUid, deviceId);
+        persistDeviceSession(activeTripId, 'guida').catch(() => {});
       } else if (remoteGpsLease?.status !== 'active') {
         if (cloudRole !== 'owner') throw new Error('Solo l’Organizzatore può riprendere una condivisione sospesa.');
         await liveGpsService.resume(activeTripId, currentUid, deviceId);
@@ -1644,6 +1646,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       gpsError={gpsError}
       gpsFeedback={gpsFeedback}
       isDetectingGps={isDetectingGps}
+      isOnline={typeof navigator !== 'undefined' ? navigator.onLine : true}
       canControlGps={cloudRole === 'owner' || isGpsHolder}
       deviceLabel={liveDeviceLabel}
       onDetectGps={() => handleDetectGps(false)}

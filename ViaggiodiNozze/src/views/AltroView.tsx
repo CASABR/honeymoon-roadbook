@@ -9,12 +9,13 @@ import { EmergenzeView, TravelToolkitView } from './altro/EmergenzeToolkitView';
 
 import { lazyWithRetry } from '../utils/lazyWithRetry';
 import RouteErrorBoundary from '../components/common/RouteErrorBoundary';
+import TripSelectorModal from '../components/modals/TripSelectorModal';
 
 const LiveView = lazyWithRetry(() => import('./altro/LiveView'), 'LiveView');
 const SpeseBudgetView = lazyWithRetry(() => import('./altro/SpeseBudgetView'), 'SpeseBudgetView');
 import DeviceRoleModal from '../components/common/DeviceRoleModal';
 import { storageService } from '../storage/storageService';
-import { useAuthIdentity } from '../utils/useAuthIdentity';
+import { getTripConfig } from '../utils/tripConfig';
 import type { DeviceRole } from '../types';
 
 type SubViewType = 'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | 'gestione' | null;
@@ -27,7 +28,8 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   const [activeSubView, setActiveSubView] = useState<SubViewType>(initialSubView);
   const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
   const [showRoleModal, setShowRoleModal] = useState(false);
-  const { cloudRole, isCloudAuthorized } = useAuthIdentity();
+  const [showTripSelector, setShowTripSelector] = useState(false);
+  const currentTripConfig = getTripConfig();
 
   useEffect(() => {
     setActiveSubView(initialSubView);
@@ -112,234 +114,339 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   if (activeSubView === 'gestione') return <GestioneViaggioView onBack={handleBack} />;
 
   return (
-    <div className="space-y-4 pt-1 animate-fade-in pb-10">
-      {/* Intestazione Sezione */}
-      <div className="flex flex-col mb-4 px-1">
-        <div className="flex items-center gap-2">
+    <div className="space-y-4 pt-1 animate-fade-in pb-12 max-w-lg mx-auto">
+      {/* Intestazione Sezione & Chip Viaggio Corrente */}
+      <div className="flex items-center justify-between px-1 mb-1">
+        <div className="flex items-center gap-2.5">
           <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="h-6 w-auto object-contain" />
-          <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            Altro
-          </h1>
+          <div>
+            <h1 className="text-xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight">
+              Altro
+            </h1>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+              Risorse, sicurezza e gestione del roadbook
+            </p>
+          </div>
         </div>
-        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-1">
-          Tutto quello che ti serve per il viaggio, in un unico posto.
-        </p>
+
+        {/* Chip Viaggio Attivo con Cambio Rapido */}
+        <button
+          type="button"
+          onClick={() => setShowTripSelector(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all border border-slate-200/80 dark:border-slate-700 cursor-pointer active:scale-95 shadow-2xs"
+          title="Visualizza e cambia viaggio"
+        >
+          <span className="text-xs">🗺️</span>
+          <span className="max-w-[110px] truncate">{currentTripConfig?.title || 'Viaggio'}</span>
+          <span className="text-[10px] text-slate-400">▾</span>
+        </button>
       </div>
 
-      {/* 1. SEZIONE IN EVIDENZA */}
-      <div className="space-y-2.5">
-        <h2 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-1">
-          In Evidenza
-        </h2>
-        
-        {/* Card: Live Viaggio */}
-        <button 
-          type="button"
-          onClick={() => setActiveSubView('live')}
-          className="w-full bg-white dark:bg-slate-800 rounded-3xl p-4 sm:p-4.5 border border-slate-200/90 dark:border-slate-700/80 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.99]"
-        >
-          <div className="flex items-center gap-3.5">
-            <div className="relative w-12 h-12 rounded-2xl bg-[#FF6B5F] text-white flex items-center justify-center text-xl shadow-md shadow-[#FF6B5F]/20 shrink-0">
-              <span className="relative z-10">📡</span>
-              <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-white" />
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 1. LIVE E CONDIVISIONE VIAGGIO (In Evidenza) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <button 
+        type="button"
+        onClick={() => setActiveSubView('live')}
+        className="w-full bg-linear-to-r from-rose-500/10 via-amber-500/5 to-rose-500/10 dark:from-rose-500/20 dark:via-slate-800 dark:to-rose-500/20 bg-white dark:bg-slate-800 rounded-3xl p-4 border border-rose-200 dark:border-rose-900/50 shadow-sm hover:shadow-md transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.99] group"
+      >
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="relative w-12 h-12 rounded-2xl bg-[#FF6B5F] text-white flex items-center justify-center text-xl shadow-md shadow-[#FF6B5F]/20 shrink-0">
+            <span className="relative z-10">📡</span>
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-white" />
+            </span>
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="font-extrabold text-slate-900 dark:text-white text-base leading-tight">
+                Live & Posizione Viaggio
+              </h2>
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 text-[#FF6B5F] dark:text-[#ff9a90] shrink-0">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F] animate-pulse" />
+                LIVE
               </span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base leading-tight">Live Viaggio</h3>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 text-[#FF6B5F] dark:text-[#ff9a90]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F] animate-pulse" />
-                  LIVE
-                </span>
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 truncate">
+              Trasmetti GPS, vedi gli spostamenti e invia cartoline
+            </p>
+          </div>
+        </div>
+        <svg className="w-5 h-5 text-[#FF6B5F] shrink-0 ml-2 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 2. DOCUMENTI E RISORSE PRATICHE */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="space-y-1.5">
+        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2">
+          Documenti & Risorse
+        </h3>
+        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/90 dark:border-slate-700/80 shadow-xs divide-y divide-slate-100 dark:divide-slate-700/60 overflow-hidden">
+          
+          {/* Documenti del Viaggio */}
+          <button
+            type="button"
+            onClick={() => setActiveSubView('documenti')}
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg shrink-0 border border-indigo-100 dark:border-indigo-900/50">
+                📑
               </div>
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 line-clamp-1">
-                Condividi la posizione e segui il viaggio in tempo reale
-              </p>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  Documenti & Voucher
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Passaporti, visti, patenti, prenotazioni e file
+                </p>
+              </div>
             </div>
-          </div>
-          <svg className="w-5 h-5 text-[#FF6B5F] shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
+            <span className="text-slate-400 text-sm ml-2">›</span>
+          </button>
 
-        {/* Card: Documenti del Viaggio */}
-        <button 
-          type="button"
-          onClick={() => setActiveSubView('documenti')}
-          className="w-full bg-white dark:bg-slate-800 rounded-3xl p-4 sm:p-4.5 border border-slate-200/90 dark:border-slate-700/80 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all flex items-center justify-between cursor-pointer active:scale-[0.99]"
-        >
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-[#172033] dark:bg-slate-700 flex items-center justify-center text-white text-2xl shrink-0 shadow-md shadow-[#172033]/20">
-              📑
-            </div>
-            <div className="text-left">
-              <h3 className="font-extrabold text-slate-900 dark:text-white text-sm sm:text-base">Documenti del Viaggio</h3>
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">Passaporti, visti NZeTA, patenti, voucher e file salvati</p>
-            </div>
-          </div>
-          <svg className="w-5 h-5 text-[#FF6B5F] shrink-0 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
-      </div>
-
-      {/* 2. SEZIONE STRUMENTI DEL VIAGGIO */}
-      <div className="space-y-2.5 pt-2">
-        <h2 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-1">
-          Strumenti del Viaggio
-        </h2>
-        <div className="grid grid-cols-2 gap-3">
           {/* Spese & Budget */}
-          <button 
+          <button
             type="button"
             onClick={() => setActiveSubView('spese')}
-            className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-200/90 dark:border-slate-700/80 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all text-left flex flex-col gap-2 min-h-[105px] cursor-pointer active:scale-[0.98]"
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
-            <span className="text-2xl">💳</span>
-            <div>
-              <h3 className="font-extrabold text-slate-900 dark:text-white text-sm leading-tight">Spese & Budget</h3>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">Riepilogo costi saldati vs da saldare</p>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg shrink-0 border border-emerald-100 dark:border-emerald-900/50">
+                💳
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  Spese & Budget
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Contabilità costi, saldati vs da saldare e valute
+                </p>
+              </div>
             </div>
+            <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
-          {/* Note di viaggio */}
-          <button 
-            type="button"
-            onClick={() => setActiveSubView('note')}
-            className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-200/90 dark:border-slate-700/80 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all text-left flex flex-col gap-2 min-h-[105px] cursor-pointer active:scale-[0.98]"
-          >
-            <span className="text-2xl">📝</span>
-            <div>
-              <h3 className="font-extrabold text-slate-900 dark:text-white text-sm leading-tight">Note di viaggio</h3>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">Bacheca post-it, promemoria e idee</p>
-            </div>
-          </button>
-
-          {/* Lista bagagli */}
-          <button 
+          {/* Lista Bagagli */}
+          <button
             type="button"
             onClick={() => setActiveSubView('bagagli')}
-            className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-200/90 dark:border-slate-700/80 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all text-left flex flex-col gap-2 min-h-[105px] cursor-pointer active:scale-[0.98]"
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
-            <span className="text-2xl">🧳</span>
-            <div>
-              <h3 className="font-extrabold text-slate-900 dark:text-white text-sm leading-tight">Lista bagagli</h3>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">Checklist valigia e franchigie</p>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center text-lg shrink-0 border border-amber-100 dark:border-amber-900/50">
+                🧳
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  Lista Bagagli
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Checklist valigie per partecipante e franchigie
+                </p>
+              </div>
             </div>
+            <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
-          {/* Assicurazione */}
-          <button 
+          {/* Note di Viaggio */}
+          <button
             type="button"
-            onClick={() => setActiveSubView('assicurazione')}
-            className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-200/90 dark:border-slate-700/80 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all text-left flex flex-col gap-2 min-h-[105px] cursor-pointer active:scale-[0.98]"
+            onClick={() => setActiveSubView('note')}
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
-            <span className="text-2xl">🛡️</span>
-            <div>
-              <h3 className="font-extrabold text-slate-900 dark:text-white text-sm leading-tight">Assicurazione</h3>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">Polizza, H24, massimali, emergenze</p>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center text-lg shrink-0 border border-purple-100 dark:border-purple-900/50">
+                📝
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  Note di Viaggio
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Bacheca appunti, idee e promemoria
+                </p>
+              </div>
             </div>
-          </button>
-
-          {/* Emergenze */}
-          <button 
-            type="button"
-            onClick={() => setActiveSubView('emergenza')}
-            className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-200/90 dark:border-slate-700/80 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all text-left flex flex-col gap-2 min-h-[105px] cursor-pointer active:scale-[0.98]"
-          >
-            <span className="text-2xl">📞</span>
-            <div>
-              <h3 className="font-extrabold text-slate-900 dark:text-white text-sm leading-tight">Emergenze</h3>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">Contatti consolari e soccorso locale</p>
-            </div>
-          </button>
-
-          {/* Travel Toolkit & Guida */}
-          <button 
-            type="button"
-            onClick={() => setActiveSubView('info')}
-            className="bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-200/90 dark:border-slate-700/80 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all text-left flex flex-col gap-2 min-h-[105px] cursor-pointer active:scale-[0.98]"
-          >
-            <span className="text-2xl">ℹ️</span>
-            <div>
-              <h3 className="font-extrabold text-slate-900 dark:text-white text-sm leading-tight">Travel Toolkit</h3>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 line-clamp-2">Guida paese, fuso e checklist partenza</p>
-            </div>
+            <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
         </div>
       </div>
 
-      {/* 3. SEZIONE GESTIONE VIAGGIO & DISPOSITIVO */}
-      <div className="space-y-2.5 pt-2">
-        <h2 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-1">
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 3. SICUREZZA E ASSISTENZA */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="space-y-1.5">
+        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2">
+          Sicurezza & Assistenza
+        </h3>
+        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/90 dark:border-slate-700/80 shadow-xs divide-y divide-slate-100 dark:divide-slate-700/60 overflow-hidden">
+          
+          {/* Assicurazione Sanitaria */}
+          <button
+            type="button"
+            onClick={() => setActiveSubView('assicurazione')}
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center text-lg shrink-0 border border-rose-100 dark:border-rose-900/50">
+                🛡️
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                    Assicurazione Sanitaria
+                  </h4>
+                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300">
+                    H24
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Polizza, centrale operativa e massimali
+                </p>
+              </div>
+            </div>
+            <span className="text-slate-400 text-sm ml-2">›</span>
+          </button>
+
+          {/* Emergenze & Toolkit */}
+          <button
+            type="button"
+            onClick={() => setActiveSubView('emergenza')}
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center text-lg shrink-0 border border-sky-100 dark:border-sky-900/50">
+                📞
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  Emergenze & Soccorso
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Consolati, numeri utili e soccorso locale
+                </p>
+              </div>
+            </div>
+            <span className="text-slate-400 text-sm ml-2">›</span>
+          </button>
+
+          {/* Travel Toolkit */}
+          <button
+            type="button"
+            onClick={() => setActiveSubView('info')}
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 flex items-center justify-center text-lg shrink-0 border border-teal-100 dark:border-teal-900/50">
+                ℹ️
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  Travel Toolkit
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Guida paese, fuso orario, prese e checklist partenza
+                </p>
+              </div>
+            </div>
+            <span className="text-slate-400 text-sm ml-2">›</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 4. GESTIONE VIAGGIO & PARTECIPANTI */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="space-y-1.5">
+        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2">
           Gestione Viaggio & Dispositivo
-        </h2>
-        <div className="space-y-2.5">
-          {/* Card Gestione Viaggio */}
+        </h3>
+        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/90 dark:border-slate-700/80 shadow-xs divide-y divide-slate-100 dark:divide-slate-700/60 overflow-hidden">
+          
+          {/* Partecipanti e Invito Co-pilota */}
           <button
             type="button"
             onClick={() => setActiveSubView('gestione')}
-            className="w-full bg-[#172033]/5 dark:bg-slate-800 rounded-3xl p-4 border border-[#172033]/15 dark:border-slate-700/80 shadow-sm hover:shadow-md hover:border-[#172033]/30 dark:hover:border-slate-600 transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.99]"
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-[#172033] dark:bg-slate-700 text-white flex items-center justify-center text-xl shrink-0 border border-slate-700">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center text-lg shrink-0">
                 👥
               </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-[#172033] dark:text-white text-xs sm:text-sm leading-tight">Gestione Viaggio & Accessi</h3>
-                </div>
-                <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 line-clamp-1">
-                  Invita copilota, crea codici e gestisci i partecipanti
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  Partecipanti & Inviti
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Invita copilota con link sicuro e date del viaggio
                 </p>
               </div>
             </div>
-            <span className="text-slate-400 dark:text-slate-400 text-base font-bold ml-2">›</span>
+            <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
-          {/* Card Ruolo Dispositivo */}
+          {/* Ruolo Dispositivo */}
           <button
             type="button"
             onClick={() => setShowRoleModal(true)}
-            className="w-full bg-white dark:bg-slate-800 rounded-3xl p-4 border border-slate-200/90 dark:border-slate-700/80 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-600 transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.99]"
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xl shrink-0 border border-slate-200/60 dark:border-slate-600">
-                {deviceRole === 'guida'
-                  ? (isCloudAuthorized && cloudRole === 'owner' ? '🟢' : '🟡')
-                  : deviceRole === 'copilota'
-                  ? (isCloudAuthorized && (cloudRole === 'copilota' || cloudRole === 'owner') ? '🟢' : '🟡')
-                  : '💻'}
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-base shrink-0">
+                {deviceRole === 'guida' ? '🟢' : deviceRole === 'copilota' ? '🤝' : '💻'}
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-slate-900 dark:text-white text-xs sm:text-sm leading-tight">Ruolo Dispositivo</h3>
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                    Ruolo Dispositivo
+                  </h4>
+                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
                     deviceRole === 'guida'
-                      ? (isCloudAuthorized && cloudRole === 'owner' ? 'bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 text-[#FF6B5F] dark:text-[#ff9a90]' : 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200')
+                      ? 'bg-[#FFF0ED] text-[#FF6B5F] dark:bg-[#FF6B5F]/20 dark:text-[#ff9a90]'
                       : deviceRole === 'copilota'
-                      ? (isCloudAuthorized && (cloudRole === 'copilota' || cloudRole === 'owner') ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200' : 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200')
-                      : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200'
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                      : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-300'
                   }`}>
-                    {deviceRole === 'guida'
-                      ? (isCloudAuthorized && cloudRole === 'owner' ? 'Telefono Guida' : 'Guida (Non verificato)')
-                      : deviceRole === 'copilota'
-                      ? (isCloudAuthorized && (cloudRole === 'copilota' || cloudRole === 'owner') ? 'Co-pilota (Verificato)' : 'Co-pilota (Non verificato)')
-                      : 'Viewer / PC'}
+                    {deviceRole === 'guida' ? 'Telefono Guida' : deviceRole === 'copilota' ? 'Co-pilota' : 'Viewer / PC'}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
                   {deviceRole === 'guida'
-                    ? 'Invia GPS reale e foto a chi segue da casa'
+                    ? 'Trasmissione GPS e cartoline attiva'
                     : deviceRole === 'copilota'
-                    ? 'Modifica note e spese (GPS ancorato alla Guida)'
-                    : 'Nessun accesso GPS (visualizzazione passiva)'}
+                    ? 'Modifica note e spese (GPS ancorato)'
+                    : 'Visualizzazione da computer o ospite'}
                 </p>
               </div>
             </div>
-            <span className="text-slate-400 dark:text-slate-400 text-base font-bold ml-2">›</span>
+            <span className="text-slate-400 text-sm ml-2">›</span>
+          </button>
+
+          {/* I Tuoi Viaggi (Selettore Viaggi) */}
+          <button
+            type="button"
+            onClick={() => setShowTripSelector(true)}
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center text-lg shrink-0 border border-blue-100 dark:border-blue-900/50">
+                🗺️
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  I Tuoi Viaggi
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Cambia viaggio attivo o consulta i viaggi associati
+                </p>
+              </div>
+            </div>
+            <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
         </div>
       </div>
@@ -350,6 +457,12 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
         onClose={() => setShowRoleModal(false)}
         currentRole={deviceRole}
         onSelectRole={handleSelectRole}
+      />
+
+      {/* Modal Selezione Viaggi (P1-A) */}
+      <TripSelectorModal
+        isOpen={showTripSelector}
+        onClose={() => setShowTripSelector(false)}
       />
     </div>
   );

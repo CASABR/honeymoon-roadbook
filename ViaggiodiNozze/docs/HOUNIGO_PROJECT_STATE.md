@@ -77,11 +77,76 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
 - Rilevamento automatico delle tappe presenti da URL Google Maps `/maps/dir/`.
 - Modale completa di aggiunta, modifica, sostituzione e rimozione.
 
-### Pacchetto 2 (Confermato e Mantenuto)
-- **Galleria Fotografica LIVE**: slider orizzontale, compressione canvas, lightbox a schermo intero.
-- **Diario e Cartolina di Viaggio**: paginazione a 10 messaggi, eliminazione riservata agli sposi.
-- **Stati GPS e Timestamp**: certificazione esatta dell'orario e dei 4 stati satellitari.
-- **Card Trasporti**: chiusura check-in e orari di anticipo per voli, traghetti e treni.
+### Hotfix Beta — Inviti Copilota, Isolamento Dati e Regressioni UI (25 Ottobre 2026)
+- **Risoluzione P0 — Errore Invito Copilota**:
+  - **Causa individuata**: 
+    1. Creazione viaggio: `handleCreate` salvava la configurazione solo in locale, omettendo la scrittura del documento `/trips/{id}` e `/trips/{id}/members/{ownerUid}` su Firestore.
+    2. Security Rules: `allow get: if isSignedIn() && (isTripMember(tripId) || isGlobalAdmin())` impediva al copilota invitato di verificare l'esistenza del viaggio tramite ID, restituendo `PERMISSION_DENIED` / errore generico di connessione.
+    3. Flusso di Join: `executeJoin` richiedeva che l'UID fosse già presente in `members`, impedendo il primo accesso tramite invito valido.
+  - **Risoluzione applicata**:
+    1. `handleCreate` ora crea immediatamente il documento `/trips/{id}` e il member doc owner con `writeBatch` e `recordUserAccess`.
+    2. `executeJoin` supporta l'auto-join guidato con link d'invito (`invite=true` o `role=copilota`): crea il documento `/members/{copilotUid}` e aggiunge il proprio UID alla whitelist `members` del viaggio.
+    3. `firestore.rules`: preparata modifica minima e rigorosa che permette `get` su `/trips/{tripId}` agli utenti autenticati (per consentire la risoluzione del codice/link), e permette l'auto-join per i viaggi custom (`tripId != '0000'`). Nessuna subcollezione privata (tappe, spese, note, documenti) viene esposta: l'accesso ai contenuti rimane protetto da `isTripMember(tripId)`. Il viaggio `0000` rimane intatto e blindato.
+- **Risoluzione P0 — Isolamento Totale Dati e Neutralizzazione Contaminazione Viaggi**:
+  - **Causa individuata**:
+    1. Connessioni IndexedDB aperte mantenute in cache in `dbPromises` senza chiusura né riconnessione sul cambio viaggio.
+    2. Cache in memoria `memoryCache` di `StorageService` non invalidata al cambio di viaggio attivo.
+    3. Seed legacy Nuova Zelanda `seedRealActivities()` invocato anche per nuovi viaggi.
+    4. Fallback date hardcoded (`2026-11-28`, `2027-01-10`) e `detectCountry()` in `OggiView.tsx` che forzava destinazioni della Nuova Zelanda su viaggi generici.
+    5. Chiave localStorage `hero_bg_image` globale anziché vincolata al `tripId`.
+  - **Risoluzione applicata**:
+    1. Aggiunto `closeAndResetDatabases()` su IndexedDB invocato su ogni cambio di viaggio (`saveTripConfig`, `clearTripConfig`).
+    2. Ascolto dell'evento `trip_config_changed` in `StorageService` per ripulire istantaneamente la memoria in-memory (`this.memoryCache.clear()`).
+    3. Blocco del seed `seedRealActivities()` per tutti i viaggi eccetto il viaggio master `0000` (`if (tripId !== MASTER_TRIP_ID) return;`).
+    4. Data fallback isolata: per viaggi personalizzati la data ricade sulle date configurate dal creatore o sulla data odierna (`todayIso`), mai sui default neozelandesi.
+    5. `detectCountry()` limitato rigorosamente al viaggio `0000`: per tutti gli altri viaggi il titolo dell'header corrisponde al titolo effettivo del viaggio o a fallback neutro.
+    6. Immagine hero isolata per trip: `hero_bg_image_${tripId}`.
+- **Risoluzione P1 — Ripristino Card Google Maps Compatta**:
+  - Ripristinata la struttura a due righe: riga 1 🚗 Auto (Apri / Modifica / Aggiungi), riga 2 🚶 A piedi (Apri / Modifica / Aggiungi).
+  - Eliminata la frammentazione in sottocard affiancate che occupava troppo spazio verticale su smartphone.
+  - Conservata la modale per la gestione degli itinerari, retrocompatibilità con i vecchi link e avviso contestuale se il limite delle 10 tappe Google Maps viene superato.
+- **Risoluzione P1 — Ripristino Sezione Altro**:
+  - Eliminata la proliferazione di riquadri e intestazioni decorative maiuscole.
+  - Ripristinata la griglia compatta a due colonne degli strumenti di viaggio con accesso rapido e ordinato a Gestione Viaggio e Ruolo Dispositivo.
+
+### Chiusura Beta 28 Ottobre — Modalità Jarvis (25 Ottobre 2026)
+- **P0-A — Risoluzione Causa Radice GPS "Non attivata" e Controlli Guida**:
+  - **Causa individuata**: In `LiveEditorialExperienceProps` la prop `online` era omessa; di conseguenza `props.online` risultava costantemente `undefined`, disabilitando perennemente tutti i pulsanti operativi della guida (`disabled={props.isDetectingGps || !props.online}`).
+  - **Risoluzione applicata**:
+    1. Passaggio esplicito di `isOnline` derivato da `navigator.onLine` con fallback reattivo.
+    2. Gestione granulare dei 7 stati di inattività: `not_started` ("Non ancora avviata"), `permission_denied` ("Permesso posizione negato"), `acquiring` ("Posizione in acquisizione"), `other_device_active` ("Altro dispositivo Guida attivo"), `offline` ("Connessione assente"), `paused` ("Trasmissione in pausa"), `technical_error` ("Errore tecnico").
+    3. Action Card GPS in evidenza direttamente sotto la mappa con pulsanti espliciti: "Attiva GPS su questo smartphone", "Riprova GPS", "Prendi Guida qui", "Pausa", "Termina", "Riprendi".
+    4. Istruzioni contestuali integrate per iOS/Safari (`Su iPhone/Safari: apri Impostazioni > Privacy e sicurezza > Localizzazione`).
+    5. Separazione categorica tra GPS reale e posizione programmata: l'overlay stimato è etichettato esplicitamente come `📍 Posizione stimata da programma (Nessun GPS in trasmissione)`.
+    6. Nessun avvio automatico del GPS senza consenso esplicito.
+- **P0-B — Invito Copilota Crittografico e Sicuro (Compatibile Firebase Spark)**:
+  - **Criticità superata**: Rigettata l'ipotesi di auto-join insicura basata sulla sola conoscenza del `tripId`.
+  - **Architettura implementata**:
+    1. Generazione di token impredittibili ad alta entropia (128 bit) tramite Web Crypto API (`crypto.randomUUID()` / `crypto.getRandomValues()`).
+    2. Creazione dell'invito in sottocollezione `/trips/{tripId}/invites/{inviteToken}` con scadenza a 7 giorni, monouso (`status: 'pending' -> 'used'`) e revocabile dal proprietario.
+    3. **Sicurezza Server-Side su Piano Gratuito Spark (0 Cloud Functions, $0 costi)**: Il riscatto avviene tramite `writeBatch` atomico del client (`redeemTripInvite` in `tripInviteService.ts`) e viene validato atomicamente in `firestore.rules` tramite `getAfter(/databases/$(database)/documents/trips/$(tripId)/invites/$(token))`. La creazione del membro copilota è autorizzata SOLO se il batch contemporaneamente aggiorna lo stato del token su `'used'` associandolo a `request.auth.uid`.
+    4. **Protezione Speciale Viaggio `0000`**: La regola `tripId != '0000'` impedisce tassativamente la creazione o riscatto di token sul viaggio di nozze master.
+    5. Nessuna lettura dei dati privati (tappe, spese, note, documenti) prima dell'avvenuto riscatto dell'invito.
+- **P1-A — Selezione dei Viaggi Dopo il Login & Isolamento Dati**:
+  - Modalità multi-viaggio sicura: lettura da `/users/{uid}/associatedTripIds` ed esecuzione di singoli `getDoc` dedicati (nessuna scansione globale non autorizzata su `/trips`).
+  - Classificazione chiara tra "👑 Organizzatore" e "🤝 Co-pilota" con destinazione, date e indicatore dell'ultimo viaggio utilizzato.
+  - Cambio viaggio istantaneo tramite `switchActiveTrip`: chiusura e reset connessioni IndexedDB (`closeAndResetDatabases`), invalidazione cache in memoria `StorageService`, persistenza del ruolo e notifica `trip_config_changed` (zero contaminazione dati).
+  - Componente modale dedicato `TripSelectorModal.tsx` e integrazione in `AltroView` e `OnboardingView`.
+- **P1-B — Gestione Gmail Ultra-Compatta a Riga Singola**:
+  - Nuovo componente `GmailConnectionRow.tsx`: una singola riga orizzontale pulita (pallino di stato verde/grigio, email account collegato e azione primaria "Collega" / "Cerca" / "Importa").
+  - Dettagli esplicativi sui permessi `gmail.readonly` e opzioni di cambio/disconnessione account racchiusi in un cassetto comprimibile a comparsa.
+  - Preservati permessi minimi di sola lettura e identità Firebase senza alterare l'UID.
+  - Integrato in `SmartInsertModal.tsx` e `DocumentiView.tsx`.
+- **P1-C — Riorganizzazione Sezione Altro Basata sui Compiti (Task-Based)**:
+  - Eliminazione di card arrotondate generiche e riquadri ridondanti.
+  - Nuova gerarchia editoriale strutturata per macro-obiettivi del viaggiatore:
+    1. *LIVE & Posizione Viaggio* (stato attivo, chip del viaggio corrente con scorciatoia "Cambia Viaggio").
+    2. *Documenti & Risorse* (Documenti & Voucher con Gmail compatto, Spese & Budget, Lista Bagagli, Note).
+    3. *Sicurezza & Assistenza* (Assicurazione H24, Emergenze, Travel Toolkit).
+    4. *Gestione Viaggio & Dispositivo* (Partecipanti & Inviti con link crittografico, Ruolo Dispositivo, I Tuoi Viaggi).
+  - Verifica di layout privo di overflow a 393px, 320px e desktop.
+- **P2 — Preservazione Funzionalità Consolidate**:
+  - Preservati al 100%: ownership viaggio `0000`, login permanente, isolamento cache multi-viaggio, DayMapsCard a 2 righe (auto/piedi), check-in compatto e navigazione desktop.
 
 ---
 
@@ -92,17 +157,16 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
    - Di conseguenza, gli ospiti remoti indipendenti non vedono le foto personalizzate degli sposi, ma solo i post del diario.
    - Nella UI della Beta RC sono stati inseriti disclaimer trasparenti (`🔒 Salvataggio locale (Beta)`) e il pulsante è impostato su *"Salva su dispositivo"*.
    - La funzionalità galleria remota resta NON completata e BLOCCATA fino all'abilitazione di Firebase Storage o CDN persistente post-beta.
-2. **Verifica su Due Dispositivi Fisici Reali**:
-   - I test multi-client sono stati verificati in emulatore e con suite headless CDP a 1440px, 393px e 320px in Light e Dark mode; resta da effettuare il collaudo manuale simultaneo su due telefoni reali collegati alla stessa sessione LIVE.
+2. **Autorizzazione Deploy Security Rules e Test su iPhone Fisico**:
+   - Le Security Rules crittografiche (`firestore.rules`) sono implementate e validate localmente; attendono deploy esplicito da parte dell'utente.
+   - La verifica della Geolocation API in background su PWA iOS/Safari deve essere convalidata sul dispositivo fisico dell'owner.
 
 ---
 
 ## 5. STATO DELLA PUBBLICAZIONE ONLINE (BETA RELEASE CANDIDATE)
-- **Data e Ora Pubblicazione**: 25 Ottobre 2026, 11:20 CET
-- **Branch Sorgente**: `work/product-completion` (Commit `3e89e12`)
-- **Branch Target Deployment**: `gh-pages`
-- **URL Pubblico Verificato**: `https://casabr.github.io/honeymoon-roadbook/` (HTTP 200)
-- **Bundle JS Attivo in Produzione**: `/honeymoon-roadbook/assets/index-CZ5ho9Kr.js` (1.064.452 bytes, HTTP 200)
-- **Bundle CSS Attivo in Produzione**: `/honeymoon-roadbook/assets/index-VpG0CVKU.css` (200.150 bytes, HTTP 200)
-- **Verifica Browser Reale**: Pagina caricata con successo, 0 errori JavaScript bloccanti in console, onboarding a 3 intenzioni perfettamente visibile e responsivo.
-- **Backend & Database**: Firebase Authentication, Firestore Rules, Cloud Functions e viaggio `0000` rimasti intatti al 100%.
+- **Data e Ora Consolidamento Beta**: 25 Ottobre 2026, 18:30 CET
+- **Branch di Lavoro**: `work/product-completion`
+- **Stato Codice Locale**: Pronto per Release Candidate. Validazione completa:
+  - Suite automatica `scripts/test_jarvis_beta_closure.cjs`: 14/14 test superati (100%).
+  - Build di produzione TypeScript/Vite: completata con esito 0 (nessun errore o warning bloccante).
+  - Verifica visiva mobile (393px / 320px) e desktop (1280px) effettuata con browser subagent.

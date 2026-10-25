@@ -24,6 +24,7 @@ export interface LiveEditorialExperienceProps {
   gpsError: string | null;
   gpsFeedback?: string | null;
   isDetectingGps: boolean;
+  isOnline?: boolean;
   canControlGps: boolean;
   deviceLabel: string;
   onDetectGps?: () => void;
@@ -204,6 +205,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   }, [activeLightboxIndex, displayPhotos.length]);
 
   // ─── STATI GPS E TIMESTAMP ──────────────────────────────────────────
+  const isOnline = props.isOnline !== undefined ? props.isOnline : (typeof navigator !== 'undefined' ? navigator.onLine : true);
   const isLeaseActive = props.remoteGpsLease?.status === 'active';
   const isLeasePaused = props.remoteGpsLease?.status === 'paused';
   const isLeaseStopped = !props.remoteGpsLease || props.remoteGpsLease?.status === 'stopped';
@@ -224,44 +226,97 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     (hasFreshRemoteLocation || (props.isGpsHolder && props.realLocation))
   );
 
-  const hasStaleGps = Boolean(
-    lastDetectedDate &&
-    !isFreshGps &&
-    (props.remoteGpsLocation || props.realLocation)
+  // Identificazione analitica della causa reale di inattività (Requisito P0-A)
+  const isPermissionDenied = Boolean(
+    props.gpsError && (
+      props.gpsError.toLowerCase().includes('permesso') ||
+      props.gpsError.toLowerCase().includes('denied') ||
+      props.gpsError.toLowerCase().includes('negato') ||
+      props.gpsError.toLowerCase().includes('autorizzat')
+    )
   );
+
+  const inactiveReason: 'offline' | 'permission_denied' | 'acquiring' | 'other_device_active' | 'paused' | 'technical_error' | 'not_started' | null =
+    isFreshGps ? null : (
+      !isOnline
+        ? 'offline'
+        : props.isDetectingGps
+        ? 'acquiring'
+        : isPermissionDenied
+        ? 'permission_denied'
+        : isLeasePaused
+        ? 'paused'
+        : (isLeaseActive && !props.isGpsHolder)
+        ? 'other_device_active'
+        : props.gpsError
+        ? 'technical_error'
+        : 'not_started'
+    );
 
   // Classificazione esplicita dello stato GPS (FASE 3)
   const gpsVisualState = isFreshGps
     ? {
-        label: 'Posizione GPS aggiornata',
-        sublabel: props.realLocation ? 'Rilevata localmente' : 'LIVE in trasmissione satellitare',
+        label: 'Posizione GPS attiva',
+        sublabel: props.isGpsHolder ? 'In trasmissione da questo smartphone guida' : 'LIVE in trasmissione satellitare',
         tone: 'text-emerald-700 dark:text-emerald-300',
         dot: 'bg-emerald-500 animate-pulse',
         badgeBg: 'bg-emerald-500/10 border-emerald-500/20'
       }
-    : hasStaleGps || isLeasePaused
-      ? {
-          label: 'Ultima posizione nota (non più aggiornata)',
-          sublabel: isLeasePaused ? 'Trasmissione in pausa temporanea' : 'Segnale guida momentaneamente fermo',
-          tone: 'text-amber-700 dark:text-amber-300',
-          dot: 'bg-amber-500',
-          badgeBg: 'bg-amber-500/10 border-amber-500/20'
-        }
-      : props.gpsError
-        ? {
-            label: 'Non disponibile',
-            sublabel: props.gpsError,
-            tone: 'text-rose-700 dark:text-rose-300',
-            dot: 'bg-rose-500',
-            badgeBg: 'bg-rose-500/10 border-rose-500/20'
-          }
-        : {
-            label: 'Non attivata',
-            sublabel: 'Posizione prevista dall\'itinerario (in attesa di trasmissione satellitare)',
-            tone: 'text-slate-600 dark:text-slate-300',
-            dot: 'bg-slate-400',
-            badgeBg: 'bg-slate-500/10 border-slate-500/20'
-          };
+    : inactiveReason === 'acquiring'
+    ? {
+        label: 'Posizione in acquisizione',
+        sublabel: 'Ricerca del segnale satellitare in corso…',
+        tone: 'text-cyan-700 dark:text-cyan-300',
+        dot: 'bg-cyan-500 animate-ping',
+        badgeBg: 'bg-cyan-500/10 border-cyan-500/20'
+      }
+    : inactiveReason === 'offline'
+    ? {
+        label: 'Connessione assente',
+        sublabel: 'Dispositivo offline (trasmissione satellitare sospesa)',
+        tone: 'text-slate-600 dark:text-slate-300',
+        dot: 'bg-slate-400',
+        badgeBg: 'bg-slate-500/10 border-slate-500/20'
+      }
+    : inactiveReason === 'permission_denied'
+    ? {
+        label: 'Permesso posizione negato',
+        sublabel: 'Consenti la localizzazione nelle impostazioni di Safari / iOS',
+        tone: 'text-rose-700 dark:text-rose-300',
+        dot: 'bg-rose-500',
+        badgeBg: 'bg-rose-500/10 border-rose-500/20'
+      }
+    : inactiveReason === 'other_device_active'
+    ? {
+        label: 'Altro dispositivo Guida attivo',
+        sublabel: `Trasmissione in corso dal dispositivo ${(props.remoteGpsLease?.holderDeviceId || '').slice(0, 8)}…`,
+        tone: 'text-amber-700 dark:text-amber-300',
+        dot: 'bg-amber-500',
+        badgeBg: 'bg-amber-500/10 border-amber-500/20'
+      }
+    : inactiveReason === 'paused'
+    ? {
+        label: 'Trasmissione in pausa',
+        sublabel: 'Condivisione temporaneamente sospesa dall\'Organizzatore',
+        tone: 'text-amber-700 dark:text-amber-300',
+        dot: 'bg-amber-500',
+        badgeBg: 'bg-amber-500/10 border-amber-500/20'
+      }
+    : inactiveReason === 'technical_error'
+    ? {
+        label: 'Errore tecnico',
+        sublabel: props.gpsError || 'Impossibile acquisire le coordinate satellitari',
+        tone: 'text-rose-700 dark:text-rose-300',
+        dot: 'bg-rose-500',
+        badgeBg: 'bg-rose-500/10 border-rose-500/20'
+      }
+    : {
+        label: 'Non ancora avviata',
+        sublabel: 'Posizione stimata da itinerario (nessun segnale GPS in trasmissione)',
+        tone: 'text-slate-600 dark:text-slate-300',
+        dot: 'bg-slate-400',
+        badgeBg: 'bg-slate-500/10 border-slate-500/20'
+      };
 
   // ─── ORDINAMENTO E PAGINAZIONE DIARIO (FASE 2) ──────────────────────
   const sortedUpdates = useMemo(() => {
@@ -392,7 +447,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
               <button
                 key={emoji}
                 type="button"
-                disabled={!props.online}
+                disabled={!isOnline}
                 onClick={() => props.onReaction(update.id, emoji)}
                 className={`px-2.5 py-1 rounded-full border text-xs font-semibold transition-all cursor-pointer ${
                   selected
@@ -453,7 +508,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         </button>
       </header>
 
-      {!props.online && (
+      {!isOnline && (
         <div className="mb-6 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3 text-xs font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-2">
           <span>⚠️</span>
           <span>Sei offline. Il diario resta leggibile, ma GPS, pubblicazione e reazioni richiedono connessione.</span>
@@ -572,9 +627,9 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6 text-white z-10">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#FF6B5F]">
-                {gpsVisualState.sublabel}
+                {isFreshGps ? gpsVisualState.sublabel : '📍 Posizione stimata da programma (Nessun GPS in trasmissione)'}
               </span>
-              {lastDetectedDate && (
+              {isFreshGps && lastDetectedDate && (
                 <span className="text-[11px] text-white/70">
                   · rilevato {formatRelativeTime(lastDetectedDate)}
                 </span>
@@ -582,9 +637,9 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             </div>
 
             <h3 className="text-xl sm:text-2xl font-black leading-tight">
-              {props.remoteGpsLocation?.city
+              {isFreshGps && props.remoteGpsLocation?.city
                 ? `${props.remoteGpsLocation.city}${props.remoteGpsLocation.country ? `, ${props.remoteGpsLocation.country}` : ''}`
-                : props.location?.city || props.location?.title || 'Posizione programmata'}
+                : props.location?.city || props.location?.title || 'Itinerario di viaggio'}
             </h3>
 
             {/* CHIP PRIMARIO: "Ultima posizione rilevata: HH:mm — data" */}
@@ -613,6 +668,127 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             </div>
           </div>
         </div>
+
+        {/* PANNELLO DIRETTO AZIONE E STATO GPS GUIDA (Requisito P0-A) */}
+        {!props.isExternal && (props.isOwner || props.isCopilota) && (
+          <div className="mt-3 p-4 rounded-3xl bg-white dark:bg-[#172033] border border-slate-200/90 dark:border-slate-800 shadow-sm animate-fade-in space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`w-2.5 h-2.5 rounded-full ${gpsVisualState.dot}`} />
+                  <span className="font-extrabold text-xs text-slate-900 dark:text-white">
+                    {gpsVisualState.label}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    ({props.deviceLabel})
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  {gpsVisualState.sublabel}
+                </p>
+              </div>
+
+              {/* Pulsante primario di attivazione immediata se non ancora avviata */}
+              {inactiveReason === 'not_started' && (
+                <button
+                  type="button"
+                  disabled={props.isDetectingGps || !isOnline}
+                  onClick={props.onStartGps}
+                  className="px-4 py-2.5 rounded-2xl bg-[#FF6B5F] hover:bg-[#ff5547] text-white font-extrabold text-xs shadow-md shadow-[#FF6B5F]/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 disabled:opacity-50"
+                >
+                  <span>📡</span>
+                  <span>{props.isDetectingGps ? 'Avvio in corso…' : 'Attiva GPS su questo smartphone'}</span>
+                </button>
+              )}
+
+              {/* Pulsante di riprova se permesso negato */}
+              {inactiveReason === 'permission_denied' && (
+                <button
+                  type="button"
+                  disabled={props.isDetectingGps || !isOnline}
+                  onClick={props.onStartGps}
+                  className="px-3.5 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs shadow-md shadow-rose-600/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                >
+                  <span>🔄</span>
+                  <span>Riprova GPS</span>
+                </button>
+              )}
+
+              {/* Pulsante di trasferimento se altra guida attiva */}
+              {inactiveReason === 'other_device_active' && props.isOwner && (
+                <button
+                  type="button"
+                  disabled={props.isDetectingGps || !isOnline}
+                  onClick={props.onRevokeGps}
+                  className="px-3.5 py-2 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs shadow-md shadow-amber-600/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
+                >
+                  <span>🔄</span>
+                  <span>Prendi Guida qui</span>
+                </button>
+              )}
+
+              {/* Controlli quando la trasmissione è attiva da questo dispositivo */}
+              {isFreshGps && props.isGpsHolder && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={props.isDetectingGps || !isOnline}
+                    onClick={props.onPauseGps}
+                    className="px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 hover:bg-amber-100 text-xs font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <span>⏸️</span>
+                    <span>Pausa</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={props.isDetectingGps || !isOnline}
+                    onClick={props.onStopGps}
+                    className="px-3 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 hover:bg-rose-100 text-xs font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                  >
+                    <span>⏹️</span>
+                    <span>Termina</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Se in pausa */}
+              {inactiveReason === 'paused' && props.isOwner && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={props.isDetectingGps || !isOnline}
+                    onClick={props.onResumeGps}
+                    className="px-3.5 py-2 rounded-2xl bg-[#FF6B5F] hover:bg-[#ff5547] text-white font-extrabold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <span>▶️</span>
+                    <span>Riprendi</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={props.isDetectingGps || !isOnline}
+                    onClick={props.onStopGps}
+                    className="px-3 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 hover:bg-rose-100 text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <span>⏹️</span>
+                    <span>Interrompi</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Istruzioni pratiche contestuali se permesso negato */}
+            {inactiveReason === 'permission_denied' && (
+              <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 text-[11px] text-rose-800 dark:text-rose-200 space-y-1">
+                <strong className="block font-bold">Come abilitare la posizione su questo telefono:</strong>
+                <ol className="list-decimal list-inside space-y-0.5 text-rose-700 dark:text-rose-300">
+                  <li>Su iPhone/Safari: apri <em>Impostazioni &gt; Privacy e sicurezza &gt; Localizzazione</em>.</li>
+                  <li>Seleziona <em>Siti web di Safari</em> (o l&apos;icona di Hounigo PWA) e scegli <em>Mentre usi l&apos;app</em>.</li>
+                  <li>Torna in questa schermata e tocca <strong>Riprova GPS</strong>.</li>
+                </ol>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* NOTA TECNICA E LIMITI IOS WEBKIT (FASE 3) */}
         <div className="mt-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 flex items-start gap-2">
@@ -767,7 +943,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                       {props.isOwner ? (
                         <button
                           type="button"
-                          disabled={props.isDetectingGps || !props.online}
+                          disabled={props.isDetectingGps || !isOnline}
                           onClick={props.onStartGps}
                           className="hounigo-button-primary px-4 py-2 text-xs font-bold disabled:opacity-50 flex items-center gap-1.5"
                         >
@@ -788,7 +964,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                         <>
                           <button
                             type="button"
-                            disabled={props.isDetectingGps || !props.online}
+                            disabled={props.isDetectingGps || !isOnline}
                             onClick={props.onPauseGps}
                             className="hounigo-button-secondary px-3 py-1.5 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
                           >
@@ -797,7 +973,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                           </button>
                           <button
                             type="button"
-                            disabled={props.isDetectingGps || !props.online}
+                            disabled={props.isDetectingGps || !isOnline}
                             onClick={props.onStopGps}
                             className="px-3 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 hover:bg-rose-100 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
                           >
@@ -810,7 +986,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                           {props.isOwner && (
                             <button
                               type="button"
-                              disabled={props.isDetectingGps || !props.online}
+                              disabled={props.isDetectingGps || !isOnline}
                               onClick={props.onRevokeGps}
                               className="hounigo-button-primary px-3 py-1.5 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
                             >
@@ -820,7 +996,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                           )}
                           <button
                             type="button"
-                            disabled={props.isDetectingGps || !props.online}
+                            disabled={props.isDetectingGps || !isOnline}
                             onClick={props.onStopGps}
                             className="px-3 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 hover:bg-rose-100 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
                           >
@@ -838,7 +1014,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                         <>
                           <button
                             type="button"
-                            disabled={props.isDetectingGps || !props.online}
+                            disabled={props.isDetectingGps || !isOnline}
                             onClick={props.onResumeGps}
                             className="hounigo-button-primary px-3 py-1.5 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
                           >
@@ -847,7 +1023,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                           </button>
                           <button
                             type="button"
-                            disabled={props.isDetectingGps || !props.online}
+                            disabled={props.isDetectingGps || !isOnline}
                             onClick={props.onStopGps}
                             className="px-3 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 hover:bg-rose-100 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
                           >
@@ -895,7 +1071,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                         </select>
                         <button
                           type="button"
-                          disabled={!selectedCopilotDevice || props.isDetectingGps || !props.online}
+                          disabled={!selectedCopilotDevice || props.isDetectingGps || !isOnline}
                           onClick={() => {
                             const [copilotUid, copilotDeviceId] = selectedCopilotDevice.split(':::');
                             if (copilotUid && copilotDeviceId && props.onTransferGps) {
@@ -1215,7 +1391,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             <div className="mt-2.5 flex justify-end">
               <button
                 type="submit"
-                disabled={props.isSendingMessage || !props.liveTextMessage.trim() || !props.online}
+                disabled={props.isSendingMessage || !props.liveTextMessage.trim() || !isOnline}
                 className="hounigo-button-primary px-4 py-2 text-xs font-bold disabled:opacity-50"
               >
                 {props.isSendingMessage ? 'Pubblicazione…' : 'Pubblica cartolina'}
