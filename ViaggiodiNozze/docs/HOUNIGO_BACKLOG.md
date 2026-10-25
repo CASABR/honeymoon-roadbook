@@ -86,18 +86,18 @@
 
 ## TABELLA DI AVANZAMENTO GLOBALE
 
-| P0-01 | Risoluzione Regressione LIVE Desktop & Rimozione Fallback '0000' | P0 | TESTATO | 25/10/2026 |
+| P0-01 | Risoluzione Regressione LIVE Desktop & Rimozione Fallback '0000' | P0 | PUBBLICATO | 25/10/2026 |
 | P0-02 | Audit Sincronizzazione Galleria Fotografica Multi-Device | P0 | BLOCCATO | 25/10/2026 |
-| P1-01 | Riorganizzazione Compatta LIVE Experience Mobile | P1 | TESTATO | 25/10/2026 |
-| P1-02 | Restyling Compatto Card Trasporti (Check-in su riga singola) | P1 | TESTATO | 25/10/2026 |
-| P1-03 | Audit Architettura Informativa Sezione Altro & Impostazioni | P1 | TESTATO | 25/10/2026 |
-| P1-04 | Semplificazione Onboarding a 3 Intenzioni Dirette | P1 | TESTATO | 25/10/2026 |
-| P1-05 | Isolamento Console Admin Globale dal Percorso Tester | P1 | TESTATO | 25/10/2026 |
-| MAP-01 | Nuova Card Maps Travel Editorial (Auto & Piedi) | P1 | TESTATO | 25/10/2026 |
-| MAP-02 | Gestione Limite Tecnico 10 Tappe Google Maps | P1 | TESTATO | 25/10/2026 |
-| MAP-03 | Migrazione Dati Retrocompatibile Link Preesistenti | P1 | TESTATO | 25/10/2026 |
-| LIVE-01 | Parsing Sicuro Timestamp Firestore Multi-Formato | P0 | TESTATO | 25/10/2026 |
-| LIVE-02 | Desktop Readonly & No Auto-Guide Role Switch | P0 | TESTATO | 25/10/2026 |
-| PK2-02 | Cartolina di Viaggio (Paginazione 10 msg, Ordinamento, Delete Sposi) | P1 | TESTATO | 25/10/2026 |
-| PK2-03 | GPS Affidabile (4 stati, Timestamp HH:mm — data, Avviso iOS) | P1 | TESTATO | 25/10/2026 |
+| P1-01 | Riorganizzazione Compatta LIVE Experience Mobile | P1 | PUBBLICATO | 25/10/2026 |
+| P1-02 | Restyling Compatto Card Trasporti (Check-in su riga singola) | P1 | PUBBLICATO | 25/10/2026 |
+| P1-03 | Audit Architettura Informativa Sezione Altro & Impostazioni | P1 | PUBBLICATO | 25/10/2026 |
+| P1-04 | Semplificazione Onboarding a 3 Intenzioni Dirette | P1 | PUBBLICATO | 25/10/2026 |
+| P1-05 | Isolamento Console Admin Globale dal Percorso Tester | P1 | PUBBLICATO | 25/10/2026 |
+| MAP-01 | Nuova Card Maps Travel Editorial (Auto & Piedi) | P1 | PUBBLICATO | 25/10/2026 |
+| MAP-02 | Gestione Limite Tecnico 10 Tappe Google Maps | P1 | PUBBLICATO | 25/10/2026 |
+| MAP-03 | Migrazione Dati Retrocompatibile Link Preesistenti | P1 | PUBBLICATO | 25/10/2026 |
+| LIVE-01 | Parsing Sicuro Timestamp Firestore Multi-Formato | P0 | PUBBLICATO | 25/10/2026 |
+| LIVE-02 | Desktop Readonly & No Auto-Guide Role Switch | P0 | PUBBLICATO | 25/10/2026 |
+| PK2-02 | Cartolina di Viaggio (Paginazione 10 msg, Ordinamento, Delete Sposi) | P1 | PUBBLICATO | 25/10/2026 |
+| PK2-03 | GPS Affidabile (4 stati, Timestamp HH:mm — data, Avviso iOS) | P1 | PUBBLICATO | 25/10/2026 |
 | PK0-01 | Ownership Permanente Viaggio `0000` (`cqs2OcE7...`) | P0 | IMPLEMENTATO / VERIFICATO | 24/10/2026 |

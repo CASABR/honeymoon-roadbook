@@ -90,6 +90,19 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
    - Attualmente le foto scattate/caricate dal dispositivo organizzatore vengono compresse e salvate in locale in `localStorage['hounigo_live_gallery']`.
    - Verso Firestore viene inviato solo il post testuale senza `photoUrl` (poiché `liveService` accetta solo URL `http(s)` e Firebase Storage non è configurato/autorizzato per upload pubblici da client).
    - Di conseguenza, gli ospiti remoti indipendenti non vedono le foto personalizzate degli sposi, ma solo i post del diario.
-   - La funzionalità galleria remota resta NON completata fino all'abilitazione di Firebase Storage o CDN persistente.
+   - Nella UI della Beta RC sono stati inseriti disclaimer trasparenti (`🔒 Salvataggio locale (Beta)`) e il pulsante è impostato su *"Salva su dispositivo"*.
+   - La funzionalità galleria remota resta NON completata e BLOCCATA fino all'abilitazione di Firebase Storage o CDN persistente post-beta.
 2. **Verifica su Due Dispositivi Fisici Reali**:
    - I test multi-client sono stati verificati in emulatore e con suite headless CDP a 1440px, 393px e 320px in Light e Dark mode; resta da effettuare il collaudo manuale simultaneo su due telefoni reali collegati alla stessa sessione LIVE.
+
+---
+
+## 5. STATO DELLA PUBBLICAZIONE ONLINE (BETA RELEASE CANDIDATE)
+- **Data e Ora Pubblicazione**: 25 Ottobre 2026, 11:20 CET
+- **Branch Sorgente**: `work/product-completion` (Commit `3e89e12`)
+- **Branch Target Deployment**: `gh-pages`
+- **URL Pubblico Verificato**: `https://casabr.github.io/honeymoon-roadbook/` (HTTP 200)
+- **Bundle JS Attivo in Produzione**: `/honeymoon-roadbook/assets/index-CZ5ho9Kr.js` (1.064.452 bytes, HTTP 200)
+- **Bundle CSS Attivo in Produzione**: `/honeymoon-roadbook/assets/index-VpG0CVKU.css` (200.150 bytes, HTTP 200)
+- **Verifica Browser Reale**: Pagina caricata con successo, 0 errori JavaScript bloccanti in console, onboarding a 3 intenzioni perfettamente visibile e responsivo.
+- **Backend & Database**: Firebase Authentication, Firestore Rules, Cloud Functions e viaggio `0000` rimasti intatti al 100%.

@@ -8,15 +8,15 @@
 
 | Area | Criterio Minimo Richiesto | Stato Attuale | Note Operative |
 | :--- | :--- | :--- | :--- |
-| **Accesso & Onboarding** | 3 percorsi chiari: Organizza, Accedi, Partecipa. Nessun gergo tecnico (UID, Firestore). | TESTATO | OnboardingView a 3 intenzioni con rapido accesso Google |
-| **LIVE Desktop** | Consultazione mappa e GPS senza assumere il ruolo guida. Gestione sicura timestamp e tripId. | TESTATO | Rimosso fallback '0000', schermo di selezione recuperabile |
-| **LIVE Mobile** | Schermata compatta, gerarchia chiara, controlli guida raggruppati, responsive 393/320px. | TESTATO | LiveEditorialExperience con mappa 220-360px e controlli comprimibili |
+| **Accesso & Onboarding** | 3 percorsi chiari: Organizza, Accedi, Partecipa. Nessun gergo tecnico (UID, Firestore). | PUBBLICATO | OnboardingView a 3 intenzioni con rapido accesso Google |
+| **LIVE Desktop** | Consultazione mappa e GPS senza assumere il ruolo guida. Gestione sicura timestamp e tripId. | PUBBLICATO | Rimosso fallback '0000', schermo di selezione recuperabile |
+| **LIVE Mobile** | Schermata compatta, gerarchia chiara, controlli guida raggruppati, responsive 393/320px. | PUBBLICATO | LiveEditorialExperience con mappa 220-360px e controlli comprimibili |
 | **Galleria Foto Multi-Device** | Condivisione pubblica foto organizzatore -> ospiti indipendenti. | BLOCCATO | Locale attivo; disclaimers beta espliciti; storage cloud post-beta |
-| **Card Trasporti** | Check-in su riga compatta, orari IATA leggibili, azioni biglietto/PNR chiare. | TESTATO | TrasportoCard con check-in su singola riga orizzontale |
-| **Card Google Maps** | Gestione itinerari auto/piedi, limite 10 tappe chiaro, retrocompatibilità link. | TESTATO | DayMapsCard verificata e integrata |
-| **Architettura Sezione Altro** | Divisione chiara tra funzioni quotidiane, gestione viaggio e impostazioni tecniche. | TESTATO | AltroView riorganizzata in 3 sezioni editoriali |
-| **Console Admin Globale** | Nascosta ai tester. Autorizzazione rigorosa `system_admins`. UI snella se non autorizzato. | TESTATO | Rimosso accesso da menu utenti, isolata con ?admin=1 |
-| **Persistenza & Offline** | Nessuna perdita dati, funzionamento offline di base (IndexedDB + LocalStorage). | TESTATO | Verificato con test di persistenza e tombstone |
+| **Card Trasporti** | Check-in su riga compatta, orari IATA leggibili, azioni biglietto/PNR chiare. | PUBBLICATO | TrasportoCard con check-in su singola riga orizzontale |
+| **Card Google Maps** | Gestione itinerari auto/piedi, limite 10 tappe chiaro, retrocompatibilità link. | PUBBLICATO | DayMapsCard verificata e integrata |
+| **Architettura Sezione Altro** | Divisione chiara tra funzioni quotidiane, gestione viaggio e impostazioni tecniche. | PUBBLICATO | AltroView riorganizzata in 3 sezioni editoriali |
+| **Console Admin Globale** | Nascosta ai tester. Autorizzazione rigorosa `system_admins`. UI snella se non autorizzato. | PUBBLICATO | Rimosso accesso da menu utenti, isolata con ?admin=1 |
+| **Persistenza & Offline** | Nessuna perdita dati, funzionamento offline di base (IndexedDB + LocalStorage). | PUBBLICATO | Verificato con test di persistenza e tombstone |
 
 ---
 
