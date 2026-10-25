@@ -8,21 +8,21 @@
 
 | Area | Criterio Minimo Richiesto | Stato Attuale | Note Operative |
 | :--- | :--- | :--- | :--- |
-| **Chiusura prevUid** | Rifiuto categorico di membership create via prevUid da attaccanti; solo linkWithPopup o re-invito. | TESTATO / BLINDATO | Test avversariale emulatore (16/16); Attaccante C respinto anche conoscendo UID di B |
-| **Protezione Foto & Storage** | QuotaExceededError non elimina fotografie ('hounigo_live_gallery') né dati utente; fallback session/memory. | TESTATO / PROTETTO | Rimosso hounigo_live_gallery da purgeable; pulizia selettiva sole cache OSM/meteo; zero perdite |
-| **Calendario in Oggi** | Tocco e click immediato su icona 📅 su mobile (iOS Safari/Android) e desktop. | TESTATO / RIPRISTINATO | Overlay trasparente a piena area con fallback programmatico showPicker() |
-| **Card Google Maps** | Barra ultra-compatta a singola riga su smartphone (Icona Maps, 🚗, 🚶, ✏️ unificata), responsive 320px. | TESTATO / CONSOLIDATO | Singola riga orizzontale, modale unificato Auto + Piedi, no overflow a 320px |
-| **GPS LIVE Proprietario** | Diagnosi esatta "Non attivata" (7 stati), pulsante esplicito Guida, Action Card sotto mappa, istruzioni iOS. | TESTATO (Pronto x Fisico) | Risolto bug `online` undefined; Action Card contestuale; distinzione GPS reale vs programmato |
-| **Invito Copilota Sicuro** | Link crittografico 128-bit imprevedibile, monouso, 7gg, batch atomico Firestore Spark con `getAfter`, no auto-join. | TESTATO | 16/16 test passati; zero funzioni Cloud ($0 Spark); protezione assoluta viaggio 0000 |
-| **Selezione Viaggi Post-Login** | Lista viaggi posseduti e copilota (`/users/{uid}`), switch istantaneo con reset IndexedDB e cache. | TESTATO | Modale `TripSelectorModal`; isolamento dati 100% senza scansioni globali non autorizzate |
-| **Gmail Compatto** | Riga singola orizzontale (stato, account, azione principale), drawer espandibile per permessi `gmail.readonly`. | TESTATO | Integrato in `SmartInsertModal` e `DocumentiView`; preserva identità e permessi |
-| **Sezione Altro Task-Based** | 4 macro-compiti (LIVE, Documenti, Sicurezza, Gestione), zero duplicazioni o riquadri superflui, responsive 393/320px. | TESTATO | Riorganizzazione editoriale completata; verificata con browser subagent |
-| **Isolamento Dati Viaggi** | Isolamento 100% tra viaggi diversi nello stesso browser. Seed Nuova Zelanda solo per '0000'. | TESTATO | Reset connessioni IndexedDB, flush memoryCache, zero contaminazione date/titoli |
+| **Chiusura prevUid** | Rifiuto categorico di membership create via prevUid da attaccanti; solo linkWithPopup o re-invito. | TESTATO SU EMULATORE | Test avversariale emulatore (16/16); Attaccante C respinto anche conoscendo UID di B |
+| **Protezione Foto & Storage** | QuotaExceededError non elimina fotografie ('hounigo_live_gallery') né dati utente; fallback session/memory. | TESTATO SU EMULATORE | Rimosso hounigo_live_gallery da purgeable; pulizia selettiva sole cache OSM/meteo; zero perdite |
+| **Calendario in Oggi** | Tocco e click immediato su icona 📅 su mobile (iOS Safari/Android) e desktop. | IMPLEMENTATO | Overlay trasparente a piena area con fallback programmatico showPicker(); pronto per test fisico |
+| **Card Google Maps** | Barra ultra-compatta a singola riga su smartphone (Icona Maps, 🚗, 🚶, ✏️ unificata), responsive 320px. | IMPLEMENTATO | Singola riga orizzontale, modale unificato Auto + Piedi, no overflow a 320px |
+| **GPS LIVE Proprietario** | Diagnosi esatta "Non attivata" (7 stati), pulsante esplicito Guida, Action Card sotto mappa, istruzioni iOS. | IMPLEMENTATO | Risolto bug `online` undefined; Action Card contestuale; distinzione GPS reale vs programmato |
+| **Invito Copilota Sicuro** | Link crittografico 128-bit imprevedibile, monouso, 7gg, batch atomico Firestore Spark con `getAfter`, no auto-join. | TESTATO SU EMULATORE | 16/16 test passati; zero funzioni Cloud ($0 Spark); protezione assoluta viaggio 0000 |
+| **Selezione Viaggi Post-Login** | Lista viaggi posseduti e copilota (`/users/{uid}`), switch istantaneo con reset IndexedDB e cache. | TESTATO SU EMULATORE | Modale `TripSelectorModal`; isolamento dati 100% senza scansioni globali non autorizzate |
+| **Gmail Compatto** | Riga singola orizzontale (stato, account, azione principale), drawer espandibile per permessi `gmail.readonly`. | PUBBLICATO | Integrato in `SmartInsertModal` e `DocumentiView`; preserva identità e permessi |
+| **Sezione Altro Task-Based** | 4 macro-compiti (LIVE, Documenti, Sicurezza, Gestione), zero duplicazioni o riquadri superflui, responsive 393/320px. | PUBBLICATO | Riorganizzazione editoriale completata; verificata con browser subagent |
+| **Isolamento Dati Viaggi** | Isolamento 100% tra viaggi diversi nello stesso browser. Seed Nuova Zelanda solo per '0000'. | TESTATO SU EMULATORE | Reset connessioni IndexedDB, flush memoryCache, zero contaminazione date/titoli |
 | **LIVE Desktop** | Consultazione mappa e GPS senza assumere il ruolo guida. Gestione sicura timestamp e tripId. | PUBBLICATO | Rimosso fallback '0000', schermo di selezione recuperabile |
 | **LIVE Mobile** | Schermata compatta, gerarchia chiara, controlli guida raggruppati, responsive 393/320px. | PUBBLICATO | LiveEditorialExperience con mappa 220-360px e controlli comprimibili |
-| **Galleria Foto Multi-Device** | Condivisione pubblica foto organizzatore -> ospiti indipendenti. | BLOCCATO (Post-Beta) | Locale attivo; disclaimers beta espliciti; storage cloud post-beta |
+| **Galleria Foto Multi-Device** | Condivisione pubblica foto organizzatore -> ospiti indipendenti. | IMPLEMENTATO | Locale attivo; disclaimers beta espliciti; storage cloud post-beta |
 | **Card Trasporti** | Check-in su riga compatta, orari IATA leggibili, azioni biglietto/PNR chiare. | PUBBLICATO | TrasportoCard con check-in su singola riga orizzontale |
-| **Console Admin Globale** | Nascosta ai tester. Autorizzazione rigorosa `system_admins`. UI snella se non autorizzato. | DOCUMENTATO | Procedura manuale Firebase Console per /system_admins/{uid}; isolata con ?admin=1 |
+| **Console Admin Globale** | Nascosta ai tester. Autorizzazione rigorosa `system_admins`. UI snella se non autorizzato. | IMPLEMENTATO | Procedura manuale Firebase Console per /system_admins/{uid}; isolata con ?admin=1 |
 | **Persistenza & Offline** | Nessuna perdita dati, funzionamento offline di base (IndexedDB + LocalStorage). | PUBBLICATO | Verificato con test di persistenza e tombstone |
 
 ---

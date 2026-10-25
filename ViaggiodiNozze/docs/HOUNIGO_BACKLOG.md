@@ -192,11 +192,11 @@
 
 | ID | Attività | Priorità | Stato | Data |
 | :--- | :--- | :--- | :--- | :--- |
-| HOTFIX-SEC-01 | Chiusura Vulnerabilità prevUid & Test Avversariale (3 Identità) | P0 | PRONTO / TESTATO (16/16) | 25/10/2026 |
-| HOTFIX-STORAGE-01 | Salvataggio Locale Sicuro & Protezione Foto hounigo_live_gallery | P0 | PRONTO / TESTATO | 25/10/2026 |
-| HOTFIX-CAL-01 | Ripristino Calendario Oggi (Touch iOS/Android & Desktop) | P1 | PRONTO / TESTATO | 25/10/2026 |
-| HOTFIX-MAP-01 | Google Maps Ultra-Compatto a Riga Singola (Auto/Piedi/Matita) | P1 | PRONTO / TESTATO | 25/10/2026 |
-| HOTFIX-ADM-01 | Procedura Sicura Console Admin Globale (/system_admins/{uid}) | P1 | PRONTO / DOCUMENTATO | 25/10/2026 |
+| HOTFIX-SEC-01 | Chiusura Vulnerabilità prevUid & Test Avversariale (3 Identità) | P0 | TESTATO SU EMULATORE | 25/10/2026 |
+| HOTFIX-STORAGE-01 | Salvataggio Locale Sicuro & Protezione Foto hounigo_live_gallery | P0 | TESTATO SU EMULATORE | 25/10/2026 |
+| HOTFIX-CAL-01 | Ripristino Calendario Oggi (Touch iOS/Android & Desktop) | P1 | IMPLEMENTATO | 25/10/2026 |
+| HOTFIX-MAP-01 | Google Maps Ultra-Compatto a Riga Singola (Auto/Piedi/Matita) | P1 | IMPLEMENTATO | 25/10/2026 |
+| HOTFIX-ADM-01 | Procedura Sicura Console Admin Globale (/system_admins/{uid}) | P1 | IMPLEMENTATO | 25/10/2026 |
 | JARVIS-DEPLOY | Procedura di Deploy Coordinato e Piano di Rollback | P0 | PUBBLICATO | 25/10/2026 |
 | JARVIS-SMOKE | Script Smoke Test Post-Deploy Non-Distruttivo (18/18 check) | P0 | PUBBLICATO / ATTIVO | 25/10/2026 |
 | JARVIS-GUIDE | Guida per i Beta Tester & Protocollo Feedback | P1 | PUBBLICATO | 25/10/2026 |
