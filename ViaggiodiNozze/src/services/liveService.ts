@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, writeBatch, onSnapshot, query, orderBy, setDoc, limit, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, writeBatch, onSnapshot, query, orderBy, setDoc, limit, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 
 /**
@@ -204,6 +204,41 @@ export const liveService = {
       });
       callback(results);
     });
+  },
+
+  /**
+   * Elimina un aggiornamento dal feed pubblico. Consentito solo a membri del viaggio (Owner/Copilota).
+   */
+  async deleteLiveUpdate(tripId: string, updateId: string): Promise<void> {
+    const user = auth?.currentUser;
+    if (!user) throw new Error('Non autenticato: solo i membri autorizzati possono eliminare messaggi.');
+    if (!tripId || !updateId) return;
+
+    if (db) {
+      try {
+        const tripSnap = await getDoc(doc(db, 'trips', tripId));
+        const tripData = tripSnap.exists() ? tripSnap.data() : null;
+        const members: string[] = Array.isArray(tripData?.members) ? tripData!.members : [];
+        const isOwner = tripData?.ownerUid === user.uid;
+        const isMember = members.includes(user.uid);
+        if (!isOwner && !isMember) {
+          throw new Error('Solo i membri autorizzati possono eliminare gli aggiornamenti.');
+        }
+      } catch (err: any) {
+        if (err.message.includes('Solo i membri')) throw err;
+      }
+
+      const updateRef = doc(db, 'live_feeds', tripId, 'updates', updateId);
+      if (tripId !== '0000') {
+        await deleteDoc(updateRef);
+      } else {
+        try {
+          await deleteDoc(updateRef);
+        } catch {
+          await updateDoc(updateRef, { title: '[Rimosso]', text: '' });
+        }
+      }
+    }
   }
 };
 

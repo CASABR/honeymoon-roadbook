@@ -17,11 +17,21 @@ export interface TrasportoCardProps {
   onUpdate?: (updated: Trasporto) => void;
 }
 
-export function getCheckinDisplayInfo(transport: Trasporto): {
+export type CheckinStatus = 'open' | 'closing_soon' | 'closed' | 'scheduled' | 'unknown';
+
+export interface CheckinDisplayInfo {
   cutoffTime?: string;
   airportArrivalTime?: string;
   notice?: string;
-} {
+  status?: CheckinStatus;
+  statusBadge?: {
+    label: string;
+    tone: string;
+    icon: string;
+  };
+}
+
+export function getCheckinDisplayInfo(transport: Trasporto): CheckinDisplayInfo {
   const isFlight = transport.type === 'volo';
   const isFerry = transport.type === 'traghetto';
 
@@ -30,7 +40,13 @@ export function getCheckinDisplayInfo(transport: Trasporto): {
     const raw = transport.checkinCutoff.trim();
     return {
       cutoffTime: raw,
-      notice: isFerry ? `Imbarco entro: ${raw}` : `Chiusura check-in: ${raw}`
+      status: 'scheduled',
+      notice: isFerry ? `Imbarco entro: ${raw}` : `Chiusura check-in: ${raw}`,
+      statusBadge: {
+        label: isFerry ? 'Imbarco' : 'Chiusura',
+        tone: 'text-amber-800 dark:text-amber-200 bg-amber-500/10 border-amber-500/25',
+        icon: '⏱️'
+      }
     };
   }
 
@@ -54,10 +70,51 @@ export function getCheckinDisplayInfo(transport: Trasporto): {
     const airportM = String(airportMin % 60).padStart(2, '0');
     const recommendedAirport = `${airportH}:${airportM}`;
 
+    // Calcolo stato temporale rispetto all'ora attuale (se il volo è per la data odierna)
+    let status: CheckinStatus = 'scheduled';
+    let statusBadge = {
+      label: 'Programmato',
+      tone: 'text-amber-900 dark:text-amber-200 bg-amber-500/10 border-amber-500/20',
+      icon: '⏱️'
+    };
+
+    if (typeof window !== 'undefined' && transport.date) {
+      try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        if (transport.date === todayStr) {
+          const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+          if (nowMin >= cutoffMin && nowMin < depTotalMin) {
+            status = 'closed';
+            statusBadge = {
+              label: 'Check-in chiuso',
+              tone: 'text-rose-800 dark:text-rose-300 bg-rose-500/10 border-rose-500/20',
+              icon: '🔒'
+            };
+          } else if (nowMin < cutoffMin && cutoffMin - nowMin <= 120) {
+            status = 'closing_soon';
+            statusBadge = {
+              label: 'Chiude a breve',
+              tone: 'text-amber-900 dark:text-amber-200 bg-amber-500/15 border-amber-500/30',
+              icon: '⚠️'
+            };
+          } else if (nowMin < cutoffMin) {
+            status = 'open';
+            statusBadge = {
+              label: 'Check-in aperto',
+              tone: 'text-emerald-800 dark:text-emerald-200 bg-emerald-500/10 border-emerald-500/20',
+              icon: '✓'
+            };
+          }
+        }
+      } catch {}
+    }
+
     return {
       cutoffTime: calculatedCutoff,
       airportArrivalTime: recommendedAirport,
-      notice: `Chiusura check-in entro ${calculatedCutoff} (consigliato in aeroporto: ${recommendedAirport})`
+      notice: `Chiusura check-in entro ${calculatedCutoff} (consigliato in aeroporto: ${recommendedAirport})`,
+      status,
+      statusBadge
     };
   }
 
@@ -79,7 +136,13 @@ export function getCheckinDisplayInfo(transport: Trasporto): {
     return {
       cutoffTime: calculatedCutoff,
       airportArrivalTime: recommendedPort,
-      notice: `Imbarco entro ${calculatedCutoff} (al porto entro le ${recommendedPort})`
+      notice: `Imbarco entro ${calculatedCutoff} (al porto entro le ${recommendedPort})`,
+      status: 'scheduled',
+      statusBadge: {
+        label: 'Imbarco',
+        tone: 'text-sky-800 dark:text-sky-200 bg-sky-500/10 border-sky-500/20',
+        icon: '🚢'
+      }
     };
   }
 
@@ -369,10 +432,30 @@ export default function TrasportoCard({
           )}
 
           {/* 4. AVVISO CHECK-IN E CHIUSURA (SEGNALAZIONE COMPATTA ED ELEGANTE) */}
-          {checkinInfo.notice && !isCompact && (
-            <div className="mt-2.5 min-w-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2">
-              <span className="shrink-0 text-xs">⏱️</span>
-              <span className="truncate min-w-0 flex-1">{checkinInfo.notice}</span>
+          {checkinInfo.cutoffTime && !isCompact && (
+            <div className="mt-2.5 min-w-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-2 flex-wrap text-xs">
+              <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                <span className="text-slate-400 dark:text-slate-500 shrink-0 text-xs">⏱️</span>
+                <span className="font-bold text-slate-700 dark:text-slate-200 shrink-0">
+                  {transport.type === 'traghetto' ? 'Imbarco entro:' : 'Chiusura check-in:'}
+                </span>
+                <span className="font-extrabold text-slate-900 dark:text-white tabular-nums tracking-tight">
+                  {checkinInfo.cutoffTime}
+                </span>
+                {checkinInfo.airportArrivalTime && (
+                  <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                    · in aeroporto entro le <strong className="font-semibold text-slate-700 dark:text-slate-300">{checkinInfo.airportArrivalTime}</strong>
+                  </span>
+                )}
+              </div>
+              {checkinInfo.statusBadge && (
+                <span
+                  className={`inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border shrink-0 ${checkinInfo.statusBadge.tone}`}
+                >
+                  <span>{checkinInfo.statusBadge.icon}</span>
+                  <span>{checkinInfo.statusBadge.label}</span>
+                </span>
+              )}
             </div>
           )}
         </div>

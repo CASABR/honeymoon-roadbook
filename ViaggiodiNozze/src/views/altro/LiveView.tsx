@@ -72,7 +72,7 @@ interface CustomLivePhoto {
 import { liveService, type LiveUpdate } from '../../services/liveService';
 import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
-import LiveEditorialExperience from './LiveEditorialExperience';
+import LiveEditorialExperience, { type LiveGalleryPhotoItem } from './LiveEditorialExperience';
 import { liveGpsService, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation } from '../../services/liveGpsService';
 import { registerDeviceOnFirestore } from '../../utils/deviceSession';
 
@@ -477,7 +477,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     }
   };
 
-  // Foto personalizzata per "Ultimo aggiornamento"
+  // Foto personalizzata per "Ultimo aggiornamento" e Galleria Fotografica Live
   const [customPhoto, setCustomPhoto] = useState<CustomLivePhoto | null>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -489,6 +489,33 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     }
     return null;
   });
+
+  // Galleria fotografica multi-scatto persistita localmente
+  const [galleryCustomPhotos, setGalleryCustomPhotos] = useState<LiveGalleryPhotoItem[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const stored = localStorage.getItem('hounigo_live_gallery');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+      const legacy = localStorage.getItem(LAST_PHOTO_KEY);
+      if (legacy) {
+        const parsed = JSON.parse(legacy);
+        if (parsed.dataUrl) {
+          return [{
+            id: 'legacy_custom_photo_1',
+            url: parsed.dataUrl,
+            caption: parsed.caption || 'Foto scattata dagli sposi ❤️',
+            timestamp: new Date(parsed.timestamp || Date.now()).getTime(),
+            isCustom: true
+          }];
+        }
+      }
+    } catch {}
+    return [];
+  });
+
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [photoCaptionInput, setPhotoCaptionInput] = useState('');
   const [showCaptionModal, setShowCaptionModal] = useState(false);
@@ -497,48 +524,55 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   const [activeViewerIndex, setActiveViewerIndex] = useState<number | null>(null);
 
-  // Raccolta e ordinamento cronologico (dal più vecchio al più recente) di tutte le foto pubblicate nel viaggio
-  const publishedLivePhotos = useMemo(() => {
-    const photos: {
-      id: string;
-      url: string;
-      caption: string;
-      location?: string;
-      timestamp: number;
-    }[] = [];
+  // Unione e sincronizzazione di tutte le foto live (aggiornamenti pubblici + foto caricate)
+  const allLiveGalleryPhotos = useMemo<LiveGalleryPhotoItem[]>(() => {
+    const map = new Map<string, LiveGalleryPhotoItem>();
 
-    // 1. Foto dagli aggiornamenti live
-    liveUpdates.forEach(update => {
-      if (update.photoUrl && update.photoUrl.startsWith('http')) {
-        photos.push({
+    // 1. Dagli aggiornamenti di viaggio sincronizzati
+    (liveUpdates || []).forEach(update => {
+      if (update.photoUrl && typeof update.photoUrl === 'string' && update.photoUrl.trim()) {
+        map.set(update.photoUrl, {
           id: update.id,
           url: update.photoUrl,
-          caption: update.title || update.text || 'Aggiornamento Live',
+          caption: update.title || update.text || 'Scatto dal diario',
           location: update.locationName,
-          timestamp: update.timestamp || 0
+          timestamp: update.timestamp || Date.now(),
+          isCustom: false
         });
       }
     });
 
-    // 2. Foto personalizzata degli sposi ("Ultimo Aggiornamento")
-    if (customPhoto && customPhoto.dataUrl) {
-      let ts = 0;
-      try {
-        ts = new Date(customPhoto.timestamp).getTime();
-      } catch {
-        ts = Date.now();
+    // 2. Dalla galleria personalizzata del dispositivo
+    galleryCustomPhotos.forEach(p => {
+      if (!map.has(p.url)) {
+        map.set(p.url, p);
       }
-      photos.push({
+    });
+
+    // 3. Fallback foto singola custom legacy se non ancora inclusa
+    if (customPhoto && customPhoto.dataUrl && !map.has(customPhoto.dataUrl)) {
+      map.set(customPhoto.dataUrl, {
         id: 'sposi_custom_photo',
         url: customPhoto.dataUrl,
         caption: customPhoto.caption || 'Foto scattata dagli sposi ❤️',
-        timestamp: ts
+        timestamp: new Date(customPhoto.timestamp || Date.now()).getTime(),
+        isCustom: true
       });
     }
 
-    // Ordina rigorosamente dal più vecchio al più recente (cronologico)
-    return photos.sort((a, b) => a.timestamp - b.timestamp);
-  }, [liveUpdates, customPhoto]);
+    return Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
+  }, [liveUpdates, galleryCustomPhotos, customPhoto]);
+
+  // Backward compatibility per vecchio portal viewer
+  const publishedLivePhotos = useMemo(() => {
+    return allLiveGalleryPhotos.map(p => ({
+      id: p.id,
+      url: p.url,
+      caption: p.caption || '',
+      location: p.location,
+      timestamp: p.timestamp
+    }));
+  }, [allLiveGalleryPhotos]);
 
   // Gestione tastiera per sfogliare la galleria a schermo intero (Frecce Sx/Dx ed Escape)
   useEffect(() => {
@@ -628,6 +662,85 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     setCustomPhoto(null);
     if (typeof window !== 'undefined') {
       localStorage.removeItem(LAST_PHOTO_KEY);
+    }
+  };
+
+  // Caricamento e compressione foto per la Galleria Live
+  const handleUploadPhoto = async (file: File, caption?: string) => {
+    if (!file) return;
+    const compressedDataUrl = await compressImage(file);
+    const newPhoto: LiveGalleryPhotoItem = {
+      id: `photo_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      url: compressedDataUrl,
+      caption: caption || 'Foto dal viaggio ❤️',
+      location: currentLocation?.city || 'In viaggio',
+      timestamp: Date.now(),
+      isCustom: true
+    };
+
+    setGalleryCustomPhotos(prev => {
+      const updated = [newPhoto, ...prev];
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem('hounigo_live_gallery', JSON.stringify(updated.slice(0, 30)));
+          localStorage.setItem(LAST_PHOTO_KEY, JSON.stringify({
+            dataUrl: compressedDataUrl,
+            caption: newPhoto.caption,
+            timestamp: new Date().toISOString()
+          }));
+        } catch (e) {
+          console.warn('Spazio di memorizzazione galleria limitato:', e);
+        }
+      }
+      return updated;
+    });
+
+    // Se l'organizzatore è autorizzato, creiamo anche un aggiornamento di viaggio sincronizzato
+    if (activeTripId && (cloudRole === 'owner' || cloudRole === 'copilota')) {
+      try {
+        await liveService.publishToLive(activeTripId, {
+          title: caption || 'Nuovo scatto dal vivo 📸',
+          text: '',
+          locationName: currentLocation?.city || undefined
+        });
+      } catch (err) {
+        console.warn('Errore sync aggiornamento con foto:', err);
+      }
+    }
+  };
+
+  // Eliminazione foto dalla galleria (FASE 1)
+  const handleDeletePhoto = (photoId: string) => {
+    setGalleryCustomPhotos(prev => {
+      const updated = prev.filter(p => p.id !== photoId);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('hounigo_live_gallery', JSON.stringify(updated));
+        if (updated.length === 0) {
+          localStorage.removeItem(LAST_PHOTO_KEY);
+        }
+      }
+      return updated;
+    });
+
+    // Se la foto corrisponde a un update remoto, eliminiamo anche l'aggiornamento
+    const matchingUpdate = liveUpdates.find(u => u.id === photoId || u.photoUrl === photoId);
+    if (matchingUpdate && activeTripId) {
+      liveService.deleteLiveUpdate(activeTripId, matchingUpdate.id).catch(err => {
+        console.warn('Errore eliminazione update correlato a foto:', err);
+      });
+      setLiveUpdates(prev => prev.filter(u => u.id !== matchingUpdate.id));
+    }
+  };
+
+  // Eliminazione cartolina/messaggio dal diario (FASE 2)
+  const handleDeleteLiveUpdate = async (updateId: string) => {
+    if (!activeTripId || !updateId) return;
+    try {
+      await liveService.deleteLiveUpdate(activeTripId, updateId);
+      setLiveUpdates(prev => prev.filter(u => u.id !== updateId));
+    } catch (err: any) {
+      console.error('Errore durante cancellazione messaggio live:', err);
+      alert(err?.message || 'Errore durante la cancellazione del messaggio.');
     }
   };
 
@@ -1543,6 +1656,10 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       onShare={handleShareLiveLink}
       copiedLink={copiedLink}
       online={isOnline}
+      galleryPhotos={allLiveGalleryPhotos}
+      onUploadPhoto={handleUploadPhoto}
+      onDeletePhoto={handleDeletePhoto}
+      onDeleteUpdate={handleDeleteLiveUpdate}
     />
   );
 
