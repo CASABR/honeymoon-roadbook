@@ -192,6 +192,12 @@
 
 | ID | Attività | Priorità | Stato | Data |
 | :--- | :--- | :--- | :--- | :--- |
+| QA-PHASE-1 | Riconciliazione Versione Online & Rollback Snapshot (28/28 check) | P0 | TESTATO IN AUTOMATICO | 25/10/2026 |
+| QA-PHASE-2 | Auth, Identità, Multi-Viaggio & Token Scaduti/Revocati (19/19 test) | P0 | TESTATO SU FIREBASE EMULATOR | 25/10/2026 |
+| QA-PHASE-3 | GPS Live, Delega Guida, Throttling & Protezione Foto Storage (12/12) | P0 | TESTATO SU FIREBASE EMULATOR | 25/10/2026 |
+| QA-PHASE-4 | Sincronizzazione Two-Client, LWW, Tombstones & Isolamento (8/8) | P0 | TESTATO SU FIREBASE EMULATOR | 25/10/2026 |
+| QA-PHASE-5 | Regressioni UI Mobile 320px/393px, Calendario & Maps (Browser Subagent) | P1 | TESTATO IN AUTOMATICO | 25/10/2026 |
+| QA-PHASE-6 | Console Admin Globale, Whitelist system_admins & Revoca (7/7 test) | P1 | TESTATO SU FIREBASE EMULATOR | 25/10/2026 |
 | HOTFIX-SEC-01 | Chiusura Vulnerabilità prevUid & Test Avversariale (3 Identità) | P0 | PUBBLICATO | 25/10/2026 |
 | HOTFIX-STORAGE-01 | Salvataggio Locale Sicuro & Protezione Foto hounigo_live_gallery | P0 | PUBBLICATO | 25/10/2026 |
 | HOTFIX-CAL-01 | Ripristino Calendario Oggi (Touch iOS/Android & Desktop) | P1 | PUBBLICATO | 25/10/2026 |

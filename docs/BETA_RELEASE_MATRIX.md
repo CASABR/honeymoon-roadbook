@@ -55,5 +55,17 @@ Ambiente di verifica: Browser emulato, Firestore Emulator / Mock multi-client, T
 - **Smoke test online**: 18/18 test superati (100%).
 - **Dati viaggio 0000**: Protetti e intatti. Nessun dato modificato.
 
+---
+
+## 3. ESITO QA NOTTURNO (25-26 OTTOBRE 2026)
+- **Fase 1 Online**: 28/28 verifiche superate.
+- **Fase 2 Auth & Multi-Trip**: 19/19 test superati su Firebase Emulator porta 8085.
+- **Fase 3 GPS Live & Storage**: 12/12 test superati su Firebase Emulator.
+- **Fase 4 Two-Client Sync**: 8/8 test superati su Firebase Emulator.
+- **Fase 5 UI Mobile (320px/393px) & Desktop**: Verificata con browser subagent (zero overflow, touch funzionanti).
+- **Fase 6 Global Admin**: 14 controlli statici + 7 test runtime superati su Firebase Emulator.
+- **Totale**: 88/88 test superati con successo (100%). Zero anomalie P0/P1.
+
+
 
 

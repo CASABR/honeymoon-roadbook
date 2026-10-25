@@ -306,4 +306,59 @@ In caso di anomalie riscontrate durante il collaudo reale dei tester:
    - Snapshot archiviato: `ViaggiodiNozze/docs/firestore.rules.active-production-before-hotfix`.
    - Procedura: confrontare le differenze e ripubblicare con `firebase deploy --only firestore:rules --project app-viaggio-di-nozze`.
 
+---
+
+## 9. AUDIT NOTTURNO DI QUALITY ASSURANCE BETA (25-26 OTTOBRE 2026)
+*Obiettivo: Verificare in modo rigoroso, indipendente e automatico la stabilità della beta prima del collaudo fisico reale del 26 ottobre.*
+
+### Riepilogo Asserzioni di Test Eseguite (100% Superate)
+- **Fase 1 — Riconciliazione Versione Online**: **28/28 verifiche superate**.
+  - URL Live `https://casabr.github.io/honeymoon-roadbook/` HTTP 200, mount React div `#root` con fallback inline.
+  - Script principale `index-DxxPChKC.js` (1.065 KB) e foglio di stile `index-DdMy2aXy.css` (202 KB) attivi e allineati.
+  - PWA: `manifest.webmanifest` standalone (Hounigo) e `sw.js` con precache corretta (zero vecchi bundle).
+  - Routing deep link: parametri `?join=1&token=...`, `?live=1`, `?admin=1` caricati con successo HTTP 200.
+  - Snapshot rollback: verificata l'autenticità di `docs/firestore.rules.active-production-before-hotfix`.
+- **Fase 2 — Auth, Identità e Multi-Viaggio**: **19/19 test superati su Firebase Emulator (porta 8085)**.
+  - Creazione viaggio GIAPPONE da utente anonimo con batch atomico trip + membro owner.
+  - Invito crittografico 128-bit monouso riscattato da Copilota B con aggiornamento `usedBy` e membership.
+  - Copilota B legge regolarmente tappe e spese private.
+  - Login Google tramite `linkWithPopup`: preservazione UID e mantenimento trasparente dei permessi.
+  - Login con account Google preesistente (UID diverso): respinto tentativo di auto-promozione tramite `prevUid` (vulnerabilità confermata chiusa); accesso regolare con nuovo invito emesso dall'owner.
+  - Utente con viaggio master `0000` e copilota su `GIAPPONE`: navigazione tra i due viaggi senza ritorni forzati a 0000.
+  - Re-ingresso di membro già effettivo con link invito senza ri-consumare il token già `used`.
+  - Tentativi di estraneo con UID arbitrario o bypass token categoricamente respinti (`PERMISSION_DENIED`).
+  - Token scaduti, già usati o revocati categoricamente respinti (`PERMISSION_DENIED`).
+- **Fase 3 — GPS Live, Delega Guida e Resilienza Storage**: **12/12 test superati su Firebase Emulator**.
+  - Owner acquisisce lease GPS (18h) e pubblica prima posizione.
+  - Copilota visualizza passivamente la posizione; verifica finestra di freschezza (stale timeout a 120s vs lease 18h).
+  - Delega guida a copilota e pubblicazione coordinate da copilota.
+  - Ritorno guida a owner e blocco transazionale dell'ex-holder non più autorizzato.
+  - Rate limiting 15s/16s verificato sia lato Rules che client per prevenire loop di scrittura.
+  - Blocco scritture estranei su `gps_control/current` e `locations/current`.
+  - Simulazione `QuotaExceededError`: galleria fotografica utente `hounigo_live_gallery` intatta al 100%, pulizia selettiva sole cache rigenerabili (OSM/meteo) e fallback memoria/sessionStorage.
+  - Isolamento GPS: coordinate di un viaggio non compaiono né sovrascrivono altri viaggi.
+- **Fase 4 — Sincronizzazione a Due Client & Affidabilità Dati**: **8/8 test superati su Firebase Emulator**.
+  - Aggiunta e modifica tappa sincronizzate tra Client A e Client B.
+  - Eliminazione tappa con registrazione tombstone in `settings/tombstone_tappe_...`: cancellazione propagata, zero ricomparse.
+  - Aggiunta e modifica spesa con verifica importi.
+  - Modifica salvata offline localmente inviata con successo al push post-riconnessione.
+  - Risoluzione conflitti deterministica Last-Write-Wins (LWW) basata su `updatedAt`.
+  - Prevenzione resurrezione: `deletedAt > createdAt` impedisce la ricreazione da client disconnessi.
+  - Isolamento multi-viaggio durante la sincronizzazione.
+- **Fase 5 — Regressioni UI Mobile e Desktop**: **Eseguita con Browser Subagent (320px, 393px, 1280px)**.
+  - Mobile 393px: Onboarding a 3 intenzioni pulito; creazione viaggio; tocco su 📅 calendario funzionante; Google Maps compatto su singola riga con Auto 🚗, Piedi 🚶 e ✏️; modale unificato Maps senza overflow; chiusura modale con Annulla; navigazione Altro e Live funzionanti.
+  - Mobile 320px (narrow): `scrollWidth <= 320px`, zero overflow orizzontale, touch targets ben dimensionati.
+  - Desktop 1280px: Layout espanso con sidebar completa (itinerario, tappe, mappe, spese, partecipanti, live tracking), assenza di colonne spezzate o barre sovrapposte.
+- **Fase 6 — Console Admin Globale & Runtime Security**: **14 controlli statici + 7 test runtime superati su Emulator**.
+  - Utenti normali e proprietari di singoli viaggi bloccati da `allow list` su `/trips`.
+  - Collezione `/system_admins` inaccessibile ai client SDK (`allow read, write: if false`).
+  - Amministratore abilitato in whitelist `system_admins` può scansionare `/trips` e leggere `/users`.
+  - Eliminazione documento da `/system_admins` revoca istantaneamente i privilegi.
+  - Nessun codice o conteggio fittizio in UI (stato "NON AUTORIZZATO" gestito rigorosamente senza falsi zeri).
+
+**Totale Test di Verifica Notturna**: **88 test superati con successo (100%)**.
+**Anomalie P0/P1 riscontrate**: **0 (Zero)**.
+**Valutazione di Prontezza**: **Beta pronta per il collaudo fisico reale del 26 ottobre e il rilascio ai tester esterni del 28 ottobre 2026.**
+
+
 

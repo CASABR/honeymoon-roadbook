@@ -109,6 +109,20 @@
 - [x] **Nessun tocco ai dati di produzione 0000**: Nessuna scrittura o modifica sul viaggio master.
 - [x] **Procedura di pubblicazione e piano di rollback**: Backup delle regole attive prima del deploy salvato e verificato in `docs/firestore.rules.active-production-before-hotfix`; commit gh-pages precedente registrato (`b677d2d`).
 
+---
+
+## 6. ESITO QUALITY ASSURANCE NOTTURNO (25-26 OTTOBRE 2026)
+*Totale verifiche eseguite: 88 asserzioni di test superate (100%)*
+
+- [x] **Fase 1 — Riconciliazione Online**: 28/28 verifiche superate (HTTP 200, bundle index-DxxPChKC.js, manifest, precache sw.js, deep links, rollback snapshot valido). [TESTATO IN AUTOMATICO]
+- [x] **Fase 2 — Auth, Identità & Multi-Viaggio**: 19/19 test superati su Firebase Emulator reale porta 8085 (creazione, riscatto invito atomico, lettura dati privati, linkWithPopup, protezione prevUid chiusa, re-invito account Google preesistente, re-ingresso senza riuso token, blocco estranei e token scaduti/revocati). [TESTATO SU FIREBASE EMULATOR]
+- [x] **Fase 3 — GPS Live, Delega Guida & Storage**: 12/12 test superati su Firebase Emulator (avvio owner, vista copilota, delega guida, revoca delega, rate limit 15s/16s, quota storage satura con salvaguardia foto hounigo_live_gallery, isolamento GPS). [TESTATO SU FIREBASE EMULATOR]
+- [x] **Fase 4 — Sincronizzazione Two-Client & Affidabilità**: 8/8 test superati su Firebase Emulator (sync tappe, tombstone in settings/tombstone_..., spese, offline edit & reconnect, LWW basato su updatedAt, prevenzione resurrezione). [TESTATO SU FIREBASE EMULATOR]
+- [x] **Fase 5 — Regressioni UI Mobile (320px/393px) & Desktop**: Verificato con Browser Subagent (zero overflow, scrollWidth <= 320px, tocco su 📅 calendario, Google Maps a singola riga con modale unificato, tabs Altro e Live). [TESTATO IN AUTOMATICO]
+- [x] **Fase 6 — Console Admin Globale**: 14 controlli statici + 7 test runtime superati (blocco query per utenti normali e trip owner, isolamento totale di system_admins, query per admin in whitelist, revoca istantanea). [TESTATO SU FIREBASE EMULATOR]
+- [ ] **Test Telefono Fisico Owner & Copilota**: Da effettuare il 26 ottobre da ***REMOVED*** e ***REMOVED*** su dispositivi reali prima della distribuzione ai tester il 28 ottobre. [IN ATTESA DI COLLAUDO REALE]
+
+
 
 
 
