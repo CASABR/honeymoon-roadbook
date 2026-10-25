@@ -219,3 +219,46 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
 - Nuova suite automatizzata `scripts/test_p0_hotfix_emulator_validation.cjs`: 14/14 test passati (100%) su Firebase Emulator reale porta 8085.
 - Build di produzione completata con successo (`✓ built in 6.03s`, bundle pronto per eventuale deploy autorizzato).
 
+---
+
+## 7. CHIUSURA HOTFIX, SICUREZZA E UI BETA (25 OTTOBRE 2026)
+
+### 1. P0 — Chiusura Vulnerabilità Transizione Identità (`prevUid`)
+- **Analisi di Sicurezza**: Conoscere un `prevUid` non costituisce prova di possesso dell'identità precedente. Un utente autenticato estraneo (Attaccante C) conoscendo l'UID del Copilota B avrebbe potuto auto-dichiararsi membro con `prevUid: B`.
+- **Intervento Applicato**:
+  - Rimossa la condizione permissiva `prevUid` da `firestore.rules` (locale e root).
+  - Rimosso `handleAnonymousToGoogleTransition` da `accountService.ts`.
+  - Transizione permessa esclusivamente tramite collegamento diretto delle credenziali (`linkWithPopup`) che preserva l'UID inalterato, oppure tramite un nuovo invito autorizzato dall'organizzatore.
+- **Test Avversariale Reale (Emulator 8085)**:
+  - Owner A crea `GIAPPONE`.
+  - Copilota B riscatta invito legittimo.
+  - Attaccante C tenta exploit `prevUid: B` -> **RESPINTO (PERMISSION_DENIED)**.
+  - Attaccante C tenta sovrascrittura documento di B -> **RESPINTO**.
+  - Attaccante C tenta riutilizzo token -> **RESPINTO**.
+
+### 2. P0 — GPS e Protezione Integrale Dati Utente in Locale
+- **Risoluzione Rischio Perdita Dati**: Rimossa la chiave `'hounigo_live_gallery'` dall'elenco degli elementi sacrificabili in `safeLocalStorageSet`. Le fotografie utente salvate in locale non vengono MAI eliminate.
+- **Separazione Cache e Contenuti Utente**: Distinte le cache rigenerabili (`osm_reverse_geocode_cache`, `temp_weather_cache`) dai contenuti utente non recuperabili.
+- **Fallback In-Memory e SessionStorage**: In caso di quota storage esaurita, le coordinate GPS continuano a essere aggiornate in `sessionStorage` e nella memoria runtime, emettendo un evento non bloccante per la UI senza interrompere il tracciamento GPS.
+
+### 3. P1 — Calendario in Oggi (Touch & Desktop)
+- **Causa**: Il tag `<label>` con input `<input type="date" className="sr-only">` non apriva il selettore date nativo su dispositivi iOS Safari e WebKit touch.
+- **Risoluzione**: Implementato pulsante interattivo con fallback programmatico `showPicker()` e overlay trasparente a pieno container (`absolute inset-0 w-full h-full opacity-0 cursor-pointer`), garantendo la massima affidabilità al tocco su mobile e al clic su desktop.
+
+### 4. P1 — Google Maps Compatto su Una Sola Riga
+- Ridisegnato `DayMapsCard.tsx` su una sola riga ultra-compatta:
+  - Icona ufficiale Google Maps.
+  - Pulsante Auto cliccabile (apertura link o aggiunta rapida).
+  - Pulsante Piedi cliccabile (apertura link o aggiunta rapida).
+  - Singola icona matita che apre un modale unificato con entrambi i campi (Auto e A piedi).
+- Perfettamente reattivo a 393px e 320px senza alcuna sovrapposizione né rottura di layout.
+
+### 5. P1 — Console Admin Globale e Whitelist `/system_admins/{uid}`
+- Chiarito il motivo del messaggio "NON AUTORIZZATO": le Security Rules richiedono rigorosamente un documento in `/system_admins/{uid}` o il custom claim `admin: true`.
+- Documentata la procedura sicura manuale su Firebase Console per abilitare l'amministratore designato senza allentare le regole di isolamento dati dei viaggi.
+
+### 6. Esito Test e Build
+- `scripts/test_p0_adversarial_prevuid_and_security.cjs`: **16/16 test superati (100%)**.
+- `scripts/test_p0_hotfix_emulator_validation.cjs`: **14/14 test superati (100%)**.
+- Build di produzione `npm run build`: **Completata con successo (0 errori TypeScript, PWA generata)**.
+

@@ -1119,20 +1119,31 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             Calendario Tappe
           </span>
           <div className="flex items-center gap-2">
-            <label
+            <div
               title="Scegli data dal calendario"
-              className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 cursor-pointer transition-colors border border-slate-200 dark:border-slate-700"
+              onClick={(e) => {
+                const input = e.currentTarget.querySelector('input[type="date"]') as HTMLInputElement | null;
+                if (input && typeof input.showPicker === 'function') {
+                  try {
+                    input.showPicker();
+                  } catch {}
+                }
+              }}
+              className="relative w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors border border-slate-200 dark:border-slate-700 cursor-pointer overflow-hidden active:scale-95 shadow-xs"
             >
               <input
                 type="date"
                 value={selectedDate}
+                min={tripDays.length > 0 ? tripDays[0]?.dateStr : undefined}
+                max={tripDays.length > 0 ? tripDays[tripDays.length - 1]?.dateStr : undefined}
                 onChange={(e) => {
                   if (e.target.value) setSelectedDate(e.target.value);
                 }}
-                className="sr-only"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                aria-label="Scegli data dal calendario"
               />
-              <span className="text-sm">📅</span>
-            </label>
+              <span className="text-sm select-none pointer-events-none">📅</span>
+            </div>
             <span className="text-xs text-slate-400 font-medium">
               {currentDayMeta && currentDayMeta.dayNum > 0
                 ? `Giorno ${currentDayMeta.dayNum}`

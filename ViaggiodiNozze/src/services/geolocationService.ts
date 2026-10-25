@@ -158,49 +158,85 @@ export function getCurrentDevicePosition(options?: PositionOptions): Promise<Geo
   });
 }
 
+let inMemoryLiveLocation: GeolocationState | null = null;
+
 /**
- * Legge l'ultima posizione GPS reale salvata in localStorage
+ * Legge l'ultima posizione GPS reale salvata (controlla localStorage, poi sessionStorage, poi memoria)
  */
 export function getSavedLiveLocation(): GeolocationState | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === 'undefined') return inMemoryLiveLocation;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
+    const raw = localStorage.getItem(STORAGE_KEY) || sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return inMemoryLiveLocation;
     return JSON.parse(raw) as GeolocationState;
   } catch {
-    return null;
+    return inMemoryLiveLocation;
   }
 }
 
 /**
- * Salva in modo sicuro in localStorage gestendo esplicitamente QuotaExceededError
- * senza bloccare o interrompere l'acquisizione delle coordinate GPS.
+ * Salva in modo sicuro le coordinate GPS gestendo QuotaExceededError:
+ * - NON tocca MAI fotografie ('hounigo_live_gallery'), note utente, documenti o credenziali.
+ * - Distingue cache temporanee rigenerabili da contenuti non recuperabili.
+ * - In caso di quota satura, effettua fallback su sessionStorage e cache in-memory
+ *   senza bloccare il GPS e senza alcuna perdita silenziosa di dati utente.
  */
 export function safeLocalStorageSet(key: string, value: string): boolean {
-  if (typeof window === 'undefined' || !window.localStorage) return false;
+  if (typeof window === 'undefined') {
+    if (key === STORAGE_KEY) {
+      try { inMemoryLiveLocation = JSON.parse(value); } catch {}
+    }
+    return true;
+  }
+
+  // Memorizza sempre anche in memoria come fallback immediato
+  if (key === STORAGE_KEY) {
+    try { inMemoryLiveLocation = JSON.parse(value); } catch {}
+  }
+
   try {
     localStorage.setItem(key, value);
     return true;
   } catch (err: any) {
-    console.warn(`[geolocationService] Errore salvataggio localStorage per "${key}":`, err);
     const isQuota = err?.name === 'QuotaExceededError' ||
                     err?.code === 22 ||
                     err?.number === -2147024882 ||
                     String(err?.message || '').toLowerCase().includes('quota');
+
     if (isQuota) {
+      console.warn(`[geolocationService] Quota storage superata per "${key}". Attivazione fallback sicuro senza cancellazione dati utente.`);
+
+      // Pulizia selettiva SOLO di cache temporanee puramente rigenerabili.
+      // Dati utente IRREVERSIBILI (hounigo_live_gallery, documenti, note, config) sono RIGOROSAMENTE ESCLUSI.
+      const purelyRegenerableCaches = ['osm_reverse_geocode_cache', 'temp_weather_cache', 'temp_route_cache'];
+      for (const cacheKey of purelyRegenerableCaches) {
+        try {
+          localStorage.removeItem(cacheKey);
+        } catch {}
+      }
+
+      // Ritenta salvataggio in localStorage
       try {
-        // Pulizia mirata di dati pesanti sacrificabili (es. vecchie cache foto locali)
-        // NON tocca mai credenziali auth, configurazioni di viaggio o memorie critiche
-        const purgeable = ['hounigo_live_gallery', 'hero_bg_image', 'trip_header_image'];
-        for (const pKey of purgeable) {
-          if (pKey !== key) {
-            localStorage.removeItem(pKey);
-          }
-        }
         localStorage.setItem(key, value);
         return true;
       } catch {
-        return false;
+        // Fallback su sessionStorage per non perdere lo stato durante la sessione corrente
+        try {
+          sessionStorage.setItem(key, value);
+        } catch {}
+
+        // Notifica non bloccante via CustomEvent per la UI
+        try {
+          window.dispatchEvent(new CustomEvent('hounigo:storage-quota-warning', {
+            detail: {
+              key,
+              message: 'Spazio storage locale esaurito. Le coordinate GPS sono mantenute in sessione senza perdita di dati.'
+            }
+          }));
+        } catch {}
+
+        // Il salvataggio in sessione/memoria è avvenuto: non blocchiamo il GPS
+        return true;
       }
     }
     return false;

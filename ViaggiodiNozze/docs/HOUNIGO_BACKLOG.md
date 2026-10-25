@@ -164,12 +164,39 @@
   - Stato: PUBBLICATO
   - Modifiche: Riconciliati e allineati al 100% i file `firestore.rules`, eseguito il deploy delle Security Rules su `app-viaggio-di-nozze`, completato il deploy del frontend su GitHub Pages (`gh-pages`).
 
+### 10. Chiusura Hotfix, Sicurezza e UI Beta (25 Ottobre 2026)
+- **HOTFIX-SEC-01 — Chiusura Vulnerabilità prevUid & Test Avversariale**:
+  - Priorità: P0 (Critica / Sicurezza)
+  - Stato: COMPLETATO E CONVALIDATO SU EMULATORE (16/16 test)
+  - Modifiche: Eliminata la condizione `prevUid` da `firestore.rules`. Rimosso `handleAnonymousToGoogleTransition`. Test avversariale su Firestore Emulator con Owner A, Copilota B e Attaccante C: C respinto anche conoscendo l'UID di B. Conservato collegamento credenziali via `linkWithPopup`.
+- **HOTFIX-STORAGE-01 — Salvataggio Locale Sicuro & Protezione Foto**:
+  - Priorità: P0 (Critica / Integrità Dati)
+  - Stato: COMPLETATO E CONVALIDATO
+  - Modifiche: Rimossa `hounigo_live_gallery` da `purgeable`. Separazione netta tra cache rigenerabili (OSM/meteo) e contenuti utente non recuperabili (foto, note, documenti). Fallback su `sessionStorage` e memoria runtime con avviso non bloccante.
+- **HOTFIX-CAL-01 — Ripristino Calendario in Oggi (Touch & Desktop)**:
+  - Priorità: P1
+  - Stato: COMPLETATO E CONVALIDATO
+  - Modifiche: Risolto bug mancata apertura datepicker su iOS Safari / WebKit touch; introdotto container interattivo con input trasparente a copertura integrale e fallback `showPicker()`.
+- **HOTFIX-MAP-01 — Google Maps Ultra-Compatto su Singola Riga**:
+  - Priorità: P1
+  - Stato: COMPLETATO E CONVALIDATO
+  - Modifiche: Singola riga orizzontale con icona ufficiale Google Maps, pulsante Auto, pulsante Piedi e singola matita che apre modale unificato per entrambi i collegamenti. Testato a 320px e 393px senza overlap.
+- **HOTFIX-ADM-01 — Procedura Sicura Console Admin Globale**:
+  - Priorità: P1
+  - Stato: COMPLETATO E DOCUMENTATO
+  - Modifiche: Definita e verificata la procedura manuale per autorizzare esclusivamente l'UID designato in `/system_admins/{uid}` su Firebase Console.
+
 ---
 
 ## TABELLA DI AVANZAMENTO GLOBALE
 
 | ID | Attività | Priorità | Stato | Data |
 | :--- | :--- | :--- | :--- | :--- |
+| HOTFIX-SEC-01 | Chiusura Vulnerabilità prevUid & Test Avversariale (3 Identità) | P0 | PRONTO / TESTATO (16/16) | 25/10/2026 |
+| HOTFIX-STORAGE-01 | Salvataggio Locale Sicuro & Protezione Foto hounigo_live_gallery | P0 | PRONTO / TESTATO | 25/10/2026 |
+| HOTFIX-CAL-01 | Ripristino Calendario Oggi (Touch iOS/Android & Desktop) | P1 | PRONTO / TESTATO | 25/10/2026 |
+| HOTFIX-MAP-01 | Google Maps Ultra-Compatto a Riga Singola (Auto/Piedi/Matita) | P1 | PRONTO / TESTATO | 25/10/2026 |
+| HOTFIX-ADM-01 | Procedura Sicura Console Admin Globale (/system_admins/{uid}) | P1 | PRONTO / DOCUMENTATO | 25/10/2026 |
 | JARVIS-DEPLOY | Procedura di Deploy Coordinato e Piano di Rollback | P0 | PUBBLICATO | 25/10/2026 |
 | JARVIS-SMOKE | Script Smoke Test Post-Deploy Non-Distruttivo (18/18 check) | P0 | PUBBLICATO / ATTIVO | 25/10/2026 |
 | JARVIS-GUIDE | Guida per i Beta Tester & Protocollo Feedback | P1 | PUBBLICATO | 25/10/2026 |
@@ -197,3 +224,4 @@
 | PK2-02 | Cartolina di Viaggio (Paginazione 10 msg, Ordinamento, Delete Sposi) | P1 | PUBBLICATO | 25/10/2026 |
 | PK2-03 | GPS Affidabile (4 stati, Timestamp HH:mm — data, Avviso iOS) | P1 | PUBBLICATO | 25/10/2026 |
 | PK0-01 | Ownership Permanente Viaggio `0000` (`cqs2OcE7...`) | P0 | IMPLEMENTATO / VERIFICATO | 24/10/2026 |
+

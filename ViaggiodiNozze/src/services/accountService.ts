@@ -369,82 +369,10 @@ export async function loginWithEmailPassword(
 }
 
 /**
- * Gestisce la transizione sicura di membership quando un utente anonimo locale
- * passa a un account Google preesistente con UID differente.
- */
-export async function handleAnonymousToGoogleTransition(
-  prevUid: string,
-  googleUser: User
-): Promise<void> {
-  if (!db || !prevUid || !googleUser.uid) return;
-
-  try {
-    const rawLocalConfig = typeof localStorage !== 'undefined' ? localStorage.getItem('roadbook_trip_config') : null;
-    let activeTripId: string | null = null;
-    if (rawLocalConfig) {
-      try {
-        const parsed = JSON.parse(rawLocalConfig);
-        activeTripId = parsed?.id || null;
-      } catch {}
-    }
-
-    if (!activeTripId || activeTripId === '0000') return;
-
-    // 1. Verifica se l'utente anonimo precedente era membro effettivo di questo viaggio
-    const { doc, getDoc, writeBatch, arrayUnion, setDoc } = await import('firebase/firestore');
-    const prevMemberRef = doc(db, 'trips', activeTripId, 'members', prevUid);
-    const prevMemberSnap = await getDoc(prevMemberRef).catch(() => null);
-
-    if (prevMemberSnap && prevMemberSnap.exists()) {
-      const prevMemberData = prevMemberSnap.data();
-      const inviteToken = prevMemberData?.inviteToken || (typeof localStorage !== 'undefined' ? localStorage.getItem(`roadbook_invite_token_${activeTripId}`) : null);
-      const role = prevMemberData?.role || 'copilota';
-      const displayName = googleUser.displayName || prevMemberData?.name || 'Copilota';
-
-      // 2. Registra il nuovo account Google nella sottocollezione members e aggiorna members array
-      const googleMemberRef = doc(db, 'trips', activeTripId, 'members', googleUser.uid);
-      const tripRef = doc(db, 'trips', activeTripId);
-      const batch = writeBatch(db);
-
-      batch.set(googleMemberRef, {
-        uid: googleUser.uid,
-        role,
-        name: displayName,
-        prevUid,
-        inviteToken: inviteToken || 'linked_transition',
-        linkedAt: Date.now(),
-        updatedAt: Date.now()
-      }, { merge: true });
-
-      batch.update(tripRef, {
-        members: arrayUnion(googleUser.uid),
-        updatedAt: Date.now()
-      });
-
-      await batch.commit().catch(err => {
-        console.warn('[accountService] Errore commit transizione identità Firestore:', err);
-      });
-    }
-
-    // 3. Aggiunge sempre activeTripId all'elenco dei viaggi associati del nuovo utente Google
-    const userRef = doc(db, 'users', googleUser.uid);
-    await setDoc(userRef, {
-      uid: googleUser.uid,
-      displayName: googleUser.displayName || null,
-      associatedTripIds: arrayUnion(activeTripId),
-      lastTripId: activeTripId,
-      updatedAt: Date.now()
-    }, { merge: true }).catch(() => {});
-  } catch (err) {
-    console.warn('[accountService] Errore generale transizione anonimo->Google:', err);
-  }
-}
-
-/**
  * Effettua il login o collegamento account con Google.
- * Se l'utente corrente è anonimo, tenta linkWithPopup per preservare l'UID e le membership.
- * Se l'account Google è già registrato (credential-already-in-use), esegue signInWithPopup
- * e trasferisce in sicurezza l'associazione del viaggio attivo della sessione.
+ * Se l'utente corrente è anonimo, tenta linkWithPopup per preservare l'UID e le membership legittime.
+ * Se l'account Google è già registrato con altro UID (credential-already-in-use), esegue signInWithPopup
+ * in modo rigoroso senza migrazioni arbitrarie di identità.
  */
 export async function loginWithGoogle(): Promise<{
   success: boolean;
@@ -452,6 +380,7 @@ export async function loginWithGoogle(): Promise<{
   error?: string;
   code?: string;
   linked?: boolean;
+  preExistingAccount?: boolean;
 }> {
   if (!auth) return { success: false, error: 'Firebase Auth non inizializzato.' };
   try {
@@ -460,9 +389,10 @@ export async function loginWithGoogle(): Promise<{
 
     const currentUser = auth.currentUser;
     const isAnon = Boolean(currentUser && currentUser.isAnonymous);
-    const prevUid = currentUser?.uid || null;
+    let wasPreExisting = false;
 
     // Se l'utente è attualmente anonimo su questo dispositivo, proviamo a collegare le credenziali Google
+    // al medesimo UID, preservando al 100% tutte le membership e associazioni già concesse
     if (isAnon && currentUser) {
       try {
         const linkRes = await linkWithPopup(currentUser, provider);
@@ -477,24 +407,20 @@ export async function loginWithGoogle(): Promise<{
         }
         await recordUserAccess(linkedUser, activeTripId);
 
-        return { success: true, user: linkedUser, linked: true };
+        return { success: true, user: linkedUser, linked: true, preExistingAccount: false };
       } catch (linkErr: any) {
-        // Se il provider Google è già associato a un altro account Firebase esistente, procediamo con signInWithPopup
+        // Se il provider Google è già associato a un altro account Firebase esistente, procediamo con signInWithPopup sicuro
         if (linkErr?.code !== 'auth/credential-already-in-use') {
           throw linkErr;
         }
-        console.info('[accountService] Account Google già registrato: passaggio a signInWithPopup con migrazione associazione…');
+        wasPreExisting = true;
+        console.info('[accountService] Account Google già registrato con altro UID: accesso sicuro con Google senza migrazioni non verificate.');
       }
     }
 
-    // Accesso diretto con Google (o per utente già registrato precedentemente)
+    // Accesso con Google (per account già esistente o accesso standard)
     const res = await signInWithPopup(auth, provider);
     const googleUser = res.user;
-
-    // Se prima c'era un utente anonimo autorizzato su questo dispositivo per un viaggio attivo, migriamo l'associazione
-    if (prevUid && prevUid !== googleUser.uid) {
-      await handleAnonymousToGoogleTransition(prevUid, googleUser);
-    }
 
     // Registra accesso utente Google
     const { recordUserAccess } = await import('./userAccessService');
@@ -505,7 +431,7 @@ export async function loginWithGoogle(): Promise<{
     }
     await recordUserAccess(googleUser, activeTripId);
 
-    return { success: true, user: googleUser, linked: false };
+    return { success: true, user: googleUser, linked: false, preExistingAccount: wasPreExisting };
   } catch (err: any) {
     const code = err?.code || 'auth/unknown';
     let error = 'Accesso Google interrotto.';

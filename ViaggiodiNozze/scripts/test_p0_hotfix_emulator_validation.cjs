@@ -209,10 +209,10 @@ async function main() {
     assert.strictEqual(spesaSnap.data().amount, 45000);
   });
 
-  // --- 4. Copilota collega Google ---
-  await testCase(4, 'Copilota collega Google con transizione di identità sicura', async () => {
+  // --- 4. Chiusura vulnerabilità prevUid e collegamento identità ---
+  await testCase(4, 'Chiusura vulnerabilità prevUid: rifiuto transizione non verificabile e supporto direct link', async () => {
     const now = Date.now();
-    // Transizione autorizzata dalla regola condizione 4 (senza alterare il token monouso già consumato)
+    // Tentativo di transizione via prevUid NON verificabile: DEVE ESSERE RESPINTA
     const transBatch = writeBatch(googleDb);
     transBatch.set(doc(googleDb, 'trips', 'GIAPPONE', 'members', COPILOT_GOOGLE_UID), {
       uid: COPILOT_GOOGLE_UID,
@@ -225,7 +225,51 @@ async function main() {
       members: arrayUnion(COPILOT_GOOGLE_UID),
       updatedAt: Date.now()
     });
-    await assertSucceeds(transBatch.commit());
+    await assertFails(transBatch.commit());
+
+    // Con linkWithPopup diretto, l'UID rimane quello originale anonimo:
+    // La membership di COPILOT_ANON_UID è pienamente valida e conservata
+    const anonMemberSnap = await getDoc(doc(anonDb, 'trips', 'GIAPPONE', 'members', COPILOT_ANON_UID));
+    assert(anonMemberSnap.exists());
+    assert.strictEqual(anonMemberSnap.data().role, 'copilota');
+
+    // Se l'account Google era preesistente con UID diverso, l'Owner autorizza un nuovo invito
+    const NEW_INVITE = 'tok_japan_reinvite_google_user';
+    await assertSucceeds(
+      setDoc(doc(ownerDb, 'trips', 'GIAPPONE', 'invites', NEW_INVITE), {
+        inviteToken: NEW_INVITE,
+        tripId: 'GIAPPONE',
+        tripTitle: 'Giappone 2026',
+        ownerName: '***REMOVED***',
+        role: 'copilota',
+        createdBy: OWNER_UID,
+        createdAt: Timestamp.fromMillis(now),
+        expiresAt: Timestamp.fromMillis(now + 86400000),
+        status: 'active',
+        usedBy: null,
+        usedAt: null
+      })
+    );
+
+    // L'utente Google riscatta il nuovo invito legittimo
+    const reinviteBatch = writeBatch(googleDb);
+    reinviteBatch.set(doc(googleDb, 'trips', 'GIAPPONE', 'members', COPILOT_GOOGLE_UID), {
+      uid: COPILOT_GOOGLE_UID,
+      role: 'copilota',
+      name: 'Mario Rossi (Google Autorizzato)',
+      joinedAt: now,
+      inviteToken: NEW_INVITE
+    });
+    reinviteBatch.update(doc(googleDb, 'trips', 'GIAPPONE', 'invites', NEW_INVITE), {
+      status: 'used',
+      usedBy: COPILOT_GOOGLE_UID,
+      usedAt: Timestamp.fromMillis(now)
+    });
+    reinviteBatch.update(doc(googleDb, 'trips', 'GIAPPONE'), {
+      members: arrayUnion(COPILOT_GOOGLE_UID),
+      updatedAt: Timestamp.fromMillis(now)
+    });
+    await assertSucceeds(reinviteBatch.commit());
 
     // L'utente Google aggiorna il suo elenco associatedTripIds
     await assertSucceeds(
@@ -237,7 +281,7 @@ async function main() {
   });
 
   // --- 5. Copilota conserva la membership ---
-  await testCase(5, 'Copilota conserva la membership con account Google', async () => {
+  await testCase(5, 'Copilota conserva la membership con account Google verificato', async () => {
     const memberSnap = await getDoc(doc(googleDb, 'trips', 'GIAPPONE', 'members', COPILOT_GOOGLE_UID));
     assert(memberSnap.exists());
     assert.strictEqual(memberSnap.data().role, 'copilota');

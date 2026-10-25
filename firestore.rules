@@ -172,16 +172,6 @@ service cloud.firestore {
                             && getAfter(/databases/$(database)/documents/trips/$(tripId)/invites/$(request.resource.data.get('inviteToken', 'none'))).data.status == 'used'
                             && getAfter(/databases/$(database)/documents/trips/$(tripId)/invites/$(request.resource.data.get('inviteToken', 'none'))).data.usedBy == request.auth.uid
                           )
-                          ||
-                          // 4. Collegamento identità da membro anonimo locale a Google account (P0-A/B)
-                          (
-                            tripId != '0000'
-                            && uid == request.auth.uid
-                            && resource == null
-                            && request.resource.data.get('role', '') == 'copilota'
-                            && request.resource.data.get('prevUid', '') != ''
-                            && exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.resource.data.get('prevUid', 'none')))
-                          )
                         );
 
         // Modifica: consentita unicamente all'owner (role e uid immutabili)
