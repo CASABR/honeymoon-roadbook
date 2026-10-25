@@ -22,14 +22,25 @@ export function getCheckinDisplayInfo(transport: Trasporto): {
   airportArrivalTime?: string;
   notice?: string;
 } {
-  if (transport.checkinCutoff && /^\d{1,2}:\d{2}$/.test(transport.checkinCutoff.trim())) {
+  const isFlight = transport.type === 'volo';
+  const isFerry = transport.type === 'traghetto';
+
+  // 1. Scadenza esplicita registrata (es. '11:30' o testo personalizzato)
+  if (transport.checkinCutoff && transport.checkinCutoff.trim()) {
+    const raw = transport.checkinCutoff.trim();
     return {
-      cutoffTime: transport.checkinCutoff.trim(),
-      notice: `Chiusura check-in: ${transport.checkinCutoff.trim()}`
+      cutoffTime: raw,
+      notice: isFerry ? `Imbarco entro: ${raw}` : `Chiusura check-in: ${raw}`
     };
   }
 
-  if (transport.departureTime && /^\d{1,2}:\d{2}$/.test(transport.departureTime.trim())) {
+  // 2. Se non è volo o traghetto, non calcolare avvisi aerei generici
+  if (!isFlight && !isFerry) {
+    return {};
+  }
+
+  // 3. Volo: chiusura banchi (60 min prima) e arrivo aeroporto (180 min prima)
+  if (isFlight && transport.departureTime && /^\d{1,2}:\d{2}$/.test(transport.departureTime.trim())) {
     const [h, m] = transport.departureTime.trim().split(':').map(Number);
     const depTotalMin = h * 60 + m;
 
@@ -44,11 +55,31 @@ export function getCheckinDisplayInfo(transport: Trasporto): {
     const recommendedAirport = `${airportH}:${airportM}`;
 
     return {
-      cutoffTime: transport.checkinCutoff || calculatedCutoff,
+      cutoffTime: calculatedCutoff,
       airportArrivalTime: recommendedAirport,
-      notice: transport.checkinCutoff
-        ? `Check-in: ${transport.checkinCutoff}`
-        : `Check-in entro ${calculatedCutoff} (consigliato in aeroporto: ${recommendedAirport})`
+      notice: `Chiusura check-in entro ${calculatedCutoff} (consigliato in aeroporto: ${recommendedAirport})`
+    };
+  }
+
+  // 4. Traghetto: chiusura imbarco (30 min prima) e arrivo al molo (60 min prima)
+  if (isFerry && transport.departureTime && /^\d{1,2}:\d{2}$/.test(transport.departureTime.trim())) {
+    const [h, m] = transport.departureTime.trim().split(':').map(Number);
+    const depTotalMin = h * 60 + m;
+
+    const cutoffMin = (depTotalMin - 30 + 24 * 60) % (24 * 60);
+    const cutoffH = String(Math.floor(cutoffMin / 60)).padStart(2, '0');
+    const cutoffM = String(cutoffMin % 60).padStart(2, '0');
+    const calculatedCutoff = `${cutoffH}:${cutoffM}`;
+
+    const portMin = (depTotalMin - 60 + 24 * 60) % (24 * 60);
+    const portH = String(Math.floor(portMin / 60)).padStart(2, '0');
+    const portM = String(portMin % 60).padStart(2, '0');
+    const recommendedPort = `${portH}:${portM}`;
+
+    return {
+      cutoffTime: calculatedCutoff,
+      airportArrivalTime: recommendedPort,
+      notice: `Imbarco entro ${calculatedCutoff} (al porto entro le ${recommendedPort})`
     };
   }
 
@@ -121,9 +152,15 @@ export default function TrasportoCard({
     }
   };
 
-  const extractCodeOrCity = (locationStr: string): { code: string; name: string } => {
+  const extractCodeOrCity = (locationStr: string, explicitIata?: string): { code: string; name: string } => {
+    if (explicitIata && explicitIata.trim()) {
+      return {
+        code: explicitIata.trim().toUpperCase(),
+        name: locationStr ? (locationStr.length > 25 ? locationStr.slice(0, 22) + '…' : locationStr) : explicitIata.trim().toUpperCase()
+      };
+    }
     if (!locationStr) return { code: 'LOC', name: 'Destinazione' };
-    const match = locationStr.match(/\(([A-Z]{3})\)/i);
+    const match = locationStr.match(/\(([A-Z]{3,4})\)/i);
     if (match && match[1]) {
       const code = match[1].toUpperCase();
       const name = locationStr.split('(')[0].trim();
@@ -132,6 +169,7 @@ export default function TrasportoCard({
     const l = locationStr.toLowerCase();
     if (l.includes('malpensa') || l.includes('milano')) return { code: 'MXP', name: 'Milano' };
     if (l.includes('pechino') || l.includes('beijing')) return { code: 'PEK', name: 'Pechino' };
+    if (l.includes('fiumicino') || l.includes('roma')) return { code: 'FCO', name: 'Roma' };
     if (l.includes('auckland')) return { code: 'AKL', name: 'Auckland' };
     if (l.includes('christchurch')) return { code: 'CHC', name: 'Christchurch' };
     if (l.includes('wellington')) return { code: 'WLG', name: 'Wellington' };
@@ -147,13 +185,13 @@ export default function TrasportoCard({
     const parts = locationStr.split(/[,\-–\s]+/);
     const firstWord = parts[0] || 'LOC';
     return {
-      code: firstWord.slice(0, 4).toUpperCase(),
+      code: firstWord.length > 4 ? firstWord.slice(0, 3).toUpperCase() : firstWord.toUpperCase(),
       name: locationStr.length > 25 ? locationStr.slice(0, 22) + '…' : locationStr
     };
   };
 
-  const originInfo = extractCodeOrCity(transport.departureLocation);
-  const destInfo = extractCodeOrCity(transport.dropoffLocation || transport.arrivalLocation);
+  const originInfo = extractCodeOrCity(transport.departureLocation, transport.departureIata);
+  const destInfo = extractCodeOrCity(transport.dropoffLocation || transport.arrivalLocation, transport.arrivalIata);
 
   const typeConfig: Record<TipoTrasporto, { label: string; icon: string; modeIcon: string }> = {
     volo: { label: 'Volo', icon: '✈️', modeIcon: '✈️' },
@@ -183,8 +221,8 @@ export default function TrasportoCard({
     <>
       <div
         onClick={onDetail || onEdit}
-        className={`w-full rounded-2xl relative overflow-hidden transition-all duration-200 cursor-pointer border bg-white dark:bg-[#172033] border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md ${
-          isCompact ? 'p-3' : 'p-4 sm:p-5'
+        className={`w-full max-w-full min-w-0 rounded-2xl relative overflow-hidden transition-all duration-200 cursor-pointer border bg-white dark:bg-[#172033] border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md ${
+          isCompact ? 'p-3' : 'p-3.5 sm:p-5'
         }`}
       >
         {/* TACCHE LATERALI BOARDING PASS EDITORIAL */}
@@ -243,36 +281,39 @@ export default function TrasportoCard({
 
         {/* 2. ***REMOVED***: ORIGINE -> DESTINAZIONE (NUMERI TABULARI, ORARI CHIARI) */}
         <div className="py-3">
-          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4">
+          <div
+            className="items-center gap-1.5 sm:gap-4"
+            style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)' }}
+          >
             {/* ORIGINE */}
             <div className="min-w-0 text-left">
-              <div className="text-2xl sm:text-3xl font-black text-slate-950 dark:text-white tracking-tight font-mono tabular-nums leading-none">
+              <div className="text-xl sm:text-2xl md:text-3xl font-black text-slate-950 dark:text-white tracking-tight font-mono tabular-nums leading-none">
                 {transport.departureTime || originInfo.code}
               </div>
-              <p className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide truncate mt-1">
+              <p className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide truncate mt-1">
                 {originInfo.code} · {originInfo.name}
               </p>
               {transport.departureLocation && transport.departureLocation !== originInfo.name && (
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                <p className="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 truncate">
                   {transport.departureLocation}
                 </p>
               )}
             </div>
 
             {/* SEGNO GRAFICO MINIMALE ***REMOVED*** */}
-            <div className="flex flex-col items-center justify-center px-1 sm:px-2">
-              <div className="w-12 sm:w-16 flex items-center justify-center relative">
+            <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0">
+              <div className="w-8 sm:w-12 md:w-16 flex items-center justify-center relative">
                 <div className="w-full border-t border-slate-300 dark:border-slate-700" />
                 <span className="absolute bg-white dark:bg-[#172033] px-1 text-[11px] text-slate-400">
                   {currentType.modeIcon}
                 </span>
               </div>
               {transport.layover ? (
-                <span className="text-[10px] font-bold text-[#FF6B5F] mt-1 text-center whitespace-nowrap">
+                <span className="text-[9px] sm:text-[10px] font-bold text-[#FF6B5F] mt-1 text-center whitespace-nowrap">
                   Scalo {transport.layover.airport.split(' ')[0]}
                 </span>
               ) : (
-                <span className="text-[10px] font-semibold text-slate-400 mt-1">
+                <span className="text-[9px] sm:text-[10px] font-semibold text-slate-400 mt-1">
                   Diretto
                 </span>
               )}
@@ -280,19 +321,19 @@ export default function TrasportoCard({
 
             {/* DESTINAZIONE */}
             <div className="min-w-0 text-right">
-              <div className="text-2xl sm:text-3xl font-black text-slate-950 dark:text-white tracking-tight font-mono tabular-nums leading-none flex items-center justify-end gap-1">
+              <div className="text-xl sm:text-2xl md:text-3xl font-black text-slate-950 dark:text-white tracking-tight font-mono tabular-nums leading-none flex items-center justify-end gap-1">
                 <span>{transport.arrivalTime || transport.dropoffTime || destInfo.code}</span>
                 {isNextDayArrival && (
-                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-[#FF6B5F]/15 text-[#FF6B5F] align-top">
+                  <span className="text-[8px] sm:text-[9px] font-extrabold uppercase px-1 py-0.5 rounded-md bg-[#FF6B5F]/15 text-[#FF6B5F] align-top">
                     +1
                   </span>
                 )}
               </div>
-              <p className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide truncate mt-1">
+              <p className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide truncate mt-1">
                 {destInfo.code} · {destInfo.name}
               </p>
               {(transport.dropoffLocation || transport.arrivalLocation) && (
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 truncate">
+                <p className="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 truncate">
                   {transport.dropoffLocation || transport.arrivalLocation}
                 </p>
               )}
@@ -300,24 +341,28 @@ export default function TrasportoCard({
           </div>
 
           {/* 3. INFORMAZIONI OPERATIVE ADATTIVE (SOLO SE PRESENTI) */}
-          {Boolean(transport.terminalGate || transport.posti || transport.bagagli || (transport.type === 'auto' && transport.dropoffDate)) && (
-            <div className="mt-3 pt-2.5 border-t border-dashed border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-2 text-xs">
+          {Boolean(transport.terminalGate || transport.posti || (transport.type === 'auto' && transport.dropoffDate)) && (
+            <div className="mt-3 pt-2.5 border-t border-dashed border-slate-200 dark:border-slate-800 flex flex-wrap items-center gap-1.5 sm:gap-2 text-xs">
               {transport.terminalGate && (
-                <div className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium">
-                  <span className="text-slate-400 mr-1 text-[10px] uppercase font-bold">Gate/Term:</span>
-                  <strong>{transport.terminalGate}</strong>
+                <div className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium max-w-full min-w-0 flex items-center">
+                  <span className="text-slate-400 mr-1 text-[10px] uppercase font-bold shrink-0">
+                    {transport.type === 'treno' ? 'Binario:' : transport.type === 'volo' ? 'Terminal/Gate:' : transport.type === 'traghetto' ? 'Molo/Imbarco:' : 'Rif:'}
+                  </span>
+                  <strong className="truncate">{transport.terminalGate}</strong>
                 </div>
               )}
               {transport.posti && (
-                <div className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium">
-                  <span className="text-slate-400 mr-1 text-[10px] uppercase font-bold">Posto:</span>
-                  <strong>{transport.posti}</strong>
+                <div className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium max-w-full min-w-0 flex items-center">
+                  <span className="text-slate-400 mr-1 text-[10px] uppercase font-bold shrink-0">
+                    {transport.type === 'treno' ? 'Carrozza / Posto:' : 'Posto:'}
+                  </span>
+                  <strong className="truncate">{transport.posti}</strong>
                 </div>
               )}
               {transport.type === 'auto' && transport.dropoffDate && (
-                <div className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium">
-                  <span className="text-slate-400 mr-1 text-[10px] uppercase font-bold">Riconsegna:</span>
-                  <strong>{formatDateIT(transport.dropoffDate)} {transport.dropoffTime || ''}</strong>
+                <div className="px-2.5 py-1 rounded-lg bg-slate-50 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-medium max-w-full min-w-0 flex items-center">
+                  <span className="text-slate-400 mr-1 text-[10px] uppercase font-bold shrink-0">Riconsegna:</span>
+                  <strong className="truncate">{formatDateIT(transport.dropoffDate)} {transport.dropoffTime || ''}</strong>
                 </div>
               )}
             </div>
@@ -325,9 +370,9 @@ export default function TrasportoCard({
 
           {/* 4. AVVISO CHECK-IN E CHIUSURA (SEGNALAZIONE COMPATTA ED ELEGANTE) */}
           {checkinInfo.notice && !isCompact && (
-            <div className="mt-2.5 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2">
+            <div className="mt-2.5 min-w-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2">
               <span className="shrink-0 text-xs">⏱️</span>
-              <span className="truncate">{checkinInfo.notice}</span>
+              <span className="truncate min-w-0 flex-1">{checkinInfo.notice}</span>
             </div>
           )}
         </div>
@@ -374,11 +419,11 @@ export default function TrasportoCard({
               <button
                 type="button"
                 onClick={handleCopyPnr}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 text-xs font-bold transition-all border border-slate-200 dark:border-slate-700"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 text-xs font-bold transition-all border border-slate-200 dark:border-slate-700 max-w-[150px] sm:max-w-[200px] min-w-0"
                 title={`Copia PNR: ${transport.bookingCode}`}
               >
-                <span>{pnrCopied ? '✓' : '#️⃣'}</span>
-                <span>{pnrCopied ? 'Copiato' : transport.bookingCode}</span>
+                <span className="shrink-0">{pnrCopied ? '✓' : '#️⃣'}</span>
+                <span className="truncate">{pnrCopied ? 'Copiato' : transport.bookingCode}</span>
               </button>
             )}
 

@@ -1,5 +1,5 @@
 import type { Giorno, Attivita, Tappa, Alloggio, Trasporto, Coordinate } from '../types';
-import { lookupKnownCoordinate } from '../services/routingService';
+import { lookupKnownCoordinate } from './geoCoordinatesHelper.ts';
 
 export interface PlannedLocationInfo {
   title: string;
@@ -257,12 +257,15 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
 
   // 2.B Se non c'è un trasporto in corso, cerca tra le Attività programmate
   let currentActivityEvent: LiveTimelineEvent | null = null;
-  const todayActivities = attivita.filter(a => a.date === todayStr);
+  const yesterday = new Date(currentDateTime.getTime() - 24 * 3600 * 1000);
+  const yesterdayStr = toDateStr(yesterday);
+  const candidateActivities = attivita.filter(a => a.date === todayStr || a.date === yesterdayStr || (a.endDate && a.endDate >= todayStr));
 
-  for (const act of todayActivities) {
+  for (const act of candidateActivities) {
+    const actDateStr = act.date || todayStr;
     const actTime = act.time || act.orarioInizio;
     if (!actTime) continue;
-    const start = parseDateTime(todayStr, actTime);
+    const start = parseDateTime(actDateStr, actTime);
     if (!start) continue;
 
     // Stima durata attività (default 90 min)

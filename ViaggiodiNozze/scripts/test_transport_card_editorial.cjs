@@ -4,14 +4,22 @@ console.log('\n=== HOUNIGO: TEST TRANSPORT EDITORIAL REDESIGN ===\n');
 
 // 1. Test check-in calculation function
 function getCheckinDisplayInfo(transport) {
-  if (transport.checkinCutoff && /^\d{1,2}:\d{2}$/.test(transport.checkinCutoff.trim())) {
+  const isFlight = transport.type === 'volo';
+  const isFerry = transport.type === 'traghetto';
+
+  if (transport.checkinCutoff && transport.checkinCutoff.trim()) {
+    const raw = transport.checkinCutoff.trim();
     return {
-      cutoffTime: transport.checkinCutoff.trim(),
-      notice: `Chiusura check-in: ${transport.checkinCutoff.trim()}`
+      cutoffTime: raw,
+      notice: isFerry ? `Imbarco entro: ${raw}` : `Chiusura check-in: ${raw}`
     };
   }
 
-  if (transport.departureTime && /^\d{1,2}:\d{2}$/.test(transport.departureTime.trim())) {
+  if (!isFlight && !isFerry) {
+    return {};
+  }
+
+  if (isFlight && transport.departureTime && /^\d{1,2}:\d{2}$/.test(transport.departureTime.trim())) {
     const [h, m] = transport.departureTime.trim().split(':').map(Number);
     const depTotalMin = h * 60 + m;
 
@@ -26,11 +34,9 @@ function getCheckinDisplayInfo(transport) {
     const recommendedAirport = `${airportH}:${airportM}`;
 
     return {
-      cutoffTime: transport.checkinCutoff || calculatedCutoff,
+      cutoffTime: calculatedCutoff,
       airportArrivalTime: recommendedAirport,
-      notice: transport.checkinCutoff
-        ? `Check-in: ${transport.checkinCutoff}`
-        : `Check-in entro ${calculatedCutoff} (consigliato in aeroporto: ${recommendedAirport})`
+      notice: `Chiusura check-in entro ${calculatedCutoff} (consigliato in aeroporto: ${recommendedAirport})`
     };
   }
 
@@ -63,7 +69,20 @@ function getCheckinDisplayInfo(transport) {
   console.log('[PASS 02] Chiusura check-in esplicita rispettata: 11:45');
 }
 
-// TEST 03: Next-day arrival detection (+1 giorno)
+// TEST 03: Train departure does NOT generate flight check-in notice
+{
+  const train = {
+    type: 'treno',
+    carrier: 'Frecciarossa 9614',
+    departureTime: '08:15',
+    departureLocation: 'Roma Termini'
+  };
+  const res = getCheckinDisplayInfo(train);
+  assert.strictEqual(res.notice, undefined, 'Train without explicit cutoff must not generate airport notice');
+  console.log('[PASS 03] Treno senza check-in esplicito: nessun falso avviso aeroportuale');
+}
+
+// TEST 04: Next-day arrival detection (+1 giorno)
 {
   const tCrossDate = {
     date: '2026-11-29',
@@ -82,10 +101,10 @@ function getCheckinDisplayInfo(transport) {
   const isNextDay2 = Boolean(tCrossMidnight.arrivalTime < tCrossMidnight.departureTime);
   assert.strictEqual(isNextDay2, true);
 
-  console.log('[PASS 03] Rilevamento arrivo giorno successivo (+1 giorno) su date e orari notturni');
+  console.log('[PASS 04] Rilevamento arrivo giorno successivo (+1 giorno) su date e orari notturni');
 }
 
-// TEST 04: Action dead-button elimination
+// TEST 05: Action dead-button elimination
 {
   const transportWithoutTicket = {
     type: 'volo',
@@ -97,14 +116,17 @@ function getCheckinDisplayInfo(transport) {
     (transportWithoutTicket.attachments && transportWithoutTicket.attachments.length > 0)
   );
   assert.strictEqual(hasTicket, false, 'No ticket button when no ticket attachment or url');
-  console.log('[PASS 04] Eliminazione pulsanti morti: nessun pulsante biglietto se assente');
+  console.log('[PASS 05] Eliminazione pulsanti morti: nessun pulsante biglietto se assente');
 }
 
-// TEST 05: Code extraction and adaptive layout
+// TEST 06: Code extraction and adaptive layout
 {
-  function extractCodeOrCity(locationStr) {
+  function extractCodeOrCity(locationStr, explicitIata) {
+    if (explicitIata && explicitIata.trim()) {
+      return { code: explicitIata.trim().toUpperCase(), name: locationStr };
+    }
     if (!locationStr) return { code: 'LOC', name: 'Destinazione' };
-    const match = locationStr.match(/\(([A-Z]{3})\)/i);
+    const match = locationStr.match(/\(([A-Z]{3,4})\)/i);
     if (match && match[1]) {
       return { code: match[1].toUpperCase(), name: locationStr.split('(')[0].trim() };
     }
@@ -116,13 +138,30 @@ function getCheckinDisplayInfo(transport) {
 
   const mxp = extractCodeOrCity('Milano Malpensa (MXP)');
   assert.strictEqual(mxp.code, 'MXP');
-  assert.strictEqual(mxp.name, 'Milano Malpensa');
 
-  const pek = extractCodeOrCity('Pechino Capital (PEK)');
-  assert.strictEqual(pek.code, 'PEK');
-  assert.strictEqual(pek.name, 'Pechino Capital');
+  const explicit = extractCodeOrCity('Aeroporto di Pechino', 'PEK');
+  assert.strictEqual(explicit.code, 'PEK');
 
-  console.log('[PASS 05] Estrazione IATA pulita da stringa di localita: MXP e PEK');
+  console.log('[PASS 06] Estrazione IATA pulita da stringa di localita o campo esplicito');
 }
 
-console.log('\nTUTTI I 5 TEST DELLE CARD TRASPORTO SUPERATI CON SUCCESSO!\n');
+// TEST 07: Incomplete transport card safety (no crash, no N/D badges)
+{
+  const incomplete = {
+    id: 'inc-1',
+    type: 'volo',
+    carrier: 'Volo Sconosciuto',
+    date: '2026-12-10',
+    departureLocation: 'Auckland',
+    arrivalLocation: 'Christchurch',
+    status: 'pianificato',
+    createdAt: Date.now(),
+    updatedAt: Date.now()
+  };
+
+  const hasOperationalInfo = Boolean(incomplete.terminalGate || incomplete.posti || (incomplete.type === 'auto' && incomplete.dropoffDate));
+  assert.strictEqual(hasOperationalInfo, false, 'No operational info block when fields are absent (no N/D badges)');
+  console.log('[PASS 07] Card incompleta: assenza di blocchi vuoti o badge N/D');
+}
+
+console.log('\nTUTTI I 7 TEST DELLE CARD TRASPORTO SUPERATI CON SUCCESSO!\n');

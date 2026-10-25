@@ -433,7 +433,7 @@ export default function TrasportiView() {
                           {formatGroupDateHeader(dateKey)}
                           <span className="flex-1 h-px bg-slate-200/60 rounded-full" />
                         </h3>
-                        <div className="grid gap-3">
+                        <div className="grid gap-3 min-w-0 max-w-full">
                           {dayItems.map((t) => (
                             <SwipeToDelete key={t.id} disabled={!canEdit} onDelete={() => setDeletingTransport(t)}>
                               <TrasportoCard

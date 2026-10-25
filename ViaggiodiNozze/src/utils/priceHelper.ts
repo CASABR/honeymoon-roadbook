@@ -50,9 +50,7 @@ export function parseCostToNumber(costRaw?: string | number | null): number {
   if (cleanStr === 'gratuito' || cleanStr === 'free' || cleanStr === 'gratis' || cleanStr.includes('incluso')) {
     return 0;
   }
-  const numStr = cleanStr.replace(/[^0-9,.-]/g, '').replace(',', '.');
-  const num = parseFloat(numStr);
-  return isNaN(num) ? 0 : Math.max(0, num);
+  return Math.max(0, parseEuro(cleanStr));
 }
 
 /**
@@ -93,7 +91,7 @@ export function resolvePaymentInfo(item: {
   } else if (isFree) {
     displayText = 'Gratuito';
   } else if (costNum > 0) {
-    displayText = `${costNum.toFixed(2)} €`;
+    displayText = `${costNum.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   } else {
     displayText = 'Costo da definire';
   }
