@@ -91,16 +91,20 @@
 
 ---
 
-## 5. SMOKE TEST POST-DEPLOY & CHECKLIST DI RILASCIO (100% PRONTO)
+## 5. SMOKE TEST POST-DEPLOY & STATO PUBBLICAZIONE (100% PUBBLICATO)
 *Suite: `scripts/post_deploy_smoke_test.cjs`*
+*URL Live: `https://casabr.github.io/honeymoon-roadbook/`*
 *Esito: 18/18 controlli superati con successo (100%)*
 
+- [x] **Deploy Firestore Rules**: Regole caricate e compilate con successo su `app-viaggio-di-nozze`.
+- [x] **Deploy GitHub Pages**: Frontend pubblicato su branch `gh-pages` (`b677d2d`).
 - [x] **Caricamento frontend**: Pagina principale HTTP 200, mount `<div id="root">` presente.
 - [x] **Metadati viewport mobile**: Tag viewport configurato per tutti i display smartphone.
-- [x] **Integrità bundle JS e CSS**: Script principale e fogli di stile scaricati e validati.
+- [x] **Integrità bundle JS e CSS**: Script principale (`index-D_jtqkoZ.js`) e foglio di stile (`index-Du7XQE7-.css`) scaricati e validati.
 - [x] **PWA Manifest & Icone**: `manifest.webmanifest` valido, display standalone e set icone integro.
 - [x] **Service Worker**: `sw.js` attivo con Workbox cache e precache configurata.
 - [x] **Nessun tocco ai dati di produzione 0000**: Nessuna scrittura o modifica sul viaggio master.
-- [x] **Procedura di pubblicazione e piano di rollback**: Completamente documentati e verificati.
+- [x] **Procedura di pubblicazione e piano di rollback**: Backup regole salvato in `docs/firestore.rules.backup-pre-beta`.
+
 
 

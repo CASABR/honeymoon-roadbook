@@ -169,19 +169,20 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
 
 ---
 
-## 5. STATO DELLA PUBBLICAZIONE ONLINE (BETA RELEASE CANDIDATE 100%)
-- **Data e Ora Ultimo Miglio Beta**: 25 Ottobre 2026, 19:15 CET
-- **Branch di Lavoro**: `work/product-completion`
-- **Stato Codice Locale**: Pronto al 100% per il deploy immediato (in attesa di autorizzazione utente).
-- **Validazione Completa Eseguita**:
-  - Suite automatica di integrazione `scripts/test_jarvis_beta_closure.cjs`: 14/14 test superati (100%).
-  - Suite su Firebase Emulator Reale `scripts/test_beta_release_emulator_validation.cjs`: 24/24 test superati (100%).
-  - Suite collaborazione su emulatore `test_firestore_emulator_collaboration.cjs`: 50/50 test superati (100%).
-  - Suite simulazione migrazione `test_migration_simulation_emulator.cjs`: 10/10 test superati (100%).
-  - Suite integrità e sync `test_sync_multidevice_tombstones_suite.cjs`: 26/26 test superati (100%).
-  - Suite smoke test post-deploy non-distruttivo `scripts/post_deploy_smoke_test.cjs`: 18/18 controlli superati (100%).
-  - Build di produzione TypeScript/Vite (`npm run build`): completata con esito 0 (nessun errore o warning bloccante).
-- **Documentazione Tester & Procedure Consegna**:
-  - Redatta Guida per i Beta Tester: `docs/HOUNIGO_TESTER_GUIDE.md` (con canali feedback CRITICO / IMPORTANTE / MIGLIORAMENTO).
-  - Procedura di pubblicazione coordinata e piano di rollback documentati e verificati.
-  - Nessuna alterazione ai dati di produzione del viaggio 0000.
+## 5. STATO DELLA PUBBLICAZIONE ONLINE (BETA RELEASE PUBBLICATA 100%)
+- **Data e Ora Pubblicazione Beta**: 25 Ottobre 2026, 19:12 CET
+- **Branch di Rilascio**: `work/product-completion` (commit `759f1e0`)
+- **Stato Deploy Firestore Security Rules**: RIUSCITO (Progetto: `app-viaggio-di-nozze`, cloud.firestore rules compilate e rilasciate con successo).
+- **Copia di Backup Regole Precedenti**: Salvata in `docs/firestore.rules.backup-pre-beta` per rollback istantaneo.
+- **Stato Deploy Frontend (GitHub Pages)**: RIUSCITO (Branch `gh-pages` aggiornato con commit `b677d2d`).
+- **Bundle Attivo Online**:
+  - Script principale: `assets/index-D_jtqkoZ.js` (1061 KB, HTTP 200)
+  - Foglio di stile: `assets/index-Du7XQE7-.css` (202 KB, HTTP 200)
+  - Manifest PWA: `manifest.webmanifest` (HTTP 200, display standalone)
+  - Service Worker: `sw.js` (HTTP 200, Workbox precache 31 entries)
+- **Verifica Funzionale Online (Browser & Smoke Test)**:
+  - Suite Smoke Test non-distruttivo `scripts/post_deploy_smoke_test.cjs`: 18/18 controlli superati (100%).
+  - Verifica rendering browser PWA: schermata di onboarding attiva, login Google operativo, zero eccezioni fatali.
+  - Nessuna alterazione o accesso non autorizzato ai dati del viaggio master `0000`.
+- **Guida Beta Tester**: consultabile in `docs/HOUNIGO_TESTER_GUIDE.md`.
+

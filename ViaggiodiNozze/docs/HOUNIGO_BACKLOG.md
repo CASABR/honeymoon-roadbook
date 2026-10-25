@@ -132,8 +132,8 @@
   - Modifiche: Creata `docs/HOUNIGO_TESTER_GUIDE.md` con flussi essenziali, limitazioni beta note e classificazione feedback (CRITICO / IMPORTANTE / MIGLIORAMENTO) senza dipendenze esterne.
 - **JARVIS-DEPLOY — Procedura di Deploy e Piano di Rollback Coordinato**:
   - Priorità: P0
-  - Stato: PRONTO PER DEPLOY
-  - Modifiche: Riconciliati e allineati al 100% i file `firestore.rules`, documentati i comandi esatti per rules e frontend, verificato piano di rollback sicuro.
+  - Stato: PUBBLICATO
+  - Modifiche: Riconciliati e allineati al 100% i file `firestore.rules`, eseguito il deploy delle Security Rules su `app-viaggio-di-nozze`, completato il deploy del frontend su GitHub Pages (`gh-pages`).
 
 ---
 
@@ -141,14 +141,14 @@
 
 | ID | Attività | Priorità | Stato | Data |
 | :--- | :--- | :--- | :--- | :--- |
-| JARVIS-SMOKE | Script Smoke Test Post-Deploy Non-Distruttivo (18/18 check) | P0 | TESTATO | 25/10/2026 |
-| JARVIS-GUIDE | Guida per i Beta Tester & Protocollo Feedback | P1 | COMPLETATO | 25/10/2026 |
-| JARVIS-DEPLOY | Procedura di Deploy Coordinato e Piano di Rollback | P0 | PRONTO PER DEPLOY | 25/10/2026 |
-| JARVIS-P0A | GPS LIVE del Proprietario (Risoluzione bug 'Non attivata', 7 stati, GPS Action Card) | P0 | TESTATO | 25/10/2026 |
-| JARVIS-P0B | Invito Copilota Sicuro Crittografico (Token 128-bit, Spark-Compatible, Blocco auto-join) | P0 | TESTATO (Emulator Reale) | 25/10/2026 |
-| JARVIS-P1A | Selezione Viaggi Dopo il Login (Organizzatore/Copilota, Switch con Reset Cache) | P1 | TESTATO | 25/10/2026 |
-| JARVIS-P1B | Gestione Gmail Compatta (Riga singola orizzontale, Drawer info comprimibile) | P1 | TESTATO | 25/10/2026 |
-| JARVIS-P1C | Sezione Altro Task-Based (4 Aree di Compito, Zero Ridondanze, Responsive) | P1 | TESTATO | 25/10/2026 |
+| JARVIS-DEPLOY | Procedura di Deploy Coordinato e Piano di Rollback | P0 | PUBBLICATO | 25/10/2026 |
+| JARVIS-SMOKE | Script Smoke Test Post-Deploy Non-Distruttivo (18/18 check) | P0 | PUBBLICATO / ATTIVO | 25/10/2026 |
+| JARVIS-GUIDE | Guida per i Beta Tester & Protocollo Feedback | P1 | PUBBLICATO | 25/10/2026 |
+| JARVIS-P0A | GPS LIVE del Proprietario (Risoluzione bug 'Non attivata', 7 stati, GPS Action Card) | P0 | PUBBLICATO | 25/10/2026 |
+| JARVIS-P0B | Invito Copilota Sicuro Crittografico (Token 128-bit, Spark-Compatible, Blocco auto-join) | P0 | PUBBLICATO | 25/10/2026 |
+| JARVIS-P1A | Selezione Viaggi Dopo il Login (Organizzatore/Copilota, Switch con Reset Cache) | P1 | PUBBLICATO | 25/10/2026 |
+| JARVIS-P1B | Gestione Gmail Compatta (Riga singola orizzontale, Drawer info comprimibile) | P1 | PUBBLICATO | 25/10/2026 |
+| JARVIS-P1C | Sezione Altro Task-Based (4 Aree di Compito, Zero Ridondanze, Responsive) | P1 | PUBBLICATO | 25/10/2026 |
 | HOTFIX-01 | Risoluzione Errore Invito Copilota & Auto-join Multi-Identità | P0 | TESTATO | 25/10/2026 |
 | HOTFIX-02 | Isolamento Totale Dati & Cache Multi-Viaggio (Zero Contaminazione) | P0 | TESTATO | 25/10/2026 |
 | HOTFIX-03 | Ripristino Card Google Maps Compatta (Auto/Piedi 2 righe) | P1 | TESTATO | 25/10/2026 |
