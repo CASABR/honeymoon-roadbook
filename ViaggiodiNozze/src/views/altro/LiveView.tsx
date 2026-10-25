@@ -77,7 +77,7 @@ import { liveGpsService, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLoca
 import { registerDeviceOnFirestore } from '../../utils/deviceSession';
 
 export default function LiveView({ onBack, isStandaloneExternal = false, tripId }: LiveViewProps) {
-  const activeTripId = tripId || getTripConfig()?.id;
+  const activeTripId = tripId || getTripConfig()?.id || null;
 
   const [now, setNow] = useState<Date>(new Date());
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
@@ -134,10 +134,21 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         setStatusMessage(header.statusMessage);
       }
       if (header?.statusUpdatedAt) {
-        const timeStr = new Intl.DateTimeFormat('it-IT', {
-          hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short'
-        }).format(new Date(header.statusUpdatedAt));
-        setStatusUpdatedAt(`Aggiornato alle ${timeStr}`);
+        let d: Date | null = null;
+        if (typeof header.statusUpdatedAt === 'number') d = new Date(header.statusUpdatedAt);
+        else if (typeof header.statusUpdatedAt === 'object' && 'seconds' in (header.statusUpdatedAt as any)) {
+          d = new Date((header.statusUpdatedAt as any).seconds * 1000);
+        } else if (typeof (header.statusUpdatedAt as any)?.toDate === 'function') {
+          d = (header.statusUpdatedAt as any).toDate();
+        } else {
+          d = new Date(header.statusUpdatedAt);
+        }
+        if (d && !isNaN(d.getTime())) {
+          const timeStr = new Intl.DateTimeFormat('it-IT', {
+            hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short'
+          }).format(d);
+          setStatusUpdatedAt(`Aggiornato alle ${timeStr}`);
+        }
       }
     });
     const unsubUpdates = liveService.subscribeToLiveUpdates(activeTripId, (updates) => {
@@ -1593,6 +1604,29 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     remoteGpsLease.holderDeviceId === liveGpsService.getDeviceId()
   );
 
+  if (!activeTripId) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] p-6 text-center animate-fade-in text-slate-900 dark:text-slate-100">
+        <div className="w-16 h-16 rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-3xl mb-4 shadow-sm border border-slate-200/80 dark:border-slate-700">
+          🧭
+        </div>
+        <h2 className="text-xl font-extrabold tracking-tight text-slate-950 dark:text-white mb-2">Nessun viaggio selezionato</h2>
+        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 max-w-sm mb-6 leading-relaxed">
+          Per visualizzare la trasmissione LIVE, il diario di bordo e la posizione satellitare, seleziona o accedi a un viaggio autorizzato.
+        </p>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="px-5 py-2.5 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 text-xs font-bold transition-all shadow-sm cursor-pointer"
+          >
+            ← Torna indietro
+          </button>
+        )}
+      </div>
+    );
+  }
+
   if (typeof document !== 'undefined') return (
     <LiveEditorialExperience
       isExternal={isStandaloneExternal}
@@ -2682,7 +2716,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
                 onClick={handleSaveCustomPhoto}
                 className="flex-1 py-2 text-xs font-bold text-white bg-[#FF6B5F] hover:bg-[#ed5d52] rounded-xl transition-colors cursor-pointer shadow-xs"
               >
-                Salva e Pubblica
+                Salva su dispositivo
               </button>
             </div>
           </div>

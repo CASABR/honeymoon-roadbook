@@ -189,6 +189,9 @@ export const liveService = {
       } else {
         callback(null);
       }
+    }, (err) => {
+      console.warn('[LiveService] Errore sottoscrizione header:', err);
+      callback(null);
     });
   },
 
@@ -203,6 +206,9 @@ export const liveService = {
         results.push({ id: doc.id, ...doc.data() } as LiveUpdate);
       });
       callback(results);
+    }, (err) => {
+      console.warn('[LiveService] Errore sottoscrizione updates:', err);
+      callback([]);
     });
   },
 

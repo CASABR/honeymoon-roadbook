@@ -258,34 +258,6 @@ export default function DesktopNavigation({
               </span>
             </div>
           </div>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Link discreto a diagnostica senza affollare */}
-            <a
-              href={`${typeof window !== 'undefined' ? window.location.pathname : ''}?diag=identity`}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Diagnostica identità e sessione"
-              className="p-1.5 rounded-lg bg-slate-200/60 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 text-[10px] transition-colors"
-            >
-              🔍
-            </a>
-            {tripConfig?.id === '0000' && (
-              <button
-                type="button"
-                onClick={() => {
-                  const url = new URL(window.location.href);
-                  url.searchParams.set('admin', '1');
-                  window.history.pushState({}, '', url.toString());
-                  window.dispatchEvent(new CustomEvent('open_admin_console'));
-                }}
-                title="Apri Console Amministratore"
-                className="px-1.5 py-0.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[10px] font-bold cursor-pointer transition-colors"
-              >
-                🛡️ Admin
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </aside>

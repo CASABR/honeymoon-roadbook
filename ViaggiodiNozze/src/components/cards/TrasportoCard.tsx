@@ -431,26 +431,26 @@ export default function TrasportoCard({
             </div>
           )}
 
-          {/* 4. AVVISO CHECK-IN E CHIUSURA (SEGNALAZIONE COMPATTA ED ELEGANTE) */}
+          {/* 4. STATO CHECK-IN IN UNA RIGA COMPATTA (BETA RELEASE CANDIDATE) */}
           {checkinInfo.cutoffTime && !isCompact && (
-            <div className="mt-2.5 min-w-0 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 flex items-center justify-between gap-2 flex-wrap text-xs">
-              <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                <span className="text-slate-400 dark:text-slate-500 shrink-0 text-xs">⏱️</span>
-                <span className="font-bold text-slate-700 dark:text-slate-200 shrink-0">
-                  {transport.type === 'traghetto' ? 'Imbarco entro:' : 'Chiusura check-in:'}
+            <div className="mt-2 min-w-0 px-2.5 py-1 rounded-lg bg-slate-50/90 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/60 flex items-center justify-between gap-1.5 text-xs">
+              <div className="flex items-center gap-1.5 min-w-0 truncate">
+                <span className="text-slate-400 dark:text-slate-500 shrink-0 text-[11px]">⏱️</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300 shrink-0 text-[11px]">
+                  {transport.type === 'traghetto' ? 'Imbarco:' : 'Check-in:'}
                 </span>
-                <span className="font-extrabold text-slate-900 dark:text-white tabular-nums tracking-tight">
+                <strong className="font-extrabold text-slate-900 dark:text-white tabular-nums text-xs">
                   {checkinInfo.cutoffTime}
-                </span>
+                </strong>
                 {checkinInfo.airportArrivalTime && (
                   <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                    · in aeroporto entro le <strong className="font-semibold text-slate-700 dark:text-slate-300">{checkinInfo.airportArrivalTime}</strong>
+                    · in aeroporto ore {checkinInfo.airportArrivalTime}
                   </span>
                 )}
               </div>
               {checkinInfo.statusBadge && (
                 <span
-                  className={`inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full border shrink-0 ${checkinInfo.statusBadge.tone}`}
+                  className={`inline-flex items-center gap-1 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md border shrink-0 ${checkinInfo.statusBadge.tone}`}
                 >
                   <span>{checkinInfo.statusBadge.icon}</span>
                   <span>{checkinInfo.statusBadge.label}</span>

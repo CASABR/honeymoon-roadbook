@@ -578,46 +578,47 @@ export default function SettingsMenu() {
                 <span className="text-slate-400 text-xs">›</span>
               </button>
 
-              {/* Diagnostica Sessione (Discreta, non protagonista) */}
-              <a
-                href={`${window.location.pathname}?diag=identity&identityDiagnostics=1`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setOpen(false)}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border-t border-slate-100 dark:border-slate-800 cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span className="text-sm">🔍</span>
-                  <div className="text-left">
-                    <span className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">Verifica Identità 0000 &amp; Diagnostica</span>
-                    <span className="block text-[9px] text-slate-400 font-normal">Stato sessione e sincronizzazione</span>
-                  </div>
-                </div>
-                <span className="text-slate-400 text-xs">↗</span>
-              </a>
-
-              {/* Console Amministratore: visibile esclusivamente per il viaggio originale 0000 */}
-              {getTripConfig()?.id === '0000' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpen(false);
-                    const url = new URL(window.location.href);
-                    url.searchParams.set('admin', '1');
-                    window.history.pushState({}, '', url.toString());
-                    window.dispatchEvent(new CustomEvent('open_admin_console'));
-                  }}
-                  className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors border-t border-slate-100 dark:border-slate-800 cursor-pointer"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-base">🛡️</span>
-                    <div className="text-left">
-                      <span className="block text-xs font-bold text-indigo-700 dark:text-indigo-300">Console Amministratore</span>
-                      <span className="block text-[10px] text-indigo-500/80 dark:text-indigo-400/80 font-normal">Pannello globale roadbook</span>
+              {/* Opzioni avanzate (accessibili solo con hash o parametro dev/admin) */}
+              {typeof window !== 'undefined' && (window.location.search.includes('admin=1') || window.location.hash.includes('admin') || window.location.search.includes('diag=1')) && (
+                <>
+                  <a
+                    href={`${window.location.pathname}?diag=identity&identityDiagnostics=1`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setOpen(false)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors border-t border-slate-100 dark:border-slate-800 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-sm">🔍</span>
+                      <div className="text-left">
+                        <span className="block text-[11px] font-bold text-slate-700 dark:text-slate-300">Verifica Identità 0000 &amp; Diagnostica</span>
+                        <span className="block text-[9px] text-slate-400 font-normal">Stato sessione e sincronizzazione</span>
+                      </div>
                     </div>
-                  </div>
-                  <span className="text-indigo-400 text-xs">›</span>
-                </button>
+                    <span className="text-slate-400 text-xs">↗</span>
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false);
+                      const url = new URL(window.location.href);
+                      url.searchParams.set('admin', '1');
+                      window.history.pushState({}, '', url.toString());
+                      window.dispatchEvent(new CustomEvent('open_admin_console'));
+                    }}
+                    className="w-full flex items-center justify-between px-4 py-3 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors border-t border-slate-100 dark:border-slate-800 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-base">🛡️</span>
+                      <div className="text-left">
+                        <span className="block text-xs font-bold text-indigo-700 dark:text-indigo-300">Console Amministratore</span>
+                        <span className="block text-[10px] text-indigo-500/80 dark:text-indigo-400/80 font-normal">Pannello globale roadbook</span>
+                      </div>
+                    </div>
+                    <span className="text-indigo-400 text-xs">›</span>
+                  </button>
+                </>
               )}
             </div>
           </div>,

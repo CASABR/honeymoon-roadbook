@@ -394,78 +394,71 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           </div>
         </div>
 
-        {/* 3 Possibilità Chiare ed Immediate: Accedi · Crea · Partecipa */}
+        {/* 3 INTENZIONI PRINCIPALI (BETA RELEASE CANDIDATE) */}
         <div className="space-y-3 pt-1">
-          {/* 1. ACCEDI (Google in primo piano, Email e Password disponibile) */}
-          <div className="p-3.5 rounded-2xl bg-white/[0.08] border border-white/15 space-y-2 text-left">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-300">
-                Hai già un viaggio o un account?
-              </span>
-              <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-                Consigliato
-              </span>
+          {/* 1. ORGANIZZA UN VIAGGIO */}
+          <button
+            type="button"
+            onClick={() => setMode('create')}
+            className="w-full py-4 px-4.5 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:opacity-95 cursor-pointer shadow-lg flex items-center justify-between text-left"
+            style={{ background: '#FF6B5F', color: '#ffffff' }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-xl">✨</span>
+              <div>
+                <div className="font-extrabold text-base leading-tight">1. Organizza un viaggio</div>
+                <div className="text-xs text-white/80 font-normal mt-0.5">Crea un nuovo viaggio con date e tappe</div>
+              </div>
             </div>
+            <span className="text-white text-base font-bold">→</span>
+          </button>
 
+          {/* 2. ACCEDI AL MIO VIAGGIO */}
+          <button
+            type="button"
+            onClick={() => setMode('account_login')}
+            className="w-full py-4 px-4.5 rounded-2xl font-bold text-sm transition-all active:scale-95 cursor-pointer border flex items-center justify-between text-left hover:bg-white/10"
+            style={{ background: 'rgba(255,255,255,0.08)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.2)' }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-xl">🔑</span>
+              <div>
+                <div className="font-extrabold text-base leading-tight">2. Accedi al mio viaggio</div>
+                <div className="text-xs text-slate-300 font-normal mt-0.5">Hai già un viaggio o un account? Accedi al tuo Account (Multi-dispositivo)</div>
+              </div>
+            </div>
+            <span className="text-slate-300 text-base font-bold">→</span>
+          </button>
+
+          {/* 3. PARTECIPIA A UN VIAGGIO */}
+          <button
+            type="button"
+            onClick={() => setMode('join')}
+            className="w-full py-4 px-4.5 rounded-2xl font-bold text-sm transition-all active:scale-95 cursor-pointer border flex items-center justify-between text-left hover:bg-white/10"
+            style={{ background: 'rgba(255,255,255,0.05)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.15)' }}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-xl">🤝</span>
+              <div>
+                <div className="font-extrabold text-base leading-tight">3. Partecipa a un viaggio</div>
+                <div className="text-xs text-slate-300 font-normal mt-0.5">Inserisci un codice o link di invito</div>
+              </div>
+            </div>
+            <span className="text-slate-300 text-base font-bold">→</span>
+          </button>
+
+          {/* Accesso Rapido Google Facoltativo */}
+          <div className="pt-2">
             <button
               type="button"
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full py-3 px-4 rounded-xl font-bold text-sm bg-white text-slate-900 hover:bg-slate-100 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2.5 shadow-md disabled:opacity-50"
+              className="w-full py-3 px-4 rounded-xl font-bold text-xs bg-white text-slate-900 hover:bg-slate-100 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
             >
-              <span className="text-base">🌐</span>
+              <span>🌐</span>
               <span>{loading ? 'Accesso in corso…' : 'Continua con Google'}</span>
             </button>
-
-            <button
-              type="button"
-              onClick={() => setMode('account_login')}
-              className="w-full text-center text-[11px] font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer py-1"
-            >
-              Accedi al tuo Account (Multi-dispositivo) con Email e Password →
-            </button>
           </div>
-
-          <div className="relative flex items-center justify-center pt-0.5 pb-0.5">
-            <div className="border-t border-white/10 w-full" />
-            <span className="bg-[#172033] px-3 text-[10px] uppercase font-bold text-slate-400 absolute">
-              oppure
-            </span>
-          </div>
-
-          {/* 2. CREA UN VIAGGIO */}
-          <button
-            type="button"
-            onClick={() => setMode('create')}
-            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:opacity-90 cursor-pointer shadow-md flex items-center justify-between"
-            style={{ background: '#FF6B5F', color: '#ffffff' }}
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="text-lg">✨</span>
-              <div className="text-left">
-                <div className="font-extrabold text-sm">Crea un nuovo viaggio</div>
-                <div className="text-[10px] text-white/80 font-normal">Imposta le date e inizia il roadbook</div>
-              </div>
-            </div>
-            <span className="text-white text-sm font-bold">→</span>
-          </button>
-
-          {/* 3. PARTECIPA A UN VIAGGIO */}
-          <button
-            type="button"
-            onClick={() => setMode('join')}
-            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all active:scale-95 cursor-pointer border flex items-center justify-between"
-            style={{ background: 'rgba(255,255,255,0.06)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.18)' }}
-          >
-            <div className="flex items-center gap-2.5">
-              <span className="text-lg">🤝</span>
-              <div className="text-left">
-                <div className="font-extrabold text-sm">Partecipa a un viaggio</div>
-                <div className="text-[10px] text-slate-300 font-normal">Inserisci codice o accetta un invito</div>
-              </div>
-            </div>
-            <span className="text-slate-300 text-sm font-bold">→</span>
-          </button>
         </div>
 
         <p className="text-[11px] text-center" style={{ color: '#64748b' }}>

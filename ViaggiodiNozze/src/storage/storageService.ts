@@ -1,4 +1,4 @@
-import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Shopping, Spesa, DeviceRole, NotaViaggio, Bagaglio } from '../types';
+import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Shopping, Spesa, DeviceRole, NotaViaggio, Bagaglio, DayMapsRoutes, DayMapRouteEntry, DayRouteTransportMode } from '../types';
 import {
   STORES,
   idbGetAll,
@@ -191,23 +191,72 @@ class StorageService {
     }
   }
 
-  // --- DAY MAPS LINKS (Backward compatibility, now delegates to SETTINGS store) ---
+  // --- DAY MAPS ROUTES (Auto & Piedi con retrocompatibilità assoluta) ---
+  async getDayMapsRoutes(date: string): Promise<DayMapsRoutes> {
+    const routesSetting = await idbGet<any>(STORES.SETTINGS, `day_maps_routes_${date}`);
+    let routes: DayMapsRoutes = routesSetting?.value || {};
+
+    // Migrazione / Fallback retrocompatibile trasparente:
+    // Se non c'è una configurazione nuova per questa data, controlla se esiste il vecchio link legacy
+    if (!routes.driving && !routes.walking) {
+      const legacySetting = await idbGet<any>(STORES.SETTINGS, `day_maps_link_${date}`);
+      if (legacySetting?.value && typeof legacySetting.value === 'string' && legacySetting.value.trim()) {
+        const legacyUrl = legacySetting.value.trim();
+        const isWalking = legacyUrl.toLowerCase().includes('travelmode=walking') || legacyUrl.toLowerCase().includes('dirflg=w');
+        const mode: DayRouteTransportMode = isWalking ? 'walking' : 'driving';
+        const entry: DayMapRouteEntry = {
+          url: legacyUrl,
+          mode,
+          isComplete: false,
+          updatedAt: Date.now()
+        };
+        if (mode === 'walking') {
+          routes = { walking: entry };
+        } else {
+          routes = { driving: entry };
+        }
+      }
+    }
+    return routes;
+  }
+
+  async saveDayMapsRoutes(date: string, routes: DayMapsRoutes): Promise<void> {
+    assertCanMutate('settings');
+    const id = `day_maps_routes_${date}`;
+    const data = { id, value: routes };
+    await idbPut(STORES.SETTINGS, data);
+    notifyDataChanged('settings', 'save', data);
+
+    // Manteniamo sincronizzato anche il link legacy 'day_maps_link_${date}'
+    // per massima retrocompatibilità con parti di codice o esportazioni preesistenti
+    const primaryUrl = routes.driving?.url || routes.walking?.url || '';
+    const legacyId = `day_maps_link_${date}`;
+    if (primaryUrl) {
+      const legacyData = { id: legacyId, value: primaryUrl };
+      await idbPut(STORES.SETTINGS, legacyData);
+      notifyDataChanged('settings', 'save', legacyData);
+    } else {
+      await idbDelete(STORES.SETTINGS, legacyId);
+      notifyDataChanged('settings', 'delete', { id: legacyId });
+    }
+  }
+
   async getDayMapLink(date: string): Promise<string | null> {
+    const routes = await this.getDayMapsRoutes(date);
+    if (routes.driving?.url) return routes.driving.url;
+    if (routes.walking?.url) return routes.walking.url;
     const setting = await idbGet<any>(STORES.SETTINGS, `day_maps_link_${date}`);
     return setting ? setting.value : null;
   }
 
   async saveDayMapLink(date: string, link: string): Promise<void> {
     assertCanMutate('settings');
-    const id = `day_maps_link_${date}`;
-    if (link) {
-      const data = { id, value: link };
-      await idbPut(STORES.SETTINGS, data);
-      notifyDataChanged('settings', 'save', data);
-    } else {
-      await idbDelete(STORES.SETTINGS, id);
-      notifyDataChanged('settings', 'delete', { id });
-    }
+    const currentRoutes = await this.getDayMapsRoutes(date);
+    const updatedRoutes: DayMapsRoutes = {
+      ...currentRoutes,
+      driving: link ? { url: link, mode: 'driving', updatedAt: Date.now() } : null
+    };
+    await this.saveDayMapsRoutes(date, updatedRoutes);
   }
 
   // --- GENERIC SETTINGS & TOMBSTONES ---

@@ -12,6 +12,22 @@ export interface Giorno {
   updatedAt: number;
 }
 
+export type DayRouteTransportMode = 'driving' | 'walking';
+
+export interface DayMapRouteEntry {
+  url: string;
+  mode: DayRouteTransportMode;
+  isComplete?: boolean;
+  stopsCount?: number;
+  notes?: string;
+  updatedAt?: number;
+}
+
+export interface DayMapsRoutes {
+  driving?: DayMapRouteEntry | null;
+  walking?: DayMapRouteEntry | null;
+}
+
 export interface Coordinate {
   lat: number;
   lng: number;
