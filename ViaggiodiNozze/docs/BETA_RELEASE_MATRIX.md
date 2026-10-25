@@ -22,8 +22,11 @@
 | **LIVE Mobile** | Schermata compatta, gerarchia chiara, controlli guida raggruppati, responsive 393/320px. | PUBBLICATO | LiveEditorialExperience con mappa compatta e controlli comprimibili online |
 | **Galleria Foto Multi-Device** | Condivisione pubblica foto organizzatore -> ospiti indipendenti. | IMPLEMENTATO | Locale attivo; disclaimers beta espliciti; storage cloud post-beta |
 | **Card Trasporti** | Check-in su riga compatta, orari IATA leggibili, azioni biglietto/PNR chiare. | PUBBLICATO | TrasportoCard con check-in su singola riga orizzontale |
-| **Console Admin Globale** | Nascosta ai tester. Autorizzazione rigorosa `system_admins`. UI snella se non autorizzato. | PUBBLICATO | Procedura manuale Firebase Console per /system_admins/{uid}; isolata con ?admin=1 online |
 | **Persistenza & Offline** | Nessuna perdita dati, funzionamento offline di base (IndexedDB + LocalStorage). | PUBBLICATO | Verificato con test di persistenza e tombstone |
+| **GPS Cloud Limit (P0)** | Nessun "Limite temporaneo operazioni cloud", rimossa runTransaction contesa, throttle 15s in-memory, handover immediato copilota. | TESTATO (Emulator) | 10/10 test superati. Richiede verifica su smartphone reale post-pubblicazione |
+| **Cartoline LIVE (P0)** | Cartolina eliminata non ricompare dopo refresh/sync multi-client, tombstones persistenti, soft-delete schema. | TESTATO (Emulator) | 10/10 test superati. Richiede verifica su smartphone reale post-pubblicazione |
+| **Header LIVE Mobile (P1)** | Header compatto ~48px, badge LIVE pulsante, titolo viaggio dinamico, zero ridondanze/sovrapposizioni (320px/393px). | TESTATO | Header compatto in LiveEditorialExperience, testato e validato |
+| **Rotella Impostazioni (P1)** | Semplificata, rimossi Guida/Tutorial e duplicati, 4 voci essenziali + cassetto Opzioni Avanzate, admin con ?admin=1. | TESTATO | SettingsMenu compatto testato e validato |
 
 ---
 

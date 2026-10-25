@@ -1,70 +1,161 @@
-# HOUNIGO — MATRICE DEI PERCORSI UTENTE & BETA RELEASE GATE
-Data creazione: 24 Ottobre 2026  
-Versione target: Release Candidate 1.0.0-beta  
-Ambiente di verifica: Browser emulato, Firestore Emulator / Mock multi-client, Test di integrazione compiled runtime.
+# HOUNIGO — MATRICE DI RILASCIO BETA (BETA RELEASE MATRIX)
+*Data target: 28 Ottobre 2026*
+*Obiettivo: Prima release stabile fruibile da un gruppo di beta tester esterni (Web/PWA).*
 
 ---
 
-## 1. Tabella dei Percorsi Utente
+## 1. CRITERI DI QUALITÀ PER LA RELEASE CANDIDATE (RC)
 
-| ID | Percorso | Utente Coinvolto | Stato Iniziale | Azione Eseguita | Risultato Atteso | Tipo di Test | Risultato Osservato | Eventuale Problema | Stato Finale |
-|---|---|---|---|---|---|---|---|---|---|
-| **A-01** | Nuovo Utente | Visitatore non registrato | Nessun account, IndexedDB vuoto | Apertura applicazione `https://.../` | Viene mostrata la schermata di selezione a 3 percorsi (Accedi, Crea viaggio, Partecipa) senza creare account anonimi al mount | Integrazione / DOM | Nessun utente anonimo creato in Auth; 3 opzioni chiare visibili | Nessuno | **PASS** |
-| **A-02** | Nuovo Utente | Visitatore non registrato | Schermata Onboarding | Scelta modalità di autenticazione | Google visibile come opzione primaria; Email/Password secondaria senza popup invasivi | Unitario / Statico | Opzione Google prominente in cima al form di accesso | Nessuno | **PASS** |
-| **A-03** | Nuovo Utente | Nuovo utente autenticato | Account senza viaggi associati | Creazione nuovo viaggio con titolo e destinazione | Viene generato un viaggio vuoto; nessun dato o attività ereditati dal viaggio 0000 | Integrazione | Creato viaggio con ID univoco; DB isolato; 0 attività precompilate | Nessuno | **PASS** |
-| **A-04** | Nuovo Utente | Utente con 1 viaggio | Viaggio vuoto creato | Chiusura e riapertura app (refresh) | Il viaggio viene riaperto direttamente senza mostrare UID o richiedere login continuo | E2E Session | Credenziali e tripId ripristinati da IndexedDB | Nessuno | **PASS** |
-| **B-01** | Organizzatore | Organizzatore autenticato | Viaggio con giorni | Aggiunta tappa, attività, alloggio, trasporto | Dati persistiti in IndexedDB e collegati correttamente alla data/giorno | Integrazione | Record salvati con timestamp e validati contro tombstone | Nessuno | **PASS** |
-| **B-02** | Organizzatore | Organizzatore autenticato | Due eventi contemporanei alla stessa ora | Rilevamento collisione e apertura modale | Modale evidenzia la card più completa e offre 3 scelte: Mantieni entrambi, Elimina uno, Modifica orario | Integrazione | 3 opzioni funzionanti; calcolo score completezza corretto | Nessuno | **PASS** |
-| **B-03** | Organizzatore | Organizzatore autenticato | Evento ore 23:30 con collisione | Spostamento rapido +1h (scavalco mezzanotte) | Orario diventa 00:30 e la data dell'evento avanza di +1 giorno con badge visuale | Integrazione / Unit | Orario aggiornato a 00:30; data incrementata di 1 giorno con `dateOffsetDays` | Nessuno | **PASS** |
-| **B-04** | Organizzatore | Organizzatore autenticato | Trasporto con partenza e arrivo | Modifica orario di partenza | L'orario di arrivo viene ricalcolato preservando l'esatta durata originale del viaggio | Unitario | Durata in minuti preservata anche attraverso il cambio data | Nessuno | **PASS** |
-| **B-05** | Organizzatore | Organizzatore autenticato | Dettagli attività Trekking | Visualizzazione scheda trekking con campi parziali | I campi non valorizzati non mostrano valori fittizi (niente "0 km", "0 m", "0 €") | Componente / UI | Mostrati esclusivamente i dati concretamente presenti | Nessuno | **PASS** |
-| **C-01** | Due Dispositivi | Stesso utente (Device A e B) | Stesso viaggio aperto su entrambi | Creazione e modifica nota su Device A | Device B riceve la nota aggiornata via Two-Phase Sync | Simulazione Multi-Client | Evento `roadbook_data_mutated` e pull su Firestore completati | Nessuno | **PASS** |
-| **C-02** | Due Dispositivi | Stesso utente (Device A e B) | Nota sincronizzata | Eliminazione nota su Device A | Device A registra tombstone; al sync Device B applica il tombstone prima del push prevenendo resurrezioni | Integrazione Runtime | `deletedAt > createdAt` blocca la ricreazione dell'elemento eliminato | Nessuno | **PASS** |
-| **C-03** | Due Dispositivi | Stesso utente (Device A) | Dispositivo offline | Modifica locale durante disconnessione | Al ripristino della rete il sync riconcilia le modifiche locali senza regressioni | Integrazione / Mock | Riconnessione gestita via fail-fast Two-Phase Sync | Nessuno | **PASS** |
-| **D-01** | Copilota | Organizzatore | Menu Impostazioni | Generazione link d'invito copilota | Link con Web Share API (WhatsApp/SMS) generato senza esporre UID tecnici | Componente | Link d'invito pulito generato come azione primaria | Nessuno | **PASS** |
-| **D-02** | Copilota | Copilota su secondo device | Ricezione link d'invito | Apertura link e richiesta adesione | Il copilota viene riconosciuto come richiedente; le Rules Spark richiedono autorizzazione Owner | Sicurezza / Rules | Rispetto modello Spark: il link non concede poteri di scrittura prima dell'ok Owner | Nessuno | **PASS** |
-| **D-03** | Copilota | Organizzatore e Copilota | Copilota autorizzato | Assegnazione ruolo copilota | Copilota ha poteri di modifica itinerario ma non può cancellare il viaggio né cambiare ownership | Autorizzazione | Regole di ruolo verificate e confinate | Nessuno | **PASS** |
-| **E-01** | Live GPS | Organizzatore (Device A) | Scheda Live | Apertura scheda Live | Nessun tracking GPS avviato automaticamente al mount; richiede consenso esplicito | Sicurezza / UI | GPS spento al caricamento della pagina | Nessuno | **PASS** |
-| **E-02** | Live GPS | Organizzatore (Device A) | GPS attivato con consenso | Streaming posizione su Firestore | Lease `/gps_control/current` acquisito; coordinate scritte su `/locations/current` | Integration lease | Scrittura conforme alle Rules `7f153454` | Nessuno | **PASS** |
-| **E-03** | Live GPS | Organizzatore e Copilota | Device A in condivisione | Trasferimento guida a Device B (Copilota) | Device B diventa holder del lease; Device A viene inibito dalla scrittura; coordinate aggiornate | Multi-client lease | Trasferimento lease atomicamente verificato | Nessuno | **PASS** |
-| **E-04** | Live GPS | Organizzatore | Device B è holder della guida | Revoca guida da parte dell'Organizzatore | L'Organizzatore riprende la guida su Device A; Device B perde autorizzazione a pubblicare | Multi-client lease | Revoca conclamata; lease riassegnato all'Owner | Nessuno | **PASS** |
-| **E-05** | Live GPS | Ospite e Copilota | Posizione non aggiornata da >2 min | Visualizzazione marker sulla mappa | La posizione obsoleta viene oscurata all'ospite e marcata `isStale` al copilota | Privacy / UI | Nessuna coordinata fantasma mostrata all'ospite esterno | Nessuno | **PASS** |
-| **E-06** | Live GPS | Organizzatore | Guida attiva | Pressione pulsante Pausa / Stop | Coordinate su Firestore vengono azzerate per gli ospiti; marker rimosso dalla mappa | Privacy / Snap | Marker rimosso dal DOM e coordinate azzerate | Nessuno | **PASS** |
-| **F-01** | Ospite Esterno | Utente senza account | Link pubblico del viaggio | Accesso alla visualizzazione ospite | Accesso consentito in sola lettura; documenti, voucher, spese e note private non accessibili | Sicurezza / Rules | Protezione dati sensibili garantita da whitelist client e Rules | Nessuno | **PASS** |
-| **F-02** | Ospite Esterno | Utente ospite | Diario di viaggio | Invio reazione (cuore, like, applauso) | Reazione registrata nel feed pubblico secondo la whitelist consentita | Integrazione | Reazione consentita senza richiesta di permessi di scrittura | Nessuno | **PASS** |
-| **H-01** | Hotfix P0 | Copilota anonimo | Ingresso via invito | Riscatto token crittografico | Copilota autorizzato come membro; visualizza card, tappe e spese preventivo | Firebase Emulator | Riscatto atomico completato; dati visibili senza PERMISSION_DENIED | Nessuno | **PASS** |
-| **H-02** | Hotfix P0 | Copilota | Login Google post-adesione anonima | `linkWithCredential` o passaggio account Google | Membership su GIAPPONE conservata intatta; nessun override forzato su 0000 | Firebase Emulator | Transizione identità verificata; UID o record Google associato al viaggio | Nessuno | **PASS** |
-| **H-03** | Hotfix P0 | Utente Multi-Viaggio | Più viaggi associati (0000 + GIAPPONE) | Selezione viaggio | Viaggio attivo conservato; selettore chiaro; 0000 inalterato e protetto | Firebase Emulator | Risoluzione coerente tripId; nessuna sovrascrittura arbitraria | Nessuno | **PASS** |
-| **H-04** | Hotfix P0 | Estraneo / Hacker | Token invito già riscattato | Tentativo di adesione con token già `used` | Blocco da Firestore Rules; token monouso garantito | Firebase Emulator | Tentativo respinto con PERMISSION_DENIED | Nessuno | **PASS** |
-| **H-05** | Hotfix P0 | Membro già iscritto | Riapertura link invito già consumato | Re-ingresso nel viaggio | Accesso diretto consentito senza ri-riscattare il token né errori fuorvianti | Firebase Emulator / App | Bypass riscatto per membri già effettivi; ingresso immediato | Nessuno | **PASS** |
-| **H-06** | Hotfix P0 | Owner | Scheda Live (storage mobile saturo) | Attivazione GPS | Nessuna eccezione `Quota exceeded`; salvataggio sicuro con auto-eviction cache sacrificabili | Unit / Storage mock | `safeLocalStorageSet` evicts gallery cache; nessun crash bloccante | Nessuno | **PASS** |
-| **H-07** | Hotfix P0 | Owner e Copilota | Delega guida GPS | Assegnazione lease al copilota autorizzato | Lease acquisito e coordinate pubblicate con successo, zero "Errore tecnico" | Firebase Emulator | Validazione `isGpsGuideEligible` superata con ownerUid e ownerId | Nessuno | **PASS** |
-| **H-08** | Hotfix P0 | Estraneo | Tentativo di guida GPS su feed altrui | Scrittura su `gps_control/current` o `locations/current` | Blocco tassativo da Firestore Security Rules | Firebase Emulator | Scrittura respinta con PERMISSION_DENIED | Nessuno | **PASS** |
-| **H-09** | Hotfix P0 | Attaccante C | Conosce UID del copilota B | Tentativo creazione member con `prevUid: B` | Blocco tassativo: eliminata condizione non verificabile; transizione solo con linkWithPopup o nuovo invito | Firebase Emulator (16/16) | Tentativo respinto con PERMISSION_DENIED | Nessuno | **PASS** |
-| **H-10** | Hotfix P0 | Utente con foto locali | Quota storage satura | Acquisizione GPS e salvataggio | Galleria fotografica `hounigo_live_gallery` intatta al 100%; fallback su sessionStorage/memoria | Test Unitario & Mock | Zero cancellazione di foto e contenuti non recuperabili | Nessuno | **PASS** |
-| **H-11** | Hotfix P1 | Tester Mobile/Desktop | Scheda Oggi | Tocco / Click sull'icona 📅 del calendario | Apertura immediata del selettore date nativo e navigazione verso il giorno selezionato | Integrazione DOM | Overlay trasparente e showPicker() operativi su touch/click | Nessuno | **PASS** |
-| **H-12** | Hotfix P1 | Tester Mobile | Scheda Oggi (320px e 393px) | Visualizzazione blocco percorsi Maps | Singola riga orizzontale compatta con icona Maps, Auto, Piedi e matita modale unificata | Componente / CSS | Nessuna sovrapposizione a 320px, modale compatto Auto/Piedi | Nessuno | **PASS** |
-| **H-13** | Hotfix P1 | Amministratore Globale | Console Admin (?admin=1) | Accesso a statistiche globali su `/trips` | Query consentite SOLO se presente in `/system_admins/{uid}` o con claim `admin: true` | Firebase Emulator | Accesso consentito ad admin in whitelist, bloccato a tutti gli altri | Nessuno | **PASS** |
+| Area | Criterio Minimo Richiesto | Stato Attuale | Note Operative |
+| :--- | :--- | :--- | :--- |
+| **Chiusura prevUid** | Rifiuto categorico di membership create via prevUid da attaccanti; solo linkWithPopup o re-invito. | PUBBLICATO | Regole pubblicate su app-viaggio-di-nozze; codice senza prevUid online nel bundle index-DxxPChKC.js |
+| **Protezione Foto & Storage** | QuotaExceededError non elimina fotografie ('hounigo_live_gallery') né dati utente; fallback session/memory. | PUBBLICATO | Protezione online (LiveView-Cm4wFBQ9.js, geolocationService); foto non sacrificabili |
+| **Calendario in Oggi** | Tocco e click immediato su icona 📅 su mobile (iOS Safari/Android) e desktop. | PUBBLICATO | Overlay trasparente e showPicker() operativi online nel bundle principale |
+| **Card Google Maps** | Barra ultra-compatta a singola riga su smartphone (Icona Maps, 🚗, 🚶, ✏️ unificata), responsive 320px. | PUBBLICATO | Singola riga orizzontale, modale unificato Auto + Piedi online |
+| **GPS LIVE Proprietario** | Diagnosi esatta "Non attivata" (7 stati), pulsante esplicito Guida, Action Card sotto mappa, istruzioni iOS. | PUBBLICATO | Risolto bug `online` undefined; Action Card contestuale online |
+| **Invito Copilota Sicuro** | Link crittografico 128-bit imprevedibile, monouso, 7gg, batch atomico Firestore Spark con `getAfter`, no auto-join. | PUBBLICATO | Regole Firestore attive in produzione; token monouso protetto |
+| **Selezione Viaggi Post-Login** | Lista viaggi posseduti e copilota (`/users/{uid}`), switch istantaneo con reset IndexedDB e cache. | PUBBLICATO | Modale `TripSelectorModal`; isolamento dati 100% online |
+| **Gmail Compatto** | Riga singola orizzontale (stato, account, azione principale), drawer espandibile per permessi `gmail.readonly`. | PUBBLICATO | Integrato in `SmartInsertModal` e `DocumentiView`; preserva identità e permessi |
+| **Sezione Altro Task-Based** | 4 macro-compiti (LIVE, Documenti, Sicurezza, Gestione), zero duplicazioni o riquadri superflui, responsive 393/320px. | PUBBLICATO | Riorganizzazione editoriale completata e attiva online |
+| **Isolamento Dati Viaggi** | Isolamento 100% tra viaggi diversi nello stesso browser. Seed Nuova Zelanda solo per '0000'. | PUBBLICATO | Reset connessioni IndexedDB, flush memoryCache, zero contaminazione date/titoli |
+| **LIVE Desktop** | Consultazione mappa e GPS senza assumere il ruolo guida. Gestione sicura timestamp e tripId. | PUBBLICATO | Rimosso fallback '0000', schermo di selezione recuperabile online |
+| **LIVE Mobile** | Schermata compatta, gerarchia chiara, controlli guida raggruppati, responsive 393/320px. | PUBBLICATO | LiveEditorialExperience con mappa compatta e controlli comprimibili online |
+| **Galleria Foto Multi-Device** | Condivisione pubblica foto organizzatore -> ospiti indipendenti. | IMPLEMENTATO | Locale attivo; disclaimers beta espliciti; storage cloud post-beta |
+| **Card Trasporti** | Check-in su riga compatta, orari IATA leggibili, azioni biglietto/PNR chiare. | PUBBLICATO | TrasportoCard con check-in su singola riga orizzontale |
+| **Persistenza & Offline** | Nessuna perdita dati, funzionamento offline di base (IndexedDB + LocalStorage). | PUBBLICATO | Verificato con test di persistenza e tombstone |
+| **GPS Cloud Limit (P0)** | Nessun "Limite temporaneo operazioni cloud", rimossa runTransaction contesa, throttle 15s in-memory, handover immediato copilota. | TESTATO (Emulator) | 10/10 test superati. Richiede verifica su smartphone reale post-pubblicazione |
+| **Cartoline LIVE (P0)** | Cartolina eliminata non ricompare dopo refresh/sync multi-client, tombstones persistenti, soft-delete schema. | TESTATO (Emulator) | 10/10 test superati. Richiede verifica su smartphone reale post-pubblicazione |
+| **Header LIVE Mobile (P1)** | Header compatto ~48px, badge LIVE pulsante, titolo viaggio dinamico, zero ridondanze/sovrapposizioni (320px/393px). | TESTATO | Header compatto in LiveEditorialExperience, testato e validato |
+| **Rotella Impostazioni (P1)** | Semplificata, rimossi Guida/Tutorial e duplicati, 4 voci essenziali + cassetto Opzioni Avanzate, admin con ?admin=1. | TESTATO | SettingsMenu compatto testato e validato |
 
 ---
 
-## 2. STATO RILASCIO ONLINE (HOTFIX AUTORIZZATO — 25 OTTOBRE 2026)
-- **Commit sorgente**: `7d23b48` su branch `work/product-completion`
-- **Deploy Firestore Rules**: Riuscito su progetto `app-viaggio-di-nozze` (vulnerabilità `prevUid` rimossa).
-- **Deploy Frontend GitHub Pages**: Riuscito su commit remoto `6a7f785` (bundle `assets/index-DxxPChKC.js`, `assets/index-DdMy2aXy.css`).
-- **Smoke test online**: 18/18 test superati (100%).
-- **Dati viaggio 0000**: Protetti e intatti. Nessun dato modificato.
+## 2. STATO DELLE FUNZIONALITÀ PER IL 28 OTTOBRE 2026
+
+### Funzionalità ABILITATE per la Beta
+1. **Invito Copilota Crittografico**: Generazione token 128-bit imprevedibile (`crypto.randomUUID()`), link con token 7 giorni monouso, validazione atomica Firestore batch con `getAfter`, divieto assoluto auto-join su solo tripId, protezione assoluta viaggio 0000.
+2. **GPS LIVE Affidabile & Trasparente**: Rilevamento esatto dello stato (7 motivi di inattività), Action Card sotto la mappa con attivazione/pausa/trasferimento, supporto esplicito Safari/iOS e distinzione della posizione programmata.
+3. **Selezione & Cambio Viaggio Isolato**: Selezione viaggi organizzatore vs copilota, azzeramento IndexedDB e cache al cambio viaggio.
+4. **Gmail Compatto**: Barra singola discreta per inserimento rapido e consultazione documenti.
+5. **Sezione Altro Task-Based**: 4 percorsi chiari per tutte le esigenze di viaggio, logistica e gestione.
+6. **Card Maps Giornaliera Compatta**: Due righe pulite per auto e a piedi con link, modale di editing e avviso per percorsi da 10 tappe.
+7. **Logistica Trasporti & Alloggi**: Visualizzazione chiara orari, check-in sintetico, voucher e PNR.
+8. **LIVE Experience (Consultazione & Diario)**: Mappa satellitare con posizione reale/prevista, feed messaggi con paginazione a 10 e reazioni.
+
+### Funzionalità DISABILITATE o CONTRASSEGNATE COME BETA
+1. **Galleria Fotografica Pubblica Multi-Device**: La memorizzazione locale delle foto è attiva sul dispositivo di chi scatta; la sincronizzazione istantanea remota verso gli ospiti è contrassegnata come "In arrivo con Storage Cloud".
+2. **Console Amministratore Globale**: Esclusa dalla navigazione utente standard e accessibile unicamente tramite parametro URL riservato (`?admin=1`).
 
 ---
 
-## 3. ESITO QA NOTTURNO (25-26 OTTOBRE 2026)
-- **Fase 1 Online**: 28/28 verifiche superate.
-- **Fase 2 Auth & Multi-Trip**: 19/19 test superati su Firebase Emulator porta 8085.
-- **Fase 3 GPS Live & Storage**: 12/12 test superati su Firebase Emulator.
-- **Fase 4 Two-Client Sync**: 8/8 test superati su Firebase Emulator.
-- **Fase 5 UI Mobile (320px/393px) & Desktop**: Verificata con browser subagent (zero overflow, touch funzionanti).
-- **Fase 6 Global Admin**: 14 controlli statici + 7 test runtime superati su Firebase Emulator.
-- **Totale**: 88/88 test superati con successo (100%). Zero anomalie P0/P1.
+## 3. PROTOCOLLO DI COLLAUDO DISPOSITIVI FISICI
+- [x] **Test 1: Owner autenticato ma GPS inattivo**: Riconoscimento stato `not_started`, Action Card visibile. [SUPERATO 14/14]
+- [x] **Test 2: Owner che richiede di diventare Guida**: Azione `takeGuideHere`, persistenza ruolo sessione `'guida'`. [SUPERATO 14/14]
+- [x] **Test 3: Lease GPS occupato da altro dispositivo**: Segnalazione `other_device_active`, opzione trasferimento. [SUPERATO 14/14]
+- [x] **Test 4: Permesso GPS negato e ripristino**: Stato `permission_denied`, istruzioni iOS/Safari. [SUPERATO 14/14]
+- [x] **Test 5: Nuovo utente crea viaggio**: Creazione atomica `/trips/{id}`, `/members/{uid}`, generazione token invito crittografico. [SUPERATO 14/14]
+- [x] **Test 6: Account con più viaggi**: Elenco viaggi posseduti e copilota da `/users/{uid}`. [SUPERATO 14/14]
+- [x] **Test 7: Passaggio tra viaggi con dati indipendenti**: Chiusura IndexedDB, flush cache in memoria, zero leak. [SUPERATO 14/14]
+- [x] **Test 8: Copilota con invito crittografico valido**: Riscatto atomico con batch, transizione token in `'used'`, join autorizzato. [SUPERATO 14/14]
+- [x] **Test 9: Estraneo con solo tripId**: Blocco categorico accesso senza token crittografico. [SUPERATO 14/14]
+- [x] **Test 10: Invito scaduto o revocato**: Blocco riscatto se `status !== 'pending'` o `expiresAt < now`. [SUPERATO 14/14]
+- [x] **Test 11: Lettura dati privati prima del join**: Subcollezioni private protette da `isTripMember()`. [SUPERATO 14/14]
+- [x] **Test 12: Regressioni login, sync, Maps e LIVE**: Mantenimento card 2 righe, parsing timestamp e login permanente. [SUPERATO 14/14]
+- [x] **Test 13: Build completa di produzione**: `npm run build` completato senza errori TypeScript o Vite. [SUPERATO]
+- [ ] **Test Telefono Fisico Owner su Rete Reale (PWA iOS)**: Collaudo finale geolocalizzazione sul dispositivo reale dell'owner pre-apertura tester 28 ottobre.
+
+---
+
+## 4. CONVALIDA FIRESTORE SECURITY RULES SU FIREBASE EMULATOR REALE
+*Ambiente: Firebase Emulator Suite v15.28.2 (Porta 8085) su OpenJDK 21 LTS*
+*Suite: `scripts/test_beta_release_emulator_validation.cjs`*
+*Esito: 24/24 asserzioni superate con successo (100%)*
+
+- [x] **Creazione remota viaggio con `ownerUid`**: Batch atomico crea doc `/trips/{id}` e member doc `/members/{uid}` con role 'owner'. [PASS 01]
+- [x] **Creazione remota viaggio con `ownerId`**: Retrocompatibilità completa per documenti legacy o generatori client. [PASS 02]
+- [x] **Riconoscimento owner per modifiche**: `isTripOwner` riconosce legittimamente l'owner sia tramite `ownerUid` che `ownerId`. [PASS 03]
+- [x] **Generazione invito copilota**: Owner crea `/trips/{id}/invites/{token}` con 7 giorni di validità e role 'copilota'. [PASS 04]
+- [x] **Divieto generazione inviti per non-owner**: Estraneo o copilota non possono creare token di invito. [PASS 05 - PERMISSION_DENIED]
+- [x] **Protezione master `0000` su inviti**: Vietata categoricamente la creazione di inviti su `0000` (`tripId != '0000'`). [PASS 06 - PERMISSION_DENIED]
+- [x] **Accesso con solo `tripId` bloccato**: Estraneo con solo ID viaggio non può eseguire `get` su `/trips/{tripId}`. [PASS 07 - PERMISSION_DENIED]
+- [x] **Accesso dati privati prima del join bloccato**: Estraneo non può accedere a `/tappe`, `/spese`, `/documenti`. [PASS 08 - PERMISSION_DENIED]
+- [x] **Verifica token pre-join**: Utente con link e token esatto legge i metadati dell'invito in `/invites/{token}`. [PASS 09]
+- [x] **Divieto scansione/list inviti**: Estraneo non può enumerare o scansionare i token altrui. [PASS 10 - PERMISSION_DENIED]
+- [x] **Riscatto atomico invito valido**: Batch atomico consuma il token (`status: 'used'`), crea `members/{uid}` e aggiorna `members` array. [PASS 11]
+- [x] **Accesso post-join copilota**: Dopo il riscatto il copilota è membro effettivo e legge `/trips/{id}`. [PASS 12]
+- [x] **Collaborazione post-join copilota**: Il copilota ha accesso di scrittura nelle tappe e risorse condivise. [PASS 13]
+- [x] **Blocco riuso token già consumato**: Secondo utente che tenta di riscattare un token già usato viene respinto. [PASS 14 - PERMISSION_DENIED]
+- [x] **Blocco token scaduto**: Token con `expiresAt < request.time` viene respinto. [PASS 15 - PERMISSION_DENIED]
+- [x] **Blocco token revocato**: Token con `status: 'revoked'` viene respinto. [PASS 16 - PERMISSION_DENIED]
+- [x] **Blocco auto-join non autorizzato**: Auto-iscrizione senza token crittografico viene respinta. [PASS 17 - PERMISSION_DENIED]
+- [x] **Blocco auto-promozione a owner**: Tentativo di iscriversi con role 'owner' viene respinto. [PASS 18 - PERMISSION_DENIED]
+- [x] **Blocco auto-join su `0000`**: Tentativo di iscrizione o join su `0000` viene respinto. [PASS 19 - PERMISSION_DENIED]
+- [x] **Isolamento `0000` da estranei**: Estraneo non può leggere `/trips/0000`. [PASS 20 - PERMISSION_DENIED]
+- [x] **Isolamento tappe private `0000`**: Estraneo non può leggere le tappe di `0000`. [PASS 21 - PERMISSION_DENIED]
+- [x] **Impossibilità eliminazione `0000`**: Nemmeno l'owner può cancellare `0000`. [PASS 23 - PERMISSION_DENIED]
+- [x] **Compatibilità viaggi esistenti**: Viaggi senza la sottocollezione `/invites` continuano a funzionare regolarmente. [PASS 24]
+
+---
+
+## 5. SMOKE TEST POST-DEPLOY & STATO PUBBLICAZIONE (100% PUBBLICATO)
+*Suite: `scripts/post_deploy_smoke_test.cjs`*
+*URL Live: `https://casabr.github.io/honeymoon-roadbook/`*
+*Esito: 18/18 controlli superati con successo (100%)*
+
+- [x] **Deploy Firestore Rules**: Nuove regole (senza vulnerabilità prevUid) rilasciate con successo su `app-viaggio-di-nozze`.
+- [x] **Deploy GitHub Pages**: Frontend pubblicato su branch remoto `gh-pages` (commit `6a7f785`, sorgente `7d23b48`).
+- [x] **Caricamento frontend**: Pagina principale HTTP 200, mount `<div id="root">` presente.
+- [x] **Metadati viewport mobile**: Tag viewport configurato per tutti i display smartphone.
+- [x] **Integrità bundle JS e CSS**: Script principale (`assets/index-DxxPChKC.js` - 1065 KB) e foglio di stile (`assets/index-DdMy2aXy.css` - 202 KB) scaricati e validati. Chunks dinamici (`AdminDashboardView-jjsVRa4h.js`, `storageService-CvYJbMDP.js`, `LiveView-Cm4wFBQ9.js`, `attachmentChunkService-Ce_n3qlw.js`) verificati online (HTTP 200).
+- [x] **PWA Manifest & Icone**: `manifest.webmanifest` valido, display standalone e set icone integro (HTTP 200).
+- [x] **Service Worker**: `sw.js` attivo con Workbox cache e precache configurata (HTTP 200).
+- [x] **Nessun tocco ai dati di produzione 0000**: Nessuna scrittura o modifica sul viaggio master.
+- [x] **Procedura di pubblicazione e piano di rollback**: Backup delle regole attive prima del deploy salvato e verificato in `docs/firestore.rules.active-production-before-hotfix`; commit gh-pages precedente registrato (`b677d2d`).
+
+---
+
+## 6. ESITO QUALITY ASSURANCE NOTTURNO (25-26 OTTOBRE 2026)
+*Totale verifiche eseguite: 88 asserzioni di test superate (100%)*
+
+- [x] **Fase 1 — Riconciliazione Online**: 28/28 verifiche superate (HTTP 200, bundle index-DxxPChKC.js, manifest, precache sw.js, deep links, rollback snapshot valido). [TESTATO IN AUTOMATICO]
+- [x] **Fase 2 — Auth, Identità & Multi-Viaggio**: 19/19 test superati su Firebase Emulator reale porta 8085 (creazione, riscatto invito atomico, lettura dati privati, linkWithPopup, protezione prevUid chiusa, re-invito account Google preesistente, re-ingresso senza riuso token, blocco estranei e token scaduti/revocati). [TESTATO SU FIREBASE EMULATOR]
+- [x] **Fase 3 — GPS Live, Delega Guida & Storage**: 12/12 test superati su Firebase Emulator (avvio owner, vista copilota, delega guida, revoca delega, rate limit 15s/16s, quota storage satura con salvaguardia foto hounigo_live_gallery, isolamento GPS). [TESTATO SU FIREBASE EMULATOR]
+- [x] **Fase 4 — Sincronizzazione Two-Client & Affidabilità**: 8/8 test superati su Firebase Emulator (sync tappe, tombstone in settings/tombstone_..., spese, offline edit & reconnect, LWW basato su updatedAt, prevenzione resurrezione). [TESTATO SU FIREBASE EMULATOR]
+- [x] **Fase 5 — Regressioni UI Mobile (320px/393px) & Desktop**: Verificato con Browser Subagent (zero overflow, scrollWidth <= 320px, tocco su 📅 calendario, Google Maps a singola riga con modale unificato, tabs Altro e Live). [TESTATO IN AUTOMATICO]
+- [x] **Fase 6 — Console Admin Globale**: 14 controlli statici + 7 test runtime superati (blocco query per utenti normali e trip owner, isolamento totale di system_admins, query per admin in whitelist, revoca istantanea). [TESTATO SU FIREBASE EMULATOR]
+- [ ] **Test Telefono Fisico Owner & Copilota**: Da effettuare il 26 ottobre da ***REMOVED*** e ***REMOVED*** su dispositivi reali prima della distribuzione ai tester il 28 ottobre. [IN ATTESA DI COLLAUDO REALE]
+
+---
+
+## 7. ESITO JARVIS 2: SIMULAZIONE UTENTI REALI & MATRICE DI PRONTEZZA BETA (25-26 OTTOBRE 2026)
+*Suite di simulazione: `scripts/test_jarvis2_user_simulation.cjs`*
+*Ambiente: Firebase Emulator Suite v15.28.2 (Porta 8085) su OpenJDK 21 LTS*
+*Esito: 14/14 percorsi utente superati con successo (100%)*
+
+### A. Percorsi Utente Verificati
+- [x] **Tester A1 (Creazione Viaggio)**: Tester A apre da smartphone e crea un nuovo viaggio senza alcuna conoscenza di Firebase, UID o Cloud Sync. Batch atomico `/trips/{id}` + `/members/{uid}` (ruolo `owner`). [SUPERATO]
+- [x] **Tester A2 (Inserimento Tappa)**: Tester A aggiunge la sua prima tappa (es. *Firenze arrivo*) con orario e dettagli logistici. [SUPERATO]
+- [x] **Tester A3 (Inserimento Prenotazione)**: Tester A memorizza alloggio e voucher riservato con codice PNR protetto. [SUPERATO]
+- [x] **Tester A4 (Generazione Invito Copilota)**: Tester A tocca "Invita un Copilota" e genera un link con token crittografico monouso 128-bit valido 7 giorni. [SUPERATO]
+- [x] **Tester A5 (Collegamento Google senza perdita dati)**: Tester A collega il proprio account Google con `linkWithPopup`: l'UID rimane identico, nessun dato o membership viene perso. [SUPERATO]
+- [x] **Tester B1 (Apertura Link WhatsApp)**: Tester B apre il link `?join={tripId}&token={token}`, visualizza titolo viaggio e nome organizzatore prima di accettare. [SUPERATO]
+- [x] **Tester B2 (Accettazione Invito & Nome)**: Tester B inserisce il proprio nome (*Sara*), accetta l'invito e riscatta il token atomicamente in transizione `pending -> used`. [SUPERATO]
+- [x] **Tester B3 (Consultazione Condivisa)**: Tester B consulta tappe e prenotazioni create dall'organizzatore. [SUPERATO]
+- [x] **Tester B4 (Modifica Condivisa)**: Tester B aggiunge e modifica elementi condivisi (es. spesa pranzo). [SUPERATO]
+- [x] **Tester B5 (Rientro Successivo)**: Tester B rientra nel viaggio in una sessione successiva senza dover riutilizzare il token (riconosciuto come membro attivo). [SUPERATO]
+- [x] **Tester B6 (Divieto Cancellazione Viaggio)**: Tester B non può eliminare il viaggio dell'Organizzatore (`PERMISSION_DENIED`). [SUPERATO]
+- [x] **Tester C1 (Ospite LIVE senza account)**: Tester C apre `?live=1&tripId=...` e consulta il feed pubblico senza creare alcun account. [SUPERATO]
+- [x] **Tester C2 (Protezione Dati Privati Ospite)**: Tester C riceve `PERMISSION_DENIED` se tenta di accedere a voucher, alloggi, tappe, spese o note private. [SUPERATO]
+- [x] **Tester C3 (Impossibilità Scalata Privilegi Ospite)**: Tester C non può pubblicare aggiornamenti nel live feed né iscriversi come membro. [SUPERATO]
+
+### B. Matrice di Prontezza Beta (5 Criteri)
+1. **Primo accesso**: **SUPERATO** (3 percorsi chiari: Organizza, Accedi, Partecipa; zero gergo tecnico; avvio rapido).
+2. **Creazione e recupero viaggio**: **SUPERATO** (Salvataggio cloud atomico + IndexedDB/localStorage offline; ripristino istantaneo al riavvio).
+3. **Collaborazione**: **SUPERATO** (Link crittografico WhatsApp monouso, nome copilota personalizzato, modifiche sincronizzate, divieto cancellazione per il copilota).
+4. **Sicurezza e privacy**: **SUPERATO** (Firestore Rules blindate su emulator reale: isolamento 100%, blocco estranei, subcollezioni private protette da `isTripMember`, console admin protetta dietro whitelist).
+5. **Stabilità mobile**: **SUPERATO CON LIMITAZIONI** (UI testata a 320px e 393px; limitazioni documentate: passaggio Safari -> PWA e background GPS prolungato su iOS richiedono verifica su iPhone fisico reale; galleria ospiti remoti locale).
+
+
 
 
 

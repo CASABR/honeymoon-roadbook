@@ -768,6 +768,13 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     try {
       await liveService.deleteLiveUpdate(activeTripId, updateId);
       setLiveUpdates(prev => prev.filter(u => u.id !== updateId));
+      setGalleryCustomPhotos(prev => {
+        const updated = prev.filter(p => p.id !== updateId && (p as any).updateId !== updateId);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('hounigo_live_gallery', JSON.stringify(updated));
+        }
+        return updated;
+      });
     } catch (err: any) {
       console.error('Errore durante cancellazione messaggio live:', err);
       alert(err?.message || 'Errore durante la cancellazione del messaggio.');

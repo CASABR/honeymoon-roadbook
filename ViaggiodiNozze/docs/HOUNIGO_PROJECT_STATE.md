@@ -415,6 +415,56 @@ In caso di anomalie riscontrate durante il collaudo reale dei tester:
 
 **Giudizio di Prodotto Finale**: **HOUNIGO è pienamente idoneo all'apertura ai beta tester il 28 ottobre 2026.**
 
+---
+
+## 6. HOTFIX CRITICI P0 (GPS CLOUD & CARTOLINE LIVE) E RIFINITURA UX (25 Ottobre 2026 - Notte)
+
+Nel collaudo reale della PWA installata sono emersi due problemi P0 e due rifiniture UX P1:
+
+### 1. P0 — GPS: "Limite temporaneo di operazioni cloud raggiunto"
+- **Causa effettiva individuata**:
+  1. `publishLocation` e `assignGuide` in `liveGpsService.ts` utilizzavano `runTransaction(db, ...)`.
+  2. Ad ogni tick del GPS (intervallo di pochi secondi), la transazione eseguiva due letture atomiche (`leaseRef` e `locationRef`) prima della scrittura su `locationRef`.
+  3. All'avvio del GPS, `assignGuide` scriveva su `leaseRef` proprio mentre il listener `subscribeLease` inviava snapshot al client, provocando conflitti di concorrenza ottimistica sulla transazione (`aborted` / contention).
+  4. Quando i retry interni della transazione Firestore fallivano o superavano la frequenza di scrittura per documento, l'SDK lanciava eccezioni di contesa.
+  5. In `friendlyError`, il controllo `if (code.includes('resource-exhausted') || message.toLowerCase().includes('quota'))` catturava erroneamente sia la contesa sia qualsiasi `QuotaExceededError` del browser locale (DOMException), trasformandoli nel messaggio: *"Limite temporaneo operazioni cloud raggiunto. Riprova tra qualche minuto."*.
+  6. In `LiveView.tsx` (`handleStartGps`), il reset `lastGpsPublishRef.current = 0` azzerava il throttle client-side ad ogni riattivazione.
+- **Correzione implementata**:
+  - Rimossa la `runTransaction` sia da `assignGuide` che da `publishLocation` in `liveGpsService.ts`: convertite in `setDoc` diretto atomico.
+  - Implementato throttle in-memory client-side a 15.000ms (`MIN_PUBLISH_INTERVAL_MS = 15_000`), garantendo che il client non violi mai la soglia dei 15s imposta da Firestore Rules.
+  - Affinato `friendlyError`: scatta solo su codice esatto `resource-exhausted`, eliminando il falso positivo da `message.includes('quota')`.
+  - In `firestore.rules`, aggiornata la regola di update su `locations/current`: ammessa pubblicazione immediata in caso di cambio dispositivo (`publisherDeviceId != request.resource.data.publisherDeviceId`), preservando il throttle a 15s per lo stesso dispositivo.
+
+### 2. P0 — Cartoline LIVE che ricompaiono dopo l'eliminazione
+- **Causa effettiva individuata**:
+  1. In `liveService.ts` (`deleteLiveUpdate`), il controllo permessi verificava unicamente `tripData?.ownerUid === user.uid`, fallendo silenziosamente su viaggi con schema `ownerId` o su co-piloti registrati in `/members/{uid}`.
+  2. Sul viaggio protetto `0000`, `firestore.rules` impediva il `deleteDoc` (`allow delete: if tripId != '0000'`), ripiegando su un soft-delete `updateDoc({ title: '[Rimosso]', text: '' })`. Tuttavia, `subscribeToLiveUpdates` non filtrava le cartoline con `title: '[Rimosso]'` o `deleted: true`, facendole ricomparire istantaneamente al primo refresh.
+  3. Mancanza di tracciamento persistente dei tombstones: client offline o riaperture con cache locale ripristinavano la cartolina eliminata.
+  4. Nelle `firestore.rules`, `validLiveUpdate` ammetteva solo un insieme rigido di chiavi (`hasOnly(['title', 'text', 'photoUrl', ...])`), rifiutando update contenenti `deleted`, `deletedAt` o `deletedBy`.
+- **Correzione implementata**:
+  - Aggiornato `validLiveUpdate` nelle Security Rules per consentire `deleted: bool`, `deletedAt: number`, `deletedBy: string`.
+  - Implementato registro tombstone locale persistente in `localStorage['hounigo_tombstone_updates_' + tripId]`.
+  - Aggiornato `subscribeToLiveUpdates` in `liveService.ts`: filtra attivamente cartoline con `data.deleted === true`, `data.title === '[Rimosso]'`, `data.title === '[Eliminato]'` o presenti nei tombstone locali.
+  - In `LiveView.tsx` (`handleDeleteLiveUpdate`), rimozione contestuale anche dalla galleria fotografica custom (`galleryCustomPhotos` e `localStorage['hounigo_live_gallery']`).
+
+### 3. P1 — Header LIVE Mobile compatto
+- Sostituita l'intestazione prolissa a tre righe (~130px) con un header compatto (~48px).
+- Inclusione di badge LIVE pulsante, pill di stato (Ospiti vs GPS Guida), titolo dinamico del viaggio e pulsante rapido di condivisione `🔗 Condividi`.
+- Testato e validato a 320px, 393px e desktop senza alcun overflow o sovrapposizione.
+
+### 4. P1 — Rotella Impostazioni snella e compatta
+- Rimossi da questa sezione i link duplicati "Guida & Tutorial" (l'onboarding resta attivo altrove).
+- Rimossi i controlli duplicati rispetto ad Altro ("Invita Co-pilota", "Ruolo Dispositivo", "Codice Viaggio", "Importa da Gmail").
+- Mantenute 4 voci essenziali a colpo d'occhio: Profilo & Accesso (👤), Notifiche Push (🔔), Blocca Schermo (🔒), Esci dal viaggio (🚪).
+- Raggruppate le funzioni tecniche in un cassetto comprimibile "⚙️ Opzioni Avanzate" (Forza Allineamento Cloud, Esporta Backup, Importa Backup, Chiave API Gemini).
+- Strumenti amministrativi (Console Admin, Diagnostica Identità) rigorosamente protetti e visibili solo se è presente il parametro esplicito `?admin=1`.
+
+### 5. Suite di Regressione (10/10 Test Superati su Firebase Emulator)
+- Eseguito `test_p0_gps_cartoline_ux.cjs` su Firebase Emulator (porta 8085): 10/10 asserzioni superate con successo.
+- Re-eseguita la suite `test_p0_hotfix_emulator_validation.cjs` (14/14 passati) e `test_beta_release_emulator_validation.cjs` (24/24 passati).
+- Build di produzione `npm run build` eseguita con successo con bundling PWA (`sw.js`).
+
+
 
 
 

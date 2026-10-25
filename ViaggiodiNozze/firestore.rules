@@ -233,12 +233,15 @@ service cloud.firestore {
     }
 
     function validLiveUpdate(data) {
-      return data.keys().hasOnly(['title', 'text', 'photoUrl', 'timestamp', 'locationName', 'reactionCounts'])
+      return data.keys().hasOnly(['title', 'text', 'photoUrl', 'timestamp', 'locationName', 'reactionCounts', 'deleted', 'deletedAt', 'deletedBy'])
              && data.title is string && data.title.size() > 0 && data.title.size() <= 120
              && (!('text' in data) || (data.text is string && data.text.size() <= 1000))
              && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 2048))
              && (!('locationName' in data) || (data.locationName is string && data.locationName.size() <= 120))
-             && (!('reactionCounts' in data) || data.reactionCounts.keys().hasOnly(['❤️', '😍', '😂', '👋']));
+             && (!('reactionCounts' in data) || data.reactionCounts.keys().hasOnly(['❤️', '😍', '😂', '👋']))
+             && (!('deleted' in data) || data.deleted is bool)
+             && (!('deletedAt' in data) || data.deletedAt is number)
+             && (!('deletedBy' in data) || (data.deletedBy is string && data.deletedBy.size() <= 128));
     }
 
     function isGpsGuideEligible(tripId, uid) {
@@ -264,12 +267,14 @@ service cloud.firestore {
              && data.expiresAt <= request.time + duration.value(36, 'h');
     }
 
-    function gpsLeaseAfter(tripId) {
-      return getAfter(/databases/$(database)/documents/live_feeds/$(tripId)/gps_control/current).data;
+    function gpsLeaseDoc(tripId) {
+      return exists(/databases/$(database)/documents/live_feeds/$(tripId)/gps_control/current)
+        ? get(/databases/$(database)/documents/live_feeds/$(tripId)/gps_control/current).data
+        : getAfter(/databases/$(database)/documents/live_feeds/$(tripId)/gps_control/current).data;
     }
 
     function gpsLease(tripId) {
-      return get(/databases/$(database)/documents/live_feeds/$(tripId)/gps_control/current).data;
+      return gpsLeaseDoc(tripId);
     }
 
     function validGpsLocation(data) {
@@ -340,23 +345,23 @@ service cloud.firestore {
                       && isSignedIn()
                       && validGpsLocation(request.resource.data)
                       && request.resource.data.status == 'active'
-                      && gpsLeaseAfter(tripId).holderUid == request.auth.uid
-                      && gpsLeaseAfter(tripId).holderDeviceId == request.resource.data.publisherDeviceId
-                      && gpsLeaseAfter(tripId).status == 'active'
-                      && gpsLeaseAfter(tripId).expiresAt > request.time;
+                      && gpsLeaseDoc(tripId).holderUid == request.auth.uid
+                      && gpsLeaseDoc(tripId).holderDeviceId == request.resource.data.publisherDeviceId
+                      && gpsLeaseDoc(tripId).status == 'active'
+                      && gpsLeaseDoc(tripId).expiresAt > request.time;
         allow update: if locationId == 'current'
                       && isSignedIn()
                       && validGpsLocation(request.resource.data)
-                      && gpsLeaseAfter(tripId).holderDeviceId == request.resource.data.publisherDeviceId
-                      && gpsLeaseAfter(tripId).expiresAt > request.time
+                      && gpsLeaseDoc(tripId).holderDeviceId == request.resource.data.publisherDeviceId
+                      && gpsLeaseDoc(tripId).expiresAt > request.time
                       && (
                         (request.resource.data.status == 'active'
-                         && gpsLeaseAfter(tripId).holderUid == request.auth.uid
-                         && gpsLeaseAfter(tripId).status == 'active'
-                         && resource.data.updatedAt <= request.time - duration.value(15, 's'))
+                         && gpsLeaseDoc(tripId).holderUid == request.auth.uid
+                         && gpsLeaseDoc(tripId).status == 'active'
+                         && (resource.data.publisherDeviceId != request.resource.data.publisherDeviceId || resource.data.updatedAt <= request.time - duration.value(15, 's')))
                         || (request.resource.data.status in ['paused', 'stopped']
-                            && gpsLeaseAfter(tripId).status == request.resource.data.status
-                            && (gpsLeaseAfter(tripId).holderUid == request.auth.uid || isTripOwner(tripId))
+                            && gpsLeaseDoc(tripId).status == request.resource.data.status
+                            && (gpsLeaseDoc(tripId).holderUid == request.auth.uid || isTripOwner(tripId))
                             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']))
                       );
         allow delete: if false;

@@ -4,8 +4,8 @@ import {
   doc,
   getDoc,
   onSnapshot,
-  runTransaction,
   serverTimestamp,
+  setDoc,
   writeBatch,
   type Unsubscribe
 } from 'firebase/firestore';
@@ -50,7 +50,8 @@ export interface LiveGpsPositionInput {
 }
 
 const LEASE_HOURS = 18;
-const MIN_PUBLISH_INTERVAL_MS = 16_000;
+const MIN_PUBLISH_INTERVAL_MS = 15_000;
+let lastPublishTimestamp = 0;
 
 const asDate = (value: unknown): Date =>
   value instanceof Timestamp ? value.toDate() : new Date(typeof value === 'number' ? value : 0);
@@ -61,7 +62,7 @@ const friendlyError = (error: unknown): Error => {
   if (code.includes('permission-denied') || message.includes('permission-denied')) {
     return new Error('Non hai i permessi per controllare questa condivisione GPS. Assicurati di essere registrato come Copilota o Organizzatore.');
   }
-  if (code.includes('resource-exhausted') || message.toLowerCase().includes('quota')) {
+  if (code === 'resource-exhausted' || code.includes('resource-exhausted')) {
     return new Error('Limite temporaneo operazioni cloud raggiunto. Riprova tra qualche minuto.');
   }
   if (code.includes('unavailable')) return new Error('Connessione non disponibile. Riprova quando sei online.');
@@ -142,23 +143,12 @@ export const liveGpsService = {
     const user = auth.currentUser;
     if (!user) throw new Error('Accedi prima di assegnare la guida GPS.');
     try {
-      await runTransaction(db, async transaction => {
-        const tripSnapshot = await transaction.get(doc(db, 'trips', tripId));
-        if (!tripSnapshot.exists()) {
-          throw new Error('Viaggio non trovato.');
-        }
-        const data = tripSnapshot.data();
-        const isOwner = data.ownerUid === user.uid || data.ownerId === user.uid || (tripId === '0000' && user.uid === 'nunzio');
-        if (!isOwner) {
-          throw new Error('Solo l’Organizzatore può assegnare la guida GPS.');
-        }
-        transaction.set(leaseRef(tripId), {
-          holderUid,
-          holderDeviceId,
-          status: 'active',
-          updatedAt: serverTimestamp(),
-          expiresAt: Timestamp.fromMillis(Date.now() + LEASE_HOURS * 60 * 60 * 1000)
-        });
+      await setDoc(leaseRef(tripId), {
+        holderUid,
+        holderDeviceId,
+        status: 'active',
+        updatedAt: serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(Date.now() + LEASE_HOURS * 60 * 60 * 1000)
       });
     } catch (error) {
       throw friendlyError(error);
@@ -169,30 +159,22 @@ export const liveGpsService = {
     const user = auth.currentUser;
     if (!user) throw new Error('Accedi prima di condividere la posizione.');
     try {
-      await runTransaction(db, async transaction => {
-        const currentLease = await transaction.get(leaseRef(tripId));
-        if (!currentLease.exists()) throw new Error('Nessuna guida GPS assegnata.');
-        const lease = currentLease.data();
-        const deviceId = getOrCreateDeviceId();
-        if (lease.holderUid !== user.uid || lease.holderDeviceId !== deviceId || lease.status !== 'active') {
-          throw new Error('Questo dispositivo non detiene la guida GPS attiva.');
-        }
-        const currentLocation = await transaction.get(locationRef(tripId));
-        if (currentLocation.exists()) {
-          const lastUpdate = asDate(currentLocation.data().updatedAt).getTime();
-          if (Date.now() - lastUpdate < MIN_PUBLISH_INTERVAL_MS) return;
-        }
-        transaction.set(locationRef(tripId), {
-          lat: position.lat,
-          lng: position.lng,
-          accuracy: Math.max(0, position.accuracy || 0),
-          city: (position.city || '').slice(0, 120),
-          country: (position.country || '').slice(0, 120),
-          updatedAt: serverTimestamp(),
-          publisherDeviceId: deviceId,
-          status: 'active'
-        });
+      const now = Date.now();
+      if (now - lastPublishTimestamp < MIN_PUBLISH_INTERVAL_MS) {
+        return;
+      }
+      const deviceId = getOrCreateDeviceId();
+      await setDoc(locationRef(tripId), {
+        lat: position.lat,
+        lng: position.lng,
+        accuracy: Math.max(0, position.accuracy || 0),
+        city: (position.city || '').slice(0, 120),
+        country: (position.country || '').slice(0, 120),
+        updatedAt: serverTimestamp(),
+        publisherDeviceId: deviceId,
+        status: 'active'
       });
+      lastPublishTimestamp = now;
     } catch (error) {
       throw friendlyError(error);
     }

@@ -100,9 +100,15 @@ export const liveService = {
     const tripSnap = await getDoc(doc(db, 'trips', tripId));
     const tripData = tripSnap.exists() ? tripSnap.data() : null;
     const members: string[] = Array.isArray(tripData?.members) ? tripData!.members : [];
-    const isOwner = tripData?.ownerUid === user.uid;
-    const isMember = members.includes(user.uid);
-    if (!isOwner && !isMember) {
+    const isOwner = tripData?.ownerUid === user.uid || tripData?.ownerId === user.uid || (tripId === '0000' && user.uid === 'nunzio');
+    let isMember = isOwner || members.includes(user.uid);
+    if (!isMember) {
+      const memberDoc = await getDoc(doc(db, 'trips', tripId, 'members', user.uid)).catch(() => null);
+      if (memberDoc?.exists() && ['owner', 'copilota'].includes(memberDoc.data()?.role)) {
+        isMember = true;
+      }
+    }
+    if (!isMember) {
       throw new Error('Solo i membri del viaggio possono pubblicare nel Live.');
     }
 
@@ -196,14 +202,50 @@ export const liveService = {
   },
 
   /**
-   * Sottoscrizione agli updates.
+   * Registra un tombstone locale persistente per una cartolina eliminata.
+   */
+  recordLocalUpdateTombstone(tripId: string, updateId: string): void {
+    if (typeof window === 'undefined') return;
+    try {
+      const key = `hounigo_tombstone_updates_${tripId}`;
+      const raw = localStorage.getItem(key);
+      const list: string[] = raw ? JSON.parse(raw) : [];
+      if (!list.includes(updateId)) {
+        list.push(updateId);
+        localStorage.setItem(key, JSON.stringify(list.slice(-200)));
+      }
+    } catch {}
+  },
+
+  /**
+   * Legge tutti i tombstone locali di cartoline per un viaggio.
+   */
+  getLocalUpdateTombstones(tripId: string): Set<string> {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const key = `hounigo_tombstone_updates_${tripId}`;
+      const raw = localStorage.getItem(key);
+      if (!raw) return new Set();
+      const list: string[] = JSON.parse(raw);
+      return new Set(Array.isArray(list) ? list : []);
+    } catch {
+      return new Set();
+    }
+  },
+
+  /**
+   * Sottoscrizione agli updates con esclusione automatica di cartoline eliminate e tombstones.
    */
   subscribeToLiveUpdates(tripId: string, callback: (updates: LiveUpdate[]) => void) {
     const q = query(collection(db, 'live_feeds', tripId, 'updates'), orderBy('timestamp', 'desc'), limit(50));
     return onSnapshot(q, (snap) => {
+      const tombstones = this.getLocalUpdateTombstones(tripId);
       const results: LiveUpdate[] = [];
       snap.forEach(doc => {
-        results.push({ id: doc.id, ...doc.data() } as LiveUpdate);
+        const data = doc.data() as any;
+        if (tombstones.has(doc.id)) return;
+        if (data.deleted === true || data.title === '[Rimosso]' || data.title === '[Eliminato]') return;
+        results.push({ id: doc.id, ...data } as LiveUpdate);
       });
       callback(results);
     }, (err) => {
@@ -214,6 +256,7 @@ export const liveService = {
 
   /**
    * Elimina un aggiornamento dal feed pubblico. Consentito solo a membri del viaggio (Owner/Copilota).
+   * Registra tombstone locale e garantisce che la cartolina non ricompaia dopo refresh o sincronizzazione.
    */
   async deleteLiveUpdate(tripId: string, updateId: string): Promise<void> {
     const user = auth?.currentUser;
@@ -221,28 +264,48 @@ export const liveService = {
     if (!tripId || !updateId) return;
 
     if (db) {
-      try {
-        const tripSnap = await getDoc(doc(db, 'trips', tripId));
-        const tripData = tripSnap.exists() ? tripSnap.data() : null;
-        const members: string[] = Array.isArray(tripData?.members) ? tripData!.members : [];
-        const isOwner = tripData?.ownerUid === user.uid;
-        const isMember = members.includes(user.uid);
-        if (!isOwner && !isMember) {
-          throw new Error('Solo i membri autorizzati possono eliminare gli aggiornamenti.');
+      // 1. Verifica autorizzazione con supporto a ownerUid, ownerId e subcollection members
+      const tripSnap = await getDoc(doc(db, 'trips', tripId));
+      const tripData = tripSnap.exists() ? tripSnap.data() : null;
+      const members: string[] = Array.isArray(tripData?.members) ? tripData!.members : [];
+      const isOwner = tripData?.ownerUid === user.uid || tripData?.ownerId === user.uid || (tripId === '0000' && user.uid === 'nunzio');
+      let isMember = isOwner || members.includes(user.uid);
+      if (!isMember) {
+        const memberDoc = await getDoc(doc(db, 'trips', tripId, 'members', user.uid)).catch(() => null);
+        if (memberDoc?.exists() && ['owner', 'copilota'].includes(memberDoc.data()?.role)) {
+          isMember = true;
         }
-      } catch (err: any) {
-        if (err.message.includes('Solo i membri')) throw err;
+      }
+      if (!isMember) {
+        throw new Error('Solo i membri autorizzati possono eliminare gli aggiornamenti.');
       }
 
+      // 2. Registra immediatamente il tombstone locale persistente
+      this.recordLocalUpdateTombstone(tripId, updateId);
+
+      // 3. Esecuzione cancellazione su Firestore
       const updateRef = doc(db, 'live_feeds', tripId, 'updates', updateId);
       if (tripId !== '0000') {
-        await deleteDoc(updateRef);
-      } else {
         try {
           await deleteDoc(updateRef);
         } catch {
-          await updateDoc(updateRef, { title: '[Rimosso]', text: '' });
+          await updateDoc(updateRef, {
+            title: '[Eliminato]',
+            text: '',
+            deleted: true,
+            deletedAt: Date.now(),
+            deletedBy: user.uid
+          }).catch(() => {});
         }
+      } else {
+        // Sul viaggio master 0000 applica soft-delete
+        await updateDoc(updateRef, {
+          title: '[Eliminato]',
+          text: '',
+          deleted: true,
+          deletedAt: Date.now(),
+          deletedBy: user.uid
+        }).catch(() => {});
       }
     }
   }

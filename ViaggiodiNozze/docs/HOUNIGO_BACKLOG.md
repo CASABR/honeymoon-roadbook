@@ -6,6 +6,28 @@
 
 ## ATTIVITÀ APERTE & SPRINT BETA RELEASE CANDIDATE (TARGET: 28 OTTOBRE 2026)
 
+### 0.1 HOTFIX P0 COLLAUDO REALE — GPS Cloud, Cartoline Live & UX (25 Ottobre 2026 - Notte)
+- **P0-1 — GPS: "Limite temporaneo operazioni cloud raggiunto"**:
+  - *Stato*: IMPLEMENTATO / TESTATO (Emulatore). Da verificare fisicamente su smartphone dopo rilascio.
+  - Sostituita la `runTransaction` su `leaseRef` e `locationRef` con `setDoc` diretto atomico.
+  - Throttle in-memory a 15.000ms e allineamento con le regole Firestore (nessun retry loop o contesa).
+  - Pulizia mappa errori: scatta solo su codice esatto `resource-exhausted` (eliminato falso positivo su `quota`).
+  - Supporto handover immediato a nuovo dispositivo copilota in Security Rules.
+- **P0-2 — Cartoline LIVE che ricompaiono dopo eliminazione**:
+  - *Stato*: IMPLEMENTATO / TESTATO (Emulatore). Da verificare fisicamente su smartphone dopo rilascio.
+  - Risolto controllo permessi in `deleteLiveUpdate`: supporto `ownerUid`, `ownerId` e `/members/{uid}` copilota.
+  - Supporto schema soft-delete in `firestore.rules`: ammessi campi `deleted`, `deletedAt`, `deletedBy`.
+  - Persistenza tombstones locali in `localStorage` e filtraggio attivo in `subscribeToLiveUpdates`.
+  - Pulizia coordinata galleria custom photos.
+- **P1-1 — Header LIVE Mobile compatto**:
+  - *Stato*: IMPLEMENTATO / TESTATO
+  - Header compatto ~48px con badge LIVE pulsante, pill stato, titolo viaggio dinamico e pulsante condividi.
+- **P1-2 — Rotella Impostazioni snella**:
+  - *Stato*: IMPLEMENTATO / TESTATO
+  - Rimossi Guida & Tutorial e voci duplicate (Invita copilota, Ruolo, Codice, Gmail).
+  - 4 voci essenziali a colpo d'occhio + cassetto comprimibile "⚙️ Opzioni Avanzate".
+  - Console Amministratore protetta rigorosamente da `?admin=1`.
+
 ### 0. HOTFIX P0 POST-DEPLOY — Identità, Multi-Viaggio, Inviti e GPS (25 Ottobre 2026)
 - **P0-A — Identità Firebase e Login Google**:
   - *Stato*: PUBBLICATO

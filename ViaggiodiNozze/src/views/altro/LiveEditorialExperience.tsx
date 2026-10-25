@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import type { LiveUpdate } from '../../services/liveService';
 import type { LiveGpsLease, LiveGpsLocation, LiveGpsDevice } from '../../services/liveGpsService';
 import type { LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
+import { getTripConfig } from '../../utils/tripConfig';
 
 export interface LiveGalleryPhotoItem {
   id: string;
@@ -145,6 +146,9 @@ const formatRelativeTime = (date: Date) => {
 };
 
 export default function LiveEditorialExperience(props: LiveEditorialExperienceProps) {
+  const tripConfig = getTripConfig();
+  const tripTitle = tripConfig?.title || (props.location?.city ? `Viaggio · ${props.location.city}` : 'Il viaggio di nozze');
+
   // ─── STATO GALLERIA FOTOGRAFICA & LIGHTBOX ──────────────────────────
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
@@ -468,45 +472,48 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
   return (
     <div className="mx-auto w-full max-w-5xl pb-16 px-3 sm:px-6 animate-fade-in text-slate-900 dark:text-slate-100">
-      {/* ─── HEADER EDITORIALE ─────────────────────────────────────────── */}
-      <header className="flex items-start justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5 mb-6">
-        <div className="flex items-start gap-3 min-w-0">
+      {/* ─── HEADER LIVE EDITORIALE COMPATTO ─────────────────────────────── */}
+      <header className="flex items-center justify-between gap-2.5 border-b border-slate-200/80 dark:border-slate-800 pb-3 mb-4">
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {!props.isExternal && props.onBack && (
             <button
               type="button"
               onClick={props.onBack}
-              className="hounigo-button-ghost shrink-0 px-3 py-2 text-sm"
+              className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold shrink-0 transition-colors cursor-pointer"
               aria-label="Torna ad Altro"
             >
               ←
             </button>
           )}
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="text-[11px] font-black uppercase tracking-[0.25em] text-[#FF6B5F]">
-                Hounigo · Live Experience
-              </p>
-              {props.isExternal && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                  Ospite
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/10 text-[#FF6B5F] dark:bg-rose-500/20">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F] animate-pulse" />
+                LIVE
+              </span>
+              {props.isExternal ? (
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                  Vista Ospiti
+                </span>
+              ) : (
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${gpsVisualState.badgeBg} ${gpsVisualState.tone}`}>
+                  {gpsVisualState.label}
                 </span>
               )}
             </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-950 dark:text-white mt-0.5 truncate">
-              Il viaggio, mentre accade
+            <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-950 dark:text-white truncate mt-0.5" title={tripTitle}>
+              {tripTitle}
             </h1>
-            <p className="mt-1 text-xs sm:text-sm text-slate-600 dark:text-slate-400">
-              Posizione satellitare, scatti sul campo e partecipazione in tempo reale.
-            </p>
           </div>
         </div>
 
         <button
           type="button"
           onClick={props.onShare}
-          className="hounigo-button-secondary shrink-0 px-3.5 py-2 text-xs font-bold"
+          className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-[11px] font-bold shrink-0 transition-all shadow-xs cursor-pointer flex items-center gap-1"
         >
-          {props.copiedLink ? '✓ Link copiato' : 'Condividi LIVE'}
+          <span>🔗</span>
+          <span>{props.copiedLink ? 'Copiato!' : 'Condividi'}</span>
         </button>
       </header>
 
