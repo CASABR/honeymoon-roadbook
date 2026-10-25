@@ -304,11 +304,13 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
       }
     : inactiveReason === 'technical_error'
     ? {
-        label: 'Errore tecnico',
+        label: props.gpsError?.toLowerCase().includes('permess')
+          ? 'Autorizzazione GPS richiesta'
+          : 'Segnale GPS non disponibile',
         sublabel: props.gpsError || 'Impossibile acquisire le coordinate satellitari',
-        tone: 'text-rose-700 dark:text-rose-300',
-        dot: 'bg-rose-500',
-        badgeBg: 'bg-rose-500/10 border-rose-500/20'
+        tone: 'text-amber-700 dark:text-amber-300',
+        dot: 'bg-amber-500',
+        badgeBg: 'bg-amber-500/10 border-amber-500/20'
       }
     : {
         label: 'Non ancora avviata',

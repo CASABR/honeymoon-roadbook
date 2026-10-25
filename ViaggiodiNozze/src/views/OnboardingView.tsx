@@ -63,11 +63,13 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   const [isSearchingTrips, setIsSearchingTrips] = useState(false);
   const [authenticatedUser, setAuthenticatedUser] = useState<User | null>(null);
   const [manualTripId, setManualTripId] = useState('');
+  const [copilotDisplayName, setCopilotDisplayName] = useState(() => auth?.currentUser?.displayName || '');
 
-  const executeJoin = async (codeToJoin: string, tokenOverride?: string | null) => {
+  const executeJoin = async (codeToJoin: string, tokenOverride?: string | null, nameOverride?: string) => {
     const codeClean = codeToJoin.trim();
     if (!codeClean) return;
     const token = tokenOverride !== undefined ? tokenOverride : inviteToken;
+    const cleanCopilotName = (nameOverride !== undefined ? nameOverride : copilotDisplayName).trim();
 
     setLoading(true);
     setInviteError(null);
@@ -86,9 +88,38 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         user = userCredential.user;
       }
 
+      // 1. Controllo immediato: Se l'utente è GIÀ membro autorizzato del viaggio, entra direttamente senza riutilizzare il token!
+      if (db && codeClean !== '0000') {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const tripSnap = await getDoc(doc(db, 'trips', codeClean)).catch(() => null);
+        if (tripSnap && tripSnap.exists()) {
+          const directTripData = tripSnap.data();
+          const members = Array.isArray(directTripData.members) ? directTripData.members : [];
+          const isOwner = directTripData.ownerUid === user.uid || directTripData.ownerId === user.uid;
+          const isAlreadyMember = members.includes(user.uid) || isOwner;
+
+          if (isAlreadyMember) {
+            const config = normalizeTripConfig({
+              id: codeClean,
+              title: directTripData.title || 'Il nostro viaggio',
+              startDate: directTripData.startDate || '',
+              endDate: directTripData.endDate || '',
+              ownerUid: directTripData.ownerUid || directTripData.ownerId || '',
+              ownerName: directTripData.ownerName || ''
+            });
+
+            const role = isOwner ? 'guida' : 'copilota';
+            setTempConfig(config);
+            setTempRole(role);
+            handleFinishOnboarding(undefined, config, role);
+            return;
+          }
+        }
+      }
+
       // Se c'è un token crittografico d'invito valido, riscatta l'invito atomico
       if (token && codeClean !== '0000') {
-        const redeemRes = await redeemTripInvite(codeClean, token, user);
+        const redeemRes = await redeemTripInvite(codeClean, token, user, cleanCopilotName);
         if (!redeemRes.success) {
           throw new Error(redeemRes.error || 'Riscatto invito non riuscito.');
         }
@@ -102,7 +133,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           title: directTripData.title || 'Il nostro viaggio',
           startDate: directTripData.startDate || '',
           endDate: directTripData.endDate || '',
-          ownerUid: directTripData.ownerUid || '',
+          ownerUid: directTripData.ownerUid || directTripData.ownerId || '',
           ownerName: directTripData.ownerName || ''
         });
 
@@ -379,17 +410,63 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
       // 1. Recupero sicuro dei viaggi associati tramite /users/{uid} (zero query 'list' globali)
       const trips = await fetchUserTrips(user.uid);
 
-      // 2. Controllo speciale per 0000 in sola lettura (se l'utente fosse l'owner legittimo)
+      // 2. Controllo se sul dispositivo era già aperto un viaggio autorizzato (es. GIAPPONE)
+      const rawLocalConfig = typeof localStorage !== 'undefined' ? localStorage.getItem('roadbook_trip_config') : null;
+      let localTripId: string | null = null;
+      if (rawLocalConfig) {
+        try { localTripId = JSON.parse(rawLocalConfig)?.id; } catch {}
+      }
+
+      if (localTripId && localTripId !== '0000') {
+        const alreadyInList = trips.some(t => t.id === localTripId);
+        if (!alreadyInList) {
+          try {
+            const { doc, getDoc } = await import('firebase/firestore');
+            const snap = await getDoc(doc(db, 'trips', localTripId));
+            if (snap.exists()) {
+              const tdata = snap.data();
+              const isOwner = tdata.ownerUid === user.uid || tdata.ownerId === user.uid;
+              const isMem = Array.isArray(tdata.members) && tdata.members.includes(user.uid);
+              if (isOwner || isMem) {
+                trips.unshift({
+                  id: localTripId,
+                  title: tdata.title || 'Il nostro viaggio',
+                  startDate: tdata.startDate,
+                  endDate: tdata.endDate,
+                  ownerUid: tdata.ownerUid || tdata.ownerId,
+                  ownerName: tdata.ownerName,
+                  isOwner,
+                  role: isOwner ? 'owner' : 'copilota',
+                  isLastUsed: true
+                });
+                const { recordUserAccess } = await import('../services/userAccessService');
+                recordUserAccess(user, localTripId).catch(() => {});
+              }
+            }
+          } catch {}
+        }
+      }
+
+      // 3. Controllo per viaggio legacy 0000 in sola lettura (se l'utente è l'owner effettivo)
       const legacyCheck = await verifyTripOwnership('0000', user.uid);
       if (legacyCheck.exists && legacyCheck.isOwner) {
-        trips.unshift({
-          id: '0000',
-          title: 'Viaggio Originale (0000)',
-          isOwner: true,
-          role: 'owner',
-          ownerUid: user.uid,
-          ownerName: legacyCheck.ownerName || 'nunzio'
-        });
+        const alreadyHas0000 = trips.some(t => t.id === '0000');
+        if (!alreadyHas0000) {
+          const trip0000 = {
+            id: '0000',
+            title: 'Viaggio Originale (0000)',
+            isOwner: true,
+            role: 'owner' as const,
+            ownerUid: user.uid,
+            ownerName: legacyCheck.ownerName || 'nunzio'
+          };
+          // Se l'utente ha altri viaggi attivi, posiziona 0000 in coda per non oscurare il viaggio corrente
+          if (trips.length > 0) {
+            trips.push(trip0000);
+          } else {
+            trips.unshift(trip0000);
+          }
+        }
       }
 
       setRecoveredTrips(trips);
@@ -1140,10 +1217,28 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               </div>
             )}
 
+            <div className="text-left space-y-1.5 pt-1">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                Il tuo nome da mostrare nel viaggio
+              </label>
+              <input
+                type="text"
+                value={copilotDisplayName}
+                onChange={(e) => setCopilotDisplayName(e.target.value)}
+                placeholder="Es. Marco, Sara, etc."
+                maxLength={40}
+                className="w-full px-4 py-3 rounded-xl text-sm font-semibold outline-none border border-white/20 focus:border-[#FF6B5F] transition-colors"
+                style={{ background: 'rgba(255,255,255,0.08)', color: 'white' }}
+              />
+              <p className="text-[10px] text-slate-400">
+                Questo nome sarà visibile all'organizzatore del viaggio e nelle tappe o spese condivise.
+              </p>
+            </div>
+
             <button
               type="button"
               disabled={loading}
-              onClick={() => executeJoin(inviteDetails.tripId, inviteToken)}
+              onClick={() => executeJoin(inviteDetails.tripId, inviteToken, copilotDisplayName)}
               className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-95 hover:opacity-90 cursor-pointer disabled:opacity-60 shadow-md"
               style={{ background: '#FF6B5F', color: '#ffffff' }}
             >

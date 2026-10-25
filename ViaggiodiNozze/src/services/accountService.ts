@@ -101,9 +101,8 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
   try {
     const userDocRef = doc(db, 'users', uid);
     const userSnap = await getDoc(userDocRef);
-    if (!userSnap.exists()) return [];
 
-    const userData = userSnap.data();
+    const userData = userSnap.exists() ? userSnap.data() : null;
     const tripIds: string[] = Array.isArray(userData?.associatedTripIds)
       ? [...userData.associatedTripIds]
       : [];
@@ -111,6 +110,19 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
     const lastTripId = userData?.lastTripId;
     if (lastTripId && !tripIds.includes(lastTripId)) {
       tripIds.unshift(lastTripId);
+    }
+
+    // Se sul dispositivo è memorizzato un viaggio attivo locale non ancora presente in associatedTripIds, lo controlliamo
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const rawLocalConfig = localStorage.getItem('roadbook_trip_config');
+        if (rawLocalConfig) {
+          const parsed = JSON.parse(rawLocalConfig);
+          if (parsed?.id && parsed.id !== '0000' && !tripIds.includes(parsed.id)) {
+            tripIds.push(parsed.id);
+          }
+        }
+      } catch {}
     }
 
     const summaries: UserTripSummary[] = [];
@@ -122,19 +134,33 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
         const snap = await getDoc(doc(db, 'trips', tripId));
         if (snap.exists()) {
           const tdata = snap.data();
-          const isOwner = tdata?.ownerUid === uid || (tripId === '0000' && uid === 'nunzio');
-          summaries.push({
-            id: tripId,
-            title: tdata?.title || (tripId === '0000' ? 'Viaggio Originale' : 'Viaggio'),
-            destination: tdata?.destination || undefined,
-            startDate: tdata?.startDate,
-            endDate: tdata?.endDate,
-            ownerUid: tdata?.ownerUid,
-            ownerName: tdata?.ownerName || (tripId === '0000' ? 'nunzio' : undefined),
-            isOwner,
-            role: isOwner ? 'owner' : 'copilota',
-            isLastUsed: tripId === lastTripId
-          });
+          const isOwner = tdata?.ownerUid === uid || tdata?.ownerId === uid || (tripId === '0000' && uid === 'nunzio');
+          const membersList = Array.isArray(tdata?.members) ? tdata.members : [];
+          const isMember = membersList.includes(uid) || isOwner;
+
+          // Se l'utente non è nell'array members né owner, verifichiamo la sottocollezione members/{uid}
+          let verifiedRole: 'owner' | 'copilota' | null = isOwner ? 'owner' : (isMember ? 'copilota' : null);
+          if (!verifiedRole) {
+            const memSnap = await getDoc(doc(db, 'trips', tripId, 'members', uid)).catch(() => null);
+            if (memSnap && memSnap.exists()) {
+              verifiedRole = memSnap.data()?.role === 'owner' ? 'owner' : 'copilota';
+            }
+          }
+
+          if (verifiedRole) {
+            summaries.push({
+              id: tripId,
+              title: tdata?.title || (tripId === '0000' ? 'Viaggio Originale' : 'Viaggio'),
+              destination: tdata?.destination || undefined,
+              startDate: tdata?.startDate,
+              endDate: tdata?.endDate,
+              ownerUid: tdata?.ownerUid || tdata?.ownerId,
+              ownerName: tdata?.ownerName || (tripId === '0000' ? 'nunzio' : undefined),
+              isOwner: verifiedRole === 'owner',
+              role: verifiedRole,
+              isLastUsed: tripId === lastTripId
+            });
+          }
         }
       } catch {
         // Se non autorizzato per quel singolo viaggio, salta silenziosamente
@@ -343,20 +369,143 @@ export async function loginWithEmailPassword(
 }
 
 /**
- * Effettua il login su un secondo dispositivo con Google.
+ * Gestisce la transizione sicura di membership quando un utente anonimo locale
+ * passa a un account Google preesistente con UID differente.
+ */
+export async function handleAnonymousToGoogleTransition(
+  prevUid: string,
+  googleUser: User
+): Promise<void> {
+  if (!db || !prevUid || !googleUser.uid) return;
+
+  try {
+    const rawLocalConfig = typeof localStorage !== 'undefined' ? localStorage.getItem('roadbook_trip_config') : null;
+    let activeTripId: string | null = null;
+    if (rawLocalConfig) {
+      try {
+        const parsed = JSON.parse(rawLocalConfig);
+        activeTripId = parsed?.id || null;
+      } catch {}
+    }
+
+    if (!activeTripId || activeTripId === '0000') return;
+
+    // 1. Verifica se l'utente anonimo precedente era membro effettivo di questo viaggio
+    const { doc, getDoc, writeBatch, arrayUnion, setDoc } = await import('firebase/firestore');
+    const prevMemberRef = doc(db, 'trips', activeTripId, 'members', prevUid);
+    const prevMemberSnap = await getDoc(prevMemberRef).catch(() => null);
+
+    if (prevMemberSnap && prevMemberSnap.exists()) {
+      const prevMemberData = prevMemberSnap.data();
+      const inviteToken = prevMemberData?.inviteToken || (typeof localStorage !== 'undefined' ? localStorage.getItem(`roadbook_invite_token_${activeTripId}`) : null);
+      const role = prevMemberData?.role || 'copilota';
+      const displayName = googleUser.displayName || prevMemberData?.name || 'Copilota';
+
+      // 2. Registra il nuovo account Google nella sottocollezione members e aggiorna members array
+      const googleMemberRef = doc(db, 'trips', activeTripId, 'members', googleUser.uid);
+      const tripRef = doc(db, 'trips', activeTripId);
+      const batch = writeBatch(db);
+
+      batch.set(googleMemberRef, {
+        uid: googleUser.uid,
+        role,
+        name: displayName,
+        prevUid,
+        inviteToken: inviteToken || 'linked_transition',
+        linkedAt: Date.now(),
+        updatedAt: Date.now()
+      }, { merge: true });
+
+      batch.update(tripRef, {
+        members: arrayUnion(googleUser.uid),
+        updatedAt: Date.now()
+      });
+
+      await batch.commit().catch(err => {
+        console.warn('[accountService] Errore commit transizione identità Firestore:', err);
+      });
+    }
+
+    // 3. Aggiunge sempre activeTripId all'elenco dei viaggi associati del nuovo utente Google
+    const userRef = doc(db, 'users', googleUser.uid);
+    await setDoc(userRef, {
+      uid: googleUser.uid,
+      displayName: googleUser.displayName || null,
+      associatedTripIds: arrayUnion(activeTripId),
+      lastTripId: activeTripId,
+      updatedAt: Date.now()
+    }, { merge: true }).catch(() => {});
+  } catch (err) {
+    console.warn('[accountService] Errore generale transizione anonimo->Google:', err);
+  }
+}
+
+/**
+ * Effettua il login o collegamento account con Google.
+ * Se l'utente corrente è anonimo, tenta linkWithPopup per preservare l'UID e le membership.
+ * Se l'account Google è già registrato (credential-already-in-use), esegue signInWithPopup
+ * e trasferisce in sicurezza l'associazione del viaggio attivo della sessione.
  */
 export async function loginWithGoogle(): Promise<{
   success: boolean;
   user?: User;
   error?: string;
   code?: string;
+  linked?: boolean;
 }> {
   if (!auth) return { success: false, error: 'Firebase Auth non inizializzato.' };
   try {
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
+
+    const currentUser = auth.currentUser;
+    const isAnon = Boolean(currentUser && currentUser.isAnonymous);
+    const prevUid = currentUser?.uid || null;
+
+    // Se l'utente è attualmente anonimo su questo dispositivo, proviamo a collegare le credenziali Google
+    if (isAnon && currentUser) {
+      try {
+        const linkRes = await linkWithPopup(currentUser, provider);
+        const linkedUser = linkRes.user;
+
+        // Aggiorna record /users/{uid} con i nuovi dettagli Google
+        const { recordUserAccess } = await import('./userAccessService');
+        const rawLocalConfig = typeof localStorage !== 'undefined' ? localStorage.getItem('roadbook_trip_config') : null;
+        let activeTripId: string | undefined = undefined;
+        if (rawLocalConfig) {
+          try { activeTripId = JSON.parse(rawLocalConfig)?.id; } catch {}
+        }
+        await recordUserAccess(linkedUser, activeTripId);
+
+        return { success: true, user: linkedUser, linked: true };
+      } catch (linkErr: any) {
+        // Se il provider Google è già associato a un altro account Firebase esistente, procediamo con signInWithPopup
+        if (linkErr?.code !== 'auth/credential-already-in-use') {
+          throw linkErr;
+        }
+        console.info('[accountService] Account Google già registrato: passaggio a signInWithPopup con migrazione associazione…');
+      }
+    }
+
+    // Accesso diretto con Google (o per utente già registrato precedentemente)
     const res = await signInWithPopup(auth, provider);
-    return { success: true, user: res.user };
+    const googleUser = res.user;
+
+    // Se prima c'era un utente anonimo autorizzato su questo dispositivo per un viaggio attivo, migriamo l'associazione
+    if (prevUid && prevUid !== googleUser.uid) {
+      await handleAnonymousToGoogleTransition(prevUid, googleUser);
+    }
+
+    // Registra accesso utente Google
+    const { recordUserAccess } = await import('./userAccessService');
+    const rawLocalConfig = typeof localStorage !== 'undefined' ? localStorage.getItem('roadbook_trip_config') : null;
+    let activeTripId: string | undefined = undefined;
+    if (rawLocalConfig) {
+      try { activeTripId = JSON.parse(rawLocalConfig)?.id; } catch {}
+    }
+    await recordUserAccess(googleUser, activeTripId);
+
+    return { success: true, user: googleUser, linked: false };
   } catch (err: any) {
     const code = err?.code || 'auth/unknown';
     let error = 'Accesso Google interrotto.';
@@ -376,3 +525,4 @@ export async function loginWithGoogle(): Promise<{
     };
   }
 }
+

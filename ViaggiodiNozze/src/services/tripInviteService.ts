@@ -121,7 +121,11 @@ export async function validateTripInvite(tripId: string, token: string): Promise
     }
 
     if (data.status === 'used') {
-      return { valid: false, error: 'Questo link di invito è già stato utilizzato.' };
+      return {
+        valid: false,
+        tripId,
+        error: 'Questo link di invito è già stato utilizzato da un partecipante. Se fai già parte del viaggio accedi direttamente, altrimenti chiedi un nuovo invito all’organizzatore.'
+      };
     }
 
     if (data.status !== 'active') {
@@ -172,7 +176,12 @@ export async function validateTripInvite(tripId: string, token: string): Promise
 /**
  * Riscatta un invito valido associando il copilota in modo atomico.
  */
-export async function redeemTripInvite(tripId: string, token: string, user: User): Promise<{
+export async function redeemTripInvite(
+  tripId: string,
+  token: string,
+  user: User,
+  displayName?: string
+): Promise<{
   success: boolean;
   error?: string;
 }> {
@@ -183,11 +192,13 @@ export async function redeemTripInvite(tripId: string, token: string, user: User
   try {
     const batch = writeBatch(db);
 
+    const copilotName = (displayName && displayName.trim()) || user.displayName || 'Copilota';
+
     const memberRef = doc(db, 'trips', tripId, 'members', user.uid);
     batch.set(memberRef, {
       uid: user.uid,
       role: 'copilota',
-      name: user.displayName || 'Copilota',
+      name: copilotName,
       inviteToken: token,
       joinedAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -210,6 +221,14 @@ export async function redeemTripInvite(tripId: string, token: string, user: User
 
     // Registra accesso utente
     await recordUserAccess(user, tripId);
+
+    // Memorizza token su questo dispositivo per proteggere eventuali passaggi d'identità
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(`roadbook_invite_token_${tripId}`, token);
+        localStorage.setItem(`roadbook_member_uid_${tripId}`, user.uid);
+      } catch {}
+    }
 
     return { success: true };
   } catch (err: any) {

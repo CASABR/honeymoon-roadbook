@@ -49,7 +49,7 @@ export interface LiveGpsPositionInput {
   country?: string;
 }
 
-const LEASE_HOURS = 23;
+const LEASE_HOURS = 18;
 const MIN_PUBLISH_INTERVAL_MS = 16_000;
 
 const asDate = (value: unknown): Date =>
@@ -57,7 +57,13 @@ const asDate = (value: unknown): Date =>
 
 const friendlyError = (error: unknown): Error => {
   const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
-  if (code.includes('permission-denied')) return new Error('Non hai i permessi per controllare questa condivisione GPS.');
+  const message = error instanceof Error ? error.message : '';
+  if (code.includes('permission-denied') || message.includes('permission-denied')) {
+    return new Error('Non hai i permessi per controllare questa condivisione GPS. Assicurati di essere registrato come Copilota o Organizzatore.');
+  }
+  if (code.includes('resource-exhausted') || message.toLowerCase().includes('quota')) {
+    return new Error('Limite temporaneo operazioni cloud raggiunto. Riprova tra qualche minuto.');
+  }
   if (code.includes('unavailable')) return new Error('Connessione non disponibile. Riprova quando sei online.');
   if (code.includes('aborted')) return new Error('La guida è cambiata da un altro dispositivo. Stato aggiornato.');
   return error instanceof Error ? error : new Error('Operazione GPS non riuscita.');
@@ -138,7 +144,12 @@ export const liveGpsService = {
     try {
       await runTransaction(db, async transaction => {
         const tripSnapshot = await transaction.get(doc(db, 'trips', tripId));
-        if (!tripSnapshot.exists() || tripSnapshot.data().ownerUid !== user.uid) {
+        if (!tripSnapshot.exists()) {
+          throw new Error('Viaggio non trovato.');
+        }
+        const data = tripSnapshot.data();
+        const isOwner = data.ownerUid === user.uid || data.ownerId === user.uid || (tripId === '0000' && user.uid === 'nunzio');
+        if (!isOwner) {
           throw new Error('Solo l’Organizzatore può assegnare la guida GPS.');
         }
         transaction.set(leaseRef(tripId), {

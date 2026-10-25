@@ -173,6 +173,41 @@ export function getSavedLiveLocation(): GeolocationState | null {
 }
 
 /**
+ * Salva in modo sicuro in localStorage gestendo esplicitamente QuotaExceededError
+ * senza bloccare o interrompere l'acquisizione delle coordinate GPS.
+ */
+export function safeLocalStorageSet(key: string, value: string): boolean {
+  if (typeof window === 'undefined' || !window.localStorage) return false;
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (err: any) {
+    console.warn(`[geolocationService] Errore salvataggio localStorage per "${key}":`, err);
+    const isQuota = err?.name === 'QuotaExceededError' ||
+                    err?.code === 22 ||
+                    err?.number === -2147024882 ||
+                    String(err?.message || '').toLowerCase().includes('quota');
+    if (isQuota) {
+      try {
+        // Pulizia mirata di dati pesanti sacrificabili (es. vecchie cache foto locali)
+        // NON tocca mai credenziali auth, configurazioni di viaggio o memorie critiche
+        const purgeable = ['hounigo_live_gallery', 'hero_bg_image', 'trip_header_image'];
+        for (const pKey of purgeable) {
+          if (pKey !== key) {
+            localStorage.removeItem(pKey);
+          }
+        }
+        localStorage.setItem(key, value);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  }
+}
+
+/**
  * Rileva la posizione GPS reale, esegue reverse geocoding e salva su localStorage
  */
 export async function updateRealLocation(options?: PositionOptions): Promise<GeolocationState> {
@@ -197,8 +232,9 @@ export async function updateRealLocation(options?: PositionOptions): Promise<Geo
   };
 
   if (typeof window !== 'undefined') {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    safeLocalStorageSet(STORAGE_KEY, JSON.stringify(state));
   }
 
   return state;
 }
+

@@ -186,3 +186,36 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
   - Nessuna alterazione o accesso non autorizzato ai dati del viaggio master `0000`.
 - **Guida Beta Tester**: consultabile in `docs/HOUNIGO_TESTER_GUIDE.md`.
 
+---
+
+## 6. HOTFIX P0 POST-DEPLOY (25 OTTOBRE 2026) — IDENTITÀ GOOGLE, MULTI-VIAGGIO E GPS
+
+### Problemi Rilevati Fisicamente su 2 Telefoni
+1. Copilota entra anonimo su "GIAPPONE"; effettuando il login Google perde l'accesso a "GIAPPONE" e l'app apre forzatamente "0000".
+2. Riaprendo il link di invito compare l'errore ingannevole di invito non valido/scaduto.
+3. Owner attivando il GPS riceveva `Quota exceeded`.
+4. Copilota ricevendo la delega GPS riceveva il badge bloccante `Errore tecnico`.
+
+### Cause Tecniche e Interventi Implementati
+1. **Identità Firebase & Google Login (P0-A / P0-B)**:
+   - `accountService.loginWithGoogle`: implementato `linkWithPopup(currentUser, provider)` se l'utente è anonimo, preservando l'UID in-place (`anonUid == googleUid`).
+   - Se l'account Google era già registrato (`auth/credential-already-in-use`), fallback su `signInWithPopup` e invocazione di `handleAnonymousToGoogleTransition(prevUid, googleUser)`.
+   - Transizione sicura autorizzata dalle Firestore Rules (condizione 4): il nuovo Google account crea `/trips/{tripId}/members/{googleUid}` con `prevUid` e si aggiunge all'array `members` del viaggio senza alterare il token monouso già consumato.
+   - `OnboardingView`: verifica pre-join se l'utente autenticato è già membro autorizzato; in tal caso accede direttamente senza tentare di ri-consumare il token già 'used'.
+2. **Selettore Multi-Viaggio (P0-C)**:
+   - `OnboardingView.inspectUserTrips` e `accountService.fetchUserTrips`: verificano sia `ownerUid` che `ownerId` e i membri della sottocollezione.
+   - Il viaggio attivo locale verificato non viene mai sovrascritto arbitrariamente da `0000`; se l'utente possiede più viaggi, il viaggio attivo resta in cima alla lista e `0000` è salvaguardato.
+3. **GPS Owner "Quota exceeded" (P0-D)**:
+   - Causa: `localStorage.setItem` non protetto in `geolocationService.updateRealLocation` scatenava `DOMException: QuotaExceededError` su storage mobile saturo da foto cache.
+   - Fix: introdotto `safeLocalStorageSet` con auto-eviction selettiva delle cache sacrificabili (`hounigo_live_gallery`, hero images) e fallback in memory.
+   - `LiveView.tsx`: cattura esplicita e throttling dei listener/watchPosition per evitare leak e flood.
+4. **Delega GPS "Errore tecnico" (P0-E)**:
+   - Causa: `isGpsGuideEligible` in `firestore.rules` verificava solo `data.ownerUid == uid`, rigettando i viaggi con `ownerId`; inoltre il copilota senza membership post-login riceveva `PERMISSION_DENIED` che in UI si traduceva nel label allarmante "Errore tecnico".
+   - Fix: `firestore.rules` aggiornate con supporto a `ownerId` ed estensione buffer temporale; `liveGpsService.friendlyError` e `LiveEditorialExperience.tsx` rimappano `permission-denied` e quota su messaggi chiari di richiesta autorizzazione o segnale non disponibile.
+5. **Nome Copilota Riconoscibile (P1)**:
+   - Campo input nome visualizzato aggiunto in `OnboardingView` (modalità join) prima del riscatto; pre-popolato con `auth.currentUser.displayName` se disponibile, salvato in `/trips/{tripId}/members/{uid}`.
+
+### Convalida
+- Nuova suite automatizzata `scripts/test_p0_hotfix_emulator_validation.cjs`: 14/14 test passati (100%) su Firebase Emulator reale porta 8085.
+- Build di produzione completata con successo (`✓ built in 6.03s`, bundle pronto per eventuale deploy autorizzato).
+

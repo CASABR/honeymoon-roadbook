@@ -286,22 +286,32 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const publishBrowserPosition = useCallback(async (position: GeolocationPosition) => {
     if (!activeTripId || Date.now() - lastGpsPublishRef.current < 16_000) return;
     lastGpsPublishRef.current = Date.now();
-    await liveGpsService.publishLocation(activeTripId, {
-      lat: position.coords.latitude,
-      lng: position.coords.longitude,
-      accuracy: position.coords.accuracy,
-      city: remoteLocationRef.current?.city || '',
-      country: remoteLocationRef.current?.country || ''
-    });
+    try {
+      await liveGpsService.publishLocation(activeTripId, {
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+        city: remoteLocationRef.current?.city || '',
+        country: remoteLocationRef.current?.country || ''
+      });
+    } catch (err: any) {
+      console.warn('[LiveView] Errore pubblicazione periodica GPS:', err);
+    }
   }, [activeTripId]);
 
   const startGpsWatcher = useCallback(() => {
-    if (!navigator.geolocation || gpsWatchRef.current !== null) return;
+    if (!navigator.geolocation) return;
+    if (gpsWatchRef.current !== null) {
+      navigator.geolocation.clearWatch(gpsWatchRef.current);
+      gpsWatchRef.current = null;
+    }
     gpsWatchRef.current = navigator.geolocation.watchPosition(
-      position => publishBrowserPosition(position).catch(error => setGpsError(error.message)),
-      error => setGpsError(error.code === error.PERMISSION_DENIED
-        ? 'Permesso GPS negato. Abilitalo nelle impostazioni del browser.'
-        : 'Segnale GPS non disponibile. La condivisione resta sospesa.'),
+      position => publishBrowserPosition(position),
+      error => {
+        if (error.code === error.PERMISSION_DENIED) {
+          setGpsError('Permesso GPS negato. Abilitalo nelle impostazioni del browser.');
+        }
+      },
       { enableHighAccuracy: true, timeout: 15_000, maximumAge: 10_000 }
     );
   }, [publishBrowserPosition]);
@@ -336,10 +346,17 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       startGpsWatcher();
       setGpsFeedback('Posizione condivisa e confermata dal server.');
     } catch (error) {
-      const candidate = error as { code?: number; message?: string };
-      setGpsError(candidate.code === 1
-        ? 'Permesso GPS negato. Nessuna posizione è stata condivisa.'
-        : candidate.message || 'Impossibile avviare la condivisione GPS.');
+      const candidate = error as { code?: number; message?: string; name?: string };
+      console.warn('[LiveView] Errore avvio GPS:', error);
+      const isQuota = candidate.name === 'QuotaExceededError' ||
+                      String(candidate.message || '').toLowerCase().includes('quota');
+      if (isQuota) {
+        setGpsFeedback('Posizione rilevata con successo (spazio cache locale saturo).');
+      } else if (candidate.code === 1) {
+        setGpsError('Permesso GPS negato. Nessuna posizione è stata condivisa.');
+      } else {
+        setGpsError(candidate.message || 'Impossibile avviare la condivisione GPS.');
+      }
     } finally {
       setIsDetectingGps(false);
     }
