@@ -47,11 +47,6 @@ export function setAuthoritativeCloudRole(role: CloudRole): void {
  * Amministratore globale (non owner/copilota), viewer, checking, offline o unverified NON sono autorizzati.
  */
 export function isCloudAuthorized(): boolean {
-  if (import.meta.env.DEV) {
-    const sim = getSimulatedRole();
-    if (sim === 'owner' || sim === 'copilota') return true;
-    if (sim === 'viewer') return false;
-  }
   return authoritativeCloudRole === 'owner' || authoritativeCloudRole === 'copilota';
 }
 
@@ -186,15 +181,6 @@ export function useAuthIdentity(): AuthIdentityState {
     }
 
     async function verifyCloudRole() {
-      // 0. Simulazione Dev (solo ambiente di sviluppo)
-      if (import.meta.env.DEV) {
-        const sim = getSimulatedRole();
-        if (sim) {
-          updateRole(sim);
-          return;
-        }
-      }
-
       // 1. Controllo offline immediato
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         updateRole('offline');
