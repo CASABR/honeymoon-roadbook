@@ -126,7 +126,11 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
     2. Creazione dell'invito in sottocollezione `/trips/{tripId}/invites/{inviteToken}` con scadenza a 7 giorni, monouso (`status: 'pending' -> 'used'`) e revocabile dal proprietario.
     3. **Sicurezza Server-Side su Piano Gratuito Spark (0 Cloud Functions, $0 costi)**: Il riscatto avviene tramite `writeBatch` atomico del client (`redeemTripInvite` in `tripInviteService.ts`) e viene validato atomicamente in `firestore.rules` tramite `getAfter(/databases/$(database)/documents/trips/$(tripId)/invites/$(token))`. La creazione del membro copilota è autorizzata SOLO se il batch contemporaneamente aggiorna lo stato del token su `'used'` associandolo a `request.auth.uid`.
     4. **Protezione Speciale Viaggio `0000`**: La regola `tripId != '0000'` impedisce tassativamente la creazione o riscatto di token sul viaggio di nozze master.
-    5. Nessuna lettura dei dati privati (tappe, spese, note, documenti) prima dell'avvenuto riscatto dell'invito.
+    5. **Chiusura Falla Accesso con Solo tripId**: La regola `allow get` su `/trips/{tripId}` è stata blindata con `isTripMember(tripId) || isGlobalAdmin()`. Chi possiede solo il `tripId` NON può leggere né i metadati né i dati privati (tappe, spese, note, documenti) del viaggio.
+    6. **Coerenza Schema ownerUid / ownerId**: Pieno supporto trasparente sia a `ownerUid` che a `ownerId` nelle funzioni `isTripOwner` e `isTripMember`, garantendo retrocompatibilità e coerenza con i documenti già esistenti in produzione.
+    7. **Blindatura Self-Join**: La clausola di auto-join in `allow update` su `/trips/{tripId}` richiede tassativamente che l'utente non sia già presente in `members` e che un nuovo documento membro copilota legittimo sia creato nello stesso batch, impedendo a un copilota esistente di aggiungere terzi all'array `members`.
+    8. **Convalida su Firebase Emulator Reale**: Validata al 100% con la suite automatica `scripts/test_beta_release_emulator_validation.cjs` (24/24 asserzioni superate su emulatore Firestore reale, porta 8085, con OpenJDK 21).
+    9. **Riconciliazione File Rules**: Allineati e sincronizzati al 100% i due file `firestore.rules` (directory root del repository, utilizzato da root `firebase.json`, e `ViaggiodiNozze/firestore.rules`).
 - **P1-A — Selezione dei Viaggi Dopo il Login & Isolamento Dati**:
   - Modalità multi-viaggio sicura: lettura da `/users/{uid}/associatedTripIds` ed esecuzione di singoli `getDoc` dedicati (nessuna scansione globale non autorizzata su `/trips`).
   - Classificazione chiara tra "👑 Organizzatore" e "🤝 Co-pilota" con destinazione, date e indicatore dell'ultimo viaggio utilizzato.
@@ -158,15 +162,18 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
    - Nella UI della Beta RC sono stati inseriti disclaimer trasparenti (`🔒 Salvataggio locale (Beta)`) e il pulsante è impostato su *"Salva su dispositivo"*.
    - La funzionalità galleria remota resta NON completata e BLOCCATA fino all'abilitazione di Firebase Storage o CDN persistente post-beta.
 2. **Autorizzazione Deploy Security Rules e Test su iPhone Fisico**:
-   - Le Security Rules crittografiche (`firestore.rules`) sono implementate e validate localmente; attendono deploy esplicito da parte dell'utente.
+   - Le Security Rules crittografiche (`firestore.rules` in root e `ViaggiodiNozze`) sono verificate e validate al 100% su Firebase Emulator reale; attendono deploy remoto esplicito da parte dell'utente.
    - La verifica della Geolocation API in background su PWA iOS/Safari deve essere convalidata sul dispositivo fisico dell'owner.
 
 ---
 
 ## 5. STATO DELLA PUBBLICAZIONE ONLINE (BETA RELEASE CANDIDATE)
-- **Data e Ora Consolidamento Beta**: 25 Ottobre 2026, 18:30 CET
+- **Data e Ora Consolidamento Beta**: 25 Ottobre 2026, 19:00 CET
 - **Branch di Lavoro**: `work/product-completion`
 - **Stato Codice Locale**: Pronto per Release Candidate. Validazione completa:
-  - Suite automatica `scripts/test_jarvis_beta_closure.cjs`: 14/14 test superati (100%).
+  - Suite automatica di integrazione `scripts/test_jarvis_beta_closure.cjs`: 14/14 test superati (100%).
+  - Suite su Firebase Emulator Reale `scripts/test_beta_release_emulator_validation.cjs`: 24/24 test superati (100%).
+  - Suite storica collaborazione su emulatore `test_firestore_emulator_collaboration.cjs`: 50/50 test superati (100%).
+  - Suite simulazione migrazione `test_migration_simulation_emulator.cjs`: 10/10 test superati (100%).
   - Build di produzione TypeScript/Vite: completata con esito 0 (nessun errore o warning bloccante).
   - Verifica visiva mobile (393px / 320px) e desktop (1280px) effettuata con browser subagent.

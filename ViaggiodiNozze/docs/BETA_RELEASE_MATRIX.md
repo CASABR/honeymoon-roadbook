@@ -56,5 +56,37 @@
 - [x] **Test 11: Lettura dati privati prima del join**: Subcollezioni private protette da `isTripMember()`. [SUPERATO 14/14]
 - [x] **Test 12: Regressioni login, sync, Maps e LIVE**: Mantenimento card 2 righe, parsing timestamp e login permanente. [SUPERATO 14/14]
 - [x] **Test 13: Build completa di produzione**: `npm run build` completato senza errori TypeScript o Vite. [SUPERATO]
-- [x] **Test 14: Screenshot mobile e desktop**: Verificati viewport 393px, 320px e 1280px con browser subagent. [SUPERATO]
 - [ ] **Test Telefono Fisico Owner su Rete Reale (PWA iOS)**: Collaudo finale geolocalizzazione sul dispositivo reale dell'owner pre-apertura tester 28 ottobre.
+
+---
+
+## 4. CONVALIDA FIRESTORE SECURITY RULES SU FIREBASE EMULATOR REALE
+*Ambiente: Firebase Emulator Suite v15.28.2 (Porta 8085) su OpenJDK 21 LTS*
+*Suite: `scripts/test_beta_release_emulator_validation.cjs`*
+*Esito: 24/24 asserzioni superate con successo (100%)*
+
+- [x] **Creazione remota viaggio con `ownerUid`**: Batch atomico crea doc `/trips/{id}` e member doc `/members/{uid}` con role 'owner'. [PASS 01]
+- [x] **Creazione remota viaggio con `ownerId`**: Retrocompatibilità completa per documenti legacy o generatori client. [PASS 02]
+- [x] **Riconoscimento owner per modifiche**: `isTripOwner` riconosce legittimamente l'owner sia tramite `ownerUid` che `ownerId`. [PASS 03]
+- [x] **Generazione invito copilota**: Owner crea `/trips/{id}/invites/{token}` con 7 giorni di validità e role 'copilota'. [PASS 04]
+- [x] **Divieto generazione inviti per non-owner**: Estraneo o copilota non possono creare token di invito. [PASS 05 - PERMISSION_DENIED]
+- [x] **Protezione master `0000` su inviti**: Vietata categoricamente la creazione di inviti su `0000` (`tripId != '0000'`). [PASS 06 - PERMISSION_DENIED]
+- [x] **Accesso con solo `tripId` bloccato**: Estraneo con solo ID viaggio non può eseguire `get` su `/trips/{tripId}`. [PASS 07 - PERMISSION_DENIED]
+- [x] **Accesso dati privati prima del join bloccato**: Estraneo non può accedere a `/tappe`, `/spese`, `/documenti`. [PASS 08 - PERMISSION_DENIED]
+- [x] **Verifica token pre-join**: Utente con link e token esatto legge i metadati dell'invito in `/invites/{token}`. [PASS 09]
+- [x] **Divieto scansione/list inviti**: Estraneo non può enumerare o scansionare i token altrui. [PASS 10 - PERMISSION_DENIED]
+- [x] **Riscatto atomico invito valido**: Batch atomico consuma il token (`status: 'used'`), crea `members/{uid}` e aggiorna `members` array. [PASS 11]
+- [x] **Accesso post-join copilota**: Dopo il riscatto il copilota è membro effettivo e legge `/trips/{id}`. [PASS 12]
+- [x] **Collaborazione post-join copilota**: Il copilota ha accesso di scrittura nelle tappe e risorse condivise. [PASS 13]
+- [x] **Blocco riuso token già consumato**: Secondo utente che tenta di riscattare un token già usato viene respinto. [PASS 14 - PERMISSION_DENIED]
+- [x] **Blocco token scaduto**: Token con `expiresAt < request.time` viene respinto. [PASS 15 - PERMISSION_DENIED]
+- [x] **Blocco token revocato**: Token con `status: 'revoked'` viene respinto. [PASS 16 - PERMISSION_DENIED]
+- [x] **Blocco auto-join non autorizzato**: Auto-iscrizione senza token crittografico viene respinta. [PASS 17 - PERMISSION_DENIED]
+- [x] **Blocco auto-promozione a owner**: Tentativo di iscriversi con role 'owner' viene respinto. [PASS 18 - PERMISSION_DENIED]
+- [x] **Blocco auto-join su `0000`**: Tentativo di iscrizione o join su `0000` viene respinto. [PASS 19 - PERMISSION_DENIED]
+- [x] **Isolamento `0000` da estranei**: Estraneo non può leggere `/trips/0000`. [PASS 20 - PERMISSION_DENIED]
+- [x] **Isolamento tappe private `0000`**: Estraneo non può leggere le tappe di `0000`. [PASS 21 - PERMISSION_DENIED]
+- [x] **Accesso owner legittimo `0000`**: Owner reale (`cqs2OcE7...`) legge il viaggio master. [PASS 22]
+- [x] **Impossibilità eliminazione `0000`**: Nemmeno l'owner può cancellare `0000`. [PASS 23 - PERMISSION_DENIED]
+- [x] **Compatibilità viaggi esistenti**: Viaggi senza la sottocollezione `/invites` continuano a funzionare regolarmente. [PASS 24]
+

@@ -107,8 +107,8 @@
   - Modifiche: Corretta omissione di `online` prop in `LiveEditorialExperience`, gestione 7 stati di inattività (`not_started`, `permission_denied`, `acquiring`, `other_device_active`, `offline`, `paused`, `technical_error`), Action Card GPS in evidenza, istruzioni contestuali iOS/Safari, separazione esplicita posizione programmata da GPS reale.
 - **P0-B — Invito Copilota Sicuro & Crittografico (Firebase Spark Compatible)**:
   - Priorità: P0 (Critica / Bloccante)
-  - Stato: TESTATO (14/14 suite completa)
-  - Modifiche: Architettura con token 128-bit imprevedibile (`crypto.randomUUID()`), collezione `/trips/{tripId}/invites/{token}`, scadenza a 7 giorni, monouso, validazione atomica server-side in `firestore.rules` con `getAfter(...)` compatibile con piano gratuito Spark (0 Cloud Functions, $0 costi), divieto assoluto auto-join con solo `tripId`, protezione assoluta viaggio master `0000`.
+  - Stato: TESTATO SU EMULATORE REALE (24/24 suite emulatore + 14/14 suite jarvis + 50/50 suite collaborazione)
+  - Modifiche: Architettura con token 128-bit imprevedibile (`crypto.randomUUID()`), collezione `/trips/{tripId}/invites/{token}`, scadenza a 7 giorni, monouso, validazione atomica server-side in `firestore.rules` con `getAfter(...)` compatibile con piano gratuito Spark (0 Cloud Functions, $0 costi), divieto assoluto auto-join con solo `tripId`, divieto lettura dati privati prima del join, blindatura get `/trips/{tripId}` (solo membri ed admin), supporto unificato `ownerUid` e `ownerId`, protezione assoluta viaggio master `0000`. Testata su Firebase Emulator reale porta 8085 con OpenJDK 21. Sincronizzati al 100% i file `firestore.rules` in root e `ViaggiodiNozze`.
 - **P1-A — Selezione dei Viaggi Dopo il Login & Isolamento Dati**:
   - Priorità: P1
   - Stato: TESTATO
