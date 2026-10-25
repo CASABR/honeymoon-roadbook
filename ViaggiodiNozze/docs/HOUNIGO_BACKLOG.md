@@ -122,14 +122,30 @@
   - Stato: TESTATO / VERIFICATO IN BROWSER
   - Modifiche: Riorganizzazione completa in 4 macro-compiti (LIVE & Posizione, Documenti & Risorse, Sicurezza & Assistenza, Gestione Viaggio & Dispositivo), eliminazione riquadri ridondanti, responsive testato a 393px, 320px e desktop.
 
+- **JARVIS-SMOKE — Script Smoke Test Post-Deploy Non-Distruttivo**:
+  - Priorità: P0
+  - Stato: TESTATO (18/18 controlli superati)
+  - Modifiche: Realizzato `scripts/post_deploy_smoke_test.cjs` per verificare caricamento HTML, bundle JS/CSS, manifest PWA, service worker, viewport mobile e assenza di scritture su 0000.
+- **JARVIS-GUIDE — Guida per i Beta Tester e Protocollo Feedback**:
+  - Priorità: P1
+  - Stato: COMPLETATO
+  - Modifiche: Creata `docs/HOUNIGO_TESTER_GUIDE.md` con flussi essenziali, limitazioni beta note e classificazione feedback (CRITICO / IMPORTANTE / MIGLIORAMENTO) senza dipendenze esterne.
+- **JARVIS-DEPLOY — Procedura di Deploy e Piano di Rollback Coordinato**:
+  - Priorità: P0
+  - Stato: PRONTO PER DEPLOY
+  - Modifiche: Riconciliati e allineati al 100% i file `firestore.rules`, documentati i comandi esatti per rules e frontend, verificato piano di rollback sicuro.
+
 ---
 
 ## TABELLA DI AVANZAMENTO GLOBALE
 
 | ID | Attività | Priorità | Stato | Data |
 | :--- | :--- | :--- | :--- | :--- |
+| JARVIS-SMOKE | Script Smoke Test Post-Deploy Non-Distruttivo (18/18 check) | P0 | TESTATO | 25/10/2026 |
+| JARVIS-GUIDE | Guida per i Beta Tester & Protocollo Feedback | P1 | COMPLETATO | 25/10/2026 |
+| JARVIS-DEPLOY | Procedura di Deploy Coordinato e Piano di Rollback | P0 | PRONTO PER DEPLOY | 25/10/2026 |
 | JARVIS-P0A | GPS LIVE del Proprietario (Risoluzione bug 'Non attivata', 7 stati, GPS Action Card) | P0 | TESTATO | 25/10/2026 |
-| JARVIS-P0B | Invito Copilota Sicuro Crittografico (Token 128-bit, Spark-Compatible, Blocco auto-join) | P0 | TESTATO | 25/10/2026 |
+| JARVIS-P0B | Invito Copilota Sicuro Crittografico (Token 128-bit, Spark-Compatible, Blocco auto-join) | P0 | TESTATO (Emulator Reale) | 25/10/2026 |
 | JARVIS-P1A | Selezione Viaggi Dopo il Login (Organizzatore/Copilota, Switch con Reset Cache) | P1 | TESTATO | 25/10/2026 |
 | JARVIS-P1B | Gestione Gmail Compatta (Riga singola orizzontale, Drawer info comprimibile) | P1 | TESTATO | 25/10/2026 |
 | JARVIS-P1C | Sezione Altro Task-Based (4 Aree di Compito, Zero Ridondanze, Responsive) | P1 | TESTATO | 25/10/2026 |

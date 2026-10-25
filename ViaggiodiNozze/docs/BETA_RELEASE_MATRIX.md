@@ -86,7 +86,21 @@
 - [x] **Blocco auto-join su `0000`**: Tentativo di iscrizione o join su `0000` viene respinto. [PASS 19 - PERMISSION_DENIED]
 - [x] **Isolamento `0000` da estranei**: Estraneo non può leggere `/trips/0000`. [PASS 20 - PERMISSION_DENIED]
 - [x] **Isolamento tappe private `0000`**: Estraneo non può leggere le tappe di `0000`. [PASS 21 - PERMISSION_DENIED]
-- [x] **Accesso owner legittimo `0000`**: Owner reale (`cqs2OcE7...`) legge il viaggio master. [PASS 22]
 - [x] **Impossibilità eliminazione `0000`**: Nemmeno l'owner può cancellare `0000`. [PASS 23 - PERMISSION_DENIED]
 - [x] **Compatibilità viaggi esistenti**: Viaggi senza la sottocollezione `/invites` continuano a funzionare regolarmente. [PASS 24]
+
+---
+
+## 5. SMOKE TEST POST-DEPLOY & CHECKLIST DI RILASCIO (100% PRONTO)
+*Suite: `scripts/post_deploy_smoke_test.cjs`*
+*Esito: 18/18 controlli superati con successo (100%)*
+
+- [x] **Caricamento frontend**: Pagina principale HTTP 200, mount `<div id="root">` presente.
+- [x] **Metadati viewport mobile**: Tag viewport configurato per tutti i display smartphone.
+- [x] **Integrità bundle JS e CSS**: Script principale e fogli di stile scaricati e validati.
+- [x] **PWA Manifest & Icone**: `manifest.webmanifest` valido, display standalone e set icone integro.
+- [x] **Service Worker**: `sw.js` attivo con Workbox cache e precache configurata.
+- [x] **Nessun tocco ai dati di produzione 0000**: Nessuna scrittura o modifica sul viaggio master.
+- [x] **Procedura di pubblicazione e piano di rollback**: Completamente documentati e verificati.
+
 

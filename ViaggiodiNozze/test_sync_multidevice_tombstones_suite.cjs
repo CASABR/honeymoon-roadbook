@@ -188,6 +188,7 @@ function createProductionStorageServiceInstance() {
         idbPut: async (s, d) => { mockIdb.set(s + ':' + d.id, d); return d; },
         idbDelete: async (s, k) => { mockIdb.delete(s + ':' + k); },
         idbGetAll: async (s) => Array.from(mockIdb.entries()).filter(([k]) => k.startsWith(s + ':')).map(([, v]) => v),
+        getActiveTripId: () => '0000',
         getCurrentUserRole: () => 'editor',
         assertCanMutate: () => {},
         formatDateIT: (d) => String(d || ''),
