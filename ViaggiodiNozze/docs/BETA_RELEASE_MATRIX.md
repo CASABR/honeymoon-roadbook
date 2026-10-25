@@ -122,6 +122,37 @@
 - [x] **Fase 6 — Console Admin Globale**: 14 controlli statici + 7 test runtime superati (blocco query per utenti normali e trip owner, isolamento totale di system_admins, query per admin in whitelist, revoca istantanea). [TESTATO SU FIREBASE EMULATOR]
 - [ ] **Test Telefono Fisico Owner & Copilota**: Da effettuare il 26 ottobre da ***REMOVED*** e ***REMOVED*** su dispositivi reali prima della distribuzione ai tester il 28 ottobre. [IN ATTESA DI COLLAUDO REALE]
 
+---
+
+## 7. ESITO JARVIS 2: SIMULAZIONE UTENTI REALI & MATRICE DI PRONTEZZA BETA (25-26 OTTOBRE 2026)
+*Suite di simulazione: `scripts/test_jarvis2_user_simulation.cjs`*
+*Ambiente: Firebase Emulator Suite v15.28.2 (Porta 8085) su OpenJDK 21 LTS*
+*Esito: 14/14 percorsi utente superati con successo (100%)*
+
+### A. Percorsi Utente Verificati
+- [x] **Tester A1 (Creazione Viaggio)**: Tester A apre da smartphone e crea un nuovo viaggio senza alcuna conoscenza di Firebase, UID o Cloud Sync. Batch atomico `/trips/{id}` + `/members/{uid}` (ruolo `owner`). [SUPERATO]
+- [x] **Tester A2 (Inserimento Tappa)**: Tester A aggiunge la sua prima tappa (es. *Firenze arrivo*) con orario e dettagli logistici. [SUPERATO]
+- [x] **Tester A3 (Inserimento Prenotazione)**: Tester A memorizza alloggio e voucher riservato con codice PNR protetto. [SUPERATO]
+- [x] **Tester A4 (Generazione Invito Copilota)**: Tester A tocca "Invita un Copilota" e genera un link con token crittografico monouso 128-bit valido 7 giorni. [SUPERATO]
+- [x] **Tester A5 (Collegamento Google senza perdita dati)**: Tester A collega il proprio account Google con `linkWithPopup`: l'UID rimane identico, nessun dato o membership viene perso. [SUPERATO]
+- [x] **Tester B1 (Apertura Link WhatsApp)**: Tester B apre il link `?join={tripId}&token={token}`, visualizza titolo viaggio e nome organizzatore prima di accettare. [SUPERATO]
+- [x] **Tester B2 (Accettazione Invito & Nome)**: Tester B inserisce il proprio nome (*Sara*), accetta l'invito e riscatta il token atomicamente in transizione `pending -> used`. [SUPERATO]
+- [x] **Tester B3 (Consultazione Condivisa)**: Tester B consulta tappe e prenotazioni create dall'organizzatore. [SUPERATO]
+- [x] **Tester B4 (Modifica Condivisa)**: Tester B aggiunge e modifica elementi condivisi (es. spesa pranzo). [SUPERATO]
+- [x] **Tester B5 (Rientro Successivo)**: Tester B rientra nel viaggio in una sessione successiva senza dover riutilizzare il token (riconosciuto come membro attivo). [SUPERATO]
+- [x] **Tester B6 (Divieto Cancellazione Viaggio)**: Tester B non può eliminare il viaggio dell'Organizzatore (`PERMISSION_DENIED`). [SUPERATO]
+- [x] **Tester C1 (Ospite LIVE senza account)**: Tester C apre `?live=1&tripId=...` e consulta il feed pubblico senza creare alcun account. [SUPERATO]
+- [x] **Tester C2 (Protezione Dati Privati Ospite)**: Tester C riceve `PERMISSION_DENIED` se tenta di accedere a voucher, alloggi, tappe, spese o note private. [SUPERATO]
+- [x] **Tester C3 (Impossibilità Scalata Privilegi Ospite)**: Tester C non può pubblicare aggiornamenti nel live feed né iscriversi come membro. [SUPERATO]
+
+### B. Matrice di Prontezza Beta (5 Criteri)
+1. **Primo accesso**: **SUPERATO** (3 percorsi chiari: Organizza, Accedi, Partecipa; zero gergo tecnico; avvio rapido).
+2. **Creazione e recupero viaggio**: **SUPERATO** (Salvataggio cloud atomico + IndexedDB/localStorage offline; ripristino istantaneo al riavvio).
+3. **Collaborazione**: **SUPERATO** (Link crittografico WhatsApp monouso, nome copilota personalizzato, modifiche sincronizzate, divieto cancellazione per il copilota).
+4. **Sicurezza e privacy**: **SUPERATO** (Firestore Rules blindate su emulator reale: isolamento 100%, blocco estranei, subcollezioni private protette da `isTripMember`, console admin protetta dietro whitelist).
+5. **Stabilità mobile**: **SUPERATO CON LIMITAZIONI** (UI testata a 320px e 393px; limitazioni documentate: passaggio Safari -> PWA e background GPS prolungato su iOS richiedono verifica su iPhone fisico reale; galleria ospiti remoti locale).
+
+
 
 
 

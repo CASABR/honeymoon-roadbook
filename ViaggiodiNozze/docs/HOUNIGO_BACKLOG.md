@@ -80,7 +80,7 @@
 
 ### 5. Sezione Altro, Impostazioni e Gestione Viaggio — Riorganizzazione Architettura Informativa
 - **Priorità**: P1
-- **Stato**: IN CORSO
+- **Stato**: PUBBLICATO
 - **Dipendenze**: AltroView.tsx, SettingsMenu.tsx, DesktopNavigation.tsx
 - **Criteri di Accettazione**:
   - Funzioni quotidiane subito raggiungibili (LIVE, Documenti, Spese, Bagagli, Note, Assicurazione, Emergenze, Toolkit).
@@ -90,7 +90,7 @@
 
 ### 6. Primo Accesso (Onboarding Immediato a 3 Intenzioni)
 - **Priorità**: P1
-- **Stato**: IN CORSO
+- **Stato**: PUBBLICATO
 - **Dipendenze**: OnboardingView.tsx
 - **Criteri di Accettazione**:
   - 3 intenzioni principali visibili al primo sguardo:
@@ -103,7 +103,7 @@
 
 ### 7. Console Admin Globale — Protezione Tester e Procedura Autorizzazione
 - **Priorità**: P1
-- **Stato**: IMPLEMENTATO
+- **Stato**: PUBBLICATO
 - **Dipendenze**: firestore.rules, AdminDashboardView.tsx
 - **Criteri di Accettazione**:
   - Chiarito il motivo del "NON AUTORIZZATO": l'utente è owner del viaggio `0000`, ma non è registrato in `/system_admins/{uid}` in Firestore né possiede il custom claim `admin: true`.

@@ -1,5 +1,10 @@
 # HOUNIGO — GUIDA PER I BETA TESTER (BETA 28 OTTOBRE 2026)
 
+> **Inizia in 30 Secondi**:
+> 1. Apri **`https://casabr.github.io/honeymoon-roadbook/`** dallo smartphone.
+> 2. Seleziona **"1. Organizza un viaggio"** per creare il tuo itinerario, oppure tocca il link WhatsApp ricevuto per unirti come **Co-pilota**.
+> 3. Aggiungi la tua prima tappa dal tab **Itinerario** e prova a invitare un compagno di viaggio!
+
 Benvenuto nel programma di collaudo di **Hounigo**, la Progressive Web App (PWA) editoriale per organizzare, vivere e condividere il tuo viaggio on the road.
 
 Questa guida rapida descrive come iniziare, come testare i flussi principali e come segnalare eventuali anomalie o suggerimenti.
@@ -13,6 +18,7 @@ Hounigo è disponibile come applicazione web progressiva (PWA):
 1. **Da Smartphone (Consigliato per i tester in movimento)**:
    - **iPhone (Safari)**: Apri il link `https://casabr.github.io/honeymoon-roadbook/`, tocca l'icona di condivisione in basso (quadrato con freccia verso l'alto) e seleziona **"Aggiungi alla schermata Home"**.
    - **Android (Chrome)**: Apri il link, tocca i tre puntini in alto a destra e seleziona **"Installa app"** o **"Aggiungi a schermata Home"**.
+   - 💡 *Se apri il link da WhatsApp*: tocca l'icona del browser o i tre puntini in basso/alto a destra per aprire il link direttamente in **Safari** o **Chrome** prima di installare l'app.
 2. **Da Desktop / Tablet**:
    - Apri il link con qualsiasi browser moderno (Chrome, Safari, Edge, Firefox). L'applicazione si adatterà automaticamente alla visualizzazione panoramica.
 
