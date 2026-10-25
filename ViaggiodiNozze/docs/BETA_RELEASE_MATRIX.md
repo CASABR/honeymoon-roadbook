@@ -8,21 +8,21 @@
 
 | Area | Criterio Minimo Richiesto | Stato Attuale | Note Operative |
 | :--- | :--- | :--- | :--- |
-| **Chiusura prevUid** | Rifiuto categorico di membership create via prevUid da attaccanti; solo linkWithPopup o re-invito. | TESTATO SU EMULATORE | Test avversariale emulatore (16/16); Attaccante C respinto anche conoscendo UID di B |
-| **Protezione Foto & Storage** | QuotaExceededError non elimina fotografie ('hounigo_live_gallery') né dati utente; fallback session/memory. | TESTATO SU EMULATORE | Rimosso hounigo_live_gallery da purgeable; pulizia selettiva sole cache OSM/meteo; zero perdite |
-| **Calendario in Oggi** | Tocco e click immediato su icona 📅 su mobile (iOS Safari/Android) e desktop. | IMPLEMENTATO | Overlay trasparente a piena area con fallback programmatico showPicker(); pronto per test fisico |
-| **Card Google Maps** | Barra ultra-compatta a singola riga su smartphone (Icona Maps, 🚗, 🚶, ✏️ unificata), responsive 320px. | IMPLEMENTATO | Singola riga orizzontale, modale unificato Auto + Piedi, no overflow a 320px |
-| **GPS LIVE Proprietario** | Diagnosi esatta "Non attivata" (7 stati), pulsante esplicito Guida, Action Card sotto mappa, istruzioni iOS. | IMPLEMENTATO | Risolto bug `online` undefined; Action Card contestuale; distinzione GPS reale vs programmato |
-| **Invito Copilota Sicuro** | Link crittografico 128-bit imprevedibile, monouso, 7gg, batch atomico Firestore Spark con `getAfter`, no auto-join. | TESTATO SU EMULATORE | 16/16 test passati; zero funzioni Cloud ($0 Spark); protezione assoluta viaggio 0000 |
-| **Selezione Viaggi Post-Login** | Lista viaggi posseduti e copilota (`/users/{uid}`), switch istantaneo con reset IndexedDB e cache. | TESTATO SU EMULATORE | Modale `TripSelectorModal`; isolamento dati 100% senza scansioni globali non autorizzate |
+| **Chiusura prevUid** | Rifiuto categorico di membership create via prevUid da attaccanti; solo linkWithPopup o re-invito. | PUBBLICATO | Regole pubblicate su app-viaggio-di-nozze; codice senza prevUid online nel bundle index-DxxPChKC.js |
+| **Protezione Foto & Storage** | QuotaExceededError non elimina fotografie ('hounigo_live_gallery') né dati utente; fallback session/memory. | PUBBLICATO | Protezione online (LiveView-Cm4wFBQ9.js, geolocationService); foto non sacrificabili |
+| **Calendario in Oggi** | Tocco e click immediato su icona 📅 su mobile (iOS Safari/Android) e desktop. | PUBBLICATO | Overlay trasparente e showPicker() operativi online nel bundle principale |
+| **Card Google Maps** | Barra ultra-compatta a singola riga su smartphone (Icona Maps, 🚗, 🚶, ✏️ unificata), responsive 320px. | PUBBLICATO | Singola riga orizzontale, modale unificato Auto + Piedi online |
+| **GPS LIVE Proprietario** | Diagnosi esatta "Non attivata" (7 stati), pulsante esplicito Guida, Action Card sotto mappa, istruzioni iOS. | PUBBLICATO | Risolto bug `online` undefined; Action Card contestuale online |
+| **Invito Copilota Sicuro** | Link crittografico 128-bit imprevedibile, monouso, 7gg, batch atomico Firestore Spark con `getAfter`, no auto-join. | PUBBLICATO | Regole Firestore attive in produzione; token monouso protetto |
+| **Selezione Viaggi Post-Login** | Lista viaggi posseduti e copilota (`/users/{uid}`), switch istantaneo con reset IndexedDB e cache. | PUBBLICATO | Modale `TripSelectorModal`; isolamento dati 100% online |
 | **Gmail Compatto** | Riga singola orizzontale (stato, account, azione principale), drawer espandibile per permessi `gmail.readonly`. | PUBBLICATO | Integrato in `SmartInsertModal` e `DocumentiView`; preserva identità e permessi |
-| **Sezione Altro Task-Based** | 4 macro-compiti (LIVE, Documenti, Sicurezza, Gestione), zero duplicazioni o riquadri superflui, responsive 393/320px. | PUBBLICATO | Riorganizzazione editoriale completata; verificata con browser subagent |
-| **Isolamento Dati Viaggi** | Isolamento 100% tra viaggi diversi nello stesso browser. Seed Nuova Zelanda solo per '0000'. | TESTATO SU EMULATORE | Reset connessioni IndexedDB, flush memoryCache, zero contaminazione date/titoli |
-| **LIVE Desktop** | Consultazione mappa e GPS senza assumere il ruolo guida. Gestione sicura timestamp e tripId. | PUBBLICATO | Rimosso fallback '0000', schermo di selezione recuperabile |
-| **LIVE Mobile** | Schermata compatta, gerarchia chiara, controlli guida raggruppati, responsive 393/320px. | PUBBLICATO | LiveEditorialExperience con mappa 220-360px e controlli comprimibili |
+| **Sezione Altro Task-Based** | 4 macro-compiti (LIVE, Documenti, Sicurezza, Gestione), zero duplicazioni o riquadri superflui, responsive 393/320px. | PUBBLICATO | Riorganizzazione editoriale completata e attiva online |
+| **Isolamento Dati Viaggi** | Isolamento 100% tra viaggi diversi nello stesso browser. Seed Nuova Zelanda solo per '0000'. | PUBBLICATO | Reset connessioni IndexedDB, flush memoryCache, zero contaminazione date/titoli |
+| **LIVE Desktop** | Consultazione mappa e GPS senza assumere il ruolo guida. Gestione sicura timestamp e tripId. | PUBBLICATO | Rimosso fallback '0000', schermo di selezione recuperabile online |
+| **LIVE Mobile** | Schermata compatta, gerarchia chiara, controlli guida raggruppati, responsive 393/320px. | PUBBLICATO | LiveEditorialExperience con mappa compatta e controlli comprimibili online |
 | **Galleria Foto Multi-Device** | Condivisione pubblica foto organizzatore -> ospiti indipendenti. | IMPLEMENTATO | Locale attivo; disclaimers beta espliciti; storage cloud post-beta |
 | **Card Trasporti** | Check-in su riga compatta, orari IATA leggibili, azioni biglietto/PNR chiare. | PUBBLICATO | TrasportoCard con check-in su singola riga orizzontale |
-| **Console Admin Globale** | Nascosta ai tester. Autorizzazione rigorosa `system_admins`. UI snella se non autorizzato. | IMPLEMENTATO | Procedura manuale Firebase Console per /system_admins/{uid}; isolata con ?admin=1 |
+| **Console Admin Globale** | Nascosta ai tester. Autorizzazione rigorosa `system_admins`. UI snella se non autorizzato. | PUBBLICATO | Procedura manuale Firebase Console per /system_admins/{uid}; isolata con ?admin=1 online |
 | **Persistenza & Offline** | Nessuna perdita dati, funzionamento offline di base (IndexedDB + LocalStorage). | PUBBLICATO | Verificato con test di persistenza e tombstone |
 
 ---
@@ -99,15 +99,16 @@
 *URL Live: `https://casabr.github.io/honeymoon-roadbook/`*
 *Esito: 18/18 controlli superati con successo (100%)*
 
-- [x] **Deploy Firestore Rules**: Regole caricate e compilate con successo su `app-viaggio-di-nozze`.
-- [x] **Deploy GitHub Pages**: Frontend pubblicato su branch `gh-pages` (`b677d2d`).
+- [x] **Deploy Firestore Rules**: Nuove regole (senza vulnerabilità prevUid) rilasciate con successo su `app-viaggio-di-nozze`.
+- [x] **Deploy GitHub Pages**: Frontend pubblicato su branch remoto `gh-pages` (commit `6a7f785`, sorgente `7d23b48`).
 - [x] **Caricamento frontend**: Pagina principale HTTP 200, mount `<div id="root">` presente.
 - [x] **Metadati viewport mobile**: Tag viewport configurato per tutti i display smartphone.
-- [x] **Integrità bundle JS e CSS**: Script principale (`index-D_jtqkoZ.js`) e foglio di stile (`index-Du7XQE7-.css`) scaricati e validati.
-- [x] **PWA Manifest & Icone**: `manifest.webmanifest` valido, display standalone e set icone integro.
-- [x] **Service Worker**: `sw.js` attivo con Workbox cache e precache configurata.
+- [x] **Integrità bundle JS e CSS**: Script principale (`assets/index-DxxPChKC.js` - 1065 KB) e foglio di stile (`assets/index-DdMy2aXy.css` - 202 KB) scaricati e validati. Chunks dinamici (`AdminDashboardView-jjsVRa4h.js`, `storageService-CvYJbMDP.js`, `LiveView-Cm4wFBQ9.js`, `attachmentChunkService-Ce_n3qlw.js`) verificati online (HTTP 200).
+- [x] **PWA Manifest & Icone**: `manifest.webmanifest` valido, display standalone e set icone integro (HTTP 200).
+- [x] **Service Worker**: `sw.js` attivo con Workbox cache e precache configurata (HTTP 200).
 - [x] **Nessun tocco ai dati di produzione 0000**: Nessuna scrittura o modifica sul viaggio master.
-- [x] **Procedura di pubblicazione e piano di rollback**: Backup regole salvato in `docs/firestore.rules.backup-pre-beta`.
+- [x] **Procedura di pubblicazione e piano di rollback**: Backup delle regole attive prima del deploy salvato e verificato in `docs/firestore.rules.active-production-before-hotfix`; commit gh-pages precedente registrato (`b677d2d`).
+
 
 
 

@@ -8,31 +8,31 @@
 
 ### 0. HOTFIX P0 POST-DEPLOY — Identità, Multi-Viaggio, Inviti e GPS (25 Ottobre 2026)
 - **P0-A — Identità Firebase e Login Google**:
-  - *Stato*: TESTATO (Emulator reale)
+  - *Stato*: PUBBLICATO
   - Collegamento credenziali anonime a Google tramite `linkWithPopup` (preservando UID).
-  - Gestione account Google già registrato con transizione sicura autorizzata in Firestore Rules (`prevUid` in `members/{googleUid}`).
+  - Eliminata la vulnerabilità `prevUid`: transizioni solo con linkWithPopup o re-invito.
   - Nessuna perdita di membership e nessun ritorno cieco a `0000`.
 - **P0-B — Inviti già Riscattati & Re-ingresso Membro**:
-  - *Stato*: TESTATO (Emulator reale)
+  - *Stato*: PUBBLICATO
   - Token monouso strettamente monouso (`get().data.status == 'active'` prima del riscatto).
   - Membro già autorizzato accede direttamente al viaggio senza ri-consumare il token.
   - Messaggi chiari e non fuorvianti su stato invito.
 - **P0-C — Selettore Multi-Viaggio**:
-  - *Stato*: TESTATO (Emulator reale)
+  - *Stato*: PUBBLICATO
   - Conservazione del viaggio attivo locale verificato e ordinamento coerente.
   - Supporto a viaggi con `ownerUid` e schema retrocompatibile `ownerId`.
   - Salvaguardia del viaggio master `0000`.
-- **P0-D — GPS Owner "Quota Exceeded"**:
-  - *Stato*: TESTATO
-  - Risolto crash `localStorage.setItem` in `geolocationService.ts` tramite `safeLocalStorageSet` con auto-eviction cache sacrificabili e fallback in memory.
-  - Throttling e gestione duplicati watcher in `LiveView.tsx`.
+- **P0-D — GPS Owner "Quota Exceeded" & Salvaguardia Foto**:
+  - *Stato*: PUBBLICATO
+  - Risolto crash `localStorage.setItem` in `geolocationService.ts` tramite `safeLocalStorageSet` con auto-eviction sole cache sacrificabili e fallback in memory.
+  - Fotografie in `hounigo_live_gallery` rigorosamente protette e non sacrificabili.
 - **P0-E — Delega GPS "Errore Tecnico"**:
-  - *Stato*: TESTATO (Emulator reale)
+  - *Stato*: PUBBLICATO
   - Risolto rifiuto Firestore Rules in `isGpsGuideEligible` per viaggi con `ownerId`.
   - Durata lease ridotta a 18h con margine di tolleranza 36h per clock skew.
   - Rimappati gli errori tecnici Firestore su messaggi amichevoli contestualizzati.
 - **P1 — Nome Copilota Riconoscibile**:
-  - *Stato*: TESTATO
+  - *Stato*: PUBBLICATO
   - Richiesta display name all'ingresso (pre-compilato con Google displayName se disponibile) salvato nei record membro.
 
 ### 1. LIVE Desktop — Risoluzione Certa e Rimozione Fallback Indiscriminato
@@ -57,7 +57,7 @@
 
 ### 3. LIVE Più Compatto su Smartphone
 - **Priorità**: P1
-- **Stato**: IN CORSO
+- **Stato**: PUBBLICATO
 - **Dipendenze**: LiveEditorialExperience.tsx
 - **Criteri di Accettazione**:
   - Sintesi immediata della posizione e ultimo aggiornamento GPS.
@@ -69,7 +69,7 @@
 
 ### 4. Card Trasporti e Card Principali Estremamente Compatte
 - **Priorità**: P1
-- **Stato**: IN CORSO
+- **Stato**: PUBBLICATO
 - **Dipendenze**: TrasportoCard.tsx
 - **Criteri di Accettazione**:
   - Riduzione dell'altezza complessiva della card.
@@ -192,11 +192,11 @@
 
 | ID | Attività | Priorità | Stato | Data |
 | :--- | :--- | :--- | :--- | :--- |
-| HOTFIX-SEC-01 | Chiusura Vulnerabilità prevUid & Test Avversariale (3 Identità) | P0 | TESTATO SU EMULATORE | 25/10/2026 |
-| HOTFIX-STORAGE-01 | Salvataggio Locale Sicuro & Protezione Foto hounigo_live_gallery | P0 | TESTATO SU EMULATORE | 25/10/2026 |
-| HOTFIX-CAL-01 | Ripristino Calendario Oggi (Touch iOS/Android & Desktop) | P1 | IMPLEMENTATO | 25/10/2026 |
-| HOTFIX-MAP-01 | Google Maps Ultra-Compatto a Riga Singola (Auto/Piedi/Matita) | P1 | IMPLEMENTATO | 25/10/2026 |
-| HOTFIX-ADM-01 | Procedura Sicura Console Admin Globale (/system_admins/{uid}) | P1 | IMPLEMENTATO | 25/10/2026 |
+| HOTFIX-SEC-01 | Chiusura Vulnerabilità prevUid & Test Avversariale (3 Identità) | P0 | PUBBLICATO | 25/10/2026 |
+| HOTFIX-STORAGE-01 | Salvataggio Locale Sicuro & Protezione Foto hounigo_live_gallery | P0 | PUBBLICATO | 25/10/2026 |
+| HOTFIX-CAL-01 | Ripristino Calendario Oggi (Touch iOS/Android & Desktop) | P1 | PUBBLICATO | 25/10/2026 |
+| HOTFIX-MAP-01 | Google Maps Ultra-Compatto a Riga Singola (Auto/Piedi/Matita) | P1 | PUBBLICATO | 25/10/2026 |
+| HOTFIX-ADM-01 | Procedura Sicura Console Admin Globale (/system_admins/{uid}) | P1 | PUBBLICATO | 25/10/2026 |
 | JARVIS-DEPLOY | Procedura di Deploy Coordinato e Piano di Rollback | P0 | PUBBLICATO | 25/10/2026 |
 | JARVIS-SMOKE | Script Smoke Test Post-Deploy Non-Distruttivo (18/18 check) | P0 | PUBBLICATO / ATTIVO | 25/10/2026 |
 | JARVIS-GUIDE | Guida per i Beta Tester & Protocollo Feedback | P1 | PUBBLICATO | 25/10/2026 |

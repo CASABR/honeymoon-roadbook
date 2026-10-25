@@ -46,4 +46,14 @@ Ambiente di verifica: Browser emulato, Firestore Emulator / Mock multi-client, T
 | **H-12** | Hotfix P1 | Tester Mobile | Scheda Oggi (320px e 393px) | Visualizzazione blocco percorsi Maps | Singola riga orizzontale compatta con icona Maps, Auto, Piedi e matita modale unificata | Componente / CSS | Nessuna sovrapposizione a 320px, modale compatto Auto/Piedi | Nessuno | **PASS** |
 | **H-13** | Hotfix P1 | Amministratore Globale | Console Admin (?admin=1) | Accesso a statistiche globali su `/trips` | Query consentite SOLO se presente in `/system_admins/{uid}` o con claim `admin: true` | Firebase Emulator | Accesso consentito ad admin in whitelist, bloccato a tutti gli altri | Nessuno | **PASS** |
 
+---
+
+## 2. STATO RILASCIO ONLINE (HOTFIX AUTORIZZATO — 25 OTTOBRE 2026)
+- **Commit sorgente**: `7d23b48` su branch `work/product-completion`
+- **Deploy Firestore Rules**: Riuscito su progetto `app-viaggio-di-nozze` (vulnerabilità `prevUid` rimossa).
+- **Deploy Frontend GitHub Pages**: Riuscito su commit remoto `6a7f785` (bundle `assets/index-DxxPChKC.js`, `assets/index-DdMy2aXy.css`).
+- **Smoke test online**: 18/18 test superati (100%).
+- **Dati viaggio 0000**: Protetti e intatti. Nessun dato modificato.
+
+
 

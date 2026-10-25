@@ -262,3 +262,48 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
 - `scripts/test_p0_hotfix_emulator_validation.cjs`: **14/14 test superati (100%)**.
 - Build di produzione `npm run build`: **Completata con successo (0 errori TypeScript, PWA generata)**.
 
+---
+
+## 8. PUBBLICAZIONE DEFINITIVA BETA & HOTFIX FINALE (25 OTTOBRE 2026)
+
+### 1. Deploy Firestore Security Rules
+- **Progetto target**: `app-viaggio-di-nozze`.
+- **Esito**: Riuscito (`+ firestore: released rules firestore.rules to cloud.firestore`).
+- **Modifiche applicate**: Rimossa categoricamente la clausola permissiva `prevUid` su `/trips/{tripId}/members/{uid}`. Le transizioni da utente anonimo a Google avvengono esclusivamente tramite collegamento credenziali in-place (`linkWithPopup`) preservando l'UID originale, oppure tramite nuovo invito autorizzato dall'owner.
+- **Snapshot pre-deploy verificato**: Copia autentica delle regole attive precedentemente in produzione archiviata in `ViaggiodiNozze/docs/firestore.rules.active-production-before-hotfix`.
+
+### 2. Deploy Frontend GitHub Pages
+- **Branch sorgente**: `work/product-completion` (commit `7d23b48`).
+- **Comando eseguito**: `npm run deploy` (predeploy build + deploy gh-pages).
+- **Nuovo commit gh-pages**: `6a7f785` (precedente: `b677d2d`).
+- **Asset online verificati**:
+  - Script principale: `assets/index-DxxPChKC.js` (1065 KB) — HTTP 200.
+  - Foglio di stile: `assets/index-DdMy2aXy.css` (202 KB) — HTTP 200.
+  - Chunks dinamici: `AdminDashboardView-jjsVRa4h.js` (91 KB), `storageService-CvYJbMDP.js` (60 KB), `LiveView-Cm4wFBQ9.js` (133 KB), `attachmentChunkService-Ce_n3qlw.js` (1.5 KB) — tutti HTTP 200.
+  - PWA: `manifest.webmanifest` (display standalone, 3 icone, nome Hounigo) e `sw.js` (Workbox precaching 31 file, 3599 KiB).
+
+### 3. Smoke Test Post-Deploy Online (Non-Distruttivo)
+- **Suite**: `scripts/post_deploy_smoke_test.cjs`.
+- **Target URL**: `https://casabr.github.io/honeymoon-roadbook/`.
+- **Esito**: **18/18 test superati con successo (100%)**.
+- **Funzionalità verificate nel bundle live**:
+  - Calendario Oggi: `showPicker()` e overlay touch/desktop presenti.
+  - Google Maps compatto: label "Percorso a Piedi" e "Limite tappe Google Maps" attivi.
+  - Flusso account: rimozione totale del parametro insicuro `prevUid`.
+  - Storage sicuro: `QuotaExceededError` gestito senza sacrificare `hounigo_live_gallery`.
+
+### 4. Vincoli di Sicurezza Produzione Rispettati
+- Zero scritture, alterazioni o cancellazioni sul viaggio master `0000`.
+- Nessun account o viaggio di prova fittizio creato in produzione.
+- Nessun merge sul branch `main`.
+
+### 5. Procedura di Rollback Registrata
+In caso di anomalie riscontrate durante il collaudo reale dei tester:
+1. **Frontend**:
+   - Commit precedente identificato: `b677d2d`.
+   - Procedura: verificare lo stato locale di dist, checkout del commit `b677d2d` su `gh-pages` e ripubblicazione manuale controllata senza force push ciechi.
+2. **Firestore Security Rules**:
+   - Snapshot archiviato: `ViaggiodiNozze/docs/firestore.rules.active-production-before-hotfix`.
+   - Procedura: confrontare le differenze e ripubblicare con `firebase deploy --only firestore:rules --project app-viaggio-di-nozze`.
+
+
