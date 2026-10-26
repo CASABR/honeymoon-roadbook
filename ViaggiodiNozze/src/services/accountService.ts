@@ -493,6 +493,7 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
     let wasPreExisting = false;
     let targetUser: User | null = null;
     let isLinked = false;
+    const handshakeProofs: { tripId: string; token: string; secret: string }[] = [];
 
     // Se l'utente è attualmente anonimo su questo dispositivo, proviamo a collegare le credenziali Google
     // al medesimo UID, preservando al 100% tutte le membership e associazioni già concesse
@@ -507,6 +508,29 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
           wasPreExisting = true;
           onProgress?.('Riconciliazione identità Google…');
           console.info('[accountService] Account Google già registrato con altro UID: accesso diretto con credenziale.');
+
+          // Genera prova verificabile di controllo dell'identità anonima prima di effettuare il cambio di utente
+          if (currentUser && typeof localStorage !== 'undefined') {
+            try {
+              const { prepareIdentityHandshake } = await import('./tripInviteService');
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && key.startsWith('roadbook_invite_token_')) {
+                  const tripId = key.replace('roadbook_invite_token_', '');
+                  const token = localStorage.getItem(key);
+                  if (tripId && token && tripId !== '0000') {
+                    const hsRes = await prepareIdentityHandshake(currentUser, tripId, token);
+                    if (hsRes.success && hsRes.secret) {
+                      handshakeProofs.push({ tripId, token, secret: hsRes.secret });
+                    }
+                  }
+                }
+              }
+            } catch (hsErr) {
+              console.warn('[accountService] Preparazione handshake identità fallita:', hsErr);
+            }
+          }
+
           const credential = GoogleAuthProvider.credentialFromError(linkErr) || (linkErr as any)?.credential || null;
           if (credential) {
             const credRes = await signInWithCredential(auth, credential);
@@ -563,20 +587,19 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
       }
       await recordUserAccess(targetUser, activeTripId);
 
-      // Tenta la riconciliazione degli inviti anonimi riscattati su questo dispositivo
+      // Tenta la riconciliazione degli inviti anonimi verificando la prova crittografica (Handshake)
       const prevAnonUid = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('houni_prev_anon_uid') : null;
-      if (prevAnonUid && prevAnonUid !== targetUser.uid && typeof localStorage !== 'undefined') {
+      if (prevAnonUid && prevAnonUid !== targetUser.uid && handshakeProofs.length > 0) {
         try {
-          const { reconcileAnonymousInviteToUser } = await import('./tripInviteService');
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith('roadbook_invite_token_')) {
-              const tripId = key.replace('roadbook_invite_token_', '');
-              const token = localStorage.getItem(key);
-              if (tripId && token && tripId !== '0000') {
-                await reconcileAnonymousInviteToUser(tripId, token, prevAnonUid, targetUser);
-              }
-            }
+          const { reconcileAnonymousInviteWithProof } = await import('./tripInviteService');
+          for (const proof of handshakeProofs) {
+            await reconcileAnonymousInviteWithProof(
+              proof.tripId,
+              proof.token,
+              prevAnonUid,
+              proof.secret,
+              targetUser
+            );
           }
         } catch (reconErr) {
           console.warn('[accountService] Riconciliazione inviti non bloccante:', reconErr);

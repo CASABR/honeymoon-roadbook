@@ -97,12 +97,21 @@ test('Scenario 4: Anonimo accetta B, poi collega Google -> riconciliazione e opz
   );
 });
 
-// 5. Google già esistente recupera un viaggio anonimo mediante procedura autorizzata
-test('Scenario 5: Google già esistente recupera viaggio anonimo mediante verifica del token', () => {
+// 5. Google già esistente recupera un viaggio anonimo mediante procedura autorizzata con prova crittografica
+test('Scenario 5: Google già esistente recupera viaggio anonimo mediante prova crittografica Handshake', () => {
   assert.ok(
-    tripInviteService.includes('data.usedBy !== prevAnonUid') &&
-    tripInviteService.includes('inviteRef = doc(db, \'trips\', tripId, \'invites\', token)'),
-    'reconcileAnonymousInviteToUser valida crittograficamente la sessione anonima e il token'
+    tripInviteService.includes('export async function prepareIdentityHandshake') &&
+    tripInviteService.includes('export async function reconcileAnonymousInviteWithProof'),
+    'tripInviteService implementa il protocollo Handshake con prova verificabile'
+  );
+  assert.ok(
+    accountService.includes('prepareIdentityHandshake') &&
+    accountService.includes('reconcileAnonymousInviteWithProof'),
+    'accountService genera la prova crittografica prima del cambio di credenziale'
+  );
+  assert.ok(
+    tripInviteService.includes('hsData.secret !== secret'),
+    'reconcileAnonymousInviteWithProof rifiuta categoricamente richieste prive di segreto crittografico corrispondente'
   );
 });
 
