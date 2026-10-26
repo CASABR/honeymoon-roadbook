@@ -562,6 +562,26 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
         } catch {}
       }
       await recordUserAccess(targetUser, activeTripId);
+
+      // Tenta la riconciliazione degli inviti anonimi riscattati su questo dispositivo
+      const prevAnonUid = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('houni_prev_anon_uid') : null;
+      if (prevAnonUid && prevAnonUid !== targetUser.uid && typeof localStorage !== 'undefined') {
+        try {
+          const { reconcileAnonymousInviteToUser } = await import('./tripInviteService');
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('roadbook_invite_token_')) {
+              const tripId = key.replace('roadbook_invite_token_', '');
+              const token = localStorage.getItem(key);
+              if (tripId && token && tripId !== '0000') {
+                await reconcileAnonymousInviteToUser(tripId, token, prevAnonUid, targetUser);
+              }
+            }
+          }
+        } catch (reconErr) {
+          console.warn('[accountService] Riconciliazione inviti non bloccante:', reconErr);
+        }
+      }
     } catch (recErr) {
       console.warn('[accountService] RecordUserAccess non bloccante fallito:', recErr);
     }

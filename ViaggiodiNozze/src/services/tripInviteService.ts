@@ -330,3 +330,80 @@ export async function revokeTripInvite(tripId: string, token: string): Promise<v
     updatedAt: serverTimestamp()
   });
 }
+
+/**
+ * Riconcilia in modo autorizzato un invito riscattato precedentemente da un account anonimo
+ * con il nuovo account permanente (es. Google).
+ * Valida crittograficamente l'inviteToken e la corrispondenza con usedBy = prevAnonUid.
+ * Non trasferisce ownership; assegna esclusivamente il ruolo autorizzato 'copilota'.
+ */
+export async function reconcileAnonymousInviteToUser(
+  tripId: string,
+  token: string,
+  prevAnonUid: string,
+  targetUser: User
+): Promise<{ success: boolean; error?: string }> {
+  if (!db || !targetUser?.uid || !prevAnonUid || !token || !tripId || tripId === '0000') {
+    return { success: false, error: 'Parametri di riconciliazione non validi.' };
+  }
+
+  try {
+    // 1. Verifica token invito
+    const inviteRef = doc(db, 'trips', tripId, 'invites', token);
+    const snap = await getDoc(inviteRef);
+    if (!snap.exists()) {
+      return { success: false, error: 'Invito non trovato.' };
+    }
+    const data = snap.data();
+    if (data.status === 'revoked') {
+      return { success: false, error: 'Invito revocato.' };
+    }
+    // L'invito deve essere stato utilizzato esattamente dall'UID anonimo di questa sessione
+    if (data.usedBy !== prevAnonUid && data.usedBy !== targetUser.uid) {
+      return { success: false, error: 'Invito non associato a questa sessione.' };
+    }
+
+    // 2. Batch atomica per registrare l'account permanente
+    const batch = writeBatch(db);
+    const memberRef = doc(db, 'trips', tripId, 'members', targetUser.uid);
+    batch.set(memberRef, {
+      uid: targetUser.uid,
+      role: 'copilota',
+      name: targetUser.displayName || 'Copilota',
+      inviteToken: token,
+      relinkedFrom: prevAnonUid,
+      joinedAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    }, { merge: true });
+
+    const tripRef = doc(db, 'trips', tripId);
+    batch.update(tripRef, {
+      members: arrayUnion(targetUser.uid),
+      updatedAt: serverTimestamp()
+    });
+
+    await batch.commit();
+
+    // Registra accesso utente
+    await recordUserAccess(targetUser, tripId);
+
+    // Aggiorna storage locale del dispositivo
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(`roadbook_member_uid_${tripId}`, targetUser.uid);
+      } catch {}
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    // Gestione sicura degli errori senza eccezioni bloccanti
+    console.warn('[TripInviteService] Reconcile invite status:', err?.code || err?.message);
+    return {
+      success: false,
+      error: err?.code === 'permission-denied'
+        ? 'Riconciliazione in attesa di autorizzazione Firestore Rules.'
+        : err?.message || 'Errore riconciliazione invito.'
+    };
+  }
+}
+

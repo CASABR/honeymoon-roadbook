@@ -348,17 +348,22 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
     let ownerUid = 'local_fallback';
     let userObj: any = null;
     if (auth) {
-      try {
-        const authPromise = signInAnonymously(auth);
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 4000));
-        const userCredential = (await Promise.race([authPromise, timeoutPromise])) as any;
-        ownerUid = userCredential.user.uid;
-        userObj = userCredential.user;
-      } catch (err) {
-        console.warn('Errore autenticazione (fallback locale):', err);
-        if (auth.currentUser) {
-          ownerUid = auth.currentUser.uid;
-          userObj = auth.currentUser;
+      if (auth.currentUser) {
+        ownerUid = auth.currentUser.uid;
+        userObj = auth.currentUser;
+      } else {
+        try {
+          const authPromise = signInAnonymously(auth);
+          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 4000));
+          const userCredential = (await Promise.race([authPromise, timeoutPromise])) as any;
+          ownerUid = userCredential.user.uid;
+          userObj = userCredential.user;
+        } catch (err) {
+          console.warn('Errore autenticazione (fallback locale):', err);
+          if (auth.currentUser) {
+            ownerUid = auth.currentUser.uid;
+            userObj = auth.currentUser;
+          }
         }
       }
     }
