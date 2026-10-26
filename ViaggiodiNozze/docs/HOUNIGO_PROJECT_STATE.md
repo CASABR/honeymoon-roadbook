@@ -662,18 +662,24 @@ A seguito del collaudo reale su PWA installata (con esito positivo e confermato 
   - `scripts/test_beta_release_emulator_validation.cjs`: **24/24 test superati su Firebase Emulator (100%)**.
   - `scripts/test_beta_oggi_and_adesso.cjs`: **5/5 test superati (100%)**.
 
-### 7. Pubblicazione Beta Release Consolidata (26/10/2026)
-- **Stato Deploy**:
-  - **Firebase Firestore Security Rules**: rilasciate con successo su `app-viaggio-di-nozze`.
-  - **GitHub Pages Frontend**: pubblicato con successo su branch `gh-pages` (commit `f54bc9ad6e2bda06be585d4e75b945c4581f7047`).
-  - **Commit sorgente**: [`b9dbfad`](file:///c:/Users/CUSI/Documents/App-viaggio-di-nozze/ViaggiodiNozze) su branch `work/product-completion`.
-- **Verifica Bundle Online**:
-  - Bundle principale servito: `assets/index-q53fJNlt.js`.
-  - Verifica commit hash online: `Contains b9dbfad: true`.
+### 7. Pubblicazione Beta Release Candidata — Brand Finale Consolidato (26/10/2026)
+- **Stato Deploy Ufficiale**:
+  - **Data di Rilascio**: 26 Ottobre 2026.
+  - **Commit sorgente**: [`e694a6a`](file:///c:/Users/CUSI/Documents/App-viaggio-di-nozze/ViaggiodiNozze) su branch `work/product-completion`.
+  - **Commit remoto `gh-pages`**: `69b40061b1e5a3f0d4aa48915317e23707f85f59`.
+  - **Firebase Firestore Security Rules**: verificate, attive e perfettamente sincronizzate su `app-viaggio-di-nozze`.
+- **Verifica Bundle e Asset Online**:
+  - Frontend URL: `https://casabr.github.io/honeymoon-roadbook/` (HTTP 200).
+  - Bundle principale servito: `assets/index-1JsOyJle.js` (HTTP 200, 1088 KB).
+  - Foglio di stile principale servito: `assets/index-TGcPhXCA.css` (HTTP 200, 200 KB).
+  - Loghi ufficiali verificati: `images/brand/hounigo-logo-on-light.png` (HTTP 200), `images/brand/hounigo-logo-on-dark.png` (HTTP 200), `favicon.svg` (HTTP 200).
+  - Verifica commit hash online: `Contains e694a6a: true`.
   - Smoke test post-deploy non distruttivo (`scripts/post_deploy_smoke_test.cjs`): **18/18 PASS (100%)**.
-- **Preservazione Dati e Cache**:
-  - Nessun `clearSiteData` o rimozione forzata Service Worker: dati IndexedDB e localStorage preservati.
-  - Aggiornamento controllato tramite `reg.update()` in Impostazioni e Diagnostica.
+- **Preservazione Dati, Cache e Migrazione PWA**:
+  - Zero alterazioni o scritture sul viaggio master reale `0000`.
+  - Nessun `clearSiteData` o rimozione forzata Service Worker: dati IndexedDB e localStorage preservati al 100%.
+  - Rilevamento automatico e controllato dell'aggiornamento tramite Workbox / PWA Service Worker.
+- **FASE GRAFICA CHIUSA**: HOUNIGO è ora pronto per il collaudo manuale dei beta tester su iPhone reale.
 
 
 
