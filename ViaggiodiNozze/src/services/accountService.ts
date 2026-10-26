@@ -432,14 +432,24 @@ export async function loginWithGoogle(): Promise<{
       } catch (linkErr: any) {
         if (linkErr?.code === 'auth/credential-already-in-use') {
           wasPreExisting = true;
-          console.info('[accountService] Account Google già registrato con altro UID: accesso diretto con credenziale senza secondo popup.');
-          const credential = GoogleAuthProvider.credentialFromError(linkErr);
+          console.info('[accountService] Account Google già registrato con altro UID: accesso diretto con credenziale.');
+          const credential = GoogleAuthProvider.credentialFromError(linkErr) || (linkErr as any)?.credential || null;
           if (credential) {
             const credRes = await signInWithCredential(auth, credential);
             targetUser = credRes.user;
           } else {
-            const popupRes = await signInWithPopup(auth, provider);
-            targetUser = popupRes.user;
+            try {
+              const popupRes = await signInWithPopup(auth, provider);
+              targetUser = popupRes.user;
+            } catch (popupErr: any) {
+              if (popupErr?.code === 'auth/popup-blocked' && typeof window !== 'undefined') {
+                console.warn('[accountService] Secondo popup bloccato dal browser: reindirizzamento Google.');
+                const { signInWithRedirect } = await import('firebase/auth');
+                await signInWithRedirect(auth, provider);
+                return { success: false, code: 'auth/redirect-started', error: 'Reindirizzamento verso Google in corso...' };
+              }
+              throw popupErr;
+            }
           }
         } else {
           throw linkErr;

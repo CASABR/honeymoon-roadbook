@@ -441,11 +441,16 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
     setLoginError(null);
     setLoading(true);
     const res = await loginWithGoogle();
-    setLoading(false);
     if (!res.success || !res.user) {
+      if (res.code === 'auth/redirect-started') {
+        setLoading(true);
+        return;
+      }
+      setLoading(false);
       setLoginError(res.error || 'Accesso Google non completato.');
       return;
     }
+    setLoading(false);
     setMode('account_login');
     await inspectUserTrips(res.user);
   };
