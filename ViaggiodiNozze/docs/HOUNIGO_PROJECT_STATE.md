@@ -581,6 +581,20 @@ A seguito del collaudo reale su PWA installata (con esito positivo e confermato 
   - `scripts/test_beta_release_emulator_validation.cjs`: **24/24 test superati su Firebase Emulator (100%)**.
   - `scripts/test_beta_oggi_and_adesso.cjs`: **5/5 test superati (100%)**.
 
+### 7. Pubblicazione Beta Release Consolidata (26/10/2026)
+- **Stato Deploy**:
+  - **Firebase Firestore Security Rules**: rilasciate con successo su `app-viaggio-di-nozze`.
+  - **GitHub Pages Frontend**: pubblicato con successo su branch `gh-pages` (commit `f54bc9ad6e2bda06be585d4e75b945c4581f7047`).
+  - **Commit sorgente**: [`b9dbfad`](file:///c:/Users/CUSI/Documents/App-viaggio-di-nozze/ViaggiodiNozze) su branch `work/product-completion`.
+- **Verifica Bundle Online**:
+  - Bundle principale servito: `assets/index-q53fJNlt.js`.
+  - Verifica commit hash online: `Contains b9dbfad: true`.
+  - Smoke test post-deploy non distruttivo (`scripts/post_deploy_smoke_test.cjs`): **18/18 PASS (100%)**.
+- **Preservazione Dati e Cache**:
+  - Nessun `clearSiteData` o rimozione forzata Service Worker: dati IndexedDB e localStorage preservati.
+  - Aggiornamento controllato tramite `reg.update()` in Impostazioni e Diagnostica.
+
+
 
 
 

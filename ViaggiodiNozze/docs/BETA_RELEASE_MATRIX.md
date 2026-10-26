@@ -177,7 +177,9 @@
 - [x] **Tracciamento Versione & PWA Update**:
   - Iniezione dynamic commit hash (`__COMMIT_HASH__`) e data build (`__BUILD_TIME__`).
   - Controllo di aggiornamento manuale via `reg.update()` in Impostazioni e Diagnostica senza azzeramento cache/IndexedDB.
-- [!] **Vincolo Chiusura Beta**: La beta non può essere dichiarata formalmente conclusa finché il flusso di login Google non viene convalidato su dispositivo mobile fisico (iOS/Android) in ambiente di produzione post-deployment.
+- [!] **Verifica Finale su Dispositivo Fisico Reale**:
+  - Release pubblicata online: commit `f54bc9ad6e2bda06be585d4e75b945c4581f7047` (sorgente `b9dbfad`).
+  - Eseguire i 3 test mirati su iPhone per validare definitivamente la chiusura del feedback beta.
 
 
 
