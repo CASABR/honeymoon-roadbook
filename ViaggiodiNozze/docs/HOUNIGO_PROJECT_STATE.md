@@ -33,6 +33,30 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
 
 ## 3. FUNZIONALITÀ COMPLETATE E PROBLEMI RISOLTI
 
+### Completamento Esperienza Oggi & Riprogettazione Sezione Adesso (26 Ottobre 2026)
+- **P1 — Modifica Tappe direttamente da Oggi**:
+  - *Apertura Dettaglio*: click su qualsiasi card di tappa nella timeline Oggi apre il modal `TimelineItemDetailModal`.
+  - *Pulsante Modifica*: chiaramente visibile per ruoli autorizzati (`canEdit`), anche in modalità offline.
+  - *Precaricamento Form*: `TappaForm` precompilato con dati reali (`titolo`, `data`, `orario`, `indirizzo`, `coordinate`, `nota`, `noteCopilota`).
+  - *Preservazione ID*: risolto bug in `OggiView.tsx` che rigenerava un nuovo ID casuale durante il salvataggio (`data.id || editingTappaItem?.id || ...`).
+  - *Spostamento Data*: se la tappa viene spostata di data, la vista aggiorna automaticamente `selectedDate` e ricarica la timeline corretta.
+  - *Notifiche e Sincronizzazione*: emissione eventi `roadbook_data_mutated` e `tappa_updated`, salvataggio IndexedDB, accodamento sync Firestore e banner visivo *"Tappa aggiornata con successo ✓"*.
+  - *Supporto Modifiche Offline*: aggiornato `useAuthIdentity.ts` affinché le sessioni offline con ruolo locale `guida` o `copilota` possano mutare i dati locali in IndexedDB senza essere bloccate da `assertCanMutate`.
+  - *Note Copilota*: visualizzazione del blocco note dedicato al copilota nel dettaglio tappa.
+
+- **P1 — Riprogettazione Sezione Adesso (Live Intelligence & Oggi Level 1)**:
+  - Eliminata la ridondanza quadrupla mostrata nello screenshot utente (*"ADESSO: Nessuna attività / ATTIVITÀ IN CORSO: Libero / PROSSIMA ATTIVITÀ: Nessuna / POSIZIONE PREVISTA: Viaggio concluso"*).
+  - *Stato Prima della Partenza (`todayStr < tripStartDate`)*: singola informazione chiara e compatta con conto alla rovescia, data di partenza e collegamento diretto al Giorno 1. Nessun box ridondante o contraddittorio.
+  - *Stato Durante il Viaggio (`tripStartDate <= todayStr <= tripEndDate`)*: visualizzazione coordinata di attività in corso, prossima attività e posizione prevista. In assenza di attività in corso, mostra un unico stato di pausa/libero e l'evento successivo, senza ripetere 3 volte lo stesso concetto.
+  - *Stato Dopo il Viaggio (`todayStr > tripEndDate`)*: il messaggio di viaggio completato viene mostrato rigorosamente solo quando la data di fine viaggio è realmente trascorsa nel tempo.
+  - *Consultazione di date diverse da oggi*: separazione chiara tra il giorno in visualizzazione e il momento presente. Mostrato banner esplicito *"Programma del {data}"* con pulsante *"Torna a Oggi"*, evitando di presentare eventi futuri/passati come in corso adesso.
+
+- **P0 — Preflight Commit 7cbe06e & Sicurezza**:
+  - *Allineamento Firestore Rules*: sincronizzato il file root `../firestore.rules` con `ViaggiodiNozze/firestore.rules`. Entrambi i file ora contengono la clausola `status in ['active', 'used']` e protezioni al 100% identiche.
+  - *Privacy Token Invito*: la creazione e lettura dei token espone esclusivamente metadati strettamente necessari (`tripTitle`, `ownerName`, `role`, `status`, `expiresAt`), senza divulgare dati economici, voucher, documenti o itinerario privato.
+  - *Account Google Esistente*: verificato che in `accountService.ts` il collegamento di un account Google già esistente (`credential-already-in-use`) esegue il login sicuro senza migrare membership non autorizzate né dichiarare conservata una membership anonima se l'UID è variato.
+  - *Test Emulator*: 14/14 test P0 + 24/24 test di isolamento/sicurezza superati al 100% su Firebase Emulator reale con OpenJDK 21.
+
 ### Risoluzione Regressione LIVE Desktop (Priorità Critica)
 - **Causa individuata**: 
   1. `TypeError: Cannot read properties of undefined (reading 'slice')` su `remoteGpsLease.holderDeviceId` quando il lease è presente ma `holderDeviceId` è indefinito.

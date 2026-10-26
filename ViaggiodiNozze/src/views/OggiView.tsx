@@ -172,6 +172,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [editingRistoranteItem, setEditingRistoranteItem] = useState<Ristorante | null>(null);
   const [editingShoppingItem, setEditingShoppingItem] = useState<Shopping | null>(null);
   const [activeCollision, setActiveCollision] = useState<TimeCollision | null>(null);
+  const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
+
+  const showFeedbackBanner = useCallback((msg: string) => {
+    setFeedbackBanner(msg);
+    setTimeout(() => {
+      setFeedbackBanner(prev => (prev === msg ? null : prev));
+    }, 3500);
+  }, []);
 
   const scrollToCurrentEvent = useCallback(() => {
     if (!timeline || timeline.length === 0) return;
@@ -570,84 +578,151 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const handleSaveTransport = async (data: Omit<Trasporto, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const transportToSave: Trasporto = {
       ...data,
-      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'trans_' + Date.now()),
+      id: data.id || editingTransportItem?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'trans_' + Date.now()),
       createdAt: editingTransportItem?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
     await storageService.saveTransport(transportToSave);
     setEditingTransportItem(null);
-    await fetchTimeline();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+        detail: { action: 'save_transport', item: transportToSave }
+      }));
+    }
+    await loadData(false);
+    await fetchTimeline(selectedDate);
+    showFeedbackBanner('Trasporto aggiornato con successo ✓');
   };
 
   const handleDeleteTransportFromForm = async () => {
     if (!editingTransportItem) return;
     await storageService.deleteTransport(editingTransportItem.id);
     setEditingTransportItem(null);
-    await fetchTimeline();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+        detail: { action: 'delete_transport' }
+      }));
+    }
+    await loadData(false);
+    await fetchTimeline(selectedDate);
+    showFeedbackBanner('Trasporto eliminato ✓');
   };
 
   const handleDeleteTappaFromForm = async () => {
     if (!editingTappaItem) return;
     await storageService.deleteTappa(editingTappaItem.id);
     setEditingTappaItem(null);
-    await fetchTimeline();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+        detail: { action: 'delete_tappa' }
+      }));
+    }
+    await loadData(false);
+    await fetchTimeline(selectedDate);
+    showFeedbackBanner('Tappa eliminata ✓');
   };
 
   const handleSaveTappa = async (data: Omit<Tappa, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    const cleanDate = data.data ? data.data.trim().split('T')[0] : '';
+    const tappaId = data.id || editingTappaItem?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'tappa_' + Date.now());
     const tappaToSave: Tappa = {
       ...data,
-      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'tappa_' + Date.now()),
+      data: cleanDate || data.data,
+      id: tappaId,
       createdAt: editingTappaItem?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
     await storageService.saveTappa(tappaToSave);
     setEditingTappaItem(null);
-    await fetchTimeline();
+
+    // Se la tappa è stata spostata su un'altra data, allinea la vista
+    if (cleanDate && cleanDate !== selectedDate) {
+      setSelectedDate(cleanDate);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+        detail: { action: 'save_tappa', item: tappaToSave }
+      }));
+      window.dispatchEvent(new CustomEvent('tappa_updated', {
+        detail: { tappa: tappaToSave, date: cleanDate }
+      }));
+    }
+
+    await loadData(false);
+    await fetchTimeline(cleanDate || selectedDate);
+    showFeedbackBanner('Tappa aggiornata con successo ✓');
   };
 
   const handleSaveAlloggio = async (data: Omit<Alloggio, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const alloggioToSave: Alloggio = {
       ...data,
-      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'acc_' + Date.now()),
+      id: data.id || editingAlloggioItem?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'acc_' + Date.now()),
       createdAt: editingAlloggioItem?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
     await storageService.saveAccommodation(alloggioToSave);
     setEditingAlloggioItem(null);
-    await loadData();
-    await fetchTimeline();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+        detail: { action: 'save_alloggio', item: alloggioToSave }
+      }));
+    }
+    await loadData(false);
+    await fetchTimeline(selectedDate);
+    showFeedbackBanner('Alloggio aggiornato con successo ✓');
   };
 
   const handleDeleteAlloggioFromForm = async () => {
     if (!editingAlloggioItem) return;
     await storageService.deleteAccommodation(editingAlloggioItem.id);
     setEditingAlloggioItem(null);
-    await loadData();
-    await fetchTimeline();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+        detail: { action: 'delete_alloggio' }
+      }));
+    }
+    await loadData(false);
+    await fetchTimeline(selectedDate);
+    showFeedbackBanner('Alloggio eliminato ✓');
   };
 
   const handleSaveRistorante = async (data: Omit<Ristorante, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const ristoranteToSave: Ristorante = {
       ...data,
-      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'rist_' + Date.now()),
+      id: data.id || editingRistoranteItem?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'rist_' + Date.now()),
       createdAt: editingRistoranteItem?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
     await storageService.saveRistorante(ristoranteToSave);
     setEditingRistoranteItem(null);
-    await fetchTimeline();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+        detail: { action: 'save_ristorante', item: ristoranteToSave }
+      }));
+    }
+    await loadData(false);
+    await fetchTimeline(selectedDate);
+    showFeedbackBanner('Ristorante aggiornato con successo ✓');
   };
 
   const handleSaveShopping = async (data: Omit<Shopping, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const shoppingToSave: Shopping = {
       ...data,
-      id: data.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'shopping_' + Date.now()),
+      id: data.id || editingShoppingItem?.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'shopping_' + Date.now()),
       createdAt: editingShoppingItem?.createdAt || Date.now(),
       updatedAt: Date.now()
     };
     await storageService.saveShopping(shoppingToSave);
     setEditingShoppingItem(null);
-    await fetchTimeline();
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
+        detail: { action: 'save_shopping', item: shoppingToSave }
+      }));
+    }
+    await loadData(false);
+    await fetchTimeline(selectedDate);
+    showFeedbackBanner('Shopping aggiornato con successo ✓');
   };
 
 
@@ -783,6 +858,16 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   return (
     <div className="space-y-4 pt-1 animate-fade-in pb-20 sm:pb-24">
+      {/* Toast Feedback Operazioni */}
+      {feedbackBanner && (
+        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-bounce-subtle pointer-events-none">
+          <div className="px-4 py-2.5 rounded-2xl bg-emerald-600 text-white font-extrabold text-xs shadow-xl shadow-emerald-600/30 flex items-center gap-2 border border-emerald-400/40">
+            <span>✓</span>
+            <span>{feedbackBanner}</span>
+          </div>
+        </div>
+      )}
+
       {/* ─── LIVELLO 1: MASTHEAD EDITORIALE CARTOGRAFICO & FOCUS IMMEDIATO ─── */}
       <div className="space-y-3">
         {/* Masthead Editoriale / Diario di Bordo */}
@@ -892,108 +977,217 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           </div>
         </div>
 
-        {/* ─── LIVELLO 1: CARD PROSSIMO PASSO / FOCUS IMMEDIATO ─── */}
-        <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-4 shadow-xs space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF6B5F] flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
-                {(() => {
-                  const todayStr = new Date().toISOString().split('T')[0];
-                  if (selectedDate === todayStr) return 'In questo momento • Prossimo passo';
-                  return 'Attività / Trasferimento Principale';
-                })()}
-              </span>
-            </div>
+        {/* ─── LIVELLO 1: CARD PROSSIMO PASSO / FOCUS TEMPORALE REALE ─── */}
+        {(() => {
+          const todayStr = new Date().toISOString().split('T')[0];
+          const startDateStr = tripConfig?.startDate || tripDays[0]?.dateStr || (isMasterTrip ? '2026-11-28' : todayStr);
+          const endDateStr = tripConfig?.endDate || (isMasterTrip ? '2027-01-10' : startDateStr);
+          const isViewingOtherDate = selectedDate !== todayStr;
+          const isPreTrip = !isViewingOtherDate && todayStr < startDateStr;
+          const isPostTrip = !isViewingOtherDate && todayStr > endDateStr;
 
-            {nextEventItem?.time && (
-              <span className="font-mono text-xs font-black text-[#172033] dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700">
-                ⏰ {nextEventItem.time}
-              </span>
-            )}
-          </div>
-
-          {nextEventItem ? (
-            <div className="space-y-2">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-base font-extrabold text-[#172033] dark:text-white leading-snug">
-                    {nextEventItem.title}
-                  </h2>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 flex items-center gap-1 truncate">
-                    <span>📍</span>
-                    <span>
-                      {(() => {
-                        if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
-                          const tr = nextEventItem.originalData as Trasporto;
-                          const dep = tr.departureLocation || nextEventItem.location;
-                          const arr = tr.dropoffLocation || tr.arrivalLocation;
-                          if (dep && arr && dep !== arr) return `${dep} ➔ ${arr}`;
-                        }
-                        return nextEventItem.location || 'Posizione da itinerario';
-                      })()}
-                    </span>
-                  </p>
+          if (isViewingOtherDate) {
+            return (
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 border-l-4 border-l-indigo-500 p-4 shadow-xs space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                    Programma del {formatDateHuman(selectedDate)}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(todayStr)}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 border border-indigo-200/60 dark:border-indigo-800/60 transition-colors cursor-pointer"
+                  >
+                    Torna a Oggi ➔
+                  </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setDetailItem(nextEventItem)}
-                  className="shrink-0 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#172033] hover:text-white dark:hover:bg-white dark:hover:text-[#172033] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
-                >
-                  Dettagli ➔
-                </button>
+                {nextEventItem ? (
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h2 className="text-base font-extrabold text-[#172033] dark:text-white leading-snug">
+                            {nextEventItem.title}
+                          </h2>
+                          {nextEventItem.time && (
+                            <span className="font-mono text-xs font-black text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md border border-indigo-200/60 dark:border-indigo-800/60 shrink-0">
+                              ⏰ {nextEventItem.time}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 flex items-center gap-1 truncate">
+                          <span>📍</span>
+                          <span>{nextEventItem.location || 'Posizione programmata'}</span>
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setDetailItem(nextEventItem)}
+                        className="shrink-0 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#172033] hover:text-white dark:hover:bg-white dark:hover:text-[#172033] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
+                      >
+                        Dettagli ➔
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-1">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Nessun impegno a orario fisso in questa giornata.
+                    </p>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          if (isPreTrip) {
+            return (
+              <div className="bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-slate-900 dark:to-indigo-950/40 rounded-2xl border border-sky-200/80 dark:border-sky-800/60 border-l-4 border-l-sky-500 p-4 shadow-xs space-y-2">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-sky-700 dark:text-sky-300 flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-sky-500" />
+                    In attesa della partenza
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(startDateStr)}
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-sky-800 dark:text-sky-200 bg-white/80 dark:bg-slate-800 hover:bg-white dark:hover:bg-slate-700 border border-sky-200 dark:border-slate-700 transition-colors cursor-pointer"
+                  >
+                    Giorno 1 ({formatDateHuman(startDateStr)}) ➔
+                  </button>
+                </div>
+                <div>
+                  <h2 className="text-base font-extrabold text-[#172033] dark:text-white">
+                    Partenza programmata: {formatDateHuman(startDateStr)}
+                  </h2>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                    {calculateCountdown()} • Nessun impegno o trasferimento in corso nella data odierna.
+                  </p>
+                </div>
+              </div>
+            );
+          }
+
+          if (isPostTrip) {
+            return (
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-emerald-950/40 rounded-2xl border border-emerald-200/80 dark:border-emerald-800/60 border-l-4 border-l-emerald-500 p-4 shadow-xs space-y-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  Viaggio completato
+                </span>
+                <div>
+                  <h2 className="text-base font-extrabold text-[#172033] dark:text-white">
+                    💍 Viaggio concluso il {formatDateHuman(endDateStr)}
+                  </h2>
+                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
+                    Tutte le tappe del diario sono state completate con successo. Puoi consultare l&apos;itinerario completo nelle sezioni dell&apos;app.
+                  </p>
+                </div>
+              </div>
+            );
+          }
+
+          // Durante il viaggio nella data odierna
+          return (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-4 shadow-xs space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF6B5F] flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
+                  In questo momento • Prossimo passo
+                </span>
+
+                {nextEventItem?.time && (
+                  <span className="font-mono text-xs font-black text-[#172033] dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700">
+                    ⏰ {nextEventItem.time}
+                  </span>
+                )}
               </div>
 
-              {/* Informazione critica immediatamente visibile: PNR / Voucher / Note */}
-              <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px]">
-                {nextEventBookingCode && (
-                  <button
-                    type="button"
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      try {
-                        await navigator.clipboard.writeText(nextEventBookingCode);
-                        setBookingCodeCopied(true);
-                        setTimeout(() => setBookingCodeCopied(false), 2000);
-                      } catch {}
-                    }}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition-colors cursor-pointer text-[11px]"
-                    title="Clicca per copiare il codice di prenotazione / PNR"
-                  >
-                    <span>🎫</span>
-                    <span className="font-mono">Prenotazione: {nextEventBookingCode}</span>
-                    <span className="text-[9px] opacity-70 ml-0.5 font-sans">{bookingCodeCopied ? '✓ Copiato' : 'Copia'}</span>
-                  </button>
-                )}
-                {nextEventItem.coordinate && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const url = `https://www.google.com/maps/search/?api=1&query=${nextEventItem.coordinate?.lat},${nextEventItem.coordinate?.lng}`;
-                      window.open(url, '_blank');
-                    }}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold border border-sky-200/60 dark:border-sky-800/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors cursor-pointer"
-                  >
-                    <span>🧭</span>
-                    <span>Naviga su Mappa ↗</span>
-                  </button>
-                )}
-              </div>
+              {nextEventItem ? (
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-base font-extrabold text-[#172033] dark:text-white leading-snug">
+                        {nextEventItem.title}
+                      </h2>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 flex items-center gap-1 truncate">
+                        <span>📍</span>
+                        <span>
+                          {(() => {
+                            if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
+                              const tr = nextEventItem.originalData as Trasporto;
+                              const dep = tr.departureLocation || nextEventItem.location;
+                              const arr = tr.dropoffLocation || tr.arrivalLocation;
+                              if (dep && arr && dep !== arr) return `${dep} ➔ ${arr}`;
+                            }
+                            return nextEventItem.location || 'Posizione da itinerario';
+                          })()}
+                        </span>
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setDetailItem(nextEventItem)}
+                      className="shrink-0 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#172033] hover:text-white dark:hover:bg-white dark:hover:text-[#172033] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
+                    >
+                      Dettagli ➔
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px]">
+                    {nextEventBookingCode && (
+                      <button
+                        type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await navigator.clipboard.writeText(nextEventBookingCode);
+                            setBookingCodeCopied(true);
+                            setTimeout(() => setBookingCodeCopied(false), 2000);
+                          } catch {}
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition-colors cursor-pointer text-[11px]"
+                        title="Clicca per copiare il codice di prenotazione / PNR"
+                      >
+                        <span>🎫</span>
+                        <span className="font-mono">Prenotazione: {nextEventBookingCode}</span>
+                        <span className="text-[9px] opacity-70 ml-0.5 font-sans">{bookingCodeCopied ? '✓ Copiato' : 'Copia'}</span>
+                      </button>
+                    )}
+                    {nextEventItem.coordinate && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = `https://www.google.com/maps/search/?api=1&query=${nextEventItem.coordinate?.lat},${nextEventItem.coordinate?.lng}`;
+                          window.open(url, '_blank');
+                        }}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold border border-sky-200/60 dark:border-sky-800/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors cursor-pointer"
+                      >
+                        <span>🧭</span>
+                        <span>Naviga su Mappa ↗</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="py-2">
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                    Giornata libera senza trasferimenti programmati
+                  </p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {tonightsAccommodation
+                      ? `Pernottamento previsto presso ${tonightsAccommodation.name}. Tempo a disposizione per visite ed esplorazioni.`
+                      : 'Nessun impegno a orario fisso registrato nel roadbook per questo orario.'}
+                  </p>
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="py-2">
-              <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                Giornata libera senza trasferimenti programmati
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                {tonightsAccommodation
-                  ? `Pernottamento previsto presso ${tonightsAccommodation.name}. Tempo a disposizione per visite ed esplorazioni.`
-                  : 'Nessun impegno a orario fisso registrato nel roadbook.'}
-              </p>
-            </div>
-          )}
-        </div>
+          );
+        })()}
       </div>
 
       {/* HERO EDIT MODAL */}

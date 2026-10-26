@@ -44,15 +44,27 @@ export function setAuthoritativeCloudRole(role: CloudRole): void {
 
 /**
  * Determina se la sessione dispone di autorizzazione Cloud effettiva sul viaggio (owner o copilota).
- * Amministratore globale (non owner/copilota), viewer, checking, offline o unverified NON sono autorizzati.
+ * In modalità online richiede conferma dal backend Cloud.
+ * In modalità offline (o rete disconnessa) ammette mutazioni locali purché il dispositivo
+ * sia accreditato con ruolo locale guida o copilota (verificato precedentemente).
  */
 export function isCloudAuthorized(): boolean {
-  return authoritativeCloudRole === 'owner' || authoritativeCloudRole === 'copilota';
+  if (authoritativeCloudRole === 'owner' || authoritativeCloudRole === 'copilota') {
+    return true;
+  }
+  // Se siamo offline (o network offline), verifica se il device dispone di autorizzazione locale accreditata
+  if (authoritativeCloudRole === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+    const role = getLocalDeviceRole();
+    if (role === 'guida' || role === 'copilota') {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
  * Controllo di guardia per scritture locali/remote:
- * Blocca le mutazioni se l'identità non è autorizzata dal Cloud.
+ * Blocca le mutazioni se l'identità non è autorizzata dal Cloud o dalle credenziali locali offline.
  */
 export function assertCanMutate(entity: string): void {
   // In ambiente Node di migrazione/script senza window e in stato checking, non bloccare
@@ -291,7 +303,7 @@ export function useAuthIdentity(): AuthIdentityState {
     }
   }
 
-  const isCloudAuthorizedState = cloudRole === 'owner' || cloudRole === 'copilota';
+  const isCloudAuthorizedState = isCloudAuthorized();
 
   return {
     currentUser,

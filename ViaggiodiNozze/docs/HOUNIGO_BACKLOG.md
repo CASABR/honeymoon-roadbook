@@ -6,6 +6,28 @@
 
 ## ATTIVITÀ APERTE & SPRINT BETA RELEASE CANDIDATE (TARGET: 28 OTTOBRE 2026)
 
+### 0.0-B COMPLETAMENTO ESPERIENZA OGGI & PREPARAZIONE BETA (26 Ottobre 2026)
+- **P1 — Modifica Tappe direttamente da Oggi**:
+  - *Stato*: TESTATO LOCALMENTE (Build PASS, Unit Suite PASS)
+  - Apertura TappaForm da TimelineItemDetailModal in OggiView.
+  - Risolto bug critico di orfanotrofio/duplicazione ID (`editingTappaItem?.id`).
+  - Precaricamento esatto campi (titolo, data, orario, indirizzo, note, noteCopilota).
+  - Allineamento automatico giorno selezionato e reload timeline immediato.
+  - Sbloccate mutazioni offline per ruoli guida e copilota accreditati in `useAuthIdentity.ts`.
+  - Banner di conferma operazione visibile in cima alla pagina.
+- **P1 — Riprogettazione Sezione Adesso**:
+  - *Stato*: TESTATO LOCALMENTE (Build PASS, Unit Suite PASS)
+  - Rimossa quadrupla ridondanza (Nessuna attività / Libero / Nessuna / Viaggio concluso).
+  - Pre-trip: singolo card countdown chiaro con data partenza e link a Giorno 1.
+  - During-trip: visualizzazione coordinata senza ripetizioni vuote 3x.
+  - Post-trip: messaggio concluso mostrato rigorosamente solo quando data finale è trascorsa.
+  - Date diverse da oggi: banner "Programma del {data}" con "Torna a Oggi", senza spacciare il programma per in corso adesso.
+- **P0 — Preflight Commit 7cbe06e & Sicurezza Rules**:
+  - *Stato*: TESTATO LOCALMENTE (14/14 P0 PASS, 24/24 Beta PASS)
+  - Allineati al 100% i file `firestore.rules` (root e subfolder).
+  - Verifica assenza leakage privato nei token d'invito.
+  - Verifica login Google con account pre-esistente senza migrazioni coatte di permessi.
+
 ### 0.0 SPRINT STABILITÀ MODIFICHE, INVITI, MULTI-VIAGGIO E GPS UX (26 Ottobre 2026)
 - **P0 — Modifiche alle attività e orari non persistenti**:
   - *Stato*: TESTATO (Emulator 14/14 PASS, Build PASS)

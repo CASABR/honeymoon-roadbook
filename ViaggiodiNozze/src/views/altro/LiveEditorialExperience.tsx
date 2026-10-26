@@ -843,82 +843,157 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           </div>
         </div>
 
-        {/* ─── LIVE INTELLIGENCE: ADESSO, PROGRAMMA E CONFRONTO (COMPATTA CON ESPANSIONE) ─── */}
+        {/* ─── LIVE INTELLIGENCE: ADESSO, PROGRAMMA E CONFRONTO (STATO REALE VIAGGIO) ─── */}
         {!props.isExternal && props.liveIntelligence && (
-          <div className="mt-3 rounded-2xl bg-white dark:bg-[#172033] border border-slate-200/90 dark:border-slate-800 p-3.5 shadow-xs">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2 min-w-0 flex-1">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF6B5F] shrink-0">
-                  ADESSO:
-                </span>
-                <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                  {props.liveIntelligence.currentEvent?.title || 'Nessuna attività programmata in questo orario'}
-                </span>
-                {props.liveIntelligence.currentEvent?.timeRange && (
-                  <span className="text-[10px] font-mono font-semibold text-slate-500 dark:text-slate-400 shrink-0 hidden sm:inline">
-                    ({props.liveIntelligence.currentEvent.timeRange})
+          props.liveIntelligence.tripStatus === 'pre_trip' ? (
+            /* STATO 1: PRIMA DELLA PARTENZA - Sintesi chiara e non ridondante */
+            <div className="mt-3 rounded-2xl bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-slate-900 dark:to-indigo-950/40 border border-sky-200/80 dark:border-sky-800/60 p-3.5 shadow-xs">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <span className="text-lg">⏳</span>
+                  <div className="min-w-0">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">
+                      In attesa della partenza
+                    </span>
+                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                      {props.liveIntelligence.nextEvent
+                        ? `${props.liveIntelligence.nextEvent.title}${props.liveIntelligence.nextEvent.date ? ` • ${props.liveIntelligence.nextEvent.date}` : ''}`
+                        : 'Viaggio programmato non ancora iniziato'}
+                    </p>
+                  </div>
+                </div>
+                {props.liveIntelligence.nextEvent?.time && (
+                  <span className="text-[11px] font-mono font-bold bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 shrink-0">
+                    ⏰ {props.liveIntelligence.nextEvent.time}
                   </span>
                 )}
               </div>
-
-              <button
-                type="button"
-                onClick={() => setIsIntelligenceExpanded(prev => !prev)}
-                className="text-[11px] font-bold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer shrink-0 flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg"
-              >
-                <span>{isIntelligenceExpanded ? '▲ Sintesi' : '▼ Programma'}</span>
-              </button>
             </div>
-
-            {/* VISTA ESPANSA PROGRAMMA */}
-            {isIntelligenceExpanded && (
-              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-3 animate-fade-in text-xs">
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF6B5F] block mb-0.5">
-                    Attività in corso {props.liveIntelligence.currentEvent?.timeRange ? `(${props.liveIntelligence.currentEvent.timeRange})` : ''}
+          ) : props.liveIntelligence.tripStatus === 'post_trip' ? (
+            /* STATO 2: DOPO IL VIAGGIO - Messaggio concluso solo a date effettivamente trascorse */
+            <div className="mt-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 p-3.5 shadow-xs">
+              <div className="flex items-center gap-2.5">
+                <span className="text-lg">💍</span>
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block">
+                    Viaggio completato
                   </span>
-                  <p className="font-extrabold text-slate-900 dark:text-white">
-                    {props.liveIntelligence.currentEvent?.title || 'Libero da programma'}
+                  <p className="text-xs font-bold text-slate-900 dark:text-white">
+                    Tutte le tappe e i trasferimenti del programma si sono conclusi.
                   </p>
-                  {props.liveIntelligence.currentEvent?.subtitle && (
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      {props.liveIntelligence.currentEvent.subtitle}
-                    </p>
-                  )}
-                  {props.liveIntelligence.currentEvent?.transportDetails && (
-                    <div className="mt-2 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200">
-                      ✈️ {props.liveIntelligence.currentEvent.transportDetails.message}
-                    </div>
-                  )}
                 </div>
-
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                    Prossima Attività {props.liveIntelligence.nextEvent?.time ? `(${props.liveIntelligence.nextEvent.time})` : ''}
+              </div>
+            </div>
+          ) : (
+            /* STATO 3: DURANTE IL VIAGGIO - Attività in corso, prossima attività e posizione prevista */
+            <div className="mt-3 rounded-2xl bg-white dark:bg-[#172033] border border-slate-200/90 dark:border-slate-800 p-3.5 shadow-xs">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2 min-w-0 flex-1">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF6B5F] shrink-0">
+                    {props.liveIntelligence.currentEvent ? 'ADESSO IN CORSO:' : 'ADESSO:'}
                   </span>
-                  <p className="font-extrabold text-slate-900 dark:text-white">
-                    {props.liveIntelligence.nextEvent?.title || 'Nessuna attività successiva'}
-                  </p>
-                  {props.liveIntelligence.nextEvent?.locationName && (
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      📍 {props.liveIntelligence.nextEvent.locationName}
-                    </p>
-                  )}
-                </div>
-
-                <div className="md:col-span-2 p-2.5 rounded-xl bg-slate-100/70 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                    ⚖️ {props.liveIntelligence.comparison ? props.liveIntelligence.comparison.label : 'Posizione prevista'}: {props.liveIntelligence.plannedLocation?.title || 'Itinerario'}
+                  <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                    {props.liveIntelligence.currentEvent
+                      ? props.liveIntelligence.currentEvent.title
+                      : (props.liveIntelligence.nextEvent
+                          ? `Pausa • Prossima: ${props.liveIntelligence.nextEvent.title}`
+                          : 'Libero da programma')}
                   </span>
-                  {props.liveIntelligence.comparison?.status === 'coincident' && (
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-[9px] shrink-0">
-                      In linea
+                  {props.liveIntelligence.currentEvent?.timeRange && (
+                    <span className="text-[10px] font-mono font-semibold text-slate-500 dark:text-slate-400 shrink-0 hidden sm:inline">
+                      ({props.liveIntelligence.currentEvent.timeRange})
                     </span>
                   )}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsIntelligenceExpanded(prev => !prev)}
+                  className="text-[11px] font-bold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer shrink-0 flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg"
+                >
+                  <span>{isIntelligenceExpanded ? '▲ Sintesi' : '▼ Dettagli'}</span>
+                </button>
               </div>
-            )}
-          </div>
+
+              {/* VISTA ESPANSA PROGRAMMA IN VIAGGIO */}
+              {isIntelligenceExpanded && (
+                <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3 animate-fade-in text-xs">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {props.liveIntelligence.currentEvent ? (
+                      <div className="p-3 rounded-xl bg-rose-50/60 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-900/40">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF6B5F] block mb-0.5">
+                          In corso {props.liveIntelligence.currentEvent.timeRange ? `(${props.liveIntelligence.currentEvent.timeRange})` : ''}
+                        </span>
+                        <p className="font-extrabold text-slate-900 dark:text-white">
+                          {props.liveIntelligence.currentEvent.title}
+                        </p>
+                        {props.liveIntelligence.currentEvent.subtitle && (
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            {props.liveIntelligence.currentEvent.subtitle}
+                          </p>
+                        )}
+                        {props.liveIntelligence.currentEvent.transportDetails && (
+                          <div className="mt-2 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200">
+                            ✈️ {props.liveIntelligence.currentEvent.transportDetails.message}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                          Stato Attuale
+                        </span>
+                        <p className="font-extrabold text-slate-900 dark:text-white">
+                          Libero da impegni in questo momento
+                        </p>
+                        <p className="text-[11px] text-slate-500 mt-0.5">
+                          Nessun evento a orario fisso in corso.
+                        </p>
+                      </div>
+                    )}
+
+                    {props.liveIntelligence.nextEvent ? (
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                          Prossima Attività {props.liveIntelligence.nextEvent.time ? `(${props.liveIntelligence.nextEvent.time})` : ''}
+                        </span>
+                        <p className="font-extrabold text-slate-900 dark:text-white">
+                          {props.liveIntelligence.nextEvent.title}
+                        </p>
+                        {props.liveIntelligence.nextEvent.locationName && (
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            📍 {props.liveIntelligence.nextEvent.locationName}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
+                          Prossima Attività
+                        </span>
+                        <p className="font-semibold text-slate-700 dark:text-slate-300">
+                          Nessun altro evento programmato per oggi
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {props.liveIntelligence.plannedLocation && (
+                    <div className="p-2.5 rounded-xl bg-slate-100/70 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                        ⚖️ {props.liveIntelligence.comparison ? props.liveIntelligence.comparison.label : 'Posizione prevista'}: {props.liveIntelligence.plannedLocation.title}
+                      </span>
+                      {props.liveIntelligence.comparison?.status === 'coincident' && (
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-[9px] shrink-0">
+                          In linea
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
         )}
 
         {/* FEEDBACK GPS */}

@@ -31,6 +31,10 @@
 | **Link Invito 1° Click (P0)** | Zero errori transitori permessi al primo click, ensureSignedInUser(), metadati nel token, auto-join immediato membri. | TESTATO | 14/14 test passati su Firebase Emulator (JDK 21), build 0 errori |
 | **Selettore Viaggi Safari (P1)** | Spiegazione chiara stato Ospite anonimo vs Google account, login sicuro, no restore cieco né perdita GIAPPONE. | TESTATO | Build 0 errori, isolamento sandboxed verificato |
 | **Delega Guida GPS Nomi Reali (P1)** | Nomi reali (***REMOVED***/***REMOVED***), rimossi codici tecnici, feedback su scrittura Firestore, immutabilità assoluta ownerUid. | TESTATO | 14/14 test passati su Firebase Emulator (JDK 21), build 0 errori |
+| **Modifica Tappe da Oggi (P1)** | Modifica diretta tappe dalla timeline di Oggi con TappaForm precaricato, preservazione ID, refresh e mutazioni offline per guida/copilota. | TESTATO LOCALMENTE | Test suite passata, build 0 errori, mutazioni abilitate |
+| **Sezione Adesso Temporale (P1)** | Eliminata ridondanza quadrupla: pre-trip con countdown pulito, during-trip con in corso/prossimo, post-trip solo a data conclusa. | TESTATO LOCALMENTE | Test suite passata, verifica confini temporali e fusi |
+| **Coerenza Firestore Rules (P0)** | Entrambi i file firestore.rules identici al 100%, status in ['active', 'used'], divieto scansione inviti e protezione 0000. | TESTATO LOCALMENTE | 14/14 P0 test + 24/24 beta test passati su Firebase Emulator |
+| **Identità Google Pre-esistente (P0)** | Connessione Google con credenziali già esistenti mantiene UID Google legittimo senza migrazioni indebite di membership. | TESTATO LOCALMENTE | Verificato in accountService.ts e suite test |
 
 ---
 

@@ -149,10 +149,21 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
   }
 
   // 1. Determina lo stato del viaggio (pre_trip / in_trip / post_trip)
+  let effectiveStartDate = tripStartDate;
+  let effectiveEndDate = tripEndDate;
+  if (!effectiveStartDate && giorni.length > 0) {
+    const sorted = [...giorni].filter(g => g.date).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    if (sorted[0]?.date) effectiveStartDate = sorted[0].date;
+  }
+  if (!effectiveEndDate && giorni.length > 0) {
+    const sorted = [...giorni].filter(g => g.date).sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    if (sorted[sorted.length - 1]?.date) effectiveEndDate = sorted[sorted.length - 1].date;
+  }
+
   let tripStatus: 'pre_trip' | 'in_trip' | 'post_trip' = 'in_trip';
-  if (tripStartDate && todayStr < tripStartDate) {
+  if (effectiveStartDate && todayStr < effectiveStartDate) {
     tripStatus = 'pre_trip';
-  } else if (tripEndDate && todayStr > tripEndDate) {
+  } else if (effectiveEndDate && todayStr > effectiveEndDate) {
     tripStatus = 'post_trip';
   }
 

@@ -410,6 +410,17 @@ export default function TimelineItemDetailModal({
                     </p>
                   </div>
                 )}
+
+                {tp.noteCopilota && (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                    <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block mb-1">
+                      🧭 Note per il Copilota
+                    </span>
+                    <p className="text-xs text-emerald-950 font-medium whitespace-pre-wrap">
+                      {tp.noteCopilota}
+                    </p>
+                  </div>
+                )}
               </div>
             );
           })()
