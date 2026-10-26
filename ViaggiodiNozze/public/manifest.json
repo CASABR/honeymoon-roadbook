@@ -2,18 +2,33 @@
   "name": "Hounigo",
   "short_name": "Hounigo",
   "description": "Organizza il viaggio, vivi ogni momento e condividilo con chi vuoi.",
-  "start_url": ".",
-  "scope": ".",
+  "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#FF6B5F",
   "lang": "it",
   "icons": [
     {
-      "src": "/honeymoon-roadbook/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
     }
   ]
 }
