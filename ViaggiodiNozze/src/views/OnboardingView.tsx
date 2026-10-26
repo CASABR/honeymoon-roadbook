@@ -675,8 +675,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             <div className="flex items-center gap-3">
               <span className="text-xl">✨</span>
               <div>
-                <div className="font-extrabold text-base leading-tight">1. Organizza un viaggio</div>
-                <div className="text-xs text-white/80 font-normal mt-0.5">Crea un nuovo viaggio con date e tappe</div>
+                <div className="font-extrabold text-base leading-tight">Crea un nuovo viaggio</div>
+                <div className="text-xs text-white/80 font-normal mt-0.5">Imposta date, tappe e itinerario</div>
               </div>
             </div>
             <span className="text-white text-base font-bold">→</span>
@@ -692,14 +692,14 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             <div className="flex items-center gap-3">
               <span className="text-xl">🔑</span>
               <div>
-                <div className="font-extrabold text-base leading-tight">2. Accedi al mio viaggio</div>
-                <div className="text-xs text-slate-300 font-normal mt-0.5">Hai già un viaggio o un account? Accedi al tuo Account (Multi-dispositivo)</div>
+                <div className="font-extrabold text-base leading-tight">Accedi al tuo account</div>
+                <div className="text-xs text-slate-300 font-normal mt-0.5">Ripristina i viaggi sincronizzati su questo dispositivo</div>
               </div>
             </div>
             <span className="text-slate-300 text-base font-bold">→</span>
           </button>
 
-          {/* 3. PARTECIPIA A UN VIAGGIO */}
+          {/* 3. PARTECIPA A UN VIAGGIO */}
           <button
             type="button"
             onClick={() => setMode('join')}
@@ -709,8 +709,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             <div className="flex items-center gap-3">
               <span className="text-xl">🤝</span>
               <div>
-                <div className="font-extrabold text-base leading-tight">3. Partecipa a un viaggio</div>
-                <div className="text-xs text-slate-300 font-normal mt-0.5">Inserisci un codice o link di invito</div>
+                <div className="font-extrabold text-base leading-tight">Partecipa a un viaggio</div>
+                <div className="text-xs text-slate-300 font-normal mt-0.5">Entra come copilota con link o codice invito</div>
               </div>
             </div>
             <span className="text-slate-300 text-base font-bold">→</span>

@@ -344,7 +344,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
 
   // Paginazione
   const [currentPage, setCurrentPage] = useState(1);
-  const pageSize = 8;
+  const [pageSize, setPageSize] = useState<number>(25);
 
   // Diagnostica storage
   const [storageData, setStorageData] = useState<StorageEstimateData | null>(null);
@@ -1565,17 +1565,26 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
 
             {/* 4 STATI: Banner Dettagliato di Stato */}
             {accessStatus === 'unauthorized' && (
-              <div className="bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300/80 dark:border-amber-900/60 rounded-2xl p-4 text-amber-950 dark:text-amber-200 space-y-2.5">
+              <div className="bg-amber-50/80 dark:bg-amber-950/40 border border-amber-300/80 dark:border-amber-900/60 rounded-2xl p-4 text-amber-950 dark:text-amber-200 space-y-3">
                 <div className="flex items-center gap-2">
                   <span className="text-lg">🔒</span>
                   <h4 className="font-extrabold text-xs">Accesso Globale Riservato agli Amministratori di Sistema</h4>
                 </div>
                 <p className="text-xs leading-relaxed opacity-95">
-                  L'account attualmente connesso è autenticato, ma non dispone dei privilegi di amministratore globale. Le Firestore Security Rules proteggono l'elenco di tutti i viaggi dei viaggiatori e impediscono la scansione non autorizzata.
+                  L'account attualmente connesso è autenticato, ma non è presente nella collezione degli amministratori di sistema. Le Firestore Security Rules proteggono l'elenco globale dei viaggi dei viaggiatori.
                 </p>
-                <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-amber-200/60 dark:border-amber-900/60 text-[11px]">
+                <div className="bg-amber-100/60 dark:bg-amber-900/40 rounded-xl p-3 text-[11px] space-y-1.5 border border-amber-300/50 dark:border-amber-800/50 font-mono">
+                  <div className="font-bold text-amber-900 dark:text-amber-100 font-sans">
+                    📋 Istruzioni Firebase Console per abilitazione:
+                  </div>
+                  <div>1. Apri <strong>Firestore Database</strong> nel progetto <code>app-viaggio-di-nozze</code></div>
+                  <div>2. Seleziona / crea collezione: <code>system_admins</code></div>
+                  <div>3. Crea documento con <strong>ID Documento</strong>: <code>{currentAdminUser?.uid || 'Tuo UID Utente'}</code></div>
+                  <div>4. Campi richiesti: <code>role: "admin"</code> (stringa), <code>email: "{currentAdminUser?.email || 'tua@email.com'}"</code> (stringa)</div>
+                </div>
+                <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-amber-200/60 dark:border-amber-900/60 text-[11px]">
                   <span className="text-slate-600 dark:text-slate-300">
-                    Per richiedere l'abilitazione, fornisci il tuo UID all'amministratore dell'infrastruttura.
+                    UID attivo: <code className="font-mono bg-amber-100/80 dark:bg-amber-900/60 px-1 py-0.5 rounded">{currentAdminUser?.uid || 'Non disponibile'}</code>
                   </span>
                   {currentAdminUser?.uid && (
                     <button
@@ -1999,32 +2008,56 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
               </table>
             </div>
 
-            {/* Paginazione */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between pt-2 text-xs text-slate-500">
+            {/* Barra Riepilogo e Paginazione */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 text-xs text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-3">
                 <span>
-                  Pagina {currentPage} di {totalPages} ({filteredTrips.length} viaggi totali)
+                  Mostrati <strong>{paginatedTrips.length}</strong> di <strong>{filteredTrips.length}</strong> viaggi
+                  {trips.length !== filteredTrips.length && ` (filtrati da ${trips.length} totali)`}
                 </span>
-                <div className="flex gap-1.5">
-                  <button
-                    type="button"
-                    disabled={currentPage <= 1}
-                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                    className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold disabled:opacity-40"
+                <label className="flex items-center gap-1.5 text-[11px]">
+                  <span>Per pagina:</span>
+                  <select
+                    value={pageSize}
+                    onChange={e => {
+                      setPageSize(Number(e.target.value));
+                      setCurrentPage(1);
+                    }}
+                    className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-xs text-slate-900 dark:text-white"
                   >
-                    Precedente
-                  </button>
-                  <button
-                    type="button"
-                    disabled={currentPage >= totalPages}
-                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                    className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold disabled:opacity-40"
-                  >
-                    Successiva
-                  </button>
-                </div>
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </label>
               </div>
-            )}
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <span>
+                    Pagina {currentPage} di {totalPages}
+                  </span>
+                  <div className="flex gap-1.5">
+                    <button
+                      type="button"
+                      disabled={currentPage <= 1}
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                    >
+                      Precedente
+                    </button>
+                    <button
+                      type="button"
+                      disabled={currentPage >= totalPages}
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 font-bold disabled:opacity-40 hover:bg-slate-50 cursor-pointer"
+                    >
+                      Successiva
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 3. SCHEDA DETTAGLIO VIAGGIO SELEZIONATO */}

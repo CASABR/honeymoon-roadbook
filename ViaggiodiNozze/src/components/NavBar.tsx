@@ -1,3 +1,4 @@
+import { TrailItinerario, TrailCategorie, TrailMappa, TrailToolkit } from './icons/TrailIcons';
 import type { SectionTab } from '../types';
 
 export type { SectionTab };
@@ -21,43 +22,22 @@ export default function NavBar({
     {
       id: 'oggi' as SectionTab,
       label: 'Itinerario',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <circle cx="6" cy="19" r="3"></circle>
-          <path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"></path>
-          <circle cx="18" cy="5" r="3"></circle>
-        </svg>
-      )
+      icon: (active: boolean) => <TrailItinerario size={20} active={active} />
     },
     {
       id: 'categorie' as SectionTab,
       label: 'Categorie',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="3" y="3" width="7" height="7" rx="1"></rect>
-          <rect x="14" y="3" width="7" height="7" rx="1"></rect>
-          <rect x="14" y="14" width="7" height="7" rx="1"></rect>
-          <rect x="3" y="14" width="7" height="7" rx="1"></rect>
-        </svg>
-      )
+      icon: (active: boolean) => <TrailCategorie size={20} active={active} />
     },
     {
       id: 'mappa' as SectionTab,
       label: 'Mappa',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-        </svg>
-      )
+      icon: (active: boolean) => <TrailMappa size={20} active={active} />
     },
     {
       id: 'altro' as SectionTab,
       label: 'Altro',
-      icon: (
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
-        </svg>
-      )
+      icon: (active: boolean) => <TrailToolkit size={20} active={active} />
     }
   ];
 
@@ -100,7 +80,7 @@ export default function NavBar({
               className={"flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-2xl transition-all duration-200 cursor-pointer flex-1 min-h-[48px] active:scale-95 " + activeClasses}
             >
               <div className={"transition-transform duration-200 " + iconScale}>
-                {tab.icon}
+                {tab.icon(isSelected)}
               </div>
               <span className="text-[11px] tracking-tight leading-tight">{tab.label}</span>
             </button>
@@ -137,7 +117,7 @@ export default function NavBar({
               className={"flex flex-col items-center justify-center gap-1 py-1.5 px-3 rounded-2xl transition-all duration-200 cursor-pointer flex-1 min-h-[48px] active:scale-95 " + activeClasses}
             >
               <div className={"transition-transform duration-200 " + iconScale}>
-                {tab.icon}
+                {tab.icon(isSelected)}
               </div>
               <span className="text-[11px] tracking-tight leading-tight">{tab.label}</span>
             </button>

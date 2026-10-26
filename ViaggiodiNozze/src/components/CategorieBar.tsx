@@ -1,5 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import type { CategoriaTab } from '../types';
+import {
+  TrailTappe,
+  TrailAttivita,
+  TrailRistoranti,
+  TrailAlloggi,
+  TrailTrasporti,
+  TrailShopping
+} from './icons/TrailIcons';
 
 interface CategorieBarProps {
   activeCategoria: CategoriaTab | null;
@@ -10,7 +18,7 @@ interface CategorieBarProps {
 interface CategoriaItem {
   id: CategoriaTab;
   label: string;
-  icon: string;
+  renderIcon: (active: boolean) => ReactNode;
   accent: {
     bg: string;
     text: string;
@@ -23,7 +31,7 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'tappe',
     label: 'Tappe',
-    icon: '📍',
+    renderIcon: (active) => <TrailTappe size={22} active={active} />,
     accent: {
       bg: 'bg-rose-50',
       text: 'text-rose-600',
@@ -34,7 +42,7 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'attivita',
     label: 'Attività',
-    icon: '🎯',
+    renderIcon: (active) => <TrailAttivita size={22} active={active} />,
     accent: {
       bg: 'bg-amber-50',
       text: 'text-amber-600',
@@ -45,7 +53,7 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'ristoranti',
     label: 'Ristoranti',
-    icon: '🍽️',
+    renderIcon: (active) => <TrailRistoranti size={22} active={active} />,
     accent: {
       bg: 'bg-emerald-50',
       text: 'text-emerald-600',
@@ -56,7 +64,7 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'alloggi',
     label: 'Alloggi',
-    icon: '🛏️',
+    renderIcon: (active) => <TrailAlloggi size={22} active={active} />,
     accent: {
       bg: 'bg-purple-50',
       text: 'text-purple-600',
@@ -67,7 +75,7 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'trasporti',
     label: 'Trasporti',
-    icon: '✈️',
+    renderIcon: (active) => <TrailTrasporti size={22} active={active} />,
     accent: {
       bg: 'bg-sky-50',
       text: 'text-sky-600',
@@ -78,7 +86,7 @@ const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'shopping',
     label: 'Shopping / Extra',
-    icon: '🛍️',
+    renderIcon: (active) => <TrailShopping size={22} active={active} />,
     accent: {
       bg: 'bg-pink-50',
       text: 'text-pink-600',
@@ -150,7 +158,7 @@ export default function CategorieBar({
                       ? `${item.accent.activeBg} text-white shadow-xs` 
                       : `${item.accent.bg} dark:bg-slate-700/80 ${item.accent.text} border ${item.accent.border} dark:border-slate-600 group-hover:scale-105`
                   }`}>
-                    {item.icon}
+                    {item.renderIcon(isActive)}
                   </div>
                   <span className={`text-[11px] font-bold text-center leading-tight truncate w-full ${isActive ? 'text-white dark:text-slate-900' : 'text-slate-800 dark:text-slate-200'}`}>
                     {item.label}

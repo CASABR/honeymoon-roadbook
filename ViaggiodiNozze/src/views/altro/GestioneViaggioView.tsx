@@ -608,7 +608,7 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
         </div>
         <h3 className="font-extrabold text-slate-900 text-lg mb-2">Invita un Co-pilota</h3>
         <p className="text-sm text-slate-600 mb-4 leading-relaxed">
-          Genera un link di invito protetto da token crittografico monouso (valido 7 giorni). Il copilota potrà unirsi direttamente cliccando sul link dal suo smartphone, senza bisogno di inserire codici manuali.
+          Condividi il link d'invito per consentire a un copilota di collegarsi al viaggio dal proprio smartphone.
         </p>
 
         {/* Generazione Link Crittografico */}

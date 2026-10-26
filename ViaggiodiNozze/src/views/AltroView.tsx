@@ -10,10 +10,24 @@ import { EmergenzeView, TravelToolkitView } from './altro/EmergenzeToolkitView';
 import { lazyWithRetry } from '../utils/lazyWithRetry';
 import RouteErrorBoundary from '../components/common/RouteErrorBoundary';
 import TripSelectorModal from '../components/modals/TripSelectorModal';
+import DeviceRoleModal from '../components/common/DeviceRoleModal';
+import TrailIconsShowcaseModal from '../components/icons/TrailIconsShowcaseModal';
+import {
+  TrailLive,
+  TrailPrenotazioni,
+  TrailSpese,
+  TrailBagagli,
+  TrailNote,
+  TrailSicurezza,
+  TrailEmergenze,
+  TrailToolkit,
+  TrailCopiloti,
+  TrailMappa,
+  TrailItinerario
+} from '../components/icons/TrailIcons';
 
 const LiveView = lazyWithRetry(() => import('./altro/LiveView'), 'LiveView');
 const SpeseBudgetView = lazyWithRetry(() => import('./altro/SpeseBudgetView'), 'SpeseBudgetView');
-import DeviceRoleModal from '../components/common/DeviceRoleModal';
 import { storageService } from '../storage/storageService';
 import { getTripConfig } from '../utils/tripConfig';
 import type { DeviceRole } from '../types';
@@ -29,6 +43,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showTripSelector, setShowTripSelector] = useState(false);
+  const [showIconsShowcase, setShowIconsShowcase] = useState(false);
   const currentTripConfig = getTripConfig();
 
   useEffect(() => {
@@ -136,7 +151,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all border border-slate-200/80 dark:border-slate-700 cursor-pointer active:scale-95 shadow-2xs"
           title="Visualizza e cambia viaggio"
         >
-          <span className="text-xs">🗺️</span>
+          <TrailMappa size={14} active />
           <span className="max-w-[110px] truncate">{currentTripConfig?.title || 'Viaggio'}</span>
           <span className="text-[10px] text-slate-400">▾</span>
         </button>
@@ -151,8 +166,8 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
         className="w-full bg-linear-to-r from-rose-500/10 via-amber-500/5 to-rose-500/10 dark:from-rose-500/20 dark:via-slate-800 dark:to-rose-500/20 bg-white dark:bg-slate-800 rounded-3xl p-4 border border-rose-200 dark:border-rose-900/50 shadow-sm hover:shadow-md transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.99] group"
       >
         <div className="flex items-center gap-3.5 min-w-0">
-          <div className="relative w-12 h-12 rounded-2xl bg-[#FF6B5F] text-white flex items-center justify-center text-xl shadow-md shadow-[#FF6B5F]/20 shrink-0">
-            <span className="relative z-10">📡</span>
+          <div className="relative w-12 h-12 rounded-2xl bg-[#FF6B5F] text-white flex items-center justify-center shadow-md shadow-[#FF6B5F]/20 shrink-0">
+            <TrailLive size={24} active />
             <span className="absolute -top-1 -right-1 flex h-3 w-3">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
               <span className="relative inline-flex rounded-full h-3 w-3 bg-white" />
@@ -161,7 +176,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <h2 className="font-extrabold text-slate-900 dark:text-white text-base leading-tight">
-                Live & Posizione Viaggio
+                Live & Posizione
               </h2>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 text-[#FF6B5F] dark:text-[#ff9a90] shrink-0">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F] animate-pulse" />
@@ -169,7 +184,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
               </span>
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 truncate">
-              Trasmetti GPS, vedi gli spostamenti e invia cartoline
+              Mappa in tempo reale, coordinate GPS e cartoline di viaggio
             </p>
           </div>
         </div>
@@ -194,15 +209,15 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-lg shrink-0 border border-indigo-100 dark:border-indigo-900/50">
-                📑
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-900/50">
+                <TrailPrenotazioni size={20} />
               </div>
               <div className="min-w-0">
                 <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
                   Documenti & Voucher
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Passaporti, visti, patenti, prenotazioni e file
+                  Passaporti, visti, patenti e conferme di prenotazione
                 </p>
               </div>
             </div>
@@ -216,15 +231,15 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center text-lg shrink-0 border border-emerald-100 dark:border-emerald-900/50">
-                💳
+              <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-900/50">
+                <TrailSpese size={20} />
               </div>
               <div className="min-w-0">
                 <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
                   Spese & Budget
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Contabilità costi, saldati vs da saldare e valute
+                  Riepilogo costi, pagamenti saldati e valute
                 </p>
               </div>
             </div>
@@ -238,15 +253,15 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center text-lg shrink-0 border border-amber-100 dark:border-amber-900/50">
-                🧳
+              <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-100 dark:border-amber-900/50">
+                <TrailBagagli size={20} />
               </div>
               <div className="min-w-0">
                 <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
                   Lista Bagagli
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Checklist valigie per partecipante e franchigie
+                  Checklist valigie suddivisa per partecipante
                 </p>
               </div>
             </div>
@@ -260,15 +275,15 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center text-lg shrink-0 border border-purple-100 dark:border-purple-900/50">
-                📝
+              <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-100 dark:border-purple-900/50">
+                <TrailNote size={20} />
               </div>
               <div className="min-w-0">
                 <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
                   Note di Viaggio
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Bacheca appunti, idee e promemoria
+                  Bacheca appunti, idee e promemoria liberi
                 </p>
               </div>
             </div>
@@ -293,8 +308,8 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center text-lg shrink-0 border border-rose-100 dark:border-rose-900/50">
-                🛡️
+              <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-100 dark:border-rose-900/50">
+                <TrailSicurezza size={20} />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -306,29 +321,29 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Polizza, centrale operativa e massimali
+                  Numero di polizza, centrale operativa e massimali
                 </p>
               </div>
             </div>
             <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
-          {/* Emergenze & Toolkit */}
+          {/* Emergenze & Soccorso */}
           <button
             type="button"
             onClick={() => setActiveSubView('emergenza')}
             className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center text-lg shrink-0 border border-sky-100 dark:border-sky-900/50">
-                📞
+              <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 border border-sky-100 dark:border-sky-900/50">
+                <TrailEmergenze size={20} />
               </div>
               <div className="min-w-0">
                 <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
                   Emergenze & Soccorso
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Consolati, numeri utili e soccorso locale
+                  Numeri di emergenza locali, consolati e soccorso
                 </p>
               </div>
             </div>
@@ -342,15 +357,15 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 flex items-center justify-center text-lg shrink-0 border border-teal-100 dark:border-teal-900/50">
-                ℹ️
+              <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 border border-teal-100 dark:border-teal-900/50">
+                <TrailToolkit size={20} />
               </div>
               <div className="min-w-0">
                 <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
                   Travel Toolkit
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Guida paese, fuso orario, prese e checklist partenza
+                  Fuso orario, prese elettriche e checklist di viaggio
                 </p>
               </div>
             </div>
@@ -375,15 +390,15 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center text-lg shrink-0">
-                👥
+              <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0">
+                <TrailCopiloti size={20} active />
               </div>
               <div className="min-w-0">
                 <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
                   Partecipanti & Inviti
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Invita copilota con link sicuro e date del viaggio
+                  Invita il tuo compagno con link sicuro e date
                 </p>
               </div>
             </div>
@@ -397,8 +412,8 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-base shrink-0">
-                {deviceRole === 'guida' ? '🟢' : deviceRole === 'copilota' ? '🤝' : '💻'}
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 shrink-0">
+                <TrailLive size={18} active={deviceRole === 'guida'} />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
@@ -419,7 +434,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                   {deviceRole === 'guida'
                     ? 'Trasmissione GPS e cartoline attiva'
                     : deviceRole === 'copilota'
-                    ? 'Modifica note e spese (GPS ancorato)'
+                    ? 'Modifica note e programma (GPS ancorato)'
                     : 'Visualizzazione da computer o ospite'}
                 </p>
               </div>
@@ -434,8 +449,8 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center text-lg shrink-0 border border-blue-100 dark:border-blue-900/50">
-                🗺️
+              <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-900/50">
+                <TrailMappa size={20} />
               </div>
               <div className="min-w-0">
                 <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
@@ -447,6 +462,30 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
               </div>
             </div>
             <span className="text-slate-400 text-sm ml-2">›</span>
+          </button>
+
+          {/* Anteprima Iconografia Hounigo Trail Icons */}
+          <button
+            type="button"
+            onClick={() => setShowIconsShowcase(true)}
+            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-rose-50/80 dark:bg-rose-950/30 text-[#FF6B5F] flex items-center justify-center shrink-0 border border-rose-100 dark:border-rose-900/40">
+                <TrailItinerario size={20} active />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
+                  Iconografia Hounigo Trail
+                </h4>
+                <p className="text-[10px] text-slate-400 truncate">
+                  Tavola comparativa: 20 icone SVG originali del brand
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold text-[#FF6B5F] bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 px-2 py-0.5 rounded-full">
+              Nuovo
+            </span>
           </button>
         </div>
       </div>
@@ -463,6 +502,12 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
       <TripSelectorModal
         isOpen={showTripSelector}
         onClose={() => setShowTripSelector(false)}
+      />
+
+      {/* Modal Tavola Comparativa Iconografia Hounigo Trail */}
+      <TrailIconsShowcaseModal
+        isOpen={showIconsShowcase}
+        onClose={() => setShowIconsShowcase(false)}
       />
     </div>
   );

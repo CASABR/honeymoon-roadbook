@@ -1,10 +1,27 @@
 # HOUNIGO — BACKLOG DI PROGETTO
-*Data ultimo aggiornamento: 25 Ottobre 2026*
+*Data ultimo aggiornamento: 26 Ottobre 2026*
 *Stati ammessi: DA FARE | IN CORSO | IMPLEMENTATO | TESTATO | PUBBLICATO | VERIFICATO SU DISPOSITIVO REALE | BLOCCATO*
 
 ---
 
 ## ATTIVITÀ APERTE & SPRINT BETA RELEASE CANDIDATE (TARGET: 28 OTTOBRE 2026)
+
+### 0.0-C SPRINT ADMIN CONSOLE, UX COMPATTA & HOUNIGO TRAIL ICONS (26 Ottobre 2026)
+- **P1 — Accesso e visualizzazione Console Admin**:
+  - *Stato*: IMPLEMENTATO & TESTATO (Build PASS, Suite PASS, In attesa di verifica utente in Firebase Console)
+  - Identificata causa errore: collezione `/system_admins` vuota su progetto reale `app-viaggio-di-nozze`.
+  - Identificata presenza di 4 viaggi "Giappone" nel cloud (`trip_l96ccua`, `trip_m2izwa7`, `trip_tck3g3c`, `trip_x6ymxtq`).
+  - Paginazione aumentata a default 25 con selettore dedicato (10/25/50/100).
+  - Riquadro diagnostico con istruzioni precise passo-passo per Firebase Console e copia rapida UID.
+- **P1 — UX Compatta (Interfaccia con meno testo)**:
+  - *Stato*: IMPLEMENTATO & TESTATO (Build PASS, Suite PASS)
+  - Semplificazione testi in DeviceRoleModal, OnboardingView e GestioneViaggioView.
+  - Eliminazione di gergo tecnico ("Geolocation API", UID e dettagli interni non visibili a utenti comuni).
+- **P2 — Iconografia Originale "Hounigo Trail Icons"**:
+  - *Stato*: IMPLEMENTATO & TESTATO (Build PASS, Suite PASS)
+  - Creata libreria SVG 24×24 originale con tratti arrotondati e trail-waypoint design (`TrailIcons.tsx`).
+  - Creata tavola comparativa interattiva vecchio vs nuovo (`TrailIconsShowcaseModal.tsx`).
+  - Applicata a NavBar, CategorieBar e AltroView.
 
 ### 0.0-B COMPLETAMENTO ESPERIENZA OGGI & PREPARAZIONE BETA (26 Ottobre 2026)
 - **P1 — Modifica Tappe direttamente da Oggi**:

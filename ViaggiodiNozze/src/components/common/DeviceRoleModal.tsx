@@ -76,7 +76,7 @@ export default function DeviceRoleModal({
               <div className="flex items-center gap-2">
                 <span className="text-xl">🟢</span>
                 <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100">
-                  Telefono Guida (Master / Riferimento)
+                  Telefono Guida
                 </span>
               </div>
               {currentRole === 'guida' && (
@@ -86,15 +86,8 @@ export default function DeviceRoleModal({
               )}
             </div>
             <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed pl-7">
-              Dispositivo di riferimento per la posizione GPS del viaggio. Trasmette le coordinate reali e scatta la foto per chi segue da casa.
+              Trasmette la posizione del viaggio e gestisce le tappe in tempo reale.
             </p>
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 pl-7 pt-0.5">
-              <span>✓ Geolocation API attiva</span>
-              <span>•</span>
-              <span>✓ Rilevamento GPS reale</span>
-              <span>•</span>
-              <span>✓ Upload foto</span>
-            </div>
           </button>
 
           {/* 2. Telefono Co-pilota */}
@@ -124,13 +117,8 @@ export default function DeviceRoleModal({
               )}
             </div>
             <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed pl-7">
-              Accesso a modifiche, spese, note e itinerario. Non invia il segnale GPS per non sovrascrivere la posizione del Telefono Guida.
+              Modifica tappe, spese e note senza interferire con la posizione.
             </p>
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-amber-800 dark:text-amber-400 pl-7 pt-0.5">
-              <span>✓ Gestione note &amp; spese</span>
-              <span>•</span>
-              <span>✓ Mappa ancorata alla guida</span>
-            </div>
           </button>
 
           {/* 3. Computer / Ospite (Viewer) */}
@@ -150,7 +138,7 @@ export default function DeviceRoleModal({
               <div className="flex items-center gap-2">
                 <span className="text-xl">💻</span>
                 <span className="font-extrabold text-xs text-slate-900 dark:text-slate-100">
-                  Computer / Ospite (Viewer)
+                  Computer / Ospite
                 </span>
               </div>
               {currentRole === 'viewer' && (
@@ -160,13 +148,8 @@ export default function DeviceRoleModal({
               )}
             </div>
             <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed pl-7">
-              Modalità consultazione e test. Non richiede mai l'accesso al GPS locale e mostra passivamente le tappe e la posizione inviata dal Telefono Guida.
+              Sola consultazione dell'itinerario e della posizione condivisa.
             </p>
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400 pl-7 pt-0.5">
-              <span>✓ Zero popup GPS</span>
-              <span>•</span>
-              <span>✓ Visualizzazione passiva tappe</span>
-            </div>
           </button>
         </div>
 

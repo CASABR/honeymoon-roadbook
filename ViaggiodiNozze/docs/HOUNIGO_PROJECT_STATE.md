@@ -1,8 +1,8 @@
 # HOUNIGO — STATO DEL PROGETTO (PROJECT STATE)
-*Data ultimo aggiornamento: 26 Ottobre 2026 (Rilascio Hotfix Live)*
+*Data ultimo aggiornamento: 26 Ottobre 2026 (Sprint Admin, UX Compatta & Hounigo Trail Icons)*
 *Repository: CASABR/honeymoon-roadbook*
-*Branch di lavoro: work/product-completion (Commit: b23688d)*
-*Produzione: gh-pages 28e494a | Bundle online: index-djclbXgz.js | Firebase: app-viaggio-di-nozze*
+*Branch di lavoro: work/product-completion*
+*Produzione: gh-pages f54bc9a | Bundle online | Firebase: app-viaggio-di-nozze*
 
 ---
 
@@ -32,6 +32,24 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
 ---
 
 ## 3. FUNZIONALITÀ COMPLETATE E PROBLEMI RISOLTI
+
+### Sprint: Admin Console, UX Compatta e Design System "Hounigo Trail Icons" (26 Ottobre 2026)
+- **P1 — Diagnostica e Risoluzione Console Admin Non Autorizzata**:
+  - *Causa Errore "NON AUTORIZZATO"*: Nel progetto Firestore reale `app-viaggio-di-nozze`, la collezione `/system_admins` conteneva 0 documenti e l'account Google `cqs2OcE7WzY7XmiqVoZmM7B6Fpp2` non possedeva il custom claim `admin: true`.
+  - *Diagnostica Viaggio "GIAPPONE"*: Verificato via REST API Firestore che nel database cloud esistono ben **4 viaggi Giappone** reali (`trip_l96ccua`, `trip_m2izwa7`, `trip_tck3g3c`, `trip_x6ymxtq`), creati con ID generati dal sistema durante sessioni anonime. In precedenza non comparivano a causa di `pageSize = 8` che li confinava a pagina 2 e della ricerca per ID esatto "GIAPPONE".
+  - *Migliorie AdminDashboardView*: Aumentato il default `pageSize` da 8 a 25 elementi (visibili tutti i viaggi del database nella pagina 1), aggiunto selettore elementi per pagina (10/25/50/100) e integrato un box diagnostico con istruzioni precise passo-passo per Firebase Console e pulsante di copia rapida dell'UID.
+  - *Istruzioni Manuali Firebase*: documentata procedura non invasiva per aggiungere `/system_admins/{uid}` su `app-viaggio-di-nozze`.
+- **P1 — UX Compatta (Interfaccia con meno testo)**:
+  - *DeviceRoleModal*: Rimossa terminologia ingegneristica ("Geolocation API", "Master/Riferimento") e dettagli tecnici ridondanti. Riformulati i ruoli Guida, Copilota e Ospite in una singola frase chiara per concetto.
+  - *OnboardingView*: Semplificate le 3 intenzioni principali ("Crea un nuovo viaggio", "Accedi al tuo account", "Partecipa a un viaggio"), eliminati sottotitoli lunghi e spiegazioni tecniche.
+  - *GestioneViaggioView*: Ridotta la spiegazione d'invito da un paragrafo tecnico a una sola riga chiara; isolato l'inserimento manuale UID in un componente discreto.
+- **P2 — Iconografia Originale "Hounigo Trail Icons"**:
+  - *Libreria Originale SVG*: Realizzato `src/components/icons/TrailIcons.tsx` con 20 icone originali 24×24 con tratti arrotondati, forme piene distintive e richiamo ai percorsi/waypoint (`TrailOggi`, `TrailItinerario`, `TrailTappe`, `TrailAttivita`, `TrailAlloggi`, `TrailTrasporti`, `TrailPrenotazioni`, `TrailBagagli`, `TrailSpese`, `TrailLive`, `TrailCopiloti`, `TrailImpostazioni`, `TrailMappa`, `TrailCategorie`, `TrailRistoranti`, `TrailShopping`, ecc.).
+  - *Tavola Comparativa*: Realizzato `src/components/icons/TrailIconsShowcaseModal.tsx` con confronto interattivo tra icona precedente (emoji o generica), nuova Trail Icon in stato Normale e nuova Trail Icon in stato Attivo.
+  - *Integrazione*: Aggiornate `NavBar.tsx`, `CategorieBar.tsx` e `AltroView.tsx` per utilizzare le nuove Trail Icons con feedback di stato attivo visibile anche senza dipendere unicamente dal colore.
+- **Verifica e Test**:
+  - Script automatizzato `scripts/test_admin_and_icons_verification.cjs` superato con esito 100% positivo.
+  - `npm run build` completato con codice 0, bundle ottimizzato e Service Worker PWA valido.
 
 ### Completamento Esperienza Oggi & Riprogettazione Sezione Adesso (26 Ottobre 2026)
 - **P1 — Modifica Tappe direttamente da Oggi**:
