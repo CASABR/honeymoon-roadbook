@@ -343,7 +343,7 @@ export default function TimeCollisionModal({
                   }}
                   className="hounigo-button-primary px-3 py-1.5 text-xs font-bold disabled:opacity-50 shadow-xs cursor-pointer"
                 >
-                  {savingTime ? 'Salvataggio…' : 'Applica orario ✓'}
+                  {savingTime ? 'Aggiornamento in corso…' : 'Aggiorna orario ✓'}
                 </button>
               </div>
             </div>

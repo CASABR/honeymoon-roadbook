@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { auth } from '../../firebase';
 import {
   fetchUserTrips,
   verifyTripOwnership,
   switchActiveTrip,
+  loginWithGoogle,
   type UserTripSummary
 } from '../../services/accountService';
 import { getTripConfig } from '../../utils/tripConfig';
@@ -23,62 +24,79 @@ export default function TripSelectorModal({
   const [trips, setTrips] = useState<UserTripSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
+  const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
+  const [currentUser, setCurrentUser] = useState(() => auth?.currentUser || null);
   const currentTripId = getTripConfig()?.id || '0000';
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!auth) return;
+    const unsub = auth.onAuthStateChanged((u: any) => {
+      setCurrentUser(u);
+    });
+    return () => unsub();
+  }, []);
 
-    let isMounted = true;
+  const loadTrips = useCallback(async () => {
+    const user = auth?.currentUser;
+    if (!user) {
+      setTrips([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
+    try {
+      const loadedTrips = await fetchUserTrips(user.uid);
 
-    const loadTrips = async () => {
-      const user = auth?.currentUser;
-      if (!user) {
-        if (isMounted) {
-          setTrips([]);
-          setLoading(false);
+      // Controllo speciale per viaggio 0000 (legacy) se l'utente è l'owner effettivo
+      const legacyCheck = await verifyTripOwnership('0000', user.uid);
+      if (legacyCheck.exists && legacyCheck.isOwner) {
+        const alreadyHas0000 = loadedTrips.some(t => t.id === '0000');
+        if (!alreadyHas0000) {
+          loadedTrips.unshift({
+            id: '0000',
+            title: 'Viaggio Originale (0000)',
+            destination: 'Nuova Zelanda & Cook',
+            startDate: '2026-11-28',
+            endDate: '2027-01-10',
+            ownerUid: user.uid,
+            ownerName: legacyCheck.ownerName || 'nunzio',
+            isOwner: true,
+            role: 'owner',
+            isLastUsed: currentTripId === '0000'
+          });
         }
-        return;
       }
 
-      try {
-        const loadedTrips = await fetchUserTrips(user.uid);
+      setTrips(loadedTrips);
+    } catch (err) {
+      console.warn('[TripSelectorModal] Errore caricamento viaggi:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentTripId]);
 
-        // Controllo speciale per viaggio 0000 (legacy) se l'utente è l'owner effettivo
-        const legacyCheck = await verifyTripOwnership('0000', user.uid);
-        if (legacyCheck.exists && legacyCheck.isOwner) {
-          const alreadyHas0000 = loadedTrips.some(t => t.id === '0000');
-          if (!alreadyHas0000) {
-            loadedTrips.unshift({
-              id: '0000',
-              title: 'Viaggio Originale (0000)',
-              destination: 'Nuova Zelanda & Cook',
-              startDate: '2026-11-28',
-              endDate: '2027-01-10',
-              ownerUid: user.uid,
-              ownerName: legacyCheck.ownerName || 'nunzio',
-              isOwner: true,
-              role: 'owner',
-              isLastUsed: currentTripId === '0000'
-            });
-          }
-        }
+  useEffect(() => {
+    if (isOpen) {
+      loadTrips();
+    }
+  }, [isOpen, loadTrips, currentUser]);
 
-        if (isMounted) {
-          setTrips(loadedTrips);
-        }
-      } catch (err) {
-        console.warn('[TripSelectorModal] Errore caricamento viaggi:', err);
-      } finally {
-        if (isMounted) setLoading(false);
+  const handleGoogleSignIn = async () => {
+    setIsSigningInGoogle(true);
+    try {
+      const res = await loginWithGoogle();
+      if (res.success) {
+        await loadTrips();
+      } else if (res.error) {
+        alert(res.error);
       }
-    };
-
-    loadTrips();
-    return () => {
-      isMounted = false;
-    };
-  }, [isOpen, currentTripId]);
+    } catch (err: any) {
+      console.error('[TripSelectorModal] Errore Google sign-in:', err);
+    } finally {
+      setIsSigningInGoogle(false);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -129,6 +147,48 @@ export default function TripSelectorModal({
 
         {/* Content */}
         <div className="overflow-y-auto py-3 space-y-4 flex-1">
+          {/* Account status / Google sign-in */}
+          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 text-xs">
+            {currentUser?.isAnonymous ? (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full font-bold text-[10px] bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Ospite anonimo
+                  </span>
+                  <button
+                    type="button"
+                    disabled={isSigningInGoogle}
+                    onClick={handleGoogleSignIn}
+                    className="px-2.5 py-1 rounded-xl font-bold text-[11px] bg-white dark:bg-slate-700 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-600 shadow-xs hover:bg-slate-100 dark:hover:bg-slate-600 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                    </svg>
+                    {isSigningInGoogle ? 'Accesso…' : 'Accedi con Google'}
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-snug">
+                  I viaggi creati con il tuo account (es. 0000) sono protetti. Accedi con Google per visualizzarli su questo browser.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <span className="text-[10px] uppercase font-bold text-slate-400 block tracking-wider">Account Connesso</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 truncate block">
+                    {currentUser?.displayName || currentUser?.email || 'Account Google'}
+                  </span>
+                </div>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                  ✓ Sincronizzato
+                </span>
+              </div>
+            )}
+          </div>
           {loading ? (
             <div className="py-12 flex flex-col items-center justify-center text-center">
               <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3" />

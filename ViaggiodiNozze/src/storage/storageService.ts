@@ -1838,7 +1838,7 @@ class StorageService {
         timeline.push({
           id: a.id,
           type: 'attivita',
-          time: a.time || '14:00',
+          time: a.time || a.orarioInizio || a.orarioRitrovo || '14:00',
           title: a.title,
           location: a.location,
           categoryOrType: a.category,

@@ -465,6 +465,65 @@ Nel collaudo reale della PWA installata sono emersi due problemi P0 e due rifini
 - Re-eseguita la suite `test_p0_hotfix_emulator_validation.cjs` (14/14 passati) e `test_beta_release_emulator_validation.cjs` (24/24 passati).
 - Build di produzione `npm run build` eseguita con successo con bundling PWA (`sw.js`).
 
+---
+
+## 7. STABILITÀ MODIFICHE, INVITI, MULTI-VIAGGIO E GPS UX (26 Ottobre 2026)
+
+A seguito del collaudo reale su PWA installata (con esito positivo e confermato per GPS quota, eliminazione cartoline, header live compatto, menu impostazioni e console admin), sono state risolte le seguenti criticità:
+
+### 1. P0 — Modifiche alle attività e agli orari che non persistono
+- **Indagine e cause individuate**:
+  1. In `AttivitaForm.tsx`: la presenza di un blocco precoce `if (!isConflictConfirmed ...)` interrompeva il submit al primo click se due attività condividevano la stessa data e fascia oraria, mostrando solo un banner di warning.
+  2. In `AttivitaCard.tsx`: il tempo mostrato era legato a `activity.orarioRitrovo || activity.time`. Quando l'orario veniva modificato da popup di collisione o aggiornato, `orarioRitrovo` non veniva sincronizzato e la card continuava a visualizzare il vecchio orario.
+  3. In `AttivitaView.tsx`: `onOpenEditForm` impostava `editingActivity` ma ometteva la chiamata a `setIsActivityModalOpen(true)`, impedendo l'apertura del form completo di modifica dal popup.
+  4. In `TimeCollisionModal.tsx`: le decisioni dell'utente venivano salvate solo in `sessionStorage`, scomparendo al refresh del browser.
+- **Correzione applicata**:
+  - Rimossa la condizione bloccante in `AttivitaForm.tsx`: salvataggio libero di attività sovrapposte o contemporanee.
+  - Sincronizzazione rigorosa e bidirezionale di `time`, `orarioInizio` e `orarioRitrovo` in `AttivitaForm.tsx`, `OggiView.tsx`, `AttivitaView.tsx`, `TimeCollisionModal.tsx`, `storageService.ts` e `AttivitaCard.tsx`.
+  - Persistenza delle risoluzioni di collisione sia in `localStorage` che in `sessionStorage`.
+  - Aggiunta chiamata `setIsActivityModalOpen(true)` in `AttivitaView.tsx`.
+  - Aggiornate etichette pulsanti a "Aggiorna Attività" / "Aggiorna orario ✓".
+
+### 2. P0 — Link invito: eliminazione errore transitorio "Missing or insufficient permissions"
+- **Indagine e cause individuate**:
+  1. `OnboardingView.tsx` invocava `validateTripInvite` immediatamente al montaggio (`useEffect`). In quel millisecondo, `auth.currentUser` era ancora `null` (inizializzazione asincrona di Firebase Auth).
+  2. Nelle Security Rules, `get /trips/{tripId}/invites/{inviteToken}` richiedeva `isSignedIn()`. Essendo `request.auth` nullo, Firestore restituiva `permission-denied` temporaneo prima che la sessione anonima si stabilizzasse.
+  3. I documenti di invito non includevano `tripTitle` e `ownerName`, forzando tentativi non autorizzati di lettura su `/trips/{tripId}` prima dell'adesione.
+- **Correzione applicata**:
+  - In `tripInviteService.ts`: introdotta la funzione `ensureSignedInUser()` che attende o genera l'autenticazione anonima prima di effettuare qualsiasi query su Firestore.
+  - In `createTripInvite`: inclusione di `tripTitle` e `ownerName` direttamente nel documento `/invites/{token}`.
+  - In `firestore.rules`: ammessa la lettura `get` del singolo token d'invito se `status in ['active', 'used']`.
+  - In `OnboardingView.tsx`: introdotto stato di caricamento elegante `isValidatingInvite` per evitare il lampeggio del form o errori transitori, con auto-ingresso immediato se `isAlreadyMember === true`.
+  - In `src/App.tsx`: supporto per parametri `?join` diversi dal viaggio attivo anche con sessione esistente.
+
+### 3. P1 — Selettore "I tuoi viaggi" in Safari (Isolamento sandbox e Multi-viaggio)
+- **Indagine e cause individuate**:
+  - In Safari iOS, i dati locali e la sessione Firebase Auth sono isolati rispetto alla PWA installata (sandbox WebClip). La sessione in Safari è anonima con membership copilota a GIAPPONE, mentre il viaggio `0000` appartiene all'account Google di ***REMOVED***. Le Security Rules vietano giustamente l'accesso a `0000` da UID anonimi.
+- **Correzione applicata**:
+  - In `TripSelectorModal.tsx`: aggiunto banner informativo sull'identità dell'account ("Ospite anonimo" vs "Account Google sincronizzato").
+  - Aggiunto pulsante "Accedi con Google" per consentire il login sicuro senza ripristinare indebitamente `0000` e senza perdere l'accesso a `GIAPPONE`.
+
+### 4. P1 — Delega Guida GPS con nomi reali e feedback da Firestore
+- **Indagine e cause individuate**:
+  - La UI del passaggio guida mostrava codici dispositivo tecnici troncati (`(props.remoteGpsLease.holderDeviceId.slice(0, 10))…`, dropdown con UUID tecnici).
+- **Correzione applicata**:
+  - In `LiveView.tsx`: sottoscrizione a `/trips/{tripId}/members` e costruzione di `membersMap` per mappare gli UID ai nomi umani reali (`***REMOVED***`, `***REMOVED***`).
+  - In `LiveEditorialExperience.tsx`: eliminati i menu tecnici e sostituiti con pulsanti ad azione diretta con nomi reali:
+    - *"Guida attuale: ***REMOVED***"*
+    - *"Passa la guida a ***REMOVED***"*
+    - *"Riprendi la guida"*
+    - *"Sei la Guida! Il tuo dispositivo è autorizzato"* + *"Attiva la posizione su questo dispositivo 📡"*.
+  - Feedback di successo mostrato esclusivamente dopo la conferma della scrittura su Firestore (`await onTransferGps`).
+  - Immutabilità assoluta di `ownerUid` del viaggio preservata.
+
+### 5. Validazione e Collaudo Automatizzato
+- **Suite di Test su Firebase Emulator Reale (`scripts/test_p0_activities_invites_gps.cjs`)**:
+  - Eseguita con JDK 21 su porta 8085: **100% PASS (3/3 suite, 14 asserzioni superate)**.
+  - Nessuna contesa, nessun bypass di throttle o violazione di regole.
+- **Build di Produzione**:
+  - `npm run build`: completata con esito 0 (nessun errore TypeScript o di bundling PWA).
+
+
 
 
 

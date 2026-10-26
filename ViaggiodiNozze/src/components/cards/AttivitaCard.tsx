@@ -58,8 +58,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
   const icon = '📌';
 
   const mapLink = activity.location ? resolveMapUrl(activity.location) : '';
-  const ritrovo = activity.orarioRitrovo || activity.time;
-  const inizio = activity.orarioInizio;
+  const displayTime = activity.time || activity.orarioInizio || activity.orarioRitrovo;
   const isTrekking = isTrekkingActivity(activity);
   const hikingDuration = formatHikingDuration(activity.hikingDurationMinutes) || activity.duration || null;
   const trekkingPrice = activity.cost?.trim()
@@ -84,13 +83,17 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 <span>{activity.sottocategoria || activity.category}</span>
               </span>
             )}
-            {!isTrekking && (ritrovo || inizio || activity.duration || activity.endDate) && (
+            {!isTrekking && (displayTime || activity.duration || activity.endDate) && (
               <div className="flex items-center gap-1.5 ml-1 flex-wrap">
-                {(ritrovo || inizio) && (
+                {activity.orarioRitrovo && activity.orarioInizio && activity.orarioRitrovo !== activity.orarioInizio ? (
                   <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
-                    {ritrovo ? `Ore ${ritrovo}` : `Inizio ${inizio}`}
+                    Ritrovo {activity.orarioRitrovo} • Inizio {activity.orarioInizio}
                   </span>
-                )}
+                ) : displayTime ? (
+                  <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
+                    Ore {displayTime}
+                  </span>
+                ) : null}
                 {activity.duration && (
                   <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
                     • {activity.duration}
@@ -135,7 +138,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
           )}
           {isTrekking && (
             <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 border-t border-slate-100 dark:border-slate-700/60 pt-3">
-              {(inizio || ritrovo) && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Partenza</span><strong className="text-sm text-slate-900 dark:text-white">{inizio || ritrovo}</strong></div>}
+              {displayTime && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Partenza</span><strong className="text-sm text-slate-900 dark:text-white">{displayTime}</strong></div>}
               {activity.distanceKm != null && activity.distanceKm > 0 && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Distanza</span><strong className="text-sm text-slate-900 dark:text-white">{activity.distanceKm.toLocaleString('it-IT')} km</strong></div>}
               {activity.elevationGainM != null && activity.elevationGainM > 0 && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Dislivello +</span><strong className="text-sm text-slate-900 dark:text-white">{activity.elevationGainM.toLocaleString('it-IT')} m</strong></div>}
               {hikingDuration && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Cammino</span><strong className="text-sm text-slate-900 dark:text-white">{hikingDuration}</strong></div>}

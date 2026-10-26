@@ -36,12 +36,16 @@ export interface LiveEditorialExperienceProps {
   isOwner?: boolean;
   isCopilota?: boolean;
   gpsDevices?: LiveGpsDevice[];
+  tripMembers?: { uid: string; name: string; role: string }[];
+  membersMap?: Record<string, string>;
+  ownerName?: string;
+  ownerUid?: string;
   onStartGps?: () => void;
   onPauseGps?: () => void;
   onResumeGps?: () => void;
   onStopGps?: () => void;
-  onTransferGps?: (uid: string, deviceId: string) => void;
-  onRevokeGps?: () => void;
+  onTransferGps?: (uid: string, deviceId: string) => Promise<void> | void;
+  onRevokeGps?: () => Promise<void> | void;
   // Live Intelligence & Dual Map Markers
   liveIntelligence?: LiveIntelligenceState | null;
   mapCenterMode?: 'both' | 'real' | 'planned';
@@ -167,8 +171,6 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   // ─── STATO PAGINAZIONE DIARIO ───────────────────────────────────────
   const [diaryPage, setDiaryPage] = useState(1);
 
-  // ─── STATO COPILOTA ────────────────────────────────────────────────
-  const [selectedCopilotDevice, setSelectedCopilotDevice] = useState<string>('');
 
   // ─── CALCOLO FOTOGRAFIE GALLERIA ────────────────────────────────────
   const displayPhotos = useMemo<LiveGalleryPhotoItem[]>(() => {
@@ -335,8 +337,41 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     return sortedUpdates.slice(start, start + PAGE_SIZE);
   }, [sortedUpdates, diaryPage]);
 
-  // Copilot devices available for transfer
-  const eligibleCopilots = (props.gpsDevices || []).filter(d => d.role === 'copilota');
+  // Current guide name resolution
+  const currentGuideName = useMemo(() => {
+    if (props.remoteGpsLease?.holderUid) {
+      if (props.membersMap && props.membersMap[props.remoteGpsLease.holderUid]) {
+        return props.membersMap[props.remoteGpsLease.holderUid];
+      }
+      if (props.ownerUid && props.remoteGpsLease.holderUid === props.ownerUid) {
+        return props.ownerName || '***REMOVED***';
+      }
+      const member = (props.tripMembers || []).find(m => m.uid === props.remoteGpsLease?.holderUid);
+      if (member?.name) return member.name;
+    }
+    return props.ownerName || '***REMOVED***';
+  }, [props.remoteGpsLease?.holderUid, props.membersMap, props.ownerUid, props.ownerName, props.tripMembers]);
+
+  // Copilots available for handover
+  const copilotsList = useMemo(() => {
+    const list: { uid: string; name: string }[] = [];
+    (props.tripMembers || []).forEach(m => {
+      if (m.role === 'copilota' && m.uid !== props.ownerUid) {
+        list.push({ uid: m.uid, name: m.name || 'Copilota' });
+      }
+    });
+    (props.gpsDevices || []).forEach(dev => {
+      if (dev.role === 'copilota' && dev.uid && dev.uid !== props.ownerUid) {
+        if (!list.some(item => item.uid === dev.uid)) {
+          list.push({ uid: dev.uid, name: (props.membersMap && props.membersMap[dev.uid]) || dev.label || 'Copilota' });
+        }
+      }
+    });
+    return list;
+  }, [props.tripMembers, props.gpsDevices, props.ownerUid, props.membersMap]);
+
+  const [isHandoverLoading, setIsHandoverLoading] = useState(false);
+  const [handoverSuccess, setHandoverSuccess] = useState<string | null>(null);
 
   // Gestione selezione foto da fotocamera / rullino
   const handlePhotoFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -921,7 +956,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                       Controlli Guida GPS &amp; Copilota
                     </span>
                     <span className="text-[10px] text-slate-500 truncate block">
-                      {props.deviceLabel} · {isLeaseActive ? 'Guida attiva' : isLeasePaused ? 'In pausa' : 'In attesa'}
+                      Guida: {currentGuideName} · {isLeaseActive ? 'Attiva' : isLeasePaused ? 'In pausa' : 'In attesa'}
                     </span>
                   </div>
                 </div>
@@ -934,13 +969,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 <div className="p-3.5 pt-0 border-t border-slate-100 dark:border-slate-800 space-y-3 animate-fade-in text-xs">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F8F7F3] dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 text-xs mt-3">
                 <div>
-                  <strong className="text-slate-900 dark:text-white font-bold">Dispositivo autorizzato: </strong>
-                  <span className="text-slate-700 dark:text-slate-300">{props.deviceLabel}</span>
-                  {props.remoteGpsLease && (
-                    <span className="block mt-0.5 text-[11px] text-slate-500">
-                      Titolare guida: <code className="bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded font-mono text-[10px]">{(props.remoteGpsLease.holderDeviceId || 'dispositivo_guida').slice(0, 10)}…</code>
-                    </span>
-                  )}
+                  <strong className="text-slate-900 dark:text-white font-bold">Guida attuale: </strong>
+                  <span className="text-slate-700 dark:text-slate-300 font-bold">{currentGuideName}</span>
+                  <span className="block mt-0.5 text-[11px] text-slate-500">
+                    Dispositivo locale: {props.deviceLabel}
+                  </span>
                   <p className="mt-1 text-[11px] text-slate-500">
                     Il GPS rilevato resta locale e non viene trasmesso agli ospiti fino all&apos;avvio esplicito della condivisione LIVE. Da computer puoi consultare la posizione in tempo reale trasmessa dallo smartphone guida.
                   </p>
@@ -1050,54 +1083,135 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 </div>
               </div>
 
-              {/* TRASFERIMENTO GUIDA AL COPILOTA */}
+              {/* TRASFERIMENTO / DELEGA GUIDA GPS CON NOMI REALI */}
               {props.isOwner && (
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-3.5 bg-white dark:bg-slate-900/40 text-xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                    <div>
-                      <span className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5">
-                        <span>🤝</span>
-                        <span>Trasferimento temporaneo guida GPS</span>
-                      </span>
-                      <p className="mt-0.5 text-[11px] text-slate-500">
-                        Consente a un Copilota di trasmettere la posizione dal proprio telefono senza cedere la proprietà.
-                      </p>
-                    </div>
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900/40 text-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs">
+                      <span>🤝</span>
+                      <span>Delega Guida GPS</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                      Guida attuale: <strong>{currentGuideName}</strong>
+                    </span>
+                  </div>
 
-                    {eligibleCopilots.length > 0 ? (
-                      <div className="flex items-center gap-2 shrink-0">
-                        <select
-                          value={selectedCopilotDevice}
-                          onChange={(e) => setSelectedCopilotDevice(e.target.value)}
-                          className="hounigo-card-subtle text-xs py-1.5 px-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-                        >
-                          <option value="">Seleziona dispositivo copilota…</option>
-                          {eligibleCopilots.map(dev => (
-                            <option key={dev.deviceId} value={`${dev.uid}:::${dev.deviceId}`}>
-                              {dev.label} ({dev.deviceId.slice(0, 6)}…)
-                            </option>
-                          ))}
-                        </select>
-                        <button
-                          type="button"
-                          disabled={!selectedCopilotDevice || props.isDetectingGps || !isOnline}
-                          onClick={() => {
-                            const [copilotUid, copilotDeviceId] = selectedCopilotDevice.split(':::');
-                            if (copilotUid && copilotDeviceId && props.onTransferGps) {
-                              props.onTransferGps(copilotUid, copilotDeviceId);
-                            }
-                          }}
-                          className="hounigo-button-primary px-3 py-1.5 text-xs font-bold disabled:opacity-50"
-                        >
-                          Trasferisci guida
-                        </button>
-                      </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Puoi delegare la trasmissione della posizione al Copilota senza cedere la proprietà del viaggio.
+                  </p>
+
+                  {handoverSuccess && (
+                    <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold text-xs flex items-center gap-2 animate-fade-in">
+                      <span>✓</span>
+                      <span>{handoverSuccess}</span>
+                    </div>
+                  )}
+
+                  <div className="pt-1 flex flex-wrap items-center gap-2">
+                    {/* Se la guida è attualmente su un Copilota, l'Owner può riprenderla */}
+                    {props.remoteGpsLease?.holderUid && props.ownerUid && props.remoteGpsLease.holderUid !== props.ownerUid && (
+                      <button
+                        type="button"
+                        disabled={isHandoverLoading || props.isDetectingGps || !isOnline}
+                        onClick={async () => {
+                          if (!props.onRevokeGps) return;
+                          setIsHandoverLoading(true);
+                          setHandoverSuccess(null);
+                          try {
+                            await props.onRevokeGps();
+                            setHandoverSuccess(`Guida ripresa da ${props.ownerName || '***REMOVED***'} ✓`);
+                            setTimeout(() => setHandoverSuccess(null), 5000);
+                          } catch (err: any) {
+                            alert(err?.message || 'Errore ripresa guida.');
+                          } finally {
+                            setIsHandoverLoading(false);
+                          }
+                        }}
+                        className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition active:scale-95 cursor-pointer disabled:opacity-50 shadow-xs"
+                      >
+                        {isHandoverLoading ? 'Aggiornamento…' : `Riprendi la guida`}
+                      </button>
+                    )}
+
+                    {/* Elenco Copiloti per il passaggio */}
+                    {copilotsList.length > 0 ? (
+                      copilotsList.map(copilot => {
+                        const isCurrentGuide = props.remoteGpsLease?.holderUid === copilot.uid;
+                        if (isCurrentGuide) return null;
+                        const copilotDevice = (props.gpsDevices || []).find(d => d.uid === copilot.uid)
+                          || (props.gpsDevices || []).find(d => d.role === 'copilota');
+
+                        return (
+                          <button
+                            key={copilot.uid}
+                            type="button"
+                            disabled={isHandoverLoading || props.isDetectingGps || !isOnline}
+                            onClick={async () => {
+                              if (!props.onTransferGps) return;
+                              const targetDeviceId = copilotDevice?.deviceId || 'copilot_device';
+                              setIsHandoverLoading(true);
+                              setHandoverSuccess(null);
+                              try {
+                                await props.onTransferGps(copilot.uid, targetDeviceId);
+                                setHandoverSuccess(`Guida assegnata a ${copilot.name} ✓`);
+                                setTimeout(() => setHandoverSuccess(null), 5000);
+                              } catch (err: any) {
+                                alert(err?.message || 'Errore passaggio guida.');
+                              } finally {
+                                setIsHandoverLoading(false);
+                              }
+                            }}
+                            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs transition active:scale-95 cursor-pointer disabled:opacity-50 shadow-xs flex items-center gap-1.5"
+                          >
+                            <span>👉</span>
+                            <span>{isHandoverLoading ? 'Assegnazione…' : `Passa la guida a ${copilot.name}`}</span>
+                          </button>
+                        );
+                      })
                     ) : (
                       <span className="text-[11px] text-slate-400 italic">
-                        Nessun copilota online collegato.
+                        Nessun copilota registrato. Condividi l’invito per abilitare un copilota alla guida.
                       </span>
                     )}
                   </div>
+                </div>
+              )}
+
+              {/* STATO GUIDA PER IL COPILOTA */}
+              {props.isCopilota && (
+                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900/40 text-xs space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs">
+                      <span>🚗</span>
+                      <span>Stato Guida GPS</span>
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                      Guida attuale: <strong>{currentGuideName}</strong>
+                    </span>
+                  </div>
+
+                  {props.isGpsHolder ? (
+                    <div className="space-y-2 pt-1">
+                      <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
+                        <span>🌟</span>
+                        <span>Sei la Guida! Il tuo dispositivo è autorizzato a trasmettere la posizione.</span>
+                      </div>
+                      {!isFreshGps && (
+                        <button
+                          type="button"
+                          disabled={props.isDetectingGps || !isOnline}
+                          onClick={props.onStartGps}
+                          className="w-full py-2.5 rounded-xl bg-[#FF6B5F] hover:bg-[#e0554a] text-white font-bold text-xs shadow-md active:scale-95 transition cursor-pointer"
+                        >
+                          {props.isDetectingGps ? 'Avvio rilevamento…' : 'Attiva la posizione su questo dispositivo 📡'}
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      L’organizzatore ({props.ownerName || '***REMOVED***'}) può delegarti la guida in qualsiasi momento.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

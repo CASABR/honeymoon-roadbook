@@ -41,6 +41,12 @@ export interface LiveGpsDevice {
   lastSeen: number;
 }
 
+export interface TripMemberInfo {
+  uid: string;
+  name: string;
+  role: string;
+}
+
 export interface LiveGpsPositionInput {
   lat: number;
   lng: number;
@@ -134,6 +140,24 @@ export const liveGpsService = {
           role: typeof data.role === 'string' ? data.role : '',
           label: typeof data.label === 'string' ? data.label : `Dispositivo ${item.id.slice(0, 6)}`,
           lastSeen: typeof data.lastSeen === 'number' ? data.lastSeen : 0
+        };
+      }));
+    }, () => callback([]));
+  },
+
+  subscribeMembers(tripId: string, callback: (members: TripMemberInfo[]) => void): () => void {
+    if (!db || !tripId) {
+      callback([]);
+      return () => {};
+    }
+    const memRef = collection(db, 'trips', tripId, 'members');
+    return onSnapshot(memRef, (snapshot) => {
+      callback(snapshot.docs.map(docSnap => {
+        const data = docSnap.data();
+        return {
+          uid: docSnap.id,
+          name: typeof data.name === 'string' ? data.name : (data.role === 'copilota' ? 'Copilota' : 'Organizzatore'),
+          role: typeof data.role === 'string' ? data.role : 'copilota'
         };
       }));
     }, () => callback([]));

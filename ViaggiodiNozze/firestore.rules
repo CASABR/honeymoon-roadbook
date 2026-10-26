@@ -108,7 +108,10 @@ service cloud.firestore {
         // Lettura del singolo invito consentita con token esatto per verifica prima del join
         // (List/scansione vietata ai non-owner: nessuno può enumerare o cercare token altrui)
         allow get: if isSignedIn()
-                   && (isTripOwner(tripId) || (resource.data.status == 'active' && resource.data.expiresAt > request.time));
+                   && (
+                     isTripOwner(tripId)
+                     || (resource.data.inviteToken == inviteToken && resource.data.status in ['active', 'used'])
+                   );
         allow list: if isTripOwner(tripId) || isGlobalAdmin();
 
         // Creazione dell'invito: solo l'owner del viaggio, token ad alta entropia, mai per il viaggio 0000

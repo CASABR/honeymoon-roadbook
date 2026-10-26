@@ -27,6 +27,10 @@
 | **Cartoline LIVE (P0)** | Cartolina eliminata non ricompare dopo refresh/sync multi-client, tombstones persistenti, foto locale preservata. | PUBBLICATO | Rilasciato su app-viaggio-di-nozze e online nel bundle index-djclbXgz.js |
 | **Header LIVE Mobile (P1)** | Header compatto ~48px, badge LIVE pulsante, titolo viaggio dinamico, zero ridondanze/sovrapposizioni (320px/393px). | PUBBLICATO | Online nel bundle index-djclbXgz.js |
 | **Rotella Impostazioni (P1)** | Semplificata, rimossi Guida/Tutorial e duplicati, 4 voci essenziali + cassetto Opzioni Avanzate, admin con ?admin=1. | PUBBLICATO | Online nel bundle index-djclbXgz.js |
+| **Persistenza Attività & Orari (P0)** | Salvataggio simultaneo e contemporaneo senza abort precoce, sync orari, decisioni collisioni in localStorage. | TESTATO | 14/14 test passati su Firebase Emulator (JDK 21), build 0 errori |
+| **Link Invito 1° Click (P0)** | Zero errori transitori permessi al primo click, ensureSignedInUser(), metadati nel token, auto-join immediato membri. | TESTATO | 14/14 test passati su Firebase Emulator (JDK 21), build 0 errori |
+| **Selettore Viaggi Safari (P1)** | Spiegazione chiara stato Ospite anonimo vs Google account, login sicuro, no restore cieco né perdita GIAPPONE. | TESTATO | Build 0 errori, isolamento sandboxed verificato |
+| **Delega Guida GPS Nomi Reali (P1)** | Nomi reali (***REMOVED***/***REMOVED***), rimossi codici tecnici, feedback su scrittura Firestore, immutabilità assoluta ownerUid. | TESTATO | 14/14 test passati su Firebase Emulator (JDK 21), build 0 errori |
 
 ---
 

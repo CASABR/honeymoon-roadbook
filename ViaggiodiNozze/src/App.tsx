@@ -112,7 +112,12 @@ export default function App() {
   // PRIMISSIMA operazione sincrona: verifica se la sessione del dispositivo è autenticata
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
     if (typeof localStorage === 'undefined') return false;
+    const urlParams = new URLSearchParams(window.location.search);
+    const joinCode = urlParams.get('join');
     const session = getPersistedSession();
+    if (joinCode && session.tripId && session.tripId !== joinCode) {
+      return false;
+    }
     if (session.isAuthenticated) {
       // Se l'utente è già autenticato da una sessione precedente, segna l'onboarding completato
       localStorage.setItem('houni_onboarding_completed_v1', 'true');

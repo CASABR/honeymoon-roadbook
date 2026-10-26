@@ -273,7 +273,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           }
 
           const collisionKey = `collision_dismissed_${first.id}_${second.id}`;
-          const isDismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey);
+          const isDismissed = (typeof localStorage !== 'undefined' && localStorage.getItem(collisionKey)) ||
+                              (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey));
           if (!isDismissed) {
             foundCollision = {
               id: collisionKey,
@@ -1769,8 +1770,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       <TimeCollisionModal
         collision={activeCollision}
         onKeepBoth={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'keep');
+          if (activeCollision) {
+            if (typeof localStorage !== 'undefined') {
+              try { localStorage.setItem(activeCollision.id, 'keep'); } catch {}
+            }
+            if (typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem(activeCollision.id, 'keep');
+            }
           }
           setActiveCollision(null);
         }}
@@ -1783,8 +1789,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             else if (itemType === 'tappa') await storageService.deleteTappa(itemId);
             else if (itemType === 'alloggio') await storageService.deleteAccommodation(itemId);
             
-            if (activeCollision && typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'resolved');
+            if (activeCollision) {
+              if (typeof localStorage !== 'undefined') {
+                try { localStorage.setItem(activeCollision.id, 'resolved'); } catch {}
+              }
+              if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem(activeCollision.id, 'resolved');
+              }
             }
             setActiveCollision(null);
             await fetchTimeline();
@@ -1806,12 +1817,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               const activities = await storageService.getActivities();
               const found = activities.find(a => a.id === itemId);
               if (found) {
-                const newDate = shiftDateStr(found.date, dateDeltaDays);
+                const effectiveOldDate = found.date || (found.dayId?.startsWith('day_') ? found.dayId.replace('day_', '') : selectedDate);
+                const newDate = shiftDateStr(effectiveOldDate, dateDeltaDays);
                 const updated = {
                   ...found,
                   time: newTime,
                   orarioInizio: newTime,
-                  ...(newDate ? { date: newDate } : {}),
+                  orarioRitrovo: newTime,
+                  ...(newDate ? { date: newDate, dayId: `day_${newDate}` } : {}),
                   updatedAt: Date.now()
                 };
                 await storageService.saveActivity(updated);
@@ -1893,8 +1906,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               }
             }
 
-            if (activeCollision && typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'resolved');
+            if (activeCollision) {
+              if (typeof localStorage !== 'undefined') {
+                try { localStorage.setItem(activeCollision.id, 'resolved'); } catch {}
+              }
+              if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem(activeCollision.id, 'resolved');
+              }
             }
             setActiveCollision(null);
             await fetchTimeline();
@@ -1905,8 +1923,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         onOpenEditForm={(item) => {
           if (item.type === 'trasporto' && item.originalData) {
             setEditingTransportItem(item.originalData as Trasporto);
-          } else if (item.type === 'attivita') {
-            setDetailItem(item);
+          } else if (item.type === 'attivita' && item.originalData) {
+            setEditingActivityItem(item.originalData as Attivita);
           } else if (item.type === 'ristorante' && item.originalData) {
             setEditingRistoranteItem(item.originalData);
           } else if (item.type === 'alloggio' && item.originalData) {
@@ -1919,8 +1937,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           setActiveCollision(null);
         }}
         onDismiss={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'dismissed');
+          if (activeCollision) {
+            if (typeof localStorage !== 'undefined') {
+              try { localStorage.setItem(activeCollision.id, 'dismissed'); } catch {}
+            }
+            if (typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem(activeCollision.id, 'dismissed');
+            }
           }
           setActiveCollision(null);
         }}

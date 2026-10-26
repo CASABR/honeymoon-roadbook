@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
 import type { Attivita, TransportAttachment, Coordinate, TipologiaPercorsoTrekking } from '../../types';
-import { storageService } from '../../storage/storageService';
 import { processFileForAttachment, formatFileSize, openAttachmentInNewTab, checkStorageAvailability } from '../../utils/fileAttachment';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import DropZone from '../common/DropZone';
@@ -64,8 +63,6 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
   }, []);
 
   const [error, setError] = useState('');
-  const [conflictWarning, setConflictWarning] = useState('');
-  const [isConflictConfirmed, setIsConflictConfirmed] = useState(false);
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
@@ -75,9 +72,8 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       setTitle(initialData.title);
       const dateVal = initialData.date || (initialData.dayId.startsWith('day_') ? initialData.dayId.replace('day_', '') : '');
       setCustomDate(dateVal);
-      setEndDate(initialData.endDate || '');
-      setOrarioRitrovo(initialData.orarioRitrovo || initialData.time || '');
-      setOrarioInizio(initialData.orarioInizio || '');
+      setOrarioRitrovo(initialData.orarioRitrovo || '');
+      setOrarioInizio(initialData.orarioInizio || initialData.time || '');
       setDuration(initialData.duration || '');
       setDistanceKm(initialData.distanceKm?.toString() || '');
       setElevationGainM(initialData.elevationGainM?.toString() || '');
@@ -136,28 +132,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
     }
   }, [initialData, selectedDayId]);
 
-  const parseDurationToMinutes = (dur: string) => {
-    let m = 0;
-    const matchH = dur.match(/(\d+)\s*h/i);
-    if (matchH) m += parseInt(matchH[1], 10) * 60;
-    const matchM = dur.match(/(\d+)\s*m/i);
-    if (matchM) m += parseInt(matchM[1], 10);
-    if (!matchH && !matchM) {
-      const floatVal = parseFloat(dur.replace(',', '.'));
-      if (!isNaN(floatVal)) m += floatVal * 60;
-    }
-    return m;
-  };
 
-  const getTimeMinutes = (t: string) => {
-    const [hh, mm] = t.split(':').map(Number);
-    return hh * 60 + (mm || 0);
-  };
-
-  useEffect(() => {
-    setIsConflictConfirmed(false);
-    setConflictWarning('');
-  }, [orarioInizio, duration, customDate]);
 
   const handleFilesBatch = async (filesArray: File[]) => {
     if (!filesArray || filesArray.length === 0) return;
@@ -226,35 +201,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       return;
     }
 
-    // Validazione Sovrapposizione
-    if (!isConflictConfirmed && orarioInizio && customDate) {
-      try {
-        const acts = await storageService.getActivities(`day_${customDate}`);
-        const currentStart = getTimeMinutes(orarioInizio);
-        const currentDur = duration ? parseDurationToMinutes(duration) : 60; // fallback 1h
-        const currentEnd = currentStart + currentDur;
-
-        const conflict = acts.find(act => {
-          if (act.id === initialData?.id) return false;
-          if (!act.orarioInizio) return false;
-          const actStart = getTimeMinutes(act.orarioInizio);
-          const actDur = act.duration ? parseDurationToMinutes(act.duration) : 60;
-          const actEnd = actStart + actDur;
-          return currentStart < actEnd && currentEnd > actStart;
-        });
-
-        if (conflict) {
-          setConflictWarning(`Attenzione: hai già un'attività pianificata in questo intervallo orario ("${conflict.title}").`);
-          setIsConflictConfirmed(true);
-          return;
-        }
-      } catch (err) {
-        console.error('Errore validazione sovrapposizione:', err);
-      }
-    }
-
     setError('');
-    setConflictWarning('');
 
     setIsGeocoding(true);
     let finalCoord = initialData?.coordinate;
@@ -275,6 +222,10 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
     const totalHikingMinutes = (Number(hikingHours) || 0) * 60 + (Number(hikingMinutes) || 0);
     const trekking = isTrekking;
 
+    const effectiveTime = (orarioInizio || orarioRitrovo || initialData?.time || '').trim() || undefined;
+    const finalRitrovo = (orarioRitrovo || orarioInizio || '').trim() || undefined;
+    const finalInizio = (orarioInizio || orarioRitrovo || '').trim() || undefined;
+
     onSave({
       id: initialData?.id,
       dayId: `day_${customDate}`,
@@ -283,9 +234,9 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       title: title.trim(),
       sottocategoria: trekking ? 'Trekking' : (sottocategoria || undefined),
       category: 'visita', // fallback obbligatorio
-      orarioRitrovo: orarioRitrovo || undefined,
-      time: orarioInizio || orarioRitrovo || undefined, // legacy support
-      orarioInizio: orarioInizio || undefined,
+      orarioRitrovo: finalRitrovo,
+      time: effectiveTime, // primary timeline time
+      orarioInizio: finalInizio,
       duration: duration || undefined,
       distanceKm: trekking && parsedDistance && parsedDistance > 0 ? parsedDistance : initialData?.distanceKm,
       elevationGainM: trekking && parsedElevation && parsedElevation > 0 ? parsedElevation : initialData?.elevationGainM,
@@ -333,12 +284,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
         </div>
       )}
       
-      {conflictWarning && (
-        <div className="p-3 text-xs rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
-          <div className="font-bold flex items-center gap-1.5"><span className="text-lg">⚠️</span> {conflictWarning}</div>
-          <div className="mt-1 ml-6">Clicca di nuovo "Salva Modifiche" per confermare comunque.</div>
-        </div>
-      )}
+
 
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -727,7 +673,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
           disabled={isGeocoding}
           className={`w-full h-12 rounded-xl text-sm font-bold bg-[#FF6B5F] hover:bg-[#e85c50] active:scale-95 text-white shadow-lg transition-all ${isGeocoding ? 'opacity-70 cursor-not-allowed' : ''}`}
         >
-          {isGeocoding ? 'Salvataggio...' : 'Salva Modifiche'}
+          {isGeocoding ? 'Salvataggio in corso...' : initialData ? 'Aggiorna Attività' : 'Salva Modifiche'}
         </button>
         
         {onCancel && (

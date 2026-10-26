@@ -6,6 +6,28 @@
 
 ## ATTIVITÀ APERTE & SPRINT BETA RELEASE CANDIDATE (TARGET: 28 OTTOBRE 2026)
 
+### 0.0 SPRINT STABILITÀ MODIFICHE, INVITI, MULTI-VIAGGIO E GPS UX (26 Ottobre 2026)
+- **P0 — Modifiche alle attività e orari non persistenti**:
+  - *Stato*: TESTATO (Emulator 14/14 PASS, Build PASS)
+  - Rimossa condizione bloccante `isConflictConfirmed` che abortiva il salvataggio in `AttivitaForm.tsx`.
+  - Sincronizzati rigorosamente `time`, `orarioInizio`, `orarioRitrovo` in card, form, storage e collision modal.
+  - Persistenza collision decisions in `localStorage` e apertura automatica form completo in `AttivitaView.tsx`.
+- **P0 — Link invito: "Missing or insufficient permissions"**:
+  - *Stato*: TESTATO (Emulator 14/14 PASS, Build PASS)
+  - Risolta asincronia di auth con `ensureSignedInUser()` prima delle query Firestore.
+  - Consentita lettura token `active` e `used` in Security Rules.
+  - Inclusi `tripTitle` e `ownerName` nel documento invito; stato di caricamento `isValidatingInvite` per evitare errori transitori.
+  - Auto-join immediato per utenti già registrati nei members.
+- **P1 — Selettore "I tuoi viaggi" in Safari (Multi-viaggio)**:
+  - *Stato*: TESTATO (Build PASS)
+  - Chiarito isolamento sandbox e stato "Ospite anonimo" con spiegazione e pulsante "Accedi con Google".
+  - Nessun restore indebito del viaggio master `0000` né perdita del viaggio `GIAPPONE`.
+- **P1 — Delega Guida GPS con nomi reali e feedback Firestore**:
+  - *Stato*: TESTATO (Emulator 14/14 PASS, Build PASS)
+  - Rimossi codici dispositivo tecnici e sostituiti con pulsanti ad azione diretta con nomi reali (*"Guida attuale: ***REMOVED***"*, *"Passa la guida a ***REMOVED***"*, *"Riprendi la guida"*).
+  - Feedback di conferma mostrato solo dopo esito positivo della scrittura Firestore.
+  - Immutabilità assoluta di `ownerUid` del viaggio preservata.
+
 ### 0.1 HOTFIX P0 COLLAUDO REALE — GPS Cloud, Cartoline Live & UX (26 Ottobre 2026)
 - **P0-1 — GPS: "Limite temporaneo operazioni cloud raggiunto"**:
   - *Stato*: PUBBLICATO

@@ -145,7 +145,8 @@ export default function AttivitaView() {
           // Criterio utente: uguali/simili = stesso giorno AND (stesso orario OR nome simile)
           if (sameTime || similar) {
             const collisionKey = `activity_collision_${actA.id}_${actB.id}`;
-            const isDismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey);
+            const isDismissed = (typeof localStorage !== 'undefined' && localStorage.getItem(collisionKey)) ||
+                                (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey));
 
             if (!isDismissed) {
               const toTimelineItem = (act: Attivita): TimelineItem => ({
@@ -535,8 +536,13 @@ export default function AttivitaView() {
       <TimeCollisionModal
         collision={activeCollision}
         onKeepBoth={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'keep');
+          if (activeCollision) {
+            if (typeof localStorage !== 'undefined') {
+              try { localStorage.setItem(activeCollision.id, 'keep'); } catch {}
+            }
+            if (typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem(activeCollision.id, 'keep');
+            }
           }
           setActiveCollision(null);
         }}
@@ -544,8 +550,13 @@ export default function AttivitaView() {
           try {
             await storageService.deleteActivity(itemId);
             setActivities(prev => prev.filter(a => a.id !== itemId));
-            if (activeCollision && typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'resolved');
+            if (activeCollision) {
+              if (typeof localStorage !== 'undefined') {
+                try { localStorage.setItem(activeCollision.id, 'resolved'); } catch {}
+              }
+              if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem(activeCollision.id, 'resolved');
+              }
             }
           } catch (e) {
             console.error('Errore durante eliminazione attività duplicata:', e);
@@ -565,19 +576,26 @@ export default function AttivitaView() {
 
             const found = activities.find(a => a.id === itemId);
             if (found) {
-              const newDate = shiftDateStr(found.date, dateDeltaDays);
+              const effectiveOldDate = found.date || (found.dayId?.startsWith('day_') ? found.dayId.replace('day_', '') : (selectedDate !== 'tutte' ? selectedDate : ''));
+              const newDate = shiftDateStr(effectiveOldDate, dateDeltaDays);
               const updated = {
                 ...found,
                 time: newTime,
                 orarioInizio: newTime,
-                ...(newDate ? { date: newDate } : {}),
+                orarioRitrovo: newTime,
+                ...(newDate ? { date: newDate, dayId: `day_${newDate}` } : {}),
                 updatedAt: Date.now()
               };
               await storageService.saveActivity(updated);
               setActivities(prev => prev.map(a => a.id === itemId ? updated : a));
             }
-            if (activeCollision && typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'resolved');
+            if (activeCollision) {
+              if (typeof localStorage !== 'undefined') {
+                try { localStorage.setItem(activeCollision.id, 'resolved'); } catch {}
+              }
+              if (typeof sessionStorage !== 'undefined') {
+                sessionStorage.setItem(activeCollision.id, 'resolved');
+              }
             }
           } finally {
             setActiveCollision(null);
@@ -585,12 +603,21 @@ export default function AttivitaView() {
         }}
         onOpenEditForm={(item) => {
           const found = activities.find(a => a.id === item.id);
-          if (found) setEditingActivity(found);
+          if (found) {
+            setEditingActivity(found);
+            setTargetDayForActivity(found.dayId || (found.date ? `day_${found.date}` : undefined));
+            setIsActivityModalOpen(true);
+          }
           setActiveCollision(null);
         }}
         onDismiss={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'dismissed');
+          if (activeCollision) {
+            if (typeof localStorage !== 'undefined') {
+              try { localStorage.setItem(activeCollision.id, 'dismissed'); } catch {}
+            }
+            if (typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem(activeCollision.id, 'dismissed');
+            }
           }
           setActiveCollision(null);
         }}

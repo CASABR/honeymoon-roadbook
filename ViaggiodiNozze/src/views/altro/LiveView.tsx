@@ -74,7 +74,7 @@ import { liveService, type LiveUpdate } from '../../services/liveService';
 import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
 import LiveEditorialExperience, { type LiveGalleryPhotoItem } from './LiveEditorialExperience';
-import { liveGpsService, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation } from '../../services/liveGpsService';
+import { liveGpsService, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation, type TripMemberInfo } from '../../services/liveGpsService';
 import { registerDeviceOnFirestore } from '../../utils/deviceSession';
 
 export default function LiveView({ onBack, isStandaloneExternal = false, tripId }: LiveViewProps) {
@@ -183,6 +183,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [remoteGpsLease, setRemoteGpsLease] = useState<LiveGpsLease | null>(null);
   const [remoteGpsLocation, setRemoteGpsLocation] = useState<LiveGpsLocation | null>(null);
   const [gpsDevices, setGpsDevices] = useState<LiveGpsDevice[]>([]);
+  const [tripMembers, setTripMembers] = useState<TripMemberInfo[]>([]);
   const gpsWatchRef = useRef<number | null>(null);
   const lastGpsPublishRef = useRef(0);
   const remoteLocationRef = useRef<LiveGpsLocation | null>(null);
@@ -231,11 +232,25 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     const unsubscribeDevices = cloudRole === 'owner'
       ? liveGpsService.subscribeDevices(activeTripId, setGpsDevices)
       : () => {};
+    const unsubscribeMembers = liveGpsService.subscribeMembers(activeTripId, setTripMembers);
     return () => {
       unsubscribeLease();
       unsubscribeDevices();
+      unsubscribeMembers();
     };
   }, [activeTripId, cloudRole, deviceRole]);
+
+  const activeTripCfg = getTripConfig();
+  const membersMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    if (activeTripCfg?.ownerUid) {
+      map[activeTripCfg.ownerUid] = activeTripCfg.ownerName || '***REMOVED***';
+    }
+    tripMembers.forEach(m => {
+      if (m.name) map[m.uid] = m.name;
+    });
+    return map;
+  }, [activeTripCfg?.ownerUid, activeTripCfg?.ownerName, tripMembers]);
 
   useEffect(() => {
     const ownsActiveLease = remoteGpsLease?.status === 'active'
@@ -1675,12 +1690,18 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       isOwner={cloudRole === 'owner'}
       isCopilota={cloudRole === 'copilota'}
       gpsDevices={gpsDevices}
+      tripMembers={tripMembers}
+      membersMap={membersMap}
+      ownerName={activeTripCfg?.ownerName || '***REMOVED***'}
+      ownerUid={activeTripCfg?.ownerUid || ''}
       onStartGps={handleStartGps}
       onPauseGps={() => handlePauseOrStopGps('paused')}
       onResumeGps={handleStartGps}
       onStopGps={() => handlePauseOrStopGps('stopped')}
       onTransferGps={handleTransferGps}
-      onRevokeGps={() => currentUid && handleTransferGps(currentUid, liveGpsService.getDeviceId())}
+      onRevokeGps={() => {
+        if (currentUid) return handleTransferGps(currentUid, liveGpsService.getDeviceId());
+      }}
       liveIntelligence={liveIntelligence}
       mapCenterMode={mapCenterMode}
       onChangeMapCenterMode={setMapCenterMode}

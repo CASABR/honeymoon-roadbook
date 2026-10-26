@@ -54,6 +54,11 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   } | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isValidatingInvite, setIsValidatingInvite] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    const p = new URLSearchParams(window.location.search);
+    return Boolean(p.get('join') && p.get('token'));
+  });
 
   // Multi-device account login state
   const [loginEmail, setLoginEmail] = useState('');
@@ -221,7 +226,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
 
       if (tokenParam) {
         setInviteToken(tokenParam);
-        validateTripInvite(joinCode, tokenParam).then(res => {
+        setIsValidatingInvite(true);
+        validateTripInvite(joinCode, tokenParam).then(async (res) => {
           if (res.valid) {
             setInviteDetails({
               tripId: joinCode,
@@ -229,11 +235,16 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               ownerName: res.ownerName,
               expiresAt: res.expiresAt
             });
+            if (res.isAlreadyMember) {
+              await executeJoin(joinCode, tokenParam);
+            }
           } else {
             setInviteError(res.error || 'Invito non valido o scaduto.');
           }
         }).catch(err => {
           setInviteError(err?.message || 'Errore convalida invito.');
+        }).finally(() => {
+          setIsValidatingInvite(false);
         });
       }
     }
@@ -1193,7 +1204,17 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           </div>
         </div>
 
-        {inviteDetails ? (
+        {isValidatingInvite ? (
+          <div className="py-10 text-center space-y-4">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center animate-pulse text-2xl">
+              🤝
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white">Verifica invito in corso…</h3>
+              <p className="text-xs text-slate-400 mt-1">Connessione sicura al viaggio...</p>
+            </div>
+          </div>
+        ) : inviteDetails ? (
           <div className="space-y-4">
             <div className="p-4 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 text-left space-y-2">
               <div className="flex items-center gap-2 text-indigo-300 font-extrabold text-xs uppercase tracking-wider">

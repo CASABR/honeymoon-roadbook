@@ -8,7 +8,7 @@ import {
   writeBatch,
   arrayUnion
 } from 'firebase/firestore';
-import type { User } from 'firebase/auth';
+import { type User, signInAnonymously } from 'firebase/auth';
 import { db, auth } from '../firebase';
 import { recordUserAccess } from './userAccessService';
 
@@ -32,6 +32,21 @@ export interface InviteValidationResult {
   ownerName?: string;
   expiresAt?: number;
   invite?: TripInvite;
+  isAlreadyMember?: boolean;
+}
+
+/**
+ * Assicura che un utente Firebase sia autenticato (anonimo o Google) prima di interrogare Firestore.
+ * Previene categoricamente l'errore "Missing or insufficient permissions" causato da letture premature al primo click.
+ */
+export async function ensureSignedInUser(): Promise<User> {
+  if (!auth) throw new Error('Firebase Auth non disponibile.');
+  if (typeof (auth as any).authStateReady === 'function') {
+    await (auth as any).authStateReady();
+  }
+  if (auth.currentUser) return auth.currentUser;
+  const cred = await signInAnonymously(auth);
+  return cred.user;
 }
 
 /**
@@ -67,10 +82,23 @@ export async function createTripInvite(tripId: string): Promise<{
   const inviteToken = generateSecureToken();
   const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 giorni
 
+  let tripTitle = 'Viaggio';
+  let ownerName = user.displayName || '***REMOVED***';
+  try {
+    const tripSnap = await getDoc(doc(db, 'trips', tripId));
+    if (tripSnap.exists()) {
+      const td = tripSnap.data();
+      if (td.title) tripTitle = td.title;
+      if (td.ownerName) ownerName = td.ownerName;
+    }
+  } catch {}
+
   const inviteRef = doc(db, 'trips', tripId, 'invites', inviteToken);
   await setDoc(inviteRef, {
     inviteToken,
     tripId,
+    tripTitle,
+    ownerName,
     role: 'copilota',
     createdBy: user.uid,
     createdAt: serverTimestamp(),
@@ -102,6 +130,36 @@ export async function validateTripInvite(tripId: string, token: string): Promise
   }
 
   try {
+    // 1. Assicura che l'autenticazione sia risolta PRIMA di qualsiasi operazione Firestore (elimina errori tecnici al 1° click)
+    const user = await ensureSignedInUser();
+
+    // 2. Controllo membership esistente: se l'utente è già membro autorizzato, consentiamo l'ingresso diretto senza toccare il token
+    try {
+      const memberRef = doc(db, 'trips', tripId, 'members', user.uid);
+      const memberSnap = await getDoc(memberRef);
+      if (memberSnap.exists()) {
+        let tripTitle = 'Viaggio';
+        let ownerName: string | undefined;
+        try {
+          const tripSnap = await getDoc(doc(db, 'trips', tripId));
+          if (tripSnap.exists()) {
+            const td = tripSnap.data();
+            tripTitle = td?.title || 'Viaggio';
+            ownerName = td?.ownerName;
+          }
+        } catch {}
+        return {
+          valid: true,
+          isAlreadyMember: true,
+          tripId,
+          tripTitle,
+          ownerName
+        };
+      }
+    } catch {
+      // Ignora errore membership per procedere con la validazione ordinaria dell'invito
+    }
+
     const inviteRef = doc(db, 'trips', tripId, 'invites', token);
     const snap = await getDoc(inviteRef);
 
@@ -121,6 +179,15 @@ export async function validateTripInvite(tripId: string, token: string): Promise
     }
 
     if (data.status === 'used') {
+      // Se è stato usato esattamente da questo stesso utente in precedenza, consentiamo l'ingresso!
+      if (data.usedBy === user.uid) {
+        return {
+          valid: true,
+          isAlreadyMember: true,
+          tripId,
+          tripTitle: data.tripTitle || 'Viaggio'
+        };
+      }
       return {
         valid: false,
         tripId,
@@ -137,14 +204,14 @@ export async function validateTripInvite(tripId: string, token: string): Promise
     }
 
     // Carica metadati base del viaggio per conferma visiva all'utente
-    let tripTitle = 'Viaggio';
-    let ownerName: string | undefined;
+    let tripTitle = data.tripTitle || 'Viaggio';
+    let ownerName: string | undefined = data.ownerName;
     try {
       const tripSnap = await getDoc(doc(db, 'trips', tripId));
       if (tripSnap.exists()) {
         const tData = tripSnap.data();
-        tripTitle = tData.title || 'Viaggio';
-        ownerName = tData.ownerName;
+        tripTitle = tData.title || tripTitle;
+        ownerName = tData.ownerName || ownerName;
       }
     } catch {
       // Ignora errore lettura trip metadati se limitato da rules
@@ -169,6 +236,13 @@ export async function validateTripInvite(tripId: string, token: string): Promise
     };
   } catch (err: any) {
     console.warn('[TripInviteService] Errore verifica invito:', err);
+    const code = err?.code || '';
+    if (code === 'permission-denied') {
+      return { valid: false, error: 'Permesso negato: l’invito non è valido, è scaduto oppure non sei autorizzato.' };
+    }
+    if (code === 'unavailable') {
+      return { valid: false, error: 'Connessione non disponibile. Controlla la rete e riprova.' };
+    }
     return { valid: false, error: err?.message || 'Impossibile verificare l’invito. Controlla la connessione.' };
   }
 }
