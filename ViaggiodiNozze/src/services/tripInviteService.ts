@@ -264,6 +264,24 @@ export async function redeemTripInvite(
   if (tripId === '0000') return { success: false, error: 'Il viaggio 0000 non supporta adesioni da invito.' };
 
   try {
+    const inviteRef = doc(db, 'trips', tripId, 'invites', token);
+    const snap = await getDoc(inviteRef).catch(() => null);
+    if (snap && snap.exists()) {
+      const data = snap.data();
+      if (data.status === 'used' && data.usedBy !== user.uid) {
+        return {
+          success: false,
+          error: 'Questo invito è già stato utilizzato. Chiedi all’organizzatore del viaggio di generare un nuovo invito per il tuo account.'
+        };
+      }
+      if (data.status === 'revoked') {
+        return {
+          success: false,
+          error: 'Questo link di invito è stato revocato dall’organizzatore.'
+        };
+      }
+    }
+
     const batch = writeBatch(db);
 
     const copilotName = (displayName && displayName.trim()) || user.displayName || 'Copilota';
@@ -278,7 +296,6 @@ export async function redeemTripInvite(
       updatedAt: serverTimestamp()
     });
 
-    const inviteRef = doc(db, 'trips', tripId, 'invites', token);
     batch.update(inviteRef, {
       status: 'used',
       usedBy: user.uid,
@@ -329,154 +346,5 @@ export async function revokeTripInvite(tripId: string, token: string): Promise<v
     status: 'revoked',
     updatedAt: serverTimestamp()
   });
-}
-
-/**
- * Prepara una prova crittografica verificabile (Handshake) mentre l'utente anonimo
- * è ancora autenticato nella sessione corrente.
- * Genera un segreto monouso ad alta entropia (128-bit) memorizzato temporaneamente su Firestore.
- * Solo l'utente anonimo autenticato può scrivere il proprio handshake.
- */
-export async function prepareIdentityHandshake(
-  anonUser: User,
-  tripId: string,
-  token: string
-): Promise<{ success: boolean; secret?: string; error?: string }> {
-  if (!db || !anonUser?.uid || !tripId || !token || tripId === '0000') {
-    return { success: false, error: 'Parametri handshake non validi.' };
-  }
-
-  try {
-    const secret = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : `hs_${Date.now()}_${Math.random().toString(36).slice(2, 12)}`;
-
-    const expiresAt = Timestamp.fromMillis(Date.now() + 5 * 60 * 1000); // 5 minuti di validità
-
-    const handshakeRef = doc(db, 'identity_handshakes', anonUser.uid);
-    await setDoc(handshakeRef, {
-      anonUid: anonUser.uid,
-      secret,
-      tripId,
-      inviteToken: token,
-      createdAt: serverTimestamp(),
-      expiresAt
-    });
-
-    return { success: true, secret };
-  } catch (err: any) {
-    console.warn('[TripInviteService] Impossibile preparare handshake identità:', err);
-    return { success: false, error: err?.message || 'Errore preparazione prova identità.' };
-  }
-}
-
-/**
- * Riconcilia in modo autorizzato un invito riscattato precedentemente da un account anonimo
- * con il nuovo account permanente (es. Google), verificando la prova crittografica (Handshake secret).
- * Non consente il recupero basandosi solo su UID, localStorage, email o token consumato:
- * richiede la prova crittografica emessa dall'identità precedente.
- * Non trasferisce ownership; assegna esclusivamente il ruolo autorizzato 'copilota'.
- */
-export async function reconcileAnonymousInviteWithProof(
-  tripId: string,
-  token: string,
-  prevAnonUid: string,
-  secret: string,
-  targetUser: User
-): Promise<{ success: boolean; error?: string }> {
-  if (!db || !targetUser?.uid || !prevAnonUid || !token || !secret || !tripId || tripId === '0000') {
-    return { success: false, error: 'Parametri di riconciliazione non validi o prova mancante.' };
-  }
-
-  try {
-    // 1. Verifica token invito
-    const inviteRef = doc(db, 'trips', tripId, 'invites', token);
-    const snap = await getDoc(inviteRef);
-    if (!snap.exists()) {
-      return { success: false, error: 'Invito non trovato.' };
-    }
-    const data = snap.data();
-    if (data.status === 'revoked') {
-      return { success: false, error: 'Invito revocato.' };
-    }
-    // L'invito deve essere stato utilizzato esattamente dall'UID anonimo di questa sessione
-    if (data.usedBy !== prevAnonUid && data.usedBy !== targetUser.uid) {
-      return { success: false, error: 'Invito non associato all’identità precedente.' };
-    }
-
-    // 2. Verifica prova crittografica Handshake
-    const handshakeRef = doc(db, 'identity_handshakes', prevAnonUid);
-    const hsSnap = await getDoc(handshakeRef);
-    if (!hsSnap.exists()) {
-      return { success: false, error: 'Nessuna prova di controllo dell’identità precedente trovata.' };
-    }
-    const hsData = hsSnap.data();
-    if (hsData.secret !== secret) {
-      return { success: false, error: 'Prova crittografica di identità non valida.' };
-    }
-    const expiresAt = hsData.expiresAt instanceof Timestamp ? hsData.expiresAt.toMillis() : (hsData.expiresAt || 0);
-    if (expiresAt > 0 && Date.now() > expiresAt) {
-      return { success: false, error: 'La prova crittografica è scaduta. Ripeti la connessione.' };
-    }
-
-    // 3. Batch atomica per registrare l'account permanente
-    const batch = writeBatch(db);
-    const memberRef = doc(db, 'trips', tripId, 'members', targetUser.uid);
-    batch.set(memberRef, {
-      uid: targetUser.uid,
-      role: 'copilota',
-      name: targetUser.displayName || 'Copilota',
-      inviteToken: token,
-      relinkedFrom: prevAnonUid,
-      handshakeSecret: secret,
-      joinedAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    }, { merge: true });
-
-    const tripRef = doc(db, 'trips', tripId);
-    batch.update(tripRef, {
-      members: arrayUnion(targetUser.uid),
-      updatedAt: serverTimestamp()
-    });
-
-    // Invalida la prova monouso
-    batch.delete(handshakeRef);
-
-    await batch.commit();
-
-    // Registra accesso utente permanente
-    await recordUserAccess(targetUser, tripId);
-
-    // Aggiorna storage locale del dispositivo
-    if (typeof localStorage !== 'undefined') {
-      try {
-        localStorage.setItem(`roadbook_member_uid_${tripId}`, targetUser.uid);
-      } catch {}
-    }
-
-    return { success: true };
-  } catch (err: any) {
-    console.warn('[TripInviteService] Reconcile invite status:', err?.code || err?.message);
-    return {
-      success: false,
-      error: err?.code === 'permission-denied'
-        ? 'Riconciliazione in attesa di autorizzazione Firestore Rules.'
-        : err?.message || 'Errore riconciliazione invito.'
-    };
-  }
-}
-
-/** Wrapper retrocompatibile per chiamate legacy o non provviste di handshake separato */
-export async function reconcileAnonymousInviteToUser(
-  tripId: string,
-  token: string,
-  prevAnonUid: string,
-  targetUser: User
-): Promise<{ success: boolean; error?: string }> {
-  const secret = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(`houni_hs_${prevAnonUid}`) : null;
-  if (secret) {
-    return reconcileAnonymousInviteWithProof(tripId, token, prevAnonUid, secret, targetUser);
-  }
-  return { success: false, error: 'Nessuna prova crittografica disponibile per la riconciliazione.' };
 }
 

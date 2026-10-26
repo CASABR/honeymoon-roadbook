@@ -85,33 +85,24 @@ test('Scenario 3: Anonimo crea A, collega Google -> linkWithPopup / linkWithCred
   );
 });
 
-// 4. Anonimo accetta invito B, poi collega Google: B resta accessibile
-test('Scenario 4: Anonimo accetta B, poi collega Google -> riconciliazione e opzione Google preliminare', () => {
+// 4. Utente invitato accede con Google preventivamente: invito legato direttamente all'identità permanente
+test('Scenario 4: Utente invitato accede con Google prima del riscatto -> legato all\'identità Google con regole attive', () => {
   assert.ok(
     onboardingView.includes('Accedi con Google per legare l\'invito al tuo account'),
     'OnboardingView offre accesso Google diretto prima del riscatto dell\'invito'
   );
   assert.ok(
-    tripInviteService.includes('export async function reconcileAnonymousInviteToUser'),
-    'tripInviteService implementa la funzione autorizzata di riconciliazione inviti'
+    tripInviteService.includes('batch.set(memberRef') && tripInviteService.includes('role: \'copilota\''),
+    'tripInviteService registra l\'utente Google direttamente come copilota'
   );
 });
 
-// 5. Google già esistente recupera un viaggio anonimo mediante procedura autorizzata con prova crittografica
-test('Scenario 5: Google già esistente recupera viaggio anonimo mediante prova crittografica Handshake', () => {
+// 5. Invito già consumato anonimamente: richiede esplicitamente un nuovo invito all'organizzatore
+test('Scenario 5: Invito già consumato -> richiede nuovo invito con messaggio chiaro e blocca riuso abusivo', () => {
   assert.ok(
-    tripInviteService.includes('export async function prepareIdentityHandshake') &&
-    tripInviteService.includes('export async function reconcileAnonymousInviteWithProof'),
-    'tripInviteService implementa il protocollo Handshake con prova verificabile'
-  );
-  assert.ok(
-    accountService.includes('prepareIdentityHandshake') &&
-    accountService.includes('reconcileAnonymousInviteWithProof'),
-    'accountService genera la prova crittografica prima del cambio di credenziale'
-  );
-  assert.ok(
-    tripInviteService.includes('hsData.secret !== secret'),
-    'reconcileAnonymousInviteWithProof rifiuta categoricamente richieste prive di segreto crittografico corrispondente'
+    tripInviteService.includes('data.status === \'used\' && data.usedBy !== user.uid') &&
+    tripInviteService.includes('Questo invito è già stato utilizzato. Chiedi all’organizzatore del viaggio di generare un nuovo invito'),
+    'redeemTripInvite rifiuta il riuso di inviti consumati e richiede esplicitamente un nuovo invito'
   );
 });
 
