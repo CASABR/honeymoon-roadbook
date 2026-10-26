@@ -15,106 +15,117 @@ export default function AttachmentUploader({ attachments = [], onChange, maxSize
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCounterRef = useRef(0);
 
-  const processSingleFile = async (file: File) => {
+  const processFiles = async (files: File[]) => {
     setError(null);
-
-    // Controlli base
-    if (file.size > maxSizeMB * 1024 * 1024) {
-      setError(`Il file supera il limite di ${maxSizeMB}MB.`);
-      return;
-    }
-
-    const type: 'image' | 'pdf' | null = isSupportedImageFile(file)
-      ? 'image'
-      : file.type === 'application/pdf'
-      ? 'pdf'
-      : null;
-
-    if (!type) {
-      setError('Formato non supportato. Usa JPG, PNG, WebP, HEIC/HEIF o PDF.');
-      return;
-    }
+    if (!files.length) return;
 
     setIsUploading(true);
+    const addedAttachments: TransportAttachment[] = [];
+    const errors: string[] = [];
 
-    try {
-      let dataUrl: string;
-      let finalSize = file.size;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
 
-      if (type === 'image') {
-        // Compressione automatica immagine (Canvas)
-        dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-              const canvas = document.createElement('canvas');
-              let width = img.width;
-              let height = img.height;
-              
-              // Max dimension 1200px
-              const MAX_DIM = 1200;
-              if (width > height && width > MAX_DIM) {
-                height *= MAX_DIM / width;
-                width = MAX_DIM;
-              } else if (height > MAX_DIM) {
-                width *= MAX_DIM / height;
-                height = MAX_DIM;
-              }
-              
-              canvas.width = width;
-              canvas.height = height;
-              const ctx = canvas.getContext('2d');
-              ctx?.drawImage(img, 0, 0, width, height);
-              
-              // Comprime a 0.7 JPEG
-              const compressed = canvas.toDataURL('image/jpeg', 0.7);
-              resolve(compressed);
+      // Controlli base
+      if (file.size > maxSizeMB * 1024 * 1024) {
+        errors.push(`"${file.name}" supera il limite di ${maxSizeMB}MB.`);
+        continue;
+      }
+
+      const type: 'image' | 'pdf' | null = isSupportedImageFile(file)
+        ? 'image'
+        : file.type === 'application/pdf'
+        ? 'pdf'
+        : null;
+
+      if (!type) {
+        errors.push(`Formato non supportato per "${file.name}".`);
+        continue;
+      }
+
+      try {
+        let dataUrl: string;
+        let finalSize = file.size;
+
+        if (type === 'image') {
+          // Compressione automatica immagine (Canvas)
+          dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              const img = new Image();
+              img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+                
+                // Max dimension 1200px
+                const MAX_DIM = 1200;
+                if (width > height && width > MAX_DIM) {
+                  height *= MAX_DIM / width;
+                  width = MAX_DIM;
+                } else if (height > MAX_DIM) {
+                  width *= MAX_DIM / height;
+                  height = MAX_DIM;
+                }
+                
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx?.drawImage(img, 0, 0, width, height);
+                
+                // Comprime a 0.7 JPEG
+                const compressed = canvas.toDataURL('image/jpeg', 0.7);
+                resolve(compressed);
+              };
+              img.onerror = reject;
+              img.src = e.target?.result as string;
             };
-            img.onerror = reject;
-            img.src = e.target?.result as string;
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        
-        // Stima approssimativa della dimensione finale in bytes dal base64
-        finalSize = Math.round((dataUrl.length * 3) / 4);
-      } else {
-        // Lettura PDF (Nessuna compressione)
-        dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-      }
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          
+          // Stima approssimativa della dimensione finale in bytes dal base64
+          finalSize = Math.round((dataUrl.length * 3) / 4);
+        } else {
+          // Lettura PDF (Nessuna compressione)
+          dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        }
 
-      const newAttachment: TransportAttachment = {
-        id: 'att_' + Date.now(),
-        name: file.name,
-        type,
-        dataUrl,
-        size: finalSize,
-        createdAt: new Date().toISOString()
-      };
-
-      onChange([...attachments, newAttachment]);
-    } catch (err) {
-      console.error('Errore lettura file:', err);
-      setError('Errore durante la lettura del file.');
-    } finally {
-      setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+        addedAttachments.push({
+          id: `att_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 6)}`,
+          name: file.name,
+          type,
+          dataUrl,
+          size: finalSize,
+          createdAt: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error('Errore lettura file:', err);
+        errors.push(`Errore lettura per "${file.name}".`);
       }
+    }
+
+    if (addedAttachments.length > 0) {
+      onChange([...attachments, ...addedAttachments]);
+    }
+    if (errors.length > 0) {
+      setError(errors.slice(0, 2).join(' '));
+    }
+    setIsUploading(false);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await processSingleFile(file);
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (!files.length) return;
+    await processFiles(files);
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
@@ -151,8 +162,7 @@ export default function AttachmentUploader({ attachments = [], onChange, maxSize
     if (isUploading) return;
 
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      await processSingleFile(file);
+      await processFiles(Array.from(e.dataTransfer.files));
     }
   };
 
@@ -209,6 +219,7 @@ export default function AttachmentUploader({ attachments = [], onChange, maxSize
         ref={fileInputRef}
         onChange={handleFileChange}
         accept={IMAGE_OR_PDF_FILE_ACCEPT}
+        multiple
         className="hidden"
       />
 

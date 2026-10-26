@@ -159,8 +159,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
-  const [pendingUploadFile, setPendingUploadFile] = useState<File | null>(null);
-  const [pendingUploadPreview, setPendingUploadPreview] = useState<string | null>(null);
+  const [pendingUploadItems, setPendingUploadItems] = useState<Array<{ id: string; file: File; preview: string; name: string }>>([]);
   const [pendingCaptionInput, setPendingCaptionInput] = useState('');
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -377,48 +376,91 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   const [isHandoverLoading, setIsHandoverLoading] = useState(false);
   const [handoverSuccess, setHandoverSuccess] = useState<string | null>(null);
 
-  // Gestione selezione foto da fotocamera / rullino
+  // Gestione selezione foto da fotocamera / rullino (singola o multipla)
   const handlePhotoFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const rawFiles = e.target.files ? Array.from(e.target.files) : [];
+    if (rawFiles.length === 0) return;
     setUploadError(null);
-    if (!isSupportedImageFile(file)) {
-      setUploadError('Formato non supportato. Scegli una foto JPG, PNG, WebP, HEIC o HEIF.');
-      e.target.value = '';
-      return;
+
+    const validNewItems: Array<{ id: string; file: File; preview: string; name: string }> = [];
+    const invalidFormatNames: string[] = [];
+    const oversizedNames: string[] = [];
+    const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
+
+    for (const file of rawFiles) {
+      if (!isSupportedImageFile(file)) {
+        invalidFormatNames.push(file.name);
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        oversizedNames.push(file.name);
+        continue;
+      }
+      try {
+        const preview = URL.createObjectURL(file);
+        validNewItems.push({
+          id: `pending_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          file,
+          preview,
+          name: file.name
+        });
+      } catch {
+        // Fallback
+      }
     }
-    setPendingUploadFile(file);
-    try {
-      const preview = URL.createObjectURL(file);
-      setPendingUploadPreview(preview);
-    } catch {
-      // Fallback
+
+    if (invalidFormatNames.length > 0) {
+      setUploadError(`Formato non supportato per: ${invalidFormatNames.slice(0, 2).join(', ')}. Usa JPG, PNG, WebP, HEIC o HEIF.`);
+    } else if (oversizedNames.length > 0) {
+      setUploadError(`File oltre il limite di 15MB: ${oversizedNames.slice(0, 2).join(', ')}.`);
     }
+
+    if (validNewItems.length > 0) {
+      setPendingUploadItems(prev => [...prev, ...validNewItems]);
+    }
+    e.target.value = '';
+  };
+
+  const handleRemovePendingItem = (idToRemove: string) => {
+    setPendingUploadItems(prev => {
+      const target = prev.find(item => item.id === idToRemove);
+      if (target?.preview) {
+        try { URL.revokeObjectURL(target.preview); } catch {}
+      }
+      return prev.filter(item => item.id !== idToRemove);
+    });
   };
 
   const handleConfirmPhotoUpload = async () => {
-    if (!pendingUploadFile || !props.onUploadPhoto) return;
+    if (pendingUploadItems.length === 0 || !props.onUploadPhoto) return;
     try {
       setIsUploadingPhoto(true);
       setUploadError(null);
-      await props.onUploadPhoto(pendingUploadFile, pendingCaptionInput.trim());
-      setPendingUploadFile(null);
-      setPendingUploadPreview(null);
+      for (const item of pendingUploadItems) {
+        await props.onUploadPhoto(item.file, pendingCaptionInput.trim() || undefined);
+      }
+      pendingUploadItems.forEach(item => {
+        if (item.preview) {
+          try { URL.revokeObjectURL(item.preview); } catch {}
+        }
+      });
+      setPendingUploadItems([]);
       setPendingCaptionInput('');
       if (fileUploadInputRef.current) fileUploadInputRef.current.value = '';
     } catch (err: any) {
-      setUploadError(err?.message || 'Errore durante il caricamento della foto.');
+      setUploadError(err?.message || 'Errore durante il caricamento delle foto.');
     } finally {
       setIsUploadingPhoto(false);
     }
   };
 
   const handleCancelPhotoUpload = () => {
-    if (pendingUploadPreview) {
-      try { URL.revokeObjectURL(pendingUploadPreview); } catch {}
-    }
-    setPendingUploadFile(null);
-    setPendingUploadPreview(null);
+    pendingUploadItems.forEach(item => {
+      if (item.preview) {
+        try { URL.revokeObjectURL(item.preview); } catch {}
+      }
+    });
+    setPendingUploadItems([]);
     setPendingCaptionInput('');
     setUploadError(null);
     if (fileUploadInputRef.current) fileUploadInputRef.current.value = '';
@@ -1358,6 +1400,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                   ref={fileUploadInputRef}
                   onChange={handlePhotoFileSelected}
                   accept={IMAGE_FILE_ACCEPT}
+                  multiple
                   className="hidden"
                 />
                 <button
@@ -1376,12 +1419,12 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         </div>
 
         {/* MODAL DI ANTEPRIMA E CONFERMA DIDASCALIA FOTO */}
-        {pendingUploadPreview && (
+        {pendingUploadItems.length > 0 && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
-            <div className="bg-white dark:bg-[#172033] rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="bg-white dark:bg-[#172033] rounded-3xl p-5 max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between">
                 <h3 className="font-extrabold text-slate-900 dark:text-white text-sm flex items-center gap-2">
-                  <span>📷</span> Nuova Foto per la Galleria
+                  <span>📷</span> {pendingUploadItems.length === 1 ? 'Nuova Foto per la Galleria' : `${pendingUploadItems.length} Nuove Foto per la Galleria`}
                 </h3>
                 <button
                   type="button"
@@ -1392,17 +1435,50 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 </button>
               </div>
 
-              <div className="rounded-2xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900">
-                <img
-                  src={pendingUploadPreview}
-                  alt="Anteprima caricamento"
-                  className="w-full h-full object-cover"
-                />
-              </div>
+              {pendingUploadItems.length === 1 ? (
+                <div className="relative rounded-2xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900">
+                  <img
+                    src={pendingUploadItems[0].preview}
+                    alt={pendingUploadItems[0].name}
+                    className="w-full h-full object-cover"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleRemovePendingItem(pendingUploadItems[0].id)}
+                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 hover:bg-rose-600 text-white text-xs font-bold flex items-center justify-center transition-colors cursor-pointer"
+                    title="Rimuovi foto"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+                  {pendingUploadItems.map((item, idx) => (
+                    <div key={item.id} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 group bg-slate-200 dark:bg-slate-800">
+                      <img
+                        src={item.preview}
+                        alt={item.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePendingItem(item.id)}
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-600 text-white text-xs font-bold flex items-center justify-center shadow-xs hover:bg-rose-700 transition-colors cursor-pointer"
+                        title="Rimuovi questa foto"
+                      >
+                        ✕
+                      </button>
+                      <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded-md bg-black/60 text-[9px] font-bold text-white">
+                        {idx + 1}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Didascalia o Luogo
+                  Didascalia o Luogo {pendingUploadItems.length > 1 ? '(applicata alle foto)' : ''}
                 </label>
                 <input
                   type="text"
@@ -1415,7 +1491,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
               {/* AVVISO DISCLOSURE SALVATAGGIO LOCALE BETA */}
               <p className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/40 leading-relaxed">
-                ℹ️ <strong>Nota Beta:</strong> La fotografia viene salvata in locale su questo dispositivo. La sincronizzazione automatica su cloud per gli ospiti remoti sarà attiva con lo Storage dedicato post-beta.
+                ℹ️ <strong>Nota Beta:</strong> Le fotografie vengono salvate in locale su questo dispositivo. La sincronizzazione automatica su cloud per gli ospiti remoti sarà attiva con lo Storage dedicato post-beta.
               </p>
 
               {uploadError && (
@@ -1432,11 +1508,15 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 </button>
                 <button
                   type="button"
-                  disabled={isUploadingPhoto}
+                  disabled={isUploadingPhoto || pendingUploadItems.length === 0}
                   onClick={handleConfirmPhotoUpload}
                   className="flex-1 py-2 text-xs font-bold text-white bg-[#FF6B5F] hover:bg-[#ed5d52] rounded-xl transition-colors cursor-pointer shadow-xs disabled:opacity-50"
                 >
-                  {isUploadingPhoto ? 'Salvataggio…' : 'Salva su dispositivo'}
+                  {isUploadingPhoto
+                    ? 'Salvataggio…'
+                    : pendingUploadItems.length === 1
+                    ? 'Salva su dispositivo'
+                    : `Salva ${pendingUploadItems.length} foto`}
                 </button>
               </div>
             </div>

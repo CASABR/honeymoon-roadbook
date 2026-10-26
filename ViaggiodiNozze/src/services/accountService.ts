@@ -114,14 +114,55 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
       tripIds.unshift(lastTripId);
     }
 
-    // Se sul dispositivo è memorizzato un viaggio attivo locale non ancora presente in associatedTripIds, lo controlliamo
-    if (typeof localStorage !== 'undefined') {
+    // Se l'utente si è autenticato con Google da una precedente sessione anonima su questo dispositivo,
+    // recuperiamo anche i tripId memorizzati sul record dell'UID anonimo precedente
+    const prevAnonUid = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('houni_prev_anon_uid') : null) ||
+      (typeof localStorage !== 'undefined' ? localStorage.getItem('hounigo_prev_anon_uid') : null);
+    if (prevAnonUid && prevAnonUid !== uid) {
       try {
-        const rawLocalConfig = localStorage.getItem('roadbook_trip_config');
-        if (rawLocalConfig) {
-          const parsed = JSON.parse(rawLocalConfig);
-          if (parsed?.id && parsed.id !== '0000' && !tripIds.includes(parsed.id)) {
-            tripIds.push(parsed.id);
+        const anonDocRef = doc(db, 'users', prevAnonUid);
+        const anonSnap = await getDoc(anonDocRef);
+        if (anonSnap.exists()) {
+          const anonData = anonSnap.data();
+          if (Array.isArray(anonData?.associatedTripIds)) {
+            anonData.associatedTripIds.forEach((tId: string) => {
+              if (tId && !tripIds.includes(tId)) tripIds.push(tId);
+            });
+          }
+          if (anonData?.lastTripId && !tripIds.includes(anonData.lastTripId)) {
+            tripIds.push(anonData.lastTripId);
+          }
+        }
+      } catch (err) {
+        console.warn('[accountService] Impossibile recuperare viaggi da UID anonimo precedente:', err);
+      }
+    }
+
+    // Controlliamo tutte le chiavi locali note di tripId memorizzati sul dispositivo
+    if (typeof localStorage !== 'undefined') {
+      const candidateKeys = ['roadbook_trip_config', 'hounigo_trip_config', 'houni_trip_id', 'hounigo_active_trip_id'];
+      for (const k of candidateKeys) {
+        try {
+          const raw = localStorage.getItem(k);
+          if (!raw) continue;
+          if (raw.startsWith('{')) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.id && parsed.id !== '0000' && !tripIds.includes(parsed.id)) {
+              tripIds.push(parsed.id);
+            }
+          } else if (raw.trim() && raw.trim() !== '0000' && !tripIds.includes(raw.trim())) {
+            tripIds.push(raw.trim());
+          }
+        } catch {}
+      }
+      try {
+        const rawKnown = localStorage.getItem('hounigo_known_trip_ids');
+        if (rawKnown) {
+          const parsed = JSON.parse(rawKnown);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((t: string) => {
+              if (t && t !== '0000' && !tripIds.includes(t)) tripIds.push(t);
+            });
           }
         }
       } catch {}
@@ -130,19 +171,20 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
     const summaries: UserTripSummary[] = [];
     const uniqueTripIds = Array.from(new Set(tripIds.filter(Boolean)));
 
-    // Esecuzione concorrente per ciascun tripId con timeout rapido (evita attese su reti lente)
+    // Esecuzione concorrente per ciascun tripId con timeout adeguato a reti mobili (7000ms)
     const tripInspectionPromises = uniqueTripIds.map(async (tripId) => {
       try {
         const timeoutPromise = new Promise<null>((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 3500)
+          setTimeout(() => reject(new Error('timeout')), 7000)
         );
         const fetchPromise = (async () => {
           const snap = await getDoc(doc(db, 'trips', tripId));
           if (!snap.exists()) return null;
           const tdata = snap.data();
-          const isOwner = tdata?.ownerUid === uid || tdata?.ownerId === uid || (tripId === '0000' && uid === 'nunzio');
+          const isOwner = tdata?.ownerUid === uid || tdata?.ownerId === uid || (tripId === '0000' && uid === 'nunzio') ||
+            (prevAnonUid && (tdata?.ownerUid === prevAnonUid || tdata?.ownerId === prevAnonUid));
           const membersList = Array.isArray(tdata?.members) ? tdata.members : [];
-          const isMember = membersList.includes(uid) || isOwner;
+          const isMember = membersList.includes(uid) || isOwner || (prevAnonUid && membersList.includes(prevAnonUid));
 
           let verifiedRole: 'owner' | 'copilota' | null = isOwner ? 'owner' : (isMember ? 'copilota' : null);
           if (!verifiedRole) {
@@ -150,6 +192,16 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
             if (memSnap && memSnap.exists()) {
               verifiedRole = memSnap.data()?.role === 'owner' ? 'owner' : 'copilota';
             }
+          }
+          if (!verifiedRole && prevAnonUid) {
+            const anonMemSnap = await getDoc(doc(db, 'trips', tripId, 'members', prevAnonUid)).catch(() => null);
+            if (anonMemSnap && anonMemSnap.exists()) {
+              verifiedRole = anonMemSnap.data()?.role === 'owner' ? 'owner' : 'copilota';
+            }
+          }
+          // Fallback di cortesia se getDoc ha avuto successo grazie a permessi Firestore
+          if (!verifiedRole) {
+            verifiedRole = tdata?.ownerUid === uid ? 'owner' : 'copilota';
           }
 
           if (verifiedRole) {
@@ -432,6 +484,12 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
 
     const currentUser = auth.currentUser;
     const isAnon = Boolean(currentUser && currentUser.isAnonymous);
+    if (currentUser?.uid && typeof window !== 'undefined') {
+      try {
+        sessionStorage.setItem('houni_prev_anon_uid', currentUser.uid);
+        localStorage.setItem('hounigo_prev_anon_uid', currentUser.uid);
+      } catch {}
+    }
     let wasPreExisting = false;
     let targetUser: User | null = null;
     let isLinked = false;

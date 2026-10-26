@@ -256,20 +256,23 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
         <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 font-brand-title">
           Strumenti del Viaggio
         </h3>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
           {/* Spese & Budget */}
           <button
             type="button"
             data-square-tool-card
             onClick={() => setActiveSubView('spese')}
-            className="hounigo-touch-feedback aspect-square min-w-0 overflow-hidden rounded-3xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#172033] p-3.5 text-left shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-2"
+            className="hounigo-touch-feedback min-w-0 min-h-[108px] sm:min-h-[114px] overflow-hidden rounded-2xl border border-rose-100/90 dark:border-rose-950/40 bg-gradient-to-b from-[#FFF5F3] to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-2"
           >
-            <div className="w-10 h-10 rounded-2xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-              <TrailSpese size={21} />
+            <div className="flex items-center justify-between w-full">
+              <div className="w-9 h-9 rounded-xl bg-[#FF6B5F]/10 dark:bg-[#FF6B5F]/20 text-[#FF6B5F] flex items-center justify-center shrink-0 border border-[#FF6B5F]/20">
+                <TrailSpese size={20} active />
+              </div>
+              <span className="text-[9px] font-bold text-[#FF6B5F] bg-[#FF6B5F]/10 px-1.5 py-0.5 rounded-md">Budget</span>
             </div>
             <div className="min-w-0">
-              <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight break-words">Spese & Budget</h4>
-              <p className="text-[10px] sm:text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">Costi, pagamenti e valute</p>
+              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Spese & Budget</h4>
+              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-2">Costi, pagamenti e valute</p>
             </div>
           </button>
 
@@ -278,14 +281,17 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             type="button"
             data-square-tool-card
             onClick={() => setActiveSubView('note')}
-            className="hounigo-touch-feedback aspect-square min-w-0 overflow-hidden rounded-3xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#172033] p-3.5 text-left shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-2"
+            className="hounigo-touch-feedback min-w-0 min-h-[108px] sm:min-h-[114px] overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-700/60 bg-gradient-to-b from-[#F8F7F3] to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-2"
           >
-            <div className="w-10 h-10 rounded-2xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-              <TrailNote size={21} />
+            <div className="flex items-center justify-between w-full">
+              <div className="w-9 h-9 rounded-xl bg-[#172033]/8 dark:bg-slate-700/60 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/70 dark:border-slate-700">
+                <TrailNote size={20} active />
+              </div>
+              <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md">Appunti</span>
             </div>
             <div className="min-w-0">
-              <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight break-words">Note di Viaggio</h4>
-              <p className="text-[10px] sm:text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">Idee, appunti e promemoria</p>
+              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Note di Viaggio</h4>
+              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-2">Idee, note e promemoria</p>
             </div>
           </button>
 
@@ -294,14 +300,17 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             type="button"
             data-square-tool-card
             onClick={() => setActiveSubView('bagagli')}
-            className="hounigo-touch-feedback aspect-square min-w-0 overflow-hidden rounded-3xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#172033] p-3.5 text-left shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-2"
+            className="hounigo-touch-feedback min-w-0 min-h-[108px] sm:min-h-[114px] overflow-hidden rounded-2xl border border-amber-100/90 dark:border-amber-950/40 bg-gradient-to-b from-amber-50/50 to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-2"
           >
-            <div className="w-10 h-10 rounded-2xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-              <TrailBagagli size={21} />
+            <div className="flex items-center justify-between w-full">
+              <div className="w-9 h-9 rounded-xl bg-amber-500/10 dark:bg-amber-400/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-300/40 dark:border-amber-700/40">
+                <TrailBagagli size={20} active />
+              </div>
+              <span className="text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/50 px-1.5 py-0.5 rounded-md">Checklist</span>
             </div>
             <div className="min-w-0">
-              <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight break-words">Lista Bagagli</h4>
-              <p className="text-[10px] sm:text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">Checklist valigie per partecipante</p>
+              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Lista Bagagli</h4>
+              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-2">Valigie per partecipante</p>
             </div>
           </button>
 
@@ -310,14 +319,17 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             type="button"
             data-square-tool-card
             onClick={() => setActiveSubView('assicurazione')}
-            className="hounigo-touch-feedback aspect-square min-w-0 overflow-hidden rounded-3xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#172033] p-3.5 text-left shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-2"
+            className="hounigo-touch-feedback min-w-0 min-h-[108px] sm:min-h-[114px] overflow-hidden rounded-2xl border border-emerald-100/90 dark:border-emerald-950/40 bg-gradient-to-b from-emerald-50/50 to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-2"
           >
-            <div className="w-10 h-10 rounded-2xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-              <TrailSicurezza size={21} />
+            <div className="flex items-center justify-between w-full">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 dark:bg-emerald-400/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-300/40 dark:border-emerald-700/40">
+                <TrailSicurezza size={20} active />
+              </div>
+              <span className="text-[9px] font-black tracking-wide text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-md">H24</span>
             </div>
             <div className="min-w-0">
-              <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight break-words">Assicurazione</h4>
-              <p className="text-[10px] sm:text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">Polizza, assistenza H24 e massimali</p>
+              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Assicurazione</h4>
+              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-2">Polizza e assistenza H24</p>
             </div>
           </button>
 
@@ -326,14 +338,17 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             type="button"
             data-square-tool-card
             onClick={() => setActiveSubView('emergenza')}
-            className="hounigo-touch-feedback aspect-square min-w-0 overflow-hidden rounded-3xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#172033] p-3.5 text-left shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-2"
+            className="hounigo-touch-feedback min-w-0 min-h-[108px] sm:min-h-[114px] overflow-hidden rounded-2xl border border-rose-200/90 dark:border-rose-950/50 bg-gradient-to-b from-rose-50/60 to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-2"
           >
-            <div className="w-10 h-10 rounded-2xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-              <TrailEmergenze size={21} />
+            <div className="flex items-center justify-between w-full">
+              <div className="w-9 h-9 rounded-xl bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-300/40 dark:border-rose-800/40">
+                <TrailEmergenze size={20} active />
+              </div>
+              <span className="text-[9px] font-black tracking-wide text-rose-600 dark:text-rose-400 bg-rose-100/80 dark:bg-rose-950/60 px-1.5 py-0.5 rounded-md">SOS</span>
             </div>
             <div className="min-w-0">
-              <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight break-words">Emergenze</h4>
-              <p className="text-[10px] sm:text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">Numeri locali, consolati e soccorso</p>
+              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Emergenze</h4>
+              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-2">Numeri locali e soccorso</p>
             </div>
           </button>
 
@@ -342,14 +357,17 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             type="button"
             data-square-tool-card
             onClick={() => setActiveSubView('info')}
-            className="hounigo-touch-feedback aspect-square min-w-0 overflow-hidden rounded-3xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#172033] p-3.5 text-left shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-2"
+            className="hounigo-touch-feedback min-w-0 min-h-[108px] sm:min-h-[114px] overflow-hidden rounded-2xl border border-sky-100/90 dark:border-sky-950/40 bg-gradient-to-b from-sky-50/50 to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-2"
           >
-            <div className="w-10 h-10 rounded-2xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-              <TrailToolkit size={21} />
+            <div className="flex items-center justify-between w-full">
+              <div className="w-9 h-9 rounded-xl bg-sky-500/10 dark:bg-sky-400/20 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 border border-sky-300/40 dark:border-sky-700/40">
+                <TrailToolkit size={20} active />
+              </div>
+              <span className="text-[9px] font-bold text-sky-700 dark:text-sky-300 bg-sky-100/80 dark:bg-sky-950/60 px-1.5 py-0.5 rounded-md">Guide</span>
             </div>
             <div className="min-w-0">
-              <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight break-words">Travel Toolkit</h4>
-              <p className="text-[10px] sm:text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">Fusi orari, prese e checklist utili</p>
+              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Travel Toolkit</h4>
+              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-2">Fusi, prese e checklist</p>
             </div>
           </button>
         </div>
