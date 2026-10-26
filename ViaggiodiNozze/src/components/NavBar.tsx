@@ -1,5 +1,7 @@
 import { TrailItinerario, TrailCategorie, TrailMappa, TrailToolkit, TrailAi } from './icons/TrailIcons';
+import type { ReactNode } from 'react';
 import type { SectionTab } from '../types';
+import { MAIN_SECTION_ORDER } from '../utils/mainNavigation';
 
 export type { SectionTab };
 
@@ -18,28 +20,25 @@ export default function NavBar({
   onOpenSmartInsert,
   isCategorieActive = false
 }: NavBarProps) {
-  const tabs = [
-    {
-      id: 'oggi' as SectionTab,
+  const tabDetails = {
+    oggi: {
       label: 'Itinerario',
       icon: (active: boolean) => <TrailItinerario size={20} active={active} />
     },
-    {
-      id: 'categorie' as SectionTab,
+    categorie: {
       label: 'Categorie',
       icon: (active: boolean) => <TrailCategorie size={20} active={active} />
     },
-    {
-      id: 'mappa' as SectionTab,
+    mappa: {
       label: 'Mappa',
       icon: (active: boolean) => <TrailMappa size={20} active={active} />
     },
-    {
-      id: 'altro' as SectionTab,
+    altro: {
       label: 'Altro',
       icon: (active: boolean) => <TrailToolkit size={20} active={active} />
     }
-  ];
+  } satisfies Record<SectionTab, { label: string; icon: (active: boolean) => ReactNode }>;
+  const tabs = MAIN_SECTION_ORDER.map(id => ({ id, ...tabDetails[id] }));
 
   const handleClick = (tabId: SectionTab) => {
     if (tabId === 'categorie') {
@@ -124,4 +123,3 @@ export default function NavBar({
     </nav>
   );
 }
-

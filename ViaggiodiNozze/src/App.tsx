@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense, type TouchEvent as ReactTouchEvent } from 'react';
 import type { SectionTab, CategoriaTab } from './types';
 import NavBar from './components/NavBar';
 import CategorieBar from './components/CategorieBar';
@@ -30,6 +30,7 @@ import { signInAnonymously, onAuthStateChanged, type User } from 'firebase/auth'
 import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { recordUserAccess } from './services/userAccessService';
+import { blocksMainNavigationSwipe, getAdjacentMainSection } from './utils/mainNavigation';
 
 const LiveView = lazyWithRetry(() => import('./views/altro/LiveView'), 'LiveView');
 const AdminDashboardView = lazyWithRetry(() => import('./views/altro/AdminDashboardView'), 'AdminDashboardView');
@@ -529,6 +530,32 @@ export default function App() {
     setIsCategorieOpen(false);
   };
 
+  const mainSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
+
+  const handleMainSwipeStart = (event: ReactTouchEvent<HTMLElement>) => {
+    if (event.touches.length !== 1 || blocksMainNavigationSwipe(event.target)) {
+      mainSwipeStartRef.current = null;
+      return;
+    }
+    mainSwipeStartRef.current = {
+      x: event.touches[0].clientX,
+      y: event.touches[0].clientY
+    };
+  };
+
+  const handleMainSwipeEnd = (event: ReactTouchEvent<HTMLElement>) => {
+    const start = mainSwipeStartRef.current;
+    mainSwipeStartRef.current = null;
+    if (!start || event.changedTouches.length !== 1) return;
+
+    const deltaX = event.changedTouches[0].clientX - start.x;
+    const deltaY = event.changedTouches[0].clientY - start.y;
+    if (Math.abs(deltaX) < 56 || Math.abs(deltaX) <= Math.abs(deltaY) * 1.35) return;
+
+    const nextSection = getAdjacentMainSection(activeTab, deltaX < 0 ? 'next' : 'previous');
+    if (nextSection) handleTabChange(nextSection);
+  };
+
   // Se non c'è un viaggio configurato e NON siamo in modalità Live esterna con tripId, mostra l'Onboarding
   const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
   const externalTripId = urlParams.get('tripId');
@@ -757,7 +784,12 @@ export default function App() {
         </header>
 
         {/* Workspace Body */}
-        <main className={`flex-1 px-3 sm:px-6 md:px-8 py-3 md:py-6 ${isForcedMobileView ? 'max-w-md w-full px-4 py-3' : 'max-w-7xl w-full mx-auto pb-24 md:pb-12'}`}>
+        <main
+          className={`flex-1 px-3 sm:px-6 md:px-8 py-3 md:py-6 ${isForcedMobileView ? 'max-w-md w-full px-4 py-3' : 'max-w-7xl w-full mx-auto pb-24 md:pb-12'}`}
+          onTouchStart={handleMainSwipeStart}
+          onTouchEnd={handleMainSwipeEnd}
+          onTouchCancel={() => { mainSwipeStartRef.current = null; }}
+        >
           {/* Sezione Desktop Esclusiva Hub Prenotazioni (disponibile solo in modalità desktop piena) */}
           {!isForcedMobileView && desktopSection === 'prenotazioni' ? (
             <div className="hidden md:block">

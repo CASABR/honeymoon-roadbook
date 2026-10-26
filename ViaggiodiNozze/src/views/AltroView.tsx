@@ -11,7 +11,6 @@ import { lazyWithRetry } from '../utils/lazyWithRetry';
 import RouteErrorBoundary from '../components/common/RouteErrorBoundary';
 import TripSelectorModal from '../components/modals/TripSelectorModal';
 import DeviceRoleModal from '../components/common/DeviceRoleModal';
-import TrailIconsShowcaseModal from '../components/icons/TrailIconsShowcaseModal';
 import {
   TrailLive,
   TrailPrenotazioni,
@@ -23,7 +22,6 @@ import {
   TrailToolkit,
   TrailCopiloti,
   TrailMappa,
-  TrailItinerario,
   TrailPdf
 } from '../components/icons/TrailIcons';
 import PdfExportModal from '../components/modals/PdfExportModal';
@@ -45,7 +43,6 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showTripSelector, setShowTripSelector] = useState(false);
-  const [showIconsShowcase, setShowIconsShowcase] = useState(false);
   const [showPdfExportModal, setShowPdfExportModal] = useState(false);
   const currentTripConfig = getTripConfig();
 
@@ -249,71 +246,6 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
-          {/* Spese & Budget */}
-          <button
-            type="button"
-            onClick={() => setActiveSubView('spese')}
-            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-                <TrailSpese size={20} />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
-                  Spese & Budget
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Costi, pagamenti saldati e valute
-                </p>
-              </div>
-            </div>
-            <span className="text-slate-400 text-sm ml-2">›</span>
-          </button>
-
-          {/* Lista Bagagli */}
-          <button
-            type="button"
-            onClick={() => setActiveSubView('bagagli')}
-            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-                <TrailBagagli size={20} />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
-                  Lista Bagagli
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Checklist valigie per partecipante
-                </p>
-              </div>
-            </div>
-            <span className="text-slate-400 text-sm ml-2">›</span>
-          </button>
-
-          {/* Note di Viaggio */}
-          <button
-            type="button"
-            onClick={() => setActiveSubView('note')}
-            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-                <TrailNote size={20} />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
-                  Note di Viaggio
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Idee, appunti e promemoria
-                </p>
-              </div>
-            </div>
-            <span className="text-slate-400 text-sm ml-2">›</span>
-          </button>
         </div>
       </div>
 
@@ -322,79 +254,103 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
       {/* ───────────────────────────────────────────────────────────── */}
       <div className="space-y-1.5">
         <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 font-brand-title">
-          Sicurezza & Assistenza
+          Strumenti del Viaggio
         </h3>
-        <div className="hounigo-route-group bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden font-sans">
-          
+        <div className="grid grid-cols-2 gap-3">
+          {/* Spese & Budget */}
+          <button
+            type="button"
+            data-square-tool-card
+            onClick={() => setActiveSubView('spese')}
+            className="hounigo-touch-feedback aspect-square min-w-0 overflow-hidden rounded-3xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#172033] p-3.5 text-left shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-2"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
+              <TrailSpese size={21} />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight break-words">Spese & Budget</h4>
+              <p className="text-[10px] sm:text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">Costi, pagamenti e valute</p>
+            </div>
+          </button>
+
+          {/* Note di Viaggio */}
+          <button
+            type="button"
+            data-square-tool-card
+            onClick={() => setActiveSubView('note')}
+            className="hounigo-touch-feedback aspect-square min-w-0 overflow-hidden rounded-3xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#172033] p-3.5 text-left shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-2"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
+              <TrailNote size={21} />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight break-words">Note di Viaggio</h4>
+              <p className="text-[10px] sm:text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">Idee, appunti e promemoria</p>
+            </div>
+          </button>
+
+          {/* Lista Bagagli */}
+          <button
+            type="button"
+            data-square-tool-card
+            onClick={() => setActiveSubView('bagagli')}
+            className="hounigo-touch-feedback aspect-square min-w-0 overflow-hidden rounded-3xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#172033] p-3.5 text-left shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-2"
+          >
+            <div className="w-10 h-10 rounded-2xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
+              <TrailBagagli size={21} />
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight break-words">Lista Bagagli</h4>
+              <p className="text-[10px] sm:text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">Checklist valigie per partecipante</p>
+            </div>
+          </button>
+
           {/* Assicurazione Sanitaria */}
           <button
             type="button"
+            data-square-tool-card
             onClick={() => setActiveSubView('assicurazione')}
-            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+            className="hounigo-touch-feedback aspect-square min-w-0 overflow-hidden rounded-3xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#172033] p-3.5 text-left shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-2"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-                <TrailSicurezza size={20} />
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
-                    Assicurazione Sanitaria
-                  </h4>
-                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[#FFF0ED] text-[#FF6B5F] dark:bg-[#FF6B5F]/20 dark:text-[#ff9a90]">
-                    H24
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Polizza, centrale operativa e massimali
-                </p>
-              </div>
+            <div className="w-10 h-10 rounded-2xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
+              <TrailSicurezza size={21} />
             </div>
-            <span className="text-slate-400 text-sm ml-2">›</span>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight break-words">Assicurazione</h4>
+              <p className="text-[10px] sm:text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">Polizza, assistenza H24 e massimali</p>
+            </div>
           </button>
 
           {/* Emergenze & Soccorso */}
           <button
             type="button"
+            data-square-tool-card
             onClick={() => setActiveSubView('emergenza')}
-            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+            className="hounigo-touch-feedback aspect-square min-w-0 overflow-hidden rounded-3xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#172033] p-3.5 text-left shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-2"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-                <TrailEmergenze size={20} />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
-                  Emergenze & Soccorso
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Numeri locali, consolati e soccorso
-                </p>
-              </div>
+            <div className="w-10 h-10 rounded-2xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
+              <TrailEmergenze size={21} />
             </div>
-            <span className="text-slate-400 text-sm ml-2">›</span>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight break-words">Emergenze</h4>
+              <p className="text-[10px] sm:text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">Numeri locali, consolati e soccorso</p>
+            </div>
           </button>
 
           {/* Travel Toolkit */}
           <button
             type="button"
+            data-square-tool-card
             onClick={() => setActiveSubView('info')}
-            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+            className="hounigo-touch-feedback aspect-square min-w-0 overflow-hidden rounded-3xl border border-slate-200/90 dark:border-slate-700/80 bg-white dark:bg-[#172033] p-3.5 text-left shadow-xs hover:shadow-md transition-all cursor-pointer flex flex-col justify-between gap-2"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-                <TrailToolkit size={20} />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
-                  Travel Toolkit
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Fusi orari, prese e checklist utili
-                </p>
-              </div>
+            <div className="w-10 h-10 rounded-2xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
+              <TrailToolkit size={21} />
             </div>
-            <span className="text-slate-400 text-sm ml-2">›</span>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight break-words">Travel Toolkit</h4>
+              <p className="text-[10px] sm:text-[11px] leading-snug text-slate-500 dark:text-slate-400 mt-1 line-clamp-3">Fusi orari, prese e checklist utili</p>
+            </div>
           </button>
         </div>
       </div>
@@ -489,29 +445,25 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
-          {/* Anteprima Iconografia Hounigo Trail Icons */}
-          <button
-            type="button"
-            onClick={() => setShowIconsShowcase(true)}
-            className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700 text-xs font-semibold text-slate-600 dark:text-slate-300"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-rose-50/80 dark:bg-rose-950/30 text-[#FF6B5F] flex items-center justify-center shrink-0 border border-rose-100 dark:border-rose-900/40">
-                <TrailItinerario size={20} active />
+          {currentTripConfig?.id === '0000' && (
+            <button
+              type="button"
+              data-admin-console-card
+              onClick={() => window.dispatchEvent(new CustomEvent('open_admin_console'))}
+              className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left bg-slate-900 hover:bg-slate-800 text-white transition-colors cursor-pointer"
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 border border-white/15">
+                  <TrailSicurezza size={20} active />
+                </div>
+                <div className="min-w-0">
+                  <h4 className="text-xs sm:text-sm font-extrabold leading-tight">Console Admin</h4>
+                  <p className="text-[11px] text-slate-300 truncate mt-0.5">Accesso soggetto ad autorizzazione globale</p>
+                </div>
               </div>
-              <div className="min-w-0">
-                <h4 className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
-                  Iconografia Hounigo Trail
-                </h4>
-                <p className="text-[10px] text-slate-400 truncate">
-                  Tavola comparativa: 20 icone SVG originali del brand
-                </p>
-              </div>
-            </div>
-            <span className="text-[10px] font-bold text-[#FF6B5F] bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 px-2 py-0.5 rounded-full">
-              Nuovo
-            </span>
-          </button>
+              <span className="text-slate-400 text-sm ml-2">›</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -527,12 +479,6 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
       <TripSelectorModal
         isOpen={showTripSelector}
         onClose={() => setShowTripSelector(false)}
-      />
-
-      {/* Modal Tavola Comparativa Iconografia Hounigo Trail */}
-      <TrailIconsShowcaseModal
-        isOpen={showIconsShowcase}
-        onClose={() => setShowIconsShowcase(false)}
       />
 
       {/* Modal Esportazione PDF Roadbook */}
