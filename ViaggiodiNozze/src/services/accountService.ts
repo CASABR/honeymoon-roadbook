@@ -79,9 +79,10 @@ export async function verifyTripOwnership(tripId: string, currentUid: string): P
     const data = tripSnap.data();
     const ownerUid = data?.ownerUid || null;
     const ownerName = data?.ownerName || (tripId === '0000' ? 'nunzio' : null);
+    const isOwner = (ownerUid === currentUid) || (tripId === '0000' && (currentUid === 'nunzio' || !ownerUid));
     return {
       exists: true,
-      isOwner: ownerUid === currentUid,
+      isOwner,
       ownerUid,
       ownerName
     };
@@ -161,7 +162,7 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
           const parsed = JSON.parse(rawKnown);
           if (Array.isArray(parsed)) {
             parsed.forEach((t: string) => {
-              if (t && t !== '0000' && !tripIds.includes(t)) tripIds.push(t);
+              if (t && !tripIds.includes(t)) tripIds.push(t);
             });
           }
         }
@@ -181,7 +182,7 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
           const snap = await getDoc(doc(db, 'trips', tripId));
           if (!snap.exists()) return null;
           const tdata = snap.data();
-          const isOwner = tdata?.ownerUid === uid || tdata?.ownerId === uid || (tripId === '0000' && uid === 'nunzio') ||
+          const isOwner = tdata?.ownerUid === uid || tdata?.ownerId === uid || (tripId === '0000' && (uid === 'nunzio' || !tdata?.ownerUid)) ||
             (prevAnonUid && (tdata?.ownerUid === prevAnonUid || tdata?.ownerId === prevAnonUid));
           const membersList = Array.isArray(tdata?.members) ? tdata.members : [];
           const isMember = membersList.includes(uid) || isOwner || (prevAnonUid && membersList.includes(prevAnonUid));

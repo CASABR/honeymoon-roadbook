@@ -48,12 +48,12 @@ export default function TripSelectorModal({
     try {
       const loadedTrips = await fetchUserTrips(user.uid);
 
-      // Controllo speciale per viaggio 0000 (legacy) se l'utente è l'owner effettivo
       const legacyCheck = await verifyTripOwnership('0000', user.uid);
-      if (legacyCheck.exists && legacyCheck.isOwner) {
+      const shouldInclude0000 = currentTripId === '0000' || !user.isAnonymous || legacyCheck.exists;
+      if (shouldInclude0000) {
         const alreadyHas0000 = loadedTrips.some(t => t.id === '0000');
         if (!alreadyHas0000) {
-          loadedTrips.unshift({
+          const trip0000: UserTripSummary = {
             id: '0000',
             title: 'Viaggio Originale (0000)',
             destination: 'Nuova Zelanda & Cook',
@@ -64,7 +64,12 @@ export default function TripSelectorModal({
             isOwner: true,
             role: 'owner',
             isLastUsed: currentTripId === '0000'
-          });
+          };
+          if (currentTripId === '0000' || loadedTrips.length === 0) {
+            loadedTrips.unshift(trip0000);
+          } else {
+            loadedTrips.push(trip0000);
+          }
         }
       }
 
@@ -80,6 +85,11 @@ export default function TripSelectorModal({
     if (isOpen) {
       loadTrips();
     }
+    const handleTripsUpdated = () => {
+      if (isOpen) loadTrips();
+    };
+    window.addEventListener('roadbook_trips_updated', handleTripsUpdated);
+    return () => window.removeEventListener('roadbook_trips_updated', handleTripsUpdated);
   }, [isOpen, loadTrips, currentUser]);
 
   const handleGoogleSignIn = async () => {

@@ -310,15 +310,26 @@ export async function redeemTripInvite(
 
     await batch.commit();
 
-    // Registra accesso utente
+    // Registra accesso utente su Firestore (/users/{uid})
     await recordUserAccess(user, tripId);
 
-    // Memorizza token su questo dispositivo per proteggere eventuali passaggi d'identità
+    // Memorizza token e aggiunge immediatamente il tripId ai viaggi noti su questo dispositivo
     if (typeof localStorage !== 'undefined') {
       try {
         localStorage.setItem(`roadbook_invite_token_${tripId}`, token);
         localStorage.setItem(`roadbook_member_uid_${tripId}`, user.uid);
+        const rawKnown = localStorage.getItem('hounigo_known_trip_ids');
+        const knownList = rawKnown ? JSON.parse(rawKnown) : [];
+        if (!knownList.includes(tripId)) {
+          knownList.push(tripId);
+          localStorage.setItem('hounigo_known_trip_ids', JSON.stringify(knownList));
+        }
       } catch {}
+    }
+
+    // Notifica ai componenti attivi (selettore viaggi) di ricaricare i viaggi disponibili
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('roadbook_trips_updated', { detail: { tripId } }));
     }
 
     return { success: true };

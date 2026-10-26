@@ -55,8 +55,8 @@ export async function recordUserAccess(user: User | null, tripId?: string): Prom
       updatedAt: now
     };
 
-    // Non registriamo mai il viaggio 0000 per rispettare i vincoli di non alterazione
-    if (tripId && tripId.trim() !== '' && tripId !== '0000') {
+    // Registra tripId nei viaggi associati del profilo utente per il recupero multi-dispositivo
+    if (tripId && tripId.trim() !== '') {
       payload.lastTripId = tripId;
       payload.associatedTripIds = arrayUnion(tripId);
     }

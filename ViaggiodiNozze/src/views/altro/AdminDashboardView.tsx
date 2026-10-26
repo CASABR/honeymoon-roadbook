@@ -429,6 +429,12 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
       return;
     }
 
+    if (auth && typeof (auth as any).authStateReady === 'function') {
+      try {
+        await (auth as any).authStateReady();
+      } catch {}
+    }
+
     try {
       const tripsCol = collection(db, 'trips');
       // Tentativo di lettura collezione globale protetta da Firestore Security Rules (isGlobalAdmin)
@@ -966,6 +972,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
       setCurrentAdminUser(user);
       if (user) {
         logDiag(`Sessione Auth attiva: ${user.isAnonymous ? 'Anonimo' : user.email || 'Persistente'}`, 'info');
+        fetchGlobalTrips();
       }
     });
     return () => unsubscribe();

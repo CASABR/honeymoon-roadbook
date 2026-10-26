@@ -88,6 +88,10 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         throw new Error('Autenticazione Firebase non inizializzata.');
       }
 
+      if (typeof (auth as any).authStateReady === 'function') {
+        await (auth as any).authStateReady();
+      }
+
       let user = auth.currentUser;
       if (!user) {
         const userCredential = await withTimeout(signInAnonymously(auth), 8000, undefined);
