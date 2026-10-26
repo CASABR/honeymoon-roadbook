@@ -248,6 +248,16 @@ export default function TripSelectorModal({
                   </div>
                 </div>
               )}
+
+              {/* Suggerimento copilota */}
+              <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-700/50 text-[11px] text-slate-500 dark:text-slate-400 space-y-1 mt-2">
+                <span className="font-bold text-slate-700 dark:text-slate-300 block">
+                  💡 Cerchi un viaggio condiviso come copilota (es. Giappone)?
+                </span>
+                <p>
+                  I viaggi a cui partecipi compaiono automaticamente non appena apri e riscatti il link d'invito fornito dall'organizzatore.
+                </p>
+              </div>
             </>
           )}
         </div>

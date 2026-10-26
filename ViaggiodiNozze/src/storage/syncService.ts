@@ -11,6 +11,7 @@ export class SyncService {
   private tripId: string;
   private isSyncing = false;
   private pendingSyncRequest = false;
+  private pendingPushQueue: { entityType: string; action: 'save' | 'delete'; data: any }[] = [];
   private autoSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private isDestroyed = false;
   private pendingSyncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -291,8 +292,12 @@ export class SyncService {
               await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
             }
             pushedCount++;
+          } else if (localData && localUpdated > 0 && localUpdated === serverUpdated) {
+            // Local e Cloud hanno esattamente lo stesso timestamp: il dato locale è già allineato,
+            // NON sovrascrivere la copia locale per evitare regressioni di orario o campi legacy.
+            continue;
           } else {
-            // Cloud is newer or same: store locally, reconstructing chunks if needed
+            // Cloud is newer or local item missing: store locally, reconstructing chunks if needed
             let itemToStore: any = { ...serverData, id: docId };
             if (Array.isArray(itemToStore.attachments) && itemToStore.attachments.length > 0) {
               const resolved = [];
@@ -481,6 +486,7 @@ export class SyncService {
       const role = (e as CustomEvent)?.detail?.cloudRole;
       if (role === 'owner' || role === 'copilota') {
         console.log(`[SyncService] Rilevato ruolo autorizzato (${role}): trigger sincronizzazione automatica.`);
+        this.flushPendingPushes().catch(() => {});
         this.triggerAutomaticSync('cloud_role_authorized');
       }
     }) as EventListener);
@@ -512,10 +518,30 @@ export class SyncService {
     return result;
   }
 
+  private async flushPendingPushes(): Promise<void> {
+    if (!isCloudAuthorized() || this.pendingPushQueue.length === 0) return;
+    const queue = [...this.pendingPushQueue];
+    this.pendingPushQueue = [];
+    console.log(`[SyncService] Svuotamento coda push in sospeso (${queue.length} elementi)...`);
+    for (const item of queue) {
+      try {
+        await this.pushToCloud(item.entityType, item.action, item.data);
+      } catch (err) {
+        console.warn(`[SyncService] Errore svuotamento push in sospeso per ${item.entityType}:`, err);
+      }
+    }
+  }
+
   private async pushToCloud(entityType: string, action: 'save' | 'delete', data: any) {
     if (!data || !data.id) return;
     if (!isCloudAuthorized()) {
-      console.warn(`[SyncService] Push to cloud annullato: sessione non autorizzata dal Cloud per ${entityType}/${data.id}`);
+      console.warn(`[SyncService] Push to cloud differito (in coda): sessione non ancora autorizzata dal Cloud per ${entityType}/${data.id}`);
+      const existsIndex = this.pendingPushQueue.findIndex(p => p.entityType === entityType && p.data?.id === data.id);
+      if (existsIndex >= 0) {
+        this.pendingPushQueue[existsIndex] = { entityType, action, data };
+      } else {
+        this.pendingPushQueue.push({ entityType, action, data });
+      }
       return;
     }
     
@@ -676,18 +702,23 @@ export class SyncService {
                   localData = await idbGet<any>(store, docId);
                   const localUpdated = normalizeTimestamp(localData?.updatedAt);
                   const serverUpdated = normalizeTimestamp(data?.updatedAt);
-                  if (localData && localUpdated > 0 && localUpdated > serverUpdated) {
-                    console.warn(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Il dato locale e' piu' recente`);
-                    if (isCloudAuthorized()) {
-                      // Pushiamo il dato locale al server per allinearlo (visto che il server ha dati vecchi)
-                      const entityType = this.mapCollectionToEntity(fb);
-                      if (entityType) {
-                        await this.pushToCloud(entityType, 'save', localData);
+                  if (localData && localUpdated > 0 && localUpdated >= serverUpdated) {
+                    if (localUpdated > serverUpdated) {
+                      console.warn(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Il dato locale e' piu' recente`);
+                      if (isCloudAuthorized()) {
+                        // Pushiamo il dato locale al server per allinearlo (visto che il server ha dati vecchi)
+                        const entityType = this.mapCollectionToEntity(fb);
+                        if (entityType) {
+                          await this.pushToCloud(entityType, 'save', localData);
+                        } else {
+                          await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
+                        }
                       } else {
-                        await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
+                        console.warn(`[Cloud Sync] Sospeso push per ${fb}/${docId}: sessione non autorizzata, dato locale piu recente conservato.`);
                       }
                     } else {
-                      console.warn(`[Cloud Sync] Sospeso push per ${fb}/${docId}: sessione non autorizzata, dato locale piu recente conservato.`);
+                      // localUpdated === serverUpdated: snapshot proveniente dal nostro stesso push, ignora per non ricreare lo stato
+                      console.log(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Dato locale gia' allineato (echo server)`);
                     }
                     return;
                   }

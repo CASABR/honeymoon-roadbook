@@ -52,8 +52,11 @@ export function isCloudAuthorized(): boolean {
   if (authoritativeCloudRole === 'owner' || authoritativeCloudRole === 'copilota') {
     return true;
   }
-  // Se siamo offline (o network offline), verifica se il device dispone di autorizzazione locale accreditata
-  if (authoritativeCloudRole === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+  // Se siamo in fase di verifica iniziale ('checking'), offline, o su rete instabile,
+  // verifichiamo se il dispositivo è accreditato con ruolo locale guida o copilota.
+  // Questo garantisce che le modifiche dell'utente vengano salvate immediatamente in locale
+  // senza blocchi durante l'avvio o la sincronizzazione in background.
+  if (authoritativeCloudRole === 'checking' || authoritativeCloudRole === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine)) {
     const role = getLocalDeviceRole();
     if (role === 'guida' || role === 'copilota') {
       return true;

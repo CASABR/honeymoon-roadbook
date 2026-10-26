@@ -128,19 +128,22 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
     }
 
     const summaries: UserTripSummary[] = [];
+    const uniqueTripIds = Array.from(new Set(tripIds.filter(Boolean)));
 
-    // Eseguiamo getDoc puntuale per ciascun ID autorizzato:
-    for (const tripId of tripIds) {
-      if (!tripId) continue;
+    // Esecuzione concorrente per ciascun tripId con timeout rapido (evita attese su reti lente)
+    const tripInspectionPromises = uniqueTripIds.map(async (tripId) => {
       try {
-        const snap = await getDoc(doc(db, 'trips', tripId));
-        if (snap.exists()) {
+        const timeoutPromise = new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 3500)
+        );
+        const fetchPromise = (async () => {
+          const snap = await getDoc(doc(db, 'trips', tripId));
+          if (!snap.exists()) return null;
           const tdata = snap.data();
           const isOwner = tdata?.ownerUid === uid || tdata?.ownerId === uid || (tripId === '0000' && uid === 'nunzio');
           const membersList = Array.isArray(tdata?.members) ? tdata.members : [];
           const isMember = membersList.includes(uid) || isOwner;
 
-          // Se l'utente non è nell'array members né owner, verifichiamo la sottocollezione members/{uid}
           let verifiedRole: 'owner' | 'copilota' | null = isOwner ? 'owner' : (isMember ? 'copilota' : null);
           if (!verifiedRole) {
             const memSnap = await getDoc(doc(db, 'trips', tripId, 'members', uid)).catch(() => null);
@@ -150,7 +153,7 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
           }
 
           if (verifiedRole) {
-            summaries.push({
+            return {
               id: tripId,
               title: tdata?.title || (tripId === '0000' ? 'Viaggio Originale' : 'Viaggio'),
               destination: tdata?.destination || undefined,
@@ -161,11 +164,21 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
               isOwner: verifiedRole === 'owner',
               role: verifiedRole,
               isLastUsed: tripId === lastTripId
-            });
+            } as UserTripSummary;
           }
-        }
+          return null;
+        })();
+
+        return await Promise.race([fetchPromise, timeoutPromise]);
       } catch {
-        // Se non autorizzato per quel singolo viaggio, salta silenziosamente
+        return null;
+      }
+    });
+
+    const settled = await Promise.allSettled(tripInspectionPromises);
+    for (const item of settled) {
+      if (item.status === 'fulfilled' && item.value) {
+        summaries.push(item.value);
       }
     }
 
@@ -403,7 +416,7 @@ export async function checkPendingRedirectResult(): Promise<{
  * tramite credentialFromError ed esegue signInWithCredential in modo trasparente senza aprire un secondo popup
  * (evitando il blocco popup di iOS Safari e PWA).
  */
-export async function loginWithGoogle(): Promise<{
+export async function loginWithGoogle(onProgress?: (stage: string) => void): Promise<{
   success: boolean;
   user?: User;
   error?: string;
@@ -413,6 +426,7 @@ export async function loginWithGoogle(): Promise<{
 }> {
   if (!auth) return { success: false, error: 'Firebase Auth non inizializzato.' };
   try {
+    onProgress?.('Apertura finestra di autenticazione…');
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
@@ -426,12 +440,14 @@ export async function loginWithGoogle(): Promise<{
     // al medesimo UID, preservando al 100% tutte le membership e associazioni già concesse
     if (isAnon && currentUser) {
       try {
+        onProgress?.('Verifica sessione e collegamento account…');
         const linkRes = await linkWithPopup(currentUser, provider);
         targetUser = linkRes.user;
         isLinked = true;
       } catch (linkErr: any) {
         if (linkErr?.code === 'auth/credential-already-in-use') {
           wasPreExisting = true;
+          onProgress?.('Riconciliazione identità Google…');
           console.info('[accountService] Account Google già registrato con altro UID: accesso diretto con credenziale.');
           const credential = GoogleAuthProvider.credentialFromError(linkErr) || (linkErr as any)?.credential || null;
           if (credential) {
@@ -457,6 +473,7 @@ export async function loginWithGoogle(): Promise<{
       }
     } else {
       // Accesso standard con Google per account nuovo o sessione già autenticata
+      onProgress?.('Autenticazione con Google…');
       const res = await signInWithPopup(auth, provider);
       targetUser = res.user;
     }

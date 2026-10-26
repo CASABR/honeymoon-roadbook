@@ -724,13 +724,23 @@ class StorageService {
       finalDate = finalDayId.replace('day_', '');
     }
 
+    // Normalizza e sincronizza orario, orarioInizio, orarioRitrovo e time
+    const rawTime = (activity.time || activity.orarioInizio || (activity as any).orario || activity.orarioRitrovo || '').trim();
+    const effectiveTime = rawTime || undefined;
+    const finalRitrovo = (activity.orarioRitrovo || rawTime || '').trim() || undefined;
+    const finalInizio = (activity.orarioInizio || rawTime || '').trim() || undefined;
+
     const item: Attivita = {
       ...activity,
       dayId: finalDayId,
       date: finalDate,
+      time: effectiveTime,
+      orarioInizio: finalInizio,
+      orarioRitrovo: finalRitrovo,
+      orario: effectiveTime, // Mantenuto allineato per compatibilità totale
       createdAt: activity.createdAt || now,
       updatedAt: now
-    };
+    } as any;
     if (!await this.validateSaveAgainstTombstone('attivita', item.id, item.createdAt)) {
       return;
     }
@@ -1038,8 +1048,12 @@ class StorageService {
     if (tappa.id && !await this.validateSaveAgainstTombstone('tappe', targetId, undefined)) {
       throw new Error(`Impossibile aggiungere la tappa: ID ${targetId} contrassegnato da tombstone attivo.`);
     }
+    const rawTime = (tappa.orario || (tappa as any).time || '').trim();
+    const effectiveTime = rawTime || undefined;
     const newTappa: Tappa = {
       ...tappa,
+      orario: effectiveTime,
+      time: effectiveTime,
       data: cleanDate,
       date: cleanDate,
       dayId,
@@ -1060,9 +1074,15 @@ class StorageService {
       if (!existing) throw new Error(`Tappa con id ${id} non trovata`);
       const cleanDate = partial.data !== undefined ? partial.data : (partial.date !== undefined ? partial.date : existing.data);
       const dayId = partial.dayId || (cleanDate ? `day_${cleanDate}` : existing.dayId);
+      const rawTime = partial.orario !== undefined 
+        ? partial.orario 
+        : (partial.time !== undefined ? partial.time : (existing.orario || (existing as any).time || ''));
+      const effectiveTime = (typeof rawTime === 'string' ? rawTime.trim() : rawTime) || undefined;
       const updated: Tappa = {
         ...existing,
         ...partial,
+        orario: effectiveTime,
+        time: effectiveTime,
         data: cleanDate,
         date: cleanDate,
         dayId,
@@ -1083,8 +1103,12 @@ class StorageService {
     const now = Date.now();
     const cleanDate = tappa.data || tappa.date || '';
     const dayId = tappa.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
+    const rawTime = (tappa.orario || (tappa as any).time || '').trim();
+    const effectiveTime = rawTime || undefined;
     const item: Tappa = {
       ...tappa,
+      orario: effectiveTime,
+      time: effectiveTime,
       data: cleanDate,
       date: cleanDate,
       dayId,
@@ -1152,15 +1176,19 @@ class StorageService {
     if (ristorante.id && !await this.validateSaveAgainstTombstone('ristoranti', targetId, undefined)) {
       throw new Error(`Impossibile aggiungere il ristorante: ID ${targetId} contrassegnato da tombstone attivo.`);
     }
+    const rawTime = (ristorante.orario || (ristorante as any).time || '').trim();
+    const effectiveTime = rawTime || undefined;
     const newRistorante: Ristorante = {
       ...ristorante,
+      orario: effectiveTime,
+      time: effectiveTime,
       data: cleanDate,
       date: cleanDate,
       dayId,
       id: targetId,
       createdAt: now,
       updatedAt: now
-    };
+    } as any;
     this.memoryCache.delete(STORES.RISTORANTI);
     await idbPut(STORES.RISTORANTI, newRistorante);
     notifyDataChanged('ristoranti', 'save', newRistorante);
@@ -1174,15 +1202,21 @@ class StorageService {
       if (!existing) throw new Error(`Ristorante con id ${id} non trovato`);
       const cleanDate = partial.data !== undefined ? partial.data : (partial.date !== undefined ? partial.date : existing.data);
       const dayId = partial.dayId || (cleanDate ? `day_${cleanDate}` : existing.dayId);
+      const rawTime = partial.orario !== undefined
+        ? partial.orario
+        : ((partial as any).time !== undefined ? (partial as any).time : (existing.orario || (existing as any).time || ''));
+      const effectiveTime = (typeof rawTime === 'string' ? rawTime.trim() : rawTime) || undefined;
       const updated: Ristorante = {
         ...existing,
         ...partial,
+        orario: effectiveTime,
+        time: effectiveTime,
         data: cleanDate,
         date: cleanDate,
         dayId,
         id, // ID primario preservato
         updatedAt: Date.now()
-      };
+      } as any;
       this.memoryCache.delete(STORES.RISTORANTI);
       await idbPut(STORES.RISTORANTI, updated);
       notifyDataChanged('ristoranti', 'save', updated);
@@ -1197,14 +1231,18 @@ class StorageService {
     const now = Date.now();
     const cleanDate = r.data || r.date || '';
     const dayId = r.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
+    const rawTime = (r.orario || (r as any).time || '').trim();
+    const effectiveTime = rawTime || undefined;
     const item: Ristorante = {
       ...r,
+      orario: effectiveTime,
+      time: effectiveTime,
       data: cleanDate,
       date: cleanDate,
       dayId,
       createdAt: r.createdAt || now,
       updatedAt: now
-    };
+    } as any;
     if (!await this.validateSaveAgainstTombstone('ristoranti', item.id, item.createdAt)) {
       return;
     }
@@ -1266,15 +1304,19 @@ class StorageService {
     if (shopping.id && !await this.validateSaveAgainstTombstone('shopping', targetId, undefined)) {
       throw new Error(`Impossibile aggiungere lo shopping: ID ${targetId} contrassegnato da tombstone attivo.`);
     }
+    const rawTime = (shopping.orario || (shopping as any).time || '').trim();
+    const effectiveTime = rawTime || undefined;
     const newShopping: Shopping = {
       ...shopping,
+      orario: effectiveTime,
+      time: effectiveTime,
       data: cleanDate,
       date: cleanDate,
       dayId,
       id: targetId,
       createdAt: now,
       updatedAt: now
-    };
+    } as any;
     this.memoryCache.delete(STORES.SHOPPING);
     await idbPut(STORES.SHOPPING, newShopping);
     notifyDataChanged('shopping', 'save', newShopping);
@@ -1288,15 +1330,21 @@ class StorageService {
       if (!existing) throw new Error(`Shopping con id ${id} non trovato`);
       const cleanDate = partial.data !== undefined ? partial.data : (partial.date !== undefined ? partial.date : existing.data);
       const dayId = partial.dayId || (cleanDate ? `day_${cleanDate}` : existing.dayId);
+      const rawTime = partial.orario !== undefined
+        ? partial.orario
+        : ((partial as any).time !== undefined ? (partial as any).time : (existing.orario || (existing as any).time || ''));
+      const effectiveTime = (typeof rawTime === 'string' ? rawTime.trim() : rawTime) || undefined;
       const updated: Shopping = {
         ...existing,
         ...partial,
+        orario: effectiveTime,
+        time: effectiveTime,
         data: cleanDate,
         date: cleanDate,
         dayId,
         id, // ID primario preservato
         updatedAt: Date.now()
-      };
+      } as any;
       this.memoryCache.delete(STORES.SHOPPING);
       await idbPut(STORES.SHOPPING, updated);
       notifyDataChanged('shopping', 'save', updated);
@@ -1311,14 +1359,18 @@ class StorageService {
     const now = Date.now();
     const cleanDate = s.data || s.date || '';
     const dayId = s.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
+    const rawTime = (s.orario || (s as any).time || '').trim();
+    const effectiveTime = rawTime || undefined;
     const item: Shopping = {
       ...s,
+      orario: effectiveTime,
+      time: effectiveTime,
       data: cleanDate,
       date: cleanDate,
       dayId,
       createdAt: s.createdAt || now,
       updatedAt: now
-    };
+    } as any;
     if (!await this.validateSaveAgainstTombstone('shopping', item.id, item.createdAt)) {
       return;
     }

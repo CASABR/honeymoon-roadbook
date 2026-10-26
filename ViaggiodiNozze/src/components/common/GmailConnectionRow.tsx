@@ -106,83 +106,64 @@ export default function GmailConnectionRow({
         <div className="flex items-center gap-2.5 min-w-0">
           <span className="text-base shrink-0">📧</span>
           <div className="min-w-0 truncate">
-            <div className="flex items-center gap-1.5">
-              <span className={`w-2 h-2 rounded-full shrink-0 ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+            <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs font-bold truncate">
-                {isConnected ? 'Gmail collegato' : 'Collega Gmail'}
+                Importazione da Gmail
               </span>
-              {isConnected && googleEmail && (
-                <span className="text-[11px] font-normal text-slate-500 dark:text-slate-400 truncate hidden sm:inline">
-                  ({googleEmail})
-                </span>
-              )}
+              <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+                In preparazione
+              </span>
             </div>
-            {isConnected && googleEmail && (
-              <span className="text-[10px] font-normal text-slate-500 dark:text-slate-400 truncate block sm:hidden">
-                {googleEmail}
-              </span>
-            )}
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+              Verifica Google Cloud in corso • Usa PDF o Foto per la beta
+            </p>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             type="button"
-            disabled={isConnecting}
-            onClick={handlePrimaryAction}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-50 ${
-              isConnected
-                ? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
-                : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 shadow-xs'
-            }`}
-          >
-            {isConnecting
-              ? 'Connessione…'
-              : isConnected
-              ? (onSearchEmails ? 'Importa' : 'Cerca')
-              : 'Collega'}
-          </button>
-
-          <button
-            type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700/50 transition-colors cursor-pointer text-xs"
-            title={isExpanded ? 'Riduci' : 'Dettagli'}
+            className="px-2.5 py-1 rounded-xl text-[11px] font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 transition-all flex items-center gap-1 cursor-pointer"
             aria-expanded={isExpanded}
           >
-            <span className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>▾</span>
+            <span>Info</span>
+            <span className={`text-[9px] transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}>▾</span>
           </button>
         </div>
       </div>
 
-      {/* Sezione Espandibile */}
+      {/* Sezione Informativa Espandibile */}
       {isExpanded && (
         <div className="px-3.5 pb-3 pt-1 border-t border-slate-100 dark:border-slate-700/60 text-xs space-y-2">
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-            Permesso in sola lettura (<code>gmail.readonly</code>) per cercare automaticamente voucher di volo, hotel o treni.
-            Nessun accesso a email personali non di viaggio e nessuna modifica all'identità o ai permessi del dispositivo.
-          </p>
+          <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-[11px] leading-relaxed">
+            <strong className="block mb-0.5 font-bold">Integrazione Gmail per la Beta:</strong>
+            L'accesso diretto alle caselle di posta richiede la verifica formale degli ambiti riservati (<code>gmail.readonly</code>) da parte di Google Cloud per gli account esterni.
+            <br />
+            Per evitare schermate di blocco durante i test, <strong>puoi importare istantaneamente qualsiasi voucher di volo, hotel o treno allegando il PDF o la foto/screenshot della prenotazione</strong> tramite il pulsante <em>📎 Allega prenotazione</em>.
+          </div>
+
+          <div className="flex items-center justify-between pt-0.5 text-[10px] text-slate-400">
+            <span>Stato: In attesa di verifica Google Cloud Console</span>
+            <span className="font-semibold text-indigo-600 dark:text-indigo-400">PDF & Foto 100% attivi</span>
+          </div>
 
           {errorMsg && (
-            <div className="p-2 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[11px] font-semibold">
-              ⚠️ {errorMsg}
-            </div>
+            <p className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold">{errorMsg}</p>
           )}
 
-          <div className="flex items-center justify-between pt-1">
-            <span className="text-[10px] text-slate-400">
-              {isConnected ? `Collegato come ${googleEmail || 'Google Account'}` : 'Nessun account sincronizzato'}
-            </span>
-            {isConnected && (
-              <button
-                type="button"
-                onClick={handleConnectGmail}
-                disabled={isConnecting}
-                className="text-[10px] text-indigo-500 hover:text-indigo-600 font-bold underline cursor-pointer"
-              >
-                Cambia account Google
-              </button>
-            )}
+          <div className="pt-1 flex items-center justify-between border-t border-slate-100 dark:border-slate-800">
+            {googleEmail ? (
+              <span className="text-[10px] text-slate-500 font-mono">Google: {googleEmail}</span>
+            ) : <span />}
+            <button
+              type="button"
+              onClick={handlePrimaryAction}
+              disabled={isConnecting}
+              className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline cursor-pointer disabled:opacity-50"
+            >
+              {isConnecting ? 'Connessione in corso…' : 'Testa autorizzazione (solo tester GCP registrati)'}
+            </button>
           </div>
         </div>
       )}

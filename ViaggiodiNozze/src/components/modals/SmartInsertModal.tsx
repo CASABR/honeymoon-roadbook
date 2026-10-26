@@ -79,6 +79,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   const [pendingSuggestion, setPendingSuggestion] = useState<any>(null);
   const [pickerDate, setPickerDate] = useState(defaultSuggestionDate());
   const [pickerTime, setPickerTime] = useState('');
+  const [showPrivacyDetails, setShowPrivacyDetails] = useState(false);
 
   const handleGmailImport = async () => {
     try {
@@ -707,22 +708,6 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
             )}
           </div>
 
-          {/* ─── 3 Capacità Immediate HouniAI ─── */}
-          <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#F8F7F3] rounded-2xl border border-slate-200/80 mb-3 text-[11px]">
-            <div className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs font-bold text-[#172033]">
-              <span>📷</span>
-              <span className="truncate">Foto & Screenshot</span>
-            </div>
-            <div className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs font-bold text-[#172033]">
-              <span>📄</span>
-              <span className="truncate">PDF Voucher</span>
-            </div>
-            <div className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs font-bold text-[#172033]">
-              <span>💬</span>
-              <span className="truncate">Assistente</span>
-            </div>
-          </div>
-
           {/* ─── Step: GMAIL LOADING ─── */}
           {step === 'gmailLoading' && (
             <div className="py-12 flex flex-col items-center justify-center text-center">
@@ -843,12 +828,28 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                 </div>
               )}
 
-              {/* Avviso Privacy AI */}
-              <div className="p-2.5 bg-[#F8F7F3] border border-slate-200 rounded-xl flex items-start gap-2 text-[11px] text-slate-600 leading-snug shrink-0">
-                <span className="text-slate-500 text-sm">🔒</span>
-                <span>
-                  <strong className="text-[#172033]">Privacy AI:</strong> I testi o documenti allegati vengono elaborati via Google Gemini per estrarre la prenotazione. Non caricare documenti d'identità o passaporti non necessari. Nessun dato personale viene salvato su server terzi né divulgato.
-                </span>
+              {/* Avviso Privacy AI Compatto ed Espandibile */}
+              <div className="rounded-xl border border-slate-200/80 bg-[#F8F7F3] p-2.5 text-[11px] text-slate-600 shrink-0">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className="text-slate-500 text-xs shrink-0">🔒</span>
+                    <span className="font-semibold text-[#172033] truncate">Privacy AI: Elaborazione sicura voucher e itinerari</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPrivacyDetails(!showPrivacyDetails)}
+                    className="text-[10px] font-bold text-[#FF6B5F] hover:underline shrink-0 cursor-pointer flex items-center gap-0.5"
+                    aria-expanded={showPrivacyDetails}
+                  >
+                    <span>{showPrivacyDetails ? 'Meno info' : 'Dettagli privacy'}</span>
+                    <span className={`text-[9px] transition-transform ${showPrivacyDetails ? 'rotate-180' : ''}`}>▾</span>
+                  </button>
+                </div>
+                {showPrivacyDetails && (
+                  <p className="mt-2 pt-2 border-t border-slate-200 text-[10px] leading-relaxed text-slate-500 animate-fade-in">
+                    I testi o documenti allegati vengono elaborati via Google Gemini per estrarre la prenotazione. Non caricare documenti d'identità o passaporti non necessari. Nessun dato personale viene salvato su server terzi né divulgato.
+                  </p>
+                )}
               </div>
 
               {/* Collegamento Gmail Compatto (1 riga) */}

@@ -2091,6 +2091,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 const newDate = shiftDateStr(found.date || found.data, dateDeltaDays);
                 const updated = {
                   ...found,
+                  orario: newTime,
                   time: newTime,
                   orarioVisita: newTime,
                   ...(newDate ? { date: newDate, data: newDate } : {}),

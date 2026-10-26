@@ -67,6 +67,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginProgressMsg, setLoginProgressMsg] = useState<string | null>(null);
   const [recoveredTrips, setRecoveredTrips] = useState<UserTripSummary[]>([]);
   const [isSearchingTrips, setIsSearchingTrips] = useState(false);
   const [authenticatedUser, setAuthenticatedUser] = useState<User | null>(null);
@@ -442,19 +443,28 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   const handleGoogleLogin = async () => {
     setLoginError(null);
     setLoading(true);
-    const res = await loginWithGoogle();
-    if (!res.success || !res.user) {
-      if (res.code === 'auth/redirect-started') {
-        setLoading(true);
+    setLoginProgressMsg('Connessione al servizio Google…');
+    try {
+      const res = await loginWithGoogle((stage) => setLoginProgressMsg(stage));
+      if (!res.success || !res.user) {
+        if (res.code === 'auth/redirect-started') {
+          setLoading(true);
+          setLoginProgressMsg('Reindirizzamento verso Google…');
+          return;
+        }
+        setLoading(false);
+        setLoginProgressMsg(null);
+        setLoginError(res.error || 'Accesso Google non completato.');
         return;
       }
+      setLoginProgressMsg('Caricamento viaggi autorizzati…');
       setLoading(false);
-      setLoginError(res.error || 'Accesso Google non completato.');
-      return;
+      setMode('account_login');
+      await inspectUserTrips(res.user);
+    } finally {
+      setLoading(false);
+      setLoginProgressMsg(null);
     }
-    setLoading(false);
-    setMode('account_login');
-    await inspectUserTrips(res.user);
   };
 
   const inspectUserTrips = async (user: User) => {
@@ -632,30 +642,73 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   );
 
   // ─────────────────────────────────────────
-  // 1. SELECT MODE (Schermata Principale Light)
+  // ─────────────────────────────────────────
+  // 1. SELECT MODE (Schermata Principale Editoriale Light)
   // ─────────────────────────────────────────
   if (mode === 'select') {
     return renderLayout(
-      <div className="rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/5 p-6 sm:p-7 text-center space-y-6">
-        {/* Logo Ufficiale Completo (Lettering Navy) */}
-        <div className="flex flex-col items-center gap-2 pt-1">
-          <HounigoLogo variant="onLight" size="md" className="mx-auto" />
-          <p className="font-brand-body text-xs text-slate-500 font-medium tracking-tight">
-            Il Roadbook digitale di nozze & avventura
-          </p>
+      <div className="rounded-3xl border border-slate-200/90 bg-white shadow-2xl shadow-slate-900/10 p-6 sm:p-7 text-center space-y-6 relative overflow-hidden font-sans">
+        {/* Motivo grafico editoriale Waypoint & Route Path */}
+        <div className="relative pt-2 pb-1">
+          {/* Waypoint Coordinates & Expedition Tag */}
+          <div className="flex items-center justify-between text-[10px] font-bold tracking-widest uppercase text-slate-400 font-mono px-1 mb-3">
+            <span className="flex items-center gap-1.5 text-[#FF6B5F]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F] animate-pulse" />
+              Waypoint 01
+            </span>
+            <span className="text-slate-400">35°41′N • 139°46′E</span>
+          </div>
+
+          {/* SVG Trail Path Geometric Motif */}
+          <div className="w-full h-8 flex items-center justify-center my-1 pointer-events-none opacity-85">
+            <svg viewBox="0 0 280 28" fill="none" className="w-full max-w-[260px] h-7">
+              {/* Curved Trail Line */}
+              <path
+                d="M 10 14 Q 70 2, 140 14 T 270 14"
+                stroke="#172033"
+                strokeWidth="1.5"
+                strokeDasharray="3 4"
+                strokeOpacity="0.25"
+              />
+              <path
+                d="M 10 14 Q 70 2, 140 14"
+                stroke="#FF6B5F"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeOpacity="0.7"
+              />
+              {/* Waypoint Markers */}
+              <circle cx="10" cy="14" r="4" fill="#FF6B5F" />
+              <circle cx="10" cy="14" r="7" stroke="#FF6B5F" strokeWidth="1" strokeOpacity="0.3" />
+              <circle cx="140" cy="14" r="3.5" fill="#172033" stroke="#F8F7F3" strokeWidth="1.5" />
+              <circle cx="270" cy="14" r="4.5" fill="#172033" />
+              <circle cx="270" cy="14" r="8" stroke="#172033" strokeWidth="1" strokeOpacity="0.25" />
+            </svg>
+          </div>
+
+          {/* Logo Ufficiale Completo (Lettering Navy) */}
+          <div className="flex flex-col items-center gap-2 pt-1">
+            <HounigoLogo variant="onLight" size="md" className="mx-auto" />
+            <h1 className="font-brand-title font-extrabold text-lg sm:text-xl text-[#172033] tracking-tight leading-snug mt-1">
+              Il Roadbook digitale di nozze & avventura
+            </h1>
+            <p className="font-brand-body text-xs text-slate-500 font-medium leading-relaxed max-w-xs mx-auto">
+              Itinerario condiviso, tappe offline e sincronizzazione in tempo reale per viaggiatori e copiloti.
+            </p>
+          </div>
         </div>
 
         {/* 3 AZIONI PRINCIPALI (BRAND IDENTITY INSTAGRAM) */}
-        <div className="space-y-3 pt-1">
-          {/* 1. CREA UN VIAGGIO */}
+        <div className="space-y-3 pt-0">
+          {/* 1. CREA UN VIAGGIO (CORAL) */}
           <button
             type="button"
             onClick={() => setMode('create')}
-            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] hover:opacity-95 cursor-pointer shadow-md shadow-[#FF6B5F]/20 flex items-center justify-between text-left group"
+            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer shadow-lg shadow-[#FF6B5F]/20 flex items-center justify-between text-left group"
             style={{ background: '#FF6B5F', color: '#ffffff' }}
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 shadow-2xs">
                 <TrailItinerario size={20} active />
               </div>
               <div>
@@ -663,40 +716,46 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 <div className="text-xs text-white/90 font-normal mt-0.5">Imposta date, tappe e itinerario</div>
               </div>
             </div>
-            <span className="text-white text-base font-bold group-hover:translate-x-0.5 transition-transform">→</span>
+            <span className="text-white text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
           </button>
 
-          {/* 2. CONTINUA CON GOOGLE / ACCEDI */}
+          {/* 2. CONTINUA CON GOOGLE / ACCEDI (NAVY) */}
           <button
             type="button"
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] cursor-pointer shadow-xs border flex items-center justify-between text-left group disabled:opacity-50"
+            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer shadow-md shadow-[#172033]/15 border flex items-center justify-between text-left group disabled:opacity-75 disabled:pointer-events-none"
             style={{ background: '#172033', color: '#ffffff', borderColor: '#172033' }}
           >
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0">
-                <span className="text-base">🌐</span>
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0">
+                {loading ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <span className="text-base">🌐</span>
+                )}
               </div>
-              <div>
-                <div className="font-extrabold text-base leading-tight font-brand-title">
-                  {loading ? 'Accesso in corso…' : 'Continua con Google / Accedi'}
+              <div className="min-w-0 flex-1">
+                <div className="font-extrabold text-base leading-tight font-brand-title truncate">
+                  {loading ? (loginProgressMsg || 'Accesso in corso…') : 'Continua con Google / Accedi'}
                 </div>
-                <div className="text-xs text-slate-300 font-normal mt-0.5">Sincronizza e ripristina i tuoi viaggi</div>
+                <div className="text-xs text-slate-300 font-normal mt-0.5 truncate">
+                  {loading ? 'Attendi la verifica delle credenziali' : 'Sincronizza e ripristina i tuoi viaggi'}
+                </div>
               </div>
             </div>
-            <span className="text-slate-300 text-base font-bold group-hover:translate-x-0.5 transition-transform">→</span>
+            <span className="text-slate-300 text-base font-bold group-hover:translate-x-1 transition-transform shrink-0 ml-2">→</span>
           </button>
 
-          {/* 3. PARTECIPA A UN VIAGGIO */}
+          {/* 3. PARTECIPA A UN VIAGGIO (CLOUD) */}
           <button
             type="button"
             onClick={() => setMode('join')}
-            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] cursor-pointer border border-slate-200/90 hover:border-slate-300 bg-[#F8F7F3] flex items-center justify-between text-left group"
+            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer border border-slate-200/90 hover:border-slate-300 bg-[#F8F7F3] flex items-center justify-between text-left group shadow-xs"
             style={{ color: '#172033' }}
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-white text-[#172033] flex items-center justify-center shrink-0 border border-slate-200 shadow-2xs">
+              <div className="w-10 h-10 rounded-xl bg-white text-[#172033] flex items-center justify-center shrink-0 border border-slate-200 shadow-2xs">
                 <TrailCopiloti size={18} active />
               </div>
               <div>
@@ -704,7 +763,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 <div className="text-xs text-slate-500 font-normal mt-0.5">Entra come copilota con link o codice</div>
               </div>
             </div>
-            <span className="text-slate-400 text-base font-bold group-hover:translate-x-0.5 transition-transform">→</span>
+            <span className="text-slate-400 text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
           </button>
 
           {/* Visualizzazione Errore Accesso Esplicito con Riprova */}
@@ -1081,6 +1140,24 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 )}
               </div>
             )}
+
+            {/* Avviso informativo per viaggi condivisi / copilota (es. Giappone) */}
+            <div className="p-3.5 rounded-2xl bg-[#F8F7F3] border border-slate-200/90 text-left text-xs space-y-1.5">
+              <div className="flex items-center gap-1.5 text-[#172033] font-bold text-[11px] uppercase tracking-wider">
+                <span>💡</span>
+                <span>Cerchi un viaggio condiviso come copilota (es. Giappone)?</span>
+              </div>
+              <p className="text-slate-500 text-[11px] leading-relaxed">
+                I viaggi a cui partecipi come copilota compaiono automaticamente non appena apri e riscatti il link d'invito generato dall'organizzatore con questo account.
+              </p>
+              <button
+                type="button"
+                onClick={() => setMode('join')}
+                className="text-[11px] font-bold text-[#FF6B5F] hover:underline cursor-pointer block pt-0.5"
+              >
+                Partecipa con codice o link d'invito →
+              </button>
+            </div>
 
             <button
               type="button"
