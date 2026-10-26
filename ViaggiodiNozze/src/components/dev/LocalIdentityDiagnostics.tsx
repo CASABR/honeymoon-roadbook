@@ -27,6 +27,9 @@ type OwnershipVerdict =
   | 'unauthorized'
   | 'not_found';
 
+declare const __BUILD_TIME__: string;
+declare const __COMMIT_HASH__: string;
+
 export default function LocalIdentityDiagnostics() {
   const [currentUser, setCurrentUser] = useState<User | null>(auth?.currentUser || null);
   const [ownerUid, setOwnerUid] = useState<string | null>(null);
@@ -37,6 +40,39 @@ export default function LocalIdentityDiagnostics() {
   const [remote0000OwnerUid, setRemote0000OwnerUid] = useState<string | null>(null);
   const [verdict, setVerdict] = useState<OwnershipVerdict>('checking');
   const [copiedUid, setCopiedUid] = useState(false);
+
+  // Stato Service Worker & Build
+  const [swStatus, setSwStatus] = useState<string>(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return 'Non supportato';
+    return navigator.serviceWorker.controller ? 'Attivo & Controllante (PWA attiva)' : 'In attesa o non registrato';
+  });
+  const [checkingSw, setCheckingSw] = useState(false);
+
+  const handleCheckSwUpdate = async () => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+      setSwStatus('Service Worker non supportato dal browser.');
+      return;
+    }
+    setCheckingSw(true);
+    setSwStatus('Controllo aggiornamenti sul server...');
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.update();
+      if (reg.waiting) {
+        setSwStatus('Nuova versione pronta! Ricarica per applicare.');
+        if (confirm('Una nuova versione di Hounigo è disponibile. Ricaricare ora l\'applicazione senza cancellare i dati?')) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          window.location.reload();
+        }
+      } else {
+        setSwStatus('Applicazione aggiornata: sei all\'ultima versione disponibile.');
+      }
+    } catch (err: any) {
+      setSwStatus(`Errore verifica SW: ${err?.message || 'timeout'}`);
+    } finally {
+      setCheckingSw(false);
+    }
+  };
 
   const config = getTripConfig();
   const session = getPersistedSession();
@@ -245,6 +281,32 @@ export default function LocalIdentityDiagnostics() {
               {ownerUid || 'Non presente nei backup'}
             </div>
             <span className="block text-[10px] text-slate-400 mt-1">Provenienza: {ownerSource}</span>
+          </div>
+
+          {/* Dati Tecnici Build & Aggiornamento PWA */}
+          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2 text-left">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                <span>📦</span>
+                <span>Versione PWA &amp; Build Eseguita</span>
+              </span>
+              <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 px-2 py-0.5 rounded-md">
+                Commit: {typeof __COMMIT_HASH__ !== 'undefined' ? __COMMIT_HASH__ : 'git'}
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
+              <p>Data &amp; Ora Build: <strong className="text-slate-800 dark:text-slate-100">{typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : 'dev'}</strong></p>
+              <p>Service Worker: <span className="font-mono text-slate-700 dark:text-slate-300">{swStatus}</span></p>
+            </div>
+            <button
+              type="button"
+              disabled={checkingSw}
+              onClick={handleCheckSwUpdate}
+              className="w-full mt-1 py-2 px-3 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5"
+            >
+              <span>{checkingSw ? '⏳' : '🔄'}</span>
+              <span>{checkingSw ? 'Controllo in corso…' : 'Verifica Nuova Versione PWA'}</span>
+            </button>
           </div>
         </div>
 

@@ -159,6 +159,14 @@ export default function TrasportoCard({
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
   const [isPNROpen, setIsPNROpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const initialCopilot = transport.noteCopilota || (typeof transport.copilota === 'string' ? transport.copilota : '') || '';
+  const [copilotNotes, setCopilotNotes] = useState<string>(initialCopilot);
+
+  React.useEffect(() => {
+    setCopilotNotes(transport.noteCopilota || (typeof transport.copilota === 'string' ? transport.copilota : '') || '');
+  }, [transport.noteCopilota, transport.copilota]);
+
+  const hasCopilotNotes = Boolean(copilotNotes.trim());
   const [isBagagliOpen, setIsBagagliOpen] = useState(false);
   const [pnrCopied, setPnrCopied] = useState(false);
 
@@ -330,11 +338,11 @@ export default function TrasportoCard({
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
               className={`w-7 h-7 rounded-lg flex items-center justify-center border transition-all cursor-pointer ${
-                (transport.noteCopilota || transport.copilota)
-                  ? 'bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-400'
+                hasCopilotNotes
+                  ? 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200 dark:border-emerald-500/30 text-emerald-700 dark:text-emerald-300 dark:bg-emerald-500/15'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 opacity-60 hover:opacity-100'
               }`}
-              title="Note Copilota"
+              title={hasCopilotNotes ? 'Note Copilota presenti' : 'Aggiungi note Copilota'}
               aria-label="Note Copilota"
             >
               <span className="text-xs">🧭</span>
@@ -553,14 +561,16 @@ export default function TrasportoCard({
         isOpen={isCopilotOpen}
         onClose={() => setIsCopilotOpen(false)}
         title={transport.carrier || currentType.label}
-        noteCopilota={transport.noteCopilota || (typeof transport.copilota === 'string' ? transport.copilota : '')}
+        noteCopilota={copilotNotes}
         canEdit={true}
         onSave={async (notes) => {
           try {
+            const clean = notes.trim();
+            setCopilotNotes(clean);
             const updated: Trasporto = {
               ...transport,
-              noteCopilota: notes.trim(),
-              copilota: Boolean(notes.trim()) || transport.copilota,
+              noteCopilota: clean,
+              copilota: Boolean(clean) || transport.copilota,
               updatedAt: Date.now()
             };
             await storageService.saveTransport(updated);

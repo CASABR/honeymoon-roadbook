@@ -163,6 +163,22 @@
 4. **Sicurezza e privacy**: **SUPERATO** (Firestore Rules blindate su emulator reale: isolamento 100%, blocco estranei, subcollezioni private protette da `isTripMember`, console admin protetta dietro whitelist).
 5. **Stabilità mobile**: **SUPERATO CON LIMITAZIONI** (UI testata a 320px e 393px; limitazioni documentate: passaggio Safari -> PWA e background GPS prolungato su iOS richiedono verifica su iPhone fisico reale; galleria ospiti remoti locale).
 
+### C. Validazione Hotfix Google OAuth, Note Copilota e PWA (26/10/2026)
+*Suite Automatizzata: `scripts/test_beta_google_copilot_pwa.cjs` (17/17 PASS - 100%)*
+- [x] **Flusso Google OAuth (PWA Standalone & iOS)**:
+  - Gestione atomica `auth/credential-already-in-use` con `signInWithCredential` (nessun secondo popup bloccato da Safari).
+  - Transizione corretta dello stato vista `OnboardingView` verso `mode = 'account_login'`.
+  - Preservazione token invito pendente (`sessionStorage: houni_pending_invite`) durante redirect/popup.
+  - Empty state informativa se l'account Google non ha viaggi attivi (nessun ripristino fraudolento del viaggio `0000`).
+- [x] **Note Copilota UX**:
+  - Armonizzazione visiva a verde smeraldo (`emerald`) su tutte le card (`TappaCard`, `TrasportoCard`, `AttivitaCard`, `AlloggioCard`, `RistoranteCard`, `ShoppingCard`).
+  - Sincronizzazione immediata 0ms dello stato React locale all'uscita dal modale.
+  - Reset affidabile a grigio neutro se il testo viene rimosso.
+- [x] **Tracciamento Versione & PWA Update**:
+  - Iniezione dynamic commit hash (`__COMMIT_HASH__`) e data build (`__BUILD_TIME__`).
+  - Controllo di aggiornamento manuale via `reg.update()` in Impostazioni e Diagnostica senza azzeramento cache/IndexedDB.
+- [!] **Vincolo Chiusura Beta**: La beta non può essere dichiarata formalmente conclusa finché il flusso di login Google non viene convalidato su dispositivo mobile fisico (iOS/Android) in ambiente di produzione post-deployment.
+
 
 
 

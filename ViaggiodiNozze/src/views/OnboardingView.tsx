@@ -9,6 +9,7 @@ import {
   fetchUserTrips,
   loginWithEmailPassword,
   loginWithGoogle,
+  checkPendingRedirectResult,
   verifyTripOwnership,
   type UserTripSummary
 } from '../services/accountService';
@@ -210,10 +211,43 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   };
 
   useEffect(() => {
+    // 1. Controllo eventuale esito di redirect OAuth Google (PWA Standalone o Safari)
+    checkPendingRedirectResult().then(async (redirectRes) => {
+      if (redirectRes.success && redirectRes.user) {
+        setMode('account_login');
+        await inspectUserTrips(redirectRes.user);
+      } else if (redirectRes.error) {
+        setLoginError(redirectRes.error);
+      }
+    }).catch(() => {});
+
+    // 2. Lettura parametri invito URL o ripristino da sessionStorage per flussi OAuth
     const urlParams = new URLSearchParams(window.location.search);
-    const joinCode = urlParams.get('join');
-    const tokenParam = urlParams.get('token');
-    const roleParam = urlParams.get('role');
+    let joinCode = urlParams.get('join');
+    let tokenParam = urlParams.get('token');
+    let roleParam = urlParams.get('role');
+
+    if (joinCode) {
+      try {
+        sessionStorage.setItem('houni_pending_invite', JSON.stringify({
+          joinCode,
+          tokenParam: tokenParam || null,
+          roleParam: roleParam || null
+        }));
+      } catch {}
+    } else if (typeof sessionStorage !== 'undefined') {
+      try {
+        const stored = sessionStorage.getItem('houni_pending_invite');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.joinCode) {
+            joinCode = parsed.joinCode;
+            tokenParam = parsed.tokenParam || null;
+            roleParam = parsed.roleParam || null;
+          }
+        }
+      } catch {}
+    }
 
     if (roleParam === 'copilota' || roleParam === 'guida' || roleParam === 'viewer') {
       setTempRole(roleParam as any);
@@ -249,8 +283,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
       }
     }
 
-    if (joinCode || roleParam || tokenParam) {
-      // Pulisce l'URL mantenendo i dati nello stato del componente
+    if (urlParams.get('join') || urlParams.get('role') || urlParams.get('token')) {
+      // Pulisce l'URL mantenendo i dati nello stato del componente e in sessionStorage
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
@@ -399,6 +433,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
       setLoginError(res.error || 'Credenziali non valide.');
       return;
     }
+    setMode('account_login');
     await inspectUserTrips(res.user);
   };
 
@@ -411,6 +446,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
       setLoginError(res.error || 'Accesso Google non completato.');
       return;
     }
+    setMode('account_login');
     await inspectUserTrips(res.user);
   };
 
@@ -559,6 +595,9 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('houni_onboarding_completed_v1', 'true');
     }
+    if (typeof sessionStorage !== 'undefined') {
+      try { sessionStorage.removeItem('houni_pending_invite'); } catch {}
+    }
     if (onComplete) onComplete(finalConfig);
 
     if (aiAction) {
@@ -671,6 +710,32 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             </div>
             <span className="text-slate-300 text-base font-bold">→</span>
           </button>
+
+          {/* Visualizzazione Errore Accesso Esplicito con Riprova */}
+          {loginError && (
+            <div className="p-3.5 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs font-semibold leading-relaxed text-left flex items-start gap-2.5 shadow-sm">
+              <span className="shrink-0 text-base">⚠️</span>
+              <div className="flex-1 space-y-1">
+                <p>{loginError}</p>
+                <div className="flex items-center gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => { setLoginError(null); handleGoogleLogin(); }}
+                    className="text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-500 px-2.5 py-1 rounded-lg transition-all cursor-pointer shadow-2xs"
+                  >
+                    Riprova con Google ↻
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setLoginError(null); setMode('account_login'); }}
+                    className="text-[11px] font-medium text-slate-300 hover:text-white underline cursor-pointer"
+                  >
+                    Accedi con Email
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Accesso Rapido Google Facoltativo */}
           <div className="pt-2">
@@ -1063,6 +1128,29 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 Nessun viaggio trovato nella cronologia di questo account.
               </p>
             </div>
+
+            {/* Invito in Sospeso Riconosciuto */}
+            {inviteCode && (
+              <div className="p-3.5 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 text-left space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-300">
+                    🤝 Invito in Sospeso
+                  </span>
+                  <span className="text-[10px] text-slate-300 font-mono">ID: {inviteCode}</span>
+                </div>
+                <p className="text-xs text-white">
+                  {inviteDetails?.tripTitle ? `Unisciti al viaggio "${inviteDetails.tripTitle}"` : `Unisciti al viaggio ${inviteCode}`} con questo account!
+                </p>
+                <button
+                  type="button"
+                  onClick={() => executeJoin(inviteCode, inviteToken)}
+                  disabled={loading}
+                  className="w-full py-2.5 rounded-xl font-bold text-xs bg-[#FF6B5F] hover:bg-[#e85c50] text-white transition-all shadow-sm cursor-pointer"
+                >
+                  {loading ? 'Partecipazione in corso…' : 'Accetta Invito & Entra nel Viaggio →'}
+                </button>
+              </div>
+            )}
 
             {/* Azioni dirette ed utili */}
             <div className="space-y-2.5">

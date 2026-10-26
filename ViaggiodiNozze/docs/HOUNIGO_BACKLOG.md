@@ -298,4 +298,7 @@
 | PK2-02 | Cartolina di Viaggio (Paginazione 10 msg, Ordinamento, Delete Sposi) | P1 | PUBBLICATO | 25/10/2026 |
 | PK2-03 | GPS Affidabile (4 stati, Timestamp HH:mm — data, Avviso iOS) | P1 | PUBBLICATO | 25/10/2026 |
 | PK0-01 | Ownership Permanente Viaggio `0000` (`cqs2OcE7...`) | P0 | IMPLEMENTATO / VERIFICATO | 24/10/2026 |
+| JARVIS-AUTH-01 | Login Google Robusto PWA (credential-already-in-use, preserve invite, UI transition) | P0 | COMPLETATO / TESTATO | 26/10/2026 |
+| JARVIS-COP-01 | Armonizzazione Note Copilota (Verde Smeraldo, 0ms Local Sync, Reset Grigio) | P1 | COMPLETATO / TESTATO | 26/10/2026 |
+| JARVIS-PWA-01 | Diagnostica Build PWA & Verifica Aggiornamento Senza Perdita Dati | P1 | COMPLETATO / TESTATO | 26/10/2026 |
 

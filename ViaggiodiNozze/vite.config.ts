@@ -5,8 +5,15 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+import { execSync } from "child_process";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+let commitHash = 'unknown';
+try {
+  commitHash = execSync('git rev-parse --short HEAD').toString().trim();
+} catch {}
 
 export default defineConfig(({ command }) => ({
   resolve: {
@@ -38,6 +45,7 @@ export default defineConfig(({ command }) => ({
       hour: '2-digit', 
       minute: '2-digit' 
     })),
+    __COMMIT_HASH__: JSON.stringify(commitHash),
     'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(''),
     'import.meta.env.VITE_GEMINI_API_KEY_B64': JSON.stringify(''),
   },

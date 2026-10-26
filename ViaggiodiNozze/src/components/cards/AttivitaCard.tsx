@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
 import type { Attivita } from '../../types';
@@ -20,8 +20,15 @@ interface AttivitaCardProps {
 
 export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: AttivitaCardProps) {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
-  const copilotData = (activity as any).noteCopilota || (activity as any).notes || '';
-  const hasCopilotNotes = Boolean(copilotData.trim());
+  const initialCopilot = (activity as any).noteCopilota || (activity as any).notes || '';
+  const [copilotNotes, setCopilotNotes] = useState<string>(initialCopilot);
+
+  useEffect(() => {
+    const nextNotes = (activity as any).noteCopilota || (activity as any).notes || '';
+    setCopilotNotes(nextNotes);
+  }, [activity]);
+
+  const hasCopilotNotes = Boolean(copilotNotes.trim());
   
   const paymentInfo = resolvePaymentInfo({
     cost: activity.cost,
@@ -113,10 +120,10 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
               className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all cursor-pointer shadow-2xs ${
                 hasCopilotNotes
-                  ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-200 dark:border-amber-800/50 text-amber-700 dark:text-amber-400' 
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30' 
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 opacity-60 hover:opacity-100'
               }`}
-              title="Note Copilota"
+              title={hasCopilotNotes ? 'Note Copilota presenti' : 'Aggiungi note Copilota'}
             >
               <span className="text-sm">🧭</span>
             </button>
@@ -231,14 +238,16 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
         isOpen={isCopilotOpen}
         onClose={() => setIsCopilotOpen(false)}
         title={activity.title || 'Dettaglio'}
-        noteCopilota={copilotData}
+        noteCopilota={copilotNotes}
         canEdit={true}
         onSave={async (notes) => {
           try {
-            const updated = { ...activity, noteCopilota: notes.trim(), updatedAt: Date.now() } as any;
+            const clean = notes.trim();
+            setCopilotNotes(clean);
+            const updated = { ...activity, noteCopilota: clean, updatedAt: Date.now() } as any;
             await storageService.saveActivity(updated);
             if (typeof onUpdate === 'function') onUpdate(updated);
-            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update' }}));
+            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'attivita', data: updated } }));
             setIsCopilotOpen(false);
           } catch(e) { console.error(e); }
         }}

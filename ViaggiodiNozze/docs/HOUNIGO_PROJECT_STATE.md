@@ -547,6 +547,41 @@ A seguito del collaudo reale su PWA installata (con esito positivo e confermato 
 - **Build di Produzione**:
   - `npm run build`: completata con esito 0 (nessun errore TypeScript o di bundling PWA).
 
+### 6. P0/P1 — Risoluzione Flusso Login Google, Armonizzazione Note Copilota e Tracciamento Versioni PWA
+- **P0 — Risoluzione Flusso Login Google (PWA Standalone & iOS Safari)**:
+  - *Causa radice*:
+    1. In `OnboardingView.tsx`, al completamento del login Google, mancava la transizione di stato a `mode = 'account_login'`. Il componente rimaneva in `mode = 'select'`, dando l'illusione di un reset alla schermata iniziale.
+    2. Su iOS Safari e PWA standalone, quando un utente anonimo tentava di collegare un account Google già esistente (`linkWithPopup`), Firebase lanciava `auth/credential-already-in-use`. Il fallback tentava un secondo popup `signInWithPopup`, regolarmente bloccato da Safari per perdita del contesto di interazione utente sincrono.
+    3. Gli errori di popup non venivano renderizzati nella vista `select`.
+  - *Interventi applicati*:
+    - In `accountService.ts`: Gestione di `auth/credential-already-in-use` tramite `GoogleAuthProvider.credentialFromError(linkErr)` e autenticazione immediata con `signInWithCredential(auth, credential)`, senza aprire alcun secondo popup.
+    - Supporto per OAuth Redirect (`checkPendingRedirectResult()`) per PWA installate con popup disabilitati.
+    - Gestione errori granulare (`popup-blocked`, `popup-closed-by-user`, `unauthorized-domain`, `network-request-failed`).
+    - In `OnboardingView.tsx`: Transizione esplicita a `mode = 'account_login'` post-autenticazione, rendering banner di errore in modalità `select` con pulsante "Riprova con Google ↻", e conservazione sicura di parametri d'invito pendenti in `sessionStorage` (`houni_pending_invite`).
+    - Se l'account recuperato non ha viaggi, viene presentata una empty state informativa chiara senza ripristinare il viaggio template `0000`.
+
+- **P1 — Armonizzazione Icona Note Copilota**:
+  - *Causa radice*:
+    - Mancanza di standardizzazione: `TappaCard`, `TrasportoCard`, `AttivitaCard` e `AlloggioCard` usavano tinte Tailwind `amber` (`bg-amber-50 text-amber-700 border-amber-200`), mentre solo `RistoranteCard` e `ShoppingCard` usavano `emerald`.
+    - Mancava sincronizzazione immediata con lo stato locale del componente genitore, affidandosi solo a ri-render asincroni di Firestore.
+  - *Interventi applicati*:
+    - Sostituite tutte le classi di stile in verde smeraldo (`bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300`).
+    - Introdotto stato locale React (`copilotNotes`) e listener `useEffect` su tutte le card per sincronizzazione immediata a 0ms alla chiusura del modale.
+    - Ripristino garantito a grigio neutro (`text-slate-400 bg-slate-100`) se il testo delle note viene cancellato o è vuoto.
+
+- **P1 — Tracciamento Versione PWA e Controllo Aggiornamenti**:
+  - *Interventi applicati*:
+    - In `vite.config.ts`: iniezione di `__COMMIT_HASH__` (`git rev-parse --short HEAD`) e `__BUILD_TIME__` tramite `define`.
+    - In `src/vite-env.d.ts`: dichiarazione dei tipi TypeScript globali.
+    - In `App.tsx`: etichetta di build visibile nel badge di stato superiore.
+    - In `SettingsMenu.tsx` e `LocalIdentityDiagnostics.tsx`: visualizzazione di commit hash, data di build e pulsante controllato "Verifica aggiornamenti PWA 🔄" che invoca `reg.update()`, preservando al 100% i dati utente locali (nessun `clearSiteData` distruttivo).
+
+- **Suite di Test Dedicata**:
+  - `scripts/test_beta_google_copilot_pwa.cjs`: **17/17 test superati con successo (100%)**.
+  - `scripts/test_beta_release_emulator_validation.cjs`: **24/24 test superati su Firebase Emulator (100%)**.
+  - `scripts/test_beta_oggi_and_adesso.cjs`: **5/5 test superati (100%)**.
+
+
 
 
 

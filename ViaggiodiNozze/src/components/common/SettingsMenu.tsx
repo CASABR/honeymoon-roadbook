@@ -7,6 +7,9 @@ import { idbClearAll } from '../../storage/indexedDB';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import AccountSyncModal from '../modals/AccountSyncModal';
 
+declare const __BUILD_TIME__: string;
+declare const __COMMIT_HASH__: string;
+
 /**
  * Menu Impostazioni compatto, ordinato e mirato.
  * Raggruppa le opzioni essenziali e sposta gli strumenti tecnici
@@ -362,6 +365,42 @@ export default function SettingsMenu() {
                       <span className="text-indigo-400">🔑</span>
                       <span>Chiave API Gemini</span>
                     </button>
+
+                    {/* Verifica Aggiornamenti PWA */}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+                          showToast('error', 'PWA non supportata da questo browser.');
+                          return;
+                        }
+                        showToast('ok', 'Controllo aggiornamenti PWA...');
+                        try {
+                          const reg = await navigator.serviceWorker.ready;
+                          await reg.update();
+                          if (reg.waiting) {
+                            if (confirm('Una nuova versione è pronta. Ricaricare per applicare l\'aggiornamento?')) {
+                              reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+                              window.location.reload();
+                            }
+                          } else {
+                            showToast('ok', 'Sei già all\'ultima versione disponibile!');
+                          }
+                        } catch (err: any) {
+                          showToast('error', 'Impossibile verificare aggiornamenti.');
+                        }
+                      }}
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800"
+                    >
+                      <span className="text-emerald-500">🔄</span>
+                      <span>Verifica aggiornamenti PWA</span>
+                    </button>
+
+                    {/* Versione Build Tecnica */}
+                    <div className="px-4 py-2 text-[10px] text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800 font-mono">
+                      <span>Build: {typeof __COMMIT_HASH__ !== 'undefined' ? __COMMIT_HASH__ : 'git'}</span>
+                      {typeof __BUILD_TIME__ !== 'undefined' && <span> • {__BUILD_TIME__}</span>}
+                    </div>
 
                     {/* Strumenti amministrativi protetti (visibili SOLO con parametro esplicito ?admin=1) */}
                     {typeof window !== 'undefined' && (window.location.search.includes('admin=1') || window.location.hash.includes('admin')) && (

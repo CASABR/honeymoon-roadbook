@@ -40,6 +40,7 @@ import DesktopNavigation, { type DesktopNavSection } from './components/common/D
 import PrenotazioniWorkspaceView from './views/desktop/PrenotazioniWorkspaceView';
 // Dichiarazione della costante globale iniettata da Vite
 declare const __BUILD_TIME__: string;
+declare const __COMMIT_HASH__: string;
 
 /**
  * Config iniziale sincrona: localStorage, solo se il dispositivo è autenticato per un viaggio
@@ -737,8 +738,8 @@ export default function App() {
           <div className="flex items-center gap-1.5">
             <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="h-6 w-auto object-contain max-w-[100px]" />
             {typeof __BUILD_TIME__ !== 'undefined' && (
-              <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full">
-                🟢 {__BUILD_TIME__}
+              <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full font-mono">
+                🟢 {typeof __COMMIT_HASH__ !== 'undefined' ? `${__COMMIT_HASH__} · ` : ''}{__BUILD_TIME__}
               </span>
             )}
           </div>

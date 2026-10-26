@@ -5,7 +5,9 @@ import {
   linkWithPopup,
   linkWithCredential,
   signInWithPopup,
-  signInWithEmailAndPassword
+  signInWithEmailAndPassword,
+  signInWithCredential,
+  getRedirectResult
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -369,10 +371,37 @@ export async function loginWithEmailPassword(
 }
 
 /**
+ * Controlla se vi è un risultato OAuth pendente da redirect (es. PWA o Safari senza popup).
+ */
+export async function checkPendingRedirectResult(): Promise<{
+  success: boolean;
+  user?: User;
+  error?: string;
+  code?: string;
+}> {
+  if (!auth) return { success: false };
+  try {
+    const result = await getRedirectResult(auth);
+    if (result && result.user) {
+      return { success: true, user: result.user };
+    }
+    return { success: false };
+  } catch (err: any) {
+    const code = err?.code || 'auth/unknown';
+    return {
+      success: false,
+      code,
+      error: err?.message || 'Errore durante il recupero del login da reindirizzamento.'
+    };
+  }
+}
+
+/**
  * Effettua il login o collegamento account con Google.
  * Se l'utente corrente è anonimo, tenta linkWithPopup per preservare l'UID e le membership legittime.
- * Se l'account Google è già registrato con altro UID (credential-already-in-use), esegue signInWithPopup
- * in modo rigoroso senza migrazioni arbitrarie di identità.
+ * Se l'account Google è già registrato con altro UID (credential-already-in-use), estrae le credenziali
+ * tramite credentialFromError ed esegue signInWithCredential in modo trasparente senza aprire un secondo popup
+ * (evitando il blocco popup di iOS Safari e PWA).
  */
 export async function loginWithGoogle(): Promise<{
   success: boolean;
@@ -390,59 +419,89 @@ export async function loginWithGoogle(): Promise<{
     const currentUser = auth.currentUser;
     const isAnon = Boolean(currentUser && currentUser.isAnonymous);
     let wasPreExisting = false;
+    let targetUser: User | null = null;
+    let isLinked = false;
 
     // Se l'utente è attualmente anonimo su questo dispositivo, proviamo a collegare le credenziali Google
     // al medesimo UID, preservando al 100% tutte le membership e associazioni già concesse
     if (isAnon && currentUser) {
       try {
         const linkRes = await linkWithPopup(currentUser, provider);
-        const linkedUser = linkRes.user;
-
-        // Aggiorna record /users/{uid} con i nuovi dettagli Google
-        const { recordUserAccess } = await import('./userAccessService');
-        const rawLocalConfig = typeof localStorage !== 'undefined' ? localStorage.getItem('roadbook_trip_config') : null;
-        let activeTripId: string | undefined = undefined;
-        if (rawLocalConfig) {
-          try { activeTripId = JSON.parse(rawLocalConfig)?.id; } catch {}
-        }
-        await recordUserAccess(linkedUser, activeTripId);
-
-        return { success: true, user: linkedUser, linked: true, preExistingAccount: false };
+        targetUser = linkRes.user;
+        isLinked = true;
       } catch (linkErr: any) {
-        // Se il provider Google è già associato a un altro account Firebase esistente, procediamo con signInWithPopup sicuro
-        if (linkErr?.code !== 'auth/credential-already-in-use') {
+        if (linkErr?.code === 'auth/credential-already-in-use') {
+          wasPreExisting = true;
+          console.info('[accountService] Account Google già registrato con altro UID: accesso diretto con credenziale senza secondo popup.');
+          const credential = GoogleAuthProvider.credentialFromError(linkErr);
+          if (credential) {
+            const credRes = await signInWithCredential(auth, credential);
+            targetUser = credRes.user;
+          } else {
+            const popupRes = await signInWithPopup(auth, provider);
+            targetUser = popupRes.user;
+          }
+        } else {
           throw linkErr;
         }
-        wasPreExisting = true;
-        console.info('[accountService] Account Google già registrato con altro UID: accesso sicuro con Google senza migrazioni non verificate.');
       }
+    } else {
+      // Accesso standard con Google per account nuovo o sessione già autenticata
+      const res = await signInWithPopup(auth, provider);
+      targetUser = res.user;
     }
 
-    // Accesso con Google (per account già esistente o accesso standard)
-    const res = await signInWithPopup(auth, provider);
-    const googleUser = res.user;
-
-    // Registra accesso utente Google
-    const { recordUserAccess } = await import('./userAccessService');
-    const rawLocalConfig = typeof localStorage !== 'undefined' ? localStorage.getItem('roadbook_trip_config') : null;
-    let activeTripId: string | undefined = undefined;
-    if (rawLocalConfig) {
-      try { activeTripId = JSON.parse(rawLocalConfig)?.id; } catch {}
+    if (!targetUser) {
+      return { success: false, error: 'Nessun utente restituito dall\'accesso Google.' };
     }
-    await recordUserAccess(googleUser, activeTripId);
 
-    return { success: true, user: googleUser, linked: false, preExistingAccount: wasPreExisting };
+    // Registra accesso utente Google in modo sicuro (senza migrazioni automatiche non autorizzate)
+    try {
+      const { recordUserAccess } = await import('./userAccessService');
+      const rawLocalConfig = typeof localStorage !== 'undefined' ? localStorage.getItem('roadbook_trip_config') : null;
+      let activeTripId: string | undefined = undefined;
+      if (rawLocalConfig) {
+        try {
+          const parsed = JSON.parse(rawLocalConfig);
+          if (parsed?.id && parsed.id !== '0000') {
+            // Per gli account preesistenti, associa il viaggio locale solo se l'utente risulta realmente autorizzato
+            if (!wasPreExisting) {
+              activeTripId = parsed.id;
+            } else {
+              // Verifica rapida se il viaggio appartiene già o include l'utente
+              if (parsed.ownerUid === targetUser.uid || parsed.members?.includes(targetUser.uid)) {
+                activeTripId = parsed.id;
+              }
+            }
+          }
+        } catch {}
+      }
+      await recordUserAccess(targetUser, activeTripId);
+    } catch (recErr) {
+      console.warn('[accountService] RecordUserAccess non bloccante fallito:', recErr);
+    }
+
+    return {
+      success: true,
+      user: targetUser,
+      linked: isLinked,
+      preExistingAccount: wasPreExisting
+    };
   } catch (err: any) {
     const code = err?.code || 'auth/unknown';
     let error = 'Accesso Google interrotto.';
     if (code === 'auth/popup-closed-by-user') {
-      error = 'Finestra popup di Google chiusa o bloccata dal browser (in finestra incognito consenti i popup o usa l\'accesso Email e Password sottostante).';
+      error = 'Finestra di accesso Google chiusa prima del completamento (auth/popup-closed-by-user). Riprova cliccando nuovamente sul pulsante.';
     } else if (code === 'auth/popup-blocked') {
-      error = 'Il browser ha bloccato il popup di Google. Consenti i popup o usa il login Email e Password.';
+      error = 'Il browser ha bloccato il popup di Google (auth/popup-blocked). Consenti le finestre popup per questo sito, oppure usa l\'accesso Email e Password.';
+    } else if (code === 'auth/unauthorized-domain') {
+      error = 'Questo dominio web non è autorizzato per l\'accesso Google in Firebase Authentication (auth/unauthorized-domain).';
     } else if (code === 'auth/account-exists-with-different-credential') {
-      error = 'Questo indirizzo email è già registrato con Email e Password. Inserisci email e password nel form sopra e clicca "Accedi con Email".';
+      error = 'Questo indirizzo email è già registrato con un altro metodo. Accedi inserendo le credenziali Email e Password (auth/account-exists-with-different-credential).';
+    } else if (code === 'auth/network-request-failed') {
+      error = 'Errore di connessione durante l\'accesso a Google (auth/network-request-failed). Verifica la connessione di rete e riprova.';
     } else if (err?.message) {
-      error = err.message;
+      error = `${err.message} (${code})`;
     }
     return {
       success: false,
@@ -451,4 +510,5 @@ export async function loginWithGoogle(): Promise<{
     };
   }
 }
+
 
