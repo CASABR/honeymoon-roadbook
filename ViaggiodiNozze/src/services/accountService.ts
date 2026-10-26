@@ -77,9 +77,9 @@ export async function verifyTripOwnership(tripId: string, currentUid: string): P
       return { exists: false, isOwner: false, ownerUid: null, ownerName: null };
     }
     const data = tripSnap.data();
-    const ownerUid = data?.ownerUid || null;
+    const ownerUid = data?.ownerUid || data?.ownerId || null;
     const ownerName = data?.ownerName || (tripId === '0000' ? 'nunzio' : null);
-    const isOwner = (ownerUid === currentUid) || (tripId === '0000' && (currentUid === 'nunzio' || !ownerUid));
+    const isOwner = Boolean(ownerUid && ownerUid === currentUid);
     return {
       exists: true,
       isOwner,
@@ -182,7 +182,7 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
           const snap = await getDoc(doc(db, 'trips', tripId));
           if (!snap.exists()) return null;
           const tdata = snap.data();
-          const isOwner = tdata?.ownerUid === uid || tdata?.ownerId === uid || (tripId === '0000' && (uid === 'nunzio' || !tdata?.ownerUid)) ||
+          const isOwner = tdata?.ownerUid === uid || tdata?.ownerId === uid ||
             (prevAnonUid && (tdata?.ownerUid === prevAnonUid || tdata?.ownerId === prevAnonUid));
           const membersList = Array.isArray(tdata?.members) ? tdata.members : [];
           const isMember = membersList.includes(uid) || isOwner || (prevAnonUid && membersList.includes(prevAnonUid));
@@ -199,10 +199,6 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
             if (anonMemSnap && anonMemSnap.exists()) {
               verifiedRole = anonMemSnap.data()?.role === 'owner' ? 'owner' : 'copilota';
             }
-          }
-          // Fallback di cortesia se getDoc ha avuto successo grazie a permessi Firestore
-          if (!verifiedRole) {
-            verifiedRole = tdata?.ownerUid === uid ? 'owner' : 'copilota';
           }
 
           if (verifiedRole) {

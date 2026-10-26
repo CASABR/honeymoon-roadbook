@@ -49,8 +49,7 @@ export default function TripSelectorModal({
       const loadedTrips = await fetchUserTrips(user.uid);
 
       const legacyCheck = await verifyTripOwnership('0000', user.uid);
-      const shouldInclude0000 = currentTripId === '0000' || !user.isAnonymous || legacyCheck.exists;
-      if (shouldInclude0000) {
+      if (legacyCheck.exists && legacyCheck.isOwner) {
         const alreadyHas0000 = loadedTrips.some(t => t.id === '0000');
         if (!alreadyHas0000) {
           const trip0000: UserTripSummary = {
