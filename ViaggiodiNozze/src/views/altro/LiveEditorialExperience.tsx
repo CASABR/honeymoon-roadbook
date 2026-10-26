@@ -3,6 +3,7 @@ import type { LiveUpdate } from '../../services/liveService';
 import type { LiveGpsLease, LiveGpsLocation, LiveGpsDevice } from '../../services/liveGpsService';
 import type { LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
 import { getTripConfig } from '../../utils/tripConfig';
+import { IMAGE_FILE_ACCEPT, isSupportedImageFile } from '../../utils/fileAttachment';
 
 export interface LiveGalleryPhotoItem {
   id: string;
@@ -216,6 +217,9 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   const isLeasePaused = props.remoteGpsLease?.status === 'paused';
   const isLeaseStopped = !props.remoteGpsLease || props.remoteGpsLease?.status === 'stopped';
   const hasFreshRemoteLocation = Boolean(props.remoteGpsLocation && isLeaseActive);
+  const isPlannedMode = props.mapCenterMode === 'planned' && !props.isExternal;
+  const hasRealLocation = Boolean(props.remoteGpsLocation || props.realLocation?.coords);
+  const plannedLocation = props.liveIntelligence?.plannedLocation || null;
 
   // Data e ora dell'ultima rilevazione satellitare effettiva
   const lastDetectedDate: Date | null = props.remoteGpsLocation?.updatedAt
@@ -378,6 +382,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     const file = e.target.files?.[0];
     if (!file) return;
     setUploadError(null);
+    if (!isSupportedImageFile(file)) {
+      setUploadError('Formato non supportato. Scegli una foto JPG, PNG, WebP, HEIC o HEIF.');
+      e.target.value = '';
+      return;
+    }
     setPendingUploadFile(file);
     try {
       const preview = URL.createObjectURL(file);
@@ -578,35 +587,28 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
         {/* MAPPA CARTOGRAFICA EDITORIALE COMPATTA */}
         <div className="relative overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 min-h-[220px] sm:min-h-[360px] shadow-sm">
-          {/* CAMERA FOCUS CONTROLS */}
-          {!props.isExternal && props.liveIntelligence?.plannedLocation?.coords && (
-            <div className="absolute top-3 right-3 z-20 flex items-center gap-1 bg-slate-900/85 backdrop-blur-md p-1 rounded-xl border border-white/20 text-[11px] font-bold text-white shadow-lg">
-              <button
-                type="button"
-                onClick={() => props.onChangeMapCenterMode?.('both')}
-                className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
-                  props.mapCenterMode === 'both' ? 'bg-[#FF6B5F] text-white' : 'text-slate-300 hover:text-white'
-                }`}
-              >
-                Entrambi
-              </button>
+          {/* Selettore esplicito per viewer membri: GPS reale vs programma privato */}
+          {!props.isExternal && (
+            <div className="absolute top-3 inset-x-3 z-20 grid grid-cols-2 gap-1 bg-slate-900/90 backdrop-blur-md p-1 rounded-xl border border-white/20 text-[10px] sm:text-[11px] font-bold text-white shadow-lg" role="group" aria-label="Posizione mostrata sulla mappa">
               <button
                 type="button"
                 onClick={() => props.onChangeMapCenterMode?.('real')}
-                className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                className={`px-2 py-1.5 rounded-lg transition-colors cursor-pointer ${
                   props.mapCenterMode === 'real' ? 'bg-[#FF6B5F] text-white' : 'text-slate-300 hover:text-white'
                 }`}
+                aria-pressed={props.mapCenterMode === 'real'}
               >
-                GPS
+                📍 Dove siamo adesso
               </button>
               <button
                 type="button"
                 onClick={() => props.onChangeMapCenterMode?.('planned')}
-                className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                className={`px-2 py-1.5 rounded-lg transition-colors cursor-pointer ${
                   props.mapCenterMode === 'planned' ? 'bg-[#FF6B5F] text-white' : 'text-slate-300 hover:text-white'
                 }`}
+                aria-pressed={props.mapCenterMode === 'planned'}
               >
-                Itinerario
+                🗓️ Dove dovremmo essere
               </button>
             </div>
           )}
@@ -627,7 +629,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent" />
 
           {/* MARKER 1: POSIZIONE GPS REALE (CORAL CIRCLE + PING) */}
-          {(hasFreshRemoteLocation || props.realLocation) && (
+          {!isPlannedMode && hasRealLocation && (
             <div
               className="absolute left-1/2 top-1/2 flex flex-col items-center justify-center transition-all duration-300 pointer-events-none z-10"
               style={{
@@ -649,13 +651,13 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           )}
 
           {/* MARKER 2: POSIZIONE PREVISTA SECONDO ITINERARIO */}
-          {!props.isExternal && props.liveIntelligence?.plannedLocation?.coords && (
+          {isPlannedMode && plannedLocation?.coords && (
             <div
               className="absolute left-1/2 top-1/2 flex flex-col items-center justify-center transition-all duration-300 pointer-events-none z-10"
               style={{
                 transform: props.plannedMarkerOffset
                   ? `translate(calc(-50% + ${props.plannedMarkerOffset.dx}px), calc(-50% + ${props.plannedMarkerOffset.dy}px))`
-                  : (hasFreshRemoteLocation || props.realLocation) ? 'translate(calc(-50% + 40px), calc(-50% - 40px))' : 'translate(-50%, -50%)'
+                  : 'translate(-50%, -50%)'
               }}
             >
               <div className="w-6 h-6 rounded-lg rotate-45 bg-[#172033] border-2 border-white shadow-xl relative z-10 flex items-center justify-center">
@@ -671,9 +673,15 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6 text-white z-10">
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#FF6B5F]">
-                {isFreshGps ? gpsVisualState.sublabel : '📍 Posizione stimata da programma (Nessun GPS in trasmissione)'}
+                {isPlannedMode
+                  ? '🗓️ Posizione prevista dal programma'
+                  : isFreshGps
+                    ? gpsVisualState.sublabel
+                    : hasRealLocation
+                      ? '📍 Ultima posizione GPS disponibile · non aggiornata'
+                      : '📍 Posizione GPS non disponibile'}
               </span>
-              {isFreshGps && lastDetectedDate && (
+              {!isPlannedMode && lastDetectedDate && (
                 <span className="text-[11px] text-white/70">
                   · rilevato {formatRelativeTime(lastDetectedDate)}
                 </span>
@@ -681,13 +689,23 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             </div>
 
             <h3 className="text-xl sm:text-2xl font-black leading-tight">
-              {isFreshGps && props.remoteGpsLocation?.city
-                ? `${props.remoteGpsLocation.city}${props.remoteGpsLocation.country ? `, ${props.remoteGpsLocation.country}` : ''}`
-                : props.location?.city || props.location?.title || 'Itinerario di viaggio'}
+              {isPlannedMode
+                ? plannedLocation?.title || 'Nessuna posizione prevista affidabile'
+                : hasRealLocation
+                  ? props.remoteGpsLocation?.city
+                    ? `${props.remoteGpsLocation.city}${props.remoteGpsLocation.country ? `, ${props.remoteGpsLocation.country}` : ''}`
+                    : props.realLocation?.city || props.realLocation?.title || 'Ultima posizione condivisa'
+                  : 'La Guida non sta condividendo la posizione'}
             </h3>
 
+            {isPlannedMode && plannedLocation && (
+              <p className="mt-1 text-[11px] text-white/75 max-w-md">
+                {plannedLocation.explanation}
+              </p>
+            )}
+
             {/* CHIP PRIMARIO: "Ultima posizione rilevata: HH:mm — data" */}
-            {lastDetectedTimestampStr && (
+            {!isPlannedMode && lastDetectedTimestampStr && (
               <div className="mt-2.5 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-white text-xs font-bold shadow-xs">
                 <span className="text-sm">🕒</span>
                 <span>{lastDetectedTimestampStr}</span>
@@ -699,6 +717,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
               </div>
             )}
 
+            {((isPlannedMode && plannedLocation?.coords) || (!isPlannedMode && hasRealLocation)) && (
             <div className="mt-3 flex items-center gap-4 flex-wrap">
               <a
                 href={props.mapSearchUrl}
@@ -710,6 +729,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 <span aria-hidden="true">↗</span>
               </a>
             </div>
+            )}
           </div>
         </div>
 
@@ -834,14 +854,26 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           </div>
         )}
 
-        {/* NOTA TECNICA E LIMITI IOS WEBKIT (FASE 3) */}
-        <div className="mt-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 flex items-start gap-2">
-          <span className="text-xs shrink-0 mt-0.5">ℹ️</span>
-          <div>
-            <strong className="text-slate-800 dark:text-slate-200 font-bold">Comportamento GPS su iOS e browser mobile:</strong>{' '}
-            Apple WebKit sospende l&apos;acquisizione della posizione in background quando lo schermo viene bloccato o Safari viene minimizzato. L&apos;app mostra l&apos;ultima posizione satellitare effettiva con relativo orario di rilevazione e riprende la trasmissione in tempo reale non appena la schermata torna attiva.
+        {/* Informativa GPS progressiva e accessibile */}
+        <details className="mt-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 group">
+          <summary className="list-none cursor-pointer p-3 flex items-center justify-between gap-3 hounigo-touch-feedback">
+            <span className="flex items-start gap-2 min-w-0">
+              <span className="text-xs shrink-0 mt-0.5">ℹ️</span>
+              <span>
+                <strong className="block text-slate-800 dark:text-slate-200 font-bold">Come funziona il GPS</strong>
+                <span className="block mt-0.5">Solo il dispositivo Guida autorizzato condivide la posizione, quando la trasmissione LIVE è attiva.</span>
+              </span>
+            </span>
+            <span className="shrink-0 text-[#FF6B5F] font-bold group-open:hidden">Mostra dettagli</span>
+            <span className="shrink-0 text-[#FF6B5F] font-bold hidden group-open:inline">Nascondi dettagli</span>
+          </summary>
+          <div className="px-3 pb-3 pt-0 ml-6 space-y-1.5 leading-relaxed border-t border-slate-200/70 dark:border-slate-800">
+            <p className="pt-2"><strong>Guida:</strong> può avviare, mettere in pausa e interrompere la trasmissione dal proprio smartphone.</p>
+            <p><strong>Copilota:</strong> trasmette solo se l’Organizzatore gli assegna la Guida e se attiva il GPS sul proprio dispositivo.</p>
+            <p><strong>Viewer:</strong> vede l’ultima posizione condivisa; il suo GPS non viene attivato.</p>
+            <p>La posizione è condivisa solo durante una sessione LIVE avviata esplicitamente. Su iPhone, WebKit può sospendere gli aggiornamenti quando lo schermo è bloccato o l’app passa in background: Hounigo mostra sempre l’orario dell’ultimo rilevamento disponibile.</p>
           </div>
-        </div>
+        </details>
 
         {/* ─── LIVE INTELLIGENCE: ADESSO, PROGRAMMA E CONFRONTO (STATO REALE VIAGGIO) ─── */}
         {!props.isExternal && props.liveIntelligence && (
@@ -1325,8 +1357,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                   type="file"
                   ref={fileUploadInputRef}
                   onChange={handlePhotoFileSelected}
-                  accept="image/*"
-                  capture="environment"
+                  accept={IMAGE_FILE_ACCEPT}
                   className="hidden"
                 />
                 <button
@@ -1334,10 +1365,10 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                   onClick={() => fileUploadInputRef.current?.click()}
                   disabled={isUploadingPhoto}
                   className="hounigo-button-primary px-3.5 py-1.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition-all"
-                  title="Scatta o carica una foto dallo smartphone"
+                  title="Scatta una foto o sceglila dalla galleria"
                 >
                   <span>📷</span>
-                  <span>{isUploadingPhoto ? 'Caricamento…' : '+ Aggiungi foto'}</span>
+                  <span>{isUploadingPhoto ? 'Caricamento…' : '+ Scatta o scegli'}</span>
                 </button>
               </>
             )}

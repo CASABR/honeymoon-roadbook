@@ -29,7 +29,7 @@ export default function PdfExportModal({
   const [includeActivities, setIncludeActivities] = useState(true);
   const [includeTransports, setIncludeTransports] = useState(true);
   const [includeAccommodations, setIncludeAccommodations] = useState(true);
-  const [includeBookingRefs, setIncludeBookingRefs] = useState(true);
+  const [includeBookingRefs, setIncludeBookingRefs] = useState(false);
   const [includeNotes, setIncludeNotes] = useState(false);
   const [includeSpese, setIncludeSpese] = useState(false);
 
@@ -237,7 +237,7 @@ export default function PdfExportModal({
                 />
                 <div className="min-w-0">
                   <span className="font-semibold text-slate-800 dark:text-slate-200 block truncate">Riferimenti prenotazione</span>
-                  <span className="text-[10px] text-slate-400 block">Solo codici PNR / conferma</span>
+                  <span className="text-[10px] text-slate-400 block">Disattivati per privacy; abilita solo se servono</span>
                 </div>
               </label>
 

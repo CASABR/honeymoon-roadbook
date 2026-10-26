@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback } from 'react';
+import { IMAGE_OR_PDF_FILE_ACCEPT, isSupportedImageFile } from '../../utils/fileAttachment';
 
 interface DropZoneProps {
   onFilesSelected: (files: File[]) => void;
@@ -17,7 +18,7 @@ export default function DropZone({
   onFilesSelected,
   isUploading = false,
   uploadProgressText = '',
-  accept = 'image/jpeg,image/png,image/webp,application/pdf',
+  accept = IMAGE_OR_PDF_FILE_ACCEPT,
   multiple = true,
   variant = 'hero',
   title,
@@ -70,13 +71,15 @@ export default function DropZone({
         const type = file.type.toLowerCase();
         const name = file.name.toLowerCase();
         if (
-          type.startsWith('image/') ||
+          isSupportedImageFile(file) ||
           type === 'application/pdf' ||
           name.endsWith('.pdf') ||
           name.endsWith('.jpg') ||
           name.endsWith('.jpeg') ||
           name.endsWith('.png') ||
-          name.endsWith('.webp')
+          name.endsWith('.webp') ||
+          name.endsWith('.heic') ||
+          name.endsWith('.heif')
         ) {
           validFiles.push(file);
         }

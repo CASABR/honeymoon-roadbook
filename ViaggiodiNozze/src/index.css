@@ -152,6 +152,41 @@ button, a, input, select {
   transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
+.hounigo-route-group {
+  position: relative;
+  isolation: isolate;
+}
+
+.hounigo-route-group::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 2.25rem;
+  bottom: 2.25rem;
+  left: 2.35rem;
+  border-left: 1px dashed rgba(255, 107, 95, 0.32);
+  pointer-events: none;
+}
+
+.hounigo-route-item {
+  position: relative;
+  z-index: 1;
+}
+
+.hounigo-route-icon {
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.hounigo-route-item:hover .hounigo-route-icon,
+.hounigo-route-item:focus-visible .hounigo-route-icon {
+  transform: translateY(-1px) rotate(-2deg);
+  box-shadow: 0 6px 14px -7px rgba(23, 32, 51, 0.45);
+}
+
+html.dark .hounigo-route-group::before {
+  border-left-color: rgba(255, 107, 95, 0.38);
+}
+
 .hounigo-card-subtle {
   background-color: var(--surface-card-subtle);
   border: 1px solid var(--border-subtle);
@@ -710,4 +745,3 @@ html.dark .modal-sheet-container legend {
     animation: none !important;
   }
 }
-

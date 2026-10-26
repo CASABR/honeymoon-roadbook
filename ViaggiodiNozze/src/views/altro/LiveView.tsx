@@ -87,7 +87,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [transports, setTransports] = useState<Trasporto[]>([]);
   const [tappe, setTappe] = useState<Tappa[]>([]);
   const [activities, setActivities] = useState<Attivita[]>([]);
-  const [mapCenterMode, setMapCenterMode] = useState<'both' | 'real' | 'planned'>('both');
+  const [mapCenterMode, setMapCenterMode] = useState<'both' | 'real' | 'planned'>('real');
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
 
@@ -1030,6 +1030,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         flag: getCountryFlag(liveGpsState.countryCode),
         coords: liveGpsState.coords,
         isRealGps: true,
+        timestamp: liveGpsState.updatedAt,
         updateNotice: `Rilevamento GPS • ${timeAgo}`,
         badgeLabel: `📍 ${liveGpsState.city || 'Posizione Reale'}`
       };
@@ -1144,6 +1145,14 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     return Math.round(R * c);
   }, [realLocation, plannedLocation]);
 
+  const plannedTimeZone = useMemo(() => {
+    if (liveGpsState?.timeZone) return liveGpsState.timeZone;
+    if (plannedLocation.coords) {
+      return getTimezoneFromCoordinates(plannedLocation.coords.lat, plannedLocation.coords.lng, plannedLocation.countryCode);
+    }
+    return undefined;
+  }, [liveGpsState?.timeZone, plannedLocation.coords, plannedLocation.countryCode]);
+
   // Motore di Live Intelligence (itinerario in tempo reale, evento in corso, prossima tappa)
   const liveIntelligence = useMemo<LiveIntelligenceState | null>(() => {
     return deriveLiveIntelligence({
@@ -1157,9 +1166,10 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       tripEndDate: tripRange?.maxTripDate,
       realGpsCoords: remoteGpsLocation ? { lat: remoteGpsLocation.lat, lng: remoteGpsLocation.lng } : (liveGpsState?.coords || null),
       gpsAccuracyMeters: remoteGpsLocation?.accuracy || liveGpsState?.accuracy,
-      isExternalGuest: isStandaloneExternal
+      isExternalGuest: isStandaloneExternal,
+      timeZone: plannedTimeZone
     });
-  }, [days, activities, tappe, accommodations, transports, now, tripRange, remoteGpsLocation, liveGpsState, isStandaloneExternal]);
+  }, [days, activities, tappe, accommodations, transports, now, tripRange, remoteGpsLocation, liveGpsState, isStandaloneExternal, plannedTimeZone]);
 
   const realCoords = useMemo(() => {
     if (remoteGpsLocation) return { lat: remoteGpsLocation.lat, lng: remoteGpsLocation.lng };
@@ -1172,8 +1182,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   }, [liveIntelligence, plannedLocation]);
 
   const effectiveMapCenter = useMemo(() => {
-    if (mapCenterMode === 'real' && realCoords) return realCoords;
-    if (mapCenterMode === 'planned' && plannedCoords) return plannedCoords;
+    if (mapCenterMode === 'real') return realCoords || { lat: 20, lng: 0 };
+    if (mapCenterMode === 'planned') return plannedCoords || { lat: 20, lng: 0 };
     if (mapCenterMode === 'both' && realCoords && plannedCoords) {
       return {
         lat: (realCoords.lat + plannedCoords.lat) / 2,
@@ -1670,9 +1680,11 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       location={currentLocation}
       realLocation={remoteGpsLocation || realLocation}
       mapSearchUrl={
-        remoteGpsLocation
-          ? `https://www.google.com/maps/search/?api=1&query=${remoteGpsLocation.lat},${remoteGpsLocation.lng}`
-          : mapSearchUrl
+        mapCenterMode === 'planned' && liveIntelligence?.plannedLocation?.coords
+          ? `https://www.google.com/maps/search/?api=1&query=${liveIntelligence.plannedLocation.coords.lat},${liveIntelligence.plannedLocation.coords.lng}`
+          : mapCenterMode === 'real' && realCoords
+            ? `https://www.google.com/maps/search/?api=1&query=${realCoords.lat},${realCoords.lng}`
+            : mapSearchUrl
       }
       tileGrid={tileGrid}
       tileLoadFailed={tileLoadFailed}
@@ -2294,8 +2306,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
                   type="file"
                   ref={fileInputRef}
                   onChange={handlePhotoSelect}
-                  accept="image/*"
-                  capture="environment"
+                  accept="image/*,.heic,.heif"
                   className="hidden"
                 />
                 <button
@@ -2303,7 +2314,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploadingPhoto}
                   className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
-                  title="Scatta o carica una nuova foto dallo smartphone"
+                  title="Scatta una foto o sceglila dalla galleria"
                 >
                   {isUploadingPhoto ? 'Caricamento...' : '📷 Cambia Foto'}
                 </button>

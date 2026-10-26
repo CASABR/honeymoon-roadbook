@@ -99,7 +99,7 @@ export default defineConfig(({ command }) => ({
     port: 5173,
     open: false,
     watch: {
-      ignored: ["**/honeymoon-roadbookzip/**", "**/node_modules/**"],
+      ignored: ["**/honeymoon-roadbookzip/**", "**/node_modules/**", "**/scratch/prebeta-screenshot-*/**"],
     },
   },
 }));

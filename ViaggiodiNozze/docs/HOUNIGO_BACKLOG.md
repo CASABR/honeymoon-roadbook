@@ -6,6 +6,21 @@
 
 ## ATTIVITÀ APERTE & SPRINT BETA RELEASE CANDIDATE (TARGET: 28 OTTOBRE 2026)
 
+### 0.0-G ULTIME CORREZIONI PRE-BETA & HANDOFF CODEX (26 Ottobre 2026)
+- **Galleria iPhone, GPS, Viewer, Altro, PDF e Privacy AI**:
+  - *Stato*: IMPLEMENTATO & TESTATO LOCALMENTE (in attesa del collaudo iPhone fisico)
+  - Rimossa l'apertura forzata della fotocamera; selezione galleria e tipi JPEG/PNG/WebP/HEIC/HEIF gestiti dai flussi condivisi, LIVE e HouniAI.
+  - Disclosure GPS accessibile e richiudibile; selettore membro tra posizione GPS reale e posizione prevista nel fuso locale, senza fallback ingannevoli o accesso privato per ospiti esterni.
+  - Card Altro rifinite a 393 px con route-line, gerarchia, touch feedback e sole funzioni prioritarie evidenziate.
+  - PNR esclusi di default dal PDF; chunk jsPDF verificato nel precache del Service Worker di produzione.
+  - Informativa Gemini resa prudente e aderente alle condizioni dipendenti da piano/configurazione.
+  - Suite dedicate e regressioni principali superate; nessuna scrittura su `0000`, nessuna modifica Firebase Rules, nessun deploy.
+- **Collaudo manuale residuo, non sostituibile da simulazione desktop**:
+  - *Stato*: DA FARE SU IPHONE REALE
+  - Verificare in Safari e PWA installata: scelta "Scatta foto" / "Libreria foto", JPEG/PNG/HEIC, anteprima, conferma, persistenza, errore file troppo grande e conservazione delle foto preesistenti.
+  - Verificare posizione reale/prevista con un dispositivo Guida e un Viewer membro; controllare separatamente il link ospite esterno.
+  - Commit locale finale: `HEAD` di `work/product-completion` (hash nel report finale di handoff).
+
 ### 0.0-F SPRINT HOUNIGO — ESPORTAZIONE PDF ROADBOOK & TRASPARENZA PRIVACY AI (26 Ottobre 2026)
 - **Esportazione PDF Roadbook Personalizzabile e Offline**:
   - *Stato*: IMPLEMENTATO & TESTATO (Build PASS, Suite 15/15 PASS, Screenshot Reali PASS)
@@ -356,4 +371,3 @@
 | JARVIS-AUTH-01 | Login Google Robusto PWA (credential-already-in-use, preserve invite, UI transition) | P0 | PUBBLICATO | 26/10/2026 |
 | JARVIS-COP-01 | Armonizzazione Note Copilota (Verde Smeraldo, 0ms Local Sync, Reset Grigio) | P1 | PUBBLICATO | 26/10/2026 |
 | JARVIS-PWA-01 | Diagnostica Build PWA & Verifica Aggiornamento Senza Perdita Dati | P1 | PUBBLICATO | 26/10/2026 |
-

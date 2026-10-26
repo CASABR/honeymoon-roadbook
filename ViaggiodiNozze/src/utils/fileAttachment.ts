@@ -1,5 +1,32 @@
 import type { TransportAttachment } from '../types';
 
+export const IMAGE_FILE_ACCEPT = 'image/*,.heic,.heif';
+export const IMAGE_OR_PDF_FILE_ACCEPT = `${IMAGE_FILE_ACCEPT},application/pdf`;
+
+const SUPPORTED_IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.heic', '.heif'];
+const IMAGE_MIME_BY_EXTENSION: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+  '.heic': 'image/heic',
+  '.heif': 'image/heif'
+};
+
+export function isSupportedImageFile(file: Pick<File, 'name' | 'type'>): boolean {
+  const normalizedType = file.type.toLowerCase();
+  const normalizedName = file.name.toLowerCase();
+  return normalizedType.startsWith('image/') || SUPPORTED_IMAGE_EXTENSIONS.some(extension => normalizedName.endsWith(extension));
+}
+
+function inferFileMimeType(file: Pick<File, 'name' | 'type'>): string {
+  const normalizedType = file.type.toLowerCase();
+  if (normalizedType && normalizedType !== 'application/octet-stream') return normalizedType;
+  const normalizedName = file.name.toLowerCase();
+  const extension = Object.keys(IMAGE_MIME_BY_EXTENSION).find(candidate => normalizedName.endsWith(candidate));
+  return extension ? IMAGE_MIME_BY_EXTENSION[extension] : 'application/octet-stream';
+}
+
 /**
  * Converte un Data URL (base64) in un oggetto Blob nativo con corretto MIME-type.
  */
@@ -101,7 +128,11 @@ export function openAttachmentInNewTab(dataUrl: string, fileName = 'documento.pd
 function readFileAsDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
+    reader.onload = () => {
+      const result = reader.result as string;
+      const inferredMime = inferFileMimeType(file);
+      resolve(result.replace(/^data:(?:application\/octet-stream)?;/, `data:${inferredMime};`));
+    };
     reader.onerror = () => reject(new Error('Errore durante la lettura del file.'));
     reader.readAsDataURL(file);
   });
@@ -173,6 +204,7 @@ function compressImageWithCanvas(
  * Limite massimo supportato per singolo allegato (5 MB originali).
  */
 export const MAX_ATTACHMENT_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_IMAGE_SOURCE_SIZE_BYTES = 20 * 1024 * 1024;
 
 export type AttachmentErrorCode = 
   | 'FILE_TOO_LARGE'
@@ -243,20 +275,21 @@ export async function checkStorageAvailability(requiredBytes: number = 0): Promi
  * Elabora un file (immagine o PDF) con limite di almeno 5 MB e controllo reale dello spazio.
  */
 export async function processFileForAttachment(file: File): Promise<TransportAttachment> {
-  if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-    throw new AttachmentError(
-      `Il file "${file.name}" supera il limite massimo di 5 MB (${(file.size / (1024 * 1024)).toFixed(1)} MB). Riduci la dimensione o seleziona un file fino a 5 MB.`,
-      'FILE_TOO_LARGE'
-    );
-  }
-
   const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-  const isImage = file.type.startsWith('image/');
+  const isImage = isSupportedImageFile(file);
 
   if (!isPdf && !isImage) {
     throw new AttachmentError(
-      'Formato file non supportato. Carica documenti PDF o immagini (PNG, JPG, WebP).',
+      'Formato file non supportato. Carica documenti PDF o immagini (PNG, JPG, WebP, HEIC/HEIF).',
       'INVALID_FORMAT'
+    );
+  }
+
+  const sourceSizeLimit = isImage ? MAX_IMAGE_SOURCE_SIZE_BYTES : MAX_ATTACHMENT_SIZE_BYTES;
+  if (file.size > sourceSizeLimit) {
+    throw new AttachmentError(
+      `Il file "${file.name}" supera il limite di ${Math.round(sourceSizeLimit / (1024 * 1024))} MB (${(file.size / (1024 * 1024)).toFixed(1)} MB).`,
+      'FILE_TOO_LARGE'
     );
   }
 
@@ -308,6 +341,9 @@ export async function processFileForAttachment(file: File): Promise<TransportAtt
   // Altrimenti ottimizziamo via Canvas ad alta risoluzione mantenendo ottima nitidezza per QR code
   try {
     const optimized = await compressImageWithCanvas(file, 2048, 0.88);
+    if (optimized.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      throw new AttachmentError('La foto resta troppo grande dopo l’ottimizzazione. Scegli una versione fino a 5 MB.', 'FILE_TOO_LARGE');
+    }
     return {
       id,
       name: file.name,
@@ -317,7 +353,11 @@ export async function processFileForAttachment(file: File): Promise<TransportAtt
       createdAt
     };
   } catch (err) {
+    if (err instanceof AttachmentError) throw err;
     console.warn('Ottimizzazione automatica fallita, salvo file originale:', err);
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      throw new AttachmentError('Il browser non riesce a ottimizzare questa foto. Esportala come JPG/PNG oppure scegline una fino a 5 MB.', 'READ_ERROR');
+    }
     try {
       const dataUrl = await readFileAsDataUrl(file);
       return {

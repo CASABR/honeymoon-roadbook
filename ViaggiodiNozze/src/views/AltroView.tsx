@@ -163,13 +163,10 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 1. LIVE E CONDIVISIONE VIAGGIO (In Evidenza) */}
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* ───────────────────────────────────────────────────────────── */}
-      {/* 1. LIVE E CONDIVISIONE VIAGGIO (In Evidenza) */}
-      {/* ───────────────────────────────────────────────────────────── */}
       <button 
         type="button"
         onClick={() => setActiveSubView('live')}
-        className="w-full bg-white dark:bg-[#172033] rounded-3xl p-4 border border-[#FF6B5F]/40 dark:border-[#FF6B5F]/30 shadow-xs hover:shadow-md transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.99] group"
+        className="relative overflow-hidden w-full bg-[linear-gradient(115deg,#ffffff_0%,#ffffff_64%,#fff0ed_100%)] dark:bg-[linear-gradient(115deg,#172033_0%,#172033_64%,rgba(255,107,95,.14)_100%)] rounded-3xl p-4 border border-[#FF6B5F]/40 dark:border-[#FF6B5F]/30 shadow-xs hover:shadow-md transition-all text-left flex items-center justify-between cursor-pointer hounigo-touch-feedback group"
       >
         <div className="flex items-center gap-3.5 min-w-0">
           <div className="relative w-12 h-12 rounded-2xl bg-[#FF6B5F] text-white flex items-center justify-center shadow-md shadow-[#FF6B5F]/20 shrink-0">
@@ -190,7 +187,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
               </span>
             </div>
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 truncate font-brand-body">
-              Mappa in tempo reale, coordinate GPS e cartoline di viaggio
+              Posizione LIVE, programma previsto e cartoline
             </p>
           </div>
         </div>
@@ -206,16 +203,16 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
         <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 font-brand-title">
           Documenti & Risorse
         </h3>
-        <div className="bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden font-sans">
+        <div className="hounigo-route-group bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden font-sans">
           
           {/* Documenti del Viaggio */}
           <button
             type="button"
             onClick={() => setActiveSubView('documenti')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
+              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
                 <TrailPrenotazioni size={20} />
               </div>
               <div className="min-w-0">
@@ -223,7 +220,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                   Documenti & Voucher
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Passaporti, visti, patenti e conferme di prenotazione
+                  Voucher, documenti e file disponibili offline
                 </p>
               </div>
             </div>
@@ -234,10 +231,10 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setShowPdfExportModal(true)}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left bg-[#FFF0ED]/55 dark:bg-[#FF6B5F]/[0.08] hover:bg-[#FFF0ED] dark:hover:bg-[#FF6B5F]/15 transition-colors cursor-pointer active:bg-[#ffe4df]"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-[#FFF0ED] dark:bg-[#FF6B5F]/15 text-[#FF6B5F] flex items-center justify-center shrink-0 border border-[#FF6B5F]/20">
+              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-[#FF6B5F] text-white flex items-center justify-center shrink-0 border border-[#FF6B5F]/30 shadow-sm shadow-[#FF6B5F]/20">
                 <TrailPdf size={20} active />
               </div>
               <div className="min-w-0">
@@ -245,7 +242,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                   Esporta Itinerario PDF
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Scarica o stampa il roadbook personalizzato in formato A4
+                  Roadbook A4 personalizzato, anche offline
                 </p>
               </div>
             </div>
@@ -256,7 +253,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setActiveSubView('spese')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
@@ -267,7 +264,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                   Spese & Budget
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Riepilogo costi, pagamenti saldati e valute
+                  Costi, pagamenti saldati e valute
                 </p>
               </div>
             </div>
@@ -278,7 +275,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setActiveSubView('bagagli')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
@@ -289,7 +286,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                   Lista Bagagli
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Checklist valigie suddivisa per partecipante
+                  Checklist valigie per partecipante
                 </p>
               </div>
             </div>
@@ -300,7 +297,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setActiveSubView('note')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
@@ -311,7 +308,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                   Note di Viaggio
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Bacheca appunti, idee e promemoria liberi
+                  Idee, appunti e promemoria
                 </p>
               </div>
             </div>
@@ -327,13 +324,13 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
         <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 font-brand-title">
           Sicurezza & Assistenza
         </h3>
-        <div className="bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden font-sans">
+        <div className="hounigo-route-group bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden font-sans">
           
           {/* Assicurazione Sanitaria */}
           <button
             type="button"
             onClick={() => setActiveSubView('assicurazione')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
@@ -349,7 +346,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Numero di polizza, centrale operativa e massimali
+                  Polizza, centrale operativa e massimali
                 </p>
               </div>
             </div>
@@ -360,7 +357,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setActiveSubView('emergenza')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
@@ -371,7 +368,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                   Emergenze & Soccorso
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Numeri di emergenza locali, consolati e soccorso
+                  Numeri locali, consolati e soccorso
                 </p>
               </div>
             </div>
@@ -382,7 +379,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setActiveSubView('info')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
@@ -393,7 +390,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                   Travel Toolkit
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Fuso orario, prese elettriche e checklist di viaggio
+                  Fusi orari, prese e checklist utili
                 </p>
               </div>
             </div>
@@ -409,13 +406,13 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
         <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2">
           Gestione Viaggio & Dispositivo
         </h3>
-        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/90 dark:border-slate-700/80 shadow-xs divide-y divide-slate-100 dark:divide-slate-700/60 overflow-hidden">
+        <div className="hounigo-route-group bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden">
           
           {/* Partecipanti e Invito Co-pilota */}
           <button
             type="button"
             onClick={() => setActiveSubView('gestione')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0">
@@ -426,7 +423,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                   Partecipanti & Inviti
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Invita il tuo compagno con link sicuro e date
+                  Inviti e accessi condivisi
                 </p>
               </div>
             </div>
@@ -437,7 +434,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setShowRoleModal(true)}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 shrink-0">
@@ -474,7 +471,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setShowTripSelector(true)}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-900/50">
@@ -485,7 +482,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                   I Tuoi Viaggi
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Cambia viaggio attivo o consulta i viaggi associati
+                  Cambia viaggio o consulta gli accessi
                 </p>
               </div>
             </div>

@@ -10,7 +10,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const { jsPDF } = require('../node_modules/jspdf/dist/jspdf.umd.min.js');
 
-const ARTIFACT_DIR = 'C:\\Users\\CUSI\\.gemini\\antigravity-ide\\brain\\62bf6247-9ed9-4d56-890b-a2a63fe7702a';
+const ARTIFACT_DIR = path.join(__dirname, '..', 'screenshots');
 const SCREENSHOT_DIR = path.join(ARTIFACT_DIR, 'screenshots');
 if (!fs.existsSync(SCREENSHOT_DIR)) fs.mkdirSync(SCREENSHOT_DIR, { recursive: true });
 

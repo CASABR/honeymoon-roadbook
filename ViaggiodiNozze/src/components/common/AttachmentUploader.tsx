@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import type { TransportAttachment } from '../../types';
+import { IMAGE_OR_PDF_FILE_ACCEPT, isSupportedImageFile } from '../../utils/fileAttachment';
 
 interface AttachmentUploaderProps {
   attachments: TransportAttachment[];
@@ -23,14 +24,14 @@ export default function AttachmentUploader({ attachments = [], onChange, maxSize
       return;
     }
 
-    const type: 'image' | 'pdf' | null = file.type.startsWith('image/')
+    const type: 'image' | 'pdf' | null = isSupportedImageFile(file)
       ? 'image'
       : file.type === 'application/pdf'
       ? 'pdf'
       : null;
 
     if (!type) {
-      setError('Formato non supportato. Usa JPG, PNG o PDF.');
+      setError('Formato non supportato. Usa JPG, PNG, WebP, HEIC/HEIF o PDF.');
       return;
     }
 
@@ -187,7 +188,7 @@ export default function AttachmentUploader({ attachments = [], onChange, maxSize
           {isDragOver ? 'Rilascia il file qui!' : 'Trascina qui il file o clicca per caricare'}
         </p>
         <p className="text-[10px] text-slate-400 mt-0.5">
-          JPG, PNG (comp. automatica) o PDF (max {maxSizeMB} MB) • Offline
+          Foto (anche HEIC/HEIF) o PDF (max {maxSizeMB} MB) • Offline
         </p>
         
         {isUploading && (
@@ -207,7 +208,7 @@ export default function AttachmentUploader({ attachments = [], onChange, maxSize
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
-        accept="image/jpeg,image/png,image/webp,application/pdf"
+        accept={IMAGE_OR_PDF_FILE_ACCEPT}
         className="hidden"
       />
 

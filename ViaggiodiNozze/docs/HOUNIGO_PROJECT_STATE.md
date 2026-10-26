@@ -1,5 +1,5 @@
 # HOUNIGO — STATO DEL PROGETTO (PROJECT STATE)
-*Data ultimo aggiornamento: 26 Ottobre 2026 (Sprint Admin, UX Compatta & Hounigo Trail Icons)*
+*Data ultimo aggiornamento: 26 Ottobre 2026 (ultime correzioni pre-beta)*
 *Repository: CASABR/honeymoon-roadbook*
 *Branch di lavoro: work/product-completion*
 *Produzione: gh-pages f54bc9a | Bundle online | Firebase: app-viaggio-di-nozze*
@@ -33,11 +33,23 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
 
 ## 3. FUNZIONALITÀ COMPLETATE E PROBLEMI RISOLTI
 
+### Sprint: ultime correzioni pre-beta e handoff Codex (26 Ottobre 2026)
+- **Galleria iPhone**: rimosso `capture="environment"` dai flussi LIVE, unificati `accept` e riconoscimento MIME/estensione per JPEG, PNG, WebP, HEIC e HEIF, mantenuta l'anteprima con conferma e permessi esistenti. La causa principale era l'apertura forzata della fotocamera iOS; i file immagine fino a 20 MB possono ora essere compressi prima del limite finale di 5 MB.
+- **GPS progressivo**: sostituito il muro di testo con disclosure accessibile nativa "Come funziona il GPS", richiudibile e completa di ruoli, attivazione esplicita, privacy e limite iOS in background.
+- **Viewer membro**: ripristinato il selettore esclusivo "Dove siamo adesso" / "Dove dovremmo essere". La prima modalità usa soltanto l'ultima coordinata realmente condivisa e segnala assenza/staleness; la seconda calcola la tappa pianificata nel fuso locale della destinazione. Gli ospiti esterni non ricevono itinerario privato né il selettore membro.
+- **Altro mobile**: gerarchia e personalità migliorate con route-line Coral, micro-feedback accessibili, LIVE e PDF evidenziati senza modificare la navigazione. Confronto 393 px: `screenshots/screenshot_pdf_altro_393.png` e `screenshots/prebeta_altro_after_393.png`.
+- **PDF**: riferimenti prenotazione disattivati per impostazione predefinita; verificato nel `dist/sw.js` generato che il chunk dinamico jsPDF sia incluso nel precache PWA. Nessuna riscrittura del generatore.
+- **Privacy HouniAI**: rimossa la promessa assoluta di zero conservazione/training; l'informativa dichiara correttamente l'invio a Google Gemini e che conservazione, revisione e uso dipendono da piano e impostazioni applicabili.
+- **File principali modificati**: `src/utils/fileAttachment.ts`, componenti upload e HouniAI, `LiveEditorialExperience.tsx`, `LiveView.tsx`, `liveIntelligenceHelper.ts`, `AltroView.tsx`, `index.css`, `PdfExportModal.tsx`, `vite.config.ts`, script di test/cattura e documentazione.
+- **Verifica locale**: suite dedicata 27/27, PDF 15/15, LIVE packet 2, HouniAI 7/7, brand 8/8 e beta Google/copilota/PWA 17/17 superate; lint e build produzione superati. Tre vecchie suite statiche conservano asserzioni non più allineate all'implementazione corrente, senza regressioni runtime rilevate.
+- **Limiti**: selezione reale Foto/Libreria, anteprima HEIC e comportamento PWA restano da convalidare su iPhone fisico. Nessun deploy, modifica alle regole Firebase o scrittura sul viaggio `0000`.
+- **Commit locale finale**: `HEAD` del branch `work/product-completion`; hash esatto riportato nel report finale di handoff.
+
 ### Sprint: HOUNIGO — Esportazione PDF Itinerario & Trasparenza Privacy AI (26 Ottobre 2026)
 - **Esportazione PDF Roadbook 100% Client-side e Offline**:
   - *Posizionamento*: Pulsante rapido "Esporta PDF" in sezione Oggi (OggiView) e card dedicata in Altro -> "Documenti & Risorse" (AltroView). Icona ufficiale coordinata `TrailPdf` da 24×24 px.
   - *Modale di Esportazione (`PdfExportModal.tsx`)*:
-    - *Selezione Contenuti*: Tappe (ON), Attività (ON), Trasporti (ON), Alloggi (ON), Riferimenti prenotazioni non sensibili/PNR (ON), Note personali (OFF), Spese previste (OFF).
+    - *Selezione Contenuti*: Tappe (ON), Attività (ON), Trasporti (ON), Alloggi (ON), Riferimenti prenotazioni/PNR (OFF per privacy), Note personali (OFF), Spese previste (OFF).
     - *Selezione Periodo*: Tutto il viaggio, Intervallo di date configurabile, Singolo giorno.
     - *Livello di Dettaglio*: Compatto (orario, titolo, luogo) vs Dettagliato (note, tratte, check-in, indirizzi).
     - *Anteprima Sintetica*: Conteggio giorni, totale eventi e stima pagine calcolati in tempo reale prima della generazione.
@@ -52,7 +64,7 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
     - Supporto iOS Safari e PWA tramite `navigator.share({ files: [...] })` e fallback di salvataggio via Blob.
     - Nome file sanificato: `HOUNIGO_Itinerario_[NomeViaggio]_[Data].pdf`.
 - **Trasparenza Privacy AI (`SmartInsertModal.tsx`)**:
-  - Rettificata la dicitura informativa: precisato che testi ed immagini vengono inviati temporaneamente tramite connessione cifrata alle API protette di Google Gemini unicamente per estrarre date, tappe e orari nel roadbook, senza conservazione né utilizzo per l'addestramento dei modelli.
+  - L'informativa chiarisce che testi e immagini vengono inviati a Google Gemini per l'analisi; conservazione, revisione e uso dipendono dal piano API e dalle impostazioni applicabili, quindi non viene promessa conservazione zero o esclusione assoluta dal miglioramento dei prodotti.
 - **Verifica e Test**:
   - Script automatizzato `scripts/test_pdf_export_verification.cjs` superato al 100% su tutti i 15 casi obbligatori (breve, 42 giorni, collisioni orari, untimed, entità multiple, fusi orari, note, campi null, testi lunghi, offline, intervalli date, compatto/dettagliato, privacy, iPhone).
   - Rendering visivo reale del PDF generato e screenshot d'interfaccia archiviati (`screenshot_pdf_roadbook_render.png`, `screenshot_pdf_modal_393.png`, `screenshot_pdf_altro_393.png`).
@@ -705,8 +717,6 @@ A seguito del collaudo reale su PWA installata (con esito positivo e confermato 
   - Nessun `clearSiteData` o rimozione forzata Service Worker: dati IndexedDB e localStorage preservati al 100%.
   - Rilevamento automatico e controllato dell'aggiornamento tramite Workbox / PWA Service Worker.
 - **FASE GRAFICA CHIUSA**: HOUNIGO è ora pronto per il collaudo manuale dei beta tester su iPhone reale.
-
-
 
 
 

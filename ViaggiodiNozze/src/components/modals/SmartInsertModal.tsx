@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { extractFromText, extractFromAttachment, type ExtractedEntity } from '../../services/aiExtractor';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
-import { processFileForAttachment, formatFileSize, openAttachmentInNewTab } from '../../utils/fileAttachment';
+import { IMAGE_OR_PDF_FILE_ACCEPT, processFileForAttachment, formatFileSize, openAttachmentInNewTab } from '../../utils/fileAttachment';
 import type { TransportAttachment } from '../../types';
 
 import { getTripConfig } from '../../utils/tripConfig';
@@ -670,7 +670,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
         type="file"
         ref={fileInputRef}
         onChange={handleFileSelect}
-        accept="application/pdf,image/jpeg,image/png,image/webp"
+        accept={IMAGE_OR_PDF_FILE_ACCEPT}
         className="hidden"
       />
 
@@ -833,7 +833,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="text-slate-500 text-xs shrink-0">🔒</span>
-                    <span className="font-semibold text-[#172033] truncate">Privacy AI: Elaborazione temporanea Google Gemini per estrazione dati</span>
+                    <span className="font-semibold text-[#172033] truncate">Privacy AI: i contenuti vengono inviati a Google Gemini</span>
                   </div>
                   <button
                     type="button"
@@ -847,7 +847,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                 </div>
                 {showPrivacyDetails && (
                   <p className="mt-2 pt-2 border-t border-slate-200 text-[10px] leading-relaxed text-slate-500 animate-fade-in">
-                    I testi e i file inviati vengono trasmessi temporaneamente via connessione crittografata alle API Google Gemini per estrarre date, tappe e orari nel tuo roadbook. Non vengono salvati su server esterni oltre la risposta immediata né utilizzati per addestrare modelli. Non caricare documenti d'identità, passaporti o dati bancari.
+                    Testi e file vengono inviati alle API Google Gemini per estrarre i dati del roadbook. Conservazione, revisione e uso dei contenuti dipendono dal piano e dalle impostazioni del progetto API; Google può mantenere log per sicurezza e prevenzione abusi. Non caricare documenti d'identità, passaporti, dati bancari o altri contenuti sensibili.
                   </p>
                 )}
               </div>

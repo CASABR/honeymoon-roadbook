@@ -69,6 +69,7 @@ export interface DeriveIntelligenceParams {
   realGpsCoords?: Coordinate | null;
   gpsAccuracyMeters?: number;
   isExternalGuest?: boolean;
+  timeZone?: string;
 }
 
 /**
@@ -95,20 +96,56 @@ function parseDateTime(dateStr: string, timeStr?: string): Date | null {
   if (!dateStr) return null;
   const time = timeStr && /^\d{1,2}:\d{2}$/.test(timeStr.trim()) ? timeStr.trim() : '00:00';
   const [hours, minutes] = time.split(':').map(Number);
-  const d = new Date(dateStr + 'T00:00:00');
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const d = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
   if (isNaN(d.getTime())) return null;
-  d.setHours(hours, minutes, 0, 0);
   return d;
 }
 
 /**
  * Helper per formattare una data ISO 'YYYY-MM-DD' partendo da un oggetto Date locale.
  */
-function toDateStr(d: Date): string {
+function toDateStr(d: Date, timeZone?: string): string {
+  if (timeZone) {
+    try {
+      const parts = new Intl.DateTimeFormat('en-CA', {
+        timeZone,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      }).formatToParts(d);
+      const year = parts.find(part => part.type === 'year')?.value;
+      const month = parts.find(part => part.type === 'month')?.value;
+      const day = parts.find(part => part.type === 'day')?.value;
+      if (year && month && day) return `${year}-${month}-${day}`;
+    } catch {
+      // Fallback al fuso del dispositivo se la timezone non è riconosciuta.
+    }
+  }
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
+}
+
+function toWallClockMs(d: Date, timeZone?: string): number {
+  if (!timeZone) return d.getTime();
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23'
+    }).formatToParts(d);
+    const value = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find(part => part.type === type)?.value || 0);
+    return Date.UTC(value('year'), value('month') - 1, value('day'), value('hour'), value('minute'), value('second'));
+  } catch {
+    return d.getTime();
+  }
 }
 
 /**
@@ -130,10 +167,11 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
     tripEndDate,
     realGpsCoords,
     gpsAccuracyMeters,
-    isExternalGuest = false
+    isExternalGuest = false,
+    timeZone
   } = params;
 
-  const todayStr = toDateStr(currentDateTime);
+  const todayStr = toDateStr(currentDateTime, timeZone);
 
   // PRIVACY OSPITI: se la richiesta proviene da un ospite esterno,
   // l'itinerario privato (alloggi, orari, tappe future) non deve essere divulgato.
@@ -222,7 +260,7 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
   }
 
   // 2. Viaggio in corso: analizza gli eventi temporali per la data odierna e contigue
-  const nowMs = currentDateTime.getTime();
+  const nowMs = toWallClockMs(currentDateTime, timeZone);
 
   // 2.A Controllo Trasporti in corso (Voli, Treni, Traghetti, Transfer)
   // Per i trasporti in corso: NON considerare l'arrivo come posizione in cui dovremmo già essere!
@@ -268,8 +306,7 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
 
   // 2.B Se non c'è un trasporto in corso, cerca tra le Attività programmate
   let currentActivityEvent: LiveTimelineEvent | null = null;
-  const yesterday = new Date(currentDateTime.getTime() - 24 * 3600 * 1000);
-  const yesterdayStr = toDateStr(yesterday);
+  const yesterdayStr = new Date(nowMs - 24 * 3600 * 1000).toISOString().slice(0, 10);
   const candidateActivities = attivita.filter(a => a.date === todayStr || a.date === yesterdayStr || (a.endDate && a.endDate >= todayStr));
 
   for (const act of candidateActivities) {
@@ -431,7 +468,7 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
           title: tp.titolo,
           location: tp.titolo,
           coords: tp.coordinate || lookupKnownCoordinate(tp.titolo) || undefined,
-          ms: new Date(tpDate + 'T09:00:00').getTime()
+          ms: parseDateTime(tpDate, '09:00')?.getTime() || 0
         });
       }
     }

@@ -8,7 +8,13 @@
 
 | Area | Criterio Minimo Richiesto | Stato Attuale | Note Operative |
 | :--- | :--- | :--- | :--- |
+| **Galleria iPhone** | Foto e libreria entrambe disponibili, JPEG/PNG/HEIC riconosciuti, anteprima e conferma senza perdita degli elementi esistenti. | TESTATO LOCALMENTE | Rimossa forzatura `capture`; helper MIME/estensione condiviso e suite pre-beta PASS. Collaudo iPhone fisico ancora obbligatorio. |
+| **Disclosure GPS** | Informazioni complete ma progressive, accessibili e richiudibili. | TESTATO LOCALMENTE | `<details>/<summary>` nativo con ruoli, attivazione, privacy e limite iOS background. |
+| **Viewer reale / previsto** | Scelta esclusiva tra GPS condiviso reale e programma nel fuso destinazione, senza simulazione o leakage ospiti. | TESTATO LOCALMENTE | Assenza/staleness esplicite; planned location isolata per ospiti esterni; helper time-zone aware. |
+| **Altro Mobile 393 px** | Gerarchia HOUNIGO riconoscibile senza redesign o sovraccarico. | TESTATO LOCALMENTE | Route-line Coral, LIVE/PDF in evidenza, micro-feedback e screenshot prima/dopo archiviati. |
 | **Esportazione PDF Roadbook** | Generazione A4 offline 100% client-side, filtri granulari, privacy rigorosa, supporto iPhone/Web Share, zero costi o Gemini. | TESTATO LOCALMENTE | Modale personalizzabile, import dinamico `jspdf` (0 impatto bundle iniziale), 15/15 test superati, screenshot e PDF validati |
+| **PDF Offline & Privacy** | Chunk jsPDF disponibile offline e riferimenti prenotazione esclusi salvo opt-in esplicito. | TESTATO LOCALMENTE | Chunk jsPDF presente nel precache `dist/sw.js`; checkbox PNR OFF di default. |
+| **Privacy HouniAI** | Nessuna promessa assoluta non dimostrabile su retention o training. | TESTATO LOCALMENTE | Copy breve + pannello espandibile indicano invio a Gemini e dipendenza da piano/impostazioni. |
 | **Brand Identity & Loghi Ufficiali** | Due loghi ufficiali integrati (Logo A Navy su Light, Logo B Bianco su Dark), Manrope, Trail Icons, Light Onboarding & Light HouniAI. | PUBBLICATO | Online su gh-pages commit 69b4006 (bundle index-1JsOyJle.js), due PNG originali preservati, smoke test 18/18 PASS |
 | **Chiusura prevUid** | Rifiuto categorico di membership create via prevUid da attaccanti; solo linkWithPopup o re-invito. | PUBBLICATO | Regole pubblicate su app-viaggio-di-nozze; codice senza prevUid online nel bundle index-DxxPChKC.js |
 | **Protezione Foto & Storage** | QuotaExceededError non elimina fotografie ('hounigo_live_gallery') né dati utente; fallback session/memory. | PUBBLICATO | Protezione online (LiveView-Cm4wFBQ9.js, geolocationService); foto non sacrificabili |
@@ -73,6 +79,8 @@
 - [x] **Test 12: Regressioni login, sync, Maps e LIVE**: Mantenimento card 2 righe, parsing timestamp e login permanente. [SUPERATO 14/14]
 - [x] **Test 13: Build completa di produzione**: `npm run build` completato senza errori TypeScript o Vite. [SUPERATO]
 - [ ] **Test Telefono Fisico Owner su Rete Reale (PWA iOS)**: Collaudo finale geolocalizzazione sul dispositivo reale dell'owner pre-apertura tester 28 ottobre.
+- [ ] **Test Galleria iPhone Safari/PWA**: Collaudo reale di fotocamera/libreria, JPEG/PNG/HEIC, anteprima, conferma, persistenza ed errori; la simulazione desktop non è sufficiente.
+- [ ] **Test Viewer membro ed ospite esterno**: Verificare reale/previsto con Guida attiva, dati stale/assenti e isolamento dell'itinerario privato nel link LIVE esterno.
 
 ---
 
@@ -182,7 +190,6 @@
 - [!] **Verifica Finale su Dispositivo Fisico Reale**:
   - Release pubblicata online: commit `f54bc9ad6e2bda06be585d4e75b945c4581f7047` (sorgente `b9dbfad`).
   - Eseguire i 3 test mirati su iPhone per validare definitivamente la chiusura del feedback beta.
-
 
 
 
