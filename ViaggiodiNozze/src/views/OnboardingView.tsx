@@ -18,7 +18,8 @@ import {
   validateTripInvite,
   redeemTripInvite
 } from '../services/tripInviteService';
-import { TrailItinerario, TrailToolkit, TrailCopiloti } from '../components/icons/TrailIcons';
+import { TrailItinerario, TrailCopiloti } from '../components/icons/TrailIcons';
+import HounigoLogo from '../components/common/HounigoLogo';
 
 export type OnboardingMode =
   | 'select'
@@ -615,58 +616,42 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
 
   const renderLayout = (children: React.ReactNode) => (
     <div
-      className="min-h-screen flex flex-col items-center justify-center p-5 relative overflow-hidden font-sans"
-      style={{ background: '#172033' }}
+      className="min-h-screen flex flex-col items-center justify-center p-4 sm:p-6 relative overflow-hidden font-sans"
+      style={{ background: '#F8F7F3' }}
     >
       <div
-        className="absolute top-[-100px] left-[-100px] w-80 h-80 rounded-full opacity-25 blur-3xl pointer-events-none"
+        className="absolute top-[-120px] left-[-100px] w-96 h-96 rounded-full opacity-15 blur-3xl pointer-events-none"
         style={{ background: 'radial-gradient(circle, #FF6B5F, transparent 70%)' }}
       />
       <div
-        className="absolute bottom-[-80px] right-[-80px] w-80 h-80 rounded-full opacity-10 blur-3xl pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #F8F7F3, transparent 70%)' }}
+        className="absolute bottom-[-100px] right-[-80px] w-96 h-96 rounded-full opacity-10 blur-3xl pointer-events-none"
+        style={{ background: 'radial-gradient(circle, #172033, transparent 70%)' }}
       />
       <div className="relative z-10 w-full max-w-sm">{children}</div>
     </div>
   );
 
   // ─────────────────────────────────────────
-  // 1. SELECT MODE (Schermata Principale)
+  // 1. SELECT MODE (Schermata Principale Light)
   // ─────────────────────────────────────────
   if (mode === 'select') {
     return renderLayout(
-      <div
-        className="rounded-3xl border border-white/10 p-7 sm:p-8 text-center space-y-6"
-        style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(24px)' }}
-      >
-        {/* Logo / Header */}
-        <div className="flex flex-col items-center gap-3">
-          <div className="relative w-20 h-20 mx-auto">
-            <div
-              className="absolute inset-0 rounded-3xl blur-xl opacity-40"
-              style={{ background: '#FF6B5F' }}
-            />
-            <div className="relative w-20 h-20 rounded-3xl flex items-center justify-center p-3 shadow-2xl bg-white/10 backdrop-blur-md border border-white/20">
-              <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="w-full h-full object-contain" />
-            </div>
-          </div>
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight font-brand-title" style={{ color: '#ffffff' }}>
-              Hounigo
-            </h1>
-            <p className="font-brand-body mt-1 text-sm leading-relaxed" style={{ color: '#94a3b8' }}>
-              Il Roadbook digitale di nozze & avventura
-            </p>
-          </div>
+      <div className="rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/5 p-6 sm:p-7 text-center space-y-6">
+        {/* Logo Ufficiale Completo (Lettering Navy) */}
+        <div className="flex flex-col items-center gap-2 pt-1">
+          <HounigoLogo variant="onLight" size="md" className="mx-auto" />
+          <p className="font-brand-body text-xs text-slate-500 font-medium tracking-tight">
+            Il Roadbook digitale di nozze & avventura
+          </p>
         </div>
 
-        {/* 3 INTENZIONI PRINCIPALI (BRAND IDENTITY INSTAGRAM) */}
+        {/* 3 AZIONI PRINCIPALI (BRAND IDENTITY INSTAGRAM) */}
         <div className="space-y-3 pt-1">
-          {/* 1. ORGANIZZA UN VIAGGIO */}
+          {/* 1. CREA UN VIAGGIO */}
           <button
             type="button"
             onClick={() => setMode('create')}
-            className="w-full py-4 px-4.5 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:opacity-95 cursor-pointer shadow-lg shadow-[#FF6B5F]/20 flex items-center justify-between text-left group"
+            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] hover:opacity-95 cursor-pointer shadow-md shadow-[#FF6B5F]/20 flex items-center justify-between text-left group"
             style={{ background: '#FF6B5F', color: '#ffffff' }}
           >
             <div className="flex items-center gap-3">
@@ -674,27 +659,30 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 <TrailItinerario size={20} active />
               </div>
               <div>
-                <div className="font-extrabold text-base leading-tight">Crea un nuovo viaggio</div>
-                <div className="text-xs text-white/85 font-normal mt-0.5">Imposta date, tappe e itinerario</div>
+                <div className="font-extrabold text-base leading-tight font-brand-title">Crea un viaggio</div>
+                <div className="text-xs text-white/90 font-normal mt-0.5">Imposta date, tappe e itinerario</div>
               </div>
             </div>
             <span className="text-white text-base font-bold group-hover:translate-x-0.5 transition-transform">→</span>
           </button>
 
-          {/* 2. ACCEDI AL TUO ACCOUNT */}
+          {/* 2. CONTINUA CON GOOGLE / ACCEDI */}
           <button
             type="button"
-            onClick={() => setMode('account_login')}
-            className="w-full py-4 px-4.5 rounded-2xl font-bold text-sm transition-all active:scale-95 cursor-pointer border flex items-center justify-between text-left hover:bg-white/10 group"
-            style={{ background: 'rgba(255,255,255,0.06)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.18)' }}
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] cursor-pointer shadow-xs border flex items-center justify-between text-left group disabled:opacity-50"
+            style={{ background: '#172033', color: '#ffffff', borderColor: '#172033' }}
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 border border-white/10">
-                <TrailToolkit size={18} active />
+              <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0">
+                <span className="text-base">🌐</span>
               </div>
               <div>
-                <div className="font-extrabold text-base leading-tight">Accedi al tuo account</div>
-                <div className="text-xs text-slate-300 font-normal mt-0.5">Ripristina i viaggi sincronizzati su questo dispositivo</div>
+                <div className="font-extrabold text-base leading-tight font-brand-title">
+                  {loading ? 'Accesso in corso…' : 'Continua con Google / Accedi'}
+                </div>
+                <div className="text-xs text-slate-300 font-normal mt-0.5">Sincronizza e ripristina i tuoi viaggi</div>
               </div>
             </div>
             <span className="text-slate-300 text-base font-bold group-hover:translate-x-0.5 transition-transform">→</span>
@@ -704,24 +692,24 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           <button
             type="button"
             onClick={() => setMode('join')}
-            className="w-full py-4 px-4.5 rounded-2xl font-bold text-sm transition-all active:scale-95 cursor-pointer border flex items-center justify-between text-left hover:bg-white/10 group"
-            style={{ background: 'rgba(255,255,255,0.04)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.14)' }}
+            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] cursor-pointer border border-slate-200/90 hover:border-slate-300 bg-[#F8F7F3] flex items-center justify-between text-left group"
+            style={{ color: '#172033' }}
           >
             <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 border border-white/10">
+              <div className="w-9 h-9 rounded-xl bg-white text-[#172033] flex items-center justify-center shrink-0 border border-slate-200 shadow-2xs">
                 <TrailCopiloti size={18} active />
               </div>
               <div>
-                <div className="font-extrabold text-base leading-tight">Partecipa a un viaggio</div>
-                <div className="text-xs text-slate-300 font-normal mt-0.5">Entra come copilota con link o codice invito</div>
+                <div className="font-extrabold text-base leading-tight font-brand-title">Partecipa a un viaggio</div>
+                <div className="text-xs text-slate-500 font-normal mt-0.5">Entra come copilota con link o codice</div>
               </div>
             </div>
-            <span className="text-slate-300 text-base font-bold group-hover:translate-x-0.5 transition-transform">→</span>
+            <span className="text-slate-400 text-base font-bold group-hover:translate-x-0.5 transition-transform">→</span>
           </button>
 
           {/* Visualizzazione Errore Accesso Esplicito con Riprova */}
           {loginError && (
-            <div className="p-3.5 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs font-semibold leading-relaxed text-left flex items-start gap-2.5 shadow-sm">
+            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold leading-relaxed text-left flex items-start gap-2.5 shadow-2xs">
               <span className="shrink-0 text-base">⚠️</span>
               <div className="flex-1 space-y-1">
                 <p>{loginError}</p>
@@ -736,7 +724,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                   <button
                     type="button"
                     onClick={() => { setLoginError(null); setMode('account_login'); }}
-                    className="text-[11px] font-medium text-slate-300 hover:text-white underline cursor-pointer"
+                    className="text-[11px] font-medium text-slate-600 hover:text-slate-900 underline cursor-pointer"
                   >
                     Accedi con Email
                   </button>
@@ -745,21 +733,19 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             </div>
           )}
 
-          {/* Accesso Rapido Google Facoltativo */}
-          <div className="pt-2">
+          {/* Link discreto ad accesso email tradizionale */}
+          <div className="pt-1 text-center">
             <button
               type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className="w-full py-3 px-4 rounded-xl font-bold text-xs bg-white text-slate-900 hover:bg-slate-100 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2 shadow-sm disabled:opacity-50"
+              onClick={() => setMode('account_login')}
+              className="text-xs font-medium text-slate-500 hover:text-[#172033] transition-colors underline cursor-pointer"
             >
-              <span>🌐</span>
-              <span>{loading ? 'Accesso in corso…' : 'Continua con Google'}</span>
+              Hai già un account? Accedi con email o ID
             </button>
           </div>
         </div>
 
-        <p className="text-[11px] text-center" style={{ color: '#64748b' }}>
+        <p className="text-[11px] text-center text-slate-400 font-medium">
           Dati protetti, sincronizzazione in tempo reale & backup offline
         </p>
       </div>
@@ -771,23 +757,20 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   // ─────────────────────────────────────────
   if (mode === 'create') {
     return renderLayout(
-      <div
-        className="rounded-3xl border border-white/10 p-7 space-y-6"
-        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)' }}
-      >
+      <div className="rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/5 p-6 sm:p-7 space-y-6">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setMode('select')}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 hover:text-[#172033] hover:bg-slate-100 transition-colors cursor-pointer"
           >
             ←
           </button>
           <div>
-            <h2 className="text-xl font-extrabold" style={{ color: '#ffffff' }}>
+            <h2 className="text-xl font-extrabold text-[#172033] font-brand-title">
               Nuovo Viaggio
             </h2>
-            <p className="text-xs mt-0.5" style={{ color: '#94a3b8' }}>
+            <p className="text-xs text-slate-500 mt-0.5">
               Imposta le date per generare il calendario
             </p>
           </div>
@@ -795,7 +778,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
 
         <form onSubmit={handleCreate} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#94a3b8' }}>
+            <label className="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-600">
               Nome del Viaggio *
             </label>
             <input
@@ -804,13 +787,12 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Es. Giappone 2026 🌸"
-              className="w-full px-4 py-3 rounded-xl font-medium text-sm outline-none transition-all border border-white/15 focus:border-[#FF6B5F] focus:ring-2 focus:ring-[#FF6B5F]/30"
-              style={{ background: 'rgba(255,255,255,0.08)', color: 'white' }}
+              className="w-full px-4 py-3 rounded-xl font-medium text-sm outline-none transition-all border border-slate-200 bg-[#F8F7F3] text-[#172033] focus:border-[#FF6B5F] focus:ring-2 focus:ring-[#FF6B5F]/20"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#94a3b8' }}>
+            <label className="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-600">
               Nome dell'Organizzatore *
             </label>
             <input
@@ -819,17 +801,16 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               value={ownerName}
               onChange={(e) => setOwnerName(e.target.value)}
               placeholder="Es. Mario Rossi"
-              className="w-full px-4 py-3 rounded-xl font-medium text-sm outline-none transition-all border border-white/15 focus:border-[#FF6B5F] focus:ring-2 focus:ring-[#FF6B5F]/30"
-              style={{ background: 'rgba(255,255,255,0.08)', color: 'white' }}
+              className="w-full px-4 py-3 rounded-xl font-medium text-sm outline-none transition-all border border-slate-200 bg-[#F8F7F3] text-[#172033] focus:border-[#FF6B5F] focus:ring-2 focus:ring-[#FF6B5F]/20"
             />
-            <p className="text-[11px] mt-1.5 leading-relaxed" style={{ color: '#94a3b8' }}>
+            <p className="text-[11px] mt-1.5 leading-relaxed text-slate-400">
               Identifica il creatore con pieni poteri di gestione e modifica.
             </p>
           </div>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#94a3b8' }}>
+              <label className="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-600">
                 Partenza *
               </label>
               <input
@@ -837,12 +818,12 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none border border-white/15 focus:border-[#FF6B5F]"
-                style={{ background: 'rgba(255,255,255,0.08)', color: 'white', colorScheme: 'dark' }}
+                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none border border-slate-200 bg-[#F8F7F3] text-[#172033] focus:border-[#FF6B5F]"
+                style={{ colorScheme: 'light' }}
               />
             </div>
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: '#94a3b8' }}>
+              <label className="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-600">
                 Rientro *
               </label>
               <input
@@ -850,8 +831,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none border border-white/15 focus:border-[#FF6B5F]"
-                style={{ background: 'rgba(255,255,255,0.08)', color: 'white', colorScheme: 'dark' }}
+                className="w-full px-3 py-2.5 rounded-xl text-sm outline-none border border-slate-200 bg-[#F8F7F3] text-[#172033] focus:border-[#FF6B5F]"
+                style={{ colorScheme: 'light' }}
               />
             </div>
           </div>
@@ -859,7 +840,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-4 mt-2 rounded-2xl font-bold text-base transition-all active:scale-95 hover:opacity-90 cursor-pointer disabled:opacity-60"
+            className="w-full py-3.5 mt-2 rounded-2xl font-bold text-base transition-all active:scale-[0.98] hover:opacity-95 cursor-pointer disabled:opacity-60 shadow-md shadow-[#FF6B5F]/20"
             style={{ background: '#FF6B5F', color: '#ffffff' }}
           >
             {loading ? 'Creazione in corso…' : 'Crea Viaggio e Prosegui 🚀'}
@@ -874,35 +855,29 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   // ─────────────────────────────────────────
   if (mode === 'invite_choice') {
     return renderLayout(
-      <div
-        className="rounded-3xl border border-white/10 p-7 space-y-6 text-center"
-        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)' }}
-      >
-        <div className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center text-3xl shadow-lg" style={{ background: '#FF6B5F' }}>
+      <div className="rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/5 p-6 sm:p-7 space-y-6 text-center">
+        <div className="w-14 h-14 mx-auto rounded-2xl flex items-center justify-center text-3xl shadow-md text-white" style={{ background: '#FF6B5F' }}>
           🎉
         </div>
 
         <div>
-          <h2 className="text-2xl font-black text-white">Viaggio Creato!</h2>
+          <h2 className="text-2xl font-black text-[#172033] font-brand-title">Viaggio Creato!</h2>
           <p className="text-xs font-semibold mt-1" style={{ color: '#FF6B5F' }}>
             {tempConfig?.title}
           </p>
-          <p className="text-xs mt-2 text-slate-300">
+          <p className="text-xs mt-2 text-slate-500">
             Vuoi invitare subito un Copilota o iniziare subito ad esplorare?
           </p>
         </div>
 
         <div className="space-y-3.5 pt-1 text-left">
           {/* Opzione 1: Invita un Copilota */}
-          <div
-            className="p-4 rounded-2xl border transition-all space-y-3"
-            style={{ background: 'rgba(30,41,59,0.85)', borderColor: 'rgba(255,255,255,0.2)' }}
-          >
+          <div className="p-4 rounded-2xl border border-slate-200 bg-[#F8F7F3] space-y-3">
             <div className="flex items-center gap-2.5">
               <span className="text-2xl">🤝</span>
               <div>
-                <h3 className="font-bold text-sm text-white">Invita un Copilota</h3>
-                <p className="text-[11px] text-slate-300">Condividi il link d'accesso al viaggio</p>
+                <h3 className="font-bold text-sm text-[#172033]">Invita un Copilota</h3>
+                <p className="text-[11px] text-slate-500">Condividi il link d'accesso al viaggio</p>
               </div>
             </div>
 
@@ -910,8 +885,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               <button
                 type="button"
                 onClick={handleShareCreatedInviteUrl}
-                className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-xs"
-                style={{ background: '#FF6B5F', color: '#ffffff' }}
+                className="flex-1 py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] cursor-pointer shadow-xs text-white"
+                style={{ background: '#FF6B5F' }}
               >
                 <span>📤</span>
                 <span>{sharedInviteSuccess ? '✓ Condiviso!' : 'Condividi Link'}</span>
@@ -920,7 +895,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               <button
                 type="button"
                 onClick={handleCopyCreatedInviteUrl}
-                className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1 bg-white/10 hover:bg-white/20 text-white transition-all active:scale-95 cursor-pointer"
+                className="py-2.5 px-3 rounded-xl font-bold text-xs flex items-center justify-center gap-1 bg-white hover:bg-slate-100 text-[#172033] border border-slate-200 transition-all active:scale-[0.98] cursor-pointer"
               >
                 <span>{copiedInviteLink ? '✓ Copiato!' : '📋 Copia'}</span>
               </button>
@@ -935,27 +910,25 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           <button
             type="button"
             onClick={() => {
-              // Prosegue immediatamente senza attese
               if (tempConfig?.id === '0000') {
                 setMode('role');
               } else {
                 setMode('ai');
               }
             }}
-            className="w-full p-4 rounded-2xl border transition-all text-left hover:brightness-110 active:scale-95 cursor-pointer"
-            style={{ background: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.12)' }}
+            className="w-full p-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 transition-all text-left active:scale-[0.98] cursor-pointer"
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <span className="text-xl">⏳</span>
                 <div>
-                  <h3 className="font-bold text-sm text-white">Lo farò più tardi</h3>
-                  <p className="text-[11px] text-slate-400">Entra subito nel viaggio e invita in seguito</p>
+                  <h3 className="font-bold text-sm text-[#172033]">Lo farò più tardi</h3>
+                  <p className="text-[11px] text-slate-500">Entra subito nel viaggio e invita in seguito</p>
                 </div>
               </div>
               <span className="text-slate-400 text-lg">→</span>
             </div>
-            <p className="text-[10px] text-slate-500 mt-2 pl-8">
+            <p className="text-[10px] text-slate-400 mt-2 pl-8">
               Potrai generare o revocare l'invito in qualunque momento da Impostazioni ⚙️ → Partecipanti.
             </p>
           </button>
@@ -970,8 +943,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               setMode('ai');
             }
           }}
-          className="w-full py-3.5 rounded-xl font-extrabold text-sm transition-all active:scale-95 hover:opacity-90 cursor-pointer shadow-md"
-          style={{ background: '#FF6B5F', color: '#ffffff' }}
+          className="w-full py-3.5 rounded-xl font-extrabold text-sm transition-all active:scale-[0.98] hover:opacity-95 cursor-pointer shadow-md text-white"
+          style={{ background: '#FF6B5F' }}
         >
           Entra nel Roadbook 🚀
         </button>
@@ -984,54 +957,50 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   // ─────────────────────────────────────────
   if (mode === 'account_login') {
     return renderLayout(
-      <div
-        className="rounded-3xl border border-white/10 p-7 space-y-6"
-        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)' }}
-      >
+      <div className="rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/5 p-6 sm:p-7 space-y-6">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setMode('select')}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 hover:text-[#172033] hover:bg-slate-100 transition-colors cursor-pointer"
           >
             ←
           </button>
           <div>
-            <h2 className="text-xl font-extrabold text-white">Accedi al tuo Account</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Sincronizza lo stesso viaggio su smartphone e PC</p>
+            <h2 className="text-xl font-extrabold text-[#172033] font-brand-title">Accedi al tuo Account</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Sincronizza lo stesso viaggio su smartphone e PC</p>
           </div>
         </div>
 
         {loginError && (
-          <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs font-semibold leading-relaxed">
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold leading-relaxed">
             ⚠️ {loginError}
           </div>
         )}
 
         {/* Elenco Viaggi Riconosciuti dopo Login */}
         {isSearchingTrips ? (
-          <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-center text-xs font-semibold text-slate-300 animate-pulse">
+          <div className="p-4 rounded-2xl bg-[#F8F7F3] border border-slate-200 text-center text-xs font-semibold text-slate-600 animate-pulse">
             ⏳ Ricerca viaggi sincronizzati in corso…
           </div>
         ) : recoveredTrips.length > 0 ? (
           <div className="space-y-4">
             {recoveredTrips.length === 1 ? (
-              /* Accesso rapido se c'è un solo viaggio */
-              <div className="p-4 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 text-left space-y-3">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-300">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
                     Accesso Rapido al Tuo Viaggio
                   </span>
                   <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
-                    recoveredTrips[0].isOwner ? 'bg-amber-400/20 text-amber-300' : 'bg-emerald-400/20 text-emerald-300'
+                    recoveredTrips[0].isOwner ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'
                   }`}>
                     {recoveredTrips[0].isOwner ? '👑 Organizzatore' : '🤝 Copilota'}
                   </span>
                 </div>
                 <div>
-                  <h3 className="text-base font-extrabold text-white">{recoveredTrips[0].title}</h3>
+                  <h3 className="text-base font-extrabold text-[#172033] font-brand-title">{recoveredTrips[0].title}</h3>
                   {recoveredTrips[0].startDate && (
-                    <p className="text-xs text-slate-300 mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5">
                       📅 {recoveredTrips[0].startDate} {recoveredTrips[0].endDate ? `– ${recoveredTrips[0].endDate}` : ''}
                     </p>
                   )}
@@ -1039,23 +1008,22 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 <button
                   type="button"
                   onClick={() => selectRecoveredTrip(recoveredTrips[0])}
-                  className="w-full py-3 rounded-xl font-bold text-sm bg-[#FF6B5F] hover:bg-[#e85c50] text-white shadow-md transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full py-3 rounded-xl font-bold text-sm bg-[#FF6B5F] hover:bg-[#e85c50] text-white shadow-md transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
                 >
                   <span>Entra nel Viaggio</span>
                   <span>→</span>
                 </button>
               </div>
             ) : (
-              /* Elenco raggruppato se sono presenti più viaggi */
               <div className="space-y-3 text-left">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-300">
+                <p className="text-xs font-bold uppercase tracking-wider text-slate-600">
                   I tuoi viaggi sincronizzati ({recoveredTrips.length}):
                 </p>
 
                 {/* Organizzatore */}
                 {recoveredTrips.filter(t => t.isOwner).length > 0 && (
                   <div className="space-y-2">
-                    <span className="text-[11px] font-extrabold text-amber-300 uppercase tracking-wider block">
+                    <span className="text-[11px] font-extrabold text-amber-700 uppercase tracking-wider block">
                       👑 Organizzatore
                     </span>
                     {recoveredTrips.filter(t => t.isOwner).map((t) => (
@@ -1063,17 +1031,17 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                         key={t.id}
                         type="button"
                         onClick={() => selectRecoveredTrip(t)}
-                        className="w-full p-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-left transition-all active:scale-95 cursor-pointer space-y-1 block"
+                        className="w-full p-3.5 rounded-2xl bg-[#F8F7F3] hover:bg-slate-100 border border-slate-200 text-left transition-all active:scale-[0.98] cursor-pointer space-y-1 block shadow-2xs"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-white text-sm truncate">{t.title}</span>
+                          <span className="font-bold text-[#172033] text-sm truncate">{t.title}</span>
                           {t.isLastUsed && (
-                            <span className="text-[9px] font-bold bg-indigo-500/30 text-indigo-200 px-1.5 py-0.5 rounded">
+                            <span className="text-[9px] font-bold bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded">
                               Ultimo usato
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] text-slate-300 flex items-center gap-2">
+                        <div className="text-[11px] text-slate-500 flex items-center gap-2">
                           {t.startDate && <span>📅 {t.startDate}</span>}
                           <span className="font-mono text-slate-400">ID: {t.id}</span>
                         </div>
@@ -1085,7 +1053,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 {/* Co-pilota */}
                 {recoveredTrips.filter(t => !t.isOwner).length > 0 && (
                   <div className="space-y-2 pt-2">
-                    <span className="text-[11px] font-extrabold text-emerald-300 uppercase tracking-wider block">
+                    <span className="text-[11px] font-extrabold text-emerald-700 uppercase tracking-wider block">
                       🤝 Co-pilota
                     </span>
                     {recoveredTrips.filter(t => !t.isOwner).map((t) => (
@@ -1093,17 +1061,17 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                         key={t.id}
                         type="button"
                         onClick={() => selectRecoveredTrip(t)}
-                        className="w-full p-3.5 rounded-2xl bg-white/10 hover:bg-white/15 border border-white/20 text-left transition-all active:scale-95 cursor-pointer space-y-1 block"
+                        className="w-full p-3.5 rounded-2xl bg-[#F8F7F3] hover:bg-slate-100 border border-slate-200 text-left transition-all active:scale-[0.98] cursor-pointer space-y-1 block shadow-2xs"
                       >
                         <div className="flex items-center justify-between">
-                          <span className="font-bold text-white text-sm truncate">{t.title}</span>
+                          <span className="font-bold text-[#172033] text-sm truncate">{t.title}</span>
                           {t.isLastUsed && (
-                            <span className="text-[9px] font-bold bg-indigo-500/30 text-indigo-200 px-1.5 py-0.5 rounded">
+                            <span className="text-[9px] font-bold bg-indigo-100 text-indigo-800 px-1.5 py-0.5 rounded">
                               Ultimo usato
                             </span>
                           )}
                         </div>
-                        <div className="text-[11px] text-slate-300 flex items-center gap-2">
+                        <div className="text-[11px] text-slate-500 flex items-center gap-2">
                           {t.startDate && <span>📅 {t.startDate}</span>}
                           <span className="font-mono text-slate-400">ID: {t.id}</span>
                         </div>
@@ -1117,43 +1085,43 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             <button
               type="button"
               onClick={() => setMode('create')}
-              className="w-full py-2.5 text-xs text-slate-400 hover:text-white transition-colors cursor-pointer"
+              className="w-full py-2.5 text-xs text-slate-500 hover:text-[#172033] transition-colors cursor-pointer"
             >
               + Crea un altro viaggio con questo account
             </button>
           </div>
         ) : authenticatedUser ? (
           <div className="space-y-4">
-            <div className="p-4 rounded-2xl bg-white/5 border border-white/10 text-xs space-y-1.5 text-left">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold">
+            <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs space-y-1.5 text-left">
+              <div className="flex items-center gap-2 text-emerald-700 font-bold">
                 <span>✓</span>
                 <span>Accesso completato</span>
               </div>
-              <p className="text-slate-200">
-                Connesso come: <strong className="text-white">{authenticatedUser.email || authenticatedUser.uid}</strong>
+              <p className="text-slate-800">
+                Connesso come: <strong className="text-[#172033]">{authenticatedUser.email || authenticatedUser.uid}</strong>
               </p>
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500">
                 Nessun viaggio trovato nella cronologia di questo account.
               </p>
             </div>
 
             {/* Invito in Sospeso Riconosciuto */}
             {inviteCode && (
-              <div className="p-3.5 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 text-left space-y-2">
+              <div className="p-3.5 rounded-2xl bg-indigo-50 border border-indigo-200 text-left space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-300">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700">
                     🤝 Invito in Sospeso
                   </span>
-                  <span className="text-[10px] text-slate-300 font-mono">ID: {inviteCode}</span>
+                  <span className="text-[10px] text-slate-500 font-mono">ID: {inviteCode}</span>
                 </div>
-                <p className="text-xs text-white">
+                <p className="text-xs text-indigo-950">
                   {inviteDetails?.tripTitle ? `Unisciti al viaggio "${inviteDetails.tripTitle}"` : `Unisciti al viaggio ${inviteCode}`} con questo account!
                 </p>
                 <button
                   type="button"
                   onClick={() => executeJoin(inviteCode, inviteToken)}
                   disabled={loading}
-                  className="w-full py-2.5 rounded-xl font-bold text-xs bg-[#FF6B5F] hover:bg-[#e85c50] text-white transition-all shadow-sm cursor-pointer"
+                  className="w-full py-2.5 rounded-xl font-bold text-xs bg-[#FF6B5F] hover:bg-[#e85c50] text-white transition-all shadow-xs cursor-pointer"
                 >
                   {loading ? 'Partecipazione in corso…' : 'Accetta Invito & Entra nel Viaggio →'}
                 </button>
@@ -1165,8 +1133,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               <button
                 type="button"
                 onClick={() => setMode('create')}
-                className="w-full py-3.5 px-4 rounded-xl font-bold text-sm transition-all active:scale-95 shadow-md flex items-center justify-center gap-2 cursor-pointer"
-                style={{ background: '#FF6B5F', color: '#ffffff' }}
+                className="w-full py-3.5 px-4 rounded-xl font-bold text-sm transition-all active:scale-[0.98] shadow-md flex items-center justify-center gap-2 cursor-pointer text-white"
+                style={{ background: '#FF6B5F' }}
               >
                 <span>✨</span>
                 <span>Crea il tuo primo viaggio</span>
@@ -1175,15 +1143,15 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               <button
                 type="button"
                 onClick={() => setMode('join')}
-                className="w-full py-3 px-4 rounded-xl font-bold text-xs border border-white/20 text-white hover:bg-white/10 transition-all flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-3 px-4 rounded-xl font-bold text-xs border border-slate-200 bg-[#F8F7F3] text-[#172033] hover:bg-slate-100 transition-all flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>🤝</span>
                 <span>Partecipa con un codice viaggio</span>
               </button>
             </div>
 
-            <form onSubmit={handleManualTripConnect} className="pt-2 border-t border-white/10 space-y-2 text-left">
-              <label className="block text-[11px] font-semibold text-slate-400">
+            <form onSubmit={handleManualTripConnect} className="pt-2 border-t border-slate-200 space-y-2 text-left">
+              <label className="block text-[11px] font-semibold text-slate-500">
                 Oppure inserisci un ID viaggio manuale:
               </label>
               <div className="flex gap-2">
@@ -1193,13 +1161,12 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                   value={manualTripId}
                   onChange={(e) => setManualTripId(e.target.value)}
                   placeholder="Es. 0000 oppure trip_xxx"
-                  className="flex-1 px-3 py-2 rounded-xl text-xs outline-none border border-white/15 focus:border-[#FF6B5F]"
-                  style={{ background: 'rgba(255,255,255,0.08)', color: 'white' }}
+                  className="flex-1 px-3 py-2 rounded-xl text-xs outline-none border border-slate-200 bg-[#F8F7F3] text-[#172033] focus:border-[#FF6B5F]"
                 />
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-4 py-2 rounded-xl font-bold text-xs bg-white text-slate-900 hover:bg-slate-100 disabled:opacity-50 cursor-pointer"
+                  className="px-4 py-2 rounded-xl font-bold text-xs bg-[#172033] text-white hover:bg-slate-800 disabled:opacity-50 cursor-pointer"
                 >
                   {loading ? '…' : 'Collega'}
                 </button>
@@ -1208,28 +1175,28 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           </div>
         ) : (
           <div className="space-y-4">
-            {/* Continua con Google (Accesso con account esistente) */}
+            {/* Continua con Google */}
             <button
               type="button"
               onClick={handleGoogleLogin}
               disabled={loading}
-              className="w-full py-3.5 rounded-xl font-bold text-sm bg-white text-slate-900 hover:bg-slate-100 transition-all active:scale-95 cursor-pointer flex items-center justify-center gap-2.5 shadow-md disabled:opacity-50"
+              className="w-full py-3.5 rounded-xl font-bold text-sm bg-[#172033] text-white hover:bg-slate-800 transition-all active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2.5 shadow-md disabled:opacity-50"
             >
               <span className="text-base">🌐</span>
               <span>{loading ? 'Accesso in corso…' : 'Continua con Google'}</span>
             </button>
 
             <div className="relative flex items-center justify-center pt-1 pb-1">
-              <div className="border-t border-white/15 w-full" />
-              <span className="bg-slate-900 px-3 text-[10px] uppercase font-bold text-slate-400 absolute">
+              <div className="border-t border-slate-200 w-full" />
+              <span className="bg-white px-3 text-[10px] uppercase font-bold text-slate-400 absolute">
                 oppure con email
               </span>
             </div>
 
-            {/* Form Email / Password (Compatibile 100% PWA Safari standalone) */}
-            <form onSubmit={handleEmailLogin} className="space-y-3">
+            {/* Form Email / Password */}
+            <form onSubmit={handleEmailLogin} className="space-y-3 text-left">
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-slate-300">
+                <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-slate-600">
                   Email
                 </label>
                 <input
@@ -1238,13 +1205,12 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                   value={loginEmail}
                   onChange={(e) => setLoginEmail(e.target.value)}
                   placeholder="nome@esempio.com"
-                  className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none border border-white/15 focus:border-[#FF6B5F]"
-                  style={{ background: 'rgba(255,255,255,0.08)', color: 'white' }}
+                  className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none border border-slate-200 bg-[#F8F7F3] text-[#172033] focus:border-[#FF6B5F]"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-slate-300">
+                <label className="block text-[11px] font-bold uppercase tracking-wider mb-1 text-slate-600">
                   Password
                 </label>
                 <input
@@ -1253,23 +1219,22 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                   value={loginPassword}
                   onChange={(e) => setLoginPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none border border-white/15 focus:border-[#FF6B5F]"
-                  style={{ background: 'rgba(255,255,255,0.08)', color: 'white' }}
+                  className="w-full px-3.5 py-2.5 rounded-xl text-sm outline-none border border-slate-200 bg-[#F8F7F3] text-[#172033] focus:border-[#FF6B5F]"
                 />
               </div>
 
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3 rounded-xl font-bold text-sm transition-all active:scale-95 cursor-pointer shadow-md"
-                style={{ background: '#FF6B5F', color: '#ffffff' }}
+                className="w-full py-3 rounded-xl font-bold text-sm transition-all active:scale-[0.98] cursor-pointer shadow-md text-white"
+                style={{ background: '#FF6B5F' }}
               >
                 {loading ? 'Accesso in corso…' : 'Accedi con Email e Password ✉️'}
               </button>
             </form>
 
             <p className="text-[10px] text-slate-400 text-center leading-relaxed">
-              💡 Su iPhone o se hai installato l'app sulla schermata Home, puoi accedere direttamente con Email e Password senza dover gestire finestre esterne.
+              💡 Su iPhone o se hai installato l'app sulla schermata Home, puoi accedere direttamente con Email e Password.
             </p>
           </div>
         )}
@@ -1278,64 +1243,61 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   }
 
   // ─────────────────────────────────────────
-  // 5. JOIN MODE (Adesione con Codice)
+  // 5. JOIN MODE (Light)
   // ─────────────────────────────────────────
   if (mode === 'join') {
     return renderLayout(
-      <div
-        className="rounded-3xl border border-white/10 p-7 space-y-6"
-        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)' }}
-      >
+      <div className="rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/5 p-6 sm:p-7 space-y-6">
         <div className="flex items-center gap-3">
           <button
             type="button"
             onClick={() => setMode('select')}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-500 hover:text-[#172033] hover:bg-slate-100 transition-colors cursor-pointer"
           >
             ←
           </button>
           <div>
-            <h2 className="text-xl font-extrabold text-white">Unisciti a un Viaggio</h2>
-            <p className="text-xs text-slate-400 mt-0.5">Inserisci l'ID del viaggio o accetta un invito</p>
+            <h2 className="text-xl font-extrabold text-[#172033] font-brand-title">Unisciti a un Viaggio</h2>
+            <p className="text-xs text-slate-500 mt-0.5">Inserisci l'ID del viaggio o accetta un invito</p>
           </div>
         </div>
 
         {isValidatingInvite ? (
           <div className="py-10 text-center space-y-4">
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center animate-pulse text-2xl">
+            <div className="w-14 h-14 mx-auto rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center animate-pulse text-2xl">
               🤝
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">Verifica invito in corso…</h3>
-              <p className="text-xs text-slate-400 mt-1">Connessione sicura al viaggio...</p>
+              <h3 className="text-base font-bold text-[#172033]">Verifica invito in corso…</h3>
+              <p className="text-xs text-slate-500 mt-1">Connessione sicura al viaggio...</p>
             </div>
           </div>
         ) : inviteDetails ? (
           <div className="space-y-4">
-            <div className="p-4 rounded-2xl bg-indigo-500/20 border border-indigo-400/40 text-left space-y-2">
-              <div className="flex items-center gap-2 text-indigo-300 font-extrabold text-xs uppercase tracking-wider">
+            <div className="p-4 rounded-2xl bg-indigo-50 border border-indigo-200 text-left space-y-2">
+              <div className="flex items-center gap-2 text-indigo-700 font-extrabold text-xs uppercase tracking-wider">
                 <span>🤝</span>
                 <span>Invito Co-pilota Valido</span>
               </div>
-              <h3 className="text-lg font-black text-white">{inviteDetails.tripTitle || 'Il nostro viaggio'}</h3>
+              <h3 className="text-lg font-black text-[#172033] font-brand-title">{inviteDetails.tripTitle || 'Il nostro viaggio'}</h3>
               {inviteDetails.ownerName && (
-                <p className="text-xs text-slate-300">
-                  Organizzato da: <strong className="text-white">{inviteDetails.ownerName}</strong>
+                <p className="text-xs text-slate-600">
+                  Organizzato da: <strong className="text-[#172033]">{inviteDetails.ownerName}</strong>
                 </p>
               )}
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-slate-500">
                 Sei stato invitato come Co-pilota. Potrai consultare il roadbook, aggiornare spese e note, e seguire la navigazione.
               </p>
             </div>
 
             {inviteError && (
-              <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs font-semibold leading-relaxed">
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold leading-relaxed">
                 ⚠️ {inviteError}
               </div>
             )}
 
             <div className="text-left space-y-1.5 pt-1">
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-300">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600">
                 Il tuo nome da mostrare nel viaggio
               </label>
               <input
@@ -1344,8 +1306,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 onChange={(e) => setCopilotDisplayName(e.target.value)}
                 placeholder="Es. Marco, Sara, etc."
                 maxLength={40}
-                className="w-full px-4 py-3 rounded-xl text-sm font-semibold outline-none border border-white/20 focus:border-[#FF6B5F] transition-colors"
-                style={{ background: 'rgba(255,255,255,0.08)', color: 'white' }}
+                className="w-full px-4 py-3 rounded-xl text-sm font-semibold outline-none border border-slate-200 bg-[#F8F7F3] text-[#172033] focus:border-[#FF6B5F] transition-colors"
               />
               <p className="text-[10px] text-slate-400">
                 Questo nome sarà visibile all'organizzatore del viaggio e nelle tappe o spese condivise.
@@ -1356,8 +1317,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               type="button"
               disabled={loading}
               onClick={() => executeJoin(inviteDetails.tripId, inviteToken, copilotDisplayName)}
-              className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-95 hover:opacity-90 cursor-pointer disabled:opacity-60 shadow-md"
-              style={{ background: '#FF6B5F', color: '#ffffff' }}
+              className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-[0.98] hover:opacity-95 cursor-pointer disabled:opacity-60 shadow-md text-white"
+              style={{ background: '#FF6B5F' }}
             >
               {loading ? '⏳ Accesso in corso…' : 'Accetta Invito e Inizia 🚀'}
             </button>
@@ -1365,13 +1326,13 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         ) : (
           <form onSubmit={handleJoin} className="space-y-5">
             {inviteError && (
-              <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-200 text-xs font-semibold leading-relaxed">
+              <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold leading-relaxed">
                 ⚠️ {inviteError}
               </div>
             )}
 
-            <div>
-              <label className="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-300">
+            <div className="text-left">
+              <label className="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-600">
                 Codice o ID del Viaggio
               </label>
               <input
@@ -1380,14 +1341,13 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
                 placeholder="Es. trip_ab12cd oppure 0000"
-                className="w-full px-4 py-3.5 rounded-xl font-bold text-center tracking-widest text-base outline-none transition-all border border-white/15 focus:border-[#FF6B5F] uppercase"
-                style={{ background: 'rgba(255,255,255,0.08)', color: 'white', colorScheme: 'dark' }}
+                className="w-full px-4 py-3.5 rounded-xl font-bold text-center tracking-widest text-base outline-none transition-all border border-slate-200 bg-[#F8F7F3] text-[#172033] focus:border-[#FF6B5F] uppercase"
               />
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-1.5 text-xs text-left">
-              <span className="font-bold text-white block">💡 Come funziona l'accesso:</span>
-              <p className="text-[11px] text-slate-300 leading-relaxed">
+            <div className="p-3.5 rounded-2xl bg-[#F8F7F3] border border-slate-200 space-y-1.5 text-xs text-left">
+              <span className="font-bold text-[#172033] block">💡 Come funziona l'accesso:</span>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
                 Per motivi di sicurezza, per i nuovi viaggi è necessario aprire il <strong>link di invito completo</strong> condiviso dall'organizzatore. Il solo codice ID è utilizzabile solo se sei già stato autorizzato.
               </p>
             </div>
@@ -1395,8 +1355,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-95 hover:opacity-90 cursor-pointer disabled:opacity-60 shadow-md"
-              style={{ background: '#FF6B5F', color: '#ffffff' }}
+              className="w-full py-4 rounded-2xl font-bold text-base transition-all active:scale-[0.98] hover:opacity-95 cursor-pointer disabled:opacity-60 shadow-md text-white"
+              style={{ background: '#FF6B5F' }}
             >
               {loading ? '⏳ Connessione…' : 'Connettiti al Viaggio 🔗'}
             </button>
@@ -1407,14 +1367,9 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   }
 
   // ─────────────────────────────────────────
-  // 6. ROLE MODE (Scelta Ruolo Operativo Locale)
+  // 6. ROLE MODE (Light)
   // ─────────────────────────────────────────
   if (mode === 'role') {
-    const roleCardStyle: React.CSSProperties = {
-      background: 'rgba(30,41,59,0.9)',
-      border: '1.5px solid rgba(255,255,255,0.28)'
-    };
-
     const isTrip0000 = tempConfig?.id === '0000';
     const guidaTitle = isTrip0000
       ? '***REMOVED*** • Guida (Navigazione)'
@@ -1424,13 +1379,10 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
       : 'Copilota (Roadbook & Spese)';
 
     return renderLayout(
-      <div
-        className="rounded-3xl border border-white/10 p-7 space-y-6"
-        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)' }}
-      >
+      <div className="rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/5 p-6 sm:p-7 space-y-6">
         <div className="text-center">
-          <h2 className="text-2xl font-extrabold mb-2 text-white">Ruolo Dispositivo</h2>
-          <p className="text-sm text-slate-300">
+          <h2 className="text-2xl font-extrabold mb-1 text-[#172033] font-brand-title">Ruolo Dispositivo</h2>
+          <p className="text-sm text-slate-500">
             Scegli come utilizzerai questo dispositivo durante il viaggio.
           </p>
         </div>
@@ -1442,17 +1394,16 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               setTempRole('guida');
               setMode('ai');
             }}
-            className="w-full text-left p-4 rounded-2xl transition-all hover:brightness-125 active:scale-95 cursor-pointer shadow-lg"
-            style={roleCardStyle}
+            className="w-full text-left p-4 rounded-2xl transition-all hover:border-[#FF6B5F] active:scale-[0.98] cursor-pointer shadow-sm border border-slate-200 bg-[#F8F7F3]"
           >
             <div className="flex items-center gap-3 mb-1">
               <span className="text-2xl">🗺️</span>
               <div>
-                <h3 className="font-bold text-lg leading-tight text-white">{guidaTitle}</h3>
-                <span className="text-[11px] font-semibold text-emerald-400">Master GPS • Mappe & Direzioni</span>
+                <h3 className="font-bold text-base leading-tight text-[#172033]">{guidaTitle}</h3>
+                <span className="text-[11px] font-semibold text-emerald-600">Master GPS • Mappe & Direzioni</span>
               </div>
             </div>
-            <p className="text-xs leading-relaxed mt-1 text-slate-300">
+            <p className="text-xs leading-relaxed mt-1 text-slate-500">
               Dispositivo di riferimento per le mappe e la posizione GPS del viaggio.
             </p>
           </button>
@@ -1463,17 +1414,16 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               setTempRole('copilota');
               setMode('ai');
             }}
-            className="w-full text-left p-4 rounded-2xl transition-all hover:brightness-125 active:scale-95 cursor-pointer shadow-lg"
-            style={roleCardStyle}
+            className="w-full text-left p-4 rounded-2xl transition-all hover:border-[#FF6B5F] active:scale-[0.98] cursor-pointer shadow-sm border border-slate-200 bg-[#F8F7F3]"
           >
             <div className="flex items-center gap-3 mb-1">
               <span className="text-2xl">📝</span>
               <div>
-                <h3 className="font-bold text-lg leading-tight text-white">{copilotaTitle}</h3>
-                <span className="text-[11px] font-semibold text-amber-400">Roadbook • Note, Spese & Orari</span>
+                <h3 className="font-bold text-base leading-tight text-[#172033]">{copilotaTitle}</h3>
+                <span className="text-[11px] font-semibold text-amber-600">Roadbook • Note, Spese & Orari</span>
               </div>
             </div>
-            <p className="text-xs leading-relaxed mt-1 text-slate-300">
+            <p className="text-xs leading-relaxed mt-1 text-slate-500">
               Gestisce le note di viaggio, inserisce le spese, controlla gli orari e i documenti.
             </p>
           </button>
@@ -1483,23 +1433,20 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   }
 
   // ─────────────────────────────────────────
-  // 7. AI MODE
+  // 7. AI MODE (Light)
   // ─────────────────────────────────────────
   if (mode === 'ai') {
     return renderLayout(
-      <div
-        className="rounded-3xl border border-white/10 p-7 space-y-6"
-        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)' }}
-      >
+      <div className="rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/5 p-6 sm:p-7 space-y-6">
         <div className="text-center">
           <div
-            className="w-16 h-16 mx-auto mb-4 rounded-2xl flex items-center justify-center text-3xl shadow-lg"
+            className="w-14 h-14 mx-auto mb-3 rounded-2xl flex items-center justify-center text-3xl shadow-md text-white"
             style={{ background: '#FF6B5F' }}
           >
             ✨
           </div>
-          <h2 className="text-2xl font-extrabold mb-2 text-white">Houni AI</h2>
-          <p className="text-sm text-slate-300">
+          <h2 className="text-2xl font-extrabold mb-1 text-[#172033] font-brand-title">Houni AI</h2>
+          <p className="text-sm text-slate-500">
             Il tuo Concierge personale. Vuoi caricare automaticamente le prenotazioni?
           </p>
         </div>
@@ -1507,23 +1454,23 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         <div className="space-y-3">
           <button
             onClick={() => handleFinishOnboarding('manual')}
-            className="w-full py-4 px-4 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:opacity-90 cursor-pointer flex items-center justify-center gap-2 border"
-            style={{ background: '#FF6B5F', color: '#ffffff', borderColor: 'rgba(255,255,255,0.2)' }}
+            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] hover:opacity-95 cursor-pointer flex items-center justify-center gap-2 shadow-sm text-white"
+            style={{ background: '#FF6B5F' }}
           >
             <span>📋</span> Incolla conferme o voucher
           </button>
 
           <button
             onClick={() => handleFinishOnboarding('gmail')}
-            className="w-full py-4 px-4 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:opacity-90 cursor-pointer flex items-center justify-center gap-2"
-            style={{ background: 'rgba(30,41,59,0.9)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.25)' }}
+            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all active:scale-[0.98] hover:bg-slate-800 cursor-pointer flex items-center justify-center gap-2 text-white"
+            style={{ background: '#172033' }}
           >
             <span>📧</span> Sincronizza con Gmail (Avanzato)
           </button>
 
           <button
             onClick={() => handleFinishOnboarding()}
-            className="w-full py-3 mt-2 rounded-xl text-xs font-medium transition-opacity hover:opacity-80 cursor-pointer text-slate-300"
+            className="w-full py-2.5 mt-1 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80 cursor-pointer text-slate-400"
           >
             Salta, crea itinerario a mano
           </button>

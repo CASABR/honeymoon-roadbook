@@ -642,3 +642,72 @@ html.dark .modal-sheet-container legend {
 .hounigo-btn-navy:hover {
   background-color: #0f1624;
 }
+
+/* ============================================================================
+   MOTION DESIGN LEGGERO HOUNIGO (CSS Transitions & Keyframes Performanti)
+   - Zero layout shift (solo transform e opacity)
+   - Supporto completo e rigoroso per prefers-reduced-motion
+   ============================================================================ */
+
+@keyframes hounigoFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes hounigoLivePulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(1.04);
+  }
+}
+
+.hounigo-fade-in {
+  animation: hounigoFadeIn 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: opacity, transform;
+}
+
+.hounigo-live-pulse {
+  animation: hounigoLivePulse 2.8s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
+.hounigo-touch-feedback {
+  transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.12s ease;
+}
+.hounigo-touch-feedback:active {
+  transform: scale(0.98);
+}
+
+/* Trail icon state transition */
+.trail-icon-wrapper {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.15s ease;
+}
+.trail-icon-wrapper:active {
+  transform: scale(0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .hounigo-live-pulse,
+  .hounigo-fade-in {
+    animation: none !important;
+  }
+}
+

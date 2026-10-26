@@ -8,6 +8,7 @@
 
 | Area | Criterio Minimo Richiesto | Stato Attuale | Note Operative |
 | :--- | :--- | :--- | :--- |
+| **Brand Identity & Loghi Ufficiali** | Due loghi ufficiali integrati (Logo A Navy su Light, Logo B Bianco su Dark), Manrope, Trail Icons, Light Onboarding & Light HouniAI. | TESTATO LOCALMENTE | Due PNG originali preservati senza deformazioni, componente HounigoLogo, screenshot 320/393/Desktop archiviati |
 | **Chiusura prevUid** | Rifiuto categorico di membership create via prevUid da attaccanti; solo linkWithPopup o re-invito. | PUBBLICATO | Regole pubblicate su app-viaggio-di-nozze; codice senza prevUid online nel bundle index-DxxPChKC.js |
 | **Protezione Foto & Storage** | QuotaExceededError non elimina fotografie ('hounigo_live_gallery') né dati utente; fallback session/memory. | PUBBLICATO | Protezione online (LiveView-Cm4wFBQ9.js, geolocationService); foto non sacrificabili |
 | **Calendario in Oggi** | Tocco e click immediato su icona 📅 su mobile (iOS Safari/Android) e desktop. | PUBBLICATO | Overlay trasparente e showPicker() operativi online nel bundle principale |

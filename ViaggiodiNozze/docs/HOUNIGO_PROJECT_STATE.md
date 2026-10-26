@@ -33,7 +33,46 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
 
 ## 3. FUNZIONALITÀ COMPLETATE E PROBLEMI RISOLTI
 
-### Sprint: Allineamento Brand Identity App ↔ Instagram @hounigo (26 Ottobre 2026)
+### Sprint: HOUNIGO — JARVIS FINALE (Brand Identity, Loghi Ufficiali, Light Experience & Motion Design) (26 Ottobre 2026)
+- **FASE GRAFICA DEFINITIVAMENTE CONSOLIDATA E CHIUSA**:
+  - Allineamento al 100% dell'app alla brand identity ufficiale di Instagram **@hounigo**.
+- **Due Loghi Ufficiali Importati e Integrati**:
+  - `Logo A` (lettering Navy `#172033` su simbolo H con gradiente Coral-Arancio): dedicato a tutte le superfici chiare (Cloud `#F8F7F3`, bianco).
+  - `Logo B` (lettering Bianco su simbolo H con gradiente Coral-Arancio): dedicato a tutte le superfici scure (Navy `#172033`).
+  - File salvati in `public/images/brand/` (`hounigo-logo-on-light.png`, `hounigo-logo-on-dark.png`) e `src/assets/brand/`.
+  - Componente condiviso `src/components/common/HounigoLogo.tsx`: gestione automatica varianti `onLight`, `onDark`, `markOnly`, proporzioni native protette al 100%, alt text semantico, nessun filtro CSS distruttivo.
+  - Integrato in Onboarding (`variant="onLight"`), Desktop Sidebar (`variant="onLight" / "onDark"`), Topbar compatta (simbolo H originale).
+- **Primo Accesso (Onboarding) Light Definitivo**:
+  - Convertito l'accesso da dark ad un'esperienza Light editoriale su Cloud `#F8F7F3` con morbidi accenti luminosi.
+  - Card bianca con spaziatura bilanciata e tipografia Manrope ExtraBold / Medium.
+  - 3 CTA primarie chiarissime:
+    1. *Crea un viaggio* (Coral `#FF6B5F`, icona TrailItinerario).
+    2. *Continua con Google / Accedi* (Navy `#172033`, icona globo).
+    3. *Partecipa a un viaggio* (Cloud `#F8F7F3`, bordo slate-200, icona TrailCopiloti).
+  - Tutti i sotto-flussi (`create`, `join`, `account_login`, `role`) armonizzati alla Light Experience con date picker a tema chiaro (`colorScheme: light`).
+- **HouniAI Light Definitivo**:
+  - Sheet e pannelli ripensati in Light mode (`bg-white`, bordi slate-200, testi Navy `#172033`).
+  - Tre capacità immediatamente comprensibili tramite pillole informative:
+    1. 📷 *Foto & Screenshot* (riconoscimento informazioni da immagini).
+    2. 📄 *PDF Voucher* (analisi e categorizzazione documenti prenotazione).
+    3. 💬 *Assistente* (aiuto contestuale e itinerario).
+  - Distinzione semantica degli stati: elaborazione in corso (spinner Coral + TrailAi), informazioni estratte (card chiare), anteprima di verifica (card emerald/amber), salvataggio confermato (badge successo), errore (badge rose).
+- **Motion Design Leggero & Accessibile**:
+  - Definiti keyframes e transizioni pure CSS in `src/index.css`:
+    - `.hounigo-fade-in`: comparsa morbida con lieve slittamento sull'asse Y.
+    - `.hounigo-live-pulse`: pulsazione discreta per indicatore LIVE/GPS attivo (scale 1.04, opacity 0.85).
+    - `.hounigo-touch-feedback`: micro-feedback di pressione pulsanti (`active:scale-[0.98]`).
+    - `.trail-icon-wrapper`: transizione morbida dello stato attivo delle icone.
+  - Supporto nativo `@media (prefers-reduced-motion: reduce)`: disabilita automaticamente tutte le animazioni per utenti sensibili.
+  - Nessuna libreria JavaScript esterna aggiunta (zero overhead di bundle).
+- **Asset Fotografici Reali & Guida Slot**:
+  - Creata cartella `public/images/photos/` e documentazione `README.md` con standard fotografici (Hero 1200x800, Trip 1600x900, Tappe 1024x680, divieto stock generici o AI fittizie).
+- **Verifiche & Screenshot Reali Multi-Viewport**:
+  - Test suite automatizzate superate al 100%:
+    - `scripts/test_brand_identity_alignment.cjs`: PASS (8/8).
+    - `scripts/test_admin_and_icons_verification.cjs`: PASS.
+  - `npm run build`: codice 0 (successo).
+  - Screenshot catturati a 320px, 393px e Desktop per tutte le 7 viste richieste (12 file generati e archiviati).
 - **Palette Unificata Definitiva**:
   - *Colori Brand*: Navy `#172033` (sfondo scuro, testi principali, pulsanti), Coral `#FF6B5F` (accento primario, selezioni attive, CTA), Cloud `#F8F7F3` (sfondo app, contenitori neutri), Bianco tecnico.
   - *Colori Spuri Eliminati*: Rimossi colori arcobaleno da `CategorieBar` (amber, indigo, purple, emerald), gradiente peach e sky-blue in `OnboardingView`, bicchierini multicolore e gradiente amber/rose in `AltroView`, accenti indigo in `TripSelectorModal` e banner `OggiView`.

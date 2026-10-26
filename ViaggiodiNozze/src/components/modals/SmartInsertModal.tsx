@@ -675,30 +675,30 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
       {/* Backdrop */}
       <div
-        className="fixed inset-0 z-[80] bg-slate-950/70 backdrop-blur-sm"
+        className="fixed inset-0 z-[80] bg-slate-900/40 backdrop-blur-xs"
         onClick={step === 'extracting' || step === 'saving' ? undefined : onClose}
       />
 
-      {/* Sheet */}
+      {/* Sheet Light */}
       <div className="fixed bottom-0 sm:inset-0 sm:items-center sm:justify-center left-0 right-0 z-[90] flex justify-center">
-        <div className="w-full max-w-lg mx-auto bg-slate-900 border border-slate-700/60 sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-y-auto max-h-[88dvh] p-4 sm:p-6 animate-slide-up">
+        <div className="w-full max-w-lg mx-auto bg-white border border-slate-200/90 sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-y-auto max-h-[88dvh] p-4 sm:p-6 animate-slide-up text-slate-800">
 
-          {/* ─── Header HouniAI ─── */}
-          <div className="flex items-center justify-between mb-4">
+          {/* ─── Header HouniAI Light ─── */}
+          <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3 min-w-0">
               <div className="w-10 h-10 shrink-0 rounded-2xl bg-[#FF6B5F] text-white flex items-center justify-center shadow-md shadow-[#FF6B5F]/20">
                 <TrailAi size={22} active />
               </div>
               <div className="min-w-0">
-                <h2 className="text-white font-extrabold text-lg leading-tight truncate break-words font-brand-title">HouniAI</h2>
-                <p className="text-slate-400 text-xs mt-0.5 truncate break-words font-brand-body">L'assistente di viaggio per il tuo itinerario</p>
+                <h2 className="text-[#172033] font-extrabold text-lg leading-tight truncate break-words font-brand-title">HouniAI</h2>
+                <p className="text-slate-500 text-xs mt-0.5 truncate break-words font-brand-body">L'assistente di viaggio per il tuo itinerario</p>
               </div>
             </div>
             {step !== 'extracting' && step !== 'saving' && (
               <button
                 type="button"
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-slate-400 hover:bg-slate-700 hover:text-white transition-colors cursor-pointer"
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-[#172033] transition-colors cursor-pointer"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
@@ -707,30 +707,46 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
             )}
           </div>
 
+          {/* ─── 3 Capacità Immediate HouniAI ─── */}
+          <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#F8F7F3] rounded-2xl border border-slate-200/80 mb-3 text-[11px]">
+            <div className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs font-bold text-[#172033]">
+              <span>📷</span>
+              <span className="truncate">Foto & Screenshot</span>
+            </div>
+            <div className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs font-bold text-[#172033]">
+              <span>📄</span>
+              <span className="truncate">PDF Voucher</span>
+            </div>
+            <div className="flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-xl bg-white border border-slate-200/80 shadow-2xs font-bold text-[#172033]">
+              <span>💬</span>
+              <span className="truncate">Assistente</span>
+            </div>
+          </div>
+
           {/* ─── Step: GMAIL LOADING ─── */}
           {step === 'gmailLoading' && (
             <div className="py-12 flex flex-col items-center justify-center text-center">
-              <div className="w-12 h-12 border-4 border-slate-700 border-t-red-500 rounded-full animate-spin mb-4" />
-              <h3 className="text-white font-bold mb-2">Ricerca in Gmail...</h3>
-              <p className="text-slate-400 text-sm">Cerco email di viaggio tra le date selezionate.</p>
+              <div className="w-12 h-12 border-4 border-slate-200 border-t-[#FF6B5F] rounded-full animate-spin mb-4" />
+              <h3 className="text-[#172033] font-bold mb-2">Ricerca in Gmail...</h3>
+              <p className="text-slate-500 text-sm">Cerco email di viaggio tra le date selezionate.</p>
             </div>
           )}
 
           {/* ─── Step: INPUT ─── */}
           {(step === 'input' || (step === 'extracting' && inputMode === 'chat')) && (
             <div className="space-y-3 flex flex-col h-[70vh] max-h-[620px]">
-              <div className="flex gap-2 p-1 bg-slate-800/50 rounded-xl shrink-0">
+              <div className="flex gap-2 p-1 bg-[#F8F7F3] rounded-xl shrink-0 border border-slate-200/80">
                 <button
                   type="button"
                   onClick={() => setInputMode('import')}
-                  className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${inputMode === 'import' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${inputMode === 'import' ? 'bg-[#172033] text-white shadow-xs' : 'text-slate-600 hover:text-[#172033]'}`}
                 >
                   Importa Prenotazioni
                 </button>
                 <button
                   type="button"
                   onClick={() => setInputMode('chat')}
-                  className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${inputMode === 'chat' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}`}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${inputMode === 'chat' ? 'bg-[#172033] text-white shadow-xs' : 'text-slate-600 hover:text-[#172033]'}`}
                 >
                   Chiedi al Concierge
                 </button>
@@ -752,19 +768,19 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                       )}
                       <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl whitespace-pre-wrap break-words text-sm ${
                         msg.role === 'user' 
-                          ? 'bg-[#FF6B5F]/80 text-white rounded-br-sm' 
-                          : 'bg-slate-800/80 text-slate-200 rounded-tl-sm border border-slate-700/80'
+                          ? 'bg-[#FF6B5F] text-white rounded-br-sm shadow-xs' 
+                          : 'bg-[#F8F7F3] text-slate-800 rounded-tl-sm border border-slate-200/90 shadow-2xs'
                       }`}>
                         {msg.role === 'ai' ? renderMessage(msg.text) : msg.text}
                         
                         {msg.suggestions && msg.suggestions.length > 0 && (
                           <div className="mt-3 space-y-2">
                             {msg.suggestions.map((s: any, idx: number) => (
-                              <div key={idx} className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-700/50">
+                              <div key={idx} className="bg-white p-2.5 rounded-xl border border-slate-200">
                                 <div className="flex justify-between items-center mb-1">
-                                  <span className="font-bold text-white">{s.title || s.name || s.nome}</span>
+                                  <span className="font-bold text-[#172033]">{s.title || s.name || s.nome}</span>
                                 </div>
-                                {(s.location || s.indirizzo) && <div className="text-xs text-slate-400 mb-2">📍 {s.location || s.indirizzo}</div>}
+                                {(s.location || s.indirizzo) && <div className="text-xs text-slate-500 mb-2">📍 {s.location || s.indirizzo}</div>}
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -772,7 +788,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                                     setPickerTime(s.time || s.departureTime || '');
                                     setPendingSuggestion(s);
                                   }}
-                                  className="w-full py-1.5 rounded-lg bg-[#FF6B5F]/10 text-[#FF6B5F] text-xs font-bold hover:bg-[#FF6B5F]/20 transition"
+                                  className="w-full py-1.5 rounded-lg bg-[#FF6B5F]/10 text-[#FF6B5F] text-xs font-bold hover:bg-[#FF6B5F]/20 transition cursor-pointer"
                                 >
                                   + Aggiungi all'itinerario
                                 </button>
@@ -785,8 +801,8 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   ))}
                   {step === 'extracting' && inputMode === 'chat' && (
                     <div className="flex justify-start">
-                       <div className="w-8 h-8 shrink-0 rounded-full bg-[#FF6B5F]/20 border border-[#FF6B5F]/30 flex items-center justify-center text-sm mr-2 animate-pulse">✨</div>
-                       <div className="bg-slate-800/80 px-4 py-2.5 rounded-2xl rounded-tl-sm text-slate-400 text-sm italic">Sto analizzando...</div>
+                       <div className="w-8 h-8 shrink-0 rounded-full bg-[#FF6B5F]/20 border border-[#FF6B5F]/30 flex items-center justify-center text-sm mr-2 animate-pulse text-[#FF6B5F]">✨</div>
+                       <div className="bg-[#F8F7F3] px-4 py-2.5 rounded-2xl rounded-tl-sm text-slate-600 text-sm italic border border-slate-200">Sto analizzando...</div>
                     </div>
                   )}
                 </div>
@@ -794,14 +810,14 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
               {/* Box Allegato Caricato (se presente) */}
               {attachedFile && (
-                <div className="p-3 bg-slate-800/90 border border-[#FF6B5F]/30 rounded-2xl flex items-center justify-between gap-3 shrink-0">
+                <div className="p-3 bg-[#F8F7F3] border border-slate-200 rounded-2xl flex items-center justify-between gap-3 shrink-0">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-[#FF6B5F]/20 text-[#FFb6b0] flex items-center justify-center text-lg shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-[#FF6B5F]/15 text-[#FF6B5F] flex items-center justify-center text-lg shrink-0">
                       {attachedFile.type === 'pdf' ? '📄' : '🖼️'}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-white text-xs font-bold truncate">{attachedFile.name}</p>
-                      <p className="text-slate-400 text-[10px]">{formatFileSize(attachedFile.size)} • Pronto per analisi</p>
+                      <p className="text-[#172033] text-xs font-bold truncate">{attachedFile.name}</p>
+                      <p className="text-slate-500 text-[10px]">{formatFileSize(attachedFile.size)} • Pronto per analisi</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -809,7 +825,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                       <button
                         type="button"
                         onClick={() => openAttachmentInNewTab(attachedFile.dataUrl, attachedFile.name)}
-                        className="px-2 py-1 text-[11px] font-semibold text-sky-400 hover:text-sky-300 bg-sky-950/40 rounded-lg transition"
+                        className="px-2 py-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 rounded-lg transition"
                         title="Anteprima PDF"
                       >
                         Apri ↗
@@ -818,7 +834,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                     <button
                       type="button"
                       onClick={() => setAttachedFile(null)}
-                      className="w-7 h-7 rounded-lg bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 flex items-center justify-center text-xs font-bold transition"
+                      className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center text-xs font-bold transition cursor-pointer"
                       title="Rimuovi allegato"
                     >
                       ✕
@@ -828,17 +844,17 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
               )}
 
               {/* Avviso Privacy AI */}
-              <div className="p-2.5 bg-slate-800/60 border border-slate-700/60 rounded-xl flex items-start gap-2 text-[11px] text-slate-400 leading-snug shrink-0">
-                <span className="text-slate-300 text-sm">🔒</span>
+              <div className="p-2.5 bg-[#F8F7F3] border border-slate-200 rounded-xl flex items-start gap-2 text-[11px] text-slate-600 leading-snug shrink-0">
+                <span className="text-slate-500 text-sm">🔒</span>
                 <span>
-                  <strong className="text-slate-300">Privacy AI:</strong> I testi o documenti allegati vengono elaborati via Google Gemini per estrarre la prenotazione. Non caricare documenti d'identità o passaporti non necessari. Nessun dato personale viene salvato su server terzi né divulgato.
+                  <strong className="text-[#172033]">Privacy AI:</strong> I testi o documenti allegati vengono elaborati via Google Gemini per estrarre la prenotazione. Non caricare documenti d'identità o passaporti non necessari. Nessun dato personale viene salvato su server terzi né divulgato.
                 </span>
               </div>
 
               {/* Collegamento Gmail Compatto (1 riga) */}
               {inputMode === 'import' && (
                 <GmailConnectionRow
-                  compactDark
+                  compactDark={false}
                   onSearchEmails={handleGmailImport}
                   className="shrink-0"
                 />
@@ -863,7 +879,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                         : "Incolla il testo della conferma oppure usa '📎 Allega prenotazione' per caricare PDF o immagini..."
                       : "Scrivi un messaggio o chiedi un consiglio al Concierge..."
                   }
-                  className={`w-full p-4 bg-slate-800/70 border border-slate-700 text-slate-200 text-sm resize-none focus:outline-none focus:border-[#FF6B5F] focus:ring-1 focus:ring-[#FF6B5F]/50 placeholder:text-slate-500 ${inputMode === 'chat' ? 'h-20 rounded-2xl pr-14' : 'h-32 rounded-2xl leading-relaxed'}`}
+                  className={`w-full p-4 bg-[#F8F7F3] border border-slate-200 text-[#172033] text-sm resize-none focus:outline-none focus:border-[#FF6B5F] focus:ring-1 focus:ring-[#FF6B5F]/30 placeholder:text-slate-400 ${inputMode === 'chat' ? 'h-20 rounded-2xl pr-14' : 'h-32 rounded-2xl leading-relaxed'}`}
                 />
                 {inputMode === 'chat' && (
                   <button
@@ -883,10 +899,10 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isProcessingFile}
-                  className="flex-1 sm:flex-none px-4 py-3 rounded-xl font-bold bg-[#FF6B5F]/15 hover:bg-[#FF6B5F]/25 border border-[#FF6B5F]/40 text-[#ffd2ce] text-xs flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer shadow-sm hover:border-[#FF9a91]"
+                  className="flex-1 sm:flex-none px-4 py-3 rounded-xl font-bold bg-[#F8F7F3] hover:bg-slate-100 border border-slate-200 text-[#172033] text-xs flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer shadow-2xs hover:border-slate-300"
                   title="Carica documento PDF, biglietto o screenshot di prenotazione"
                 >
-                  <svg className="w-4 h-4 text-[#FF9a91] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-[#FF6B5F] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                   </svg>
                   <span className="truncate">{attachedFile ? 'Sostituisci File' : '📎 Allega prenotazione'}</span>
@@ -897,7 +913,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                     type="button"
                     onClick={handleExtract}
                     disabled={!text.trim() && !attachedFile}
-                    className="flex-1 py-3 px-4 rounded-xl font-bold bg-[#FF6B5F] text-white shadow-lg shadow-rose-500/20 hover:bg-[#e85c50] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                    className="flex-1 py-3 px-4 rounded-xl font-bold bg-[#FF6B5F] text-white shadow-md shadow-rose-500/20 hover:bg-[#e85c50] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -913,12 +929,12 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
           {step === 'extracting' && inputMode === 'import' && (
             <div className="flex flex-col items-center justify-center py-12 gap-4">
               <div className="relative w-16 h-16">
-                <div className="absolute inset-0 rounded-full border-4 border-slate-800 border-t-[#FF6B5F] animate-spin" />
-                <div className="absolute inset-3 rounded-full bg-slate-800 flex items-center justify-center text-xl">✨</div>
+                <div className="absolute inset-0 rounded-full border-4 border-slate-200 border-t-[#FF6B5F] animate-spin" />
+                <div className="absolute inset-3 rounded-full bg-slate-100 flex items-center justify-center text-xl text-[#FF6B5F]">✨</div>
               </div>
               <div className="text-center">
-                <p className="font-bold text-white text-sm">L'AI sta analizzando la prenotazione...</p>
-                <p className="text-xs text-slate-400 mt-1">
+                <p className="font-bold text-[#172033] text-sm">L'AI sta analizzando la prenotazione...</p>
+                <p className="text-xs text-slate-500 mt-1">
                   {attachedFile ? `Lettura del file "${attachedFile.name}"` : 'Strutturazione campi in corso'}
                 </p>
               </div>
@@ -928,9 +944,9 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
           {/* ─── Step: MULTI-CHOICE (Se sono state rilevate più prenotazioni) ─── */}
           {step === 'multiChoice' && multiBookings.length > 0 && (
             <div className="space-y-4">
-              <div className="p-3 bg-violet-500/10 border border-violet-500/20 rounded-xl">
-                <p className="text-sm font-bold text-violet-300">Trovate {multiBookings.length} prenotazioni nel documento</p>
-                <p className="text-xs text-slate-300 mt-1">Seleziona quale prenotazione desideri verificare e inserire per prima:</p>
+              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
+                <p className="text-sm font-bold text-indigo-900">Trovate {multiBookings.length} prenotazioni nel documento</p>
+                <p className="text-xs text-slate-600 mt-1">Seleziona quale prenotazione desideri verificare e inserire per prima:</p>
               </div>
 
               <div className="space-y-2 max-h-[50vh] overflow-y-auto custom-scrollbar">
@@ -938,18 +954,18 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   <div
                     key={idx}
                     onClick={() => prepareReviewForEntity(b, attachedFile)}
-                    className="p-3.5 bg-slate-800/80 hover:bg-slate-800 border border-slate-700 rounded-xl cursor-pointer transition flex items-center justify-between gap-3 group"
+                    className="p-3.5 bg-white hover:bg-[#F8F7F3] border border-slate-200 rounded-xl cursor-pointer transition flex items-center justify-between gap-3 group shadow-2xs"
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-700 text-slate-200 uppercase">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 uppercase">
                           {b.type}
                         </span>
-                        <h4 className="text-sm font-bold text-white truncate">
+                        <h4 className="text-sm font-bold text-[#172033] truncate">
                           {b.name || b.title || b.titolo || `${b.departureLocation} -> ${b.arrivalLocation}`}
                         </h4>
                       </div>
-                      <p className="text-xs text-slate-400 mt-1 truncate">
+                      <p className="text-xs text-slate-500 mt-1 truncate">
                         {b.date || b.checkIn || b.data || 'Data da verificare'} {b.bookingCode ? `• Cod: ${b.bookingCode}` : ''}
                       </p>
                     </div>
@@ -963,7 +979,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
               <button
                 type="button"
                 onClick={() => setStep('input')}
-                className="w-full py-2.5 rounded-xl text-xs font-semibold border border-slate-700 text-slate-300 hover:bg-slate-800 transition"
+                className="w-full py-2.5 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
               >
                 ← Torna indietro
               </button>
@@ -974,40 +990,40 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
           {step === 'review' && editData && editData.category !== 'info' && (
             <div className="space-y-4">
               {existingData ? (
-                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl mb-2">
-                   <div className="flex items-start gap-2 text-amber-400">
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl mb-2">
+                   <div className="flex items-start gap-2 text-amber-800">
                      <span className="text-lg">⚠️</span>
                      <div>
                        <p className="font-bold text-sm">Prenotazione già presente!</p>
-                       <p className="text-xs mt-0.5 text-amber-300">
+                       <p className="text-xs mt-0.5 text-amber-700">
                          Trovato "{existingData.title || existingData.nome || existingData.name || existingData.titolo}" in questa data / codice. Puoi integrare i dati mancanti e allegare il documento senza duplicare.
                        </p>
                      </div>
                    </div>
                 </div>
               ) : (
-                <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl mb-2">
-                   <div className="flex items-center gap-2 text-emerald-400">
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl mb-2">
+                   <div className="flex items-center gap-2 text-emerald-800">
                      <span className="text-lg">✨</span>
                      <p className="font-bold text-sm">Dati estratti con successo</p>
                    </div>
-                   <p className="text-xs text-slate-400 mt-1">Verifica e completa i campi prima di salvare nel tuo itinerario.</p>
+                   <p className="text-xs text-slate-600 mt-1">Verifica e completa i campi prima di salvare nel tuo itinerario.</p>
                 </div>
               )}
 
               {/* Box allegato associato alla prenotazione */}
               {editData.attachmentToSave && (
-                <div className="p-2.5 bg-slate-800/80 border border-slate-700 rounded-xl flex items-center justify-between text-xs">
+                <div className="p-2.5 bg-[#F8F7F3] border border-slate-200 rounded-xl flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2 min-w-0">
                     <span>📎</span>
-                    <span className="text-slate-200 font-medium truncate">{editData.attachmentToSave.name}</span>
-                    <span className="text-slate-400">({formatFileSize(editData.attachmentToSave.size)})</span>
+                    <span className="text-[#172033] font-medium truncate">{editData.attachmentToSave.name}</span>
+                    <span className="text-slate-500">({formatFileSize(editData.attachmentToSave.size)})</span>
                   </div>
                   {editData.attachmentToSave.type === 'pdf' && (
                     <button
                       type="button"
                       onClick={() => openAttachmentInNewTab(editData.attachmentToSave.dataUrl, editData.attachmentToSave.name)}
-                      className="text-sky-400 hover:text-sky-300 font-semibold shrink-0 cursor-pointer"
+                      className="text-indigo-600 hover:text-indigo-800 font-semibold shrink-0 cursor-pointer"
                     >
                       Apri ↗
                     </button>
@@ -1017,11 +1033,11 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
               <div className="flex flex-col gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-400 mb-1 block">Tipologia Prenotazione</label>
+                  <label className="text-xs font-semibold text-slate-600 mb-1 block">Tipologia Prenotazione</label>
                   <select 
                     value={editData.category} 
                     onChange={(e) => setEditData({...editData, category: e.target.value})}
-                    className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                    className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
                   >
                     {Object.keys(entityLabel).filter(k => k !== 'sconosciuto').map(k => (
                       <option key={k} value={k}>{entityLabel[k]}</option>
@@ -1031,11 +1047,11 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
                 {editData.category === 'trasporto' && (
                   <div>
-                    <label className="text-xs font-semibold text-slate-400 mb-1 block">Mezzo di Trasporto</label>
+                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Mezzo di Trasporto</label>
                     <select
                       value={editData.tipoTrasporto || 'volo'}
                       onChange={(e) => setEditData({...editData, tipoTrasporto: e.target.value})}
-                      className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                      className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
                     >
                       <option value="volo">✈️ Volo</option>
                       <option value="treno">🚆 Treno</option>
@@ -1049,11 +1065,11 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
                 {editData.category === 'shopping' && (
                   <div>
-                    <label className="text-xs font-semibold text-slate-400 mb-1 block">Sottocategoria Spesa</label>
+                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Sottocategoria Spesa</label>
                     <select
                       value={editData.sottocategoria || 'Altro'}
                       onChange={(e) => setEditData({...editData, sottocategoria: e.target.value})}
-                      className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                      className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
                     >
                       <option value="Souvenir">Souvenir & Artigianato</option>
                       <option value="Abbigliamento">Abbigliamento & Attrezzatura</option>
@@ -1066,26 +1082,26 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
                 <div className="overflow-y-auto max-h-[45vh] pr-1 pb-2 custom-scrollbar space-y-3 min-w-0">
                   {editData.category === 'trasporto' && editData.layover?.airport && (
-                    <div className="p-2.5 bg-violet-950/40 border border-violet-500/30 rounded-xl text-xs text-violet-200 flex items-center gap-2">
+                    <div className="p-2.5 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 flex items-center gap-2">
                       <span>🔄</span>
                       <span><strong>Scalo previsto:</strong> {editData.layover.airport} {editData.layover.duration ? `(${editData.layover.duration})` : ''}</span>
                     </div>
                   )}
 
                   <div className="min-w-0">
-                    <label className="text-xs font-semibold text-slate-400 mb-1 block truncate">Fornitore / Nome / Titolo</label>
+                    <label className="text-xs font-semibold text-slate-600 mb-1 block truncate">Fornitore / Nome / Titolo</label>
                     <input 
                       type="text" 
                       value={editData.title || ''} 
                       onChange={(e) => setEditData({...editData, title: e.target.value})}
                       placeholder="es. Emirates, Hotel Franz Josef, Tour Milford Sound"
-                      className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                      className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
                     />
                   </div>
                   
                   {editData.category !== 'tappa' && (
                     <div className="min-w-0">
-                      <label className="text-xs font-semibold text-slate-400 mb-1 block truncate">
+                      <label className="text-xs font-semibold text-slate-600 mb-1 block truncate">
                         {editData.category === 'trasporto' ? 'Da -> A (Partenza -> Arrivo)' : 'Luogo / Indirizzo'}
                       </label>
                       <input 
@@ -1093,55 +1109,55 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                         value={editData.location || ''} 
                         onChange={(e) => setEditData({...editData, location: e.target.value})}
                         placeholder={editData.category === 'trasporto' ? 'DXB -> AKL' : 'Indirizzo o città'}
-                        className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                        className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
                       />
                     </div>
                   )}
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
                     <div>
-                      <label className="text-xs font-semibold text-slate-400 mb-1 block">
+                      <label className="text-xs font-semibold text-slate-600 mb-1 block">
                         {editData.category === 'alloggio' ? 'Check-in' : 'Data Inizio'}
                       </label>
                       <input 
                         type="date" 
                         value={editData.dateStart || ''} 
                         onChange={(e) => setEditData({...editData, dateStart: e.target.value})}
-                        className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500 [color-scheme:dark]"
+                        className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F] [color-scheme:light]"
                       />
                     </div>
                     {!['tappa', 'alloggio'].includes(editData.category) && (
                       <div>
-                        <label className="text-xs font-semibold text-slate-400 mb-1 block">Orario (Partenza / Inizio)</label>
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">Orario (Partenza / Inizio)</label>
                         <input 
                           type="time" 
                           value={editData.time || ''} 
                           onChange={(e) => setEditData({...editData, time: e.target.value})}
-                          className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500 [color-scheme:dark]"
+                          className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F] [color-scheme:light]"
                         />
                       </div>
                     )}
                     {editData.category === 'trasporto' && (
                       <div>
-                        <label className="text-xs font-semibold text-slate-400 mb-1 block">Orario Arrivo (opzionale)</label>
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">Orario Arrivo (opzionale)</label>
                         <input 
                           type="time" 
                           value={editData.arrivalTime || ''} 
                           onChange={(e) => setEditData({...editData, arrivalTime: e.target.value})}
-                          className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500 [color-scheme:dark]"
+                          className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F] [color-scheme:light]"
                         />
                       </div>
                     )}
                     {['alloggio', 'trasporto'].includes(editData.category) && (
                       <div>
-                        <label className="text-xs font-semibold text-slate-400 mb-1 block">
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">
                           {editData.category === 'alloggio' ? 'Check-out' : 'Data Arrivo / Fine'}
                         </label>
                         <input 
                           type="date" 
                           value={editData.dateEnd || ''} 
                           onChange={(e) => setEditData({...editData, dateEnd: e.target.value})}
-                          className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500 [color-scheme:dark]"
+                          className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F] [color-scheme:light]"
                         />
                       </div>
                     )}
@@ -1149,54 +1165,54 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
                     <div>
-                      <label className="text-xs font-semibold text-slate-400 mb-1 block">Codice Prenotazione (PNR)</label>
+                      <label className="text-xs font-semibold text-slate-600 mb-1 block">Codice Prenotazione (PNR)</label>
                       <input 
                         type="text" 
                         value={editData.bookingCode || ''} 
                         onChange={(e) => setEditData({...editData, bookingCode: e.target.value})}
                         placeholder="es. 6X8Y2A o numero biglietto"
-                        className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500 font-mono"
+                        className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F] font-mono"
                       />
                     </div>
 
                     {editData.category !== 'tappa' && (
                       <div>
-                        <label className="text-xs font-semibold text-slate-400 mb-1 block">Prezzo (€)</label>
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">Prezzo (€)</label>
                         <input 
                           type="text" 
                           value={editData.cost || ''} 
                           onChange={(e) => setEditData({...editData, cost: e.target.value})}
                           placeholder="es. 150.00"
-                          className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-violet-500"
+                          className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
                         />
                       </div>
                     )}
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-400 mb-1 block">Condizioni, Note & Istruzioni</label>
+                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Condizioni, Note & Istruzioni</label>
                     <textarea 
                       value={editData.notes || ''} 
                       onChange={(e) => setEditData({...editData, notes: e.target.value})}
                       placeholder="Note, nominativi passeggeri, istruzioni accesso, bagagli..."
-                      className="w-full bg-slate-800/80 text-white border border-slate-700/80 rounded-xl px-3 py-2 text-sm min-h-[70px] resize-none focus:outline-none focus:border-violet-500"
+                      className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm min-h-[70px] resize-none focus:outline-none focus:border-[#FF6B5F]"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="flex gap-3 pt-2 border-t border-slate-800">
+              <div className="flex gap-3 pt-2 border-t border-slate-200">
                 <button
                   type="button"
                   onClick={() => existingData ? onClose() : (multiBookings.length > 1 ? setStep('multiChoice') : setStep('input'))}
-                  className="flex-1 py-3 px-5 rounded-xl text-sm font-medium border border-slate-700 text-slate-300 hover:bg-slate-800 active:scale-[0.98] transition cursor-pointer"
+                  className="flex-1 py-3 px-5 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 active:scale-[0.98] transition cursor-pointer"
                 >
                   {existingData ? 'Mantieni Invariato' : '← Annulla'}
                 </button>
                 <button
                   type="button"
                   onClick={handleSave}
-                  className="flex-[2] py-3 px-6 rounded-xl text-sm font-semibold bg-[#FF6B5F] text-white shadow-lg shadow-rose-500/20 hover:opacity-90 active:scale-[0.98] transition flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-[2] py-3 px-6 rounded-xl text-sm font-semibold bg-[#FF6B5F] text-white shadow-md shadow-rose-500/20 hover:opacity-95 active:scale-[0.98] transition flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {existingData ? '✅ Aggiorna e Allega' : '✅ Conferma e Crea Prenotazione'}
                 </button>
@@ -1208,19 +1224,19 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
           {step === 'saving' && (
             <div className="flex flex-col items-center justify-center py-10 gap-4">
               <div className="relative w-14 h-14">
-                <div className="absolute inset-0 rounded-full border-4 border-slate-800 border-t-emerald-500 animate-spin" />
+                <div className="absolute inset-0 rounded-full border-4 border-slate-200 border-t-emerald-500 animate-spin" />
               </div>
-              <p className="font-bold text-white text-sm">Salvataggio prenotazione in corso...</p>
+              <p className="font-bold text-[#172033] text-sm">Salvataggio prenotazione in corso...</p>
             </div>
           )}
 
           {/* ─── Step: DONE ─── */}
           {step === 'done' && (
             <div className="flex flex-col items-center justify-center py-10 gap-3 animate-fade-in">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/20 flex items-center justify-center text-4xl shadow-sm border border-emerald-500/30">✅</div>
+              <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center text-4xl shadow-sm border border-emerald-200 text-emerald-600">✅</div>
               <div className="text-center">
-                <p className="font-extrabold text-white text-base">Prenotazione creata con successo!</p>
-                <p className="text-xs text-slate-400 mt-1">L'itinerario e gli allegati sono stati sincronizzati.</p>
+                <p className="font-extrabold text-[#172033] text-base">Prenotazione salvata con successo!</p>
+                <p className="text-xs text-slate-500 mt-1">L'itinerario e gli allegati sono stati sincronizzati.</p>
               </div>
             </div>
           )}
@@ -1228,16 +1244,16 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
           {/* ─── Step: ERROR ─── */}
           {step === 'error' && (
             <div className="space-y-4">
-              <div className="p-4 bg-rose-500/10 border border-rose-500/20 rounded-2xl">
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl">
                 <div className="flex items-start gap-2.5">
                   <span className="text-xl mt-0.5">⚠️</span>
                   <div className="flex-1">
-                    <p className="text-sm font-bold text-rose-400">{inputMode === 'chat' ? 'Concierge non raggiungibile' : 'Estrazione non riuscita'}</p>
-                    <p className="text-xs text-rose-300 mt-1 leading-relaxed">{errorMsg}</p>
+                    <p className="text-sm font-bold text-rose-800">{inputMode === 'chat' ? 'Concierge non raggiungibile' : 'Estrazione non riuscita'}</p>
+                    <p className="text-xs text-rose-700 mt-1 leading-relaxed">{errorMsg}</p>
                     
                     {errorMsg.toLowerCase().includes('chiave') && (
-                      <div className="mt-3 pt-3 border-t border-rose-500/20">
-                        <label className="text-[11px] font-semibold text-rose-200 block mb-1">
+                      <div className="mt-3 pt-3 border-t border-rose-200">
+                        <label className="text-[11px] font-semibold text-rose-800 block mb-1">
                           Inserisci Chiave API Google Gemini (salvata per sempre):
                         </label>
                         <div className="flex gap-2">
@@ -1245,7 +1261,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                             type="password"
                             id="inline-gemini-key"
                             placeholder="Incolla chiave API..."
-                            className="flex-1 px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-none focus:border-violet-500"
+                            className="flex-1 px-3 py-2 bg-white border border-rose-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#FF6B5F]"
                           />
                           <button
                             type="button"
@@ -1259,7 +1275,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                                 handleExtract();
                               }
                             }}
-                            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition"
+                            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
                           >
                             Salva e Riprova
                           </button>
@@ -1272,7 +1288,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
               <button
                 type="button"
                 onClick={() => { setStep('input'); setErrorMsg(''); }}
-                className="w-full py-3 rounded-xl text-sm font-medium border border-slate-700 text-slate-300 hover:bg-slate-800 active:scale-[0.98] transition cursor-pointer"
+                className="w-full py-3 rounded-xl text-sm font-medium border border-slate-200 text-slate-700 hover:bg-slate-50 active:scale-[0.98] transition cursor-pointer"
               >
                 ← Riprova
               </button>

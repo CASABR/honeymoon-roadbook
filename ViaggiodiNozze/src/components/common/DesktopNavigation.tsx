@@ -4,6 +4,7 @@ import { useDeviceRole } from '../../utils/useDeviceRole';
 import { useAuthIdentity } from '../../utils/useAuthIdentity';
 import DarkModeToggle from '../common/DarkModeToggle';
 import SettingsMenu from '../common/SettingsMenu';
+import HounigoLogo from '../common/HounigoLogo';
 
 declare const __BUILD_TIME__: string;
 
@@ -145,10 +146,12 @@ export default function DesktopNavigation({
       <div className="px-4 pt-4 pb-2 space-y-3 shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
-            <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="h-7 w-auto object-contain shrink-0" />
-            <span className="font-black text-lg tracking-tight text-[#172033] dark:text-white truncate">
-              Hounigo
-            </span>
+            <div className="dark:hidden">
+              <HounigoLogo variant="onLight" size="sm" />
+            </div>
+            <div className="hidden dark:block">
+              <HounigoLogo variant="onDark" size="sm" />
+            </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <DarkModeToggle />

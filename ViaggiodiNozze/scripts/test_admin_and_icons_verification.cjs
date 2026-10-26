@@ -83,8 +83,8 @@ console.log('✓ DeviceRoleModal: testo snello e assenza di gergo tecnico verifi
 
 const onboardingPath = path.join(__dirname, '..', 'src', 'views', 'OnboardingView.tsx');
 const onboardingContent = fs.readFileSync(onboardingPath, 'utf-8');
-assert(onboardingContent.includes('Crea un nuovo viaggio'), 'Onboarding: titolo compatto Crea un nuovo viaggio');
-assert(onboardingContent.includes('Accedi al tuo account'), 'Onboarding: titolo compatto Accedi al tuo account');
+assert(onboardingContent.includes('Crea un viaggio') || onboardingContent.includes('Crea un nuovo viaggio'), 'Onboarding: azione Crea un viaggio presente');
+assert(onboardingContent.includes('Continua con Google / Accedi') || onboardingContent.includes('Accedi al tuo account'), 'Onboarding: azione Accedi presente');
 assert(!onboardingContent.includes('Multi-dispositivo)'), 'Onboarding: rimosso sottotitolo prolisso');
 console.log('✓ OnboardingView: testo compatto e assenza di prolissità verificati');
 
