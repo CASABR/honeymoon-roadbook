@@ -8,6 +8,7 @@ import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
 import { GoogleAuthProvider } from 'firebase/auth';
 import GmailConnectionRow from '../common/GmailConnectionRow';
+import { TrailAi } from '../icons/TrailIcons';
 
 interface SmartInsertModalProps {
   isOpen: boolean;
@@ -682,17 +683,15 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       <div className="fixed bottom-0 sm:inset-0 sm:items-center sm:justify-center left-0 right-0 z-[90] flex justify-center">
         <div className="w-full max-w-lg mx-auto bg-slate-900 border border-slate-700/60 sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-y-auto max-h-[88dvh] p-4 sm:p-6 animate-slide-up">
 
-          {/* ─── Header ─── */}
+          {/* ─── Header HouniAI ─── */}
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 shrink-0 rounded-2xl bg-[#FF6B5F]/10 border border-[#FF6B5F]/25 flex items-center justify-center text-[#FF9a91]">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                </svg>
+              <div className="w-10 h-10 shrink-0 rounded-2xl bg-[#FF6B5F] text-white flex items-center justify-center shadow-md shadow-[#FF6B5F]/20">
+                <TrailAi size={22} active />
               </div>
               <div className="min-w-0">
-                <h2 className="text-white font-bold text-lg leading-tight truncate break-words">Inserimento Smart</h2>
-                <p className="text-slate-400 text-sm mt-0.5 truncate break-words">L'AI estrae i dati dai tuoi documenti</p>
+                <h2 className="text-white font-extrabold text-lg leading-tight truncate break-words font-brand-title">HouniAI</h2>
+                <p className="text-slate-400 text-xs mt-0.5 truncate break-words font-brand-body">L'assistente di viaggio per il tuo itinerario</p>
               </div>
             </div>
             {step !== 'extracting' && step !== 'saving' && (
@@ -747,7 +746,9 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   {chatMessages.map((msg, i) => (
                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                       {msg.role === 'ai' && (
-                        <div className="w-8 h-8 shrink-0 rounded-full bg-[#FF6B5F]/20 border border-[#FF6B5F]/30 flex items-center justify-center text-sm mr-2 mt-1">✨</div>
+                        <div className="w-8 h-8 shrink-0 rounded-full bg-[#FF6B5F] text-white flex items-center justify-center text-sm mr-2 mt-1 shadow-xs">
+                          <TrailAi size={16} active />
+                        </div>
                       )}
                       <div className={`max-w-[85%] px-4 py-2.5 rounded-2xl whitespace-pre-wrap break-words text-sm ${
                         msg.role === 'user' 

@@ -160,10 +160,13 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
       {/* ───────────────────────────────────────────────────────────── */}
       {/* 1. LIVE E CONDIVISIONE VIAGGIO (In Evidenza) */}
       {/* ───────────────────────────────────────────────────────────── */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 1. LIVE E CONDIVISIONE VIAGGIO (In Evidenza) */}
+      {/* ───────────────────────────────────────────────────────────── */}
       <button 
         type="button"
         onClick={() => setActiveSubView('live')}
-        className="w-full bg-linear-to-r from-rose-500/10 via-amber-500/5 to-rose-500/10 dark:from-rose-500/20 dark:via-slate-800 dark:to-rose-500/20 bg-white dark:bg-slate-800 rounded-3xl p-4 border border-rose-200 dark:border-rose-900/50 shadow-sm hover:shadow-md transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.99] group"
+        className="w-full bg-white dark:bg-[#172033] rounded-3xl p-4 border border-[#FF6B5F]/40 dark:border-[#FF6B5F]/30 shadow-xs hover:shadow-md transition-all text-left flex items-center justify-between cursor-pointer active:scale-[0.99] group"
       >
         <div className="flex items-center gap-3.5 min-w-0">
           <div className="relative w-12 h-12 rounded-2xl bg-[#FF6B5F] text-white flex items-center justify-center shadow-md shadow-[#FF6B5F]/20 shrink-0">
@@ -175,7 +178,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h2 className="font-extrabold text-slate-900 dark:text-white text-base leading-tight">
+              <h2 className="font-extrabold text-[#172033] dark:text-white text-base leading-tight font-brand-title">
                 Live & Posizione
               </h2>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 text-[#FF6B5F] dark:text-[#ff9a90] shrink-0">
@@ -183,7 +186,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                 LIVE
               </span>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 truncate">
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5 truncate font-brand-body">
               Mappa in tempo reale, coordinate GPS e cartoline di viaggio
             </p>
           </div>
@@ -197,23 +200,23 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
       {/* 2. DOCUMENTI E RISORSE PRATICHE */}
       {/* ───────────────────────────────────────────────────────────── */}
       <div className="space-y-1.5">
-        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2">
+        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 font-brand-title">
           Documenti & Risorse
         </h3>
-        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/90 dark:border-slate-700/80 shadow-xs divide-y divide-slate-100 dark:divide-slate-700/60 overflow-hidden">
+        <div className="bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden font-sans">
           
           {/* Documenti del Viaggio */}
           <button
             type="button"
             onClick={() => setActiveSubView('documenti')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-900/50">
+              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
                 <TrailPrenotazioni size={20} />
               </div>
               <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
                   Documenti & Voucher
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
@@ -228,14 +231,14 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setActiveSubView('spese')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-100 dark:border-emerald-900/50">
+              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
                 <TrailSpese size={20} />
               </div>
               <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
                   Spese & Budget
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
@@ -250,14 +253,14 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setActiveSubView('bagagli')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-100 dark:border-amber-900/50">
+              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
                 <TrailBagagli size={20} />
               </div>
               <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
                   Lista Bagagli
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
@@ -272,14 +275,14 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setActiveSubView('note')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-100 dark:border-purple-900/50">
+              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
                 <TrailNote size={20} />
               </div>
               <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
                   Note di Viaggio
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
@@ -296,27 +299,27 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
       {/* 3. SICUREZZA E ASSISTENZA */}
       {/* ───────────────────────────────────────────────────────────── */}
       <div className="space-y-1.5">
-        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2">
+        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 font-brand-title">
           Sicurezza & Assistenza
         </h3>
-        <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200/90 dark:border-slate-700/80 shadow-xs divide-y divide-slate-100 dark:divide-slate-700/60 overflow-hidden">
+        <div className="bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden font-sans">
           
           {/* Assicurazione Sanitaria */}
           <button
             type="button"
             onClick={() => setActiveSubView('assicurazione')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-100 dark:border-rose-900/50">
+              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
                 <TrailSicurezza size={20} />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                  <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
                     Assicurazione Sanitaria
                   </h4>
-                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-rose-100 dark:bg-rose-950/50 text-rose-700 dark:text-rose-300">
+                  <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[#FFF0ED] text-[#FF6B5F] dark:bg-[#FF6B5F]/20 dark:text-[#ff9a90]">
                     H24
                   </span>
                 </div>
@@ -332,14 +335,14 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setActiveSubView('emergenza')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 border border-sky-100 dark:border-sky-900/50">
+              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
                 <TrailEmergenze size={20} />
               </div>
               <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
                   Emergenze & Soccorso
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
@@ -354,14 +357,14 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           <button
             type="button"
             onClick={() => setActiveSubView('info')}
-            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-slate-50/80 dark:hover:bg-slate-750 transition-colors cursor-pointer active:bg-slate-100 dark:active:bg-slate-700"
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0 border border-teal-100 dark:border-teal-900/50">
+              <div className="w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
                 <TrailToolkit size={20} />
               </div>
               <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
                   Travel Toolkit
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">

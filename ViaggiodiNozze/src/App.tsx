@@ -699,8 +699,8 @@ export default function App() {
       
       {/* ─── FLOATING BAR PER TORNARE A DESKTOP (Mostrata su schermi md+ se attiva la vista mobile) ─── */}
       {isForcedMobileView && (
-        <div className="hidden md:flex fixed top-3 left-1/2 -translate-x-1/2 z-50 items-center gap-3 bg-[#fffdfa]/95 dark:bg-slate-800/95 backdrop-blur-md px-4 py-2 rounded-full border border-[#e5e3dd] dark:border-slate-700 shadow-xl animate-fade-in">
-          <span className="flex items-center gap-1.5 text-xs font-black text-slate-700 dark:text-slate-200">
+        <div className="hidden md:flex fixed top-3 left-1/2 -translate-x-1/2 z-50 items-center gap-3 bg-[#F8F7F3]/95 dark:bg-[#172033]/95 backdrop-blur-md px-4 py-2 rounded-full border border-slate-200/80 dark:border-slate-800 shadow-xl animate-fade-in">
+          <span className="flex items-center gap-1.5 text-xs font-black text-[#172033] dark:text-slate-200">
             <span>📱</span>
             <span>Modalità Mobile attiva</span>
           </span>
@@ -731,10 +731,10 @@ export default function App() {
       )}
 
       {/* ─── MAIN CONTENT CONTAINER (Responsive: mobile centered shell, desktop full workspace) ─ */}
-      <div className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-[#e5e3dd] dark:border-slate-800 bg-[#F8F7F3] dark:bg-slate-950 relative pb-20' : 'h-screen overflow-y-auto'}`}>
+      <div className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative pb-20' : 'h-screen overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}>
         
         {/* Top Header Mobile / Tablet Header (o sempre in modalità mobile forzata) */}
-        <header className={`w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-[#e5e3dd] dark:border-slate-800 bg-[#fffdfa]/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-30`}>
+        <header className={`w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3]/90 dark:bg-[#172033]/90 backdrop-blur-md sticky top-0 z-30`}>
           <div className="flex items-center gap-1.5">
             <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="h-6 w-auto object-contain max-w-[100px]" />
             {typeof __BUILD_TIME__ !== 'undefined' && (

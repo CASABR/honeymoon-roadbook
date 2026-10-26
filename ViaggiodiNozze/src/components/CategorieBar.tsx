@@ -19,80 +19,38 @@ interface CategoriaItem {
   id: CategoriaTab;
   label: string;
   renderIcon: (active: boolean) => ReactNode;
-  accent: {
-    bg: string;
-    text: string;
-    border: string;
-    activeBg: string;
-  };
 }
 
 const CATEGORIE_ITEMS: CategoriaItem[] = [
   {
     id: 'tappe',
     label: 'Tappe',
-    renderIcon: (active) => <TrailTappe size={22} active={active} />,
-    accent: {
-      bg: 'bg-rose-50',
-      text: 'text-rose-600',
-      border: 'border-rose-100',
-      activeBg: 'bg-rose-500'
-    }
+    renderIcon: (active) => <TrailTappe size={22} active={active} />
   },
   {
     id: 'attivita',
     label: 'Attività',
-    renderIcon: (active) => <TrailAttivita size={22} active={active} />,
-    accent: {
-      bg: 'bg-amber-50',
-      text: 'text-amber-600',
-      border: 'border-amber-100',
-      activeBg: 'bg-amber-500'
-    }
+    renderIcon: (active) => <TrailAttivita size={22} active={active} />
   },
   {
     id: 'ristoranti',
     label: 'Ristoranti',
-    renderIcon: (active) => <TrailRistoranti size={22} active={active} />,
-    accent: {
-      bg: 'bg-emerald-50',
-      text: 'text-emerald-600',
-      border: 'border-emerald-100',
-      activeBg: 'bg-emerald-500'
-    }
+    renderIcon: (active) => <TrailRistoranti size={22} active={active} />
   },
   {
     id: 'alloggi',
     label: 'Alloggi',
-    renderIcon: (active) => <TrailAlloggi size={22} active={active} />,
-    accent: {
-      bg: 'bg-purple-50',
-      text: 'text-purple-600',
-      border: 'border-purple-100',
-      activeBg: 'bg-purple-500'
-    }
+    renderIcon: (active) => <TrailAlloggi size={22} active={active} />
   },
   {
     id: 'trasporti',
     label: 'Trasporti',
-    renderIcon: (active) => <TrailTrasporti size={22} active={active} />,
-    accent: {
-      bg: 'bg-sky-50',
-      text: 'text-sky-600',
-      border: 'border-sky-100',
-      activeBg: 'bg-sky-500'
-    }
+    renderIcon: (active) => <TrailTrasporti size={22} active={active} />
   },
   {
     id: 'shopping',
-    label: 'Shopping / Extra',
-    renderIcon: (active) => <TrailShopping size={22} active={active} />,
-    accent: {
-      bg: 'bg-pink-50',
-      text: 'text-pink-600',
-      border: 'border-pink-100',
-      activeBg: 'bg-pink-500'
-    }
+    label: 'Shopping',
+    renderIcon: (active) => <TrailShopping size={22} active={active} />
   }
 ];
 
@@ -112,30 +70,30 @@ export default function CategorieBar({
 
   return (
     <>
-      {/* Overlay trasparente e leggero di sfondo (cliccare fuori chiude il dock) */}
+      {/* Overlay trasparente e leggero di sfondo */}
       <div
-        className="fixed inset-0 z-40 bg-black/25 backdrop-blur-xs transition-opacity animate-fade-in"
+        className="fixed inset-0 z-40 bg-black/30 backdrop-blur-xs transition-opacity animate-fade-in"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Dock popup a 2 file da 3 icone */}
       <div className="fixed bottom-20 left-4 right-4 max-w-sm mx-auto z-50 animate-slide-up">
-        <div className="hounigo-panel dark:bg-slate-900/95 backdrop-blur-xl rounded-3xl p-3.5">
-          <div className="flex items-center justify-between px-2 mb-2 pb-1.5 border-b border-[#e5e3dd] dark:border-slate-800">
-            <span className="hounigo-section-kicker dark:text-slate-400 flex items-center gap-1.5">
-              <span>🗂️</span> Sfoglia e Gestisci Categorie
+        <div className="bg-[#F8F7F3] dark:bg-[#172033] border border-slate-200/90 dark:border-slate-800 backdrop-blur-xl rounded-3xl p-3.5 shadow-2xl">
+          <div className="flex items-center justify-between px-2 mb-2 pb-1.5 border-b border-slate-200/80 dark:border-slate-800">
+            <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#172033] dark:text-slate-200 flex items-center gap-1.5 font-sans">
+              <span>🧭</span> Categorie Roadbook
             </span>
             <button
               type="button"
               onClick={onClose}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold p-1 rounded-lg"
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs font-bold p-1 rounded-lg cursor-pointer"
             >
               ✕
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 p-1">
+          <div className="grid grid-cols-3 gap-2.5 p-1 font-sans">
             {CATEGORIE_ITEMS.map((item) => {
               const isActive = activeCategoria === item.id;
 
@@ -149,18 +107,18 @@ export default function CategorieBar({
                   }}
                   className={`group flex flex-col items-center justify-center p-3 rounded-2xl transition-all duration-150 cursor-pointer min-h-[76px] border ${
                     isActive
-                      ? 'bg-[#172033] dark:bg-slate-100 text-white dark:text-slate-900 border-[#172033] dark:border-slate-100 shadow-md shadow-[#172033]/15 scale-[1.02]'
-                      : 'bg-[#fffdfa] dark:bg-slate-800/80 hover:bg-[#f1eee7] dark:hover:bg-slate-800 text-[#172033] dark:text-slate-100 border-[#e5e3dd] dark:border-slate-700 hover:border-[#d6d1c7] dark:hover:border-slate-600 active:scale-95'
+                      ? 'bg-[#172033] dark:bg-white text-white dark:text-[#172033] border-[#172033] dark:border-white shadow-md shadow-[#172033]/20 scale-[1.02]'
+                      : 'bg-white dark:bg-slate-800/90 hover:bg-slate-50 dark:hover:bg-slate-800 text-[#172033] dark:text-white border-slate-200/80 dark:border-slate-700/80 hover:border-slate-300 dark:hover:border-slate-600 active:scale-95'
                   }`}
                 >
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg mb-1.5 transition-transform duration-150 ${
                     isActive 
-                      ? `${item.accent.activeBg} text-white shadow-xs` 
-                      : `${item.accent.bg} dark:bg-slate-700/80 ${item.accent.text} border ${item.accent.border} dark:border-slate-600 group-hover:scale-105`
+                      ? 'bg-[#FF6B5F] text-white shadow-xs' 
+                      : 'bg-[#F8F7F3] dark:bg-slate-700/80 text-[#172033] dark:text-white border border-slate-200/60 dark:border-slate-600 group-hover:scale-105'
                   }`}>
                     {item.renderIcon(isActive)}
                   </div>
-                  <span className={`text-[11px] font-bold text-center leading-tight truncate w-full ${isActive ? 'text-white dark:text-slate-900' : 'text-slate-800 dark:text-slate-200'}`}>
+                  <span className={`text-[11px] font-extrabold text-center leading-tight truncate w-full ${isActive ? 'text-white dark:text-[#172033]' : 'text-slate-800 dark:text-slate-200'}`}>
                     {item.label}
                   </span>
                 </button>

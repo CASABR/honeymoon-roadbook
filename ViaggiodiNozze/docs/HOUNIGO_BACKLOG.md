@@ -6,6 +6,16 @@
 
 ## ATTIVITÀ APERTE & SPRINT BETA RELEASE CANDIDATE (TARGET: 28 OTTOBRE 2026)
 
+### 0.0-D SPRINT BRAND IDENTITY ALIGNMENT APP ↔ INSTAGRAM @HOUNIGO (26 Ottobre 2026)
+- **Allineamento Brand Identity Definitiva**:
+  - *Stato*: IMPLEMENTATO & TESTATO (Build PASS, Suite PASS, Screenshot 393px PASS)
+  - Palette rigida: Navy `#172033`, Coral `#FF6B5F`, Cloud `#F8F7F3`, Bianco tecnico.
+  - Rimossi tutti i colori decorativi spuri (rainbow CategorieBar, peach onboarding, indigo TripSelector e masthead).
+  - Centralizzazione token semantici in `src/index.css`.
+  - Icona originale `TrailAi` creata per HouniAI, eliminata l'emoji generica `✨`.
+  - Rifinite le 7 aree chiave (Onboarding, NavBar, Header Oggi, Card Viaggio, LIVE, HouniAI, Menu Altro).
+  - Verifica automatica `test_brand_identity_alignment.cjs` e cattura 5 screenshot mobile 393px.
+
 ### 0.0-C SPRINT ADMIN CONSOLE, UX COMPATTA & HOUNIGO TRAIL ICONS (26 Ottobre 2026)
 - **P1 — Accesso e visualizzazione Console Admin**:
   - *Stato*: IMPLEMENTATO & TESTATO (Build PASS, Suite PASS, In attesa di verifica utente in Firebase Console)

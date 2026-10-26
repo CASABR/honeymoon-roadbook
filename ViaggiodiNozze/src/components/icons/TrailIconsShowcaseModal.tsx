@@ -19,7 +19,8 @@ import {
   TrailSicurezza,
   TrailEmergenze,
   TrailNote,
-  TrailToolkit
+  TrailToolkit,
+  TrailAi
 } from './TrailIcons';
 
 export interface IconShowcaseItem {
@@ -170,6 +171,13 @@ export const TRAIL_ICONS_COMPARISON: IconShowcaseItem[] = [
     oldVisual: 'ℹ️ (Emoji info blu)',
     description: 'Guida rapida del paese con cerchio waypoint e punto focale informativo',
     NewComponent: TrailToolkit
+  },
+  {
+    name: 'HouniAI',
+    category: 'Navigazione Principale',
+    oldVisual: '✨ (Emoji sparkle generica)',
+    description: 'Scintilla geometrica editoriale a 4 punte curve con traiettoria waypoint e stella polare',
+    NewComponent: TrailAi
   }
 ];
 

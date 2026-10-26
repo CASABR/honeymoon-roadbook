@@ -571,3 +571,74 @@ html.dark .modal-sheet-container p,
 html.dark .modal-sheet-container legend {
   color: var(--text-main);
 }
+
+/* ============================================================================
+   HOUNIGO BRAND SYSTEM UTILITIES (Instagram @hounigo alignment)
+   Navy #172033 | Coral #FF6B5F | Cloud #F8F7F3 | Font: Manrope
+   ============================================================================ */
+
+.font-brand-title {
+  font-family: "Manrope", system-ui, sans-serif !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.025em !important;
+}
+
+.font-brand-body {
+  font-family: "Manrope", system-ui, sans-serif !important;
+  font-weight: 500 !important;
+}
+
+.bg-hounigo-navy {
+  background-color: #172033 !important;
+}
+
+.bg-hounigo-coral {
+  background-color: #FF6B5F !important;
+}
+
+.bg-hounigo-cloud {
+  background-color: #F8F7F3 !important;
+}
+
+.text-hounigo-navy {
+  color: #172033 !important;
+}
+
+.text-hounigo-coral {
+  color: #FF6B5F !important;
+}
+
+.border-hounigo-coral {
+  border-color: rgba(255, 107, 95, 0.35) !important;
+}
+
+.hounigo-card {
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-card);
+  border-radius: 1.5rem;
+  box-shadow: 0 4px 14px -2px rgba(23, 32, 51, 0.05);
+}
+
+.hounigo-btn-coral {
+  background-color: #FF6B5F;
+  color: #ffffff;
+  font-family: "Manrope", sans-serif;
+  font-weight: 800;
+  border-radius: 1rem;
+  transition: all 0.2s ease;
+}
+.hounigo-btn-coral:hover {
+  background-color: #fa5547;
+}
+
+.hounigo-btn-navy {
+  background-color: #172033;
+  color: #ffffff;
+  font-family: "Manrope", sans-serif;
+  font-weight: 800;
+  border-radius: 1rem;
+  transition: all 0.2s ease;
+}
+.hounigo-btn-navy:hover {
+  background-color: #0f1624;
+}

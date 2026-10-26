@@ -18,6 +18,7 @@ import {
   validateTripInvite,
   redeemTripInvite
 } from '../services/tripInviteService';
+import { TrailItinerario, TrailToolkit, TrailCopiloti } from '../components/icons/TrailIcons';
 
 export type OnboardingMode =
   | 'select'
@@ -614,20 +615,16 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
 
   const renderLayout = (children: React.ReactNode) => (
     <div
-      className="min-h-screen flex flex-col items-center justify-center p-5 relative overflow-hidden"
-      style={{ background: 'linear-gradient(135deg, #172033 0%, #26324b 50%, #172033 100%)' }}
+      className="min-h-screen flex flex-col items-center justify-center p-5 relative overflow-hidden font-sans"
+      style={{ background: '#172033' }}
     >
       <div
-        className="absolute top-[-80px] left-[-80px] w-64 h-64 rounded-full opacity-20 blur-3xl pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #FF6B5F, transparent)' }}
+        className="absolute top-[-100px] left-[-100px] w-80 h-80 rounded-full opacity-25 blur-3xl pointer-events-none"
+        style={{ background: 'radial-gradient(circle, #FF6B5F, transparent 70%)' }}
       />
       <div
-        className="absolute bottom-[-60px] right-[-60px] w-72 h-72 rounded-full opacity-15 blur-3xl pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #f5a28d, transparent)' }}
-      />
-      <div
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 rounded-full opacity-5 blur-3xl pointer-events-none"
-        style={{ background: 'radial-gradient(circle, #F8F7F3, transparent)' }}
+        className="absolute bottom-[-80px] right-[-80px] w-80 h-80 rounded-full opacity-10 blur-3xl pointer-events-none"
+        style={{ background: 'radial-gradient(circle, #F8F7F3, transparent 70%)' }}
       />
       <div className="relative z-10 w-full max-w-sm">{children}</div>
     </div>
@@ -640,80 +637,86 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
     return renderLayout(
       <div
         className="rounded-3xl border border-white/10 p-7 sm:p-8 text-center space-y-6"
-        style={{ background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)' }}
+        style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(24px)' }}
       >
         {/* Logo / Header */}
         <div className="flex flex-col items-center gap-3">
           <div className="relative w-20 h-20 mx-auto">
             <div
-              className="absolute inset-0 rounded-3xl blur-xl opacity-60"
-              style={{ background: 'linear-gradient(135deg, #FF6B5F, #f5a28d)' }}
+              className="absolute inset-0 rounded-3xl blur-xl opacity-40"
+              style={{ background: '#FF6B5F' }}
             />
             <div className="relative w-20 h-20 rounded-3xl flex items-center justify-center p-3 shadow-2xl bg-white/10 backdrop-blur-md border border-white/20">
               <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="w-full h-full object-contain" />
             </div>
           </div>
           <div>
-            <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: '#ffffff' }}>
+            <h1 className="text-3xl font-extrabold tracking-tight font-brand-title" style={{ color: '#ffffff' }}>
               Hounigo
             </h1>
-            <p className="font-medium mt-1 text-sm leading-relaxed" style={{ color: '#94a3b8' }}>
+            <p className="font-brand-body mt-1 text-sm leading-relaxed" style={{ color: '#94a3b8' }}>
               Il Roadbook digitale di nozze & avventura
             </p>
           </div>
         </div>
 
-        {/* 3 INTENZIONI PRINCIPALI (BETA RELEASE CANDIDATE) */}
+        {/* 3 INTENZIONI PRINCIPALI (BRAND IDENTITY INSTAGRAM) */}
         <div className="space-y-3 pt-1">
           {/* 1. ORGANIZZA UN VIAGGIO */}
           <button
             type="button"
             onClick={() => setMode('create')}
-            className="w-full py-4 px-4.5 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:opacity-95 cursor-pointer shadow-lg flex items-center justify-between text-left"
+            className="w-full py-4 px-4.5 rounded-2xl font-bold text-sm transition-all active:scale-95 hover:opacity-95 cursor-pointer shadow-lg shadow-[#FF6B5F]/20 flex items-center justify-between text-left group"
             style={{ background: '#FF6B5F', color: '#ffffff' }}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xl">✨</span>
+              <div className="w-9 h-9 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <TrailItinerario size={20} active />
+              </div>
               <div>
                 <div className="font-extrabold text-base leading-tight">Crea un nuovo viaggio</div>
-                <div className="text-xs text-white/80 font-normal mt-0.5">Imposta date, tappe e itinerario</div>
+                <div className="text-xs text-white/85 font-normal mt-0.5">Imposta date, tappe e itinerario</div>
               </div>
             </div>
-            <span className="text-white text-base font-bold">→</span>
+            <span className="text-white text-base font-bold group-hover:translate-x-0.5 transition-transform">→</span>
           </button>
 
-          {/* 2. ACCEDI AL MIO VIAGGIO */}
+          {/* 2. ACCEDI AL TUO ACCOUNT */}
           <button
             type="button"
             onClick={() => setMode('account_login')}
-            className="w-full py-4 px-4.5 rounded-2xl font-bold text-sm transition-all active:scale-95 cursor-pointer border flex items-center justify-between text-left hover:bg-white/10"
-            style={{ background: 'rgba(255,255,255,0.08)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.2)' }}
+            className="w-full py-4 px-4.5 rounded-2xl font-bold text-sm transition-all active:scale-95 cursor-pointer border flex items-center justify-between text-left hover:bg-white/10 group"
+            style={{ background: 'rgba(255,255,255,0.06)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.18)' }}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xl">🔑</span>
+              <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 border border-white/10">
+                <TrailToolkit size={18} active />
+              </div>
               <div>
                 <div className="font-extrabold text-base leading-tight">Accedi al tuo account</div>
                 <div className="text-xs text-slate-300 font-normal mt-0.5">Ripristina i viaggi sincronizzati su questo dispositivo</div>
               </div>
             </div>
-            <span className="text-slate-300 text-base font-bold">→</span>
+            <span className="text-slate-300 text-base font-bold group-hover:translate-x-0.5 transition-transform">→</span>
           </button>
 
           {/* 3. PARTECIPA A UN VIAGGIO */}
           <button
             type="button"
             onClick={() => setMode('join')}
-            className="w-full py-4 px-4.5 rounded-2xl font-bold text-sm transition-all active:scale-95 cursor-pointer border flex items-center justify-between text-left hover:bg-white/10"
-            style={{ background: 'rgba(255,255,255,0.05)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.15)' }}
+            className="w-full py-4 px-4.5 rounded-2xl font-bold text-sm transition-all active:scale-95 cursor-pointer border flex items-center justify-between text-left hover:bg-white/10 group"
+            style={{ background: 'rgba(255,255,255,0.04)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.14)' }}
           >
             <div className="flex items-center gap-3">
-              <span className="text-xl">🤝</span>
+              <div className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 border border-white/10">
+                <TrailCopiloti size={18} active />
+              </div>
               <div>
                 <div className="font-extrabold text-base leading-tight">Partecipa a un viaggio</div>
                 <div className="text-xs text-slate-300 font-normal mt-0.5">Entra come copilota con link o codice invito</div>
               </div>
             </div>
-            <span className="text-slate-300 text-base font-bold">→</span>
+            <span className="text-slate-300 text-base font-bold group-hover:translate-x-0.5 transition-transform">→</span>
           </button>
 
           {/* Visualizzazione Errore Accesso Esplicito con Riprova */}

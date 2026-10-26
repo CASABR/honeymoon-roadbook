@@ -274,19 +274,19 @@ export default function TripSelectorModal({
     return (
       <div
         key={trip.id}
-        className={`p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between gap-3 ${
+        className={`p-3.5 rounded-2xl border transition-all text-left flex items-center justify-between gap-3 font-sans ${
           isCurrent
-            ? 'bg-indigo-50/70 dark:bg-indigo-950/30 border-indigo-200 dark:border-indigo-800/80 shadow-xs ring-1 ring-indigo-500/30'
+            ? 'bg-[#FFF0ED]/60 dark:bg-[#FF6B5F]/10 border-[#FF6B5F]/40 dark:border-[#FF6B5F]/30 shadow-xs ring-1 ring-[#FF6B5F]/20'
             : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/70 hover:border-slate-300 dark:hover:border-slate-600'
         }`}
       >
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex items-center gap-2">
-            <h4 className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+            <h4 className="font-extrabold text-sm text-[#172033] dark:text-white truncate">
               {trip.title}
             </h4>
             {isCurrent && (
-              <span className="px-1.5 py-0.5 rounded-md text-[9px] font-extrabold bg-indigo-600 text-white shrink-0">
+              <span className="px-2 py-0.5 rounded-md text-[9px] font-extrabold bg-[#FF6B5F] text-white shrink-0 shadow-2xs">
                 In Uso
               </span>
             )}
@@ -305,9 +305,9 @@ export default function TripSelectorModal({
             )}
           </div>
 
-          <div className="flex items-center gap-2 text-[10px] text-slate-400">
-            <span className="font-mono">ID: {trip.id}</span>
-            {trip.ownerName && <span>• Org: {trip.ownerName}</span>}
+          <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
+            <span>ID: {trip.id}</span>
+            {trip.ownerName && <span>• {trip.ownerName}</span>}
           </div>
         </div>
 
@@ -315,10 +315,10 @@ export default function TripSelectorModal({
           type="button"
           disabled={isCurrent || isSwitching}
           onClick={() => handleSelectTrip(trip)}
-          className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:cursor-default ${
+          className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:cursor-default font-sans ${
             isCurrent
-              ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
-              : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:opacity-90 shadow-sm'
+              ? 'bg-[#172033] text-white dark:bg-white dark:text-[#172033] border border-transparent shadow-xs'
+              : 'bg-[#FF6B5F] text-white hover:opacity-90 shadow-sm'
           }`}
         >
           {isSwitching ? 'Apertura…' : isCurrent ? '✓ Attivo' : 'Apri'}

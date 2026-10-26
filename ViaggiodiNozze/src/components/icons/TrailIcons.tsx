@@ -343,3 +343,25 @@ export function TrailToolkit({ size = 24, active = false, className = '', stroke
     </svg>
   );
 }
+
+/** 21. HOUNI AI — ASSISTENTE INTELLIGENTE ROADBOOK */
+export function TrailAi({ size = 24, active = false, className = '', strokeWidth = 1.9, ...props }: TrailIconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, active, className)} {...props}>
+      {/* Scintilla vettoriale principale geometrica Hounigo a 4 punte curve */}
+      <path
+        d="M12 2.5 C 12 7.5, 16.5 12, 21.5 12 C 16.5 12, 12 16.5, 12 21.5 C 12 16.5, 7.5 12, 2.5 12 C 7.5 12, 12 7.5, 12 2.5 Z"
+        fill={active ? "currentColor" : "none"}
+        stroke="currentColor"
+      />
+      {/* Micro stella di supporto in alto a destra */}
+      <path
+        d="M18.5 3 C 18.5 4.8, 20.2 6.5, 22 6.5 C 20.2 6.5, 18.5 8.2, 18.5 10 C 18.5 8.2, 16.8 6.5, 15 6.5 C 16.8 6.5, 18.5 4.8, 18.5 3 Z"
+        fill="currentColor"
+        stroke="none"
+      />
+      {/* Waypoint centrale integrato */}
+      {active && <circle cx="12" cy="12" r="1.8" fill="#F8F7F3" />}
+    </svg>
+  );
+}

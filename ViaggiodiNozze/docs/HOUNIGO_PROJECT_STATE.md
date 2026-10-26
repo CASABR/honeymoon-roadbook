@@ -33,6 +33,30 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
 
 ## 3. FUNZIONALITÀ COMPLETATE E PROBLEMI RISOLTI
 
+### Sprint: Allineamento Brand Identity App ↔ Instagram @hounigo (26 Ottobre 2026)
+- **Palette Unificata Definitiva**:
+  - *Colori Brand*: Navy `#172033` (sfondo scuro, testi principali, pulsanti), Coral `#FF6B5F` (accento primario, selezioni attive, CTA), Cloud `#F8F7F3` (sfondo app, contenitori neutri), Bianco tecnico.
+  - *Colori Spuri Eliminati*: Rimossi colori arcobaleno da `CategorieBar` (amber, indigo, purple, emerald), gradiente peach e sky-blue in `OnboardingView`, bicchierini multicolore e gradiente amber/rose in `AltroView`, accenti indigo in `TripSelectorModal` e banner `OggiView`.
+  - *Colori Funzionali Confinati*: Verde, ambra e rosso strettamente riservati a indicatori di stato (successo, warning, errore/offline), senza invadere la personalità del brand.
+- **Tipografia & Design System**:
+  - Centralizzati i token in `src/index.css`: `.font-brand-title` (Manrope ExtraBold), `.font-brand-body` (Manrope Regular/Medium), classi semantiche `.bg-hounigo-navy`, `.bg-hounigo-coral`, `.bg-hounigo-cloud`, `.text-hounigo-navy`, `.text-hounigo-coral`, `.hounigo-card`, `.hounigo-btn-coral`, `.hounigo-btn-navy`.
+- **Iconografia Trail Icons (Consolidamento & TrailAi)**:
+  - Preservato il sistema SVG originale introdotto nel commit `cc07429`.
+  - Creata icona originale `TrailAi` (scintilla geometrica a 4 punte curve con traiettoria waypoint e stella polare) in sostituzione dell'emoji generica `✨`.
+  - Integrata `TrailAi` in `NavBar.tsx`, nel modale assistente `SmartInsertModal.tsx` (ufficialmente denominato **HouniAI**) e nella tavola comparativa `TrailIconsShowcaseModal.tsx`.
+- **Rifiniture Mirate Aree Riconoscibili**:
+  1. *Onboarding*: sfondo Navy `#172033` solido con bagliore soffuso Coral `#FF6B5F`, tipografia Manrope ExtraBold, pulsanti con TrailIcons originali.
+  2. *NavBar Mobile*: sfondo Cloud `#F8F7F3`/95 con blur, accento Coral `#FF6B5F` per la scheda attiva, pulsante centrale HouniAI con badge Coral e TrailAi.
+  3. *Header Oggi*: masthead card con Manrope ExtraBold, status pill `#FFF0ED`/Coral per il countdown, prossimo passo in bianco con bordo Coral `#FF6B5F`.
+  4. *Card Viaggio (TripSelectorModal)*: card attiva evidenziata in Coral `#FF6B5F` e pulsante "In Uso" in Navy `#172033`.
+  5. *LIVE Experience*: card in evidenza nel menu Altro ripulita da gradienti ambigui e rifinita con badge Coral `#FF6B5F`.
+  6. *HouniAI*: titolo unificato in "HouniAI" (*"L'assistente di viaggio per il tuo itinerario"*), icona TrailAi sia nella testata sia nei messaggi.
+  7. *Menu Altro*: uniformato su card Cloud `#F8F7F3` con icone Navy `#172033`, zero bicchierini multicolore generici.
+- **Verifica e Test**:
+  - Script dedicato `scripts/test_brand_identity_alignment.cjs` superato al 100% (8 criteri su 8).
+  - Catturati 5 screenshot reali a viewport mobile 393px (`brand_393_onboarding.png`, `brand_393_oggi.png`, `brand_393_categorie.png`, `brand_393_houni_ai.png`, `brand_393_altro.png`).
+  - `npm run build` completato con codice 0.
+
 ### Sprint: Admin Console, UX Compatta e Design System "Hounigo Trail Icons" (26 Ottobre 2026)
 - **P1 — Diagnostica e Risoluzione Console Admin Non Autorizzata**:
   - *Causa Errore "NON AUTORIZZATO"*: Nel progetto Firestore reale `app-viaggio-di-nozze`, la collezione `/system_admins` conteneva 0 documenti e l'account Google `cqs2OcE7WzY7XmiqVoZmM7B6Fpp2` non possedeva il custom claim `admin: true`.
