@@ -6,6 +6,20 @@
 
 ## ATTIVITÀ APERTE & SPRINT BETA RELEASE CANDIDATE (TARGET: 28 OTTOBRE 2026)
 
+### 0.0-F SPRINT HOUNIGO — ESPORTAZIONE PDF ROADBOOK & TRASPARENZA PRIVACY AI (26 Ottobre 2026)
+- **Esportazione PDF Roadbook Personalizzabile e Offline**:
+  - *Stato*: IMPLEMENTATO & TESTATO (Build PASS, Suite 15/15 PASS, Screenshot Reali PASS)
+  - Pulsante esportazione in sezione Oggi (timeline e testata) e card in Altro -> Documenti & Risorse.
+  - Modale interattivo `PdfExportModal` con filtri granulari contenuti (tappe, attività, trasporti, alloggi, PNR, note, spese).
+  - Selezione periodo (tutto il viaggio, intervallo date, singolo giorno) e dettaglio (compatto / dettagliato).
+  - Generazione 100% client-side via `jspdf` caricato dinamicamente (zero server, zero costi, zero impatto bundle principale).
+  - Design A4 verticale conforme brand identity Instagram Navy/Coral/Cloud con impaginazione automatica.
+  - Sezione dedicata per elementi "Senza orario fisso" (nessun orario artificiale inventato).
+  - Protezione privacy nativa: zero password, token, numeri passaporto completi o voucher sensibili esportati.
+  - Avviso proattivo per dati locali non ancora sincronizzati.
+  - Supporto nativo Web Share API (`navigator.share`) per iPhone / Safari PWA con download fallback.
+  - Correzione trasparente dell'informativa HouniAI in `SmartInsertModal.tsx` sull'uso crittografato e temporaneo delle API Google Gemini.
+
 ### 0.0-E SPRINT HOUNIGO — JARVIS FINALE (26 Ottobre 2026)
 - **Consolidamento Grafico Definitivo, Loghi Ufficiali & Motion Design**:
   - *Stato*: PUBBLICATO & VERIFICATO ONLINE (Commit sorgente `e694a6a`, commit `gh-pages` `69b4006`)

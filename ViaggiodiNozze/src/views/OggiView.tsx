@@ -24,6 +24,8 @@ import UniversalCopilotaModal from '../components/modals/UniversalCopilotaModal'
 import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
 import { useDeviceRole } from '../utils/useDeviceRole';
 import { formatDateIT } from '../utils/tripDates';
+import PdfExportModal from '../components/modals/PdfExportModal';
+import { TrailPdf } from '../components/icons/TrailIcons';
 
 interface OggiViewProps {
   onNavigateTab?: (tab: SectionTab, categoria?: CategoriaTab, subView?: any) => void;
@@ -66,15 +68,19 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const [bookingCodeCopied, setBookingCodeCopied] = useState(false);
+  const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
+    const handleOpenPdfExport = () => setIsPdfExportOpen(true);
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('open_pdf_export', handleOpenPdfExport);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('open_pdf_export', handleOpenPdfExport);
     };
   }, []);
 
@@ -930,22 +936,38 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 )}
               </div>
 
-              {/* Azioni Personalizzazione Header */}
-              {canEdit && (
+              {/* Azioni Header: Esporta PDF e Modifica copertina */}
+              <div className="flex items-center gap-1.5">
                 <button
                   type="button"
-                  onClick={handleOpenHeroEdit}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all cursor-pointer ${
+                  onClick={() => setIsPdfExportOpen(true)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all cursor-pointer shadow-2xs ${
                     heroBgImage
                       ? 'bg-white/20 hover:bg-white/30 text-white'
-                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700'
+                      : 'bg-[#FFF0ED] text-[#FF6B5F] hover:bg-[#FFE2DE] dark:bg-[#FF6B5F]/15 dark:hover:bg-[#FF6B5F]/25 dark:text-[#ff9a90] border border-[#FF6B5F]/25'
                   }`}
-                  title="Personalizza titolo o sfondo"
+                  title="Esporta il roadbook in formato PDF A4 stampabile"
                 >
-                  <span>✏️</span>
-                  <span className="hidden sm:inline">Modifica copertina</span>
+                  <TrailPdf size={13} active />
+                  <span>Esporta PDF</span>
                 </button>
-              )}
+
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={handleOpenHeroEdit}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all cursor-pointer ${
+                      heroBgImage
+                        ? 'bg-white/20 hover:bg-white/30 text-white'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700'
+                    }`}
+                    title="Personalizza titolo o sfondo"
+                  >
+                    <span>✏️</span>
+                    <span className="hidden sm:inline">Modifica copertina</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Riga 2: Destinazione Principale & Riferimento Cartografico */}
@@ -1310,10 +1332,20 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       {/* 2. SELETTORE ORIZZONTALE DEI GIORNI (CALENDAR STRIP) */}
       <div>
         <div className="flex items-center justify-between px-1 mb-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-500 font-brand-title">
             Calendario Tappe
           </span>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsPdfExportOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-bold text-[#FF6B5F] bg-[#FFF0ED] dark:bg-[#FF6B5F]/10 hover:bg-[#FFE2DE] dark:hover:bg-[#FF6B5F]/20 border border-[#FF6B5F]/25 transition cursor-pointer shadow-2xs"
+              title="Esporta itinerario PDF per stampa o consultazione offline"
+            >
+              <TrailPdf size={13} active />
+              <span>Esporta PDF</span>
+            </button>
+
             <div
               title="Scegli data dal calendario"
               onClick={(e) => {
@@ -2356,6 +2388,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           </div>
         </div>
       </Modal>
+
+      {/* MODALE ESPORTAZIONE PDF ROADBOOK */}
+      <PdfExportModal
+        isOpen={isPdfExportOpen}
+        onClose={() => setIsPdfExportOpen(false)}
+        defaultDate={selectedDate}
+      />
     </div>
   );
 }

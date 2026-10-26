@@ -23,8 +23,10 @@ import {
   TrailToolkit,
   TrailCopiloti,
   TrailMappa,
-  TrailItinerario
+  TrailItinerario,
+  TrailPdf
 } from '../components/icons/TrailIcons';
+import PdfExportModal from '../components/modals/PdfExportModal';
 
 const LiveView = lazyWithRetry(() => import('./altro/LiveView'), 'LiveView');
 const SpeseBudgetView = lazyWithRetry(() => import('./altro/SpeseBudgetView'), 'SpeseBudgetView');
@@ -44,6 +46,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showTripSelector, setShowTripSelector] = useState(false);
   const [showIconsShowcase, setShowIconsShowcase] = useState(false);
+  const [showPdfExportModal, setShowPdfExportModal] = useState(false);
   const currentTripConfig = getTripConfig();
 
   useEffect(() => {
@@ -221,6 +224,28 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                 </h4>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
                   Passaporti, visti, patenti e conferme di prenotazione
+                </p>
+              </div>
+            </div>
+            <span className="text-slate-400 text-sm ml-2">›</span>
+          </button>
+
+          {/* Esporta Itinerario PDF */}
+          <button
+            type="button"
+            onClick={() => setShowPdfExportModal(true)}
+            className="w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-[#FFF0ED] dark:bg-[#FF6B5F]/15 text-[#FF6B5F] flex items-center justify-center shrink-0 border border-[#FF6B5F]/20">
+                <TrailPdf size={20} active />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
+                  Esporta Itinerario PDF
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Scarica o stampa il roadbook personalizzato in formato A4
                 </p>
               </div>
             </div>
@@ -511,6 +536,12 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
       <TrailIconsShowcaseModal
         isOpen={showIconsShowcase}
         onClose={() => setShowIconsShowcase(false)}
+      />
+
+      {/* Modal Esportazione PDF Roadbook */}
+      <PdfExportModal
+        isOpen={showPdfExportModal}
+        onClose={() => setShowPdfExportModal(false)}
       />
     </div>
   );

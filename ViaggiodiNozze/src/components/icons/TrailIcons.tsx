@@ -365,3 +365,20 @@ export function TrailAi({ size = 24, active = false, className = '', strokeWidth
     </svg>
   );
 }
+
+/** 22. ESPORTAZIONE PDF ITINERARIO */
+export function TrailPdf({ size = 24, active = false, className = '', strokeWidth = 1.9, ...props }: TrailIconProps) {
+  return (
+    <svg {...baseProps(size, strokeWidth, active, className)} {...props}>
+      {/* Foglio documento A4 con angolo ripiegato */}
+      <path d="M6 3 A 2 2 0 0 1 8 1 H15 L20 6 V21 A 2 2 0 0 1 18 23 H8 A 2 2 0 0 1 6 21 Z" />
+      <path d="M15 1 V6 H20" />
+      {/* Freccia scaricamento / export roadbook */}
+      <line x1="12" y1="10" x2="12" y2="17" strokeWidth="2.2" />
+      <path d="M9 14.5 L12 17.5 L15 14.5" strokeWidth="2" />
+      {/* Waypoint inferiore di arrivo */}
+      {active && <circle cx="12" cy="17.5" r="1.5" fill="currentColor" />}
+    </svg>
+  );
+}
+

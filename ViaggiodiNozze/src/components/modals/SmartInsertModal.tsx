@@ -833,7 +833,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="text-slate-500 text-xs shrink-0">🔒</span>
-                    <span className="font-semibold text-[#172033] truncate">Privacy AI: Elaborazione sicura voucher e itinerari</span>
+                    <span className="font-semibold text-[#172033] truncate">Privacy AI: Elaborazione temporanea Google Gemini per estrazione dati</span>
                   </div>
                   <button
                     type="button"
@@ -841,13 +841,13 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                     className="text-[10px] font-bold text-[#FF6B5F] hover:underline shrink-0 cursor-pointer flex items-center gap-0.5"
                     aria-expanded={showPrivacyDetails}
                   >
-                    <span>{showPrivacyDetails ? 'Meno info' : 'Dettagli privacy'}</span>
+                    <span>{showPrivacyDetails ? 'Meno info' : 'Come vengono usati i dati?'}</span>
                     <span className={`text-[9px] transition-transform ${showPrivacyDetails ? 'rotate-180' : ''}`}>▾</span>
                   </button>
                 </div>
                 {showPrivacyDetails && (
                   <p className="mt-2 pt-2 border-t border-slate-200 text-[10px] leading-relaxed text-slate-500 animate-fade-in">
-                    I testi o documenti allegati vengono elaborati via Google Gemini per estrarre la prenotazione. Non caricare documenti d'identità o passaporti non necessari. Nessun dato personale viene salvato su server terzi né divulgato.
+                    I testi e i file inviati vengono trasmessi temporaneamente via connessione crittografata alle API Google Gemini per estrarre date, tappe e orari nel tuo roadbook. Non vengono salvati su server esterni oltre la risposta immediata né utilizzati per addestrare modelli. Non caricare documenti d'identità, passaporti o dati bancari.
                   </p>
                 )}
               </div>

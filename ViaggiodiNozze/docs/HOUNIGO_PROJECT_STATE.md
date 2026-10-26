@@ -33,6 +33,31 @@ Hounigo è una Progressive Web App (PWA) Travel Editorial per il viaggio di nozz
 
 ## 3. FUNZIONALITÀ COMPLETATE E PROBLEMI RISOLTI
 
+### Sprint: HOUNIGO — Esportazione PDF Itinerario & Trasparenza Privacy AI (26 Ottobre 2026)
+- **Esportazione PDF Roadbook 100% Client-side e Offline**:
+  - *Posizionamento*: Pulsante rapido "Esporta PDF" in sezione Oggi (OggiView) e card dedicata in Altro -> "Documenti & Risorse" (AltroView). Icona ufficiale coordinata `TrailPdf` da 24×24 px.
+  - *Modale di Esportazione (`PdfExportModal.tsx`)*:
+    - *Selezione Contenuti*: Tappe (ON), Attività (ON), Trasporti (ON), Alloggi (ON), Riferimenti prenotazioni non sensibili/PNR (ON), Note personali (OFF), Spese previste (OFF).
+    - *Selezione Periodo*: Tutto il viaggio, Intervallo di date configurabile, Singolo giorno.
+    - *Livello di Dettaglio*: Compatto (orario, titolo, luogo) vs Dettagliato (note, tratte, check-in, indirizzi).
+    - *Anteprima Sintetica*: Conteggio giorni, totale eventi e stima pagine calcolati in tempo reale prima della generazione.
+    - *Avviso Sincronizzazione*: Rilevamento stato locale/offline con notifica proattiva *"Il PDF include i dati salvati su questo dispositivo. Alcune modifiche potrebbero non essere ancora sincronizzate."*
+  - *Architettura e Design Documento (`pdfExportService.ts`)*:
+    - Zero server, zero Cloud Functions, zero chiamate a Gemini o costi aggiuntivi.
+    - Import dinamico di `jspdf`: zero impatto sul bundle iniziale PWA (chunk lazy-loaded dedicato).
+    - Impaginazione A4 verticale conforme alla Brand Identity Instagram: Navy `#172033`, Coral `#FF6B5F`, Cloud `#F8F7F3`.
+    - Cronologia rigorosa con rispetto dell'hotfix `6088271` (`orario`, `time`, `orarioInizio`, `orarioRitrovo`).
+    - Eventi privi di orario collocati in sezione "Senza orario fisso / Suggerimenti" (nessun orario artificiale).
+    - Protezione Privacy: esclusione categorica di password, token, estremi passaporto, PIN e voucher integrali.
+    - Supporto iOS Safari e PWA tramite `navigator.share({ files: [...] })` e fallback di salvataggio via Blob.
+    - Nome file sanificato: `HOUNIGO_Itinerario_[NomeViaggio]_[Data].pdf`.
+- **Trasparenza Privacy AI (`SmartInsertModal.tsx`)**:
+  - Rettificata la dicitura informativa: precisato che testi ed immagini vengono inviati temporaneamente tramite connessione cifrata alle API protette di Google Gemini unicamente per estrarre date, tappe e orari nel roadbook, senza conservazione né utilizzo per l'addestramento dei modelli.
+- **Verifica e Test**:
+  - Script automatizzato `scripts/test_pdf_export_verification.cjs` superato al 100% su tutti i 15 casi obbligatori (breve, 42 giorni, collisioni orari, untimed, entità multiple, fusi orari, note, campi null, testi lunghi, offline, intervalli date, compatto/dettagliato, privacy, iPhone).
+  - Rendering visivo reale del PDF generato e screenshot d'interfaccia archiviati (`screenshot_pdf_roadbook_render.png`, `screenshot_pdf_modal_393.png`, `screenshot_pdf_altro_393.png`).
+  - `npm run build` completato con codice 0.
+
 ### Sprint: HOUNIGO — JARVIS FINALE (Brand Identity, Loghi Ufficiali, Light Experience & Motion Design) (26 Ottobre 2026)
 - **FASE GRAFICA DEFINITIVAMENTE CONSOLIDATA E CHIUSA**:
   - Allineamento al 100% dell'app alla brand identity ufficiale di Instagram **@hounigo**.

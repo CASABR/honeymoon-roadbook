@@ -21,6 +21,7 @@ export default defineConfig(({ command }) => ({
     alias: {
       react: path.resolve(__dirname, "node_modules/react"),
       "react-dom": path.resolve(__dirname, "node_modules/react-dom"),
+      canvg: path.resolve(__dirname, "src/utils/emptyStub.ts"),
     },
   },
   optimizeDeps: {

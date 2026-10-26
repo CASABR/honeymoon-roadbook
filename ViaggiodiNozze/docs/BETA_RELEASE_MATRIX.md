@@ -8,6 +8,7 @@
 
 | Area | Criterio Minimo Richiesto | Stato Attuale | Note Operative |
 | :--- | :--- | :--- | :--- |
+| **Esportazione PDF Roadbook** | Generazione A4 offline 100% client-side, filtri granulari, privacy rigorosa, supporto iPhone/Web Share, zero costi o Gemini. | TESTATO LOCALMENTE | Modale personalizzabile, import dinamico `jspdf` (0 impatto bundle iniziale), 15/15 test superati, screenshot e PDF validati |
 | **Brand Identity & Loghi Ufficiali** | Due loghi ufficiali integrati (Logo A Navy su Light, Logo B Bianco su Dark), Manrope, Trail Icons, Light Onboarding & Light HouniAI. | PUBBLICATO | Online su gh-pages commit 69b4006 (bundle index-1JsOyJle.js), due PNG originali preservati, smoke test 18/18 PASS |
 | **Chiusura prevUid** | Rifiuto categorico di membership create via prevUid da attaccanti; solo linkWithPopup o re-invito. | PUBBLICATO | Regole pubblicate su app-viaggio-di-nozze; codice senza prevUid online nel bundle index-DxxPChKC.js |
 | **Protezione Foto & Storage** | QuotaExceededError non elimina fotografie ('hounigo_live_gallery') né dati utente; fallback session/memory. | PUBBLICATO | Protezione online (LiveView-Cm4wFBQ9.js, geolocationService); foto non sacrificabili |
