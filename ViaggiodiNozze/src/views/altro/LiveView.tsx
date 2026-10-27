@@ -74,7 +74,7 @@ import { liveService, type LiveUpdate } from '../../services/liveService';
 import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
 import LiveEditorialExperience, { type LiveGalleryPhotoItem } from './LiveEditorialExperience';
-import { liveGpsService, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation, type TripMemberInfo } from '../../services/liveGpsService';
+import { describeLiveGpsStartError, liveGpsService, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation, type TripMemberInfo } from '../../services/liveGpsService';
 import { registerDeviceOnFirestore } from '../../utils/deviceSession';
 
 export default function LiveView({ onBack, isStandaloneExternal = false, tripId }: LiveViewProps) {
@@ -315,18 +315,17 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   }, [activeTripId]);
 
   const startGpsWatcher = useCallback(() => {
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      setGpsError('GPS non disponibile su questo browser.');
+      return;
+    }
     if (gpsWatchRef.current !== null) {
       navigator.geolocation.clearWatch(gpsWatchRef.current);
       gpsWatchRef.current = null;
     }
     gpsWatchRef.current = navigator.geolocation.watchPosition(
       position => publishBrowserPosition(position),
-      error => {
-        if (error.code === error.PERMISSION_DENIED) {
-          setGpsError('Permesso GPS negato. Abilitalo nelle impostazioni del browser.');
-        }
-      },
+      error => setGpsError(describeLiveGpsStartError(error)),
       { enableHighAccuracy: true, timeout: 15_000, maximumAge: 10_000 }
     );
   }, [publishBrowserPosition]);
@@ -337,8 +336,22 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     setGpsError(null);
     setGpsFeedback(null);
     try {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        throw new Error('Connessione assente.');
+      }
+      if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        throw new Error('GPS non disponibile.');
+      }
       const deviceId = liveGpsService.getDeviceId();
-      const ownsLease = remoteGpsLease?.holderUid === currentUid && remoteGpsLease.holderDeviceId === deviceId;
+      const leaseIsCurrent = remoteGpsLease?.status === 'active' && remoteGpsLease.expiresAt.getTime() > Date.now();
+      const ownsLease = Boolean(leaseIsCurrent && remoteGpsLease?.holderUid === currentUid && remoteGpsLease.holderDeviceId === deviceId);
+      if (leaseIsCurrent && !ownsLease) {
+        throw new Error('Un altro dispositivo sta condividendo la posizione.');
+      }
+
+      const detected = await updateRealLocation({ enableHighAccuracy: true, timeout: 12_000, maximumAge: 10_000 });
+      setLiveGpsState(detected);
+
       if (!ownsLease) {
         if (cloudRole !== 'owner') throw new Error('L’Organizzatore deve prima assegnare la guida a questo dispositivo.');
         await liveGpsService.assignGuide(activeTripId, currentUid, deviceId);
@@ -347,8 +360,6 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         if (cloudRole !== 'owner') throw new Error('Solo l’Organizzatore può riprendere una condivisione sospesa.');
         await liveGpsService.resume(activeTripId, currentUid, deviceId);
       }
-      const detected = await updateRealLocation({ enableHighAccuracy: true, timeout: 12_000, maximumAge: 10_000 });
-      setLiveGpsState(detected);
       lastGpsPublishRef.current = 0;
       await liveGpsService.publishLocation(activeTripId, {
         lat: detected.coords.lat,
@@ -356,21 +367,19 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         accuracy: detected.accuracy,
         city: detected.city,
         country: detected.country
-      });
+      }, { force: true });
       lastGpsPublishRef.current = Date.now();
       startGpsWatcher();
       setGpsFeedback('Posizione condivisa e confermata dal server.');
     } catch (error) {
-      const candidate = error as { code?: number; message?: string; name?: string };
+      const candidate = error as { message?: string; name?: string };
       console.warn('[LiveView] Errore avvio GPS:', error);
       const isQuota = candidate.name === 'QuotaExceededError' ||
                       String(candidate.message || '').toLowerCase().includes('quota');
       if (isQuota) {
         setGpsFeedback('Posizione rilevata con successo (spazio cache locale saturo).');
-      } else if (candidate.code === 1) {
-        setGpsError('Permesso GPS negato. Nessuna posizione è stata condivisa.');
       } else {
-        setGpsError(candidate.message || 'Impossibile avviare la condivisione GPS.');
+        setGpsError(describeLiveGpsStartError(error));
       }
     } finally {
       setIsDetectingGps(false);
@@ -1648,6 +1657,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   const isGpsHolder = Boolean(
     remoteGpsLease?.status === 'active' &&
+    remoteGpsLease.expiresAt.getTime() > Date.now() &&
     remoteGpsLease.holderDeviceId === liveGpsService.getDeviceId()
   );
 

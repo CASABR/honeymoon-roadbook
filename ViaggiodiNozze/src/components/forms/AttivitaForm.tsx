@@ -272,6 +272,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       elevationGainM: trekking && parsedElevation && parsedElevation > 0 ? parsedElevation : initialData?.elevationGainM,
       hikingDurationMinutes: trekking && totalHikingMinutes > 0 ? totalHikingMinutes : initialData?.hikingDurationMinutes,
       routeType: trekking && routeType ? routeType : initialData?.routeType,
+      routePreview: trekking ? initialData?.routePreview : undefined,
       currency: trekking && cost.trim() ? currency : initialData?.currency,
       difficulty: trekking && difficulty.trim() ? difficulty.trim() : initialData?.difficulty,
       lightWindow: photoSpot ? lightWindow : initialData?.lightWindow,
@@ -425,7 +426,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
             <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Difficoltà</span><input type="text" value={difficulty} onChange={(e) => setDifficulty(e.target.value)} placeholder="Facile, media, impegnativa…" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
           </div>
           <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Note</span><textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Indicazioni utili, attrezzatura, meteo…" className="w-full p-3 hounigo-card-subtle rounded-xl text-sm resize-none" /></label>
-          {renderPhotoField('Aggiungi foto del percorso', 'JPG, PNG, WebP o HEIC; disponibile anche offline.')}
+          {renderPhotoField('Foto facoltativa', 'Resta negli allegati e non sostituisce una traccia GPS del percorso.')}
         </div>
       )}
 

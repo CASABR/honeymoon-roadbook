@@ -34,6 +34,12 @@ export interface Coordinate {
   lng: number;
 }
 
+export interface TrekkingRoutePreview {
+  coordinates: Coordinate[];
+  verified: boolean;
+  sourceLabel?: string;
+}
+
 export interface Attivita {
   id: string;
   dayId: string;
@@ -50,6 +56,7 @@ export interface Attivita {
   elevationGainM?: number;
   hikingDurationMinutes?: number;
   routeType?: TipologiaPercorsoTrekking;
+  routePreview?: TrekkingRoutePreview;
   currency?: string;
   difficulty?: string;
   lightWindow?: FasciaLuceFotografica;

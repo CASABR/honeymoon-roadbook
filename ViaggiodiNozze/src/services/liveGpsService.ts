@@ -57,7 +57,7 @@ export interface LiveGpsPositionInput {
 
 const LEASE_HOURS = 18;
 const MIN_PUBLISH_INTERVAL_MS = 15_000;
-let lastPublishTimestamp = 0;
+const lastPublishTimestampByTrip = new Map<string, number>();
 
 const asDate = (value: unknown): Date =>
   value instanceof Timestamp ? value.toDate() : new Date(typeof value === 'number' ? value : 0);
@@ -75,6 +75,29 @@ const friendlyError = (error: unknown): Error => {
   if (code.includes('aborted')) return new Error('La guida è cambiata da un altro dispositivo. Stato aggiornato.');
   return error instanceof Error ? error : new Error('Operazione GPS non riuscita.');
 };
+
+export function describeLiveGpsStartError(error: unknown): string {
+  const candidate = error as { code?: number | string; message?: string; name?: string };
+  const message = String(candidate?.message || '').trim();
+  const normalized = message.toLowerCase();
+
+  if (candidate?.code === 1 || candidate?.name === 'NotAllowedError' || /permission|permess|denied|negat/.test(normalized)) {
+    return 'Attiva la posizione nelle impostazioni del browser e riprova.';
+  }
+  if (candidate?.code === 2 || candidate?.name === 'PositionUnavailableError' || /position unavailable|gps non disponibile/.test(normalized)) {
+    return 'GPS non disponibile. Spostati in un punto aperto e riprova.';
+  }
+  if (candidate?.code === 3 || candidate?.name === 'TimeoutError' || /timeout|timed out/.test(normalized)) {
+    return 'GPS non disponibile entro il tempo previsto. Riprova.';
+  }
+  if (/offline|network|connessione non disponibile|unavailable/.test(normalized)) {
+    return 'Connessione assente. La posizione non è stata condivisa.';
+  }
+  if (/altro dispositivo|guida è cambiata|already.*sharing/.test(normalized)) {
+    return 'Un altro dispositivo sta condividendo la posizione.';
+  }
+  return message || 'Impossibile avviare la condivisione.';
+}
 
 const leaseRef = (tripId: string) => doc(db, 'live_feeds', tripId, 'gps_control', 'current');
 const locationRef = (tripId: string) => doc(db, 'live_feeds', tripId, 'locations', 'current');
@@ -179,13 +202,14 @@ export const liveGpsService = {
     }
   },
 
-  async publishLocation(tripId: string, position: LiveGpsPositionInput): Promise<void> {
+  async publishLocation(tripId: string, position: LiveGpsPositionInput, options: { force?: boolean } = {}): Promise<boolean> {
     const user = auth.currentUser;
     if (!user) throw new Error('Accedi prima di condividere la posizione.');
     try {
       const now = Date.now();
-      if (now - lastPublishTimestamp < MIN_PUBLISH_INTERVAL_MS) {
-        return;
+      const lastPublishTimestamp = lastPublishTimestampByTrip.get(tripId) || 0;
+      if (!options.force && now - lastPublishTimestamp < MIN_PUBLISH_INTERVAL_MS) {
+        return false;
       }
       const deviceId = getOrCreateDeviceId();
       await setDoc(locationRef(tripId), {
@@ -198,7 +222,8 @@ export const liveGpsService = {
         publisherDeviceId: deviceId,
         status: 'active'
       });
-      lastPublishTimestamp = now;
+      lastPublishTimestampByTrip.set(tripId, now);
+      return true;
     } catch (error) {
       throw friendlyError(error);
     }

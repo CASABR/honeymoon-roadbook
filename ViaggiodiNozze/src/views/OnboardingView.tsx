@@ -6,7 +6,7 @@ import { signInAnonymously, type User } from 'firebase/auth';
 import { withTimeout } from '../utils/withTimeout';
 import { persistDeviceSession } from '../utils/deviceSession';
 import {
-  fetchUserTrips,
+  fetchUserTripsReport,
   loginWithEmailPassword,
   loginWithGoogle,
   checkPendingRedirectResult,
@@ -69,6 +69,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   const [loginProgressMsg, setLoginProgressMsg] = useState<string | null>(null);
   const [recoveredTrips, setRecoveredTrips] = useState<UserTripSummary[]>([]);
   const [isSearchingTrips, setIsSearchingTrips] = useState(false);
+  const [tripLoadFailed, setTripLoadFailed] = useState(false);
   const [authenticatedUser, setAuthenticatedUser] = useState<User | null>(null);
   const [manualTripId, setManualTripId] = useState('');
   const [copilotDisplayName, setCopilotDisplayName] = useState(() => auth?.currentUser?.displayName || '');
@@ -477,50 +478,19 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   const inspectUserTrips = async (user: User) => {
     setAuthenticatedUser(user);
     setIsSearchingTrips(true);
+    setTripLoadFailed(false);
     try {
-      // 1. Recupero sicuro dei viaggi associati tramite /users/{uid} (zero query 'list' globali)
-      const trips = await fetchUserTrips(user.uid);
-
-      // 2. Controllo se sul dispositivo era già aperto un viaggio autorizzato (es. GIAPPONE)
-      const rawLocalConfig = typeof localStorage !== 'undefined' ? localStorage.getItem('roadbook_trip_config') : null;
-      let localTripId: string | null = null;
-      if (rawLocalConfig) {
-        try { localTripId = JSON.parse(rawLocalConfig)?.id; } catch {}
+      const report = await fetchUserTripsReport(user.uid);
+      setRecoveredTrips(report.trips);
+      if (report.failedIndexedTripIds.length > 0) {
+        setLoginError('Alcuni viaggi associati non sono stati caricati. Verifica la connessione e riprova.');
+        setTripLoadFailed(report.trips.length === 0);
       }
-
-      if (localTripId && localTripId !== '0000') {
-        const alreadyInList = trips.some(t => t.id === localTripId);
-        if (!alreadyInList) {
-          try {
-            const { doc, getDoc } = await import('firebase/firestore');
-            const snap = await getDoc(doc(db, 'trips', localTripId));
-            if (snap.exists()) {
-              const tdata = snap.data();
-              const isOwner = tdata.ownerUid === user.uid || tdata.ownerId === user.uid;
-              const isMem = Array.isArray(tdata.members) && tdata.members.includes(user.uid);
-              if (isOwner || isMem) {
-                trips.unshift({
-                  id: localTripId,
-                  title: tdata.title || 'Il nostro viaggio',
-                  startDate: tdata.startDate,
-                  endDate: tdata.endDate,
-                  ownerUid: tdata.ownerUid || tdata.ownerId,
-                  ownerName: tdata.ownerName,
-                  isOwner,
-                  role: isOwner ? 'owner' : 'copilota',
-                  isLastUsed: true
-                });
-                const { recordUserAccess } = await import('../services/userAccessService');
-                recordUserAccess(user, localTripId).catch(() => {});
-              }
-            }
-          } catch {}
-        }
-      }
-
-      setRecoveredTrips(trips);
     } catch (err) {
       console.warn('[Onboarding] Errore recupero viaggi utente:', err);
+      setRecoveredTrips([]);
+      setTripLoadFailed(true);
+      setLoginError((err as Error)?.message || 'Impossibile caricare l’elenco dei viaggi. Riprova.');
     } finally {
       setIsSearchingTrips(false);
     }
@@ -1204,6 +1174,12 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             >
               + Crea un altro viaggio con questo account
             </button>
+          </div>
+        ) : authenticatedUser && tripLoadFailed ? (
+          <div className="space-y-3 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-left text-xs dark:border-amber-900/60 dark:bg-amber-950/30">
+            <p className="font-bold text-amber-800 dark:text-amber-200">Non è stato possibile verificare l’elenco dei viaggi.</p>
+            <p className="leading-relaxed text-slate-600 dark:text-slate-300">Nessun viaggio è stato dichiarato assente: il caricamento non è completo.</p>
+            <button type="button" onClick={() => inspectUserTrips(authenticatedUser)} className="min-h-10 rounded-xl bg-[#172033] px-4 font-bold text-white dark:bg-white dark:text-[#172033]">Riprova</button>
           </div>
         ) : authenticatedUser ? (
           <div className="space-y-4">

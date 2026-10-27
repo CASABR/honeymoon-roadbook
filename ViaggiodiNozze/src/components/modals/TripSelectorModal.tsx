@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { auth } from '../../firebase';
 import {
-  fetchUserTrips,
+  fetchUserTripsReport,
   switchActiveTrip,
   loginWithGoogle,
   type UserTripSummary
@@ -24,6 +24,8 @@ export default function TripSelectorModal({
   const [loading, setLoading] = useState(true);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
   const [isSigningInGoogle, setIsSigningInGoogle] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadNotice, setLoadNotice] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState(() => auth?.currentUser || null);
   const currentTripId = getTripConfig()?.id || '0000';
 
@@ -39,16 +41,29 @@ export default function TripSelectorModal({
     const user = auth?.currentUser;
     if (!user) {
       setTrips([]);
+      setLoadError(null);
+      setLoadNotice(null);
       setLoading(false);
       return;
     }
 
     setLoading(true);
+    setLoadError(null);
+    setLoadNotice(null);
     try {
-      const loadedTrips = await fetchUserTrips(user.uid);
-      setTrips(loadedTrips);
+      if (typeof (auth as any)?.authStateReady === 'function') {
+        await (auth as any).authStateReady();
+      }
+      const report = await fetchUserTripsReport(user.uid);
+      setTrips(report.trips);
+      if (report.failedIndexedTripIds.length > 0) {
+        setLoadNotice('Alcuni viaggi associati non sono stati caricati. Verifica la connessione e riprova.');
+      } else if (report.unverifiedLocalTripIds.length > 0) {
+        setLoadNotice('Sul dispositivo risultano altri viaggi locali, ma non sono mostrati come sincronizzati finché questo account non viene verificato.');
+      }
     } catch (err) {
       console.warn('[TripSelectorModal] Errore caricamento viaggi:', err);
+      setLoadError((err as Error)?.message || 'Impossibile caricare i viaggi. Riprova.');
     } finally {
       setLoading(false);
     }
@@ -193,6 +208,15 @@ export default function TripSelectorModal({
               <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3" />
               <p className="text-xs font-bold text-slate-500 dark:text-slate-400">Caricamento viaggi autorizzati…</p>
             </div>
+          ) : loadError && trips.length === 0 ? (
+            <div className="py-8 px-4 text-center space-y-3" role="alert">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 dark:bg-rose-950/30 flex items-center justify-center text-xl mx-auto text-rose-500">!</div>
+              <div>
+                <h3 className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">Elenco non disponibile</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">{loadError}</p>
+              </div>
+              <button type="button" onClick={loadTrips} className="inline-flex min-h-10 items-center rounded-xl bg-[#172033] px-4 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">Riprova</button>
+            </div>
           ) : trips.length === 0 ? (
             <div className="py-8 px-4 text-center space-y-3">
               <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-2xl mx-auto text-slate-400">
@@ -218,6 +242,11 @@ export default function TripSelectorModal({
             </div>
           ) : (
             <>
+              {loadNotice && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] font-semibold leading-relaxed text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200" role="status">
+                  {loadNotice}
+                </div>
+              )}
               {/* Sezione: Viaggi come Organizzatore */}
               {ownedTrips.length > 0 && (
                 <div className="space-y-2">
@@ -317,6 +346,7 @@ export default function TripSelectorModal({
           <div className="flex items-center gap-2 text-[10px] text-slate-400 font-mono">
             <span>ID: {trip.id}</span>
             {trip.ownerName && <span>• {trip.ownerName}</span>}
+            {trip.source === 'local-verified' && <span className="font-sans font-bold text-amber-600 dark:text-amber-300">• Locale verificato</span>}
           </div>
         </div>
 

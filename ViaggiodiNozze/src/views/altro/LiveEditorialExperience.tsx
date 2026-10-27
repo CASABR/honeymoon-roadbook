@@ -137,7 +137,9 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     ? 'Diario di viaggio'
     : tripConfig?.title || props.location?.city || 'Il nostro viaggio';
   const isOnline = props.isOnline ?? (typeof navigator === 'undefined' || navigator.onLine);
-  const isLeaseActive = props.remoteGpsLease?.status === 'active';
+  const rawLeaseActive = props.remoteGpsLease?.status === 'active';
+  const isLeaseExpired = Boolean(rawLeaseActive && props.remoteGpsLease && props.remoteGpsLease.expiresAt.getTime() <= Date.now());
+  const isLeaseActive = Boolean(rawLeaseActive && !isLeaseExpired);
   const isLeasePaused = props.remoteGpsLease?.status === 'paused';
   const isLeaseStopped = !props.remoteGpsLease || props.remoteGpsLease.status === 'stopped';
   const lastDetectedDate = props.remoteGpsLocation?.updatedAt
@@ -161,10 +163,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     if (permissionDenied) return { label: 'GPS non autorizzato', tone: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' };
     if (isFreshGps) return { label: 'Attiva', tone: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' };
     if (isLeasePaused) return { label: 'In pausa', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
+    if (isLeaseExpired) return { label: 'Lease scaduto', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
     if (props.remoteGpsLease?.status === 'stopped') return { label: 'Interrotta', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
     if (isLeaseActive) return { label: 'Posizione scaduta', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
     return { label: 'GPS assente', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
-  }, [isOnline, props.isDetectingGps, props.remoteGpsLease?.status, permissionDenied, isFreshGps, isLeasePaused, isLeaseActive]);
+  }, [isOnline, props.isDetectingGps, props.remoteGpsLease?.status, permissionDenied, isFreshGps, isLeasePaused, isLeaseActive, isLeaseExpired]);
 
   const currentGuideName = useMemo(() => {
     const holderUid = props.remoteGpsLease?.holderUid;
@@ -537,8 +540,8 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 <p className="mt-1 text-xs text-slate-500">Guida: {currentGuideName}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {(isLeaseStopped || permissionDenied) && props.isOwner && (
-                  <button type="button" onClick={props.onStartGps} disabled={props.isDetectingGps || !isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white disabled:opacity-40">{permissionDenied ? 'Riprova GPS' : 'Condividi posizione'}</button>
+                {(isLeaseStopped || isLeaseExpired || permissionDenied || (isLeaseActive && props.isGpsHolder && !isFreshGps)) && props.isOwner && (
+                  <button type="button" onClick={props.onStartGps} disabled={props.isDetectingGps || !isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white disabled:opacity-40">{permissionDenied || isLeaseExpired || isLeaseActive ? 'Riattiva posizione' : 'Condividi posizione'}</button>
                 )}
                 {isLeaseActive && props.isGpsHolder && (
                   <>

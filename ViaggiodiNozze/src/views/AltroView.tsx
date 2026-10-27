@@ -154,7 +154,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           title="Visualizza e cambia viaggio"
         >
           <TrailMappa size={14} active />
-          <span className="max-w-[110px] truncate">{currentTripConfig?.title || 'Viaggio'}</span>
+          <span className="max-w-[92px] truncate">I tuoi viaggi</span>
           <span className="text-[10px] text-slate-400">▾</span>
         </button>
       </div>
@@ -437,28 +437,6 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                     : deviceRole === 'copilota'
                     ? 'Modifica note e programma (GPS ancorato)'
                     : 'Visualizzazione da computer o ospite'}
-                </p>
-              </div>
-            </div>
-            <span className="text-slate-400 text-sm ml-2">›</span>
-          </button>
-
-          {/* I Tuoi Viaggi (Selettore Viaggi) */}
-          <button
-            type="button"
-            onClick={() => setShowTripSelector(true)}
-            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-100 dark:border-blue-900/50">
-                <TrailMappa size={20} />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
-                  I Tuoi Viaggi
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Cambia viaggio o consulta gli accessi
                 </p>
               </div>
             </div>

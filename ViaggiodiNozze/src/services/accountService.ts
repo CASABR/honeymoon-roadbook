@@ -11,6 +11,7 @@ import {
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { buildTripDiscoveryPlan, resolveVerifiedTripRole } from '../utils/tripDiscovery';
 
 export interface UserTripSummary {
   id: string;
@@ -23,6 +24,16 @@ export interface UserTripSummary {
   isOwner: boolean;
   role: 'owner' | 'copilota';
   isLastUsed?: boolean;
+  source?: 'cloud-index' | 'local-verified';
+}
+
+export interface UserTripsReport {
+  trips: UserTripSummary[];
+  cloudIndexStatus: 'loaded' | 'missing';
+  indexedTripIds: string[];
+  localCandidateIds: string[];
+  failedIndexedTripIds: string[];
+  unverifiedLocalTripIds: string[];
 }
 
 export interface AccountStatus {
@@ -98,140 +109,111 @@ export async function verifyTripOwnership(tripId: string, currentUid: string): P
  * ma legge il documento /users/{uid} (permesso all'utente) ed esegue singoli
  * 'get' puntuali su ciascun tripId autorizzato.
  */
-export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
-  if (!db || !uid) return [];
+export async function fetchUserTripsReport(uid: string): Promise<UserTripsReport> {
+  if (!db || !uid) throw new Error('Servizio viaggi non disponibile. Riprova quando sei online.');
 
+  let userSnap;
   try {
-    const userDocRef = doc(db, 'users', uid);
-    const userSnap = await getDoc(userDocRef);
+    userSnap = await getDoc(doc(db, 'users', uid));
+  } catch (error) {
+    console.warn('[accountService] Lettura indice viaggi non riuscita:', error);
+    throw new Error('Impossibile caricare l’elenco dei viaggi. Verifica la connessione e riprova.');
+  }
 
-    const userData = userSnap.exists() ? userSnap.data() : null;
-    const tripIds: string[] = Array.isArray(userData?.associatedTripIds)
-      ? [...userData.associatedTripIds]
-      : [];
+  const userData = userSnap.exists() ? userSnap.data() : null;
+  const rawLocalCandidateIds: string[] = [];
+  const addLocalCandidate = (tripId: unknown) => {
+    if (typeof tripId !== 'string') return;
+    const cleanId = tripId.trim();
+    if (cleanId && !rawLocalCandidateIds.includes(cleanId)) rawLocalCandidateIds.push(cleanId);
+  };
 
-    const lastTripId = userData?.lastTripId;
-    if (lastTripId && !tripIds.includes(lastTripId)) {
-      tripIds.unshift(lastTripId);
-    }
-
-    // Se l'utente si è autenticato con Google da una precedente sessione anonima su questo dispositivo,
-    // recuperiamo anche i tripId memorizzati sul record dell'UID anonimo precedente
-    const prevAnonUid = (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('houni_prev_anon_uid') : null) ||
-      (typeof localStorage !== 'undefined' ? localStorage.getItem('hounigo_prev_anon_uid') : null);
-    if (prevAnonUid && prevAnonUid !== uid) {
+  if (typeof localStorage !== 'undefined') {
+    const candidateKeys = ['roadbook_trip_config', 'hounigo_trip_config', 'houni_trip_id', 'hounigo_active_trip_id'];
+    for (const key of candidateKeys) {
       try {
-        const anonDocRef = doc(db, 'users', prevAnonUid);
-        const anonSnap = await getDoc(anonDocRef);
-        if (anonSnap.exists()) {
-          const anonData = anonSnap.data();
-          if (Array.isArray(anonData?.associatedTripIds)) {
-            anonData.associatedTripIds.forEach((tId: string) => {
-              if (tId && !tripIds.includes(tId)) tripIds.push(tId);
-            });
-          }
-          if (anonData?.lastTripId && !tripIds.includes(anonData.lastTripId)) {
-            tripIds.push(anonData.lastTripId);
-          }
-        }
-      } catch (err) {
-        console.warn('[accountService] Impossibile recuperare viaggi da UID anonimo precedente:', err);
-      }
-    }
-
-    // Controlliamo tutte le chiavi locali note di tripId memorizzati sul dispositivo
-    if (typeof localStorage !== 'undefined') {
-      const candidateKeys = ['roadbook_trip_config', 'hounigo_trip_config', 'houni_trip_id', 'hounigo_active_trip_id'];
-      for (const k of candidateKeys) {
-        try {
-          const raw = localStorage.getItem(k);
-          if (!raw) continue;
-          if (raw.startsWith('{')) {
-            const parsed = JSON.parse(raw);
-            if (parsed?.id && !tripIds.includes(parsed.id)) {
-              tripIds.push(parsed.id);
-            }
-          } else if (raw.trim() && !tripIds.includes(raw.trim())) {
-            tripIds.push(raw.trim());
-          }
-        } catch {}
-      }
-      try {
-        const { getKnownTripIds } = await import('../utils/tripConfig');
-        const knownList = getKnownTripIds();
-        knownList.forEach((t: string) => {
-          if (t && !tripIds.includes(t)) tripIds.push(t);
-        });
+        const raw = localStorage.getItem(key);
+        if (!raw) continue;
+        if (raw.startsWith('{')) addLocalCandidate(JSON.parse(raw)?.id);
+        else addLocalCandidate(raw);
       } catch {}
     }
+    try {
+      const { getKnownTripIds } = await import('../utils/tripConfig');
+      getKnownTripIds().forEach(addLocalCandidate);
+    } catch {}
+  }
 
-    const summaries: UserTripSummary[] = [];
-    const uniqueTripIds = Array.from(new Set(tripIds.filter(Boolean)));
+  const { indexedTripIds, localCandidateIds, uniqueTripIds } = buildTripDiscoveryPlan(
+    userData?.associatedTripIds,
+    userData?.lastTripId,
+    rawLocalCandidateIds
+  );
+  const lastTripId = typeof userData?.lastTripId === 'string' ? userData.lastTripId.trim() : '';
+  const indexedSet = new Set(indexedTripIds);
+  const summaries: UserTripSummary[] = [];
+  const failedIndexedTripIds: string[] = [];
+  const unverifiedLocalTripIds: string[] = [];
 
-    // Esecuzione concorrente per ciascun tripId con timeout adeguato a reti mobili (7000ms)
-    const tripInspectionPromises = uniqueTripIds.map(async (tripId) => {
-      try {
-        const timeoutPromise = new Promise<null>((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 7000)
-        );
-        const fetchPromise = (async () => {
+  const inspections = await Promise.all(uniqueTripIds.map(async (tripId) => {
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('timeout')), 7000)
+      );
+      const result = await Promise.race([
+        (async () => {
           const snap = await getDoc(doc(db, 'trips', tripId));
           if (!snap.exists()) return null;
-          const tdata = snap.data();
-          const isOwner = tdata?.ownerUid === uid || tdata?.ownerId === uid ||
-            (prevAnonUid && (tdata?.ownerUid === prevAnonUid || tdata?.ownerId === prevAnonUid));
-          const membersList = Array.isArray(tdata?.members) ? tdata.members : [];
-          const isMember = membersList.includes(uid) || isOwner || (prevAnonUid && membersList.includes(prevAnonUid));
+          const tripData = snap.data();
+          let verifiedRole = resolveVerifiedTripRole(uid, tripData);
 
-          let verifiedRole: 'owner' | 'copilota' | null = isOwner ? 'owner' : (isMember ? 'copilota' : null);
           if (!verifiedRole) {
-            const memSnap = await getDoc(doc(db, 'trips', tripId, 'members', uid)).catch(() => null);
-            if (memSnap && memSnap.exists()) {
-              verifiedRole = memSnap.data()?.role === 'owner' ? 'owner' : 'copilota';
-            }
+            const memberSnap = await getDoc(doc(db, 'trips', tripId, 'members', uid)).catch(() => null);
+            verifiedRole = resolveVerifiedTripRole(uid, tripData, Boolean(memberSnap?.exists()), memberSnap?.data()?.role);
           }
-          if (!verifiedRole && prevAnonUid) {
-            const anonMemSnap = await getDoc(doc(db, 'trips', tripId, 'members', prevAnonUid)).catch(() => null);
-            if (anonMemSnap && anonMemSnap.exists()) {
-              verifiedRole = anonMemSnap.data()?.role === 'owner' ? 'owner' : 'copilota';
-            }
-          }
+          if (!verifiedRole) return null;
 
-          if (verifiedRole) {
-            return {
-              id: tripId,
-              title: tdata?.title || 'Viaggio',
-              destination: tdata?.destination || undefined,
-              startDate: tdata?.startDate,
-              endDate: tdata?.endDate,
-              ownerUid: tdata?.ownerUid || tdata?.ownerId,
-              ownerName: tdata?.ownerName || undefined,
-              isOwner: verifiedRole === 'owner',
-              role: verifiedRole,
-              isLastUsed: tripId === lastTripId
-            } as UserTripSummary;
-          }
-          return null;
-        })();
-
-        return await Promise.race([fetchPromise, timeoutPromise]);
-      } catch {
-        return null;
-      }
-    });
-
-    const settled = await Promise.allSettled(tripInspectionPromises);
-    for (const item of settled) {
-      if (item.status === 'fulfilled' && item.value) {
-        summaries.push(item.value);
-      }
+          return {
+            id: tripId,
+            title: tripData?.title || 'Viaggio',
+            destination: tripData?.destination || undefined,
+            startDate: tripData?.startDate,
+            endDate: tripData?.endDate,
+            ownerUid: tripData?.ownerUid || tripData?.ownerId,
+            ownerName: tripData?.ownerName || undefined,
+            isOwner: verifiedRole === 'owner',
+            role: verifiedRole,
+            isLastUsed: tripId === lastTripId,
+            source: indexedSet.has(tripId) ? 'cloud-index' : 'local-verified'
+          } satisfies UserTripSummary;
+        })(),
+        timeoutPromise
+      ]);
+      return { tripId, result, failed: false };
+    } catch (error) {
+      console.warn(`[accountService] Verifica viaggio ${tripId} non riuscita:`, error);
+      return { tripId, result: null, failed: true };
     }
+  }));
 
-    return summaries;
-  } catch (err) {
-    console.warn('[accountService] Impossibile recuperare viaggi associati da /users/{uid}:', err);
-    return [];
-  }
+  inspections.forEach(({ tripId, result, failed }) => {
+    if (result) summaries.push(result);
+    if (failed && indexedSet.has(tripId)) failedIndexedTripIds.push(tripId);
+    if (!indexedSet.has(tripId) && !result) unverifiedLocalTripIds.push(tripId);
+  });
+
+  return {
+    trips: summaries,
+    cloudIndexStatus: userSnap.exists() ? 'loaded' : 'missing',
+    indexedTripIds,
+    localCandidateIds,
+    failedIndexedTripIds,
+    unverifiedLocalTripIds
+  };
+}
+
+export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
+  return (await fetchUserTripsReport(uid)).trips;
 }
 
 /**
@@ -484,7 +466,7 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
 
     const currentUser = auth.currentUser;
     const isAnon = Boolean(currentUser && currentUser.isAnonymous);
-    if (currentUser?.uid && typeof window !== 'undefined') {
+    if (currentUser?.uid && currentUser.isAnonymous && typeof window !== 'undefined') {
       try {
         sessionStorage.setItem('houni_prev_anon_uid', currentUser.uid);
         localStorage.setItem('hounigo_prev_anon_uid', currentUser.uid);
@@ -596,5 +578,3 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
     };
   }
 }
-
-

@@ -23,7 +23,7 @@ assert.ok(form.includes('coordinate: finalCoordToSave'));
 assert.ok(card.includes("['Distanza'"));
 assert.ok(card.includes("['Dislivello'"));
 assert.ok(card.includes("['Durata'"));
-assert.ok(card.includes("['Percorso'"));
+assert.ok(card.includes('TREKKING_ROUTE_LABELS[activity.routeType]'));
 assert.ok(card.includes('PHOTO_LIGHT_LABELS'));
 assert.ok(activityType.includes("golden_hour: 'Golden hour'"));
 assert.strictEqual((onboarding.match(/Con lo stesso account puoi creare e ritrovare più viaggi\./g) || []).length, 1);

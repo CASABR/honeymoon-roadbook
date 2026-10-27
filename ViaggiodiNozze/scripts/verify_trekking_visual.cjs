@@ -4,7 +4,7 @@ const path = require('node:path');
 
 const chromePath = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
 const port = 9333;
-const outputDir = path.join(__dirname, '..', 'screenshots', 'trekking');
+const outputDir = 'C:\\tmp\\hounigo-postrelease-trekking';
 fs.mkdirSync(outputDir, { recursive: true });
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -46,6 +46,11 @@ class Client {
 }
 
 async function run() {
+  const projectRoot = path.join(__dirname, '..');
+  const vite = spawn(process.execPath, [
+    path.join(projectRoot, 'node_modules', 'vite', 'bin', 'vite.js'),
+    '--host', '127.0.0.1', '--port', '5173', '--strictPort'
+  ], { cwd: projectRoot, windowsHide: true });
   const chrome = spawn(chromePath, [
     `--remote-debugging-port=${port}`,
     '--headless=new', '--disable-gpu', '--no-sandbox', '--mute-audio', '--no-proxy-server', '--proxy-bypass-list=*',
@@ -53,6 +58,19 @@ async function run() {
     'about:blank'
   ]);
   try {
+    let serverReady = false;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await sleep(250);
+      try {
+        const response = await fetch('http://127.0.0.1:5173/');
+        if (response.ok) {
+          serverReady = true;
+          break;
+        }
+      } catch {}
+    }
+    if (!serverReady) throw new Error('Server Vite non disponibile');
+
     let targets;
     for (let attempt = 0; attempt < 30; attempt += 1) {
       await sleep(300);
@@ -88,8 +106,10 @@ async function run() {
     const captures = [
       ['desktop-light', 1440, 900, false, 'light'],
       ['desktop-dark', 1440, 900, false, 'dark'],
-      ['mobile-light', 390, 844, true, 'light'],
-      ['mobile-dark', 390, 844, true, 'dark']
+      ['iphone-393-light', 393, 852, true, 'light'],
+      ['iphone-393-dark', 393, 852, true, 'dark'],
+      ['mobile-320-light', 320, 568, true, 'light'],
+      ['mobile-320-dark', 320, 568, true, 'dark']
     ];
     for (const [name, width, height, mobile, theme] of captures) {
       await client.send('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: mobile ? 2 : 1, mobile });
@@ -110,14 +130,24 @@ async function run() {
       }
       await client.evaluate(`window.dispatchEvent(new CustomEvent('navigate_to', { detail: { view: 'categorie', categoria: 'attivita' } }))`);
       await sleep(1600);
+      await client.evaluate(`
+        const keepBothButton = [...document.querySelectorAll('button')].find(button => button.textContent?.includes('Mantieni entrambe'));
+        keepBothButton?.click();
+      `);
+      await sleep(500);
+      await client.evaluate(`document.querySelector('[data-trekking-card="true"]')?.scrollIntoView({ block: 'center' })`);
+      await sleep(300);
       const state = await client.evaluate(`({
         hasActivities: document.body?.innerText.includes('Attività') || false,
         hasTrekking: document.body?.innerText.includes('Trekking') || false,
         overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+        trekkingCards: [...document.querySelectorAll('[data-trekking-card="true"]')].filter(card => card.getBoundingClientRect().width > 0).length,
+        clippedCard: [...document.querySelectorAll('[data-trekking-card="true"]')].some(card => card.scrollWidth > card.clientWidth),
+        collisionModal: document.body?.innerText.includes('Attività Sovrapposte') || false,
         dark: document.documentElement.classList.contains('dark'),
         preview: document.body?.innerText.slice(0, 180) || ''
       })`);
-      if (!state.hasActivities || !state.hasTrekking || state.overflow || state.dark !== (theme === 'dark')) {
+      if (!state.hasActivities || !state.hasTrekking || !state.trekkingCards || state.overflow || state.clippedCard || state.collisionModal || state.dark !== (theme === 'dark')) {
         throw new Error(`${name}: verifica fallita ${JSON.stringify(state)}`);
       }
       const { data } = await client.send('Page.captureScreenshot', { format: 'png' });
@@ -127,6 +157,7 @@ async function run() {
     client.socket.close();
   } finally {
     chrome.kill();
+    vite.kill();
   }
 }
 
