@@ -1576,7 +1576,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     const isAttivita = item.type === 'attivita';
 
                     return (
-                      <div key={item.id} ref={(el) => { timelineItemRefs.current[item.id] = el; }}>
+                      <div
+                        key={item.id}
+                        ref={(el) => { timelineItemRefs.current[item.id] = el; }}
+                        className="hounigo-timeline-item"
+                        style={{ animationDelay: `${Math.min(idx * 28, 168)}ms` }}
+                      >
                         {isCheckinCallout ? (
                           /* Tappa informativa rapida per check-in senza duplicazioni economiche */
                           <div

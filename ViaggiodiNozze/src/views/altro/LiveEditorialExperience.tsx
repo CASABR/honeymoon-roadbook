@@ -159,7 +159,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     if (!isOnline) return { label: 'Offline', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
     if (props.isDetectingGps) return { label: 'Ricerca GPS', tone: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500 motion-safe:animate-pulse' };
     if (permissionDenied) return { label: 'GPS non autorizzato', tone: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' };
-    if (isFreshGps) return { label: 'Attiva', tone: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500 motion-safe:animate-pulse' };
+    if (isFreshGps) return { label: 'Attiva', tone: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' };
     if (isLeasePaused) return { label: 'In pausa', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
     if (props.remoteGpsLease?.status === 'stopped') return { label: 'Interrotta', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
     if (isLeaseActive) return { label: 'Posizione scaduta', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
@@ -231,6 +231,27 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   const [pendingUploadItems, setPendingUploadItems] = useState<Array<{ id: string; file: File; preview: string; name: string }>>([]);
   const [pendingCaptionInput, setPendingCaptionInput] = useState('');
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [photoRevealVersion, setPhotoRevealVersion] = useState(0);
+  const previousRealMarkerOffsetRef = useRef<{ dx: number; dy: number } | null>(null);
+  const currentRealMarkerDx = props.realMarkerOffset?.dx;
+  const currentRealMarkerDy = props.realMarkerOffset?.dy;
+  const shouldSmoothRealMarker = Boolean(
+    showRealMarker &&
+    currentRealMarkerDx !== undefined &&
+    currentRealMarkerDy !== undefined &&
+    previousRealMarkerOffsetRef.current &&
+    (props.remoteGpsLocation?.accuracy ?? Number.POSITIVE_INFINITY) <= 100 &&
+    Math.hypot(
+      currentRealMarkerDx - previousRealMarkerOffsetRef.current.dx,
+      currentRealMarkerDy - previousRealMarkerOffsetRef.current.dy
+    ) <= 120
+  );
+
+  useEffect(() => {
+    if (showRealMarker && currentRealMarkerDx !== undefined && currentRealMarkerDy !== undefined) {
+      previousRealMarkerOffsetRef.current = { dx: currentRealMarkerDx, dy: currentRealMarkerDy };
+    }
+  }, [showRealMarker, currentRealMarkerDx, currentRealMarkerDy]);
 
   const totalDiaryPages = Math.max(1, Math.ceil(sortedUpdates.length / PAGE_SIZE));
   const paginatedUpdates = useMemo(() => {
@@ -290,6 +311,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         await props.onUploadPhoto(item.file, pendingCaptionInput.trim() || undefined);
       }
       clearPendingPhotos();
+      setPhotoRevealVersion(version => version + 1);
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : 'Foto non salvata. Riprova.');
     } finally {
@@ -367,7 +389,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   );
 
   return (
-    <div className="mx-auto w-full max-w-5xl overflow-x-hidden px-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-slate-900 animate-fade-in dark:text-slate-100 sm:px-6">
+    <div className="hounigo-live-entry mx-auto w-full max-w-5xl overflow-x-hidden px-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-slate-900 dark:text-slate-100 sm:px-6">
       <header className="border-b border-slate-200 pb-4 dark:border-slate-800">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-2.5">
@@ -448,8 +470,8 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(15,23,42,.78),transparent_55%)]" />
 
           {showRealMarker && (
-            <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex flex-col items-center" style={{ transform: props.realMarkerOffset ? `translate(calc(-50% + ${props.realMarkerOffset.dx}px), calc(-50% + ${props.realMarkerOffset.dy}px))` : 'translate(-50%, -50%)' }}>
-              <span className="absolute h-12 w-12 rounded-full bg-[#FF6B5F]/30 motion-safe:animate-ping" />
+            <div className={`pointer-events-none absolute left-1/2 top-1/2 z-10 flex flex-col items-center ${shouldSmoothRealMarker ? 'hounigo-live-marker-transition' : ''}`} style={{ transform: props.realMarkerOffset ? `translate(calc(-50% + ${props.realMarkerOffset.dx}px), calc(-50% + ${props.realMarkerOffset.dy}px))` : 'translate(-50%, -50%)' }}>
+              <span key={lastDetectedDate?.getTime()} className="hounigo-live-gps-confirmed absolute h-12 w-12 rounded-full bg-[#FF6B5F]/30" />
               <span className="relative h-5 w-5 rounded-full border-4 border-white bg-[#FF6B5F] shadow-lg" />
               <span className="mt-2 whitespace-nowrap rounded-full bg-[#FF6B5F] px-2.5 py-1 text-[10px] font-bold text-white">Dove siamo</span>
             </div>
@@ -620,7 +642,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
         {displayPhotos.length ? (
           <div className="mt-4">
-            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            <div key={`photo-grid-${photoRevealVersion}`} className={`grid grid-cols-2 gap-2.5 sm:grid-cols-3 ${photoRevealVersion > 0 ? 'hounigo-photo-saved-reveal' : ''}`}>
               {visiblePhotos.map((photo, index) => {
                 const fullIndex = displayPhotos.findIndex(item => item.id === photo.id);
                 return (

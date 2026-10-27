@@ -429,6 +429,76 @@ input[type="password"] {
   animation: slideUp 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes hounigoLiveEntry {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes hounigoGpsConfirmed {
+  0% { opacity: 0; transform: scale(.45); }
+  35% { opacity: .55; }
+  100% { opacity: 0; transform: scale(1.45); }
+}
+
+@keyframes hounigoPhotoSavedReveal {
+  from { opacity: .35; transform: translateY(8px) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes hounigoRouteOpen {
+  from { opacity: .25; transform: scaleX(.05); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+@keyframes hounigoTransportModeOpen {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.hounigo-live-entry {
+  animation: hounigoLiveEntry 420ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.hounigo-live-marker-transition {
+  transition: transform 300ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.hounigo-live-gps-confirmed {
+  animation: hounigoGpsConfirmed 620ms ease-out both;
+}
+
+.hounigo-photo-saved-reveal {
+  animation: hounigoPhotoSavedReveal 480ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.hounigo-transport-route {
+  transform-origin: left center;
+  animation: hounigoRouteOpen 520ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.hounigo-transport-mode {
+  animation: hounigoTransportModeOpen 440ms 120ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.hounigo-timeline-item {
+  animation: fadeIn 280ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hounigo-live-entry,
+  .hounigo-live-gps-confirmed,
+  .hounigo-photo-saved-reveal,
+  .hounigo-transport-route,
+  .hounigo-transport-mode,
+  .hounigo-timeline-item {
+    animation: none !important;
+  }
+
+  .hounigo-live-marker-transition {
+    transition: none !important;
+  }
+}
+
 /* Safe area inset per smartphone con notch / home indicator */
 .safe-bottom {
   padding-bottom: env(safe-area-inset-bottom, 12px);

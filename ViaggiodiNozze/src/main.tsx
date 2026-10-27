@@ -5,6 +5,7 @@ import App from "./App";
 import "./index.css";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LocalIdentityDiagnostics from "./components/dev/LocalIdentityDiagnostics";
+import HounigoAppSplash from "./components/common/HounigoAppSplash";
 
 const basename = import.meta.env.BASE_URL.replace(/\/$/, "");
 const localDiagnostics = new URLSearchParams(window.location.search).get('identityDiagnostics') === '1'
@@ -19,7 +20,12 @@ if (!localDiagnostics) {
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
-      {localDiagnostics ? <LocalIdentityDiagnostics /> : <BrowserRouter basename={basename}><App /></BrowserRouter>}
+      {localDiagnostics ? <LocalIdentityDiagnostics /> : (
+        <>
+          <HounigoAppSplash />
+          <BrowserRouter basename={basename}><App /></BrowserRouter>
+        </>
+      )}
     </ErrorBoundary>
   </React.StrictMode>
 );

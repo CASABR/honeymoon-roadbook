@@ -51,3 +51,13 @@ Il progetto HOUNIGO si trova nella fase conclusiva di consolidamento per la Beta
 - Matrice e prove puntuali: `docs/LIVE_FEATURE_PRESERVATION.md`.
 - Verifica visiva completata con emulazione reale a 393 px e 320 px: stato attivo, GPS assente, dark mode, Diario, Interazioni e card pre-partenza senza overflow o sovrapposizioni.
 - Test finali superati: suite LIVE, pre-partenza/Gmail, HouniAI, Firebase Emulator per ruoli/privacy GPS e build PWA con chunk LIVE e jsPDF in precache.
+
+## 5. MOTION IDENTITY + LIVE RELEASE FINISH — 27 OTTOBRE 2026
+
+- Splash ufficiale basato sui tracciati SVG consegnati: H con freccia e wordmark confrontati con i PNG originali in `public/images/brand`.
+- Durata 2,2 secondi, skip immediato, una riproduzione per sessione, UI caricata in parallelo, light/dark e `prefers-reduced-motion`.
+- Nessun MP4/WebM, iframe, asset remoto o nuova dipendenza entra nel caricamento iniziale o nel precache obbligatorio.
+- LIVE usa transizioni finite: ingresso editoriale, marker GPS solo per coordinate accurate e salti contenuti, impulso singolo su conferma, reveal foto dopo salvataggio.
+- Trasporti anima una sola volta la linea di tratta; Oggi applica un reveal breve agli elementi timeline. Tutte le motion vengono disattivate in reduced motion.
+- Evidenze browser locali: `C:\tmp\hounigo-motion-release` (393×852, 320 px, desktop, light/dark, reduced motion e viewport ridotto da tastiera).
+- Restano non verificati su hardware: PWA standalone Safari/iPhone, GPS reale a due dispositivi e foto reale su dispositivo.

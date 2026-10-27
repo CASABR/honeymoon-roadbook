@@ -1,0 +1,142 @@
+.hounigo-motion-logo {
+  --hounigo-motion-ink: #172033;
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.hounigo-app-splash {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  background: #f8f7f3;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+.dark .hounigo-app-splash {
+  background: #172033;
+}
+
+.hounigo-app-splash.is-leaving {
+  opacity: 0;
+}
+
+.hounigo-app-splash__brand {
+  width: min(78vw, 520px);
+}
+
+.hounigo-app-splash__skip {
+  position: absolute;
+  top: max(1rem, env(safe-area-inset-top));
+  right: 1rem;
+  min-width: 44px;
+  min-height: 44px;
+  padding: .65rem .9rem;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(23, 32, 51, .08);
+  color: #172033;
+  font: inherit;
+  font-size: .75rem;
+  font-weight: 750;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.dark .hounigo-app-splash__skip {
+  background: rgba(248, 247, 243, .12);
+  color: #f8f7f3;
+}
+
+.hounigo-motion-logo--dark {
+  --hounigo-motion-ink: #f8f7f3;
+}
+
+.dark .hounigo-motion-logo--inherit {
+  --hounigo-motion-ink: #f8f7f3;
+}
+
+.hounigo-motion-mark,
+.hounigo-motion-dot {
+  fill: #ff6b5f;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.hounigo-motion-word {
+  fill: var(--hounigo-motion-ink);
+}
+
+.hounigo-motion-route {
+  fill: none;
+  stroke: #ff6b5f;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 180;
+  stroke-dashoffset: 180;
+  opacity: 0;
+}
+
+.hounigo-motion-logo.is-animated .hounigo-motion-route {
+  animation: hounigoRouteDraw 2200ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.hounigo-motion-logo.is-animated .hounigo-motion-mark {
+  animation: hounigoMarkReveal 2200ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.hounigo-motion-logo.is-animated .hounigo-motion-word {
+  animation: hounigoWordReveal 2200ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.hounigo-motion-logo.is-animated .hounigo-motion-dot {
+  animation: hounigoDotReveal 2200ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+@keyframes hounigoRouteDraw {
+  0%, 4% { opacity: 0; stroke-dashoffset: 180; }
+  10% { opacity: .8; }
+  34% { opacity: .8; stroke-dashoffset: 0; }
+  48%, 100% { opacity: 0; stroke-dashoffset: 0; }
+}
+
+@keyframes hounigoMarkReveal {
+  0%, 10% { opacity: 0; transform: translateY(14px) scale(.96); }
+  40%, 100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes hounigoWordReveal {
+  0%, 34% { opacity: 0; clip-path: inset(0 100% 0 0); transform: translateX(-8px); }
+  68%, 100% { opacity: 1; clip-path: inset(0 0 0 0); transform: translateX(0); }
+}
+
+@keyframes hounigoDotReveal {
+  0%, 56% { opacity: 0; transform: scale(.35); }
+  76%, 100% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hounigo-app-splash {
+    transition: none;
+  }
+
+  .hounigo-motion-logo.is-animated .hounigo-motion-route {
+    display: none;
+    animation: none;
+  }
+
+  .hounigo-motion-logo.is-animated .hounigo-motion-mark,
+  .hounigo-motion-logo.is-animated .hounigo-motion-word,
+  .hounigo-motion-logo.is-animated .hounigo-motion-dot {
+    animation: none;
+    opacity: 1;
+    clip-path: none;
+    transform: none;
+  }
+}

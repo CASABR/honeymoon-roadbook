@@ -374,8 +374,8 @@ export default function TrasportoCard({
             {/* SEGNO GRAFICO MINIMALE ***REMOVED*** */}
             <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0">
               <div className="w-8 sm:w-12 md:w-16 flex items-center justify-center relative">
-                <div className="w-full border-t border-slate-300 dark:border-slate-700" />
-                <span className="absolute bg-white dark:bg-[#172033] px-1 text-[11px] text-slate-400">
+                <div className="hounigo-transport-route w-full border-t border-slate-300 dark:border-slate-700" />
+                <span className="hounigo-transport-mode absolute bg-white dark:bg-[#172033] px-1 text-[11px] text-slate-400">
                   {currentType.modeIcon}
                 </span>
               </div>

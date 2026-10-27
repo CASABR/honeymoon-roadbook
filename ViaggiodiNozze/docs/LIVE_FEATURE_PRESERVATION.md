@@ -33,9 +33,15 @@ Verifica eseguita sul codice del commit sorgente `8b7c2b7` prima del redesign. L
 | Link ospiti | Tutti | **Condividi** e **Condividi link ospiti** | Test UI / browser | Preservata |
 | Vista esterna | Ospite | Posizione pubblica, Diario, Interazioni | Emulator privacy + browser | Preservata |
 | Informativa privacy | Tutti | Pannelli espandibili contestuali | Test UI | Preservata |
+| Apertura editoriale LIVE | Tutti | Reveal iniziale breve | Browser 393/320/desktop + reduced motion | Preservata |
+| Aggiornamento marker reale | Tutti quando pubblica | Transizione solo per coordinate accurate e spostamenti contenuti | Test statico + browser | Preservata |
+| Marker previsto | Solo membri | Marker navy statico | Test statico + browser | Preservata |
+| Feedback GPS confermato | Tutti quando pubblica | Impulso singolo sul nuovo timestamp | Test statico + browser | Preservata |
+| Reveal foto salvata | Owner / Copilota autorizzato | Reveal dopo `onUploadPhoto` risolto | Test statico | Preservata |
 
 ## Limiti dichiarati
 
 - Le fotografie locali non vengono presentate come sincronizzate: senza uno storage immagini autorizzato LIVE pubblica soltanto cartoline testuali.
 - Safari/iOS può sospendere il GPS in background; l’interfaccia mostra sempre lo stato e non promette tracking continuo.
 - Nessuna Rule, membership, ownership o dato reale è stato modificato.
+- Il collaudo Safari/PWA su iPhone fisico e il GPS a due dispositivi restano verifiche hardware separate.
