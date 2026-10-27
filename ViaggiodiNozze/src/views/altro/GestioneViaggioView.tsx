@@ -151,10 +151,10 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
       if (snap && !snap.empty) {
         snap.docs.forEach(d => {
           const m = d.data();
-          const isOwner = tripData?.ownerUid && d.id === tripData.ownerUid;
+          const isOwner = Boolean(tripData?.ownerUid && d.id === tripData.ownerUid);
           list.push({
             uid: d.id,
-            name: m.name || m.displayName || (isOwner ? (tripData?.ownerName || (config.id === '0000' ? 'nunzio' : undefined)) : undefined),
+            name: m.name || m.displayName || (isOwner ? tripData?.ownerName : undefined),
             email: m.email,
             role: isOwner ? 'owner' : (m.role || 'copilota'),
             createdAt: m.createdAt,
@@ -165,10 +165,10 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
         // Fallback dall'array members del documento trip
         const memberIds: string[] = Array.isArray(tripData.members) ? tripData.members : (tripData.ownerUid ? [tripData.ownerUid] : []);
         memberIds.forEach(uid => {
-          const isOwner = tripData.ownerUid && uid === tripData.ownerUid;
+          const isOwner = Boolean(tripData.ownerUid && uid === tripData.ownerUid);
           list.push({
             uid,
-            name: isOwner ? (tripData.ownerName || (config.id === '0000' ? 'nunzio' : undefined)) : undefined,
+            name: isOwner ? tripData.ownerName : undefined,
             role: isOwner ? 'owner' : 'copilota'
           });
         });
@@ -185,13 +185,13 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
           ownerItem = {
             ...existing,
             role: 'owner',
-            name: existing.name || tripData?.ownerName || (config.id === '0000' ? 'nunzio' : undefined)
+            name: existing.name || tripData?.ownerName
           };
           list.splice(existingIdx, 1);
         } else {
           ownerItem = {
             uid: trustedOwnerUid,
-            name: tripData?.ownerName || (config.id === '0000' ? 'nunzio' : undefined),
+            name: tripData?.ownerName,
             role: 'owner',
             createdAt: tripData?.createdAt
           };
@@ -751,8 +751,7 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
               const isOwner = m.role === 'owner' || m.uid === initialConfig?.ownerUid;
               const isCurrentDeviceUser = auth?.currentUser?.uid === m.uid;
               const isOwnerOrAdmin = initialConfig?.ownerUid === auth?.currentUser?.uid
-                || members.some(mem => mem.uid === auth?.currentUser?.uid && mem.role === 'owner')
-                || auth?.currentUser?.email === 'nunzio114@gmail.com';
+                || members.some(mem => mem.uid === auth?.currentUser?.uid && mem.role === 'owner');
               const canKickThisMember = !isOwner && !isCurrentDeviceUser && isOwnerOrAdmin;
 
               return (

@@ -72,6 +72,18 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   const [authenticatedUser, setAuthenticatedUser] = useState<User | null>(null);
   const [manualTripId, setManualTripId] = useState('');
   const [copilotDisplayName, setCopilotDisplayName] = useState(() => auth?.currentUser?.displayName || '');
+  const [activeAuthUser, setActiveAuthUser] = useState<User | null>(() => auth?.currentUser || null);
+
+  useEffect(() => {
+    if (!auth) return;
+    const unsub = auth.onAuthStateChanged((u: any) => {
+      setActiveAuthUser(u);
+      if (u?.displayName && !ownerName) {
+        setOwnerName(u.displayName);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   const executeJoin = async (codeToJoin: string, tokenOverride?: string | null, nameOverride?: string) => {
     const codeClean = codeToJoin.trim();
@@ -327,6 +339,9 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
     let ownerUid = 'local_fallback';
     let userObj: any = null;
     if (auth) {
+      if (typeof (auth as any).authStateReady === 'function') {
+        await (auth as any).authStateReady();
+      }
       if (auth.currentUser) {
         ownerUid = auth.currentUser.uid;
         userObj = auth.currentUser;
@@ -391,11 +406,16 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
 
         const { recordUserAccess } = await import('../services/userAccessService');
         if (userObj) {
-          recordUserAccess(userObj, id).catch(() => {});
+          await recordUserAccess(userObj, id).catch(() => {});
         }
+        const { addKnownTripId } = await import('../utils/tripConfig');
+        addKnownTripId(id);
       } catch (cloudErr) {
         console.warn('[Onboarding] Errore salvataggio immediato viaggio su Firestore:', cloudErr);
       }
+    } else {
+      const { addKnownTripId } = await import('../utils/tripConfig');
+      addKnownTripId(id);
     }
 
     // Requisito B: Passa subito al passaggio di scelta invito facoltativo
@@ -566,6 +586,10 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
     const targetTripId = finalConfig?.id || '0000';
     persistDeviceSession(targetTripId, finalRole);
 
+    import('../utils/tripConfig').then(({ addKnownTripId }) => {
+      addKnownTripId(targetTripId);
+    });
+
     import('../storage/storageService').then(({ storageService }) => {
       storageService.setDeviceRole(finalRole);
       storageService.ensureRefuels().catch(console.error);
@@ -684,7 +708,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           {/* 2. CONTINUA CON GOOGLE / ACCEDI (NAVY) */}
           <button
             type="button"
-            onClick={handleGoogleLogin}
+            onClick={activeAuthUser && !activeAuthUser.isAnonymous ? () => inspectUserTrips(activeAuthUser) : handleGoogleLogin}
             disabled={loading}
             className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer shadow-md shadow-[#172033]/15 border flex items-center justify-between text-left group disabled:opacity-75 disabled:pointer-events-none"
             style={{ background: '#172033', color: '#ffffff', borderColor: '#172033' }}
@@ -699,15 +723,40 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               </div>
               <div className="min-w-0 flex-1">
                 <div className="font-extrabold text-base leading-tight font-brand-title truncate">
-                  {loading ? (loginProgressMsg || 'Accesso in corso…') : 'Continua con Google / Accedi'}
+                  {loading
+                    ? (loginProgressMsg || 'Accesso in corso…')
+                    : activeAuthUser && !activeAuthUser.isAnonymous
+                    ? `I Tuoi Viaggi (${activeAuthUser.displayName || activeAuthUser.email})`
+                    : 'Continua con Google / Accedi'}
                 </div>
                 <div className="text-xs text-slate-300 font-normal mt-0.5 truncate">
-                  {loading ? 'Attendi la verifica delle credenziali' : 'Sincronizza e ripristina i tuoi viaggi'}
+                  {loading
+                    ? 'Attendi la verifica delle credenziali'
+                    : activeAuthUser && !activeAuthUser.isAnonymous
+                    ? 'Visualizza i viaggi associati a questo account'
+                    : 'Sincronizza e ripristina i tuoi viaggi'}
                 </div>
               </div>
             </div>
             <span className="text-slate-300 text-base font-bold group-hover:translate-x-1 transition-transform shrink-0 ml-2">→</span>
           </button>
+
+          {/* Banner trasparente cambio account Google se già autenticato */}
+          {activeAuthUser && !activeAuthUser.isAnonymous && (
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-100 text-[11px] text-slate-600">
+              <span className="truncate">Connesso: <strong>{activeAuthUser.email || activeAuthUser.displayName}</strong></span>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (auth) await auth.signOut();
+                  setActiveAuthUser(null);
+                }}
+                className="text-rose-500 hover:text-rose-700 font-bold underline ml-2 shrink-0 cursor-pointer"
+              >
+                Disconnetti
+              </button>
+            </div>
+          )}
 
           {/* 3. PARTECIPA A UN VIAGGIO (CLOUD) */}
           <button
@@ -798,6 +847,27 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         </div>
 
         <form onSubmit={handleCreate} className="space-y-4">
+          {activeAuthUser && !activeAuthUser.isAnonymous ? (
+            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex items-center justify-between">
+              <div className="min-w-0">
+                <span className="font-bold block text-[10px] uppercase tracking-wider text-emerald-600">Account Organizzatore Connesso:</span>
+                <span className="text-xs truncate block font-semibold text-emerald-800">
+                  {activeAuthUser.email || activeAuthUser.displayName}
+                </span>
+              </div>
+              <span className="text-[10px] bg-emerald-200 text-emerald-800 font-bold px-2 py-0.5 rounded-full shrink-0 ml-2">
+                Google
+              </span>
+            </div>
+          ) : (
+            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
+              <span className="font-bold block text-[10px] uppercase tracking-wider text-slate-400">Accesso Rapido Dispositivo:</span>
+              <span className="text-[11px] text-slate-500">
+                Il viaggio sarà creato con l'identità di questo browser. Potrai associare Google in seguito.
+              </span>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-600">
               Nome del Viaggio *

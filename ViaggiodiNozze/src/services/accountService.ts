@@ -157,15 +157,11 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
         } catch {}
       }
       try {
-        const rawKnown = localStorage.getItem('hounigo_known_trip_ids');
-        if (rawKnown) {
-          const parsed = JSON.parse(rawKnown);
-          if (Array.isArray(parsed)) {
-            parsed.forEach((t: string) => {
-              if (t && !tripIds.includes(t)) tripIds.push(t);
-            });
-          }
-        }
+        const { getKnownTripIds } = await import('../utils/tripConfig');
+        const knownList = getKnownTripIds();
+        knownList.forEach((t: string) => {
+          if (t && !tripIds.includes(t)) tripIds.push(t);
+        });
       } catch {}
     }
 
@@ -241,15 +237,18 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
 /**
  * Cambia il viaggio attivo corrente senza contaminazione dati:
  * chiude IndexedDB, imposta sessione dispositivo e notifica l'app.
+ * Mantiene invariata l'identità autenticata dell'utente.
  */
 export async function switchActiveTrip(trip: UserTripSummary): Promise<void> {
-  const { saveTripConfig, normalizeTripConfig } = await import('../utils/tripConfig');
+  const { saveTripConfig, normalizeTripConfig, addKnownTripId } = await import('../utils/tripConfig');
   const { storageService } = await import('../storage/storageService');
   const { persistDeviceSession } = await import('../utils/deviceSession');
+  const { recordUserAccess } = await import('./userAccessService');
 
   const role = trip.isOwner ? 'guida' : 'copilota';
   persistDeviceSession(trip.id, role);
   storageService.setDeviceRole(role);
+  addKnownTripId(trip.id);
 
   const config = normalizeTripConfig({
     id: trip.id,
@@ -260,6 +259,10 @@ export async function switchActiveTrip(trip: UserTripSummary): Promise<void> {
     ownerName: trip.ownerName || ''
   });
   saveTripConfig(config);
+
+  if (auth?.currentUser) {
+    await recordUserAccess(auth.currentUser, trip.id).catch(() => {});
+  }
 }
 
 /**

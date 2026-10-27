@@ -23,6 +23,8 @@ export interface UserAccessEntry {
   associatedTripIds?: string[];
 }
 
+import { addKnownTripId } from '../utils/tripConfig';
+
 let lastRecordedUid: string | null = null;
 let lastRecordedTripId: string | null = null;
 let lastRecordedTime = 0;
@@ -35,11 +37,16 @@ let lastRecordedTime = 0;
 export async function recordUserAccess(user: User | null, tripId?: string): Promise<void> {
   if (!db || !user?.uid) return;
 
+  const cleanTripId = tripId && tripId.trim() !== '' ? tripId.trim() : undefined;
+  if (cleanTripId) {
+    addKnownTripId(cleanTripId);
+  }
+
   const now = Date.now();
-  // Throttle: massimo una scrittura ogni 5 minuti per la stessa sessione (stesso utente e stesso viaggio)
+  // Throttle: massimo una scrittura ogni 5 minuti per la stessa identica sessione e viaggio
   if (
     lastRecordedUid === user.uid &&
-    lastRecordedTripId === (tripId || null) &&
+    lastRecordedTripId === (cleanTripId || null) &&
     (now - lastRecordedTime) < 5 * 60 * 1000
   ) {
     return;
@@ -56,20 +63,21 @@ export async function recordUserAccess(user: User | null, tripId?: string): Prom
     };
 
     // Registra tripId nei viaggi associati del profilo utente per il recupero multi-dispositivo
-    if (tripId && tripId.trim() !== '') {
-      payload.lastTripId = tripId;
-      payload.associatedTripIds = arrayUnion(tripId);
+    if (cleanTripId) {
+      payload.lastTripId = cleanTripId;
+      payload.associatedTripIds = arrayUnion(cleanTripId);
     }
 
     await setDoc(userRef, payload, { merge: true });
     lastRecordedUid = user.uid;
-    lastRecordedTripId = tripId || null;
+    lastRecordedTripId = cleanTripId || null;
     lastRecordedTime = now;
   } catch (err) {
     // Non bloccante: log diagnostico
     console.warn('[userAccess] Impossibile registrare ultimo accesso:', err);
   }
 }
+
 
 /**
  * Converte un campo timestamp Firestore o numerico in millisecondi.

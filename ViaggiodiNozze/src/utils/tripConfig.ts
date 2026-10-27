@@ -63,6 +63,33 @@ export function getTripConfig(): TripConfig | null {
   return null;
 }
 
+export const KNOWN_TRIPS_KEY = 'hounigo_known_trip_ids';
+
+export function getKnownTripIds(): string[] {
+  if (typeof localStorage === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(KNOWN_TRIPS_KEY);
+    if (!raw) return [];
+    const list = JSON.parse(raw);
+    return Array.isArray(list) ? list.filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function addKnownTripId(tripId: string): void {
+  if (!tripId || typeof localStorage === 'undefined') return;
+  const clean = tripId.trim();
+  if (!clean) return;
+  try {
+    const list = getKnownTripIds();
+    if (!list.includes(clean)) {
+      list.push(clean);
+      localStorage.setItem(KNOWN_TRIPS_KEY, JSON.stringify(list));
+    }
+  } catch {}
+}
+
 export function saveTripConfig(config: TripConfig): void {
   if (typeof localStorage === 'undefined') return;
   const oldStored = localStorage.getItem(CONFIG_KEY);
@@ -75,6 +102,7 @@ export function saveTripConfig(config: TripConfig): void {
 
   const normalized = normalizeTripConfig(config);
   localStorage.setItem(CONFIG_KEY, JSON.stringify(normalized));
+  addKnownTripId(normalized.id);
   
   if (oldId && oldId !== normalized.id) {
     import('../storage/indexedDB').then(({ closeAndResetDatabases }) => {
@@ -88,6 +116,7 @@ export function saveTripConfig(config: TripConfig): void {
   
   // Dispatch event so App.tsx and views can re-render if needed
   window.dispatchEvent(new Event('trip_config_changed'));
+  window.dispatchEvent(new Event('roadbook_trips_updated'));
 }
 
 export function clearTripConfig(): void {
@@ -97,4 +126,6 @@ export function clearTripConfig(): void {
     closeAndResetDatabases().catch(() => {});
   });
   window.dispatchEvent(new Event('trip_config_changed'));
+  window.dispatchEvent(new Event('roadbook_trips_updated'));
 }
+

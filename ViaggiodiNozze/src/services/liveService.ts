@@ -100,7 +100,7 @@ export const liveService = {
     const tripSnap = await getDoc(doc(db, 'trips', tripId));
     const tripData = tripSnap.exists() ? tripSnap.data() : null;
     const members: string[] = Array.isArray(tripData?.members) ? tripData!.members : [];
-    const isOwner = tripData?.ownerUid === user.uid || tripData?.ownerId === user.uid || (tripId === '0000' && user.uid === 'nunzio');
+    const isOwner = tripData?.ownerUid === user.uid || tripData?.ownerId === user.uid;
     let isMember = isOwner || members.includes(user.uid);
     if (!isMember) {
       const memberDoc = await getDoc(doc(db, 'trips', tripId, 'members', user.uid)).catch(() => null);
@@ -268,7 +268,7 @@ export const liveService = {
       const tripSnap = await getDoc(doc(db, 'trips', tripId));
       const tripData = tripSnap.exists() ? tripSnap.data() : null;
       const members: string[] = Array.isArray(tripData?.members) ? tripData!.members : [];
-      const isOwner = tripData?.ownerUid === user.uid || tripData?.ownerId === user.uid || (tripId === '0000' && user.uid === 'nunzio');
+      const isOwner = tripData?.ownerUid === user.uid || tripData?.ownerId === user.uid;
       let isMember = isOwner || members.includes(user.uid);
       if (!isMember) {
         const memberDoc = await getDoc(doc(db, 'trips', tripId, 'members', user.uid)).catch(() => null);

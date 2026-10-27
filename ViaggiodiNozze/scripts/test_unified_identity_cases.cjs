@@ -54,7 +54,7 @@ test('Scenario 1: Google crea viaggio A e viaggio B -> entrambi registrati con G
     'OnboardingView deve riutilizzare auth.currentUser invece di forzare signInAnonymously per creare un viaggio'
   );
   assert.ok(
-    userAccessService.includes('payload.associatedTripIds = arrayUnion(tripId);'),
+    userAccessService.includes('payload.associatedTripIds = arrayUnion'),
     'userAccessService deve registrare ogni nuovo viaggio creato in associatedTripIds del profilo utente permanente'
   );
 });
@@ -190,5 +190,48 @@ test('Scenario 12: Conflitto account Google preesistente gestito con trasparenza
   );
 });
 
+// 13. Cambio ripetuto tra viaggi: preserva identità e aggiorna indici locali e cloud
+test('Scenario 13: Cambio ripetuto tra viaggi con switchActiveTrip preserva identità e indici', () => {
+  assert.ok(
+    accountService.includes('addKnownTripId(trip.id)') &&
+    accountService.includes('await recordUserAccess(auth.currentUser, trip.id)'),
+    'switchActiveTrip deve memorizzare il viaggio negli indici locali e associarlo su Firestore senza mutare UID'
+  );
+});
+
+// 14. Riapertura e Selettore: legge autorevolmente da Firestore e getKnownTripIds
+test('Scenario 14: Riapertura e selettore -> conservazione di tutti i viaggi autorizzati', () => {
+  const tripConfig = read('src/utils/tripConfig.ts');
+  assert.ok(
+    tripConfig.includes('export function getKnownTripIds') &&
+    tripConfig.includes('export function addKnownTripId'),
+    'tripConfig deve esportare getKnownTripIds e addKnownTripId per preservare l\'indice dei viaggi'
+  );
+  assert.ok(
+    accountService.includes('const { getKnownTripIds } = await import(\'../utils/tripConfig\');') &&
+    accountService.includes('knownList.forEach('),
+    'fetchUserTrips deve includere tutti i viaggi presenti in getKnownTripIds oltre a /users/{uid}'
+  );
+});
+
+// 15. Nessun bypass hardcoded per email o 0000
+test('Scenario 15: Zero bypass hardcoded per email nunzio114 o viaggio 0000', () => {
+  const gestioneViaggio = read('src/views/altro/GestioneViaggioView.tsx');
+  const liveService = read('src/services/liveService.ts');
+  assert.ok(
+    !gestioneViaggio.includes("nunzio114@gmail.com"),
+    'GestioneViaggioView non deve contenere autorizzazioni speciali per email hardcoded'
+  );
+  assert.ok(
+    !gestioneViaggio.includes("(config.id === '0000' ? 'nunzio' : undefined)"),
+    'GestioneViaggioView non deve usare nunzio come fallback hardcoded per 0000'
+  );
+  assert.ok(
+    !liveService.includes("(tripId === '0000' && user.uid === 'nunzio')"),
+    'liveService non deve avere bypass hardcoded per 0000 e nunzio'
+  );
+});
+
 console.log(`\nRisultato finale: ${passed}/${total} test superati con successo.\n`);
 assert.strictEqual(passed, total, 'Tutti gli scenari devono essere superati');
+

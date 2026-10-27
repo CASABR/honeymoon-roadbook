@@ -169,9 +169,22 @@ export default function TripSelectorModal({
                     {currentUser?.displayName || currentUser?.email || 'Account Google'}
                   </span>
                 </div>
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
-                  ✓ Sincronizzato
-                </span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                    ✓ Sincronizzato
+                  </span>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (auth) await auth.signOut();
+                      await loadTrips();
+                    }}
+                    className="text-[10px] font-semibold text-slate-400 hover:text-rose-500 underline cursor-pointer"
+                    title="Disconnetti questo account"
+                  >
+                    Esci
+                  </button>
+                </div>
               </div>
             )}
           </div>
