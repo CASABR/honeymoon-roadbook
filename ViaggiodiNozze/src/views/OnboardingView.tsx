@@ -10,7 +10,6 @@ import {
   loginWithEmailPassword,
   loginWithGoogle,
   checkPendingRedirectResult,
-  verifyTripOwnership,
   type UserTripSummary
 } from '../services/accountService';
 import {
@@ -153,30 +152,6 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         setTempConfig(config);
         setTempRole('copilota');
         handleFinishOnboarding(undefined, config, 'copilota');
-        return;
-      }
-
-      // Fallback speciale per viaggio originale legacy 0000
-      if (codeClean === '0000') {
-        const { doc, getDoc } = await import('firebase/firestore');
-        let directTripData: any = null;
-        if (db && user) {
-          try {
-            const tripSnap = await getDoc(doc(db, 'trips', '0000'));
-            if (tripSnap.exists()) directTripData = tripSnap.data();
-          } catch {}
-        }
-        const legacyCfg = normalizeTripConfig({
-          id: '0000',
-          title: directTripData?.title || 'Viaggio Originale',
-          startDate: directTripData?.startDate || '2026-11-28',
-          endDate: directTripData?.endDate || '2027-01-10',
-          ownerUid: directTripData?.ownerUid || user.uid,
-          ownerName: directTripData?.ownerName || 'nunzio'
-        });
-        setTempConfig(legacyCfg);
-        setTempRole('guida');
-        handleFinishOnboarding(undefined, legacyCfg, 'guida');
         return;
       }
 
@@ -517,28 +492,6 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               }
             }
           } catch {}
-        }
-      }
-
-      // 3. Controllo per viaggio legacy 0000 in sola lettura (se l'utente è l'owner effettivo)
-      const legacyCheck = await verifyTripOwnership('0000', user.uid);
-      if (legacyCheck.exists && legacyCheck.isOwner) {
-        const alreadyHas0000 = trips.some(t => t.id === '0000');
-        if (!alreadyHas0000) {
-          const trip0000 = {
-            id: '0000',
-            title: 'Viaggio Originale (0000)',
-            isOwner: true,
-            role: 'owner' as const,
-            ownerUid: user.uid,
-            ownerName: legacyCheck.ownerName || 'nunzio'
-          };
-          // Se l'utente ha altri viaggi attivi, posiziona 0000 in coda per non oscurare il viaggio corrente
-          if (trips.length > 0) {
-            trips.push(trip0000);
-          } else {
-            trips.unshift(trip0000);
-          }
         }
       }
 

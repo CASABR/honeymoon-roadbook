@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { auth } from '../../firebase';
 import {
   fetchUserTrips,
-  verifyTripOwnership,
   switchActiveTrip,
   loginWithGoogle,
   type UserTripSummary
@@ -47,38 +46,13 @@ export default function TripSelectorModal({
     setLoading(true);
     try {
       const loadedTrips = await fetchUserTrips(user.uid);
-
-      const legacyCheck = await verifyTripOwnership('0000', user.uid);
-      if (legacyCheck.exists && legacyCheck.isOwner) {
-        const alreadyHas0000 = loadedTrips.some(t => t.id === '0000');
-        if (!alreadyHas0000) {
-          const trip0000: UserTripSummary = {
-            id: '0000',
-            title: 'Viaggio Originale (0000)',
-            destination: 'Nuova Zelanda & Cook',
-            startDate: '2026-11-28',
-            endDate: '2027-01-10',
-            ownerUid: user.uid,
-            ownerName: legacyCheck.ownerName || 'nunzio',
-            isOwner: true,
-            role: 'owner',
-            isLastUsed: currentTripId === '0000'
-          };
-          if (currentTripId === '0000' || loadedTrips.length === 0) {
-            loadedTrips.unshift(trip0000);
-          } else {
-            loadedTrips.push(trip0000);
-          }
-        }
-      }
-
       setTrips(loadedTrips);
     } catch (err) {
       console.warn('[TripSelectorModal] Errore caricamento viaggi:', err);
     } finally {
       setLoading(false);
     }
-  }, [currentTripId]);
+  }, []);
 
   useEffect(() => {
     if (isOpen) {
@@ -96,6 +70,9 @@ export default function TripSelectorModal({
     try {
       const res = await loginWithGoogle();
       if (res.success) {
+        if (res.preExistingAccount) {
+          alert('Accesso completato con account Google esistente. I viaggi visualizzati corrispondono a quelli verificati per questo account.');
+        }
         await loadTrips();
       } else if (res.error) {
         alert(res.error);

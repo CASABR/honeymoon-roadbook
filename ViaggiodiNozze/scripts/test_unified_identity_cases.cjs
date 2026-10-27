@@ -160,5 +160,35 @@ test('Scenario 10: Utente non autorizzato -> Firestore Rules negano accesso', ()
   );
 });
 
+// 11. Nessuna eccezione hardcoded per 0000 nel selettore: tutti i viaggi devono essere verificati da Firestore
+test('Scenario 11: Nessuna eccezione hardcoded per 0000 nel selettore', () => {
+  const tripSelectorModal = read('src/components/modals/TripSelectorModal.tsx');
+  assert.ok(
+    !tripSelectorModal.includes("verifyTripOwnership('0000'"),
+    'TripSelectorModal non deve contenere controlli legacy hardcoded per 0000'
+  );
+  assert.ok(
+    !accountService.includes("tripId === '0000' && (uid === 'nunzio'"),
+    'accountService non deve attribuire privilegi a 0000 con stringhe hardcoded'
+  );
+  assert.ok(
+    accountService.includes("isOwner = Boolean(ownerUid && ownerUid === currentUid)"),
+    'verifyTripOwnership deve verificare esclusivamente la corrispondenza dell\'ownerUid Firestore'
+  );
+});
+
+// 12. Gestione esplicita del conflitto Google preesistente senza trasferimenti insicuri
+test('Scenario 12: Conflitto account Google preesistente gestito con trasparenza', () => {
+  assert.ok(
+    accountService.includes("preExistingAccount: wasPreExisting"),
+    'loginWithGoogle deve restituire il flag preExistingAccount per informare il chiamante'
+  );
+  const tripSelectorModal = read('src/components/modals/TripSelectorModal.tsx');
+  assert.ok(
+    tripSelectorModal.includes("res.preExistingAccount"),
+    'TripSelectorModal deve notificare esplicitamente l\'avvenuto accesso con account Google preesistente'
+  );
+});
+
 console.log(`\nRisultato finale: ${passed}/${total} test superati con successo.\n`);
-assert.strictEqual(passed, total, 'Tutti i 10 scenari obbligatori devono essere superati');
+assert.strictEqual(passed, total, 'Tutti gli scenari devono essere superati');

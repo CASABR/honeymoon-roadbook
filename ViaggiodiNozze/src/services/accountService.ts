@@ -78,7 +78,7 @@ export async function verifyTripOwnership(tripId: string, currentUid: string): P
     }
     const data = tripSnap.data();
     const ownerUid = data?.ownerUid || data?.ownerId || null;
-    const ownerName = data?.ownerName || (tripId === '0000' ? 'nunzio' : null);
+    const ownerName = data?.ownerName || null;
     const isOwner = Boolean(ownerUid && ownerUid === currentUid);
     return {
       exists: true,
@@ -148,10 +148,10 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
           if (!raw) continue;
           if (raw.startsWith('{')) {
             const parsed = JSON.parse(raw);
-            if (parsed?.id && parsed.id !== '0000' && !tripIds.includes(parsed.id)) {
+            if (parsed?.id && !tripIds.includes(parsed.id)) {
               tripIds.push(parsed.id);
             }
-          } else if (raw.trim() && raw.trim() !== '0000' && !tripIds.includes(raw.trim())) {
+          } else if (raw.trim() && !tripIds.includes(raw.trim())) {
             tripIds.push(raw.trim());
           }
         } catch {}
@@ -204,12 +204,12 @@ export async function fetchUserTrips(uid: string): Promise<UserTripSummary[]> {
           if (verifiedRole) {
             return {
               id: tripId,
-              title: tdata?.title || (tripId === '0000' ? 'Viaggio Originale' : 'Viaggio'),
+              title: tdata?.title || 'Viaggio',
               destination: tdata?.destination || undefined,
               startDate: tdata?.startDate,
               endDate: tdata?.endDate,
               ownerUid: tdata?.ownerUid || tdata?.ownerId,
-              ownerName: tdata?.ownerName || (tripId === '0000' ? 'nunzio' : undefined),
+              ownerName: tdata?.ownerName || undefined,
               isOwner: verifiedRole === 'owner',
               role: verifiedRole,
               isLastUsed: tripId === lastTripId
