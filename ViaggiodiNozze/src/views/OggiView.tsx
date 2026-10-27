@@ -18,6 +18,7 @@ import RistoranteCard from '../components/cards/RistoranteCard';
 import TappaCard from '../components/cards/TappaCard';
 import ShoppingCard from '../components/cards/ShoppingCard';
 import DayMapsCard from '../components/cards/DayMapsCard';
+import PreDeparturePhotoCard from '../components/cards/PreDeparturePhotoCard';
 import type { DayMapsRoutes } from '../types';
 import InTransitBanner from '../components/common/InTransitBanner';
 import UniversalCopilotaModal from '../components/modals/UniversalCopilotaModal';
@@ -978,6 +979,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             </div>
           </div>
         </div>
+
+        <PreDeparturePhotoCard
+          tripId={tripId}
+          startDate={tripConfig?.startDate || tripDays[0]?.dateStr || (isMasterTrip ? TRIP_START_DATE : '')}
+          canEdit={canEdit}
+          onOpenLive={() => onNavigateTab?.('altro', undefined, 'live')}
+        />
 
         {/* ─── LIVELLO 1: CARD PROSSIMO PASSO / FOCUS TEMPORALE REALE ─── */}
         {(() => {

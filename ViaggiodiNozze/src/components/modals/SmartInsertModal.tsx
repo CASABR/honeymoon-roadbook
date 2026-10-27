@@ -9,6 +9,7 @@ import { auth } from '../../firebase';
 import { GoogleAuthProvider } from 'firebase/auth';
 import GmailConnectionRow from '../common/GmailConnectionRow';
 import { TrailAi } from '../icons/TrailIcons';
+import { GMAIL_READONLY_SCOPE, getFriendlyGmailMessage } from '../../services/gmailOAuth';
 
 interface SmartInsertModalProps {
   isOpen: boolean;
@@ -66,6 +67,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   const [step, setStep] = useState<Step>('input');
   const [text, setText] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [gmailNotice, setGmailNotice] = useState('');
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -84,7 +86,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   const handleGmailImport = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+      provider.addScope(GMAIL_READONLY_SCOPE);
       
       let token: string | undefined;
 
@@ -148,6 +150,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(query)}&maxResults=5`, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      if (!res.ok) throw new Error(res.status === 401 || res.status === 403 ? 'gmail/not-authorized' : 'gmail/unavailable');
       const data = await res.json();
       if (!data.messages || data.messages.length === 0) {
         throw new Error('Nessuna email di viaggio trovata con le parole chiave di prenotazione.');
@@ -158,6 +161,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
         const msgRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`, {
            headers: { Authorization: `Bearer ${token}` }
         });
+        if (!msgRes.ok) throw new Error(msgRes.status === 401 || msgRes.status === 403 ? 'gmail/not-authorized' : 'gmail/unavailable');
         const msgData = await msgRes.json();
         let emailText = '';
 
@@ -192,10 +196,13 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       }
 
       setText(combinedText);
+      setGmailNotice('Email importate. Verifica il testo e avvia l’estrazione AI.');
       setStep('input');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Errore durante la lettura delle email');
-      setStep('error');
+      setErrorMsg('');
+      setGmailNotice(getFriendlyGmailMessage(err));
+      setStep('input');
+      setTimeout(() => textAreaRef.current?.focus(), 100);
     }
   };
 
@@ -205,6 +212,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
         setStep('gmailLoading');
         setText('');
         setErrorMsg('');
+        setGmailNotice('');
         setEditData({});
         setAttachedFile(null);
         setMultiBookings([]);
@@ -213,6 +221,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
         setStep('input');
         setText('');
         setErrorMsg('');
+        setGmailNotice('');
         setEditData({});
         setAttachedFile(null);
         setMultiBookings([]);
@@ -851,6 +860,16 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   </p>
                 )}
               </div>
+
+              {inputMode === 'import' && gmailNotice && (
+                <div className="shrink-0 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-amber-950">
+                  <p className="text-[11px] leading-relaxed">{gmailNotice}</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button type="button" onClick={() => fileInputRef.current?.click()} className="min-h-9 rounded-xl bg-white px-3 text-[11px] font-bold text-[#172033] border border-amber-200 shadow-2xs">📎 Carica PDF/foto</button>
+                    <button type="button" onClick={() => textAreaRef.current?.focus()} className="min-h-9 rounded-xl bg-white px-3 text-[11px] font-bold text-[#172033] border border-amber-200 shadow-2xs">Incolla testo email</button>
+                  </div>
+                </div>
+              )}
 
               {/* Collegamento Gmail Compatto (1 riga) */}
               {inputMode === 'import' && (
