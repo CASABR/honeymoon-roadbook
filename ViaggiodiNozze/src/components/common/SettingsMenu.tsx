@@ -275,6 +275,13 @@ export default function SettingsMenu() {
                 type="button"
                 onClick={async () => {
                   if (confirm('Sei sicuro di voler uscire da questo viaggio? I dati non sincronizzati andranno persi.')) {
+                    try {
+                      const { auth } = await import('../../firebase');
+                      if (auth) {
+                        const { signOut } = await import('firebase/auth');
+                        await signOut(auth).catch(() => {});
+                      }
+                    } catch {}
                     await clearDeviceSession();
                     await idbClearAll();
                     clearTripConfig();

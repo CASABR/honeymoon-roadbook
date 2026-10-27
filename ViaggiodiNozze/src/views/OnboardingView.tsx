@@ -410,8 +410,11 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         }
         const { addKnownTripId } = await import('../utils/tripConfig');
         addKnownTripId(id);
-      } catch (cloudErr) {
-        console.warn('[Onboarding] Errore salvataggio immediato viaggio su Firestore:', cloudErr);
+      } catch (cloudErr: any) {
+        console.error('[Onboarding] Errore salvataggio immediato viaggio su Firestore:', cloudErr);
+        setLoading(false);
+        alert(`Impossibile salvare il viaggio su Firestore: ${cloudErr?.message || 'Errore di connessione o autorizzazione.'}`);
+        return;
       }
     } else {
       const { addKnownTripId } = await import('../utils/tripConfig');

@@ -232,6 +232,21 @@ test('Scenario 15: Zero bypass hardcoded per email nunzio114 o viaggio 0000', ()
   );
 });
 
+// 16. Logout reale con signOut e visibilità degli errori Firestore
+test('Scenario 16: Logout reale con signOut ed errori Firestore non mascherati', () => {
+  const settingsMenu = read('src/components/common/SettingsMenu.tsx');
+  assert.ok(
+    settingsMenu.includes('signOut(auth)'),
+    'SettingsMenu deve eseguire signOut(auth) al clic su Esci per terminare realmente la sessione'
+  );
+  assert.ok(
+    onboardingView.includes('Impossibile salvare il viaggio su Firestore') &&
+    onboardingView.includes('return;'),
+    'OnboardingView non deve mascherare gli errori di creazione su Firestore né mostrare successo in caso di errore'
+  );
+});
+
 console.log(`\nRisultato finale: ${passed}/${total} test superati con successo.\n`);
 assert.strictEqual(passed, total, 'Tutti gli scenari devono essere superati');
+
 
