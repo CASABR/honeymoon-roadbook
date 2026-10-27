@@ -1,6 +1,7 @@
 export type StatoAttivita = 'prenotato' | 'da_valutare' | 'non_bloccato' | 'libero';
 export type CategoriaAttivita = 'visita' | 'cibo' | 'relax' | 'shopping' | 'natura' | 'cultura' | 'altro';
 export type TipologiaPercorsoTrekking = 'anello' | 'andata_ritorno' | 'lineare';
+export type FasciaLuceFotografica = 'alba' | 'golden_hour' | 'tramonto' | 'notte' | 'qualsiasi';
 
 export interface Giorno {
   id: string;
@@ -43,7 +44,7 @@ export interface Attivita {
   location: string;
   cost?: string; // Costo in €
   category: CategoriaAttivita;
-  sottocategoria?: 'Trekking' | 'Escursione' | 'Tour Guidato' | 'Museo' | 'Adrenalina' | 'Altro';
+  sottocategoria?: 'Trekking' | 'Spot fotografico' | 'Escursione' | 'Tour Guidato' | 'Museo' | 'Adrenalina' | 'Altro';
   duration?: string;
   distanceKm?: number;
   elevationGainM?: number;
@@ -51,6 +52,8 @@ export interface Attivita {
   routeType?: TipologiaPercorsoTrekking;
   currency?: string;
   difficulty?: string;
+  lightWindow?: FasciaLuceFotografica;
+  photoSubject?: string;
   orarioRitrovo?: string; // HH:mm
   orarioInizio?: string; // HH:mm
   address?: string;
@@ -155,6 +158,7 @@ export interface TransportAttachment {
   id: string;
   name: string;
   type: 'image' | 'pdf';
+  purpose?: 'photo' | 'document';
   dataUrl: string;
   size: number;
   createdAt: string;

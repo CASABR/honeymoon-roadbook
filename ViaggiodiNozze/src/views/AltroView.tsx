@@ -25,6 +25,7 @@ import {
   TrailPdf
 } from '../components/icons/TrailIcons';
 import PdfExportModal from '../components/modals/PdfExportModal';
+import { useGlobalAdminAccess } from '../hooks/useGlobalAdminAccess';
 
 const LiveView = lazyWithRetry(() => import('./altro/LiveView'), 'LiveView');
 const SpeseBudgetView = lazyWithRetry(() => import('./altro/SpeseBudgetView'), 'SpeseBudgetView');
@@ -45,6 +46,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   const [showTripSelector, setShowTripSelector] = useState(false);
   const [showPdfExportModal, setShowPdfExportModal] = useState(false);
   const currentTripConfig = getTripConfig();
+  const globalAdminAccess = useGlobalAdminAccess();
 
   useEffect(() => {
     setActiveSubView(initialSubView);
@@ -463,7 +465,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
-          {currentTripConfig?.id === '0000' && (
+          {currentTripConfig?.id === '0000' && globalAdminAccess === 'authorized' && (
             <button
               type="button"
               data-admin-console-card

@@ -8,7 +8,7 @@ import AttivitaTicketsModal from '../modals/AttivitaTicketsModal';
 import QRCodeModal from '../modals/QRCodeModal';
 import { formatDateIT } from '../../utils/tripDates';
 import { processFileForAttachment } from '../../utils/fileAttachment';
-import { formatHikingDuration, isTrekkingActivity, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
+import { formatHikingDuration, isPhotoSpotActivity, isTrekkingActivity, PHOTO_LIGHT_LABELS, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
 
 interface AttivitaCardProps {
   activity: Attivita;
@@ -67,6 +67,8 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
   const mapLink = activity.location ? resolveMapUrl(activity.location) : '';
   const displayTime = activity.time || activity.orarioInizio || activity.orarioRitrovo;
   const isTrekking = isTrekkingActivity(activity);
+  const isPhotoSpot = isPhotoSpotActivity(activity);
+  const heroImage = activity.attachments?.find((attachment) => attachment.type === 'image' && attachment.purpose === 'photo');
   const hikingDuration = formatHikingDuration(activity.hikingDurationMinutes) || activity.duration || null;
   const trekkingPrice = activity.cost?.trim()
     ? `${activity.cost.trim()} ${activity.currency || 'EUR'}`
@@ -78,87 +80,136 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
         onClick={onDetail || onEdit} 
         className="hounigo-panel cursor-pointer rounded-2xl p-3.5 sm:p-4 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 relative active:scale-[0.99] dark:bg-slate-800 dark:border-slate-700"
       >
-        {/* TOP */}
-        <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-100 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-500/20 text-[11px] font-semibold uppercase tracking-wider">
-              <span className="text-sm">{icon}</span> {isTrekking ? 'Trekking' : 'Attività'}
-            </span>
-            {(activity.sottocategoria || activity.category) && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700/80 dark:text-slate-200 dark:border-slate-600 text-[10px] font-bold tracking-wide">
-                <span>🎯</span>
-                <span>{activity.sottocategoria || activity.category}</span>
-              </span>
-            )}
-            {!isTrekking && (displayTime || activity.duration || activity.endDate) && (
-              <div className="flex items-center gap-1.5 ml-1 flex-wrap">
-                {activity.orarioRitrovo && activity.orarioInizio && activity.orarioRitrovo !== activity.orarioInizio ? (
-                  <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
-                    Ritrovo {activity.orarioRitrovo} • Inizio {activity.orarioInizio}
-                  </span>
-                ) : displayTime ? (
-                  <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
-                    Ore {displayTime}
-                  </span>
-                ) : null}
-                {activity.duration && (
-                  <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
-                    • {activity.duration}
+        {isTrekking || isPhotoSpot ? (
+          <>
+            <div className="relative h-44 sm:h-52 overflow-hidden rounded-xl bg-slate-900">
+              {heroImage ? (
+                <img src={heroImage.dataUrl} alt="" className="h-full w-full object-cover" />
+              ) : (
+                <div className={`h-full w-full ${isPhotoSpot ? 'bg-gradient-to-br from-indigo-950 via-slate-800 to-[#FF6B5F]' : 'bg-gradient-to-br from-emerald-900 via-slate-800 to-cyan-800'}`}>
+                  <svg viewBox="0 0 320 180" className="h-full w-full opacity-80" aria-hidden="true">
+                    <path d="M0 150 72 74l42 40 58-75 148 111v30H0Z" fill="rgba(255,255,255,.12)" />
+                    <path d="m0 166 92-56 38 25 60-44 130 75v14H0Z" fill="rgba(255,255,255,.13)" />
+                  </svg>
+                </div>
+              )}
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-slate-950/20" />
+              <div className="absolute left-3 top-3 flex items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-slate-950/65 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-white backdrop-blur-md">
+                  {isPhotoSpot ? (
+                    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l1.5-3h5Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                  ) : (
+                    <span aria-hidden="true">△</span>
+                  )}
+                  {isPhotoSpot ? 'Spot fotografico' : 'Trekking'}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={(event) => { event.stopPropagation(); setIsCopilotOpen(true); }}
+                className={`absolute right-3 top-3 h-8 w-8 rounded-full border flex items-center justify-center text-sm backdrop-blur-md ${hasCopilotNotes ? 'bg-emerald-500/80 text-white border-white/30' : 'bg-slate-950/55 text-white/80 border-white/20'}`}
+                title={hasCopilotNotes ? 'Note Copilota presenti' : 'Aggiungi note Copilota'}
+              >
+                🧭
+              </button>
+            </div>
+            <div>
+              <div className="flex items-start justify-between gap-3">
+                <h3 className={`font-brand-title text-lg font-extrabold leading-tight tracking-tight text-slate-900 dark:text-white ${activity.completed ? 'opacity-90' : ''}`}>{activity.title}</h3>
+                {isTrekking && activity.difficulty && <span className="shrink-0 rounded-full bg-[#FFF0ED] px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide text-[#C84D43] dark:bg-[#FF6B5F]/20 dark:text-[#ff9a90]">{activity.difficulty}</span>}
+              </div>
+              {activity.location && <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300"><span aria-hidden="true">⌖</span><span className="truncate">{activity.location}</span></p>}
+              {isTrekking ? (
+                <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    ['Distanza', activity.distanceKm != null && activity.distanceKm > 0 ? `${activity.distanceKm.toLocaleString('it-IT')} km` : '—'],
+                    ['Dislivello', activity.elevationGainM != null && activity.elevationGainM > 0 ? `+${activity.elevationGainM.toLocaleString('it-IT')} m` : '—'],
+                    ['Durata', hikingDuration || '—'],
+                    ['Percorso', activity.routeType ? TREKKING_ROUTE_LABELS[activity.routeType] : '—']
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-xl bg-[#F8F7F3] px-2.5 py-2 dark:bg-slate-700/70">
+                      <span className="block text-[9px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+                      <strong className="mt-0.5 block text-xs leading-tight text-slate-900 dark:text-white">{value}</strong>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-extrabold text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">{PHOTO_LIGHT_LABELS[activity.lightWindow || 'qualsiasi']}</span>
+                  {activity.photoSubject && <span className="rounded-full bg-[#FFF0ED] px-3 py-1.5 text-xs font-bold text-[#C84D43] dark:bg-[#FF6B5F]/20 dark:text-[#ff9a90]">{activity.photoSubject}</span>}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-100 dark:bg-cyan-500/10 dark:text-cyan-400 dark:border-cyan-500/20 text-[11px] font-semibold uppercase tracking-wider">
+                  <span className="text-sm">{icon}</span> Attività
+                </span>
+                {(activity.sottocategoria || activity.category) && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700/80 dark:text-slate-200 dark:border-slate-600 text-[10px] font-bold tracking-wide">
+                    <span>🎯</span>
+                    <span>{activity.sottocategoria || activity.category}</span>
                   </span>
                 )}
-                {activity.endDate && (
-                  <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-                    • fino al {formatDateIT(activity.endDate)}
-                  </span>
+                {(displayTime || activity.duration || activity.endDate) && (
+                  <div className="flex items-center gap-1.5 ml-1 flex-wrap">
+                    {activity.orarioRitrovo && activity.orarioInizio && activity.orarioRitrovo !== activity.orarioInizio ? (
+                      <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
+                        Ritrovo {activity.orarioRitrovo} • Inizio {activity.orarioInizio}
+                      </span>
+                    ) : displayTime ? (
+                      <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
+                        Ore {displayTime}
+                      </span>
+                    ) : null}
+                    {activity.duration && (
+                      <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
+                        • {activity.duration}
+                      </span>
+                    )}
+                    {activity.endDate && (
+                      <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                        • fino al {formatDateIT(activity.endDate)}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-              className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all cursor-pointer shadow-2xs ${
-                hasCopilotNotes
-                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30' 
-                  : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 opacity-60 hover:opacity-100'
-              }`}
-              title={hasCopilotNotes ? 'Note Copilota presenti' : 'Aggiungi note Copilota'}
-            >
-              <span className="text-sm">🧭</span>
-            </button>
-          </div>
-        </div>
-
-        {/* BODY */}
-        <div>
-          <div className="flex items-start gap-2 flex-wrap">
-            <h3 className={`font-semibold text-base leading-snug tracking-tight text-slate-900 dark:text-white ${activity.completed ? 'opacity-90' : ''}`}>
-              {activity.title}
-            </h3>
-          </div>
-          {activity.location && (
-            <p className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300 truncate mt-1 flex items-center gap-1">
-              <span>📍</span>
-              <span className="truncate">{activity.location}</span>
-            </p>
-          )}
-          {isTrekking && (
-            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 border-t border-slate-100 dark:border-slate-700/60 pt-3">
-              {displayTime && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Partenza</span><strong className="text-sm text-slate-900 dark:text-white">{displayTime}</strong></div>}
-              {activity.distanceKm != null && activity.distanceKm > 0 && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Distanza</span><strong className="text-sm text-slate-900 dark:text-white">{activity.distanceKm.toLocaleString('it-IT')} km</strong></div>}
-              {activity.elevationGainM != null && activity.elevationGainM > 0 && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Dislivello +</span><strong className="text-sm text-slate-900 dark:text-white">{activity.elevationGainM.toLocaleString('it-IT')} m</strong></div>}
-              {hikingDuration && <div><span className="block text-[10px] uppercase tracking-wider text-slate-400">Cammino</span><strong className="text-sm text-slate-900 dark:text-white">{hikingDuration}</strong></div>}
-              {activity.routeType && <div className="col-span-2 sm:col-span-4"><span className="text-xs font-semibold text-slate-600 dark:text-slate-300">{TREKKING_ROUTE_LABELS[activity.routeType]}</span>{activity.difficulty && <span className="text-xs text-slate-400"> · {activity.difficulty}</span>}</div>}
+              <button
+                type="button"
+                onClick={(event) => { event.stopPropagation(); setIsCopilotOpen(true); }}
+                className={`w-7 h-7 rounded-full flex items-center justify-center border transition-all cursor-pointer shadow-2xs ${hasCopilotNotes ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30' : 'bg-slate-50 hover:bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300 opacity-60 hover:opacity-100'}`}
+                title={hasCopilotNotes ? 'Note Copilota presenti' : 'Aggiungi note Copilota'}
+              >
+                <span className="text-sm">🧭</span>
+              </button>
             </div>
-          )}
-        </div>
+            <div>
+              <div className="flex items-start gap-2 flex-wrap">
+                <h3 className={`font-semibold text-base leading-snug tracking-tight text-slate-900 dark:text-white ${activity.completed ? 'opacity-90' : ''}`}>
+                  {activity.title}
+                </h3>
+              </div>
+              {activity.location && (
+                <p className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300 truncate mt-1 flex items-center gap-1">
+                  <span>📍</span>
+                  <span className="truncate">{activity.location}</span>
+                </p>
+              )}
+            </div>
+          </>
+        )}
 
         {/* BOTTOM */}
         <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             {isTrekking ? (
               trekkingPrice && <span className="text-sm font-semibold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">{trekkingPrice}</span>
+            ) : isPhotoSpot ? (
+              null
             ) : isFree ? (
               <span className="text-sm font-semibold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-md">
                 Gratuito
@@ -169,7 +220,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
               </span>
             )}
             
-            {!isTrekking && !isFree && (
+            {!isTrekking && !isPhotoSpot && !isFree && (
               <button 
                 type="button"
                 onClick={handleTogglePayment}
@@ -186,7 +237,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0 ml-auto">
-            {(() => {
+            {!isPhotoSpot && (() => {
               const hasQrOrAttachment = Boolean(activity.qrCode?.trim() || (activity.attachments && activity.attachments.length > 0));
               return (
                 <button

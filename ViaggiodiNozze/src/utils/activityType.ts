@@ -1,4 +1,4 @@
-import type { Attivita, TipologiaPercorsoTrekking } from '../types';
+import type { Attivita, FasciaLuceFotografica, TipologiaPercorsoTrekking } from '../types';
 
 export const TREKKING_ROUTE_LABELS: Record<TipologiaPercorsoTrekking, string> = {
   anello: 'Ad anello',
@@ -6,8 +6,20 @@ export const TREKKING_ROUTE_LABELS: Record<TipologiaPercorsoTrekking, string> = 
   lineare: 'Lineare'
 };
 
+export const PHOTO_LIGHT_LABELS: Record<FasciaLuceFotografica, string> = {
+  alba: 'Alba',
+  golden_hour: 'Golden hour',
+  tramonto: 'Tramonto',
+  notte: 'Notte',
+  qualsiasi: 'Qualsiasi luce'
+};
+
 export function isTrekkingActivity(activity: Pick<Attivita, 'title' | 'sottocategoria'>): boolean {
   return activity.sottocategoria === 'Trekking' || /\btrekking\b/i.test(activity.title || '');
+}
+
+export function isPhotoSpotActivity(activity: Pick<Attivita, 'sottocategoria'>): boolean {
+  return activity.sottocategoria === 'Spot fotografico';
 }
 
 export function formatHikingDuration(minutes?: number): string | null {

@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
-import type { Attivita, TransportAttachment, Coordinate, TipologiaPercorsoTrekking } from '../../types';
-import { processFileForAttachment, formatFileSize, openAttachmentInNewTab, checkStorageAvailability } from '../../utils/fileAttachment';
+import type { Attivita, TransportAttachment, Coordinate, TipologiaPercorsoTrekking, FasciaLuceFotografica } from '../../types';
+import { processFileForAttachment, formatFileSize, openAttachmentInNewTab, checkStorageAvailability, isSupportedImageFile } from '../../utils/fileAttachment';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import DropZone from '../common/DropZone';
 import type { PlaceSuggestion } from '../../services/photonService';
-import { isTrekkingActivity, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
+import { isPhotoSpotActivity, isTrekkingActivity, PHOTO_LIGHT_LABELS, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
 
 interface AttivitaFormProps {
   days?: any[];
@@ -20,7 +20,7 @@ interface AttivitaFormProps {
 export default function AttivitaForm({ selectedDayId, initialData, onSave, onCancel, onDelete }: AttivitaFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
-  const SOTTOCATEGORIE: Attivita['sottocategoria'][] = ['Trekking', 'Escursione', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'];
+  const SOTTOCATEGORIE: Attivita['sottocategoria'][] = ['Trekking', 'Spot fotografico', 'Escursione', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'];
 
   const [sottocategoria, setSottocategoria] = useState<Attivita['sottocategoria'] | ''>('');
   const [title, setTitle] = useState('');
@@ -36,8 +36,12 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
   const [routeType, setRouteType] = useState<TipologiaPercorsoTrekking | ''>('');
   const [currency, setCurrency] = useState('EUR');
   const [difficulty, setDifficulty] = useState('');
+  const [lightWindow, setLightWindow] = useState<FasciaLuceFotografica>('qualsiasi');
+  const [photoSubject, setPhotoSubject] = useState('');
   const [address, setAddress] = useState('');
   const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
   
   const [cost, setCost] = useState('');
   const [acconto, setAcconto] = useState('');
@@ -83,8 +87,12 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       setRouteType(initialData.routeType || '');
       setCurrency(initialData.currency || 'EUR');
       setDifficulty(initialData.difficulty || '');
+      setLightWindow(initialData.lightWindow || 'qualsiasi');
+      setPhotoSubject(initialData.photoSubject || '');
       setAddress(initialData.address || initialData.location || '');
       setCoordinate(initialData.coordinate);
+      setLatitude(initialData.coordinate?.lat?.toString() || '');
+      setLongitude(initialData.coordinate?.lng?.toString() || '');
       
       setCost(initialData.cost || '');
       setAcconto(initialData.acconto || '');
@@ -119,8 +127,12 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       setRouteType('');
       setCurrency('EUR');
       setDifficulty('');
+      setLightWindow('qualsiasi');
+      setPhotoSubject('');
       setAddress('');
       setCoordinate(undefined);
+      setLatitude('');
+      setLongitude('');
       setCost('');
       setAcconto('');
       setPaymentStatus('da_saldare');
@@ -134,7 +146,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
 
 
 
-  const handleFilesBatch = async (filesArray: File[]) => {
+  const handleFilesBatch = async (filesArray: File[], purpose?: TransportAttachment['purpose']) => {
     if (!filesArray || filesArray.length === 0) return;
 
     setAttachmentError('');
@@ -146,7 +158,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       for (let i = 0; i < filesArray.length; i++) {
         const file = filesArray[i];
         const processed = await processFileForAttachment(file);
-        newAttachments.push(processed);
+        newAttachments.push(purpose ? { ...processed, purpose } : processed);
       }
 
       setAttachments(newAttachments);
@@ -160,6 +172,10 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
         fileInputRef.current.value = '';
       }
     }
+  };
+
+  const handlePhotoFilesBatch = async (filesArray: File[]) => {
+    await handleFilesBatch(filesArray.filter(isSupportedImageFile), 'photo');
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -179,6 +195,8 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
     }
     if (place.coordinate) {
       setCoordinate(place.coordinate);
+      setLatitude(place.coordinate.lat.toString());
+      setLongitude(place.coordinate.lng.toString());
     }
     if (place.rawLocalItem) {
       const raw = place.rawLocalItem;
@@ -196,8 +214,17 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!customDate || !title.trim()) {
-      setError('Titolo e data sono obbligatori.');
+    const photoSpot = isPhotoSpot;
+    if (!customDate || !title.trim() || (photoSpot && (!address.trim() || !photoSubject.trim()))) {
+      setError(photoSpot ? 'Titolo, luogo, data e soggetto sono obbligatori.' : 'Titolo e data sono obbligatori.');
+      return;
+    }
+
+    const hasManualCoordinates = latitude.trim() !== '' || longitude.trim() !== '';
+    const parsedLatitude = Number(latitude.replace(',', '.'));
+    const parsedLongitude = Number(longitude.replace(',', '.'));
+    if (photoSpot && hasManualCoordinates && (!Number.isFinite(parsedLatitude) || !Number.isFinite(parsedLongitude) || parsedLatitude < -90 || parsedLatitude > 90 || parsedLongitude < -180 || parsedLongitude > 180)) {
+      setError('Inserisci coordinate valide oppure lascia entrambi i campi vuoti.');
       return;
     }
 
@@ -210,12 +237,15 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       try {
         const coord = await getCoordinatesFromAddress(address);
         if (coord) finalCoord = coord;
-      } catch (e) {}
+      } catch {}
     }
 
     setIsGeocoding(false);
 
-    const finalCoordToSave = coordinate || finalCoord;
+    const manualCoordinate = photoSpot && hasManualCoordinates
+      ? { lat: parsedLatitude, lng: parsedLongitude }
+      : undefined;
+    const finalCoordToSave = manualCoordinate || coordinate || finalCoord;
 
     const parsedDistance = distanceKm ? Number(distanceKm.replace(',', '.')) : undefined;
     const parsedElevation = elevationGainM ? Number(elevationGainM) : undefined;
@@ -232,8 +262,8 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       date: customDate,
       endDate: endDate.trim() || undefined,
       title: title.trim(),
-      sottocategoria: trekking ? 'Trekking' : (sottocategoria || undefined),
-      category: 'visita', // fallback obbligatorio
+      sottocategoria: trekking ? 'Trekking' : (photoSpot ? 'Spot fotografico' : (sottocategoria || undefined)),
+      category: trekking || photoSpot ? 'natura' : (initialData?.category || 'visita'),
       orarioRitrovo: finalRitrovo,
       time: effectiveTime, // primary timeline time
       orarioInizio: finalInizio,
@@ -244,6 +274,8 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       routeType: trekking && routeType ? routeType : initialData?.routeType,
       currency: trekking && cost.trim() ? currency : initialData?.currency,
       difficulty: trekking && difficulty.trim() ? difficulty.trim() : initialData?.difficulty,
+      lightWindow: photoSpot ? lightWindow : initialData?.lightWindow,
+      photoSubject: photoSpot && photoSubject.trim() ? photoSubject.trim() : initialData?.photoSubject,
       address: address.trim() || undefined,
       location: address.trim() || title.trim(),
       coordinate: finalCoordToSave,
@@ -267,7 +299,47 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
     return c - a;
   };
   const saldo = calculateSaldo();
-  const isTrekking = sottocategoria === 'Trekking' || Boolean(initialData && isTrekkingActivity(initialData));
+  const isTrekking = sottocategoria
+    ? sottocategoria === 'Trekking'
+    : Boolean(initialData && isTrekkingActivity(initialData));
+  const isPhotoSpot = sottocategoria
+    ? sottocategoria === 'Spot fotografico'
+    : Boolean(initialData && isPhotoSpotActivity(initialData));
+  const photoAttachments = attachments.filter((attachment) => attachment.type === 'image' && attachment.purpose === 'photo');
+
+  const renderPhotoField = (titleText: string, subtitleText: string) => (
+    <div className="space-y-3">
+      <div>
+        <span className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1.5">Foto</span>
+        <DropZone
+          variant={photoAttachments.length > 0 ? 'compact' : 'hero'}
+          accept="image/*"
+          multiple
+          onFilesSelected={handlePhotoFilesBatch}
+          isUploading={isUploadingAttachment}
+          title={titleText}
+          subtitle={subtitleText}
+        />
+      </div>
+      {photoAttachments.length > 0 && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {photoAttachments.map((attachment) => (
+            <div key={attachment.id} className="relative aspect-[4/3] overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+              <img src={attachment.dataUrl} alt={attachment.name} className="h-full w-full object-cover" />
+              <button
+                type="button"
+                onClick={() => handleRemoveAttachment(attachment.id)}
+                className="absolute right-1.5 top-1.5 h-7 w-7 rounded-full bg-slate-950/75 text-xs font-bold text-white backdrop-blur-sm"
+                aria-label={`Rimuovi ${attachment.name}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 pb-4">
@@ -312,8 +384,8 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
         value={title}
         onChange={setTitle}
         onSelectPlace={handleSelectPlace}
-        label={isTrekking ? 'Titolo del trekking' : 'Titolo Attività'}
-        placeholder={isTrekking ? 'es. Tongariro Alpine Crossing' : 'es. Safari in Jeep, Hobbiton...'}
+        label={isTrekking ? 'Titolo del trekking' : isPhotoSpot ? 'Titolo dello spot' : 'Titolo Attività'}
+        placeholder={isTrekking ? 'es. Tongariro Alpine Crossing' : isPhotoSpot ? 'es. Belvedere sul lago' : 'es. Safari in Jeep, Hobbiton...'}
         required
       />
 
@@ -353,10 +425,47 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
             <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Difficoltà</span><input type="text" value={difficulty} onChange={(e) => setDifficulty(e.target.value)} placeholder="Facile, media, impegnativa…" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
           </div>
           <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Note</span><textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Indicazioni utili, attrezzatura, meteo…" className="w-full p-3 hounigo-card-subtle rounded-xl text-sm resize-none" /></label>
+          {renderPhotoField('Aggiungi foto del percorso', 'JPG, PNG, WebP o HEIC; disponibile anche offline.')}
         </div>
       )}
 
-      {!isTrekking && <>
+      {isPhotoSpot && (
+        <div className="hounigo-panel rounded-2xl p-4 space-y-4 dark:bg-slate-800 dark:border-slate-700">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
+              <span className="block uppercase tracking-wider mb-1.5">Data *</span>
+              <input type="date" value={customDate} onChange={(e) => setCustomDate(e.target.value)} required className="w-full h-11 px-3 hounigo-card-subtle rounded-xl text-sm" />
+            </label>
+            <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
+              <span className="block uppercase tracking-wider mb-1.5">Luogo *</span>
+              <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} required placeholder="Belvedere, spiaggia o indirizzo" className="w-full h-11 px-3 hounigo-card-subtle rounded-xl text-sm" />
+            </label>
+          </div>
+          <div>
+            <span className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1.5">Fascia luce</span>
+            <div className="flex flex-wrap gap-2">
+              {(Object.entries(PHOTO_LIGHT_LABELS) as [FasciaLuceFotografica, string][]).map(([value, label]) => (
+                <button key={value} type="button" onClick={() => setLightWindow(value)} className={`min-h-9 px-3 rounded-full border text-xs font-semibold ${lightWindow === value ? 'bg-[#FF6B5F] text-white border-[#FF6B5F]' : 'hounigo-card-subtle text-slate-700 dark:text-slate-200'}`}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
+            <span className="block uppercase tracking-wider mb-1.5">Soggetto *</span>
+            <input type="text" value={photoSubject} onChange={(e) => setPhotoSubject(e.target.value)} required placeholder="Paesaggio, skyline, aurora, ritratto…" className="w-full h-11 px-3 hounigo-card-subtle rounded-xl text-sm" />
+          </label>
+          <div>
+            <span className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 mb-1.5">Coordinate facoltative</span>
+            <div className="grid grid-cols-2 gap-3">
+              <input type="text" inputMode="decimal" value={latitude} onChange={(e) => { setLatitude(e.target.value); setCoordinate(undefined); }} placeholder="Latitudine" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" aria-label="Latitudine" />
+              <input type="text" inputMode="decimal" value={longitude} onChange={(e) => { setLongitude(e.target.value); setCoordinate(undefined); }} placeholder="Longitudine" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" aria-label="Longitudine" />
+            </div>
+          </div>
+          <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Note</span><textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Accesso, composizione, attrezzatura o meteo…" className="w-full p-3 hounigo-card-subtle rounded-xl text-sm resize-none" /></label>
+          {renderPhotoField('Aggiungi foto dello spot', 'La prima foto diventa la copertina della card.')}
+        </div>
+      )}
+
+      {!isTrekking && !isPhotoSpot && <>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -654,7 +763,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
 
       </>}
 
-      {!isTrekking && <div>
+      {!isTrekking && !isPhotoSpot && <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
           Note Libere / Cosa portare
         </label>

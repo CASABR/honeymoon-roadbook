@@ -707,6 +707,9 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             </div>
             <span className="text-white text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
           </button>
+          <p className="px-2 text-center text-[11px] leading-relaxed text-slate-500">
+            Con lo stesso account puoi creare e ritrovare più viaggi.
+          </p>
 
           {/* 2. CONTINUA CON GOOGLE / ACCEDI (NAVY) */}
           <button
