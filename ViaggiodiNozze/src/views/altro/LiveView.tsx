@@ -87,7 +87,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [transports, setTransports] = useState<Trasporto[]>([]);
   const [tappe, setTappe] = useState<Tappa[]>([]);
   const [activities, setActivities] = useState<Attivita[]>([]);
-  const [mapCenterMode, setMapCenterMode] = useState<'both' | 'real' | 'planned'>('real');
+  const [mapCenterMode, setMapCenterMode] = useState<'both' | 'real' | 'planned'>('both');
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
 
@@ -1038,83 +1038,63 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     return null;
   }, [liveGpsState]);
 
-  // Posizione programmata dall'itinerario per la data odierna
+  // Contesto programmato di fallback, senza coordinate o paesi inventati.
   const plannedLocation = useMemo(() => {
     if (tripCountdown.isPreTrip) {
-      if (realLocation) {
-        return {
-          ...realLocation,
-          isRealGps: false,
-          updateNotice: 'Viaggio non ancora iniziato (In attesa della partenza)',
-          badgeLabel: 'Viaggio non iniziato'
-        };
-      }
       return {
-        title: 'Posizione Attuale (Prima della partenza)',
+        title: 'In attesa della partenza',
         city: 'In attesa della partenza',
-        country: 'Italia',
-        countryCode: 'it',
-        flag: '🇮🇹',
-        coords: { lat: 45.4642, lng: 9.1900 },
+        country: '',
+        countryCode: '',
+        flag: '',
+        coords: undefined,
         isRealGps: false,
         updateNotice: 'Viaggio non ancora iniziato',
         badgeLabel: 'In attesa della partenza'
       };
     }
 
-    if (currentAccommodation) {
-      return {
-        title: currentAccommodation.location || currentAccommodation.name,
-        city: currentAccommodation.location || currentAccommodation.name,
-        country: 'Nuova Zelanda',
-        countryCode: 'nz',
-        flag: '🇳🇿',
-        coords: currentAccommodation.coordinate || lookupKnownCoordinate(currentAccommodation.location || currentAccommodation.name) || { lat: -36.8485, lng: 174.7633 },
-        isRealGps: false,
-        updateNotice: 'Tappa alloggio programmata',
-        badgeLabel: `🗓️ ${currentAccommodation.name}`
-      };
-    }
     if (currentTappa) {
+      const coords = currentTappa.coordinate || lookupKnownCoordinate(currentTappa.titolo) || undefined;
       return {
         title: currentTappa.titolo,
         city: currentTappa.titolo,
-        country: 'Nuova Zelanda',
-        countryCode: 'nz',
-        flag: '🇳🇿',
-        coords: currentTappa.coordinate || lookupKnownCoordinate(currentTappa.titolo) || { lat: -36.8485, lng: 174.7633 },
+        country: '',
+        countryCode: '',
+        flag: '',
+        coords,
         isRealGps: false,
-        updateNotice: 'Tappa itinerario programmata',
-        badgeLabel: `🗓️ ${currentTappa.titolo}`
+        updateNotice: 'Tappa prevista dal programma',
+        badgeLabel: `Programma · ${currentTappa.titolo}`
       };
     }
     if (currentTransport) {
       return {
-        title: currentTransport.arrivalLocation,
-        city: currentTransport.arrivalLocation,
-        country: 'In Viaggio',
+        title: `${currentTransport.departureLocation} → ${currentTransport.arrivalLocation}`,
+        city: 'In viaggio',
+        country: '',
         countryCode: '',
-        flag: '✈️',
-        coords: currentTransport.coordinate || lookupKnownCoordinate(currentTransport.arrivalLocation) || { lat: -36.8485, lng: 174.7633 },
+        flag: '',
+        coords: undefined,
         isRealGps: false,
         updateNotice: 'Trasferimento programmato',
-        badgeLabel: `✈️ ${currentTransport.arrivalLocation}`
+        badgeLabel: 'Trasferimento previsto'
       };
     }
-    const defaultTitle = currentDay?.title || 'Auckland, Nuova Zelanda';
-    const defaultCity = currentDay?.location || 'Auckland';
+    const defaultTitle = currentDay?.title || 'Nessuna attività prevista';
+    const defaultCity = currentDay?.location || '';
     return {
       title: defaultTitle,
       city: defaultCity,
-      country: 'Nuova Zelanda',
-      countryCode: 'nz',
-      flag: '🇳🇿',
-      coords: lookupKnownCoordinate(defaultCity) || { lat: -36.8485, lng: 174.7633 },
+      country: '',
+      countryCode: '',
+      flag: '',
+      coords: defaultCity ? lookupKnownCoordinate(defaultCity) || undefined : undefined,
       isRealGps: false,
-      updateNotice: 'Partenza programmata',
-      badgeLabel: `🗓️ ${defaultCity}`
+      updateNotice: 'Programma non disponibile per questo momento',
+      badgeLabel: defaultCity ? `Programma · ${defaultCity}` : 'Programma non disponibile'
     };
-  }, [tripCountdown.isPreTrip, realLocation, currentAccommodation, currentTappa, currentTransport, currentDay]);
+  }, [tripCountdown.isPreTrip, currentTappa, currentTransport, currentDay]);
 
 
 
@@ -1173,25 +1153,41 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   const realCoords = useMemo(() => {
     if (remoteGpsLocation) return { lat: remoteGpsLocation.lat, lng: remoteGpsLocation.lng };
-    if (liveGpsState?.isLiveGps && liveGpsState.coords) return liveGpsState.coords;
     return null;
-  }, [remoteGpsLocation, liveGpsState]);
+  }, [remoteGpsLocation]);
 
   const plannedCoords = useMemo(() => {
-    return liveIntelligence?.plannedLocation?.coords || plannedLocation.coords || null;
-  }, [liveIntelligence, plannedLocation]);
+    return liveIntelligence?.plannedLocation?.coords || null;
+  }, [liveIntelligence]);
 
   const effectiveMapCenter = useMemo(() => {
-    if (mapCenterMode === 'real') return realCoords || { lat: 20, lng: 0 };
-    if (mapCenterMode === 'planned') return plannedCoords || { lat: 20, lng: 0 };
+    if (mapCenterMode === 'real') return realCoords || plannedCoords || null;
+    if (mapCenterMode === 'planned') return plannedCoords || realCoords || null;
     if (mapCenterMode === 'both' && realCoords && plannedCoords) {
       return {
         lat: (realCoords.lat + plannedCoords.lat) / 2,
         lng: (realCoords.lng + plannedCoords.lng) / 2
       };
     }
-    return realCoords || plannedCoords || currentLocation.coords || { lat: -36.8485, lng: 174.7633 };
-  }, [mapCenterMode, realCoords, plannedCoords, currentLocation.coords]);
+    return realCoords || plannedCoords || null;
+  }, [mapCenterMode, realCoords, plannedCoords]);
+
+  const effectiveMapZoom = useMemo(() => {
+    if (mapCenterMode !== 'both' || !realCoords || !plannedCoords) return mapZoom;
+    const span = Math.max(
+      Math.abs(realCoords.lat - plannedCoords.lat),
+      Math.abs(realCoords.lng - plannedCoords.lng)
+    );
+    if (span > 60) return 2;
+    if (span > 30) return 3;
+    if (span > 15) return 4;
+    if (span > 8) return 5;
+    if (span > 4) return 6;
+    if (span > 2) return 7;
+    if (span > 1) return 8;
+    if (span > 0.4) return 9;
+    return Math.min(mapZoom, 10);
+  }, [mapCenterMode, mapZoom, plannedCoords, realCoords]);
 
   const getPixelOffset = (target: { lat: number; lng: number } | null, center: { lat: number; lng: number }, zoom: number) => {
     if (!target) return null;
@@ -1209,13 +1205,13 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   const realMarkerOffset = useMemo(() => {
     if (!realCoords || !effectiveMapCenter) return null;
-    return getPixelOffset(realCoords, effectiveMapCenter, mapZoom);
-  }, [realCoords, effectiveMapCenter, mapZoom]);
+    return getPixelOffset(realCoords, effectiveMapCenter, effectiveMapZoom);
+  }, [realCoords, effectiveMapCenter, effectiveMapZoom]);
 
   const plannedMarkerOffset = useMemo(() => {
     if (!plannedCoords || !effectiveMapCenter) return null;
-    return getPixelOffset(plannedCoords, effectiveMapCenter, mapZoom);
-  }, [plannedCoords, effectiveMapCenter, mapZoom]);
+    return getPixelOffset(plannedCoords, effectiveMapCenter, effectiveMapZoom);
+  }, [plannedCoords, effectiveMapCenter, effectiveMapZoom]);
 
   // Chiamata leggera Open-Meteo per meteo locale e prossima tappa
   useEffect(() => {
@@ -1309,8 +1305,13 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     if (locLower.includes('pechino') || locLower.includes('beijing') || locLower.includes('china')) {
       return DESTINATION_ZONES[5]; // Pechino
     }
-    // Default Nuova Zelanda (Auckland)
-    return DESTINATION_ZONES[0];
+    const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome';
+    return {
+      name: currentLocation?.city || 'Ora locale',
+      country: currentLocation?.country || '',
+      flag: currentLocation?.flag || '',
+      timeZone: localTimeZone
+    };
   }, [liveGpsState, currentLocation]);
 
   // Formattatori orari
@@ -1375,14 +1376,14 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       const signStr = diffHours > 0 ? `+${diffHours}` : `${diffHours}`;
       return `${signStr} ore di differenza rispetto all'Italia`;
     } catch {
-      return '+11 ore di differenza rispetto all\'Italia';
+      return 'Differenza oraria non disponibile';
     }
   }, [activeTimezone, now]);
 
   // Coordinate Geografiche Formattate (es. 36°51'S • 174°46'E)
   const formattedCoords = useMemo(() => {
     if (!currentLocation.coords || !currentLocation.coords.lat || !currentLocation.coords.lng) {
-      return '36°51\'S • 174°46\'E';
+      return 'Coordinate non disponibili';
     }
     const { lat, lng } = currentLocation.coords;
     const latDir = lat >= 0 ? 'N' : 'S';
@@ -1399,7 +1400,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   // Calcolo della distanza geodesica dall'Italia (Roma: 41.9028, 12.4964)
   const distanceFromItalyLabel = useMemo(() => {
     if (!currentLocation.coords || !currentLocation.coords.lat || !currentLocation.coords.lng) {
-      return '~18.400 km da casa';
+      return 'Distanza non disponibile';
     }
     const toRad = (deg: number) => (deg * Math.PI) / 180;
     const lat1 = toRad(41.9028); // Roma
@@ -1419,12 +1420,12 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   // Griglia dinamica 3x3 di Tile per la mappa interattiva (Esri ArcGIS World Street Map)
   const tileGrid = useMemo(() => {
-    const center = effectiveMapCenter || currentLocation.coords;
+    const center = effectiveMapCenter;
     if (!center || !center.lat || !center.lng) {
       return null;
     }
     const { lat, lng } = center;
-    const zoom = mapZoom;
+    const zoom = effectiveMapZoom;
     const latRad = (lat * Math.PI) / 180;
     const n = Math.pow(2, zoom);
     
@@ -1464,7 +1465,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       tiles,
       pixelOffset: { x: pixelOffsetX, y: pixelOffsetY }
     };
-  }, [currentLocation.coords, mapZoom]);
+  }, [effectiveMapCenter, effectiveMapZoom]);
 
   // Link a Google Maps
   const mapSearchUrl = useMemo(() => {
@@ -1678,7 +1679,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       isExternal={isStandaloneExternal}
       onBack={onBack}
       location={currentLocation}
-      realLocation={remoteGpsLocation || realLocation}
+      realLocation={remoteGpsLocation}
       mapSearchUrl={
         mapCenterMode === 'planned' && liveIntelligence?.plannedLocation?.coords
           ? `https://www.google.com/maps/search/?api=1&query=${liveIntelligence.plannedLocation.coords.lat},${liveIntelligence.plannedLocation.coords.lng}`

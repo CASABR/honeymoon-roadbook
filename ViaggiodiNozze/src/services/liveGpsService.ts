@@ -6,7 +6,7 @@ import {
   onSnapshot,
   serverTimestamp,
   setDoc,
-  writeBatch,
+  updateDoc,
   type Unsubscribe
 } from 'firebase/firestore';
 import { auth, db } from '../firebase';
@@ -209,12 +209,10 @@ export const liveGpsService = {
     if (!user) throw new Error('Accedi prima di modificare la condivisione.');
     try {
       const locSnapshot = await getDoc(locationRef(tripId));
-      const batch = writeBatch(db);
-      batch.update(leaseRef(tripId), { status, updatedAt: serverTimestamp() });
+      await updateDoc(leaseRef(tripId), { status, updatedAt: serverTimestamp() });
       if (locSnapshot.exists()) {
-        batch.update(locationRef(tripId), { status, updatedAt: serverTimestamp() });
+        await updateDoc(locationRef(tripId), { status, updatedAt: serverTimestamp() });
       }
-      await batch.commit();
     } catch (error) {
       throw friendlyError(error);
     }

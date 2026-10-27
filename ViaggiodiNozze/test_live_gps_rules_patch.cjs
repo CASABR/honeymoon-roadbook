@@ -5,7 +5,7 @@ const {
   getDoc,
   serverTimestamp,
   setDoc,
-  writeBatch
+  updateDoc
 } = require('firebase/firestore');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -136,10 +136,8 @@ async function run() {
         updatedAt: Timestamp.fromMillis(Date.now() - 20_000)
       });
     });
-    const pauseBatch = writeBatch(copilot);
-    pauseBatch.set(doc(copilot, 'live_feeds', tripId, 'gps_control', 'current'), lease(copilotUid, copilotDevice, 'paused', copilotExpiry));
-    pauseBatch.update(doc(copilot, 'live_feeds', tripId, 'locations', 'current'), { status: 'paused', updatedAt: serverTimestamp() });
-    await expectSuccess('Copilota titolare sospende atomicamente la condivisione', pauseBatch.commit());
+    await expectSuccess('Copilota titolare sospende il lease', setDoc(doc(copilot, 'live_feeds', tripId, 'gps_control', 'current'), lease(copilotUid, copilotDevice, 'paused', copilotExpiry)));
+    await expectSuccess('Il punto pubblico assume lo stato sospeso', updateDoc(doc(copilot, 'live_feeds', tripId, 'locations', 'current'), { status: 'paused', updatedAt: serverTimestamp() }));
     await expectFailure('Lease sospeso blocca nuove coordinate', setDoc(doc(copilot, 'live_feeds', tripId, 'locations', 'current'), location(copilotDevice)));
     await expectFailure('Ospite non legge coordinate sospese', getDoc(doc(guest, 'live_feeds', tripId, 'locations', 'current')));
     await expectFailure('Viewer non legge coordinate sospese', getDoc(doc(viewer, 'live_feeds', tripId, 'locations', 'current')));
@@ -149,10 +147,8 @@ async function run() {
 
     const renewedExpiry = Timestamp.fromMillis(Date.now() + 60 * 60 * 1000);
     await expectSuccess('Owner riattiva il lease del copilota', setDoc(ownerLease, lease(copilotUid, copilotDevice, 'active', renewedExpiry)));
-    const stopBatch = writeBatch(copilot);
-    stopBatch.set(doc(copilot, 'live_feeds', tripId, 'gps_control', 'current'), lease(copilotUid, copilotDevice, 'stopped', renewedExpiry));
-    stopBatch.update(doc(copilot, 'live_feeds', tripId, 'locations', 'current'), { status: 'stopped', updatedAt: serverTimestamp() });
-    await expectSuccess('Copilota titolare arresta atomicamente la condivisione', stopBatch.commit());
+    await expectSuccess('Copilota titolare arresta il lease', setDoc(doc(copilot, 'live_feeds', tripId, 'gps_control', 'current'), lease(copilotUid, copilotDevice, 'stopped', renewedExpiry)));
+    await expectSuccess('Il punto pubblico assume lo stato arrestato', updateDoc(doc(copilot, 'live_feeds', tripId, 'locations', 'current'), { status: 'stopped', updatedAt: serverTimestamp() }));
     await expectFailure('Lease arrestato blocca nuove coordinate', setDoc(doc(copilot, 'live_feeds', tripId, 'locations', 'current'), location(copilotDevice)));
     await expectFailure('Ospite non legge coordinate dopo l arresto', getDoc(doc(guest, 'live_feeds', tripId, 'locations', 'current')));
     await expectFailure('Viewer non legge coordinate dopo l arresto', getDoc(doc(viewer, 'live_feeds', tripId, 'locations', 'current')));

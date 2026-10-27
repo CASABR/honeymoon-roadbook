@@ -160,7 +160,6 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
     giorni,
     attivita,
     tappe,
-    alloggi,
     trasporti,
     currentDateTime,
     tripStartDate,
@@ -346,34 +345,13 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
     }
   }
 
-  // 2.C Se nessuna attività specifica in questo orario, controlla alloggio della notte
-  let currentAccommodationEvent: LiveTimelineEvent | null = null;
-  const currentHotel = alloggi.find(all => {
-    return all.checkIn <= todayStr && all.checkOut >= todayStr;
-  });
-
-  if (currentHotel && !currentTransportEvent && !currentActivityEvent) {
-    const coords = currentHotel.coordinate || lookupKnownCoordinate(currentHotel.location || currentHotel.name);
-    currentAccommodationEvent = {
-      type: 'accommodation',
-      title: `Alloggio: ${currentHotel.name}`,
-      subtitle: currentHotel.location,
-      timeRange: `Check-in ${currentHotel.checkIn} · Check-out ${currentHotel.checkOut}`,
-      locationName: currentHotel.location || currentHotel.name,
-      coords: coords || undefined,
-      confidence: coords ? 'approximate' : 'low',
-      reasoning: 'Nessuna attività o trasporto programmato in questo momento. Alloggio di riferimento per la data odierna.'
-    };
-  }
-
-  // 2.D Controllo Tappa del giorno come fallback di contesto
+  // 2.C Controllo Tappa del giorno come fallback di contesto
   const currentDayTappa = tappe.find(t => (t.data || t.date) === todayStr);
 
-  // Sceglie l'evento corrente con priorità: Trasporto in corso > Attività in corso > Alloggio > Tappa
+  // L'alloggio non viene usato automaticamente come posizione attuale.
   const currentEvent: LiveTimelineEvent | null =
     currentTransportEvent ||
     currentActivityEvent ||
-    currentAccommodationEvent ||
     (currentDayTappa
       ? {
           type: 'tappa',

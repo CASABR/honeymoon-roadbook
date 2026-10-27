@@ -36,3 +36,18 @@ Il progetto HOUNIGO si trova nella fase conclusiva di consolidamento per la Beta
 | `AltroView.tsx` | Elenco disomogeneo di card | Riorganizzare in: In Evidenza, Strumenti, Gestione, Impostazioni |
 | `OnboardingView.tsx` | Procedura con troppi passaggi tecnici | Ridurre a 3 intenzioni dirette (Organizza, Accedi, Partecipa) |
 | `AdminDashboardView.tsx` | Query protetta da Firestore Rules | Mantenere fuori dalla navigazione ordinaria e snellire UI |
+
+---
+
+## 4. LIVE FINAL EXPERIENCE — 27 OTTOBRE 2026
+
+- LIVE usa tre aree raggiungibili: **Posizione**, **Diario**, **Interazioni**.
+- La mappa distingue il GPS pubblico dal luogo previsto e mostra entrambi solo quando esistono coordinate reali.
+- GPS, pausa, ripresa, stop, trasferimento e revoca continuano a usare `liveGpsService`; nessun secondo watcher è stato introdotto.
+- L’itinerario previsto resta privato per gli ospiti; documenti, prenotazioni, spese e membership non entrano nel feed pubblico.
+- Diario, foto locali, lightbox, cartoline, eliminazione, reazioni e link ospiti restano raggiungibili.
+- La foto pre-partenza del commit `8b7c2b7` rimane nel diario locale con cartolina LIVE facoltativa e rimovibile.
+- Gmail mantiene `gmail.readonly`; PDF/foto e testo email restano le alternative immediate.
+- Matrice e prove puntuali: `docs/LIVE_FEATURE_PRESERVATION.md`.
+- Verifica visiva completata con emulazione reale a 393 px e 320 px: stato attivo, GPS assente, dark mode, Diario, Interazioni e card pre-partenza senza overflow o sovrapposizioni.
+- Test finali superati: suite LIVE, pre-partenza/Gmail, HouniAI, Firebase Emulator per ruoli/privacy GPS e build PWA con chunk LIVE e jsPDF in precache.

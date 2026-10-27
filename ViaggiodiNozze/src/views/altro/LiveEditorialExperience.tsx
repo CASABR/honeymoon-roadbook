@@ -1,6 +1,6 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LiveUpdate } from '../../services/liveService';
-import type { LiveGpsLease, LiveGpsLocation, LiveGpsDevice } from '../../services/liveGpsService';
+import type { LiveGpsDevice, LiveGpsLease, LiveGpsLocation } from '../../services/liveGpsService';
 import type { LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
 import { getTripConfig } from '../../utils/tripConfig';
 import { IMAGE_FILE_ACCEPT, isSupportedImageFile } from '../../utils/fileAttachment';
@@ -30,7 +30,6 @@ export interface LiveEditorialExperienceProps {
   canControlGps: boolean;
   deviceLabel: string;
   onDetectGps?: () => void;
-  // Remote GPS lease and locations
   remoteGpsLease?: LiveGpsLease | null;
   remoteGpsLocation?: LiveGpsLocation | null;
   isGpsHolder?: boolean;
@@ -47,13 +46,11 @@ export interface LiveEditorialExperienceProps {
   onStopGps?: () => void;
   onTransferGps?: (uid: string, deviceId: string) => Promise<void> | void;
   onRevokeGps?: () => Promise<void> | void;
-  // Live Intelligence & Dual Map Markers
   liveIntelligence?: LiveIntelligenceState | null;
   mapCenterMode?: 'both' | 'real' | 'planned';
   onChangeMapCenterMode?: (mode: 'both' | 'real' | 'planned') => void;
   realMarkerOffset?: { dx: number; dy: number } | null;
   plannedMarkerOffset?: { dx: number; dy: number } | null;
-  // Status & Diary
   statusMessage: string;
   statusUpdatedAt: string;
   canPublish: boolean;
@@ -74,8 +71,6 @@ export interface LiveEditorialExperienceProps {
   onShare: () => void;
   copiedLink: boolean;
   online: boolean;
-
-  // Galleria fotografica e gestione avanzata messaggi
   galleryPhotos?: LiveGalleryPhotoItem[];
   onUploadPhoto?: (file: File, caption?: string) => Promise<void>;
   onDeletePhoto?: (photoId: string) => void;
@@ -87,252 +82,155 @@ const PAGE_SIZE = 10;
 
 export function parseSafeDate(date: any): Date | null {
   if (!date) return null;
-  if (date instanceof Date) return isNaN(date.getTime()) ? null : date;
+  if (date instanceof Date) return Number.isNaN(date.getTime()) ? null : date;
   if (typeof date === 'number') {
-    const d = new Date(date);
-    return isNaN(d.getTime()) ? null : d;
+    const parsed = new Date(date);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
   }
   if (typeof date === 'object' && typeof date.toDate === 'function') {
     try {
-      const d = date.toDate();
-      return isNaN(d.getTime()) ? null : d;
+      const parsed = date.toDate();
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
     } catch {
       return null;
     }
   }
-  if (typeof date === 'object' && 'seconds' in date && typeof date.seconds === 'number') {
-    const d = new Date(date.seconds * 1000);
-    return isNaN(d.getTime()) ? null : d;
-  }
-  try {
-    const d = new Date(date);
-    return isNaN(d.getTime()) ? null : d;
-  } catch {
-    return null;
-  }
+  const parsed = new Date(date);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 export function formatLastDetectedTimestamp(date: any): string | null {
-  const d = parseSafeDate(date);
-  if (!d) return null;
-  const hoursMins = new Intl.DateTimeFormat('it-IT', {
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(d);
-  const dateStr = new Intl.DateTimeFormat('it-IT', {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric'
-  }).format(d);
-  return `Ultima posizione rilevata: ${hoursMins} — ${dateStr}`;
+  const parsed = parseSafeDate(date);
+  if (!parsed) return null;
+  const time = new Intl.DateTimeFormat('it-IT', { hour: '2-digit', minute: '2-digit' }).format(parsed);
+  const day = new Intl.DateTimeFormat('it-IT', { day: 'numeric', month: 'short' }).format(parsed);
+  return `Aggiornata ${time} · ${day}`;
 }
 
-const formatUpdateDate = (timestamp: number) => {
+function formatUpdateDate(timestamp: number): string {
   try {
     return new Intl.DateTimeFormat('it-IT', {
-      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
+      day: 'numeric',
+      month: 'short',
+      hour: '2-digit',
+      minute: '2-digit'
     }).format(new Date(timestamp));
   } catch {
     return '';
   }
-};
+}
 
-const formatRelativeTime = (date: Date) => {
-  try {
-    const diffSec = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
-    if (diffSec < 20) return 'pochi istanti fa';
-    if (diffSec < 60) return `${diffSec}s fa`;
-    const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin} min fa`;
-    return `${Math.floor(diffMin / 60)}h fa`;
-  } catch {
-    return 'poco fa';
-  }
-};
+function formatRelativeTime(date: Date): string {
+  const seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+  if (seconds < 20) return 'ora';
+  if (seconds < 60) return `${seconds}s fa`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} min fa`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h fa`;
+  return `${Math.floor(hours / 24)}g fa`;
+}
 
 export default function LiveEditorialExperience(props: LiveEditorialExperienceProps) {
   const tripConfig = getTripConfig();
-  const tripTitle = tripConfig?.title || (props.location?.city ? `Viaggio · ${props.location.city}` : 'Il viaggio di nozze');
+  const tripTitle = props.isExternal
+    ? 'Diario di viaggio'
+    : tripConfig?.title || props.location?.city || 'Il nostro viaggio';
+  const isOnline = props.isOnline ?? (typeof navigator === 'undefined' || navigator.onLine);
+  const isLeaseActive = props.remoteGpsLease?.status === 'active';
+  const isLeasePaused = props.remoteGpsLease?.status === 'paused';
+  const isLeaseStopped = !props.remoteGpsLease || props.remoteGpsLease.status === 'stopped';
+  const lastDetectedDate = props.remoteGpsLocation?.updatedAt
+    ? parseSafeDate(props.remoteGpsLocation.updatedAt)
+    : null;
+  const isFreshGps = Boolean(
+    isLeaseActive &&
+    lastDetectedDate &&
+    Date.now() - lastDetectedDate.getTime() < 120_000
+  );
+  const hasRealLocation = Boolean(isFreshGps && props.remoteGpsLocation);
+  const plannedLocation = props.liveIntelligence?.plannedLocation || null;
+  const hasPlannedLocation = Boolean(!props.isExternal && plannedLocation?.coords);
+  const showRealMarker = hasRealLocation && props.mapCenterMode !== 'planned';
+  const showPlannedMarker = hasPlannedLocation && props.mapCenterMode !== 'real';
+  const permissionDenied = Boolean(props.gpsError && /permess|denied|negat|autorizzat/i.test(props.gpsError));
 
-  // ─── STATO GALLERIA FOTOGRAFICA & LIGHTBOX ──────────────────────────
+  const gpsVisualState = useMemo(() => {
+    if (!isOnline) return { label: 'Offline', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
+    if (props.isDetectingGps) return { label: 'Ricerca GPS', tone: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500 motion-safe:animate-pulse' };
+    if (permissionDenied) return { label: 'GPS non autorizzato', tone: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' };
+    if (isFreshGps) return { label: 'Attiva', tone: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500 motion-safe:animate-pulse' };
+    if (isLeasePaused) return { label: 'In pausa', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
+    if (props.remoteGpsLease?.status === 'stopped') return { label: 'Interrotta', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
+    if (isLeaseActive) return { label: 'Posizione scaduta', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
+    return { label: 'GPS assente', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
+  }, [isOnline, props.isDetectingGps, props.remoteGpsLease?.status, permissionDenied, isFreshGps, isLeasePaused, isLeaseActive]);
+
+  const currentGuideName = useMemo(() => {
+    const holderUid = props.remoteGpsLease?.holderUid;
+    if (!holderUid) return props.ownerName || 'Organizzatore';
+    if (props.membersMap?.[holderUid]) return props.membersMap[holderUid];
+    if (holderUid === props.ownerUid) return props.ownerName || 'Organizzatore';
+    return props.tripMembers?.find(member => member.uid === holderUid)?.name || 'Copilota';
+  }, [props.remoteGpsLease?.holderUid, props.membersMap, props.ownerUid, props.ownerName, props.tripMembers]);
+
+  const copilots = useMemo(() => {
+    const candidates = new Map<string, { uid: string; name: string; deviceId?: string }>();
+    props.tripMembers?.forEach(member => {
+      if (member.role === 'copilota' && member.uid !== props.ownerUid) {
+        candidates.set(member.uid, { uid: member.uid, name: member.name || 'Copilota' });
+      }
+    });
+    props.gpsDevices?.forEach(device => {
+      if (device.role !== 'copilota' || !device.uid || device.uid === props.ownerUid) return;
+      const current = candidates.get(device.uid);
+      candidates.set(device.uid, {
+        uid: device.uid,
+        name: current?.name || props.membersMap?.[device.uid] || device.label || 'Copilota',
+        deviceId: device.deviceId
+      });
+    });
+    return [...candidates.values()];
+  }, [props.tripMembers, props.gpsDevices, props.ownerUid, props.membersMap]);
+
+  const displayPhotos = useMemo<LiveGalleryPhotoItem[]>(() => {
+    if (props.galleryPhotos?.length) return [...props.galleryPhotos].sort((a, b) => b.timestamp - a.timestamp);
+    return props.updates
+      .filter(update => Boolean(update.photoUrl))
+      .map(update => ({
+        id: update.id,
+        url: update.photoUrl || '',
+        caption: update.title || update.text || 'Scatto dal viaggio',
+        location: update.locationName,
+        timestamp: update.timestamp || Date.now(),
+        isCustom: false
+      }))
+      .sort((a, b) => b.timestamp - a.timestamp);
+  }, [props.galleryPhotos, props.updates]);
+
+  const sortedUpdates = useMemo(
+    () => [...props.updates].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)),
+    [props.updates]
+  );
+  const reactionTotal = useMemo(
+    () => sortedUpdates.reduce((total, update) => total + Object.values(update.reactionCounts || {}).reduce((sum, count) => sum + count, 0), 0),
+    [sortedUpdates]
+  );
+
   const [activeLightboxIndex, setActiveLightboxIndex] = useState<number | null>(null);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [showAllPhotos, setShowAllPhotos] = useState(false);
+  const [isGuideControlsOpen, setIsGuideControlsOpen] = useState(false);
+  const [isComposerOpen, setIsComposerOpen] = useState(false);
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false);
+  const [diaryPage, setDiaryPage] = useState(1);
+  const [isHandoverLoading, setIsHandoverLoading] = useState(false);
+  const [handoverFeedback, setHandoverFeedback] = useState<string | null>(null);
   const fileUploadInputRef = useRef<HTMLInputElement | null>(null);
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [pendingUploadItems, setPendingUploadItems] = useState<Array<{ id: string; file: File; preview: string; name: string }>>([]);
   const [pendingCaptionInput, setPendingCaptionInput] = useState('');
   const [uploadError, setUploadError] = useState<string | null>(null);
-
-  // ─── STATI SEZIONI COMPRIMIBILI PER MOBILE (UX COMPATTA) ─────────
-  const [isGuideControlsOpen, setIsGuideControlsOpen] = useState(false);
-  const [isIntelligenceExpanded, setIsIntelligenceExpanded] = useState(false);
-  const [isArchiveOpen, setIsArchiveOpen] = useState(false);
-
-  // ─── STATO PAGINAZIONE DIARIO ───────────────────────────────────────
-  const [diaryPage, setDiaryPage] = useState(1);
-
-
-  // ─── CALCOLO FOTOGRAFIE GALLERIA ────────────────────────────────────
-  const displayPhotos = useMemo<LiveGalleryPhotoItem[]>(() => {
-    if (props.galleryPhotos && props.galleryPhotos.length > 0) {
-      return props.galleryPhotos;
-    }
-    // Fallback: estrai fotografie dagli updates
-    const extracted: LiveGalleryPhotoItem[] = [];
-    (props.updates || []).forEach(u => {
-      if (u.photoUrl && typeof u.photoUrl === 'string' && u.photoUrl.trim()) {
-        extracted.push({
-          id: u.id,
-          url: u.photoUrl,
-          caption: u.title || u.text || 'Scatto dal viaggio',
-          location: u.locationName,
-          timestamp: u.timestamp || Date.now(),
-          isCustom: false
-        });
-      }
-    });
-    return extracted.sort((a, b) => b.timestamp - a.timestamp);
-  }, [props.galleryPhotos, props.updates]);
-
-  // Gestione tastiera per sfogliare la galleria a schermo intero (◀ ▶ Esc)
-  useEffect(() => {
-    if (activeLightboxIndex === null) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setActiveLightboxIndex(null);
-      } else if (e.key === 'ArrowLeft') {
-        setActiveLightboxIndex(prev => (prev !== null && prev > 0 ? prev - 1 : prev));
-      } else if (e.key === 'ArrowRight') {
-        setActiveLightboxIndex(prev => (prev !== null && prev < displayPhotos.length - 1 ? prev + 1 : prev));
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeLightboxIndex, displayPhotos.length]);
-
-  // ─── STATI GPS E TIMESTAMP ──────────────────────────────────────────
-  const isOnline = props.isOnline !== undefined ? props.isOnline : (typeof navigator !== 'undefined' ? navigator.onLine : true);
-  const isLeaseActive = props.remoteGpsLease?.status === 'active';
-  const isLeasePaused = props.remoteGpsLease?.status === 'paused';
-  const isLeaseStopped = !props.remoteGpsLease || props.remoteGpsLease?.status === 'stopped';
-  const hasFreshRemoteLocation = Boolean(props.remoteGpsLocation && isLeaseActive);
-  const isPlannedMode = props.mapCenterMode === 'planned' && !props.isExternal;
-  const hasRealLocation = Boolean(props.remoteGpsLocation || props.realLocation?.coords);
-  const plannedLocation = props.liveIntelligence?.plannedLocation || null;
-
-  // Data e ora dell'ultima rilevazione satellitare effettiva
-  const lastDetectedDate: Date | null = props.remoteGpsLocation?.updatedAt
-    ? parseSafeDate(props.remoteGpsLocation.updatedAt)
-    : props.realLocation?.timestamp
-      ? parseSafeDate(props.realLocation.timestamp)
-      : null;
-
-  const lastDetectedTimestampStr = formatLastDetectedTimestamp(lastDetectedDate);
-
-  const isFreshGps = Boolean(
-    lastDetectedDate &&
-    (Date.now() - lastDetectedDate.getTime() < 120000) &&
-    (hasFreshRemoteLocation || (props.isGpsHolder && props.realLocation))
-  );
-
-  // Identificazione analitica della causa reale di inattività (Requisito P0-A)
-  const isPermissionDenied = Boolean(
-    props.gpsError && (
-      props.gpsError.toLowerCase().includes('permesso') ||
-      props.gpsError.toLowerCase().includes('denied') ||
-      props.gpsError.toLowerCase().includes('negato') ||
-      props.gpsError.toLowerCase().includes('autorizzat')
-    )
-  );
-
-  const inactiveReason: 'offline' | 'permission_denied' | 'acquiring' | 'other_device_active' | 'paused' | 'technical_error' | 'not_started' | null =
-    isFreshGps ? null : (
-      !isOnline
-        ? 'offline'
-        : props.isDetectingGps
-        ? 'acquiring'
-        : isPermissionDenied
-        ? 'permission_denied'
-        : isLeasePaused
-        ? 'paused'
-        : (isLeaseActive && !props.isGpsHolder)
-        ? 'other_device_active'
-        : props.gpsError
-        ? 'technical_error'
-        : 'not_started'
-    );
-
-  // Classificazione esplicita dello stato GPS (FASE 3)
-  const gpsVisualState = isFreshGps
-    ? {
-        label: 'Posizione GPS attiva',
-        sublabel: props.isGpsHolder ? 'In trasmissione da questo smartphone guida' : 'LIVE in trasmissione satellitare',
-        tone: 'text-emerald-700 dark:text-emerald-300',
-        dot: 'bg-emerald-500 animate-pulse',
-        badgeBg: 'bg-emerald-500/10 border-emerald-500/20'
-      }
-    : inactiveReason === 'acquiring'
-    ? {
-        label: 'Posizione in acquisizione',
-        sublabel: 'Ricerca del segnale satellitare in corso…',
-        tone: 'text-cyan-700 dark:text-cyan-300',
-        dot: 'bg-cyan-500 animate-ping',
-        badgeBg: 'bg-cyan-500/10 border-cyan-500/20'
-      }
-    : inactiveReason === 'offline'
-    ? {
-        label: 'Connessione assente',
-        sublabel: 'Dispositivo offline (trasmissione satellitare sospesa)',
-        tone: 'text-slate-600 dark:text-slate-300',
-        dot: 'bg-slate-400',
-        badgeBg: 'bg-slate-500/10 border-slate-500/20'
-      }
-    : inactiveReason === 'permission_denied'
-    ? {
-        label: 'Permesso posizione negato',
-        sublabel: 'Consenti la localizzazione nelle impostazioni di Safari / iOS',
-        tone: 'text-rose-700 dark:text-rose-300',
-        dot: 'bg-rose-500',
-        badgeBg: 'bg-rose-500/10 border-rose-500/20'
-      }
-    : inactiveReason === 'other_device_active'
-    ? {
-        label: 'Altro dispositivo Guida attivo',
-        sublabel: `Trasmissione in corso dal dispositivo ${(props.remoteGpsLease?.holderDeviceId || '').slice(0, 8)}…`,
-        tone: 'text-amber-700 dark:text-amber-300',
-        dot: 'bg-amber-500',
-        badgeBg: 'bg-amber-500/10 border-amber-500/20'
-      }
-    : inactiveReason === 'paused'
-    ? {
-        label: 'Trasmissione in pausa',
-        sublabel: 'Condivisione temporaneamente sospesa dall\'Organizzatore',
-        tone: 'text-amber-700 dark:text-amber-300',
-        dot: 'bg-amber-500',
-        badgeBg: 'bg-amber-500/10 border-amber-500/20'
-      }
-    : inactiveReason === 'technical_error'
-    ? {
-        label: props.gpsError?.toLowerCase().includes('permess')
-          ? 'Autorizzazione GPS richiesta'
-          : 'Segnale GPS non disponibile',
-        sublabel: props.gpsError || 'Impossibile acquisire le coordinate satellitari',
-        tone: 'text-amber-700 dark:text-amber-300',
-        dot: 'bg-amber-500',
-        badgeBg: 'bg-amber-500/10 border-amber-500/20'
-      }
-    : {
-        label: 'Non ancora avviata',
-        sublabel: 'Posizione stimata da itinerario (nessun segnale GPS in trasmissione)',
-        tone: 'text-slate-600 dark:text-slate-300',
-        dot: 'bg-slate-400',
-        badgeBg: 'bg-slate-500/10 border-slate-500/20'
-      };
-
-  // ─── ORDINAMENTO E PAGINAZIONE DIARIO (FASE 2) ──────────────────────
-  const sortedUpdates = useMemo(() => {
-    return [...(props.updates || [])].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
-  }, [props.updates]);
 
   const totalDiaryPages = Math.max(1, Math.ceil(sortedUpdates.length / PAGE_SIZE));
   const paginatedUpdates = useMemo(() => {
@@ -340,1628 +238,450 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     return sortedUpdates.slice(start, start + PAGE_SIZE);
   }, [sortedUpdates, diaryPage]);
 
-  // Current guide name resolution
-  const currentGuideName = useMemo(() => {
-    if (props.remoteGpsLease?.holderUid) {
-      if (props.membersMap && props.membersMap[props.remoteGpsLease.holderUid]) {
-        return props.membersMap[props.remoteGpsLease.holderUid];
-      }
-      if (props.ownerUid && props.remoteGpsLease.holderUid === props.ownerUid) {
-        return props.ownerName || '***REMOVED***';
-      }
-      const member = (props.tripMembers || []).find(m => m.uid === props.remoteGpsLease?.holderUid);
-      if (member?.name) return member.name;
-    }
-    return props.ownerName || '***REMOVED***';
-  }, [props.remoteGpsLease?.holderUid, props.membersMap, props.ownerUid, props.ownerName, props.tripMembers]);
+  useEffect(() => {
+    if (activeLightboxIndex === null) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveLightboxIndex(null);
+      if (event.key === 'ArrowLeft') setActiveLightboxIndex(index => index !== null && index > 0 ? index - 1 : index);
+      if (event.key === 'ArrowRight') setActiveLightboxIndex(index => index !== null && index < displayPhotos.length - 1 ? index + 1 : index);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeLightboxIndex, displayPhotos.length]);
 
-  // Copilots available for handover
-  const copilotsList = useMemo(() => {
-    const list: { uid: string; name: string }[] = [];
-    (props.tripMembers || []).forEach(m => {
-      if (m.role === 'copilota' && m.uid !== props.ownerUid) {
-        list.push({ uid: m.uid, name: m.name || 'Copilota' });
+  useEffect(() => {
+    if (props.messageSuccess) setIsComposerOpen(false);
+  }, [props.messageSuccess]);
+
+  const handlePhotoFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files ? Array.from(event.target.files) : [];
+    const valid: Array<{ id: string; file: File; preview: string; name: string }> = [];
+    const rejected: string[] = [];
+    files.forEach(file => {
+      if (!isSupportedImageFile(file) || file.size > 15 * 1024 * 1024) {
+        rejected.push(file.name);
+        return;
       }
+      valid.push({
+        id: `pending_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        file,
+        preview: URL.createObjectURL(file),
+        name: file.name
+      });
     });
-    (props.gpsDevices || []).forEach(dev => {
-      if (dev.role === 'copilota' && dev.uid && dev.uid !== props.ownerUid) {
-        if (!list.some(item => item.uid === dev.uid)) {
-          list.push({ uid: dev.uid, name: (props.membersMap && props.membersMap[dev.uid]) || dev.label || 'Copilota' });
-        }
-      }
-    });
-    return list;
-  }, [props.tripMembers, props.gpsDevices, props.ownerUid, props.membersMap]);
-
-  const [isHandoverLoading, setIsHandoverLoading] = useState(false);
-  const [handoverSuccess, setHandoverSuccess] = useState<string | null>(null);
-
-  // Gestione selezione foto da fotocamera / rullino (singola o multipla)
-  const handlePhotoFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawFiles = e.target.files ? Array.from(e.target.files) : [];
-    if (rawFiles.length === 0) return;
-    setUploadError(null);
-
-    const validNewItems: Array<{ id: string; file: File; preview: string; name: string }> = [];
-    const invalidFormatNames: string[] = [];
-    const oversizedNames: string[] = [];
-    const MAX_FILE_SIZE = 15 * 1024 * 1024; // 15MB
-
-    for (const file of rawFiles) {
-      if (!isSupportedImageFile(file)) {
-        invalidFormatNames.push(file.name);
-        continue;
-      }
-      if (file.size > MAX_FILE_SIZE) {
-        oversizedNames.push(file.name);
-        continue;
-      }
-      try {
-        const preview = URL.createObjectURL(file);
-        validNewItems.push({
-          id: `pending_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          file,
-          preview,
-          name: file.name
-        });
-      } catch {
-        // Fallback
-      }
-    }
-
-    if (invalidFormatNames.length > 0) {
-      setUploadError(`Formato non supportato per: ${invalidFormatNames.slice(0, 2).join(', ')}. Usa JPG, PNG, WebP, HEIC o HEIF.`);
-    } else if (oversizedNames.length > 0) {
-      setUploadError(`File oltre il limite di 15MB: ${oversizedNames.slice(0, 2).join(', ')}.`);
-    }
-
-    if (validNewItems.length > 0) {
-      setPendingUploadItems(prev => [...prev, ...validNewItems]);
-    }
-    e.target.value = '';
+    setUploadError(rejected.length ? `Non posso usare: ${rejected.slice(0, 2).join(', ')}. Scegli immagini fino a 15 MB.` : null);
+    setPendingUploadItems(current => [...current, ...valid]);
+    event.target.value = '';
   };
 
-  const handleRemovePendingItem = (idToRemove: string) => {
-    setPendingUploadItems(prev => {
-      const target = prev.find(item => item.id === idToRemove);
-      if (target?.preview) {
-        try { URL.revokeObjectURL(target.preview); } catch {}
-      }
-      return prev.filter(item => item.id !== idToRemove);
-    });
+  const clearPendingPhotos = () => {
+    pendingUploadItems.forEach(item => URL.revokeObjectURL(item.preview));
+    setPendingUploadItems([]);
+    setPendingCaptionInput('');
+    setUploadError(null);
   };
 
   const handleConfirmPhotoUpload = async () => {
-    if (pendingUploadItems.length === 0 || !props.onUploadPhoto) return;
+    if (!pendingUploadItems.length || !props.onUploadPhoto) return;
+    setIsUploadingPhoto(true);
+    setUploadError(null);
     try {
-      setIsUploadingPhoto(true);
-      setUploadError(null);
       for (const item of pendingUploadItems) {
         await props.onUploadPhoto(item.file, pendingCaptionInput.trim() || undefined);
       }
-      pendingUploadItems.forEach(item => {
-        if (item.preview) {
-          try { URL.revokeObjectURL(item.preview); } catch {}
-        }
-      });
-      setPendingUploadItems([]);
-      setPendingCaptionInput('');
-      if (fileUploadInputRef.current) fileUploadInputRef.current.value = '';
-    } catch (err: any) {
-      setUploadError(err?.message || 'Errore durante il caricamento delle foto.');
+      clearPendingPhotos();
+    } catch (error) {
+      setUploadError(error instanceof Error ? error.message : 'Foto non salvata. Riprova.');
     } finally {
       setIsUploadingPhoto(false);
     }
   };
 
-  const handleCancelPhotoUpload = () => {
-    pendingUploadItems.forEach(item => {
-      if (item.preview) {
-        try { URL.revokeObjectURL(item.preview); } catch {}
-      }
-    });
-    setPendingUploadItems([]);
-    setPendingCaptionInput('');
-    setUploadError(null);
-    if (fileUploadInputRef.current) fileUploadInputRef.current.value = '';
+  const runHandover = async (action: () => Promise<void> | void, success: string) => {
+    setIsHandoverLoading(true);
+    setHandoverFeedback(null);
+    try {
+      await action();
+      setHandoverFeedback(success);
+    } catch (error) {
+      setHandoverFeedback(error instanceof Error ? error.message : 'Operazione non riuscita.');
+    } finally {
+      setIsHandoverLoading(false);
+    }
   };
 
+  const visiblePhotos = showAllPhotos ? displayPhotos : displayPhotos.slice(0, 5);
+
   const renderUpdateCard = (update: LiveUpdate) => (
-    <article
-      key={update.id}
-      className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-[#172033] border border-slate-200/90 dark:border-slate-800 shadow-xs transition-shadow hover:shadow-md min-w-0"
-    >
+    <article key={update.id} className="border-b border-slate-200 py-5 last:border-0 dark:border-slate-800">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <time className="text-[11px] font-mono font-bold text-slate-400 dark:text-slate-500">
-              {formatUpdateDate(update.timestamp)}
-            </time>
-            {update.locationName && (
-              <span className="text-[11px] font-bold text-[#FF6B5F] bg-rose-50 dark:bg-rose-950/40 px-2 py-0.5 rounded-full border border-rose-200/60 dark:border-rose-900/40 truncate max-w-[200px]">
-                📍 {update.locationName}
-              </span>
-            )}
-          </div>
-          <h3 className="text-base sm:text-lg font-black text-slate-950 dark:text-white mt-1 break-words">
-            {update.title}
-          </h3>
+          <time className="text-[11px] font-semibold text-slate-400">{formatUpdateDate(update.timestamp)}</time>
+          <h3 className="mt-1 text-base font-extrabold leading-snug text-[#172033] dark:text-white">{update.title}</h3>
+          {update.locationName && <p className="mt-1 truncate text-xs font-semibold text-[#FF6B5F]">⌖ {update.locationName}</p>}
         </div>
-
         {props.canPublish && !props.isExternal && props.onDeleteUpdate && (
           <button
             type="button"
-            onClick={() => {
-              if (window.confirm("Sei sicuro di voler eliminare questa cartolina dal diario pubblico? L'operazione non può essere annullata.")) {
-                props.onDeleteUpdate!(update.id);
-              }
-            }}
-            className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 px-2.5 py-1 rounded-lg border border-rose-200/80 dark:border-rose-900/60 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer shrink-0"
-            title="Elimina messaggio dal diario"
+            onClick={() => window.confirm('Rimuovere questo ricordo dal diario pubblico?') && props.onDeleteUpdate?.(update.id)}
+            className="min-h-10 shrink-0 px-2 text-xs font-bold text-rose-600 hover:text-rose-700"
+            aria-label="Elimina ricordo"
           >
-            <span>🗑️</span>
-            <span>Elimina</span>
+            Elimina
           </button>
         )}
       </div>
-
-      {update.text && (
-        <p className="mt-2.5 text-sm leading-relaxed text-slate-700 dark:text-slate-200 break-words">
-          {update.text}
-        </p>
-      )}
-
+      {update.text && <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-200">{update.text}</p>}
       {update.photoUrl && (
         <button
           type="button"
           onClick={() => {
-            const idx = displayPhotos.findIndex(p => p.url === update.photoUrl || p.id === update.id);
-            setActiveLightboxIndex(idx >= 0 ? idx : 0);
+            const index = displayPhotos.findIndex(photo => photo.url === update.photoUrl || photo.id === update.id);
+            setActiveLightboxIndex(index >= 0 ? index : 0);
           }}
-          className="mt-3.5 block w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700 max-h-[380px] group cursor-pointer"
+          className="mt-4 block w-full overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-900"
         >
-          <img
-            src={update.photoUrl}
-            alt={update.title}
-            className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
-            loading="lazy"
-          />
+          <img src={update.photoUrl} alt={update.title} className="max-h-[480px] w-full object-contain" loading="lazy" />
         </button>
       )}
-
-      {/* REAZIONI */}
-      <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {REACTIONS.map((emoji) => {
-            const selected = props.reactions[update.id] === emoji;
-            const count = (update.reactionCounts?.[emoji] || 0) + (selected ? 1 : 0);
-            return (
-              <button
-                key={emoji}
-                type="button"
-                disabled={!isOnline}
-                onClick={() => props.onReaction(update.id, emoji)}
-                className={`px-2.5 py-1 rounded-full border text-xs font-semibold transition-all cursor-pointer ${
-                  selected
-                    ? 'border-[#FF6B5F] bg-[#FFF0ED] text-slate-900 font-bold shadow-2xs'
-                    : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                }`}
-              >
-                {emoji}{count > 0 ? ` ${count}` : ''}
-              </button>
-            );
-          })}
-        </div>
+      <div className="mt-4 flex flex-wrap gap-2" aria-label="Reazioni">
+        {REACTIONS.map(emoji => {
+          const selected = props.reactions[update.id] === emoji;
+          const count = update.reactionCounts?.[emoji] || 0;
+          return (
+            <button
+              key={emoji}
+              type="button"
+              disabled={!isOnline}
+              onClick={() => props.onReaction(update.id, emoji)}
+              className={`min-h-10 rounded-full border px-3 text-sm transition motion-reduce:transition-none disabled:opacity-40 ${selected ? 'border-[#FF6B5F] bg-[#FFF0ED] text-[#172033]' : 'border-slate-200 bg-transparent text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}
+              aria-pressed={selected}
+              aria-label={`Reazione ${emoji}${count ? `, ${count}` : ''}`}
+            >
+              {emoji}{count > 0 ? ` ${count}` : ''}
+            </button>
+          );
+        })}
       </div>
     </article>
   );
 
   return (
-    <div className="mx-auto w-full max-w-5xl pb-16 px-3 sm:px-6 animate-fade-in text-slate-900 dark:text-slate-100">
-      {/* ─── HEADER LIVE EDITORIALE COMPATTO ─────────────────────────────── */}
-      <header className="flex items-center justify-between gap-2.5 border-b border-slate-200/80 dark:border-slate-800 pb-3 mb-4">
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          {!props.isExternal && props.onBack && (
-            <button
-              type="button"
-              onClick={props.onBack}
-              className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-bold shrink-0 transition-colors cursor-pointer"
-              aria-label="Torna ad Altro"
-            >
-              ←
-            </button>
-          )}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-500/10 text-[#FF6B5F] dark:bg-rose-500/20">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F] animate-pulse" />
-                LIVE
-              </span>
-              {props.isExternal ? (
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
-                  Vista Ospiti
-                </span>
-              ) : (
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${gpsVisualState.badgeBg} ${gpsVisualState.tone}`}>
+    <div className="mx-auto w-full max-w-5xl overflow-x-hidden px-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-slate-900 animate-fade-in dark:text-slate-100 sm:px-6">
+      <header className="border-b border-slate-200 pb-4 dark:border-slate-800">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-2.5">
+            {!props.isExternal && props.onBack && (
+              <button type="button" onClick={props.onBack} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg dark:bg-slate-800" aria-label="Torna ad Altro">←</button>
+            )}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black tracking-[0.18em] text-[#FF6B5F]">LIVE</span>
+                <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${gpsVisualState.tone}`}>
+                  <span className={`h-2 w-2 rounded-full ${gpsVisualState.dot}`} />
                   {gpsVisualState.label}
                 </span>
-              )}
+              </div>
+              <h1 className="mt-1 truncate text-xl font-black tracking-tight text-[#172033] dark:text-white sm:text-2xl">{tripTitle}</h1>
+              <p className="mt-0.5 text-xs text-slate-500">Il viaggio, mentre accade.</p>
             </div>
-            <h1 className="text-base sm:text-lg font-black tracking-tight text-slate-950 dark:text-white truncate mt-0.5" title={tripTitle}>
-              {tripTitle}
-            </h1>
           </div>
+          <button type="button" onClick={props.onShare} className="min-h-11 shrink-0 rounded-full bg-[#172033] px-4 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">
+            {props.copiedLink ? 'Copiato ✓' : 'Condividi'}
+          </button>
         </div>
-
-        <button
-          type="button"
-          onClick={props.onShare}
-          className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-[11px] font-bold shrink-0 transition-all shadow-xs cursor-pointer flex items-center gap-1"
-        >
-          <span>🔗</span>
-          <span>{props.copiedLink ? 'Copiato!' : 'Condividi'}</span>
-        </button>
       </header>
 
+      <nav className="sticky top-0 z-30 -mx-3 grid grid-cols-3 border-b border-slate-200 bg-[#F8F7F3]/95 px-3 py-2 backdrop-blur dark:border-slate-800 dark:bg-[#172033]/95 sm:-mx-6 sm:px-6" aria-label="Sezioni LIVE">
+        <a href="#live-position" className="min-h-10 rounded-full px-2 py-2 text-center text-xs font-bold hover:bg-white dark:hover:bg-slate-800">Posizione</a>
+        <a href="#live-diary" className="min-h-10 rounded-full px-2 py-2 text-center text-xs font-bold hover:bg-white dark:hover:bg-slate-800">Diario</a>
+        <a href="#live-interactions" className="min-h-10 rounded-full px-2 py-2 text-center text-xs font-bold hover:bg-white dark:hover:bg-slate-800">Interazioni</a>
+      </nav>
+
       {!isOnline && (
-        <div className="mb-6 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3 text-xs font-semibold text-amber-900 dark:text-amber-200 flex items-center gap-2">
-          <span>⚠️</span>
-          <span>Sei offline. Il diario resta leggibile, ma GPS, pubblicazione e reazioni richiedono connessione.</span>
+        <div className="mt-4 flex items-center gap-2 border-l-2 border-amber-500 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 dark:bg-amber-950/30 dark:text-amber-200" role="status">
+          <span>Offline.</span><span>Diario disponibile; LIVE in pausa.</span>
         </div>
       )}
 
-      {/* ─── 01 · DOVE SIAMO: GPS AFFIDABILE ──────────────────────────── */}
-      <section aria-labelledby="live-position-title" className="mb-12">
-        <div className="flex items-end justify-between gap-3 mb-3 flex-wrap">
+      <section id="live-position" aria-labelledby="live-position-title" className="scroll-mt-16 py-7">
+        <div className="mb-4 flex items-end justify-between gap-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-              01 · Posizione
-            </p>
-            <h2 id="live-position-title" className="text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white">
-              Dove siamo
-            </h2>
+            <p className="text-xs font-bold text-[#FF6B5F]">Posizione</p>
+            <h2 id="live-position-title" className="text-2xl font-black tracking-tight text-[#172033] dark:text-white">Dove siamo</h2>
           </div>
-          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-bold ${gpsVisualState.badgeBg} ${gpsVisualState.tone}`}>
-            <span className={`w-2 h-2 rounded-full ${gpsVisualState.dot}`} />
-            <span>{gpsVisualState.label}</span>
-          </div>
+          {lastDetectedDate && hasRealLocation && <time className="text-right text-[11px] font-semibold text-slate-500">{formatLastDetectedTimestamp(lastDetectedDate)}</time>}
         </div>
 
-        {/* MAPPA CARTOGRAFICA EDITORIALE COMPATTA */}
-        <div className="relative overflow-hidden rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 min-h-[220px] sm:min-h-[360px] shadow-sm">
-          {/* Selettore esplicito per viewer membri: GPS reale vs programma privato */}
-          {!props.isExternal && (
-            <div className="absolute top-3 inset-x-3 z-20 grid grid-cols-2 gap-1 bg-slate-900/90 backdrop-blur-md p-1 rounded-xl border border-white/20 text-[10px] sm:text-[11px] font-bold text-white shadow-lg" role="group" aria-label="Posizione mostrata sulla mappa">
-              <button
-                type="button"
-                onClick={() => props.onChangeMapCenterMode?.('real')}
-                className={`px-2 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                  props.mapCenterMode === 'real' ? 'bg-[#FF6B5F] text-white' : 'text-slate-300 hover:text-white'
-                }`}
-                aria-pressed={props.mapCenterMode === 'real'}
-              >
-                📍 Dove siamo adesso
-              </button>
-              <button
-                type="button"
-                onClick={() => props.onChangeMapCenterMode?.('planned')}
-                className={`px-2 py-1.5 rounded-lg transition-colors cursor-pointer ${
-                  props.mapCenterMode === 'planned' ? 'bg-[#FF6B5F] text-white' : 'text-slate-300 hover:text-white'
-                }`}
-                aria-pressed={props.mapCenterMode === 'planned'}
-              >
-                🗓️ Dove dovremmo essere
-              </button>
-            </div>
-          )}
-
-          {/* TILES MAPPA */}
-          {props.tileGrid && !props.tileLoadFailed ? (
-            <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
-              <div className="absolute left-1/2 top-1/2 w-[768px] h-[768px] -translate-x-1/2 -translate-y-1/2 grid grid-cols-3 grid-rows-3 opacity-90 dark:opacity-60">
-                {props.tileGrid.tiles.map((tile: any) => (
-                  <img key={tile.key} src={tile.url} alt="" onError={props.onTileError} className="w-64 h-64 object-cover" />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(148,163,184,.14)_25%,transparent_25%,transparent_50%,rgba(148,163,184,.14)_50%,rgba(148,163,184,.14)_75%,transparent_75%)] bg-[length:28px_28px]" />
-          )}
-
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent" />
-
-          {/* MARKER 1: POSIZIONE GPS REALE (CORAL CIRCLE + PING) */}
-          {!isPlannedMode && hasRealLocation && (
-            <div
-              className="absolute left-1/2 top-1/2 flex flex-col items-center justify-center transition-all duration-300 pointer-events-none z-10"
-              style={{
-                transform: props.realMarkerOffset
-                  ? `translate(calc(-50% + ${props.realMarkerOffset.dx}px), calc(-50% + ${props.realMarkerOffset.dy}px))`
-                  : 'translate(-50%, -50%)'
-              }}
-            >
-              {isFreshGps && (
-                <span className="absolute w-12 h-12 rounded-full bg-[#FF6B5F]/40 animate-ping" />
-              )}
-              <div className="w-5 h-5 rounded-full bg-[#FF6B5F] border-3 border-white shadow-xl relative z-10 flex items-center justify-center">
-                <div className="w-1.5 h-1.5 rounded-full bg-white" />
-              </div>
-              <span className="mt-1 px-2.5 py-0.5 rounded-md bg-[#FF6B5F] text-white text-[10px] font-extrabold uppercase tracking-wider shadow-md whitespace-nowrap">
-                {props.isGpsHolder ? 'Sei qui (Dispositivo guida)' : 'Posizione GPS'}
-              </span>
-            </div>
-          )}
-
-          {/* MARKER 2: POSIZIONE PREVISTA SECONDO ITINERARIO */}
-          {isPlannedMode && plannedLocation?.coords && (
-            <div
-              className="absolute left-1/2 top-1/2 flex flex-col items-center justify-center transition-all duration-300 pointer-events-none z-10"
-              style={{
-                transform: props.plannedMarkerOffset
-                  ? `translate(calc(-50% + ${props.plannedMarkerOffset.dx}px), calc(-50% + ${props.plannedMarkerOffset.dy}px))`
-                  : 'translate(-50%, -50%)'
-              }}
-            >
-              <div className="w-6 h-6 rounded-lg rotate-45 bg-[#172033] border-2 border-white shadow-xl relative z-10 flex items-center justify-center">
-                <span className="-rotate-45 text-[10px]">🗓️</span>
-              </div>
-              <span className="mt-1 px-2.5 py-0.5 rounded-md bg-[#172033] text-white text-[10px] font-extrabold tracking-wider shadow-md whitespace-nowrap border border-white/20">
-                Secondo itinerario
-              </span>
-            </div>
-          )}
-
-          {/* OVERLAY INFORMAZIONI POSIZIONE CON TIMESTAMP OBBLIGATORIO (FASE 3) */}
-          <div className="absolute inset-x-0 bottom-0 p-4 sm:p-6 text-white z-10">
-            <div className="flex items-center gap-2 flex-wrap mb-1">
-              <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#FF6B5F]">
-                {isPlannedMode
-                  ? '🗓️ Posizione prevista dal programma'
-                  : isFreshGps
-                    ? gpsVisualState.sublabel
-                    : hasRealLocation
-                      ? '📍 Ultima posizione GPS disponibile · non aggiornata'
-                      : '📍 Posizione GPS non disponibile'}
-              </span>
-              {!isPlannedMode && lastDetectedDate && (
-                <span className="text-[11px] text-white/70">
-                  · rilevato {formatRelativeTime(lastDetectedDate)}
-                </span>
-              )}
-            </div>
-
-            <h3 className="text-xl sm:text-2xl font-black leading-tight">
-              {isPlannedMode
-                ? plannedLocation?.title || 'Nessuna posizione prevista affidabile'
-                : hasRealLocation
-                  ? props.remoteGpsLocation?.city
-                    ? `${props.remoteGpsLocation.city}${props.remoteGpsLocation.country ? `, ${props.remoteGpsLocation.country}` : ''}`
-                    : props.realLocation?.city || props.realLocation?.title || 'Ultima posizione condivisa'
-                  : 'La Guida non sta condividendo la posizione'}
-            </h3>
-
-            {isPlannedMode && plannedLocation && (
-              <p className="mt-1 text-[11px] text-white/75 max-w-md">
-                {plannedLocation.explanation}
-              </p>
-            )}
-
-            {/* CHIP PRIMARIO: "Ultima posizione rilevata: HH:mm — data" */}
-            {!isPlannedMode && lastDetectedTimestampStr && (
-              <div className="mt-2.5 inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/15 backdrop-blur-md border border-white/25 text-white text-xs font-bold shadow-xs">
-                <span className="text-sm">🕒</span>
-                <span>{lastDetectedTimestampStr}</span>
-                {typeof props.remoteGpsLocation?.accuracy === 'number' && !isNaN(props.remoteGpsLocation.accuracy) && (
-                  <span className="text-[10px] text-white/75 font-normal">
-                    (±{Math.round(props.remoteGpsLocation.accuracy)}m)
-                  </span>
-                )}
-              </div>
-            )}
-
-            {((isPlannedMode && plannedLocation?.coords) || (!isPlannedMode && hasRealLocation)) && (
-            <div className="mt-3 flex items-center gap-4 flex-wrap">
-              <a
-                href={props.mapSearchUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-1.5 border-b border-white/60 pb-0.5 text-xs font-bold text-white hover:text-[#FF6B5F] hover:border-[#FF6B5F] transition-colors"
-              >
-                <span>Apri coordinate su Google Maps</span>
-                <span aria-hidden="true">↗</span>
-              </a>
-            </div>
-            )}
-          </div>
-        </div>
-
-        {/* PANNELLO DIRETTO AZIONE E STATO GPS GUIDA (Requisito P0-A) */}
-        {!props.isExternal && (props.isOwner || props.isCopilota) && (
-          <div className="mt-3 p-4 rounded-3xl bg-white dark:bg-[#172033] border border-slate-200/90 dark:border-slate-800 shadow-sm animate-fade-in space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="space-y-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`w-2.5 h-2.5 rounded-full ${gpsVisualState.dot}`} />
-                  <span className="font-extrabold text-xs text-slate-900 dark:text-white">
-                    {gpsVisualState.label}
-                  </span>
-                  <span className="text-[10px] text-slate-400 font-mono">
-                    ({props.deviceLabel})
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {gpsVisualState.sublabel}
-                </p>
-              </div>
-
-              {/* Pulsante primario di attivazione immediata se non ancora avviata */}
-              {inactiveReason === 'not_started' && (
+        <div className="relative min-h-[300px] overflow-hidden rounded-[1.75rem] bg-slate-200 dark:bg-slate-900 sm:min-h-[390px]">
+          {!props.isExternal && (hasRealLocation || hasPlannedLocation) && (
+            <div className="absolute left-3 right-3 top-3 z-20 grid grid-cols-3 gap-1 rounded-full bg-[#172033]/90 p-1 text-[10px] font-bold text-white backdrop-blur" role="group" aria-label="Centra mappa">
+              {(['both', 'real', 'planned'] as const).map(mode => (
                 <button
+                  key={mode}
                   type="button"
-                  disabled={props.isDetectingGps || !isOnline}
-                  onClick={props.onStartGps}
-                  className="px-4 py-2.5 rounded-2xl bg-[#FF6B5F] hover:bg-[#ff5547] text-white font-extrabold text-xs shadow-md shadow-[#FF6B5F]/25 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2 shrink-0 disabled:opacity-50"
+                  onClick={() => props.onChangeMapCenterMode?.(mode)}
+                  disabled={(mode === 'real' && !hasRealLocation) || (mode === 'planned' && !hasPlannedLocation)}
+                  className={`min-h-9 rounded-full px-2 disabled:opacity-35 ${props.mapCenterMode === mode ? 'bg-[#FF6B5F] text-white' : 'text-white/75'}`}
+                  aria-pressed={props.mapCenterMode === mode}
                 >
-                  <span>📡</span>
-                  <span>{props.isDetectingGps ? 'Avvio in corso…' : 'Attiva GPS su questo smartphone'}</span>
+                  {mode === 'both' ? 'Insieme' : mode === 'real' ? 'GPS' : 'Programma'}
                 </button>
-              )}
-
-              {/* Pulsante di riprova se permesso negato */}
-              {inactiveReason === 'permission_denied' && (
-                <button
-                  type="button"
-                  disabled={props.isDetectingGps || !isOnline}
-                  onClick={props.onStartGps}
-                  className="px-3.5 py-2 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white font-extrabold text-xs shadow-md shadow-rose-600/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
-                >
-                  <span>🔄</span>
-                  <span>Riprova GPS</span>
-                </button>
-              )}
-
-              {/* Pulsante di trasferimento se altra guida attiva */}
-              {inactiveReason === 'other_device_active' && props.isOwner && (
-                <button
-                  type="button"
-                  disabled={props.isDetectingGps || !isOnline}
-                  onClick={props.onRevokeGps}
-                  className="px-3.5 py-2 rounded-2xl bg-amber-600 hover:bg-amber-500 text-white font-extrabold text-xs shadow-md shadow-amber-600/20 active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-1.5 shrink-0"
-                >
-                  <span>🔄</span>
-                  <span>Prendi Guida qui</span>
-                </button>
-              )}
-
-              {/* Controlli quando la trasmissione è attiva da questo dispositivo */}
-              {isFreshGps && props.isGpsHolder && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    disabled={props.isDetectingGps || !isOnline}
-                    onClick={props.onPauseGps}
-                    className="px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 hover:bg-amber-100 text-xs font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
-                  >
-                    <span>⏸️</span>
-                    <span>Pausa</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={props.isDetectingGps || !isOnline}
-                    onClick={props.onStopGps}
-                    className="px-3 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 hover:bg-rose-100 text-xs font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1"
-                  >
-                    <span>⏹️</span>
-                    <span>Termina</span>
-                  </button>
-                </div>
-              )}
-
-              {/* Se in pausa */}
-              {inactiveReason === 'paused' && props.isOwner && (
-                <div className="flex items-center gap-2 shrink-0">
-                  <button
-                    type="button"
-                    disabled={props.isDetectingGps || !isOnline}
-                    onClick={props.onResumeGps}
-                    className="px-3.5 py-2 rounded-2xl bg-[#FF6B5F] hover:bg-[#ff5547] text-white font-extrabold text-xs shadow-md transition-all cursor-pointer flex items-center gap-1.5"
-                  >
-                    <span>▶️</span>
-                    <span>Riprendi</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={props.isDetectingGps || !isOnline}
-                    onClick={props.onStopGps}
-                    className="px-3 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 hover:bg-rose-100 text-xs font-bold transition-all cursor-pointer"
-                  >
-                    <span>⏹️</span>
-                    <span>Interrompi</span>
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Istruzioni pratiche contestuali se permesso negato */}
-            {inactiveReason === 'permission_denied' && (
-              <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 text-[11px] text-rose-800 dark:text-rose-200 space-y-1">
-                <strong className="block font-bold">Come abilitare la posizione su questo telefono:</strong>
-                <ol className="list-decimal list-inside space-y-0.5 text-rose-700 dark:text-rose-300">
-                  <li>Su iPhone/Safari: apri <em>Impostazioni &gt; Privacy e sicurezza &gt; Localizzazione</em>.</li>
-                  <li>Seleziona <em>Siti web di Safari</em> (o l&apos;icona di Hounigo PWA) e scegli <em>Mentre usi l&apos;app</em>.</li>
-                  <li>Torna in questa schermata e tocca <strong>Riprova GPS</strong>.</li>
-                </ol>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Informativa GPS progressiva e accessibile */}
-        <details className="mt-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400 group">
-          <summary className="list-none cursor-pointer p-3 flex items-center justify-between gap-3 hounigo-touch-feedback">
-            <span className="flex items-start gap-2 min-w-0">
-              <span className="text-xs shrink-0 mt-0.5">ℹ️</span>
-              <span>
-                <strong className="block text-slate-800 dark:text-slate-200 font-bold">Come funziona il GPS</strong>
-                <span className="block mt-0.5">Solo il dispositivo Guida autorizzato condivide la posizione, quando la trasmissione LIVE è attiva.</span>
-              </span>
-            </span>
-            <span className="shrink-0 text-[#FF6B5F] font-bold group-open:hidden">Mostra dettagli</span>
-            <span className="shrink-0 text-[#FF6B5F] font-bold hidden group-open:inline">Nascondi dettagli</span>
-          </summary>
-          <div className="px-3 pb-3 pt-0 ml-6 space-y-1.5 leading-relaxed border-t border-slate-200/70 dark:border-slate-800">
-            <p className="pt-2"><strong>Guida:</strong> può avviare, mettere in pausa e interrompere la trasmissione dal proprio smartphone.</p>
-            <p><strong>Copilota:</strong> trasmette solo se l’Organizzatore gli assegna la Guida e se attiva il GPS sul proprio dispositivo.</p>
-            <p><strong>Viewer:</strong> vede l’ultima posizione condivisa; il suo GPS non viene attivato.</p>
-            <p>La posizione è condivisa solo durante una sessione LIVE avviata esplicitamente. Su iPhone, WebKit può sospendere gli aggiornamenti quando lo schermo è bloccato o l’app passa in background: Hounigo mostra sempre l’orario dell’ultimo rilevamento disponibile.</p>
-          </div>
-        </details>
-
-        {/* ─── LIVE INTELLIGENCE: ADESSO, PROGRAMMA E CONFRONTO (STATO REALE VIAGGIO) ─── */}
-        {!props.isExternal && props.liveIntelligence && (
-          props.liveIntelligence.tripStatus === 'pre_trip' ? (
-            /* STATO 1: PRIMA DELLA PARTENZA - Sintesi chiara e non ridondante */
-            <div className="mt-3 rounded-2xl bg-gradient-to-r from-sky-50 to-indigo-50 dark:from-slate-900 dark:to-indigo-950/40 border border-sky-200/80 dark:border-sky-800/60 p-3.5 shadow-xs">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="text-lg">⏳</span>
-                  <div className="min-w-0">
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">
-                      In attesa della partenza
-                    </span>
-                    <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                      {props.liveIntelligence.nextEvent
-                        ? `${props.liveIntelligence.nextEvent.title}${props.liveIntelligence.nextEvent.date ? ` • ${props.liveIntelligence.nextEvent.date}` : ''}`
-                        : 'Viaggio programmato non ancora iniziato'}
-                    </p>
-                  </div>
-                </div>
-                {props.liveIntelligence.nextEvent?.time && (
-                  <span className="text-[11px] font-mono font-bold bg-white dark:bg-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 shrink-0">
-                    ⏰ {props.liveIntelligence.nextEvent.time}
-                  </span>
-                )}
-              </div>
-            </div>
-          ) : props.liveIntelligence.tripStatus === 'post_trip' ? (
-            /* STATO 2: DOPO IL VIAGGIO - Messaggio concluso solo a date effettivamente trascorse */
-            <div className="mt-3 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-emerald-950/40 border border-emerald-200/80 dark:border-emerald-800/60 p-3.5 shadow-xs">
-              <div className="flex items-center gap-2.5">
-                <span className="text-lg">💍</span>
-                <div>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block">
-                    Viaggio completato
-                  </span>
-                  <p className="text-xs font-bold text-slate-900 dark:text-white">
-                    Tutte le tappe e i trasferimenti del programma si sono conclusi.
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* STATO 3: DURANTE IL VIAGGIO - Attività in corso, prossima attività e posizione prevista */
-            <div className="mt-3 rounded-2xl bg-white dark:bg-[#172033] border border-slate-200/90 dark:border-slate-800 p-3.5 shadow-xs">
-              <div className="flex items-center justify-between gap-2 flex-wrap">
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF6B5F] shrink-0">
-                    {props.liveIntelligence.currentEvent ? 'ADESSO IN CORSO:' : 'ADESSO:'}
-                  </span>
-                  <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                    {props.liveIntelligence.currentEvent
-                      ? props.liveIntelligence.currentEvent.title
-                      : (props.liveIntelligence.nextEvent
-                          ? `Pausa • Prossima: ${props.liveIntelligence.nextEvent.title}`
-                          : 'Libero da programma')}
-                  </span>
-                  {props.liveIntelligence.currentEvent?.timeRange && (
-                    <span className="text-[10px] font-mono font-semibold text-slate-500 dark:text-slate-400 shrink-0 hidden sm:inline">
-                      ({props.liveIntelligence.currentEvent.timeRange})
-                    </span>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsIntelligenceExpanded(prev => !prev)}
-                  className="text-[11px] font-bold text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors cursor-pointer shrink-0 flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg"
-                >
-                  <span>{isIntelligenceExpanded ? '▲ Sintesi' : '▼ Dettagli'}</span>
-                </button>
-              </div>
-
-              {/* VISTA ESPANSA PROGRAMMA IN VIAGGIO */}
-              {isIntelligenceExpanded && (
-                <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3 animate-fade-in text-xs">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {props.liveIntelligence.currentEvent ? (
-                      <div className="p-3 rounded-xl bg-rose-50/60 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-900/40">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#FF6B5F] block mb-0.5">
-                          In corso {props.liveIntelligence.currentEvent.timeRange ? `(${props.liveIntelligence.currentEvent.timeRange})` : ''}
-                        </span>
-                        <p className="font-extrabold text-slate-900 dark:text-white">
-                          {props.liveIntelligence.currentEvent.title}
-                        </p>
-                        {props.liveIntelligence.currentEvent.subtitle && (
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            {props.liveIntelligence.currentEvent.subtitle}
-                          </p>
-                        )}
-                        {props.liveIntelligence.currentEvent.transportDetails && (
-                          <div className="mt-2 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-800 dark:text-indigo-200">
-                            ✈️ {props.liveIntelligence.currentEvent.transportDetails.message}
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                          Stato Attuale
-                        </span>
-                        <p className="font-extrabold text-slate-900 dark:text-white">
-                          Libero da impegni in questo momento
-                        </p>
-                        <p className="text-[11px] text-slate-500 mt-0.5">
-                          Nessun evento a orario fisso in corso.
-                        </p>
-                      </div>
-                    )}
-
-                    {props.liveIntelligence.nextEvent ? (
-                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                          Prossima Attività {props.liveIntelligence.nextEvent.time ? `(${props.liveIntelligence.nextEvent.time})` : ''}
-                        </span>
-                        <p className="font-extrabold text-slate-900 dark:text-white">
-                          {props.liveIntelligence.nextEvent.title}
-                        </p>
-                        {props.liveIntelligence.nextEvent.locationName && (
-                          <p className="text-[11px] text-slate-500 mt-0.5">
-                            📍 {props.liveIntelligence.nextEvent.locationName}
-                          </p>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">
-                          Prossima Attività
-                        </span>
-                        <p className="font-semibold text-slate-700 dark:text-slate-300">
-                          Nessun altro evento programmato per oggi
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {props.liveIntelligence.plannedLocation && (
-                    <div className="p-2.5 rounded-xl bg-slate-100/70 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2">
-                      <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                        ⚖️ {props.liveIntelligence.comparison ? props.liveIntelligence.comparison.label : 'Posizione prevista'}: {props.liveIntelligence.plannedLocation.title}
-                      </span>
-                      {props.liveIntelligence.comparison?.status === 'coincident' && (
-                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-[9px] shrink-0">
-                          In linea
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        )}
-
-        {/* FEEDBACK GPS */}
-        {props.gpsFeedback && (
-          <div className="mt-3 px-3.5 py-2.5 rounded-xl border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 text-xs font-bold text-emerald-800 dark:text-emerald-200 flex items-center gap-2">
-            <span>✓</span>
-            <span>{props.gpsFeedback}</span>
-          </div>
-        )}
-        {props.gpsError && (
-          <div className="mt-3 px-3.5 py-2.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-xs font-bold text-rose-800 dark:text-rose-200 flex items-center gap-2">
-            <span>⚠️</span>
-            <span>{props.gpsError}</span>
-          </div>
-        )}
-
-        {/* PANNELLO DI CONTROLLO TRASMISSIONE GUIDA (COMPATTO CON COLLAPSE) */}
-        <div className="mt-3 border-b border-slate-200 dark:border-slate-800 pb-4">
-          {props.isExternal ? (
-            <div className="rounded-2xl bg-[#F8F7F3] dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 p-3.5 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-              <strong className="text-slate-900 dark:text-white font-bold block mb-0.5">Privacy e trasparenza per gli ospiti:</strong>
-              Gli ospiti possono visualizzare la posizione solo quando il viaggiatore avvia esplicitamente la condivisione satellitare. Le coordinate vengono rimosse automaticamente al termine della guida.
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#172033] shadow-xs overflow-hidden">
-              <button
-                type="button"
-                onClick={() => setIsGuideControlsOpen(prev => !prev)}
-                className="w-full p-3.5 flex items-center justify-between text-left cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <span className="text-base shrink-0">📡</span>
-                  <div className="min-w-0">
-                    <span className="text-xs font-bold text-slate-900 dark:text-white block truncate">
-                      Controlli Guida GPS &amp; Copilota
-                    </span>
-                    <span className="text-[10px] text-slate-500 truncate block">
-                      Guida: {currentGuideName} · {isLeaseActive ? 'Attiva' : isLeasePaused ? 'In pausa' : 'In attesa'}
-                    </span>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-slate-400 shrink-0 ml-2">
-                  {isGuideControlsOpen ? '▲ Chiudi' : '▼ Gestisci'}
-                </span>
-              </button>
-
-              {isGuideControlsOpen && (
-                <div className="p-3.5 pt-0 border-t border-slate-100 dark:border-slate-800 space-y-3 animate-fade-in text-xs">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F8F7F3] dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 text-xs mt-3">
-                <div>
-                  <strong className="text-slate-900 dark:text-white font-bold">Guida attuale: </strong>
-                  <span className="text-slate-700 dark:text-slate-300 font-bold">{currentGuideName}</span>
-                  <span className="block mt-0.5 text-[11px] text-slate-500">
-                    Dispositivo locale: {props.deviceLabel}
-                  </span>
-                  <p className="mt-1 text-[11px] text-slate-500">
-                    Il GPS rilevato resta locale e non viene trasmesso agli ospiti fino all&apos;avvio esplicito della condivisione LIVE. Da computer puoi consultare la posizione in tempo reale trasmessa dallo smartphone guida.
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-2 shrink-0">
-                  {isLeaseStopped && (
-                    <>
-                      {props.isOwner ? (
-                        <button
-                          type="button"
-                          disabled={props.isDetectingGps || !isOnline}
-                          onClick={props.onStartGps}
-                          className="hounigo-button-primary px-4 py-2 text-xs font-bold disabled:opacity-50 flex items-center gap-1.5"
-                        >
-                          <span>📡</span>
-                          <span>{props.isDetectingGps ? 'Avvio in corso…' : 'Avvia condivisione LIVE'}</span>
-                        </button>
-                      ) : (
-                        <span className="text-[11px] font-semibold text-slate-500 italic">
-                          In attesa dell&apos;Organizzatore per avviare la condivisione.
-                        </span>
-                      )}
-                    </>
-                  )}
-
-                  {isLeaseActive && (
-                    <>
-                      {props.isGpsHolder ? (
-                        <>
-                          <button
-                            type="button"
-                            disabled={props.isDetectingGps || !isOnline}
-                            onClick={props.onPauseGps}
-                            className="hounigo-button-secondary px-3 py-1.5 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
-                          >
-                            <span>⏸️</span>
-                            <span>Metti in pausa</span>
-                          </button>
-                          <button
-                            type="button"
-                            disabled={props.isDetectingGps || !isOnline}
-                            onClick={props.onStopGps}
-                            className="px-3 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 hover:bg-rose-100 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
-                          >
-                            <span>⏹️</span>
-                            <span>Interrompi</span>
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          {props.isOwner && (
-                            <button
-                              type="button"
-                              disabled={props.isDetectingGps || !isOnline}
-                              onClick={props.onRevokeGps}
-                              className="hounigo-button-primary px-3 py-1.5 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
-                            >
-                              <span>🔄</span>
-                              <span>Riprendi guida</span>
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            disabled={props.isDetectingGps || !isOnline}
-                            onClick={props.onStopGps}
-                            className="px-3 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 hover:bg-rose-100 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
-                          >
-                            <span>⏹️</span>
-                            <span>Interrompi</span>
-                          </button>
-                        </>
-                      )}
-                    </>
-                  )}
-
-                  {isLeasePaused && (
-                    <>
-                      {props.isOwner ? (
-                        <>
-                          <button
-                            type="button"
-                            disabled={props.isDetectingGps || !isOnline}
-                            onClick={props.onResumeGps}
-                            className="hounigo-button-primary px-3 py-1.5 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
-                          >
-                            <span>▶️</span>
-                            <span>Riprendi trasmissione</span>
-                          </button>
-                          <button
-                            type="button"
-                            disabled={props.isDetectingGps || !isOnline}
-                            onClick={props.onStopGps}
-                            className="px-3 py-1.5 rounded-xl border border-rose-300 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 hover:bg-rose-100 text-xs font-bold disabled:opacity-50 flex items-center gap-1"
-                          >
-                            <span>⏹️</span>
-                            <span>Interrompi</span>
-                          </button>
-                        </>
-                      ) : (
-                        <span className="text-[11px] font-semibold text-slate-500 italic">
-                          In pausa (la ripresa richiede l&apos;Organizzatore).
-                        </span>
-                      )}
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* TRASFERIMENTO / DELEGA GUIDA GPS CON NOMI REALI */}
-              {props.isOwner && (
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900/40 text-xs space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs">
-                      <span>🤝</span>
-                      <span>Delega Guida GPS</span>
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                      Guida attuale: <strong>{currentGuideName}</strong>
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
-                    Puoi delegare la trasmissione della posizione al Copilota senza cedere la proprietà del viaggio.
-                  </p>
-
-                  {handoverSuccess && (
-                    <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-bold text-xs flex items-center gap-2 animate-fade-in">
-                      <span>✓</span>
-                      <span>{handoverSuccess}</span>
-                    </div>
-                  )}
-
-                  <div className="pt-1 flex flex-wrap items-center gap-2">
-                    {/* Se la guida è attualmente su un Copilota, l'Owner può riprenderla */}
-                    {props.remoteGpsLease?.holderUid && props.ownerUid && props.remoteGpsLease.holderUid !== props.ownerUid && (
-                      <button
-                        type="button"
-                        disabled={isHandoverLoading || props.isDetectingGps || !isOnline}
-                        onClick={async () => {
-                          if (!props.onRevokeGps) return;
-                          setIsHandoverLoading(true);
-                          setHandoverSuccess(null);
-                          try {
-                            await props.onRevokeGps();
-                            setHandoverSuccess(`Guida ripresa da ${props.ownerName || '***REMOVED***'} ✓`);
-                            setTimeout(() => setHandoverSuccess(null), 5000);
-                          } catch (err: any) {
-                            alert(err?.message || 'Errore ripresa guida.');
-                          } finally {
-                            setIsHandoverLoading(false);
-                          }
-                        }}
-                        className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition active:scale-95 cursor-pointer disabled:opacity-50 shadow-xs"
-                      >
-                        {isHandoverLoading ? 'Aggiornamento…' : `Riprendi la guida`}
-                      </button>
-                    )}
-
-                    {/* Elenco Copiloti per il passaggio */}
-                    {copilotsList.length > 0 ? (
-                      copilotsList.map(copilot => {
-                        const isCurrentGuide = props.remoteGpsLease?.holderUid === copilot.uid;
-                        if (isCurrentGuide) return null;
-                        const copilotDevice = (props.gpsDevices || []).find(d => d.uid === copilot.uid)
-                          || (props.gpsDevices || []).find(d => d.role === 'copilota');
-
-                        return (
-                          <button
-                            key={copilot.uid}
-                            type="button"
-                            disabled={isHandoverLoading || props.isDetectingGps || !isOnline}
-                            onClick={async () => {
-                              if (!props.onTransferGps) return;
-                              const targetDeviceId = copilotDevice?.deviceId || 'copilot_device';
-                              setIsHandoverLoading(true);
-                              setHandoverSuccess(null);
-                              try {
-                                await props.onTransferGps(copilot.uid, targetDeviceId);
-                                setHandoverSuccess(`Guida assegnata a ${copilot.name} ✓`);
-                                setTimeout(() => setHandoverSuccess(null), 5000);
-                              } catch (err: any) {
-                                alert(err?.message || 'Errore passaggio guida.');
-                              } finally {
-                                setIsHandoverLoading(false);
-                              }
-                            }}
-                            className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs transition active:scale-95 cursor-pointer disabled:opacity-50 shadow-xs flex items-center gap-1.5"
-                          >
-                            <span>👉</span>
-                            <span>{isHandoverLoading ? 'Assegnazione…' : `Passa la guida a ${copilot.name}`}</span>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <span className="text-[11px] text-slate-400 italic">
-                        Nessun copilota registrato. Condividi l’invito per abilitare un copilota alla guida.
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* STATO GUIDA PER IL COPILOTA */}
-              {props.isCopilota && (
-                <div className="rounded-2xl border border-slate-200 dark:border-slate-800 p-4 bg-white dark:bg-slate-900/40 text-xs space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="font-extrabold text-slate-900 dark:text-white flex items-center gap-1.5 text-xs">
-                      <span>🚗</span>
-                      <span>Stato Guida GPS</span>
-                    </span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                      Guida attuale: <strong>{currentGuideName}</strong>
-                    </span>
-                  </div>
-
-                  {props.isGpsHolder ? (
-                    <div className="space-y-2 pt-1">
-                      <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs font-bold flex items-center gap-2">
-                        <span>🌟</span>
-                        <span>Sei la Guida! Il tuo dispositivo è autorizzato a trasmettere la posizione.</span>
-                      </div>
-                      {!isFreshGps && (
-                        <button
-                          type="button"
-                          disabled={props.isDetectingGps || !isOnline}
-                          onClick={props.onStartGps}
-                          className="w-full py-2.5 rounded-xl bg-[#FF6B5F] hover:bg-[#e0554a] text-white font-bold text-xs shadow-md active:scale-95 transition cursor-pointer"
-                        >
-                          {props.isDetectingGps ? 'Avvio rilevamento…' : 'Attiva la posizione su questo dispositivo 📡'}
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                      L’organizzatore ({props.ownerName || '***REMOVED***'}) può delegarti la guida in qualsiasi momento.
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  </section>
-
-      {/* ─── 02 · GALLERIA FOTOGRAFICA LIVE (FASE 1) ──────────────────── */}
-      <section aria-labelledby="live-gallery-title" className="mb-12">
-        <div className="flex items-end justify-between gap-3 mb-4 flex-wrap">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-              02 · Scatti dal vivo
-            </p>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 id="live-gallery-title" className="text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white">
-                Galleria fotografica
-              </h2>
-              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-                🔒 Salvataggio locale (Beta)
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-              {displayPhotos.length} {displayPhotos.length === 1 ? 'fotografia' : 'fotografie'}
-            </span>
-
-            {/* PULSANTE CARICA FOTO PER ORGANIZZATORE */}
-            {props.canPublish && !props.isExternal && (
-              <>
-                <input
-                  type="file"
-                  ref={fileUploadInputRef}
-                  onChange={handlePhotoFileSelected}
-                  accept={IMAGE_FILE_ACCEPT}
-                  multiple
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileUploadInputRef.current?.click()}
-                  disabled={isUploadingPhoto}
-                  className="hounigo-button-primary px-3.5 py-1.5 text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs active:scale-95 transition-all"
-                  title="Scatta una foto o sceglila dalla galleria"
-                >
-                  <span>📷</span>
-                  <span>{isUploadingPhoto ? 'Caricamento…' : '+ Scatta o scegli'}</span>
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* MODAL DI ANTEPRIMA E CONFERMA DIDASCALIA FOTO */}
-        {pendingUploadItems.length > 0 && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in">
-            <div className="bg-white dark:bg-[#172033] rounded-3xl p-5 max-w-md w-full shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between">
-                <h3 className="font-extrabold text-slate-900 dark:text-white text-sm flex items-center gap-2">
-                  <span>📷</span> {pendingUploadItems.length === 1 ? 'Nuova Foto per la Galleria' : `${pendingUploadItems.length} Nuove Foto per la Galleria`}
-                </h3>
-                <button
-                  type="button"
-                  onClick={handleCancelPhotoUpload}
-                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-sm cursor-pointer p-1"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {pendingUploadItems.length === 1 ? (
-                <div className="relative rounded-2xl overflow-hidden aspect-video border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900">
-                  <img
-                    src={pendingUploadItems[0].preview}
-                    alt={pendingUploadItems[0].name}
-                    className="w-full h-full object-cover"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleRemovePendingItem(pendingUploadItems[0].id)}
-                    className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 hover:bg-rose-600 text-white text-xs font-bold flex items-center justify-center transition-colors cursor-pointer"
-                    title="Rimuovi foto"
-                  >
-                    ✕
-                  </button>
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-2.5 max-h-56 overflow-y-auto p-1 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-200/80 dark:border-slate-800">
-                  {pendingUploadItems.map((item, idx) => (
-                    <div key={item.id} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 group bg-slate-200 dark:bg-slate-800">
-                      <img
-                        src={item.preview}
-                        alt={item.name}
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => handleRemovePendingItem(item.id)}
-                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-rose-600 text-white text-xs font-bold flex items-center justify-center shadow-xs hover:bg-rose-700 transition-colors cursor-pointer"
-                        title="Rimuovi questa foto"
-                      >
-                        ✕
-                      </button>
-                      <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded-md bg-black/60 text-[9px] font-bold text-white">
-                        {idx + 1}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Didascalia o Luogo {pendingUploadItems.length > 1 ? '(applicata alle foto)' : ''}
-                </label>
-                <input
-                  type="text"
-                  value={pendingCaptionInput}
-                  onChange={(e) => setPendingCaptionInput(e.target.value)}
-                  placeholder="es. Spiaggia di Muri • Rarotonga"
-                  className="w-full text-xs py-2 px-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-[#FF6B5F]"
-                />
-              </div>
-
-              {/* AVVISO DISCLOSURE SALVATAGGIO LOCALE BETA */}
-              <p className="text-[10px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 p-2.5 rounded-xl border border-amber-200 dark:border-amber-900/40 leading-relaxed">
-                ℹ️ <strong>Nota Beta:</strong> Le fotografie vengono salvate in locale su questo dispositivo. La sincronizzazione automatica su cloud per gli ospiti remoti sarà attiva con lo Storage dedicato post-beta.
-              </p>
-
-              {uploadError && (
-                <p className="text-xs font-semibold text-rose-600 dark:text-rose-400">{uploadError}</p>
-              )}
-
-              <div className="flex gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={handleCancelPhotoUpload}
-                  className="flex-1 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors cursor-pointer"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="button"
-                  disabled={isUploadingPhoto || pendingUploadItems.length === 0}
-                  onClick={handleConfirmPhotoUpload}
-                  className="flex-1 py-2 text-xs font-bold text-white bg-[#FF6B5F] hover:bg-[#ed5d52] rounded-xl transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-                >
-                  {isUploadingPhoto
-                    ? 'Salvataggio…'
-                    : pendingUploadItems.length === 1
-                    ? 'Salva su dispositivo'
-                    : `Salva ${pendingUploadItems.length} foto`}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* SLIDER CAROUSEL ORIZZONTALE TOUCH-FRIENDLY */}
-        {displayPhotos.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-slate-300 dark:border-slate-800 p-8 sm:p-12 text-center bg-slate-50/50 dark:bg-slate-900/30">
-            <span className="text-3xl block mb-2">📸</span>
-            <p className="font-extrabold text-slate-800 dark:text-slate-200 text-sm">
-              Nessuna fotografia salvata finora
-            </p>
-            <p className="mt-1 text-xs text-slate-500 max-w-md mx-auto">
-              {props.canPublish && !props.isExternal
-                ? 'Tocca "+ Aggiungi foto" per scattare una fotografia o selezionarla dal rullino e conservarla nel diario di bordo di questo dispositivo.'
-                : 'La sincronizzazione cloud della galleria per gli ospiti remoti sarà attiva con il rilascio dello storage dedicato post-beta. Segui il viaggio tramite la posizione satellitare e le cartoline del diario!'}
-            </p>
-          </div>
-        ) : (
-          <div className="relative">
-            <div
-              className="flex gap-3.5 sm:gap-4 overflow-x-auto pb-4 pt-1 snap-x snap-mandatory scroll-smooth no-scrollbar"
-              style={{ WebkitOverflowScrolling: 'touch' }}
-            >
-              {displayPhotos.map((photo, idx) => (
-                <div
-                  key={photo.id || idx}
-                  className="group relative flex-none w-[260px] sm:w-[300px] aspect-[4/3] rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-900 shadow-sm snap-start cursor-pointer select-none"
-                  onClick={() => setActiveLightboxIndex(idx)}
-                >
-                  <img
-                    src={photo.url}
-                    alt={photo.caption || 'Scatto del viaggio'}
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                    loading="lazy"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src =
-                        'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=600&q=75';
-                    }}
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/25 to-transparent pointer-events-none" />
-
-                  {/* BADGES SUPERIORI */}
-                  <div className="absolute top-2.5 inset-x-2.5 flex items-center justify-between gap-1 z-10">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-950/70 backdrop-blur-md text-white text-[10px] font-bold border border-white/20">
-                      📸 {idx + 1} di {displayPhotos.length}
-                    </span>
-
-                    <div className="flex items-center gap-1.5">
-                      {/* PULSANTE ELIMINAZIONE FOTO PER ORGANIZZATORE (FASE 1) */}
-                      {props.canPublish && !props.isExternal && props.onDeletePhoto && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (window.confirm('Vuoi davvero eliminare questa fotografia dalla galleria?')) {
-                              props.onDeletePhoto!(photo.id);
-                            }
-                          }}
-                          className="px-2 py-1 rounded-full bg-rose-950/80 hover:bg-rose-600 text-rose-200 hover:text-white text-[10px] font-bold backdrop-blur-md transition-colors cursor-pointer border border-rose-500/30 flex items-center gap-1"
-                          title="Elimina fotografia"
-                        >
-                          <span>🗑️</span>
-                          <span className="hidden sm:inline">Elimina</span>
-                        </button>
-                      )}
-
-                      <span className="p-1 rounded-full bg-slate-950/70 backdrop-blur-md text-white text-xs border border-white/20 opacity-90 group-hover:opacity-100 transition-opacity">
-                        🔍
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* DIDASCALIA E DATA INFERIORI */}
-                  <div className="absolute inset-x-0 bottom-0 p-3 z-10 text-white">
-                    {photo.location && (
-                      <p className="text-[10px] font-extrabold uppercase tracking-wider text-[#FF6B5F] truncate">
-                        📍 {photo.location}
-                      </p>
-                    )}
-                    <p className="text-xs font-bold text-white truncate mt-0.5">
-                      {photo.caption || 'Momento dal vivo'}
-                    </p>
-                    {photo.timestamp > 0 && (
-                      <span className="text-[10px] text-white/70 block mt-0.5">
-                        {formatRelativeTime(new Date(photo.timestamp))}
-                      </span>
-                    )}
-                  </div>
-                </div>
               ))}
             </div>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 text-center sm:text-left">
-              Scorri orizzontalmente per vedere tutti gli scatti · Tocca una foto per ingrandirla a schermo intero
-            </p>
+          )}
+
+          {props.tileGrid && !props.tileLoadFailed ? (
+            <div className="absolute inset-0 overflow-hidden" aria-hidden="true">
+              <div
+                className="absolute left-1/2 top-1/2 grid h-[768px] w-[768px] -translate-x-1/2 -translate-y-1/2 grid-cols-3 grid-rows-3 opacity-95 dark:opacity-60"
+                style={{ marginLeft: -(props.tileGrid.pixelOffset?.x || 0), marginTop: -(props.tileGrid.pixelOffset?.y || 0) }}
+              >
+                {props.tileGrid.tiles.map((tile: any) => <img key={tile.key} src={tile.url} alt="" onError={props.onTileError} className="h-64 w-64 object-cover" />)}
+              </div>
+            </div>
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center bg-slate-100 px-8 text-center text-sm font-semibold text-slate-500 dark:bg-slate-900 dark:text-slate-400">
+              Nessuna coordinata disponibile.
+            </div>
+          )}
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(to_top,rgba(15,23,42,.78),transparent_55%)]" />
+
+          {showRealMarker && (
+            <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex flex-col items-center" style={{ transform: props.realMarkerOffset ? `translate(calc(-50% + ${props.realMarkerOffset.dx}px), calc(-50% + ${props.realMarkerOffset.dy}px))` : 'translate(-50%, -50%)' }}>
+              <span className="absolute h-12 w-12 rounded-full bg-[#FF6B5F]/30 motion-safe:animate-ping" />
+              <span className="relative h-5 w-5 rounded-full border-4 border-white bg-[#FF6B5F] shadow-lg" />
+              <span className="mt-2 whitespace-nowrap rounded-full bg-[#FF6B5F] px-2.5 py-1 text-[10px] font-bold text-white">Dove siamo</span>
+            </div>
+          )}
+
+          {showPlannedMarker && (
+            <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex flex-col items-center" style={{ transform: props.plannedMarkerOffset ? `translate(calc(-50% + ${props.plannedMarkerOffset.dx}px), calc(-50% + ${props.plannedMarkerOffset.dy}px))` : 'translate(-50%, -50%)' }}>
+              <span className="h-5 w-5 rotate-45 rounded-[4px] border-2 border-white bg-[#172033] shadow-lg" />
+              <span className="mt-2 whitespace-nowrap rounded-full bg-[#172033] px-2.5 py-1 text-[10px] font-bold text-white">Programma</span>
+            </div>
+          )}
+
+          <div className="absolute bottom-0 left-0 right-0 z-10 flex items-end justify-between gap-3 p-4 text-white">
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold text-white/70">{props.mapCenterMode === 'planned' ? 'Dove dovremmo essere' : props.mapCenterMode === 'both' ? 'Posizione e programma' : 'Dove siamo'}</p>
+              <p className="mt-0.5 truncate text-lg font-black">
+                {props.mapCenterMode === 'planned'
+                  ? plannedLocation?.title || 'Programma non disponibile'
+                  : hasRealLocation
+                    ? props.remoteGpsLocation?.city || 'Posizione condivisa'
+                    : 'GPS non condiviso'}
+              </p>
+            </div>
+            {(hasRealLocation || hasPlannedLocation) && <a href={props.mapSearchUrl} target="_blank" rel="noreferrer" className="min-h-10 shrink-0 border-b border-white/60 py-2 text-xs font-bold">Apri mappa ↗</a>}
           </div>
+        </div>
+
+        <div className={`mt-4 grid gap-4 ${props.isExternal ? 'grid-cols-1' : 'sm:grid-cols-2'}`}>
+          <div className="border-l-2 border-[#FF6B5F] pl-3">
+            <p className="text-[11px] font-bold text-slate-400">Dove siamo</p>
+            <p className="mt-1 text-sm font-extrabold text-[#172033] dark:text-white">{hasRealLocation ? props.remoteGpsLocation?.city || 'Posizione GPS' : 'Nessuna posizione condivisa'}</p>
+            <p className="mt-1 text-xs text-slate-500">{hasRealLocation && lastDetectedDate ? formatRelativeTime(lastDetectedDate) : gpsVisualState.label}</p>
+          </div>
+          {!props.isExternal && (
+            <div className="border-l-2 border-[#172033] pl-3 dark:border-slate-500">
+              <p className="text-[11px] font-bold text-slate-400">Dove dovremmo essere</p>
+              <p className="mt-1 text-sm font-extrabold text-[#172033] dark:text-white">{plannedLocation?.title || 'Nessun luogo previsto ora'}</p>
+              <p className="mt-1 text-xs text-slate-500">{plannedLocation?.coords ? 'Secondo il programma' : 'Coordinate non disponibili'}</p>
+            </div>
+          )}
+        </div>
+
+        {!props.isExternal && props.liveIntelligence && (
+          <div className="mt-5 grid gap-3 border-y border-slate-200 py-4 dark:border-slate-800 sm:grid-cols-2">
+            <div>
+              <p className="text-[11px] font-bold text-[#FF6B5F]">Adesso</p>
+              <p className="mt-1 text-sm font-extrabold">{props.liveIntelligence.currentEvent?.title || (props.liveIntelligence.tripStatus === 'pre_trip' ? 'In attesa della partenza' : props.liveIntelligence.tripStatus === 'post_trip' ? 'Viaggio concluso' : 'Tempo libero')}</p>
+              {props.liveIntelligence.currentEvent?.timeRange && <p className="mt-1 text-xs text-slate-500">{props.liveIntelligence.currentEvent.timeRange}</p>}
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-400">Prossima tappa</p>
+              <p className="mt-1 text-sm font-extrabold">{props.liveIntelligence.nextEvent?.title || 'Nessun altro appuntamento'}</p>
+              {props.liveIntelligence.nextEvent && <p className="mt-1 text-xs text-slate-500">{props.liveIntelligence.nextEvent.time}{props.liveIntelligence.nextEvent.locationName ? ` · ${props.liveIntelligence.nextEvent.locationName}` : ''}</p>}
+            </div>
+          </div>
+        )}
+
+        {!props.isExternal && (props.isOwner || props.isCopilota) && (
+          <div className="mt-5 border-b border-slate-200 pb-5 dark:border-slate-800">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className={`flex items-center gap-2 text-sm font-extrabold ${gpsVisualState.tone}`}><span className={`h-2 w-2 rounded-full ${gpsVisualState.dot}`} />{gpsVisualState.label}</p>
+                <p className="mt-1 text-xs text-slate-500">Guida: {currentGuideName}</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(isLeaseStopped || permissionDenied) && props.isOwner && (
+                  <button type="button" onClick={props.onStartGps} disabled={props.isDetectingGps || !isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white disabled:opacity-40">{permissionDenied ? 'Riprova GPS' : 'Condividi posizione'}</button>
+                )}
+                {isLeaseActive && props.isGpsHolder && (
+                  <>
+                    <button type="button" onClick={props.onPauseGps} disabled={!isOnline} className="min-h-11 rounded-full border border-amber-300 px-4 text-xs font-bold text-amber-800 dark:border-amber-800 dark:text-amber-200">Pausa</button>
+                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-11 rounded-full border border-rose-300 px-4 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300">Ferma condivisione</button>
+                  </>
+                )}
+                {isLeaseActive && props.isOwner && !props.isGpsHolder && (
+                  <>
+                    <button type="button" onClick={props.onRevokeGps} disabled={!isOnline} className="min-h-11 rounded-full bg-[#172033] px-4 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">Prendi guida</button>
+                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-11 rounded-full border border-rose-300 px-4 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300">Ferma condivisione</button>
+                  </>
+                )}
+                {isLeasePaused && props.isOwner && (
+                  <>
+                    <button type="button" onClick={props.onResumeGps} disabled={!isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white">Riprendi</button>
+                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-11 rounded-full border border-rose-300 px-4 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300">Interrompi</button>
+                  </>
+                )}
+              </div>
+            </div>
+            {props.gpsFeedback && <p className="mt-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300" role="status">✓ {props.gpsFeedback}</p>}
+            {props.gpsError && <p className="mt-3 text-xs font-semibold text-rose-700 dark:text-rose-300" role="alert">{props.gpsError}</p>}
+            <button type="button" onClick={() => setIsGuideControlsOpen(open => !open)} className="mt-4 min-h-10 text-xs font-bold text-slate-600 underline underline-offset-4 dark:text-slate-300" aria-expanded={isGuideControlsOpen}>Chi guida {isGuideControlsOpen ? '−' : '+'}</button>
+
+            {isGuideControlsOpen && (
+              <div className="mt-3 space-y-4 rounded-2xl bg-white p-4 dark:bg-slate-900">
+                <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">La posizione viene condivisa solo dopo un consenso esplicito. Su iPhone gli aggiornamenti possono fermarsi quando l’app è in background.</p>
+                {props.isOwner && (
+                  <div className="space-y-2">
+                    {props.remoteGpsLease?.holderUid && props.remoteGpsLease.holderUid !== props.ownerUid && (
+                      <button type="button" disabled={isHandoverLoading || !isOnline} onClick={() => props.onRevokeGps && runHandover(props.onRevokeGps, 'Guida ripresa.')} className="min-h-11 rounded-full border border-slate-300 px-4 text-xs font-bold dark:border-slate-700">Riprendi guida</button>
+                    )}
+                    {copilots.map(copilot => {
+                      const isCurrent = props.remoteGpsLease?.holderUid === copilot.uid;
+                      return (
+                        <div key={copilot.uid} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2 dark:border-slate-800">
+                          <div className="min-w-0"><p className="truncate text-xs font-bold">{copilot.name}</p><p className="text-[11px] text-slate-500">{copilot.deviceId ? isCurrent ? 'Guida attuale' : 'Dispositivo pronto' : 'Apri Hounigo sul suo dispositivo'}</p></div>
+                          {!isCurrent && <button type="button" disabled={!copilot.deviceId || isHandoverLoading || !isOnline} onClick={() => copilot.deviceId && props.onTransferGps && runHandover(() => props.onTransferGps?.(copilot.uid, copilot.deviceId!), `Guida assegnata a ${copilot.name}.`)} className="min-h-10 shrink-0 rounded-full bg-[#172033] px-3 text-[11px] font-bold text-white disabled:opacity-35 dark:bg-white dark:text-[#172033]">Assegna</button>}
+                        </div>
+                      );
+                    })}
+                    {!copilots.length && <p className="text-xs text-slate-500">Nessun copilota disponibile.</p>}
+                  </div>
+                )}
+                {props.isCopilota && <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">{props.isGpsHolder ? 'Questo dispositivo è la guida.' : 'L’organizzatore può assegnarti la guida.'}</p>}
+                {handoverFeedback && <p className="text-xs font-semibold text-slate-700 dark:text-slate-200" role="status">{handoverFeedback}</p>}
+              </div>
+            )}
+          </div>
+        )}
+
+        {props.isExternal && (
+          <details className="mt-4 border-b border-slate-200 pb-4 text-xs dark:border-slate-800">
+            <summary className="min-h-10 cursor-pointer py-2 font-bold">Privacy posizione</summary>
+            <p className="leading-5 text-slate-500">Vedi solo la posizione che i viaggiatori scelgono di condividere. Quando la condivisione termina, il marker pubblico scompare.</p>
+          </details>
         )}
       </section>
 
-      {/* ─── 03 · CARTOLINA DI VIAGGIO: DIARIO PUBBLICO (FASE 2) ──────── */}
-      <section aria-labelledby="live-diary-title" className="mb-12">
-        <div className="flex items-end justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3 mb-5 flex-wrap">
+      <section id="live-diary" aria-labelledby="live-diary-title" className="scroll-mt-16 border-t border-slate-200 py-7 dark:border-slate-800">
+        <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-              02 · Diario
-            </p>
-            <h2 id="live-diary-title" className="text-xl sm:text-2xl font-extrabold text-slate-950 dark:text-white">
-              Cartoline dal viaggio
-            </h2>
+            <p className="text-xs font-bold text-[#FF6B5F]">Diario</p>
+            <h2 id="live-diary-title" className="text-2xl font-black tracking-tight text-[#172033] dark:text-white">Ricordi dal viaggio</h2>
           </div>
-          <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-            {sortedUpdates.length} {sortedUpdates.length === 1 ? 'messaggio' : 'messaggi'}
-          </span>
+          {props.canPublish && !props.isExternal && <button type="button" onClick={() => setIsComposerOpen(open => !open)} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white">Nuovo ricordo</button>}
         </div>
 
-        {/* MESSAGGIO IN EVIDENZA DAGLI ORGANIZZATORI */}
-        <article className="border-l-3 border-[#FF6B5F] pl-4 sm:pl-5 mb-8 bg-slate-50/70 dark:bg-slate-900/40 py-3 rounded-r-2xl pr-4 border-y border-r border-slate-200/60 dark:border-slate-800">
-          <div className="flex items-start justify-between gap-3">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
-              Messaggio dagli organizzatori
-            </h3>
-            {props.canPublish && !props.isExternal && (
-              <button
-                type="button"
-                onClick={props.onToggleStatusEdit}
-                className="text-xs font-bold text-[#FF6B5F] hover:underline cursor-pointer"
-              >
-                {props.isEditingStatus ? 'Annulla' : '✏️ Modifica'}
-              </button>
-            )}
+        <article className="mt-5 border-l-2 border-[#FF6B5F] pl-4">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-[11px] font-bold text-slate-400">Dagli organizzatori</p>
+            {props.canPublish && !props.isExternal && <button type="button" onClick={props.onToggleStatusEdit} className="min-h-10 text-xs font-bold text-[#FF6B5F]">{props.isEditingStatus ? 'Annulla' : 'Modifica'}</button>}
           </div>
           {props.isEditingStatus ? (
-            <div className="mt-3 space-y-2">
-              <textarea
-                rows={3}
-                value={props.tempStatus}
-                onChange={(event) => props.onTempStatusChange(event.target.value)}
-                className="w-full hounigo-card-subtle rounded-xl p-3 text-sm resize-none border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800"
-              />
-              <button
-                type="button"
-                onClick={props.onSaveStatus}
-                className="hounigo-button-primary px-4 py-2 text-xs font-bold"
-              >
-                Pubblica messaggio
-              </button>
+            <div className="mt-2">
+              <textarea rows={3} value={props.tempStatus} onChange={event => props.onTempStatusChange(event.target.value)} className="w-full rounded-2xl border border-slate-300 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-900" />
+              <button type="button" onClick={props.onSaveStatus} className="mt-2 min-h-11 rounded-full bg-[#172033] px-4 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">Salva</button>
             </div>
           ) : (
-            <>
-              <p className="mt-2 text-sm sm:text-base leading-relaxed font-serif italic text-slate-800 dark:text-slate-100">
-                “{props.statusMessage}”
-              </p>
-              <time className="mt-2 block text-[11px] text-slate-400 dark:text-slate-500">
-                Aggiornato: {props.statusUpdatedAt}
-              </time>
-            </>
+            <><p className="mt-1 text-base font-semibold leading-6 text-[#172033] dark:text-white">{props.statusMessage}</p><time className="mt-2 block text-[11px] text-slate-400">{props.statusUpdatedAt}</time></>
           )}
         </article>
 
-        {/* FORM NUOVO AGGIORNAMENTO PUBBLICO (SOLO PER ORGANIZZATORE) */}
-        {props.canPublish && !props.isExternal && (
-          <form onSubmit={props.onSendMessage} className="mb-8 p-4 rounded-2xl bg-white dark:bg-[#172033] border border-slate-200 dark:border-slate-800 shadow-xs">
-            <div className="flex justify-between items-center gap-2 mb-2">
-              <label className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
-                <span>✍️</span>
-                <span>Nuova cartolina dal vivo</span>
-              </label>
-              <span className="text-[10px] text-slate-400">{props.liveTextMessage.length}/500</span>
-            </div>
-            <textarea
-              rows={3}
-              maxLength={500}
-              value={props.liveTextMessage}
-              onChange={(event) => props.onLiveTextChange(event.target.value)}
-              placeholder="Un luogo, un incontro, un momento da condividere con chi vi segue da casa…"
-              className="w-full rounded-xl p-3 text-sm resize-none border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/60 text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-[#FF6B5F]"
-            />
+        {isComposerOpen && props.canPublish && !props.isExternal && (
+          <form onSubmit={props.onSendMessage} className="mt-5 rounded-2xl bg-white p-4 dark:bg-slate-900">
+            <div className="flex items-center justify-between gap-2"><label className="text-sm font-extrabold">Nuovo ricordo</label><span className="text-[11px] text-slate-400">{props.liveTextMessage.length}/500</span></div>
+            <textarea rows={4} maxLength={500} autoFocus value={props.liveTextMessage} onChange={event => props.onLiveTextChange(event.target.value)} placeholder="Racconta un momento…" className="mt-3 w-full resize-none rounded-2xl border border-slate-300 bg-[#F8F7F3] p-3 text-sm dark:border-slate-700 dark:bg-[#172033]" />
             {props.messageError && <p className="mt-2 text-xs font-semibold text-rose-600">{props.messageError}</p>}
             {props.messageSuccess && <p className="mt-2 text-xs font-semibold text-emerald-600">{props.messageSuccess}</p>}
-            <div className="mt-2.5 flex justify-end">
-              <button
-                type="submit"
-                disabled={props.isSendingMessage || !props.liveTextMessage.trim() || !isOnline}
-                className="hounigo-button-primary px-4 py-2 text-xs font-bold disabled:opacity-50"
-              >
-                {props.isSendingMessage ? 'Pubblicazione…' : 'Pubblica cartolina'}
-              </button>
-            </div>
+            <div className="mt-3 flex justify-end gap-2"><button type="button" onClick={() => setIsComposerOpen(false)} className="min-h-11 px-3 text-xs font-bold text-slate-500">Annulla</button><button type="submit" disabled={props.isSendingMessage || !props.liveTextMessage.trim() || !isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white disabled:opacity-40">{props.isSendingMessage ? 'Pubblicazione…' : 'Pubblica'}</button></div>
           </form>
         )}
 
-        {/* LISTA DEI MESSAGGI PAGINATA (10 PER PAGINA) */}
-        {sortedUpdates.length === 0 ? (
-          <div className="hounigo-empty-state py-10 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
-            <p className="font-extrabold text-slate-800 dark:text-slate-100">Il diario è ancora vuoto</p>
-            <p className="mt-1 text-xs text-slate-500">Gli aggiornamenti pubblici compariranno qui in ordine cronologico.</p>
+        <div className="mt-8 flex items-center justify-between gap-3">
+          <div><p className="text-[11px] font-bold text-slate-400">Fotografie</p><p className="text-sm font-extrabold">{displayPhotos.length ? `${displayPhotos.length} scatti` : 'Nessuno scatto'}</p></div>
+          {props.canPublish && !props.isExternal && (
+            <><input ref={fileUploadInputRef} type="file" accept={IMAGE_FILE_ACCEPT} multiple className="hidden" onChange={handlePhotoFileSelected} /><button type="button" onClick={() => fileUploadInputRef.current?.click()} className="min-h-11 rounded-full border border-slate-300 px-4 text-xs font-bold dark:border-slate-700">Aggiungi foto</button></>
+          )}
+        </div>
+
+        {displayPhotos.length ? (
+          <div className="mt-4">
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+              {visiblePhotos.map((photo, index) => {
+                const fullIndex = displayPhotos.findIndex(item => item.id === photo.id);
+                return (
+                  <figure key={photo.id} className={`group relative overflow-hidden rounded-2xl bg-slate-200 dark:bg-slate-900 ${index === 0 ? 'col-span-2 aspect-[16/10]' : 'aspect-[4/5]'}`}>
+                    <button type="button" onClick={() => setActiveLightboxIndex(fullIndex)} className="absolute inset-0 h-full w-full"><img src={photo.url} alt={photo.caption || 'Foto del viaggio'} className="h-full w-full object-cover" loading="lazy" onError={event => { event.currentTarget.style.display = 'none'; }} /></button>
+                    <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 bg-[#172033]/75 p-3 text-white backdrop-blur-sm"><p className="truncate text-xs font-bold">{photo.caption || 'Momento dal viaggio'}</p><p className="mt-0.5 truncate text-[10px] text-white/70">{photo.location ? `${photo.location} · ` : ''}{formatRelativeTime(new Date(photo.timestamp))}</p></figcaption>
+                    {props.canPublish && !props.isExternal && props.onDeletePhoto && <button type="button" onClick={() => window.confirm('Eliminare questa foto dal dispositivo?') && props.onDeletePhoto?.(photo.id)} className="absolute right-2 top-2 min-h-10 rounded-full bg-black/65 px-3 text-[11px] font-bold text-white" aria-label="Elimina foto">Elimina</button>}
+                  </figure>
+                );
+              })}
+            </div>
+            {displayPhotos.length > 5 && <button type="button" onClick={() => setShowAllPhotos(show => !show)} className="mt-3 min-h-10 text-xs font-bold text-[#FF6B5F]">{showAllPhotos ? 'Mostra meno' : `Vedi tutti gli scatti (${displayPhotos.length})`}</button>}
           </div>
         ) : (
-          <div className="space-y-4">
-            {/* Prima cartolina (più recente, sempre visibile) */}
-            {paginatedUpdates.length > 0 && renderUpdateCard(paginatedUpdates[0])}
-
-            {/* Toggle per sfogliare l'archivio precedente */}
-            {paginatedUpdates.length > 1 && !isArchiveOpen && diaryPage === 1 && (
-              <div className="pt-1 text-center">
-                <button
-                  type="button"
-                  onClick={() => setIsArchiveOpen(true)}
-                  className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-white dark:bg-[#172033] border border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-800 dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all shadow-xs inline-flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <span>📜</span>
-                  <span>Sfoglia archivio ({sortedUpdates.length - 1} cartoline precedenti)</span>
-                  <span className="text-[#FF6B5F]">↓</span>
-                </button>
-              </div>
-            )}
-
-            {/* Resto delle cartoline (visibili quando archivio è espanso o pagina successiva) */}
-            {(isArchiveOpen || diaryPage > 1) && paginatedUpdates.slice(1).map(renderUpdateCard)}
-
-            {/* Pulsante per comprimere archivio */}
-            {isArchiveOpen && diaryPage === 1 && paginatedUpdates.length > 1 && (
-              <div className="pt-1 text-center">
-                <button
-                  type="button"
-                  onClick={() => setIsArchiveOpen(false)}
-                  className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:hover:text-white cursor-pointer py-1"
-                >
-                  ▲ Mostra solo l'ultima cartolina
-                </button>
-              </div>
-            )}
-
-            {/* CONTROLLI DI PAGINAZIONE REALE (10 ELEMENTI PER PAGINA) */}
-            {totalDiaryPages > 1 && (
-              <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 flex-wrap">
-                <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                  Pagina <strong>{diaryPage}</strong> di <strong>{totalDiaryPages}</strong> · {sortedUpdates.length} aggiornamenti
-                </span>
-
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    disabled={diaryPage <= 1}
-                    onClick={() => setDiaryPage(prev => Math.max(1, prev - 1))}
-                    className="hounigo-button-secondary px-3 py-1.5 text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    ← Precedenti
-                  </button>
-
-                  {/* Pills delle pagine */}
-                  <div className="hidden sm:flex items-center gap-1">
-                    {Array.from({ length: totalDiaryPages }, (_, i) => i + 1).map(page => (
-                      <button
-                        key={page}
-                        type="button"
-                        onClick={() => setDiaryPage(page)}
-                        className={`w-7 h-7 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                          page === diaryPage
-                            ? 'bg-[#FF6B5F] text-white shadow-xs'
-                            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={diaryPage >= totalDiaryPages}
-                    onClick={() => setDiaryPage(prev => Math.min(totalDiaryPages, prev + 1))}
-                    className="hounigo-button-secondary px-3 py-1.5 text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Successivi →
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+          <div className="mt-4 border-y border-dashed border-slate-300 py-7 text-center dark:border-slate-700"><p className="text-sm font-bold">Il primo scatto deve ancora arrivare.</p>{props.canPublish && <p className="mt-1 text-xs text-slate-500">Puoi aggiungerlo quando vuoi.</p>}</div>
         )}
+
+        {props.canPublish && !props.isExternal && <p className="mt-3 text-[11px] text-slate-500">Le foto restano su questo dispositivo. Le cartoline LIVE sono separate.</p>}
+
+        <div className="mt-9 border-t border-slate-200 dark:border-slate-800">
+          {sortedUpdates.length === 0 ? (
+            <div className="py-8 text-center"><p className="text-sm font-bold">Il diario è ancora vuoto.</p><p className="mt-1 text-xs text-slate-500">I ricordi pubblicati appariranno qui.</p></div>
+          ) : (
+            <>
+              {paginatedUpdates[0] && renderUpdateCard(paginatedUpdates[0])}
+              {(isArchiveOpen || diaryPage > 1) && paginatedUpdates.slice(1).map(renderUpdateCard)}
+              {paginatedUpdates.length > 1 && diaryPage === 1 && <button type="button" onClick={() => setIsArchiveOpen(open => !open)} className="min-h-11 w-full border-t border-slate-200 text-xs font-bold text-[#FF6B5F] dark:border-slate-800">{isArchiveOpen ? 'Chiudi archivio' : `Altri ricordi (${sortedUpdates.length - 1})`}</button>}
+              {totalDiaryPages > 1 && <div className="mt-4 flex items-center justify-between gap-3"><button type="button" disabled={diaryPage === 1} onClick={() => setDiaryPage(page => Math.max(1, page - 1))} className="min-h-11 px-2 text-xs font-bold disabled:opacity-30">← Prima</button><span className="text-xs text-slate-500">{diaryPage} / {totalDiaryPages}</span><button type="button" disabled={diaryPage === totalDiaryPages} onClick={() => setDiaryPage(page => Math.min(totalDiaryPages, page + 1))} className="min-h-11 px-2 text-xs font-bold disabled:opacity-30">Dopo →</button></div>}
+            </>
+          )}
+        </div>
       </section>
 
-      {/* ─── 03 · INTERAZIONI E LINEE GUIDA OSPITI ────────────────────── */}
-      <section aria-labelledby="live-interactions-title" className="border-t border-slate-200 dark:border-slate-800 pt-6">
-        <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-          03 · Interazioni
-        </p>
-        <h2 id="live-interactions-title" className="text-xl font-extrabold text-slate-950 dark:text-white">
-          Segui e partecipa
-        </h2>
-        <p className="mt-2 max-w-2xl text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-          Il link LIVE funziona senza registrazione. Gli ospiti possono leggere il diario e usare le reazioni consentite; non possono vedere documenti, prenotazioni, spese o inviare messaggi testuali.
-        </p>
-        <button
-          type="button"
-          onClick={props.onShare}
-          className="hounigo-button-secondary mt-4 px-4 py-2.5 text-xs font-bold"
-        >
-          {props.copiedLink ? '✓ Link copiato!' : 'Copia o condividi il link per gli ospiti'}
-        </button>
+      <section id="live-interactions" aria-labelledby="live-interactions-title" className="scroll-mt-16 border-t border-slate-200 py-7 dark:border-slate-800">
+        <p className="text-xs font-bold text-[#FF6B5F]">Interazioni</p>
+        <h2 id="live-interactions-title" className="text-2xl font-black tracking-tight text-[#172033] dark:text-white">Vicini, anche da lontano</h2>
+        <div className="mt-5 grid grid-cols-2 gap-4 border-y border-slate-200 py-4 dark:border-slate-800"><div><p className="text-2xl font-black">{reactionTotal}</p><p className="text-xs text-slate-500">Reazioni ricevute</p></div><div><p className="text-2xl font-black">{sortedUpdates.length}</p><p className="text-xs text-slate-500">Ricordi pubblici</p></div></div>
+        <button type="button" onClick={props.onShare} className="mt-5 min-h-11 rounded-full bg-[#172033] px-5 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">{props.copiedLink ? 'Link copiato ✓' : 'Condividi link ospiti'}</button>
+        <details className="mt-4 text-xs"><summary className="min-h-10 cursor-pointer py-2 font-bold">Cosa vedono gli ospiti</summary><p className="max-w-xl leading-5 text-slate-500">Posizione condivisa, ricordi pubblici e reazioni. Itinerario privato, documenti, prenotazioni, spese e contatti restano nascosti.</p></details>
       </section>
 
-      {/* ─── FULLSCREEN TOUCH-FRIENDLY LIGHTBOX SLIDER ────────────────── */}
+      {pendingUploadItems.length > 0 && (
+        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/70 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label="Aggiungi fotografie">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-white p-5 dark:bg-[#172033]">
+            <div className="flex items-center justify-between"><h3 className="text-lg font-black">Aggiungi {pendingUploadItems.length === 1 ? 'foto' : `${pendingUploadItems.length} foto`}</h3><button type="button" onClick={clearPendingPhotos} className="h-11 w-11 rounded-full text-xl" aria-label="Chiudi">×</button></div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {pendingUploadItems.map(item => <div key={item.id} className="relative aspect-square overflow-hidden rounded-xl bg-slate-100"><img src={item.preview} alt={item.name} className="h-full w-full object-cover" /><button type="button" onClick={() => { URL.revokeObjectURL(item.preview); setPendingUploadItems(items => items.filter(current => current.id !== item.id)); }} className="absolute right-1 top-1 h-8 w-8 rounded-full bg-black/70 text-white" aria-label={`Rimuovi ${item.name}`}>×</button></div>)}
+            </div>
+            <label className="mt-4 block text-xs font-bold">Didascalia</label><input type="text" value={pendingCaptionInput} onChange={event => setPendingCaptionInput(event.target.value)} placeholder="Un luogo o un momento" className="mt-2 min-h-11 w-full rounded-xl border border-slate-300 px-3 text-sm dark:border-slate-700 dark:bg-slate-900" />
+            <p className="mt-3 text-[11px] leading-5 text-slate-500">Salvataggio locale su questo dispositivo. Nessuna pubblicazione automatica.</p>
+            {uploadError && <p className="mt-2 text-xs font-semibold text-rose-600">{uploadError}</p>}
+            <div className="mt-4 flex gap-2"><button type="button" onClick={clearPendingPhotos} className="min-h-11 flex-1 rounded-full border border-slate-300 text-xs font-bold dark:border-slate-700">Annulla</button><button type="button" onClick={handleConfirmPhotoUpload} disabled={isUploadingPhoto || !pendingUploadItems.length} className="min-h-11 flex-1 rounded-full bg-[#FF6B5F] text-xs font-bold text-white disabled:opacity-40">{isUploadingPhoto ? 'Salvataggio…' : 'Salva nel diario'}</button></div>
+          </div>
+        </div>
+      )}
+
       {activeLightboxIndex !== null && displayPhotos[activeLightboxIndex] && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-[120] bg-black/95 backdrop-blur-md flex flex-col justify-between p-3 sm:p-6 animate-fade-in select-none"
-          onClick={() => setActiveLightboxIndex(null)}
-          onTouchStart={(e) => setTouchStartX(e.touches[0].clientX)}
-          onTouchEnd={(e) => {
-            if (touchStartX === null) return;
-            const diffX = e.changedTouches[0].clientX - touchStartX;
-            if (diffX > 45 && activeLightboxIndex > 0) {
-              setActiveLightboxIndex(activeLightboxIndex - 1);
-            } else if (diffX < -45 && activeLightboxIndex < displayPhotos.length - 1) {
-              setActiveLightboxIndex(activeLightboxIndex + 1);
-            }
-            setTouchStartX(null);
-          }}
-        >
-          {/* Top Bar: Contatore & Pulsanti */}
-          <div
-            className="flex items-center justify-between text-white z-10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold bg-white/20 px-3 py-1 rounded-full backdrop-blur-sm">
-                📸 {activeLightboxIndex + 1} di {displayPhotos.length}
-              </span>
-              {displayPhotos[activeLightboxIndex].location && (
-                <span className="text-xs text-white/80 hidden sm:inline-flex items-center gap-1">
-                  <span>📍</span>
-                  <span>{displayPhotos[activeLightboxIndex].location}</span>
-                </span>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2">
-              {/* Elimina foto dentro lightbox (per organizzatore) */}
-              {props.canPublish && !props.isExternal && props.onDeletePhoto && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const currentPhoto = displayPhotos[activeLightboxIndex];
-                    if (window.confirm('Vuoi davvero eliminare questa fotografia dalla galleria?')) {
-                      props.onDeletePhoto!(currentPhoto.id);
-                      if (displayPhotos.length <= 1) {
-                        setActiveLightboxIndex(null);
-                      } else {
-                        setActiveLightboxIndex(Math.max(0, activeLightboxIndex - 1));
-                      }
-                    }
-                  }}
-                  className="px-3 py-1 rounded-full bg-rose-600/80 hover:bg-rose-600 text-white text-xs font-bold transition-colors cursor-pointer"
-                  title="Elimina fotografia"
-                >
-                  🗑️ Elimina foto
-                </button>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setActiveLightboxIndex(null)}
-                className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center font-bold text-lg transition-colors cursor-pointer"
-                title="Chiudi (Esc)"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-
-          {/* Immagine centrata con frecce laterali */}
-          <div className="flex-1 flex items-center justify-between gap-2 sm:gap-4 my-auto relative max-h-[80vh]">
-            <button
-              type="button"
-              disabled={activeLightboxIndex <= 0}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (activeLightboxIndex > 0) setActiveLightboxIndex(activeLightboxIndex - 1);
-              }}
-              className={`w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center text-white text-xl sm:text-2xl transition-all cursor-pointer shrink-0 z-20 ${
-                activeLightboxIndex > 0
-                  ? 'bg-white/20 hover:bg-white/40 active:scale-95'
-                  : 'opacity-20 cursor-not-allowed'
-              }`}
-              title="Foto precedente (◀)"
-            >
-              ❮
-            </button>
-
-            <div
-              className="flex-1 flex flex-col items-center justify-center max-h-full max-w-full overflow-hidden p-1"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <img
-                src={displayPhotos[activeLightboxIndex].url}
-                alt={displayPhotos[activeLightboxIndex].caption || 'Fotografia del viaggio'}
-                className="max-h-[72vh] max-w-full object-contain rounded-2xl shadow-2xl transition-transform duration-200"
-              />
-              {displayPhotos[activeLightboxIndex].caption && (
-                <p className="text-white/95 text-center text-xs sm:text-sm font-semibold mt-3 px-4 max-w-xl line-clamp-2">
-                  {displayPhotos[activeLightboxIndex].caption}
-                </p>
-              )}
-            </div>
-
-            <button
-              type="button"
-              disabled={activeLightboxIndex >= displayPhotos.length - 1}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (activeLightboxIndex < displayPhotos.length - 1) {
-                  setActiveLightboxIndex(activeLightboxIndex + 1);
-                }
-              }}
-              className={`w-11 h-11 sm:w-13 sm:h-13 rounded-full flex items-center justify-center text-white text-xl sm:text-2xl transition-all cursor-pointer shrink-0 z-20 ${
-                activeLightboxIndex < displayPhotos.length - 1
-                  ? 'bg-white/20 hover:bg-white/40 active:scale-95'
-                  : 'opacity-20 cursor-not-allowed'
-              }`}
-              title="Foto successiva (▶)"
-            >
-              ❯
-            </button>
-          </div>
-
-          {/* Bottom Bar: Data e suggerimenti swipe/tastiera */}
-          <div
-            className="flex items-center justify-between text-white/70 text-[11px] z-10 pt-2"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div>
-              {displayPhotos[activeLightboxIndex].timestamp > 0 && (
-                <span>
-                  {formatUpdateDate(displayPhotos[activeLightboxIndex].timestamp)}
-                </span>
-              )}
-            </div>
-            <span className="opacity-75">
-              Scorri con il dito ↔ o usa le frecce della tastiera ◀ ▶ · Esc per chiudere
-            </span>
-          </div>
+        <div className="fixed inset-0 z-[120] flex flex-col bg-black/95 p-3 text-white" role="dialog" aria-modal="true" aria-label="Foto a schermo intero" data-swipe-navigation="ignore" onTouchStart={event => setTouchStartX(event.touches[0].clientX)} onTouchEnd={event => { if (touchStartX === null) return; const distance = event.changedTouches[0].clientX - touchStartX; if (distance > 45 && activeLightboxIndex > 0) setActiveLightboxIndex(activeLightboxIndex - 1); if (distance < -45 && activeLightboxIndex < displayPhotos.length - 1) setActiveLightboxIndex(activeLightboxIndex + 1); setTouchStartX(null); }}>
+          <div className="flex items-center justify-between"><span className="text-xs font-bold">{activeLightboxIndex + 1} / {displayPhotos.length}</span><div className="flex items-center gap-2">{props.canPublish && !props.isExternal && props.onDeletePhoto && <button type="button" onClick={() => { const photo = displayPhotos[activeLightboxIndex]; if (window.confirm('Eliminare questa foto dal dispositivo?')) { props.onDeletePhoto?.(photo.id); setActiveLightboxIndex(displayPhotos.length <= 1 ? null : Math.max(0, activeLightboxIndex - 1)); } }} className="min-h-11 px-3 text-xs font-bold text-rose-300">Elimina</button>}<button type="button" onClick={() => setActiveLightboxIndex(null)} className="h-11 w-11 rounded-full bg-white/15 text-xl" aria-label="Chiudi">×</button></div></div>
+          <div className="flex min-h-0 flex-1 items-center gap-2"><button type="button" disabled={activeLightboxIndex === 0} onClick={() => setActiveLightboxIndex(index => index === null ? index : Math.max(0, index - 1))} className="h-11 w-11 shrink-0 rounded-full bg-white/10 disabled:opacity-20" aria-label="Foto precedente">‹</button><img src={displayPhotos[activeLightboxIndex].url} alt={displayPhotos[activeLightboxIndex].caption || 'Foto del viaggio'} className="min-h-0 min-w-0 flex-1 object-contain" /><button type="button" disabled={activeLightboxIndex === displayPhotos.length - 1} onClick={() => setActiveLightboxIndex(index => index === null ? index : Math.min(displayPhotos.length - 1, index + 1))} className="h-11 w-11 shrink-0 rounded-full bg-white/10 disabled:opacity-20" aria-label="Foto successiva">›</button></div>
+          <div className="pb-[env(safe-area-inset-bottom)] text-center"><p className="text-sm font-bold">{displayPhotos[activeLightboxIndex].caption || 'Momento dal viaggio'}</p>{displayPhotos[activeLightboxIndex].location && <p className="mt-1 text-xs text-white/65">{displayPhotos[activeLightboxIndex].location}</p>}</div>
         </div>
       )}
     </div>
