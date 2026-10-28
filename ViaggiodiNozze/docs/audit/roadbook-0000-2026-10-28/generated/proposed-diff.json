@@ -3683,6 +3683,139 @@
   },
   {
     "collection": "tappe",
+    "id": "tappa_02_rotorua",
+    "action": "update",
+    "source": "Decisione editoriale finale del proprietario",
+    "changedFields": [
+      "data",
+      "date",
+      "dayId",
+      "nota",
+      "noteCopilota",
+      "titolo"
+    ],
+    "before": {
+      "id": "tappa_02_rotorua",
+      "coordinate": {
+        "lat": -38.1368,
+        "lng": 176.2497
+      },
+      "createdAt": 1791280821264,
+      "nota": "Parco geotermico Te Puia e cultura Maori.",
+      "date": "2026-12-03",
+      "titolo": "Rotorua Terme & Geyser",
+      "updatedAt": 1791280821264,
+      "data": "2026-12-03",
+      "dayId": "day_2026-12-03",
+      "_firestoreCreateTime": "2026-10-06T09:47:39.815214Z",
+      "_firestoreUpdateTime": "2026-10-06T10:05:23.623081Z"
+    },
+    "after": {
+      "id": "tappa_02_rotorua",
+      "coordinate": {
+        "lat": -38.1368,
+        "lng": 176.2497
+      },
+      "createdAt": 1791280821264,
+      "nota": "Parco geotermico Te Puia e cultura Maori. Contenuto editoriale conservato come alternativa opzionale, senza creare una nuova attività.",
+      "titolo": "Rotorua — Te Puia e cultura Maori (opzionale)",
+      "updatedAt": 1791280821264,
+      "_firestoreCreateTime": "2026-10-06T09:47:39.815214Z",
+      "_firestoreUpdateTime": "2026-10-06T10:05:23.623081Z",
+      "noteCopilota": "Riferimento non pianificato: le attività Rotorua confermate restano nei record originali. Valutare Te Puia solo come alternativa, senza duplicare Te Pā Tū, Polynesian Spa o Wai-O-Tapu."
+    }
+  },
+  {
+    "collection": "tappe",
+    "id": "tappa_03_tekapo",
+    "action": "update",
+    "source": "Decisione editoriale finale del proprietario; tappa canonica tappa_37",
+    "changedFields": [
+      "coordinate",
+      "data",
+      "date",
+      "dayId",
+      "nota",
+      "noteCopilota",
+      "orarioVisita",
+      "time",
+      "titolo"
+    ],
+    "before": {
+      "id": "tappa_03_tekapo",
+      "titolo": "Lago Tekapo & Good Shepherd",
+      "dayId": "day_2026-12-08",
+      "updatedAt": 1792915726501,
+      "data": "2026-12-08",
+      "time": "11:00",
+      "orarioVisita": "11:00",
+      "date": "2026-12-08",
+      "nota": "Chiesetta del Buon Pastore e osservazione stelle Mt John.",
+      "createdAt": 1791280821264,
+      "coordinate": {
+        "lat": -44.0047,
+        "lng": 170.4771
+      },
+      "_firestoreCreateTime": "2026-10-06T09:47:40.081906Z",
+      "_firestoreUpdateTime": "2026-10-25T08:08:45.720546Z"
+    },
+    "after": {
+      "id": "tappa_03_tekapo",
+      "titolo": "Lake Tekapo — riferimento editoriale integrato",
+      "updatedAt": 1792915726501,
+      "nota": "Chiesetta del Buon Pastore e osservazione stelle Mt John. I contenuti operativi sono integrati nella tappa canonica tappa_37 del 13/12.",
+      "createdAt": 1791280821264,
+      "_firestoreCreateTime": "2026-10-06T09:47:40.081906Z",
+      "_firestoreUpdateTime": "2026-10-25T08:08:45.720546Z",
+      "noteCopilota": "Record conservato senza pianificazione autonoma: usare tappa_37 il 13/12 e non creare una seconda sosta Tekapo."
+    }
+  },
+  {
+    "collection": "tappe",
+    "id": "tappa_04_queenstown",
+    "action": "update",
+    "source": "Decisione editoriale finale del proprietario",
+    "changedFields": [
+      "data",
+      "date",
+      "dayId",
+      "nota",
+      "noteCopilota",
+      "titolo"
+    ],
+    "before": {
+      "id": "tappa_04_queenstown",
+      "nota": "Capitale dell'avventura e partenza per Milford Sound.",
+      "date": "2026-12-11",
+      "createdAt": 1791280821264,
+      "titolo": "Queenstown & Fiordland",
+      "updatedAt": 1791280821264,
+      "data": "2026-12-11",
+      "coordinate": {
+        "lng": 168.6626,
+        "lat": -45.0312
+      },
+      "dayId": "day_2026-12-11",
+      "_firestoreCreateTime": "2026-10-04T18:14:35.890165Z",
+      "_firestoreUpdateTime": "2026-10-06T10:05:24.182409Z"
+    },
+    "after": {
+      "id": "tappa_04_queenstown",
+      "nota": "Capitale dell'avventura e partenza per Milford Sound. Contenuto conservato come contesto del percorso Queenstown–Fiordland.",
+      "createdAt": 1791280821264,
+      "titolo": "Queenstown e Fiordland — riferimento editoriale",
+      "updatedAt": 1791280821264,
+      "coordinate": {
+        "lng": 168.6626,
+        "lat": -45.0312
+      },
+      "_firestoreCreateTime": "2026-10-04T18:14:35.890165Z",
+      "_firestoreUpdateTime": "2026-10-06T10:05:24.182409Z",
+      "noteCopilota": "Riferimento non pianificato: la sequenza operativa resta nelle tappe 29–34 e nella crociera Milford Sound att_17; non creare un'attività aggiuntiva."
+    }
+  },
+  {
+    "collection": "tappe",
     "id": "tappa_08",
     "action": "delete",
     "source": "Marokopa Falls rimossa il 02/12",
@@ -3785,6 +3918,56 @@
       "_firestoreUpdateTime": "2026-10-27T09:01:46.752425Z"
     },
     "after": null
+  },
+  {
+    "collection": "tappe",
+    "id": "tappa_21",
+    "action": "update",
+    "source": "Decisione editoriale finale del proprietario",
+    "changedFields": [
+      "coordinate",
+      "indirizzo",
+      "nota",
+      "noteCopilota",
+      "orario",
+      "titolo"
+    ],
+    "before": {
+      "id": "tappa_21",
+      "noteCopilota": "Sentiero panoramico scogliera (da valutare).",
+      "orario": "12:30",
+      "dayId": "day_2026-12-07",
+      "date": "2026-12-07",
+      "createdAt": 1793091616898,
+      "mapsUrl": "https://maps.app.goo.gl/8Paj3SF1L8ipHmQr7",
+      "titolo": "Kaikoura Peninsula Walkway",
+      "order": 1,
+      "indirizzo": "Point Kean",
+      "data": "2026-12-07",
+      "updatedAt": 1793091616898,
+      "_firestoreCreateTime": "2026-10-12T16:05:52.885254Z",
+      "_firestoreUpdateTime": "2026-10-27T09:01:46.888109Z"
+    },
+    "after": {
+      "id": "tappa_21",
+      "noteCopilota": "Nessun orario fisso: massimo 20–30 minuti solo se Whale Watch termina puntuale. Priorità al trasferimento Castle Hill–Otira; in caso di ritardo saltare senza ripianificare.",
+      "dayId": "day_2026-12-07",
+      "date": "2026-12-07",
+      "createdAt": 1793091616898,
+      "mapsUrl": "https://maps.app.goo.gl/8Paj3SF1L8ipHmQr7",
+      "titolo": "Kaikoura Peninsula Walkway (opzionale)",
+      "order": 1,
+      "indirizzo": "Point Kean, Kaikoura",
+      "data": "2026-12-07",
+      "updatedAt": 1793091616898,
+      "_firestoreCreateTime": "2026-10-12T16:05:52.885254Z",
+      "_firestoreUpdateTime": "2026-10-27T09:01:46.888109Z",
+      "coordinate": {
+        "lat": -42.4211639,
+        "lng": 173.7237382
+      },
+      "nota": "Passeggiata panoramica opzionale: limitare la sosta al tratto Point Kean e saltarla se riduce il margine del trasferimento verso Otira."
+    }
   },
   {
     "collection": "tappe",
@@ -3943,6 +4126,51 @@
       "_firestoreUpdateTime": "2026-10-27T09:01:47.864247Z"
     },
     "after": null
+  },
+  {
+    "collection": "tappe",
+    "id": "tappa_52",
+    "action": "update",
+    "source": "Decisione editoriale finale del proprietario",
+    "changedFields": [
+      "indirizzo",
+      "nota",
+      "noteCopilota",
+      "titolo"
+    ],
+    "before": {
+      "id": "tappa_52",
+      "order": 3,
+      "createdAt": 1793091616898,
+      "mapsUrl": "https://maps.app.goo.gl/UCgh22ZP6xh8Qd3Y6",
+      "titolo": "Split Point & Teddy's Lookout",
+      "data": "2026-12-18",
+      "dayId": "day_2026-12-18",
+      "orario": "15:30",
+      "noteCopilota": "Faro bianco e vista foce del fiume.",
+      "date": "2026-12-18",
+      "updatedAt": 1793091616898,
+      "indirizzo": "Lorne",
+      "_firestoreCreateTime": "2026-10-12T16:06:00.896643Z",
+      "_firestoreUpdateTime": "2026-10-27T09:01:48.058191Z"
+    },
+    "after": {
+      "id": "tappa_52",
+      "order": 3,
+      "createdAt": 1793091616898,
+      "mapsUrl": "https://maps.app.goo.gl/UCgh22ZP6xh8Qd3Y6",
+      "titolo": "Split Point Lighthouse e Teddy's Lookout (opzionali)",
+      "data": "2026-12-18",
+      "dayId": "day_2026-12-18",
+      "orario": "15:30",
+      "noteCopilota": "Valutare entrambe in base a tempo e luce; non sostituire automaticamente una con l'altra. Se il margine si riduce, saltare una o entrambe senza modificare le altre tappe.",
+      "date": "2026-12-18",
+      "updatedAt": 1793091616898,
+      "indirizzo": "Aireys Inlet e Lorne, Victoria",
+      "_firestoreCreateTime": "2026-10-12T16:06:00.896643Z",
+      "_firestoreUpdateTime": "2026-10-27T09:01:48.058191Z",
+      "nota": "Due soste opzionali distinte lungo la Great Ocean Road: Split Point Lighthouse ad Aireys Inlet e Teddy's Lookout a Lorne."
+    }
   },
   {
     "collection": "tappe",

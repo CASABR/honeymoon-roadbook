@@ -23,6 +23,73 @@
   ],
   "updates": [
     {
+      "id": "tappa_02_rotorua",
+      "collection": "tappe",
+      "set": {
+        "titolo": "Rotorua — Te Puia e cultura Maori (opzionale)",
+        "nota": "Parco geotermico Te Puia e cultura Maori. Contenuto editoriale conservato come alternativa opzionale, senza creare una nuova attività.",
+        "noteCopilota": "Riferimento non pianificato: le attività Rotorua confermate restano nei record originali. Valutare Te Puia solo come alternativa, senza duplicare Te Pā Tū, Polynesian Spa o Wai-O-Tapu."
+      },
+      "unset": ["data", "date", "dayId", "orario", "time", "order"],
+      "reason": "Conserva il contenuto utile come riferimento opzionale e lo rimuove dalla timeline per evitare attività duplicate.",
+      "source": "Decisione editoriale finale del proprietario",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_03_tekapo",
+      "collection": "tappe",
+      "set": {
+        "titolo": "Lake Tekapo — riferimento editoriale integrato",
+        "nota": "Chiesetta del Buon Pastore e osservazione stelle Mt John. I contenuti operativi sono integrati nella tappa canonica tappa_37 del 13/12.",
+        "noteCopilota": "Record conservato senza pianificazione autonoma: usare tappa_37 il 13/12 e non creare una seconda sosta Tekapo."
+      },
+      "unset": ["data", "date", "dayId", "orario", "time", "orarioVisita", "order", "coordinate"],
+      "reason": "Corregge la collocazione temporale errata preservando il contenuto nel record canonico già esistente, senza doppioni.",
+      "source": "Decisione editoriale finale del proprietario; tappa canonica tappa_37",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_04_queenstown",
+      "collection": "tappe",
+      "set": {
+        "titolo": "Queenstown e Fiordland — riferimento editoriale",
+        "nota": "Capitale dell'avventura e partenza per Milford Sound. Contenuto conservato come contesto del percorso Queenstown–Fiordland.",
+        "noteCopilota": "Riferimento non pianificato: la sequenza operativa resta nelle tappe 29–34 e nella crociera Milford Sound att_17; non creare un'attività aggiuntiva."
+      },
+      "unset": ["data", "date", "dayId", "orario", "time", "order"],
+      "reason": "Conserva e integra il contenuto editoriale senza duplicare la sequenza Queenstown–Fiordland già pianificata.",
+      "source": "Decisione editoriale finale del proprietario",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_21",
+      "collection": "tappe",
+      "set": {
+        "titolo": "Kaikoura Peninsula Walkway (opzionale)",
+        "indirizzo": "Point Kean, Kaikoura",
+        "coordinate": { "lat": -42.4211639, "lng": 173.7237382 },
+        "nota": "Passeggiata panoramica opzionale: limitare la sosta al tratto Point Kean e saltarla se riduce il margine del trasferimento verso Otira.",
+        "noteCopilota": "Nessun orario fisso: massimo 20–30 minuti solo se Whale Watch termina puntuale. Priorità al trasferimento Castle Hill–Otira; in caso di ritardo saltare senza ripianificare."
+      },
+      "unset": ["orario", "time"],
+      "reason": "Mantiene la Peninsula Walkway opzionale e compatibile con il trasferimento a Otira, senza migrazione o duplicazione.",
+      "source": "Decisione editoriale finale del proprietario",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_52",
+      "collection": "tappe",
+      "set": {
+        "titolo": "Split Point Lighthouse e Teddy's Lookout (opzionali)",
+        "indirizzo": "Aireys Inlet e Lorne, Victoria",
+        "nota": "Due soste opzionali distinte lungo la Great Ocean Road: Split Point Lighthouse ad Aireys Inlet e Teddy's Lookout a Lorne.",
+        "noteCopilota": "Valutare entrambe in base a tempo e luce; non sostituire automaticamente una con l'altra. Se il margine si riduce, saltare una o entrambe senza modificare le altre tappe."
+      },
+      "reason": "Preserva entrambe le soste opzionali nello stesso record e impedisce che la migrazione ne escluda una.",
+      "source": "Decisione editoriale finale del proprietario",
+      "status": "ready_after_approval"
+    },
+    {
       "id": "transport_flight_pek_akl",
       "collection": "trasporti",
       "set": {
@@ -489,9 +556,6 @@
     { "collection": "attivita", "id": "att_22", "tombstone": true, "reason": "Hanson Bay escluso", "status": "ready_after_approval" },
     { "collection": "tappe", "id": "tappa_46", "tombstone": true, "reason": "Hanson Bay escluso", "status": "ready_after_approval" },
     { "collection": "tappe", "id": "tappa_08", "tombstone": true, "reason": "Marokopa Falls rimossa il 02/12", "status": "ready_after_approval" },
-    { "collection": "tappe", "id": "tappa_02_rotorua", "tombstone": true, "reason": "Mock legacy senza dettagli unici; eliminazione editoriale sospesa", "status": "blocked" },
-    { "collection": "tappe", "id": "tappa_03_tekapo", "tombstone": true, "preserveInto": "tappe/tappa_37", "reason": "Versione obsoleta Lago Tekapo; eliminazione editoriale sospesa", "status": "blocked" },
-    { "collection": "tappe", "id": "tappa_04_queenstown", "tombstone": true, "reason": "Mock legacy generico; eliminazione editoriale sospesa", "status": "blocked" },
     { "collection": "shopping", "id": "fuel_g11", "tombstone": true, "preserveInto": "shopping/shop_04", "reason": "Allied Te Anau duplicato e data errata", "status": "ready_after_approval" },
     { "collection": "shopping", "id": "shop_001", "tombstone": true, "preserveInto": "shopping/shop_04", "reason": "Allied Te Anau duplicato", "status": "ready_after_approval" },
     { "collection": "shopping", "id": "shop_002", "tombstone": true, "preserveInto": "shopping/fuel_g15_1", "reason": "Christchurch fuel duplicato", "status": "ready_after_approval" },
@@ -640,16 +704,6 @@
       "status": "ready_after_approval"
     },
     {
-      "id": "tappa_21",
-      "fromCollection": "tappe",
-      "toCollection": "attivita",
-      "tombstone": true,
-      "set": { "dayId": "day_2026-12-07", "date": "2026-12-07", "title": "Spot fotografico — Point Kean", "location": "Point Kean, Kaikōura", "coordinate": { "lat": -42.4211639, "lng": 173.7237382 }, "category": "natura", "sottocategoria": "Spot fotografico", "duration": "20 min", "lightWindow": "qualsiasi", "photoSubject": "Costa e fauna", "status": "da_valutare", "cost": "0.00", "notes": "Breve tratto panoramico della Kaikōura Peninsula Walkway, limitato a circa 20 minuti." },
-      "reason": "Usa la sottocategoria dedicata senza duplicare la tappa.",
-      "source": "Mandato utente",
-      "status": "blocked"
-    },
-    {
       "id": "tappa_24",
       "fromCollection": "tappe",
       "toCollection": "attivita",
@@ -670,16 +724,6 @@
       "status": "ready_after_approval"
     },
     {
-      "id": "tappa_52",
-      "fromCollection": "tappe",
-      "toCollection": "attivita",
-      "tombstone": true,
-      "set": { "dayId": "day_2026-12-18", "date": "2026-12-18", "title": "Spot fotografico — Split Point Lighthouse", "location": "Split Point Lighthouse, Aireys Inlet", "coordinate": { "lat": -38.4680026, "lng": 144.104468 }, "category": "natura", "sottocategoria": "Spot fotografico", "duration": "20 min", "lightWindow": "qualsiasi", "photoSubject": "Faro e costa", "status": "da_valutare", "cost": "0.00" },
-      "reason": "Sceglie un solo spot compatibile e mantiene l'ID.",
-      "source": "Mandato utente",
-      "status": "blocked"
-    },
-    {
       "id": "tappa_72",
       "fromCollection": "tappe",
       "toCollection": "attivita",
@@ -696,10 +740,10 @@
     { "key": "attivita/spot_werri_beach_20261224", "status": "verified", "coordinate": { "lat": -34.7359764, "lng": 150.8340977 }, "match": "Werri Beach, Gerringong NSW", "source": "OpenStreetMap/Nominatim, 2026-10-28" },
     { "key": "attivita/tappa_10", "status": "address_only", "address": "Ruakuri Scenic Reserve, Waitomo", "reason": "Il risultato disponibile identifica l'area protetta, non l'accesso esatto al percorso; nessuna coordinata aggiunta." },
     { "key": "attivita/tappa_15", "status": "verified", "coordinate": { "lat": -39.1730238, "lng": 175.5147505 }, "match": "Tawhai Falls", "source": "OpenStreetMap/Nominatim, 2026-10-28" },
-    { "key": "attivita/tappa_21", "status": "verified_but_editorial_hold", "coordinate": { "lat": -42.4211639, "lng": 173.7237382 }, "match": "Point Kean, Kaikoura", "source": "OpenStreetMap/Nominatim, 2026-10-28" },
+    { "key": "tappe/tappa_21", "status": "verified", "coordinate": { "lat": -42.4211639, "lng": 173.7237382 }, "match": "Point Kean, Kaikoura", "source": "OpenStreetMap/Nominatim, 2026-10-28" },
     { "key": "attivita/tappa_24", "status": "address_only", "address": "Hokitika waterfront", "reason": "Il waterfront non identifica uno spot univoco; nessuna coordinata aggiunta." },
     { "key": "attivita/tappa_26", "status": "verified", "coordinate": { "lat": -43.7146135, "lng": 169.2257161 }, "match": "Knights Point Lookout", "source": "OpenStreetMap/Nominatim, 2026-10-28" },
-    { "key": "attivita/tappa_52", "status": "verified_but_editorial_hold", "coordinate": { "lat": -38.4680026, "lng": 144.104468 }, "match": "Split Point Lighthouse, Aireys Inlet", "source": "OpenStreetMap/Nominatim, 2026-10-28" },
+    { "key": "tappe/tappa_52", "status": "reference_only", "coordinate": { "lat": -38.4680026, "lng": 144.104468 }, "match": "Split Point Lighthouse, Aireys Inlet", "reason": "Coordinate conservate come riferimento, non applicate al record multi-sosta che include anche Teddy's Lookout.", "source": "OpenStreetMap/Nominatim, 2026-10-28" },
     { "key": "attivita/tappa_72", "status": "verified", "coordinate": { "lat": -33.8597064, "lng": 151.222565 }, "match": "Mrs Macquarie's Chair, Sydney", "source": "OpenStreetMap/Nominatim, 2026-10-28" }
   ],
   "paymentReconciliations": [

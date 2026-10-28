@@ -33,15 +33,10 @@ const deletionOperations = [
   }))
 ];
 
-assert(deletionOperations.length === 24, `Attese 24 operazioni di rimozione, trovate ${deletionOperations.length}.`);
+assert(deletionOperations.length === 19, `Attese 19 operazioni di rimozione, trovate ${deletionOperations.length}.`);
 
 const doubtfulReasons = new Map([
-  ['trasporti/trn_03_volo_ca783', 'BLOCCANTE: data e orari CA783 non confermati; non eliminare.'],
-  ['tappe/tappa_02_rotorua', 'Confermare che il mock generico non abbia valore editoriale residuo.'],
-  ['tappe/tappa_03_tekapo', 'Confermare la sostituzione con tappa_37; coordinate e nota vengono preservate.'],
-  ['tappe/tappa_04_queenstown', 'Confermare che il mock generico non abbia valore editoriale residuo.'],
-  ['tappe/tappa_21', 'La Peninsula Walkway viene ridotta a spot Point Kean di 20 minuti.'],
-  ['tappe/tappa_52', 'Il record Split Point + Teddy’s Lookout viene ridotto al solo Split Point.']
+  ['trasporti/trn_03_volo_ca783', 'BLOCCANTE: data e orari CA783 non confermati; non eliminare.']
 ]);
 
 const deletions = deletionOperations.map((operation) => {
@@ -85,7 +80,7 @@ const additions = [
   }))
 ];
 
-assert(additions.length === 10, `Attese 10 aggiunte pronte, trovate ${additions.length}.`);
+assert(additions.length === 8, `Attese 8 aggiunte sicure, trovate ${additions.length}.`);
 
 const additionReview = additions.map((addition) => {
   assert(!(before[addition.collection] || []).some((record) => record.id === addition.id), `ID destinazione già presente: ${addition.collection}/${addition.id}`);
@@ -129,25 +124,24 @@ for (const blocker of requiredBlockers) {
 assert((plan.paymentReconciliations || []).length === 5, 'Sono richieste cinque riconciliazioni pagamento.');
 assert((plan.paymentReconciliations || []).every((item) => item.apply === false), 'Una riconciliazione pagamento risulta applicabile automaticamente.');
 
-const editorialHolds = [
-  'tappe/tappa_02_rotorua',
-  'tappe/tappa_03_tekapo',
-  'tappe/tappa_04_queenstown',
-  'tappe/tappa_21',
-  'tappe/tappa_52'
-];
-for (const key of editorialHolds) {
-  const [collection, id] = key.split('/');
-  const operation = (plan.deletes || []).find(item => item.collection === collection && item.id === id)
-    || (plan.migrations || []).find(item => item.fromCollection === collection && item.id === id);
-  assert(operation?.status === 'blocked', `Hold editoriale non bloccato: ${key}`);
+const editorialPreservations = ['tappa_02_rotorua', 'tappa_03_tekapo', 'tappa_04_queenstown', 'tappa_21', 'tappa_52'];
+for (const id of editorialPreservations) {
+  const update = (plan.updates || []).find(item => item.collection === 'tappe' && item.id === id);
+  const destructiveOperation = deletionOperations.find(item => item.sourceCollection === 'tappe' && item.id === id);
+  const finalRecord = (after.tappe || []).find(item => item.id === id);
+  assert(update?.status === 'ready_after_approval', `Aggiornamento editoriale non pronto: tappe/${id}`);
+  assert(!destructiveOperation, `Operazione distruttiva ancora presente: tappe/${id}`);
+  assert(finalRecord, `Record editoriale non preservato: tappe/${id}`);
 }
+assert(!requireRecord(after, 'tappe', 'tappa_03_tekapo').date && !requireRecord(after, 'tappe', 'tappa_03_tekapo').data, 'Tekapo legacy deve restare fuori timeline.');
+assert(requireRecord(after, 'tappe', 'tappa_21').titolo.includes('opzionale'), 'Kaikoura deve restare opzionale.');
+assert(requireRecord(after, 'tappe', 'tappa_52').titolo.includes("Teddy's Lookout"), 'Teddy’s Lookout deve restare preservato.');
 
 const sourceChecks = await verifySourcePropagation();
 const coordinateVerifications = plan.coordinateVerifications || [];
 assert(coordinateVerifications.length === 10, 'La revisione deve coprire tutte le 10 coordinate mancanti.');
 const mapLimitations = coordinateVerifications.filter(item => item.status === 'address_only').map(item => item.key);
-const verifiedCoordinates = coordinateVerifications.filter(item => item.coordinate).map(item => item.key);
+const verifiedCoordinates = coordinateVerifications.filter(item => item.status === 'verified').map(item => item.key);
 
 const report = {
   mode: 'DRY_RUN_REVIEW_ONLY',
@@ -187,7 +181,8 @@ const report = {
     noCurrencyConversion: true,
     allDeletesUseTombstones: deletionOperations.every((item) => item.tombstone === true),
     allPaymentChangesRequireApproval: true,
-    requiredBlockersPreserved: true
+    requiredBlockersPreserved: true,
+    editorialRecordsPreserved: true
   }
 };
 
@@ -197,6 +192,7 @@ console.log(JSON.stringify({
   doubtfulDeletions: report.deletionOperations.doubtful,
   additions: report.additions.total,
   duplicateAdditions: report.additions.duplicatesFound,
+  editorialRecordsPreserved: editorialPreservations.length,
   payments: report.payments.prepared,
   verifiedCoordinates: report.propagation.mapRecordsWithVerifiedCoordinates.length,
   mapLimitations: report.propagation.mapRecordsWithoutExactCoordinates.length,

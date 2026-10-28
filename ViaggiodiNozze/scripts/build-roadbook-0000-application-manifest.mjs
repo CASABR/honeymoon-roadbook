@@ -13,21 +13,26 @@ assert(summary.tripId === '0000' && plan.tripId === '0000', 'Il manifest deve ri
 assert(summary.invariants?.noWritesExecuted === true, 'Il manifest richiede un dry-run senza scritture.');
 assert((plan.paymentReconciliations || []).every(item => item.apply === false), 'Le riconciliazioni multivaluta devono restare sospese.');
 
-const forbiddenKeys = new Set([
+const blockedKeys = collectBlockedKeys(plan);
+const editorialPreservations = new Set([
   'tappe/tappa_02_rotorua',
   'tappe/tappa_03_tekapo',
   'tappe/tappa_04_queenstown',
   'tappe/tappa_21',
-  'attivita/tappa_21',
-  'tappe/tappa_52',
-  'attivita/tappa_52',
-  'trasporti/trn_03_volo_ca783',
-  'trasporti/transport_flight_pek_akl',
-  'trasporti/trn_16_ceb_tpe_fco'
+  'tappe/tappa_52'
 ]);
+const editorialOperations = new Set();
 
 for (const item of diff) {
-  assert(!forbiddenKeys.has(`${item.collection}/${item.id}`), `Operazione bloccata inclusa nel manifest: ${item.collection}/${item.id}`);
+  const key = `${item.collection}/${item.id}`;
+  assert(!blockedKeys.has(key), `Operazione bloccata inclusa nel manifest: ${key}`);
+  if (editorialPreservations.has(key)) {
+    assert(item.action === 'update', `Il record editoriale può essere solo aggiornato: ${key}`);
+    editorialOperations.add(key);
+  }
+}
+for (const key of editorialPreservations) {
+  assert(editorialOperations.has(key), `Aggiornamento editoriale mancante dal manifest: ${key}`);
 }
 
 const operations = diff.map(item => {
@@ -93,9 +98,14 @@ const manifest = {
     neverOverwritePostApplicationChanges: true
   },
   exclusions: {
-    editorialHolds: [...forbiddenKeys].filter(key => key.includes('tappa_02') || key.includes('tappa_03') || key.includes('tappa_04') || key.includes('tappa_21') || key.includes('tappa_52')),
+    blockedOperationKeys: [...blockedKeys].sort(),
     blockers: ['CA783', 'CI75', 'Travellers Autobarn'],
     paymentReconciliationsApplied: 0
+  },
+  editorialPreservation: {
+    updatedWithoutDeletion: [...editorialPreservations],
+    idsPreserved: true,
+    destructiveOperations: 0
   }
 };
 
@@ -110,6 +120,26 @@ console.log(JSON.stringify({
 
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, 'utf8'));
+}
+
+function collectBlockedKeys(patchPlan) {
+  const keys = new Set();
+  for (const operation of patchPlan.updates || []) {
+    if (operation.status === 'blocked') keys.add(`${operation.collection}/${operation.id}`);
+  }
+  for (const operation of patchPlan.deletes || []) {
+    if (operation.status === 'blocked') keys.add(`${operation.collection}/${operation.id}`);
+  }
+  for (const operation of patchPlan.adds || []) {
+    if (operation.status === 'blocked') keys.add(`${operation.collection}/${operation.id}`);
+  }
+  for (const operation of patchPlan.migrations || []) {
+    if (operation.status === 'blocked') {
+      keys.add(`${operation.fromCollection}/${operation.id}`);
+      keys.add(`${operation.toCollection}/${operation.id}`);
+    }
+  }
+  return keys;
 }
 
 function hashCanonical(value) {

@@ -2,12 +2,12 @@
   "format": "hounigo-roadbook-0000-application-manifest-v1",
   "mode": "PREPARATION_ONLY_NO_WRITES",
   "tripId": "0000",
-  "generatedAt": "2026-10-28T08:01:49.882Z",
-  "idempotencyKey": "roadbook-0000-baeaeadcf564442ba4443d70",
+  "generatedAt": "2026-10-28T08:30:38.111Z",
+  "idempotencyKey": "roadbook-0000-cc5be9891257ea349ffd0e06",
   "source": {
     "cloudBackupSha256": "96a6e76e6f7ba3d2cbcff65dfa963983a7c8c8e7b9368e4fc23652a7e2bf588a",
     "localBackupSha256": "4bd45bc0f73ad4fb2e663b72807db26c9cb9339ed26cfc60fa2914cb373d9668",
-    "patchPlanSha256": "0caff8e0283cb08026d84703ec32434b8ebdc377cb5a65368075eff35fd9dd5f"
+    "patchPlanSha256": "20d8601937f024636b81f5daa479f07b023ad8033e47cbe78c8d668e32ef9aa7"
   },
   "gate": {
     "requireFreshAuthenticatedBackup": true,
@@ -15,7 +15,7 @@
     "requireAddsToRemainAbsent": true,
     "abortBeforeFirstWriteOnAnyMismatch": true,
     "oneFirestoreTransaction": true,
-    "transactionWrites": 115,
+    "transactionWrites": 120,
     "maxTransactionWrites": 499,
     "noRealWritesExecuted": true
   },
@@ -976,6 +976,42 @@
       "source": "shopping/fuel_g11 e shopping/shop_001"
     },
     {
+      "key": "tappe/tappa_02_rotorua",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "0a3025ffd6fa2efda6fbd8181070467d27bad69d972ba666f9b7fed0e1e372ee",
+        "updatedAt": 1791280821264
+      },
+      "intendedAfterSha256": "be4be17213738a638a9ef26ef0814e4b0fe55ec33e7d2bd7745abc0a29979220",
+      "tombstone": null,
+      "source": "Decisione editoriale finale del proprietario"
+    },
+    {
+      "key": "tappe/tappa_03_tekapo",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "57f8b88810895789f1fd1e8a75ecf629d48f1301cedd02a5a79fe7e564659567",
+        "updatedAt": 1792915726501
+      },
+      "intendedAfterSha256": "a2dc68359ca6c1a7b74a7b19ac63eca5dd23a00f2364cf0648bc818492b941f8",
+      "tombstone": null,
+      "source": "Decisione editoriale finale del proprietario; tappa canonica tappa_37"
+    },
+    {
+      "key": "tappe/tappa_04_queenstown",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "d45e55212d93be1d220cbd7b547ad98bc3aa15708c0bdba2356a8633e10b4102",
+        "updatedAt": 1791280821264
+      },
+      "intendedAfterSha256": "bf1da6e7e92464bf9de4274ceb99fd5415cdd68c65a180ec211d78fd652418ab",
+      "tombstone": null,
+      "source": "Decisione editoriale finale del proprietario"
+    },
+    {
       "key": "tappe/tappa_08",
       "action": "delete",
       "expectedBefore": {
@@ -1025,6 +1061,18 @@
         "timestampAssignedAtApply": true
       },
       "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/central-north-island/places/tongariro-national-park/things-to-do/tracks/tawhai-falls-track/"
+    },
+    {
+      "key": "tappe/tappa_21",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "f54d38b6c8f2a1002b3347e567691e0219fd2102b881960e382b8d3d49d26774",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "f0104f1486aba353e8f0e3fd82b56cc5da2685147eaa1161a5a80878235cdd65",
+      "tombstone": null,
+      "source": "Decisione editoriale finale del proprietario"
     },
     {
       "key": "tappe/tappa_24",
@@ -1088,6 +1136,18 @@
         "timestampAssignedAtApply": true
       },
       "source": "Hanson Bay escluso"
+    },
+    {
+      "key": "tappe/tappa_52",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "993ac4527ac6e6eb943d9ff6c548739e6e14968635a406d18c2dab87623aa8d3",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "9ed60784bdbfa013673cacb53931af2afb81e3cf5ba4ae983d982b7593c4e122",
+      "tombstone": null,
+      "source": "Decisione editoriale finale del proprietario"
     },
     {
       "key": "tappe/tappa_68",
@@ -1283,14 +1343,17 @@
     "neverOverwritePostApplicationChanges": true
   },
   "exclusions": {
-    "editorialHolds": [
-      "tappe/tappa_02_rotorua",
-      "tappe/tappa_03_tekapo",
-      "tappe/tappa_04_queenstown",
-      "tappe/tappa_21",
-      "attivita/tappa_21",
-      "tappe/tappa_52",
-      "attivita/tappa_52"
+    "blockedOperationKeys": [
+      "shopping/shop_005",
+      "tappe/tappa_75",
+      "trasporti/transport_flight_pek_akl",
+      "trasporti/trn_03_volo_ca783",
+      "trasporti/trn_06_tongariro_shuttle",
+      "trasporti/trn_07_sealink_andata",
+      "trasporti/trn_08_sealink_ritorno",
+      "trasporti/trn_10_travellers_camper",
+      "trasporti/trn_14_tao_expedition",
+      "trasporti/trn_16_ceb_tpe_fco"
     ],
     "blockers": [
       "CA783",
@@ -1298,5 +1361,16 @@
       "Travellers Autobarn"
     ],
     "paymentReconciliationsApplied": 0
+  },
+  "editorialPreservation": {
+    "updatedWithoutDeletion": [
+      "tappe/tappa_02_rotorua",
+      "tappe/tappa_03_tekapo",
+      "tappe/tappa_04_queenstown",
+      "tappe/tappa_21",
+      "tappe/tappa_52"
+    ],
+    "idsPreserved": true,
+    "destructiveOperations": 0
   }
 }

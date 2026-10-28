@@ -1,11 +1,11 @@
 {
   "mode": "DRY_RUN_ONLY",
   "tripId": "0000",
-  "generatedAt": "2026-10-28T08:01:49.568Z",
+  "generatedAt": "2026-10-28T08:15:11.930Z",
   "inputs": {
     "localSha256": "4bd45bc0f73ad4fb2e663b72807db26c9cb9339ed26cfc60fa2914cb373d9668",
     "cloudSha256": "96a6e76e6f7ba3d2cbcff65dfa963983a7c8c8e7b9368e4fc23652a7e2bf588a",
-    "planSha256": "0caff8e0283cb08026d84703ec32434b8ebdc377cb5a65368075eff35fd9dd5f"
+    "planSha256": "20d8601937f024636b81f5daa479f07b023ad8033e47cbe78c8d668e32ef9aa7"
   },
   "records": {
     "localAnalyzed": 441,
@@ -328,9 +328,9 @@
     }
   },
   "proposed": {
-    "updatedUniqueRecords": 79,
-    "changedFields": 514,
-    "deletionOperationsProposed": 24,
+    "updatedUniqueRecords": 84,
+    "changedFields": 545,
+    "deletionOperationsProposed": 19,
     "deletedRecords": 18,
     "addedRecords": 8,
     "tombstonesRequired": 18,
@@ -344,12 +344,7 @@
       "trn_10_travellers_camper",
       "trn_16_ceb_tpe_fco",
       "trn_03_volo_ca783",
-      "tappa_02_rotorua",
-      "tappa_03_tekapo",
-      "tappa_04_queenstown",
-      "trn_06_tongariro_shuttle",
-      "tappa_21",
-      "tappa_52"
+      "trn_06_tongariro_shuttle"
     ],
     "paymentReconciliationsPrepared": 5,
     "paymentReconciliationsApplied": 0

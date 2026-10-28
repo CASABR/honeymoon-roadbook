@@ -1,11 +1,11 @@
 {
   "mode": "DRY_RUN_REVIEW_ONLY",
   "tripId": "0000",
-  "generatedAt": "2026-10-28T08:01:49.766Z",
+  "generatedAt": "2026-10-28T08:30:33.160Z",
   "deletionOperations": {
-    "total": 24,
-    "blocked": 6,
-    "doubtful": 6,
+    "total": 19,
+    "blocked": 1,
+    "doubtful": 1,
     "items": [
       {
         "key": "trasporti/trn_03_volo_ca783",
@@ -98,51 +98,6 @@
         "transientLock": false,
         "doubtful": false,
         "doubt": null
-      },
-      {
-        "key": "tappe/tappa_02_rotorua",
-        "action": "delete",
-        "target": null,
-        "title": "Rotorua Terme & Geyser",
-        "date": "2026-12-03",
-        "reason": "Mock legacy senza dettagli unici; eliminazione editoriale sospesa",
-        "status": "blocked",
-        "bookingReferences": [],
-        "attachments": 0,
-        "linkedBusinessRecords": [],
-        "transientLock": false,
-        "doubtful": true,
-        "doubt": "Confermare che il mock generico non abbia valore editoriale residuo."
-      },
-      {
-        "key": "tappe/tappa_03_tekapo",
-        "action": "delete",
-        "target": "tappe/tappa_37",
-        "title": "Lago Tekapo & Good Shepherd",
-        "date": "2026-12-08",
-        "reason": "Versione obsoleta Lago Tekapo; eliminazione editoriale sospesa",
-        "status": "blocked",
-        "bookingReferences": [],
-        "attachments": 0,
-        "linkedBusinessRecords": [],
-        "transientLock": false,
-        "doubtful": true,
-        "doubt": "Confermare la sostituzione con tappa_37; coordinate e nota vengono preservate."
-      },
-      {
-        "key": "tappe/tappa_04_queenstown",
-        "action": "delete",
-        "target": null,
-        "title": "Queenstown & Fiordland",
-        "date": "2026-12-11",
-        "reason": "Mock legacy generico; eliminazione editoriale sospesa",
-        "status": "blocked",
-        "bookingReferences": [],
-        "attachments": 0,
-        "linkedBusinessRecords": [],
-        "transientLock": false,
-        "doubtful": true,
-        "doubt": "Confermare che il mock generico non abbia valore editoriale residuo."
       },
       {
         "key": "shopping/fuel_g11",
@@ -295,21 +250,6 @@
         "doubt": null
       },
       {
-        "key": "tappe/tappa_21",
-        "action": "migrate",
-        "target": "attivita/tappa_21",
-        "title": "Kaikoura Peninsula Walkway",
-        "date": "2026-12-07",
-        "reason": "Usa la sottocategoria dedicata senza duplicare la tappa.",
-        "status": "blocked",
-        "bookingReferences": [],
-        "attachments": 0,
-        "linkedBusinessRecords": [],
-        "transientLock": false,
-        "doubtful": true,
-        "doubt": "La Peninsula Walkway viene ridotta a spot Point Kean di 20 minuti."
-      },
-      {
         "key": "tappe/tappa_24",
         "action": "migrate",
         "target": "attivita/tappa_24",
@@ -340,21 +280,6 @@
         "doubt": null
       },
       {
-        "key": "tappe/tappa_52",
-        "action": "migrate",
-        "target": "attivita/tappa_52",
-        "title": "Split Point & Teddy's Lookout",
-        "date": "2026-12-18",
-        "reason": "Sceglie un solo spot compatibile e mantiene l'ID.",
-        "status": "blocked",
-        "bookingReferences": [],
-        "attachments": 0,
-        "linkedBusinessRecords": [],
-        "transientLock": false,
-        "doubtful": true,
-        "doubt": "Il record Split Point + Teddy’s Lookout viene ridotto al solo Split Point."
-      },
-      {
         "key": "tappe/tappa_72",
         "action": "migrate",
         "target": "attivita/tappa_72",
@@ -372,8 +297,8 @@
     ]
   },
   "additions": {
-    "total": 10,
-    "migrations": 7,
+    "total": 8,
+    "migrations": 5,
     "newRecords": 3,
     "duplicatesFound": 0,
     "items": [
@@ -432,18 +357,6 @@
         "conclusion": "Migrazione 1:1: la sorgente viene tombstonata e lo stesso ID passa ad attività."
       },
       {
-        "key": "attivita/tappa_21",
-        "kind": "migration",
-        "source": "tappe/tappa_21",
-        "title": "Spot fotografico — Point Kean",
-        "date": "2026-12-07",
-        "candidates": [
-          "tappe/tappa_21"
-        ],
-        "duplicateFound": false,
-        "conclusion": "Migrazione 1:1: la sorgente viene tombstonata e lo stesso ID passa ad attività."
-      },
-      {
         "key": "attivita/tappa_24",
         "kind": "migration",
         "source": "tappe/tappa_24",
@@ -463,18 +376,6 @@
         "date": "2026-12-10",
         "candidates": [
           "tappe/tappa_26"
-        ],
-        "duplicateFound": false,
-        "conclusion": "Migrazione 1:1: la sorgente viene tombstonata e lo stesso ID passa ad attività."
-      },
-      {
-        "key": "attivita/tappa_52",
-        "kind": "migration",
-        "source": "tappe/tappa_52",
-        "title": "Spot fotografico — Split Point Lighthouse",
-        "date": "2026-12-18",
-        "candidates": [
-          "tappe/tappa_52"
         ],
         "duplicateFound": false,
         "conclusion": "Migrazione 1:1: la sorgente viene tombstonata e lo stesso ID passa ad attività."
@@ -663,9 +564,8 @@
       "alloggi/alloggio_21",
       "attivita/spot_werri_beach_20261224",
       "attivita/tappa_15",
-      "attivita/tappa_21",
+      "tappe/tappa_21",
       "attivita/tappa_26",
-      "attivita/tappa_52",
       "attivita/tappa_72"
     ],
     "paymentViewsCurrencySafe": false,
@@ -678,6 +578,7 @@
     "noCurrencyConversion": true,
     "allDeletesUseTombstones": true,
     "allPaymentChangesRequireApproval": true,
-    "requiredBlockersPreserved": true
+    "requiredBlockersPreserved": true,
+    "editorialRecordsPreserved": true
   }
 }
