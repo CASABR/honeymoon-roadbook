@@ -2,9 +2,9 @@
 
 ## Decisione sintetica
 
-Nessuna modifica reale è stata applicata. Il piano contiene 24 operazioni di rimozione: 18 risultano nette, 5 richiedono approvazione umana esplicita e `trasporti/trn_03_volo_ca783` resta bloccata. Le 10 aggiunte pronte non duplicano record esistenti. Le cinque riconciliazioni economiche sono solo preparate e non eseguono conversioni o spunte automatiche.
+Nessuna modifica reale è stata applicata. Il piano contiene 24 operazioni di rimozione: 18 risultano nette ed eseguibili, le 5 editoriali sono ora esplicitamente sospese e `trasporti/trn_03_volo_ca783` resta bloccata. Le 10 aggiunte candidate non duplicano record esistenti; 8 restano eseguibili perché le migrazioni `tappa_21` e `tappa_52` seguono il relativo hold editoriale. Le cinque riconciliazioni economiche sono solo preparate e non eseguono conversioni o spunte automatiche.
 
-Riferimenti completi: `patch-plan.json`, `generated/proposed-diff.json`, `generated/final-review.json` e `generated/record-inventory-before.csv`.
+Riferimenti completi: `patch-plan.json`, `generated/proposed-diff.json`, `generated/final-review.json`, `generated/application-manifest.json`, `application-plan.md` e `generated/record-inventory-before.csv`.
 
 ## 1. Le 24 operazioni di rimozione
 
@@ -18,9 +18,9 @@ Le sette righe marcate **migrazione** non eliminano il contenuto logico: tombsto
 | 4 | `attivita/att_22` | Hanson Bay Wildlife Sanctuary | 17/12 | escluso definitivamente | nessun collegamento | netta |
 | 5 | `tappe/tappa_46` | Hanson Bay & Baudin Beach | 17/12 | escluso definitivamente | nessun collegamento | netta |
 | 6 | `tappe/tappa_08` | Marokopa Falls | 02/12 | rimosso dalla giornata | nessun collegamento | netta |
-| 7 | `tappe/tappa_02_rotorua` | Rotorua Terme & Geyser | 03/12 | mock legacy generico | nessun collegamento | **DA APPROVARE**: confermare assenza di valore editoriale |
-| 8 | `tappe/tappa_03_tekapo` | Lago Tekapo & Good Shepherd | 08/12 | data errata; resta `tappa_37` il 13/12 | nessun collegamento; coordinate/nota trasferite | **DA APPROVARE** |
-| 9 | `tappe/tappa_04_queenstown` | Queenstown & Fiordland | 11/12 | mock legacy generico | nessun collegamento | **DA APPROVARE**: confermare assenza di valore editoriale |
+| 7 | `tappe/tappa_02_rotorua` | Rotorua Terme & Geyser | 03/12 | mock legacy generico | nessun collegamento | **BLOCCATA**: non eliminare ora; verificare valore editoriale |
+| 8 | `tappe/tappa_03_tekapo` | Lago Tekapo & Good Shepherd | 08/12 | data errata; resta `tappa_37` il 13/12 | nessun collegamento; coordinate/nota trasferibili | **BLOCCATA**: non eliminare ora; verificare sostituzione completa |
+| 9 | `tappe/tappa_04_queenstown` | Queenstown & Fiordland | 11/12 | mock legacy generico | nessun collegamento | **BLOCCATA**: non eliminare ora; verificare valore editoriale |
 | 10 | `shopping/fuel_g11` | Allied Te Anau | 08/12 | duplicato/data errata; resta `shop_04` | nessuna spesa/doc; indirizzo/nota trasferiti; lock tecnico | netta |
 | 11 | `shopping/shop_001` | Allied Te Anau | 11/12 | duplicato; resta `shop_04` | nessuna spesa/doc; lock tecnico | netta |
 | 12 | `shopping/shop_002` | Christchurch fuel | 15/12 | duplicato; resta `fuel_g15_1` | nessuna spesa/doc; istruzione restituzione preservata | netta |
@@ -31,10 +31,10 @@ Le sette righe marcate **migrazione** non eliminano il contenuto logico: tombsto
 | 17 | `shopping/shop_004` | Ampol Batemans Bay | 23/12 | duplicato senza data canonica; resta `shop_08` | nessun collegamento | netta |
 | 18 | `tappe/tappa_10` | Ruakuri Bushwalk | 02/12 | **migrazione** a `attivita/tappa_10` | stesso ID, nessun link esterno; lock tecnico | netta |
 | 19 | `tappe/tappa_15` | Tawhai Falls | 04/12 | **migrazione** a `attivita/tappa_15` | stesso ID, nessun link esterno | netta |
-| 20 | `tappe/tappa_21` | Kaikōura Peninsula Walkway | 07/12 | **migrazione** a spot Point Kean 20 min | stesso ID; nota walkway preservata | **DA APPROVARE**: riduzione di ambito |
+| 20 | `tappe/tappa_21` | Kaikōura Peninsula Walkway | 07/12 | **migrazione** a spot Point Kean 20 min | stesso ID; nota walkway preservabile | **BLOCCATA**: non migrare ora; riduzione di ambito da verificare |
 | 21 | `tappe/tappa_24` | Hokitika Beach/sign | 08/12 | **migrazione** a spot Hokitika waterfront | stesso ID, nessun link esterno | netta |
 | 22 | `tappe/tappa_26` | Knights Point Lookout | 10/12 | **migrazione** a spot Knights Point | stesso ID, nessun link esterno | netta |
-| 23 | `tappe/tappa_52` | Split Point & Teddy’s Lookout | 18/12 | **migrazione** al solo Split Point | stesso ID, nessun link esterno | **DA APPROVARE**: Teddy’s viene escluso |
+| 23 | `tappe/tappa_52` | Split Point & Teddy’s Lookout | 18/12 | **migrazione** al solo Split Point | stesso ID, nessun link esterno | **BLOCCATA**: non migrare ora; esclusione di Teddy’s da verificare |
 | 24 | `tappe/tappa_72` | Mrs Macquarie’s Chair | 26/12 | **migrazione** a spot fotografico | stesso ID, nessun link esterno | netta |
 
 ## 2. Le 10 aggiunte e il controllo collisioni
@@ -46,10 +46,10 @@ Le sette righe marcate **migrazione** non eliminano il contenuto logico: tombsto
 | `attivita/spot_werri_beach_20261224` | nuovo | alloggio Werri e Chinamans Beach hanno funzioni/luoghi diversi | non duplicato |
 | `attivita/tappa_10` | migrazione | sorgente unica `tappe/tappa_10`, eliminata nello stesso piano | 1:1, non duplicato |
 | `attivita/tappa_15` | migrazione | sorgente unica `tappe/tappa_15` | 1:1, non duplicato |
-| `attivita/tappa_21` | migrazione | sorgente unica `tappe/tappa_21` | 1:1, modifica editoriale da approvare |
+| `attivita/tappa_21` | migrazione | sorgente unica `tappe/tappa_21` | non duplicato, ma migrazione sospesa |
 | `attivita/tappa_24` | migrazione | sorgente unica `tappe/tappa_24` | 1:1, non duplicato |
 | `attivita/tappa_26` | migrazione | sorgente unica `tappe/tappa_26` | 1:1, non duplicato |
-| `attivita/tappa_52` | migrazione | sorgente unica `tappe/tappa_52` | 1:1, modifica editoriale da approvare |
+| `attivita/tappa_52` | migrazione | sorgente unica `tappe/tappa_52` | non duplicato, ma migrazione sospesa |
 | `attivita/tappa_72` | migrazione | sorgente unica `tappe/tappa_72` | 1:1, non duplicato |
 
 Il record shuttle Tongariro non rientra nelle 10 aggiunte: resta bloccato perché l'ID originale è tombstonato e il pagamento NZD richiede applicazione controllata.
@@ -91,10 +91,10 @@ Il fallimento era nel test statico `addRistorante`: il test ritagliava arbitrari
 | Prenotazioni | `getAllUnifiedBookings()` legge trasporti, alloggi e attività, deduplica per ID | passa; pagamenti multivaluta restano bloccati |
 | Alloggi | legge direttamente `alloggi`; nome/luogo/ref Werri propagano | passa |
 | Spese | legge le stesse entità tramite `resolvePaymentInfo` | **non sicuro multivaluta**: visualizza EUR e può inferire pagato da `completato` |
-| Mappa | legge tappe, alloggi e attività | parziale: 10 record proposti non hanno coordinate esatte; fallback può essere approssimativo o assente |
-| PDF | legge attività, trasporti, alloggi e tappe dallo storage | date/titoli/ref passano; `noteCopilota`, valuta e metriche trekking strutturate non sono tutte stampate |
+| Mappa | legge tappe, alloggi e attività | 7 coordinate puntuali verificate; Lake Pukaki, Ruakuri e Hokitika restano address-only perché non identificano un punto univoco |
+| PDF | legge attività, trasporti, alloggi e tappe dallo storage | include indirizzi, orari, riferimenti, logistica, `noteCopilota` e metriche trekking; non legge né esporta dati LIVE |
 
-Il dry-run è coerente a livello di source collection e ID, ma non va approvato come applicazione completa finché i limiti Mappa/PDF e multivaluta non sono accettati o risolti.
+Il dry-run è coerente a livello di source collection e ID. Il limite PDF è risolto; le tre coordinate non univoche restano dichiarate e la multivaluta rimane esclusa dall'applicazione.
 
 ## 7. Blocchi obbligatori
 
@@ -105,6 +105,14 @@ Il dry-run è coerente a livello di source collection e ID, ma non va approvato 
 ## 8. Decisioni che meritano approvazione umana
 
 - Approvare le 18 rimozioni nette e le relative tombstone.
-- Decidere le cinque rimozioni editoriali: `tappa_02_rotorua`, `tappa_03_tekapo`, `tappa_04_queenstown`, `tappa_21`, `tappa_52`.
+- Mantenere sospese le cinque rimozioni editoriali: `tappa_02_rotorua`, `tappa_03_tekapo`, `tappa_04_queenstown`, `tappa_21`, `tappa_52`.
 - Non approvare CA783, Travellers, CI75 o i cinque pagamenti come scritture automatiche.
-- Accettare esplicitamente che Mappa e PDF hanno i limiti indicati, oppure richiedere un dry-run successivo con coordinate e resa PDF prima dell'applicazione.
+- Accettare i tre punti address-only oppure fornire un accesso/spot univoco; usare `application-plan.md` e rigenerare il manifest da un backup fresco prima di qualsiasi scrittura.
+
+## 9. Ultima rigenerazione e validazione
+
+- Dry-run: 460 record logici prima, 450 dopo; 79 record aggiornati, 18 rimossi, 8 aggiunti e 18 tombstone nel diff eseguibile.
+- Anti-duplicati: tutte le 10 aggiunte candidate ricontrollate, zero collisioni; le due migrazioni editoriali sospese non entrano nel manifest.
+- Coordinate: 7 punti verificati; Lake Pukaki, Ruakuri e Hokitika restano con indirizzo descrittivo e limite esplicito.
+- Piano recuperabile: 97 operazioni dati + 18 tombstone, 115 scritture massime in una sola transazione; rollback subordinato agli hash post-applicazione.
+- Test: tombstone/sync 26/26, export PDF 15/15, `npm run build` superato. Nessuna scrittura reale, push o deploy.

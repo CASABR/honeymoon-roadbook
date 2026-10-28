@@ -896,6 +896,10 @@
       "date": "2026-12-24",
       "title": "Spot fotografico — Werri Beach",
       "location": "Werri Beach, Gerringong NSW, Australia",
+      "coordinate": {
+        "lat": -34.7359764,
+        "lng": 150.8340977
+      },
       "category": "natura",
       "sottocategoria": "Spot fotografico",
       "duration": "20 min",
@@ -946,6 +950,10 @@
       "_firestoreUpdateTime": "2026-10-27T09:01:46.752425Z",
       "title": "Tawhai Falls Track",
       "location": "SH48, Tongariro National Park",
+      "coordinate": {
+        "lat": -39.1730238,
+        "lng": 175.5147505
+      },
       "category": "natura",
       "sottocategoria": "Trekking",
       "distanceKm": 0.8,
@@ -955,32 +963,6 @@
       "difficulty": "Facile",
       "status": "non_bloccato",
       "cost": "0.00"
-    },
-    {
-      "id": "tappa_21",
-      "noteCopilota": "Sentiero panoramico scogliera (da valutare).",
-      "orario": "12:30",
-      "dayId": "day_2026-12-07",
-      "date": "2026-12-07",
-      "createdAt": 1793091616898,
-      "mapsUrl": "https://maps.app.goo.gl/8Paj3SF1L8ipHmQr7",
-      "titolo": "Kaikoura Peninsula Walkway",
-      "order": 1,
-      "indirizzo": "Point Kean",
-      "data": "2026-12-07",
-      "updatedAt": 1793091616898,
-      "_firestoreCreateTime": "2026-10-12T16:05:52.885254Z",
-      "_firestoreUpdateTime": "2026-10-27T09:01:46.888109Z",
-      "title": "Spot fotografico — Point Kean",
-      "location": "Point Kean, Kaikōura",
-      "category": "natura",
-      "sottocategoria": "Spot fotografico",
-      "duration": "20 min",
-      "lightWindow": "qualsiasi",
-      "photoSubject": "Costa e fauna",
-      "status": "da_valutare",
-      "cost": "0.00",
-      "notes": "Breve tratto panoramico della Kaikōura Peninsula Walkway, limitato a circa 20 minuti."
     },
     {
       "id": "tappa_24",
@@ -1024,36 +1006,15 @@
       "_firestoreUpdateTime": "2026-10-27T09:01:47.109462Z",
       "title": "Spot fotografico — Knights Point",
       "location": "Knights Point, West Coast",
+      "coordinate": {
+        "lat": -43.7146135,
+        "lng": 169.2257161
+      },
       "category": "natura",
       "sottocategoria": "Spot fotografico",
       "duration": "15 min",
       "lightWindow": "qualsiasi",
       "photoSubject": "Scogliere e costa",
-      "status": "da_valutare",
-      "cost": "0.00"
-    },
-    {
-      "id": "tappa_52",
-      "order": 3,
-      "createdAt": 1793091616898,
-      "mapsUrl": "https://maps.app.goo.gl/UCgh22ZP6xh8Qd3Y6",
-      "titolo": "Split Point & Teddy's Lookout",
-      "data": "2026-12-18",
-      "dayId": "day_2026-12-18",
-      "orario": "15:30",
-      "noteCopilota": "Faro bianco e vista foce del fiume.",
-      "date": "2026-12-18",
-      "updatedAt": 1793091616898,
-      "indirizzo": "Lorne",
-      "_firestoreCreateTime": "2026-10-12T16:06:00.896643Z",
-      "_firestoreUpdateTime": "2026-10-27T09:01:48.058191Z",
-      "title": "Spot fotografico — Split Point Lighthouse",
-      "location": "Split Point Lighthouse, Aireys Inlet",
-      "category": "natura",
-      "sottocategoria": "Spot fotografico",
-      "duration": "20 min",
-      "lightWindow": "qualsiasi",
-      "photoSubject": "Faro e costa",
       "status": "da_valutare",
       "cost": "0.00"
     },
@@ -1074,6 +1035,10 @@
       "_firestoreUpdateTime": "2026-10-27T09:01:48.945578Z",
       "title": "Spot fotografico — Mrs Macquarie's Chair",
       "location": "Mrs Macquarie's Chair, Sydney",
+      "coordinate": {
+        "lat": -33.8597064,
+        "lng": 151.222565
+      },
       "category": "natura",
       "sottocategoria": "Spot fotografico",
       "duration": "20 min",
@@ -1499,7 +1464,11 @@
       "location": "Shallow Inlet, Yanakie VIC, Australia",
       "updatedAt": 1793091616898,
       "_firestoreCreateTime": "2026-10-09T13:16:28.611484Z",
-      "_firestoreUpdateTime": "2026-10-27T09:01:42.488045Z"
+      "_firestoreUpdateTime": "2026-10-27T09:01:42.488045Z",
+      "coordinate": {
+        "lat": -38.82111,
+        "lng": 146.17167
+      }
     },
     {
       "id": "alloggio_22",
@@ -1947,7 +1916,7 @@
       "type": "volo",
       "arrivalLocation": "Auckland Airport",
       "terminalGate": "Partenza: Terminal 3 (PEK) | Arrivo: Terminal Internazionale (AKL)",
-      "status": "prenotato",
+      "status": "completato",
       "arrivalTime": "17:34",
       "updatedAt": 1793091616898,
       "cost": "Incluso nel pacchetto",
@@ -2082,7 +2051,7 @@
         }
       ],
       "updatedAt": 1792500267101,
-      "status": "prenotato",
+      "status": "completato",
       "arrivalLocation": "Penneshaw Ferry Terminal (Kangaroo Island)",
       "_firestoreCreateTime": "2026-10-04T18:14:31.600766Z",
       "_firestoreUpdateTime": "2026-10-20T13:28:33.791784Z"
@@ -2093,7 +2062,7 @@
       "departureLocation": "Penneshaw Ferry Terminal (Kangaroo Island)",
       "cost": "0.00",
       "carrier": "SeaLink Ferry",
-      "status": "prenotato",
+      "status": "completato",
       "arrivalDate": "2026-12-17",
       "type": "traghetto",
       "noteCopilota": "Sbarco ore 13:05 a Cape Jervis: 105 km fino a Marleston/Adelaide. Margine perfetto per rifornire, rilasciare l'auto entro le 17:30 e imbarcarsi sul volo Virgin per Melbourne delle 19:50.",
@@ -2145,7 +2114,7 @@
       "departureLocation": "Melbourne Tullamarine Travellers Autobarn",
       "dropoffDate": "2026-12-28",
       "depositPaid": "511,00 AUD (~308 €)",
-      "status": "prenotato",
+      "status": "completato",
       "type": "auto",
       "bookingCode": "***REMOVED***",
       "updatedAt": 1791987868060,
@@ -2280,7 +2249,7 @@
       "arrivalLocation": "Coron Town Port",
       "arrivalDate": "2027-01-07",
       "depositPaid": "1410.65 €",
-      "status": "prenotato",
+      "status": "completato",
       "createdAt": 1791280821285,
       "type": "traghetto",
       "arrivalTime": "12:00",
@@ -2342,7 +2311,7 @@
       "cost": "0.00",
       "bagagli": "Stiva: già imbarcata a Cebu fino a Roma | Cabina: 1 bagaglio da 7 kg + 1 accessorio",
       "arrivalIata": "FCO",
-      "status": "prenotato",
+      "status": "completato",
       "terminalGate": "Partenza: Terminal 1 (TPE) | Arrivo: Terminal 3 (FCO)",
       "departureIata": "TPE",
       "type": "volo",
@@ -2610,6 +2579,22 @@
       "_firestoreUpdateTime": "2026-10-27T09:01:46.355016Z"
     },
     {
+      "id": "tappa_02_rotorua",
+      "coordinate": {
+        "lat": -38.1368,
+        "lng": 176.2497
+      },
+      "createdAt": 1791280821264,
+      "nota": "Parco geotermico Te Puia e cultura Maori.",
+      "date": "2026-12-03",
+      "titolo": "Rotorua Terme & Geyser",
+      "updatedAt": 1791280821264,
+      "data": "2026-12-03",
+      "dayId": "day_2026-12-03",
+      "_firestoreCreateTime": "2026-10-06T09:47:39.815214Z",
+      "_firestoreUpdateTime": "2026-10-06T10:05:23.623081Z"
+    },
+    {
       "id": "tappa_03",
       "indirizzo": "Pechino Capital T3",
       "date": "2026-11-30",
@@ -2623,6 +2608,40 @@
       "order": 1,
       "_firestoreCreateTime": "2026-10-12T16:05:48.106524Z",
       "_firestoreUpdateTime": "2026-10-27T09:01:46.407941Z"
+    },
+    {
+      "id": "tappa_03_tekapo",
+      "titolo": "Lago Tekapo & Good Shepherd",
+      "dayId": "day_2026-12-08",
+      "updatedAt": 1792915726501,
+      "data": "2026-12-08",
+      "time": "11:00",
+      "orarioVisita": "11:00",
+      "date": "2026-12-08",
+      "nota": "Chiesetta del Buon Pastore e osservazione stelle Mt John.",
+      "createdAt": 1791280821264,
+      "coordinate": {
+        "lat": -44.0047,
+        "lng": 170.4771
+      },
+      "_firestoreCreateTime": "2026-10-06T09:47:40.081906Z",
+      "_firestoreUpdateTime": "2026-10-25T08:08:45.720546Z"
+    },
+    {
+      "id": "tappa_04_queenstown",
+      "nota": "Capitale dell'avventura e partenza per Milford Sound.",
+      "date": "2026-12-11",
+      "createdAt": 1791280821264,
+      "titolo": "Queenstown & Fiordland",
+      "updatedAt": 1791280821264,
+      "data": "2026-12-11",
+      "coordinate": {
+        "lng": 168.6626,
+        "lat": -45.0312
+      },
+      "dayId": "day_2026-12-11",
+      "_firestoreCreateTime": "2026-10-04T18:14:35.890165Z",
+      "_firestoreUpdateTime": "2026-10-06T10:05:24.182409Z"
     },
     {
       "id": "tappa_07",
@@ -2746,6 +2765,22 @@
       "mapsUrl": "https://maps.app.goo.gl/doNS86LJcB8zNVnq9",
       "_firestoreCreateTime": "2026-10-12T16:05:52.684616Z",
       "_firestoreUpdateTime": "2026-10-27T09:01:46.866329Z"
+    },
+    {
+      "id": "tappa_21",
+      "noteCopilota": "Sentiero panoramico scogliera (da valutare).",
+      "orario": "12:30",
+      "dayId": "day_2026-12-07",
+      "date": "2026-12-07",
+      "createdAt": 1793091616898,
+      "mapsUrl": "https://maps.app.goo.gl/8Paj3SF1L8ipHmQr7",
+      "titolo": "Kaikoura Peninsula Walkway",
+      "order": 1,
+      "indirizzo": "Point Kean",
+      "data": "2026-12-07",
+      "updatedAt": 1793091616898,
+      "_firestoreCreateTime": "2026-10-12T16:05:52.885254Z",
+      "_firestoreUpdateTime": "2026-10-27T09:01:46.888109Z"
     },
     {
       "id": "tappa_22",
@@ -3187,6 +3222,22 @@
       "createdAt": 1793091616898,
       "_firestoreCreateTime": "2026-10-12T16:06:00.595015Z",
       "_firestoreUpdateTime": "2026-10-27T09:01:48.031542Z"
+    },
+    {
+      "id": "tappa_52",
+      "order": 3,
+      "createdAt": 1793091616898,
+      "mapsUrl": "https://maps.app.goo.gl/UCgh22ZP6xh8Qd3Y6",
+      "titolo": "Split Point & Teddy's Lookout",
+      "data": "2026-12-18",
+      "dayId": "day_2026-12-18",
+      "orario": "15:30",
+      "noteCopilota": "Faro bianco e vista foce del fiume.",
+      "date": "2026-12-18",
+      "updatedAt": 1793091616898,
+      "indirizzo": "Lorne",
+      "_firestoreCreateTime": "2026-10-12T16:06:00.896643Z",
+      "_firestoreUpdateTime": "2026-10-27T09:01:48.058191Z"
     },
     {
       "id": "tappa_53",

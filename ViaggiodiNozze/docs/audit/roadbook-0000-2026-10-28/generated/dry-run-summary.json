@@ -1,18 +1,18 @@
 {
   "mode": "DRY_RUN_ONLY",
   "tripId": "0000",
-  "generatedAt": "2026-10-28T07:42:33.976Z",
+  "generatedAt": "2026-10-28T08:01:49.568Z",
   "inputs": {
     "localSha256": "4bd45bc0f73ad4fb2e663b72807db26c9cb9339ed26cfc60fa2914cb373d9668",
     "cloudSha256": "96a6e76e6f7ba3d2cbcff65dfa963983a7c8c8e7b9368e4fc23652a7e2bf588a",
-    "planSha256": "333c7d55cbc0f57f3e92062f6ad5fc7984b0147e6e2bfba30c7d452ab72bccd5"
+    "planSha256": "0caff8e0283cb08026d84703ec32434b8ebdc377cb5a65368075eff35fd9dd5f"
   },
   "records": {
     "localAnalyzed": 441,
     "cloudAnalyzed": 485,
     "comparedCopies": 926,
     "logicalCloudBefore": 460,
-    "logicalAfterProposed": 447
+    "logicalAfterProposed": 450
   },
   "localCloudComparison": {
     "localOnly": 88,
@@ -328,12 +328,12 @@
     }
   },
   "proposed": {
-    "updatedUniqueRecords": 87,
-    "changedFields": 611,
+    "updatedUniqueRecords": 79,
+    "changedFields": 514,
     "deletionOperationsProposed": 24,
-    "deletedRecords": 23,
-    "addedRecords": 10,
-    "tombstonesRequired": 23,
+    "deletedRecords": 18,
+    "addedRecords": 8,
+    "tombstonesRequired": 18,
     "blockedOperations": [
       "transport_flight_pek_akl",
       "trn_07_sealink_andata",
@@ -344,7 +344,12 @@
       "trn_10_travellers_camper",
       "trn_16_ceb_tpe_fco",
       "trn_03_volo_ca783",
-      "trn_06_tongariro_shuttle"
+      "tappa_02_rotorua",
+      "tappa_03_tekapo",
+      "tappa_04_queenstown",
+      "trn_06_tongariro_shuttle",
+      "tappa_21",
+      "tappa_52"
     ],
     "paymentReconciliationsPrepared": 5,
     "paymentReconciliationsApplied": 0

@@ -81,6 +81,72 @@ export function sanitizePdfText(str: string | undefined | null): string {
     .trim();
 }
 
+function joinPdfDetails(...values: Array<string | undefined | null | false>): string {
+  return [...new Set(values.map(value => sanitizePdfText(value || '')).filter(Boolean))].join(' | ');
+}
+
+function formatMinutes(minutes?: number): string {
+  if (!minutes || minutes <= 0) return '';
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (!hours) return `${remainder} min`;
+  return remainder ? `${hours} h ${remainder} min` : `${hours} h`;
+}
+
+function formatActivityDetails(activity: Attivita): string {
+  const routeLabels: Record<NonNullable<Attivita['routeType']>, string> = {
+    anello: 'anello',
+    andata_ritorno: 'andata e ritorno',
+    lineare: 'lineare'
+  };
+  const meetingTime = activity.orarioRitrovo && activity.orarioRitrovo !== activity.orarioInizio
+    ? `Ritrovo ${activity.orarioRitrovo}`
+    : '';
+
+  return joinPdfDetails(
+    activity.distanceKm ? `${activity.distanceKm} km` : '',
+    activity.elevationGainM ? `Dislivello +${activity.elevationGainM} m` : '',
+    activity.hikingDurationMinutes ? `Cammino ${formatMinutes(activity.hikingDurationMinutes)}` : activity.duration,
+    activity.routeType ? `Percorso ${routeLabels[activity.routeType]}` : '',
+    activity.difficulty ? `Difficolta ${activity.difficulty}` : '',
+    meetingTime,
+    activity.lightWindow ? `Luce ${activity.lightWindow.replace('_', ' ')}` : '',
+    activity.photoSubject ? `Soggetto ${activity.photoSubject}` : ''
+  );
+}
+
+function formatTransportDetails(transport: Trasporto): string {
+  const arrival = joinPdfDetails(transport.arrivalDate, transport.arrivalTime);
+  const dropoff = joinPdfDetails(transport.dropoffDate, transport.dropoffTime, transport.dropoffLocation);
+  const layover = transport.layover
+    ? joinPdfDetails(
+        transport.layover.airport,
+        transport.layover.duration,
+        transport.layover.arrivalTime ? `arrivo ${transport.layover.arrivalTime}` : '',
+        transport.layover.departureTime ? `partenza ${transport.layover.departureTime}` : '',
+        transport.layover.carrier
+      )
+    : '';
+
+  return joinPdfDetails(
+    arrival ? `Arrivo ${arrival}` : '',
+    dropoff ? `Riconsegna ${dropoff}` : '',
+    transport.terminalGate ? `Terminal/gate ${transport.terminalGate}` : '',
+    transport.checkinCutoff ? `Check-in ${transport.checkinCutoff}` : '',
+    transport.posti ? `Posti ${transport.posti}` : '',
+    transport.bagagli ? `Bagagli ${transport.bagagli}` : '',
+    layover ? `Scalo ${layover}` : ''
+  );
+}
+
+function buildEventDetailText(event: PdfEventItem): string {
+  const route = event.departureLocation && event.arrivalLocation && event.departureLocation !== event.arrivalLocation
+    ? `Tratta: ${event.departureLocation} -> ${event.arrivalLocation}`
+    : '';
+  const address = event.address && event.address !== event.location ? `Indirizzo: ${event.address}` : '';
+  return joinPdfDetails(route, address, event.bookingRef ? `Conferma: ${event.bookingRef}` : '', event.note ? `Nota: ${event.note}` : '');
+}
+
 /**
  * Calcola l'orario effettivo di una entità rispettando rigorosamente
  * la normalizzazione del recente hotfix HOUNIGO.
@@ -212,6 +278,23 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
 
     const dayEvents: PdfEventItem[] = [];
 
+    if (options.includeTappe) {
+      allTappe
+        .filter(tappa => (tappa.data === dateStr || tappa.date === dateStr))
+        .forEach(tappa => {
+          dayEvents.push({
+            id: tappa.id,
+            type: 'tappa',
+            time: extractEventTime(tappa, 'tappa'),
+            title: sanitizePdfText(tappa.titolo),
+            categoryOrType: sanitizePdfText(tappa.sottocategoria || 'Tappa'),
+            location: sanitizePdfText(tappa.indirizzo),
+            address: sanitizePdfText(tappa.indirizzo),
+            note: options.includeNotes ? joinPdfDetails(tappa.nota, tappa.noteCopilota) : undefined
+          });
+        });
+    }
+
     // 1. Attività
     if (options.includeActivities) {
       allActivities
@@ -225,8 +308,11 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
             title: sanitizePdfText(a.title),
             categoryOrType: sanitizePdfText(a.category || 'Attività'),
             location: sanitizePdfText(a.location),
-            address: sanitizePdfText(a.location),
-            note: options.includeNotes ? sanitizePdfText((a as any).notes || (a as any).description) : undefined
+            address: sanitizePdfText(a.address || a.location),
+            note: joinPdfDetails(
+              formatActivityDetails(a),
+              options.includeNotes ? joinPdfDetails(a.notes, a.noteCopilota) : ''
+            )
           });
         });
     }
@@ -251,7 +337,10 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
             departureLocation: sanitizePdfText(t.departureLocation),
             arrivalLocation: sanitizePdfText(t.arrivalLocation || t.dropoffLocation),
             bookingRef: options.includeBookingRefs ? sanitizePdfText(t.bookingCode || (t as any).pnr || (t as any).ticketNumber) : undefined,
-            note: options.includeNotes ? sanitizePdfText((t as any).notes) : undefined
+            note: joinPdfDetails(
+              formatTransportDetails(t),
+              options.includeNotes ? joinPdfDetails((t as any).notes, t.noteCopilota, t.layover?.notes) : ''
+            )
           });
         });
     }
@@ -269,7 +358,8 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
             title: sanitizePdfText(r.nome),
             categoryOrType: 'Ristorante',
             location: sanitizePdfText(r.indirizzo || (r as any).citta),
-            note: options.includeNotes ? sanitizePdfText(r.nota) : undefined
+            address: sanitizePdfText(r.indirizzo),
+            note: options.includeNotes ? joinPdfDetails(r.nota, r.noteCopilota, r.telefono ? `Telefono ${r.telefono}` : '') : undefined
           });
         });
     }
@@ -287,7 +377,8 @@ export async function preparePdfData(options: PdfExportOptions): Promise<{
             title: sanitizePdfText(s.nome),
             categoryOrType: 'Shopping',
             location: sanitizePdfText(s.indirizzo),
-            note: options.includeNotes ? sanitizePdfText(s.nota) : undefined
+            address: sanitizePdfText(s.indirizzo),
+            note: options.includeNotes ? joinPdfDetails(s.nota, s.noteCopilota) : undefined
           });
         });
     }
@@ -541,11 +632,30 @@ export async function generateRoadbookPdf(options: PdfExportOptions): Promise<{
 
     // Pernottamento previsto
     if (day.accommodation) {
-      ensureSpace(10);
+      const accommodationSummary = `${sanitizePdfText(day.accommodation.name)}${day.accommodation.location ? ` (${sanitizePdfText(day.accommodation.location)})` : ''}`;
+      const accommodationSchedule = joinPdfDetails(
+        day.accommodation.checkInTime ? `Check-in ${day.accommodation.checkInTime}` : '',
+        day.accommodation.arrivalTime ? `Arrivo previsto ${day.accommodation.arrivalTime}` : '',
+        day.accommodation.checkOutTime ? `Check-out ${day.accommodation.checkOutTime}` : ''
+      );
+      const accommodationLines = [
+        accommodationSummary,
+        day.accommodation.address ? `Indirizzo: ${sanitizePdfText(day.accommodation.address)}` : '',
+        accommodationSchedule,
+        options.detailLevel === 'detailed' && options.includeNotes
+          ? joinPdfDetails(day.accommodation.notes, day.accommodation.noteCopilota)
+          : '',
+        options.includeBookingRefs && day.accommodation.bookingCode
+          ? `Conferma: ${sanitizePdfText(day.accommodation.bookingCode)}`
+          : ''
+      ].filter(Boolean).flatMap(line => doc.splitTextToSize(line, contentWidth - 22));
+      const accommodationHeight = Math.max(7, 3.5 + accommodationLines.length * 3.2);
+
+      ensureSpace(accommodationHeight + 2);
       doc.setFillColor(CLOUD[0], CLOUD[1], CLOUD[2]);
       doc.setDrawColor(BORDER_LIGHT[0], BORDER_LIGHT[1], BORDER_LIGHT[2]);
       doc.setLineWidth(0.2);
-      doc.roundedRect(marginX, currentY, contentWidth, 6.5, 1, 1, 'FD');
+      doc.roundedRect(marginX, currentY, contentWidth, accommodationHeight, 1, 1, 'FD');
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(8);
@@ -554,20 +664,9 @@ export async function generateRoadbookPdf(options: PdfExportOptions): Promise<{
 
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(SLATE_DARK[0], SLATE_DARK[1], SLATE_DARK[2]);
-      const hotelInfo = `${sanitizePdfText(day.accommodation.name)}${day.accommodation.location ? ` (${sanitizePdfText(day.accommodation.location)})` : ''}${day.accommodation.checkInTime ? ` - Check-in: ${day.accommodation.checkInTime}` : ''}`;
-      const cutHotel = doc.splitTextToSize(hotelInfo, contentWidth - 32);
-      doc.text(cutHotel[0], marginX + 17, currentY + 4.5);
+      doc.text(accommodationLines, marginX + 17, currentY + 4.5, { lineHeightFactor: 1.15 });
 
-      if (options.includeBookingRefs && day.accommodation.bookingCode) {
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(7.5);
-        doc.setTextColor(SLATE_MUTED[0], SLATE_MUTED[1], SLATE_MUTED[2]);
-        const refStr = `Ref: ${sanitizePdfText(day.accommodation.bookingCode)}`;
-        const refW = doc.getTextWidth(refStr);
-        doc.text(refStr, pageWidth - marginX - refW - 3, currentY + 4.5);
-      }
-
-      currentY += 8;
+      currentY += accommodationHeight + 1.5;
     }
 
     // Se la giornata non ha eventi
@@ -582,8 +681,9 @@ export async function generateRoadbookPdf(options: PdfExportOptions): Promise<{
       // 1. Eventi con orario (Cronologici)
       for (const ev of day.timedEvents) {
         const isDetailed = options.detailLevel === 'detailed';
-        const hasExtra = isDetailed && Boolean(ev.departureLocation || ev.arrivalLocation || ev.address || ev.note || ev.bookingRef);
-        const itemHeight = hasExtra ? 12 : 7.5;
+        const detailText = isDetailed ? buildEventDetailText(ev) : '';
+        const detailLines = detailText ? doc.splitTextToSize(detailText, contentWidth - 20) : [];
+        const itemHeight = detailLines.length > 0 ? 9 + detailLines.length * 3.2 : 7.5;
         ensureSpace(itemHeight);
 
         // Orario badge in Coral
@@ -622,30 +722,12 @@ export async function generateRoadbookPdf(options: PdfExportOptions): Promise<{
         currentY += 5.5;
 
         // Informazioni dettagliate (se richieste)
-        if (hasExtra) {
+        if (detailLines.length > 0) {
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(7.5);
           doc.setTextColor(SLATE_DARK[0], SLATE_DARK[1], SLATE_DARK[2]);
-
-          const details: string[] = [];
-          if (ev.departureLocation && ev.arrivalLocation && ev.departureLocation !== ev.arrivalLocation) {
-            details.push(`Tratta: ${ev.departureLocation} -> ${ev.arrivalLocation}`);
-          } else if (ev.address && ev.address !== ev.location) {
-            details.push(`Indirizzo: ${ev.address}`);
-          }
-          if (ev.bookingRef) {
-            details.push(`Conferma: ${ev.bookingRef}`);
-          }
-          if (ev.note) {
-            details.push(`Nota: ${ev.note}`);
-          }
-
-          if (details.length > 0) {
-            const detailStr = details.join('  |  ');
-            const splitDetail = doc.splitTextToSize(detailStr, contentWidth - 20);
-            doc.text(splitDetail[0], marginX + 16, currentY + 3.5);
-            currentY += 5;
-          }
+          doc.text(detailLines, marginX + 16, currentY + 3.5, { lineHeightFactor: 1.15 });
+          currentY += detailLines.length * 3.2 + 1.5;
         }
 
         // Linea separatrice sottile tra eventi
@@ -666,7 +748,9 @@ export async function generateRoadbookPdf(options: PdfExportOptions): Promise<{
         currentY += 5;
 
         for (const un of day.untimedEvents) {
-          ensureSpace(6);
+          const detailText = options.detailLevel === 'detailed' ? buildEventDetailText(un) : '';
+          const detailLines = detailText ? doc.splitTextToSize(detailText, contentWidth - 14) : [];
+          ensureSpace(6 + detailLines.length * 3.2);
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(8);
           doc.setTextColor(SLATE_DARK[0], SLATE_DARK[1], SLATE_DARK[2]);
@@ -674,6 +758,12 @@ export async function generateRoadbookPdf(options: PdfExportOptions): Promise<{
           const split = doc.splitTextToSize(lineStr, contentWidth - 10);
           doc.text(split[0], marginX + 6, currentY + 3);
           currentY += 4.5;
+          if (detailLines.length > 0) {
+            doc.setFontSize(7.5);
+            doc.setTextColor(SLATE_MUTED[0], SLATE_MUTED[1], SLATE_MUTED[2]);
+            doc.text(detailLines, marginX + 10, currentY + 2, { lineHeightFactor: 1.15 });
+            currentY += detailLines.length * 3.2 + 1;
+          }
         }
       }
     }

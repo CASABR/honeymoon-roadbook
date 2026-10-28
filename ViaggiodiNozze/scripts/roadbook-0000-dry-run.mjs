@@ -37,6 +37,7 @@ const working = structuredClone(logicalCloudCollections);
 const changedKeys = new Set();
 const tombstones = [];
 const skippedBlocked = [];
+const blockedKeys = collectBlockedKeys(plan);
 
 for (const operation of plan.bulkUpdates || []) {
   if (operation.status === 'blocked') {
@@ -45,7 +46,7 @@ for (const operation of plan.bulkUpdates || []) {
   }
   const records = getCollection(working, operation.collection);
   for (const record of records) {
-    if (matches(record, operation.match)) {
+    if (matches(record, operation.match) && !blockedKeys.has(`${operation.collection}/${record.id}`)) {
       Object.assign(record, operation.set);
       changedKeys.add(`${operation.collection}/${record.id}`);
     }
@@ -158,6 +159,26 @@ function isReady(operation) {
   return operation.status !== 'blocked';
 }
 
+function collectBlockedKeys(patchPlan) {
+  const keys = new Set();
+  for (const operation of patchPlan.updates || []) {
+    if (!isReady(operation)) keys.add(`${operation.collection}/${operation.id}`);
+  }
+  for (const operation of patchPlan.deletes || []) {
+    if (!isReady(operation)) keys.add(`${operation.collection}/${operation.id}`);
+  }
+  for (const operation of patchPlan.adds || []) {
+    if (!isReady(operation)) keys.add(`${operation.collection}/${operation.id}`);
+  }
+  for (const operation of patchPlan.migrations || []) {
+    if (!isReady(operation)) {
+      keys.add(`${operation.fromCollection}/${operation.id}`);
+      keys.add(`${operation.toCollection}/${operation.id}`);
+    }
+  }
+  return keys;
+}
+
 function matches(record, match = {}) {
   return Object.entries(match).every(([field, expected]) => record[field] === expected);
 }
@@ -203,10 +224,11 @@ function compareSnapshots(local, cloud) {
 
 function buildDiff(beforeCollections, afterCollections, patchPlan) {
   const sources = new Map();
+  const blockedPatchKeys = collectBlockedKeys(patchPlan);
   for (const operation of patchPlan.bulkUpdates || []) {
     if (!isReady(operation)) continue;
     for (const record of beforeCollections[operation.collection] || []) {
-      if (matches(record, operation.match)) {
+      if (matches(record, operation.match) && !blockedPatchKeys.has(`${operation.collection}/${record.id}`)) {
         sources.set(`${operation.collection}/${record.id}`, operation.source || operation.reason);
       }
     }

@@ -1,10 +1,10 @@
 {
   "mode": "DRY_RUN_REVIEW_ONLY",
   "tripId": "0000",
-  "generatedAt": "2026-10-28T07:44:07.235Z",
+  "generatedAt": "2026-10-28T08:01:49.766Z",
   "deletionOperations": {
     "total": 24,
-    "blocked": 1,
+    "blocked": 6,
     "doubtful": 6,
     "items": [
       {
@@ -105,8 +105,8 @@
         "target": null,
         "title": "Rotorua Terme & Geyser",
         "date": "2026-12-03",
-        "reason": "Mock legacy senza dettagli unici",
-        "status": "ready_after_approval",
+        "reason": "Mock legacy senza dettagli unici; eliminazione editoriale sospesa",
+        "status": "blocked",
         "bookingReferences": [],
         "attachments": 0,
         "linkedBusinessRecords": [],
@@ -120,8 +120,8 @@
         "target": "tappe/tappa_37",
         "title": "Lago Tekapo & Good Shepherd",
         "date": "2026-12-08",
-        "reason": "Versione obsoleta Lago Tekapo",
-        "status": "ready_after_approval",
+        "reason": "Versione obsoleta Lago Tekapo; eliminazione editoriale sospesa",
+        "status": "blocked",
         "bookingReferences": [],
         "attachments": 0,
         "linkedBusinessRecords": [],
@@ -135,8 +135,8 @@
         "target": null,
         "title": "Queenstown & Fiordland",
         "date": "2026-12-11",
-        "reason": "Mock legacy generico",
-        "status": "ready_after_approval",
+        "reason": "Mock legacy generico; eliminazione editoriale sospesa",
+        "status": "blocked",
         "bookingReferences": [],
         "attachments": 0,
         "linkedBusinessRecords": [],
@@ -301,7 +301,7 @@
         "title": "Kaikoura Peninsula Walkway",
         "date": "2026-12-07",
         "reason": "Usa la sottocategoria dedicata senza duplicare la tappa.",
-        "status": "ready_after_approval",
+        "status": "blocked",
         "bookingReferences": [],
         "attachments": 0,
         "linkedBusinessRecords": [],
@@ -346,7 +346,7 @@
         "title": "Split Point & Teddy's Lookout",
         "date": "2026-12-18",
         "reason": "Sceglie un solo spot compatibile e mantiene l'ID.",
-        "status": "ready_after_approval",
+        "status": "blocked",
         "bookingReferences": [],
         "attachments": 0,
         "linkedBusinessRecords": [],
@@ -649,23 +649,29 @@
       "expensesReadCanonicalCollections": true,
       "mapReadsAffectedCollections": true,
       "pdfReadsAffectedCollections": true,
+      "pdfIncludesCopilotNotes": true,
+      "pdfIncludesStructuredTrekkingMetrics": true,
+      "pdfIncludesOperationalAddressesAndTimes": true,
       "todayReadsAffectedCollections": true
     },
     "mapRecordsWithoutExactCoordinates": [
-      "alloggi/alloggio_21",
       "attivita/spot_lake_pukaki_20261213",
-      "attivita/spot_werri_beach_20261224",
       "attivita/tappa_10",
+      "attivita/tappa_24"
+    ],
+    "mapRecordsWithVerifiedCoordinates": [
+      "alloggi/alloggio_21",
+      "attivita/spot_werri_beach_20261224",
       "attivita/tappa_15",
       "attivita/tappa_21",
-      "attivita/tappa_24",
       "attivita/tappa_26",
       "attivita/tappa_52",
       "attivita/tappa_72"
     ],
     "paymentViewsCurrencySafe": false,
-    "pdfIncludesCopilotNotes": false,
-    "pdfIncludesStructuredTrekkingMetrics": false
+    "pdfIncludesCopilotNotes": true,
+    "pdfIncludesStructuredTrekkingMetrics": true,
+    "pdfIncludesOperationalAddressesAndTimes": true
   },
   "invariants": {
     "noRealWrites": true,

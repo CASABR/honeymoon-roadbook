@@ -1,0 +1,1302 @@
+{
+  "format": "hounigo-roadbook-0000-application-manifest-v1",
+  "mode": "PREPARATION_ONLY_NO_WRITES",
+  "tripId": "0000",
+  "generatedAt": "2026-10-28T08:01:49.882Z",
+  "idempotencyKey": "roadbook-0000-baeaeadcf564442ba4443d70",
+  "source": {
+    "cloudBackupSha256": "96a6e76e6f7ba3d2cbcff65dfa963983a7c8c8e7b9368e4fc23652a7e2bf588a",
+    "localBackupSha256": "4bd45bc0f73ad4fb2e663b72807db26c9cb9339ed26cfc60fa2914cb373d9668",
+    "patchPlanSha256": "0caff8e0283cb08026d84703ec32434b8ebdc377cb5a65368075eff35fd9dd5f"
+  },
+  "gate": {
+    "requireFreshAuthenticatedBackup": true,
+    "requireExactHashMatchForEveryExistingRecord": true,
+    "requireAddsToRemainAbsent": true,
+    "abortBeforeFirstWriteOnAnyMismatch": true,
+    "oneFirestoreTransaction": true,
+    "transactionWrites": 115,
+    "maxTransactionWrites": 499,
+    "noRealWritesExecuted": true
+  },
+  "operations": [
+    {
+      "key": "alloggi/alloggio_01",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "86a84d5e176e0a11362146b30d171bdb97d59a322c0b8fe11fa0bf76520493fa",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "2c9eebbe24a28bd688a83741971faf0733a9b50290052f3d43d6c3601c9df1c7",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_02",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "252f66b3c2fe06589ad6dfab2b494b2ddd1ac2c82575bf2f26fbda464973ec77",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "e37650007e678ca91cacbb1389414e5647ff7f379f1e55fcd37b7720db8894cb",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_03",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "7ae6fa8d578d53dd7cb7a53a43ced34ea80c89a5887458e7fdecb9751c336818",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "e03ee785226a63beb1d1775065729da04935ac6383a3d010bf9d0a9cd05bd2e1",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_04",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "8418470c8a7531554d97346e70ec3d43155291b2563ade5b5ec61568960fa773",
+        "updatedAt": 1793111800654
+      },
+      "intendedAfterSha256": "465a2c778376318f3c8df632fc46c23de929f0d65e3fa7c39f305a52f7470038",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_05",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "c39263a890c93a0f6b98df61b4a9b362f62bd8ed3ba26ebb05b4a2543fd1d91e",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "62f7b65dd86c7a18273dc523a25952abfbc4851c168517019ec88040a931a769",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_06",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "0aa4fbd59e49aece648e60d5e07f475b08de7e4570eaa12ee59587dc0873d14e",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "1b7a31d5378f8ec0049f810ee733a94cab1ee564fbd90052443b1b976e9d9b94",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_07",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "0ae9a943c3192bc173a637119be1a620ad49b9ac6cfa176f7d3e770d9507185b",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "72990900e551de6da9e179159bf94b65303606c85e880d841fe8b26eec486e63",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_08",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "3139c397cf15fd26a28794590aa198d12dde342b0bcb562e4ed02ceefbdfbf6e",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "54af092c73fe3ffa980fbbb7f36aabc7a2df1a0439ae807d2831f200c6ace6f5",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_09",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "dbb894ea29137e065cf36008d8c358155713e63dffc17bea7b1fb08520efaa7a",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "835b6767fec01d307df6279ceec2901d9ce5760294da6d769f020d90c39752ff",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_10",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "8261c3238e1efe9972bbcb7c70e8196d57f759962ec66e8549e087ad06afbeba",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "1cf2cada3cf7401dfef93189c79fae7bc74e9f61460e2552d24eb47189360a02",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_11",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "9869fa3ecb6ba2ff8bece233957bbd3bcad58fc8e65458f9469dca1337d781e8",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "5e164cc95144ad5e54419ad51de91b6503ec5ce298976d3437627ec178c07ff4",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_12",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "d9f4e47ecc0b1624d7a860d35b7010de566aa5d5920e2b2cdda55fa0f30ca8e5",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "d354f3ac3283835b9f71dfb6e66e54226e97dca48aab205b4b52afd79399d126",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_13",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "ce4666f550eac5a30de450e13e4d9575c5aeeb0fd9188f000f9492629cc256d8",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "2cb641344761103ce36adf02b2bdbd78b905ac8eccbcb840730416b6aa7c8e9f",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_14",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "4554a501a1454a4da1b512482df39cd553bdaff07727be0b2d74e4c8f29e1dde",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "a90bfcf8ae803fd91962644fc588421d57caa343aa89023a4d4576d543b3e9f0",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_15",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "8fb3c159857b166edca571344b690efbd88eb90b266af80a1f723316646e3ce1",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "7e08d60d1deb4755dc62c028174c3721352e6defa759edc50be2f81a90f7acbd",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_16",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "6ea762fd8bada5ea4ec187553a92826d687ea6c733b67d67ade24248d90d3097",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "79665ca116c10edf712b3451cecbe037cafaae13cc29382b7e190f6289033724",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_17",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "69172b1e7b240edbd2ddd3de8142901c8cd7b014a1960b7363bd416fb70f4e5e",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "72ebf2759a1b5e2a33fbd23cf86dd55bb0359629169de15ac83076c3a8a7ca4e",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_18",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "d60a49640b8d006210517db951e19ae59671915a9787eb372aa9f5152988cb28",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "748d9c869c82e55604fa3b37bb979e726cca0c05886f267e3b02fbeb67e4deef",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_19",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "624c89f9847ca1ad1c7c232e615870b5534ea8f35293af2f10aaaa9dcd97110f",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "732b1c4477269f44f0927d461bb894629e44e95249f95c4b41fec6071e4a20f8",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_20",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "cdbeba2b0e6dc9ebccd88eb3edabdda10b5d26a4dec908e3de31d19ba9703764",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "13f18fa5c29e58b3e02eec98f2edc3f52e9ea442872fb17e724d271079c7cd81",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_21",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "9131cb395e4af4bf1d88a4c207aee817f97e6be4c9cc725fb05f20b993cf1e84",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "b0aaa1f7e126d6660160e9431e2b0bf3c0e46922cdbd13bbe8beb3346dfe20b6",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "alloggi/alloggio_22",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "54dd99d382b27fb4053c99d088d47c3f58a23f30d31c39f0a53ec5acbc7cbeee",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "faada9709abc1f72a934802028e6783646c366964abac89b9e20a6c63da369c9",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_23",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "7f824fd10097a1e930c1eac705ce406d93767266e6648cd0fb556ac16c456e02",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "6ed9634a96eb0e4360338348dab3536cf5b7a0d6b2bde196b2c2c6093a33dd67",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_24",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "bdb08b9c260358a835a0079c7feb1c2c4d5923fcbbf1e37874d75845b33d2512",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "eadfea49620d51c54d8af03b952a711983918ae1afbc73af38d915d29bb57a7a",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_25",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "9686da71a6a690be3da3060e68c050f2b5049bae377045a5eeeb7a5133c5af14",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "407baa070931ca5c8a40e452e1698a047a8731344703521d51d581db0328fc27",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "alloggi/alloggio_26",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "9781420af2500d131ad6a76a362d68b4a3216cd5d758da01fb95566951254461",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "a8bfb783bfbfc8b064d63697482626cdef8f61f8842c88559441cd972be85549",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_27",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "79466635f17f2def3505e403d92e39031fcddc8ba1bd4cd960e6eef852b1b210",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "339512ec9f8d0ff7c3b96f5e67052c9416cd1d696c51c36671bb99fa933eb6d5",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_28",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "b0ec414f53a9edf403f356ff008dddb7feded41d6369f9e9c3f0d8b1e9c53486",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "80459b03c3b23997b00ddb6651fb4632f87ce24c5b1897ad866902d5f145e9fa",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_29",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "464356f355d07cbd16eae2b01a44451a0062f8f76a4471ea7358252db2396dcf",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "f9a950918e48bcb04d30c5cc777a461dd924b7f7af0d802c8e1561519909ad04",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_30",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "9660c6da475de2fd915fb6bd0a37d160d9b173cb04d66c8e45efa0bd624404e6",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "8e8fb45a339bc2e1eba4a0609be5534251ed160adfa0c493d69de131001c915c",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_31",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "0132cfe2ced899ffb1f5899dec2b24b37351630213985ea68c9c102ddfd9d696",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "0d4dd475a415ea0f68059a88b501785030ad08ca1b126ed9c01f4f09b7650a71",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_32",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "988eda86db9e5912ba2767a0fb9d9e41ca89428e648930309b14567ac1222930",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "9902958338cc5f086621a556c7cdbcdfab00348d372d524c54b685e5a888b128",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_33",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "9cb69d5a18e030dd96a6b38e2365b48ca8788a0fd972e3b5c0bc095d90e34d77",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "c0bde7c4ac16bdb9e8dcb850a5f70696128a2e66a67fcf23c41c1893d1333405",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_34",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "410ad21e407194c664b08a20a6bde65713731fd564afdbaef87238b31bc63712",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "cf9e3cfed4798b48ec85dff72ca124c1d48bad930742cacd109ae24a418d2764",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_35",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "9cf9265d8b9850dcec0ffd4b6aaed1298ebda0f16d4427dc1ce5132bde4cf614",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "e7865700b44c6cce460bfb530b8528ba8bd4ce4120d17ed70b93d26485b00f1d",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_36",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "af646ffdee4bfe89ffe199634e43861bea23b39188b8d6ab540450a45799eddc",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "992e2371f82d24855e8b8d10d7bf4b25ba8110c6e33ca63ef5816a1ca5a44a55",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "alloggi/alloggio_37",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "3a2f4de6604334bbec083f1500463ca88b40fb3b175206cc965942c79a9301ec",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "925f1b661a3028a206524cffbc6c5bd0df8952e5db58f200155d888edbe5f20d",
+      "tombstone": null,
+      "source": "Il soggiorno è futuro: completato alterava anche il saldo in Spese."
+    },
+    {
+      "key": "attivita/act_019",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "21925899041a0e09f8cc67c77b5e754dfbb08a2e480c4c287b93a87e12afa98f",
+        "updatedAt": 1792915911977
+      },
+      "intendedAfterSha256": "baf99cba63acc01685f53f93dc3f1fae17ef20452c892772ebb3233c651bca8f",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "attivita/act_026",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "4db2844d07d2d701bc084a74dbcf7e00dfd7b303be0c79736f3dd872649f3579",
+        "updatedAt": 1791538760055
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_attivita_act_026",
+        "entityType": "attivita",
+        "deletedId": "act_026",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Duplicato traghetto Manly"
+    },
+    {
+      "key": "attivita/att_01",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "27dd1bdbe95df5ec9eb8444a1ef71042bb3a226d81cbb996e2da4812b9fbe2e3",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "383e60492a2787b28bee3e9974780d8888b2266c843d462d6f0352d794aa024c",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "attivita/att_02",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "3977db560845e16a985092fa3bf3fe5f34a0e80474240d44101aaae90a726be6",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "88f50858ee9ee61f7e83ee286b998b3fc1a35f37cb31aa52280026f957338120",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "attivita/att_08",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "5a920d76e3dc1bb8674f5aba2d40e3f0f68ef3dea6dce0f620c49b28261244ad",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "29e96aafee9d82628b1fe984b1a76e7e4e1336d59c463cb9ea9984a7650dd1cc",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "attivita/att_10",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "63daf57b5f5a21168519483980e3a34f8c990b452bf5b7191596e34f6992a32b",
+        "updatedAt": 1793104423542
+      },
+      "intendedAfterSha256": "ec8e00f17da41574960414f791d3acc6e814eef0af39fa9c79651af4e589b336",
+      "tombstone": null,
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/central-north-island/places/tongariro-national-park/things-to-do/tracks/tongariro-alpine-crossing/"
+    },
+    {
+      "key": "attivita/att_12",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "c7b941e012eb345c7e51a3eb9373cbd9dcaad27180ada58df11dd47190ffe4cb",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "0c7630a157ebc8633a0bc15725bbef5ad3601ec941fe46c07573f407f0426e89",
+      "tombstone": null,
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/west-coast/places/hokitika-gorge-scenic-reserve/things-to-do/tracks/hokitika-gorge-walk/"
+    },
+    {
+      "key": "attivita/att_15",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "a117415caa8432db7d14f06095c05a34effce29c79606edf4c32c554db539949",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "206156ce88163ea286d79d2424eb6938d2874f4e406e06257da2b2b40fd28946",
+      "tombstone": null,
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/west-coast/places/westland-tai-poutini-national-park/things-to-do/tracks/minnehaha-walk/"
+    },
+    {
+      "key": "attivita/att_16",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "15e60a9f01e38aee25354686edd12824d470041656146b88037c483c242ba6fb",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "26457a55c2511b94ae086a4a777bcec19c508cbcd5ac576a085eb58264ad9cdf",
+      "tombstone": null,
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/west-coast/places/westland-tai-poutini-national-park/things-to-do/tracks/lake-matheson-te-ara-kairaumati-walk"
+    },
+    {
+      "key": "attivita/att_22",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "8e77dae29719843967ef61ed9845cc112b78cccbee70a6d8503ccc396fa3f148",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_attivita_att_22",
+        "entityType": "attivita",
+        "deletedId": "att_22",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Hanson Bay escluso"
+    },
+    {
+      "key": "attivita/att_23",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "bd856afcfa263d103f0dde2d0d57598255ad72cf9e3d433e75c85333ec4db233",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "978269ca5e5dd284c2618c56d393e4f1561c418bee05a9f0679b26c379962023",
+      "tombstone": null,
+      "source": "https://www.parks.vic.gov.au/"
+    },
+    {
+      "key": "attivita/att_24",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "f849f00afdb82f1c009e7e4322dff1f42c10dbf66829ca93e7dc289b8ea39bec",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "d21d44edac5f24296870429abf4c16e17b751b766602ca070f46941dc3956be0",
+      "tombstone": null,
+      "source": "https://www.greatoceanroadauthority.vic.gov.au/Projects/Keerray-Woorroong-Visitor-Centre-Twelve-Apostles"
+    },
+    {
+      "key": "attivita/att_26",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "c831df15fc958b0212f69b5f0294cab5ff7454caad607aa08991d81c29987547",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "9ee0a90a525e5c94970172dd0448f5f0c209389e911ac2e150575e10700da73d",
+      "tombstone": null,
+      "source": "https://www.parks.vic.gov.au/places-to-see/sites/telegraph-saddle-carpark"
+    },
+    {
+      "key": "attivita/att_27",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "4e85bfbf2e8aa8ee10e69a0333564b1fc3e36c2da2d95902bb4174f9d2d66bc1",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "c38d0e00f0e03a5b7f1acd4a84f46bdbe54487ae3425e424841508d16af73dfb",
+      "tombstone": null,
+      "source": "https://www.parks.vic.gov.au/places-to-see/sites/prom-wildlife-walk"
+    },
+    {
+      "key": "attivita/att_30",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "6a642d3c93b9fa9f6271ae2cfcc33652011eff63c1bd209bee548e290e958ea6",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "f4658e3c17b54c0f394f59a7d5f567afaf19db47b2fc59c1894cd0894172a375",
+      "tombstone": null,
+      "source": "https://www.nationalparks.nsw.gov.au/things-to-do/walking-tracks/wentworth-falls-track"
+    },
+    {
+      "key": "attivita/att_31",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "695868d2d0aaa1763f3bcdd7e7a074946c4deea757e7bfa982d1a4bcf254f031",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "6b3cc6ade30b93a71dccf445444955deee968d4e006900049310c31935441332",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "attivita/att_37",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "ee5360254a333766c19841e9d53a2c493119e104aa11cd5e7e1d782c0f96fb66",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "0b5cefdea9a4781fb4107d2395094691c5c0a500c983f10b3c11c6181266d005",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "attivita/att_38",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "74cee336bddada13facd78d43009efbd5e28eaf16f1a84c16449454a79c871bc",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_attivita_att_38",
+        "entityType": "attivita",
+        "deletedId": "att_38",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Duplicato TAO"
+    },
+    {
+      "key": "attivita/spot_lake_pukaki_20261213",
+      "action": "add",
+      "expectedBefore": {
+        "exists": false,
+        "sha256": null,
+        "updatedAt": null
+      },
+      "intendedAfterSha256": "d7db0c0668537779261f249eec86facfde6270e286f12a01dabecc3cd5b9cc7e",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "attivita/spot_werri_beach_20261224",
+      "action": "add",
+      "expectedBefore": {
+        "exists": false,
+        "sha256": null,
+        "updatedAt": null
+      },
+      "intendedAfterSha256": "18a02802b00fbc1c3d670fa3222a9954183adea9c4edd476913c2c5612ec698e",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "attivita/tappa_10",
+      "action": "add",
+      "expectedBefore": {
+        "exists": false,
+        "sha256": null,
+        "updatedAt": null
+      },
+      "intendedAfterSha256": "7fe2be9537c2e293c9203ccc532ca672daae4baf5d226cf5096a50bff454cd64",
+      "tombstone": null,
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/waikato/places/waitomo-area/tracks/ruakuri-walk/"
+    },
+    {
+      "key": "attivita/tappa_15",
+      "action": "add",
+      "expectedBefore": {
+        "exists": false,
+        "sha256": null,
+        "updatedAt": null
+      },
+      "intendedAfterSha256": "928f6d05e573db3d1fab4b981d63ecf98ead49dfeaf7b431297a024eed233bda",
+      "tombstone": null,
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/central-north-island/places/tongariro-national-park/things-to-do/tracks/tawhai-falls-track/"
+    },
+    {
+      "key": "attivita/tappa_24",
+      "action": "add",
+      "expectedBefore": {
+        "exists": false,
+        "sha256": null,
+        "updatedAt": null
+      },
+      "intendedAfterSha256": "a0dc8a364a0802458f91879d33581bcf3c37ab87c4ce27d95171893c6df31389",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "attivita/tappa_26",
+      "action": "add",
+      "expectedBefore": {
+        "exists": false,
+        "sha256": null,
+        "updatedAt": null
+      },
+      "intendedAfterSha256": "80bc2c79e892de7e35c7d2caa4d6b8c48e81cb0c05832b6e5ebd3a41edcd0661",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "attivita/tappa_72",
+      "action": "add",
+      "expectedBefore": {
+        "exists": false,
+        "sha256": null,
+        "updatedAt": null
+      },
+      "intendedAfterSha256": "28cfbf308c3a35a2cb8d9c68d67dff0dd1a0e7153af17d785715b847d582174b",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "ristoranti/rist_05",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "25b33d39c1b70cf9a002c3368fc1d381bcdfb080c278d6f68410b2f2b2708452",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "9cb7554eb5f6a5ee7548849a2bf1407ed53beefb919f70461e9e21b6683eca5d",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "ristoranti/rist_14",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "e14a0b171e2233e3022c8ed1dc7910449044e063f8c95d8ad6ac235dfd2638db",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "2fcbb21da2f3431886ff3562a5559c1444be0617e163bd1d0cb57c1dcbf062b9",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "shopping/fuel_g11",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "40d635bc077573aacf7e95c772e647cc597d768197b6a084bcb11e144e63bede",
+        "updatedAt": 1793111828035
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_shopping_fuel_g11",
+        "entityType": "shopping",
+        "deletedId": "fuel_g11",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Allied Te Anau duplicato e data errata"
+    },
+    {
+      "key": "shopping/fuel_g15_1",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "548f01828d8cc8a07b4c3498002824f408b50c32933e0dd8886134224344ed7b",
+        "updatedAt": 1792915899536
+      },
+      "intendedAfterSha256": "ce1559d36d066de57bd8e7c7e960146f2e5e35a6278597b144899206162975c6",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "shopping/fuel_g15_2",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "24ad675ebf1eef136b2d36b734ed804b11ca468de66c7a8b37a2d828dec96383",
+        "updatedAt": 1791299429331
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_shopping_fuel_g15_2",
+        "entityType": "shopping",
+        "deletedId": "fuel_g15_2",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Stop Australia copiato sul 12/12 NZ"
+    },
+    {
+      "key": "shopping/fuel_g17",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "fbe49cf11268464dda30ada2fd852924460039582e4c217d3890b297a797168c",
+        "updatedAt": 1791299429331
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_shopping_fuel_g17",
+        "entityType": "shopping",
+        "deletedId": "fuel_g17",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Richmond fuel duplicato e data errata"
+    },
+    {
+      "key": "shopping/fuel_g28",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "55eabcfdfb440c52adcd00a300609efefe2bd8def009b000dad6269deddbe186",
+        "updatedAt": 1791299429331
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_shopping_fuel_g28",
+        "entityType": "shopping",
+        "deletedId": "fuel_g28",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Mascot fuel duplicato e data errata"
+    },
+    {
+      "key": "shopping/shop_001",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "37bb67f05cf789905a8b96bd05f2e283f7a7767cb471f9dc6f6fde709b93b00b",
+        "updatedAt": 1791464171033
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_shopping_shop_001",
+        "entityType": "shopping",
+        "deletedId": "shop_001",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Allied Te Anau duplicato"
+    },
+    {
+      "key": "shopping/shop_002",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "7388c599bf46c7788c2ed27207c4b942a3f9a1bd5a0f2d114e81f3644b734ead",
+        "updatedAt": 1791464171033
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_shopping_shop_002",
+        "entityType": "shopping",
+        "deletedId": "shop_002",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Christchurch fuel duplicato"
+    },
+    {
+      "key": "shopping/shop_003",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "b6c67406ec97584700c70138b908baba5708168b20cdad2fdf2064fe4b0c3e2a",
+        "updatedAt": 1791464171033
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_shopping_shop_003",
+        "entityType": "shopping",
+        "deletedId": "shop_003",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Richmond fuel duplicato"
+    },
+    {
+      "key": "shopping/shop_004",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "8a8e7d56766ee1822b7cd78937be798919be6db3cb233ccf9509338071476bb3",
+        "updatedAt": 1791464171033
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_shopping_shop_004",
+        "entityType": "shopping",
+        "deletedId": "shop_004",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Batemans Bay duplicato senza data"
+    },
+    {
+      "key": "shopping/shop_01",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "4d9bd2944c97b7199c031a63fe3f51b60a2e0e7de996212c5f79f930f32e289a",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "c533acc8c316b8012fffe204fa96580176773b0296d530600b81255b21bea7f3",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "shopping/shop_04",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "e374498e044be99cb23bc1c5ffdb34c55fad3ffaed3437731ddcde4fe017dea3",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "3f2bc61a73a3e267621e228a9818a995c93e72c7fde749e5bc85a5a7d6662147",
+      "tombstone": null,
+      "source": "shopping/fuel_g11 e shopping/shop_001"
+    },
+    {
+      "key": "tappe/tappa_08",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "ec1725c27f0c3e8a2cb56d3bacc75f55c25d5dd90c46a01e68a6fb7ac03d144c",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_tappe_tappa_08",
+        "entityType": "tappe",
+        "deletedId": "tappa_08",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Marokopa Falls rimossa il 02/12"
+    },
+    {
+      "key": "tappe/tappa_10",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "5c0b1aaa61958936320f852916095b669187a7ed7562a14da538620857e37877",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_tappe_tappa_10",
+        "entityType": "tappe",
+        "deletedId": "tappa_10",
+        "timestampAssignedAtApply": true
+      },
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/waikato/places/waitomo-area/tracks/ruakuri-walk/"
+    },
+    {
+      "key": "tappe/tappa_15",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "182a3c4fb622c94b7aa23d5b0542c2bdb6b5ad96e4e8d8b5ab52da9aaa240f0e",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_tappe_tappa_15",
+        "entityType": "tappe",
+        "deletedId": "tappa_15",
+        "timestampAssignedAtApply": true
+      },
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/central-north-island/places/tongariro-national-park/things-to-do/tracks/tawhai-falls-track/"
+    },
+    {
+      "key": "tappe/tappa_24",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "f78f68d2b67da47c1bdcd8ce903f010dd19c3997f933dac1b71d078122b35ec0",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_tappe_tappa_24",
+        "entityType": "tappe",
+        "deletedId": "tappa_24",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Mandato utente"
+    },
+    {
+      "key": "tappe/tappa_26",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "566b2a7eaabc483f27f5caa9dbe924a77af4d55016f5f8ae509001b156e31674",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_tappe_tappa_26",
+        "entityType": "tappe",
+        "deletedId": "tappa_26",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Mandato utente"
+    },
+    {
+      "key": "tappe/tappa_37",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "4d2490506a7dacc561a95cba8d1df610c76b465278e2a1611b0b66bf7d11d871",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "da01ca346145cf1ae3d9330332000dceb4328dfd3043ffaf94a565c0e5b00561",
+      "tombstone": null,
+      "source": "tappe/tappa_03_tekapo e record canonico"
+    },
+    {
+      "key": "tappe/tappa_46",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "bb5cd1dc0b55cff302a8ad91da15b012e4da8b75ce0bc3489a77733c80e84376",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_tappe_tappa_46",
+        "entityType": "tappe",
+        "deletedId": "tappa_46",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Hanson Bay escluso"
+    },
+    {
+      "key": "tappe/tappa_68",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "cd67903a357401e87c46981521e5d0803f3c1daad50c360565ec26979a2fd941",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "48892c9d0e09c470070f5f3a71e15f3ef078ad836118d81ca8cdbd3ade3b3161",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "tappe/tappa_72",
+      "action": "delete",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "c3c3f72fe0c62af93e586678a05bc98bcf33d7529d5ad41d9aee1233b675c3b8",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": null,
+      "tombstone": {
+        "key": "settings/tombstone_tappe_tappa_72",
+        "entityType": "tappe",
+        "deletedId": "tappa_72",
+        "timestampAssignedAtApply": true
+      },
+      "source": "Mandato utente"
+    },
+    {
+      "key": "trasporti/transport_flight_mxp_pek",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "76412078cc714e97b14ac6e9c0fddda176b15876caacc307472f4fb842e8ea70",
+        "updatedAt": 1791987868060
+      },
+      "intendedAfterSha256": "aba4182681247cc84649f2e694ee7afbb59782607f366c223f4c9bf152ca4978",
+      "tombstone": null,
+      "source": "Il trasporto è futuro: completato veniva interpretato come pagamento saldato."
+    },
+    {
+      "key": "trasporti/trn_03_snap_rentals",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "477a3d8006f4e5d2a4a63511abdb241fce545e2b4bd2270963c93ecc81c88e27",
+        "updatedAt": 1791987868060
+      },
+      "intendedAfterSha256": "b3ba0bbd6ac3c37df3983449fc7eacd3977b4e93358d7466543b5495706a5c42",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "trasporti/trn_04_bluebridge",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "8326f139fd88301d248fca5268c30f1438871e3cd0922f2930b090a834497966",
+        "updatedAt": 1792400432691
+      },
+      "intendedAfterSha256": "6b5ccec5952b335d8e839278b302eb7691aebe782848f7e17a1e046041e3b328",
+      "tombstone": null,
+      "source": "Il trasporto è futuro: completato veniva interpretato come pagamento saldato."
+    },
+    {
+      "key": "trasporti/trn_05_chc_adl",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "c40597745f0f07ad81d3269a08cc7f71acd7c01d14c1ef8126fdf77d39eb0e7a",
+        "updatedAt": 1791987868060
+      },
+      "intendedAfterSha256": "8fdd2bcc75d87067dff22a2c7c40c9af63df1565b9b9a6050154aa961e647f09",
+      "tombstone": null,
+      "source": "Il trasporto è futuro: completato veniva interpretato come pagamento saldato."
+    },
+    {
+      "key": "trasporti/trn_06_bargain_car",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "945f9080f2c84498fd49d6f02d4ebbe83ab10dce4a2e7210fae750b7e01e1092",
+        "updatedAt": 1791987868060
+      },
+      "intendedAfterSha256": "c0b33ef18574fa60f6359098207fa52c603c56b462d840e7d6c790dcedc25dc6",
+      "tombstone": null,
+      "source": "Il trasporto è futuro: completato veniva interpretato come pagamento saldato."
+    },
+    {
+      "key": "trasporti/trn_09_adl_mel",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "bb2341720561e9c1a21970faa770f049da58ed9869297972f5ffb962f825f642",
+        "updatedAt": 1791987868060
+      },
+      "intendedAfterSha256": "f1d7a335eb690198e37ac05392e72ea71a2d53665187d7be168d1434b84a4efe",
+      "tombstone": null,
+      "source": "Il trasporto è futuro: completato veniva interpretato come pagamento saldato."
+    },
+    {
+      "key": "trasporti/trn_11_syd_mnl",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "715ee005e382bd4931426d7cfa44e505b087f46f6a6008823390aad42597d807",
+        "updatedAt": 1791987868060
+      },
+      "intendedAfterSha256": "10a959bc457487ecad72ee0bf67ebbf8c865206749edabf40bdb962e46387c7f",
+      "tombstone": null,
+      "source": "Il trasporto è futuro: completato veniva interpretato come pagamento saldato."
+    },
+    {
+      "key": "trasporti/trn_12_mnl_mph",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "56b1c3307def8bfb9ca0c485c6663a3cb440d196242fcabaaf3d42fee72714f1",
+        "updatedAt": 1791987868060
+      },
+      "intendedAfterSha256": "ab9d41bd77f0feaac22a9e542da6454f5890b348e230414963545713a4d3bfd9",
+      "tombstone": null,
+      "source": "Il trasporto è futuro: completato veniva interpretato come pagamento saldato."
+    },
+    {
+      "key": "trasporti/trn_13_mph_eni",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "c1fc64341737ad7f6026c35317c48ce0a3b8e99f793a1f061aad6be0f56735ff",
+        "updatedAt": 1791987868060
+      },
+      "intendedAfterSha256": "aefc624de8def586fd619d33b49704a3d1ba5fe60c2fc5472b4d6bc570a5a744",
+      "tombstone": null,
+      "source": "Il trasporto è futuro: completato veniva interpretato come pagamento saldato."
+    },
+    {
+      "key": "trasporti/trn_14_sydney_ferry",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "2b93dcfdffffcdc6466f7785038c1004908f52aa784a8a7ea142cf257101041f",
+        "updatedAt": 1793091616898
+      },
+      "intendedAfterSha256": "448b578df612c653707e9e1ff6d7e4d3079b81f37ca0315e4c3e4d8fc466fc38",
+      "tombstone": null,
+      "source": "attivita/act_026 e record canonico"
+    },
+    {
+      "key": "trasporti/trn_15_usu_ceb",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "d4cbd572c572659facbdf93abd1cfc60556161bf1b869ec9d4adeff762061c11",
+        "updatedAt": 1791987868060
+      },
+      "intendedAfterSha256": "0929ab0aa710395dbdb6ec2df18fb8a7cf59b50bcb0b80b49b4f55a0d2559995",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "trasporti/trn_16_ceb_tpe_ci706",
+      "action": "add",
+      "expectedBefore": {
+        "exists": false,
+        "sha256": null,
+        "updatedAt": null
+      },
+      "intendedAfterSha256": "f39bd483a1b53aa529a727d667c3fb6cd687d4d1d8ce8a13c90f31d0ffa56048",
+      "tombstone": null,
+      "source": "Mandato utente"
+    },
+    {
+      "key": "trasporti/trn_1791464189147zk3f9d3",
+      "action": "update",
+      "expectedBefore": {
+        "exists": true,
+        "sha256": "c881b1a7ade200a6e553d6b79c610e3cf4bbb19ab60df0da5445cf79822f8df0",
+        "updatedAt": 1791987868060
+      },
+      "intendedAfterSha256": "d83a433edf32d47040790f85652793a75c6a0c1a178155b25ec4cbd6073c3f4c",
+      "tombstone": null,
+      "source": "Il trasporto è futuro: completato veniva interpretato come pagamento saldato."
+    }
+  ],
+  "rollback": {
+    "source": "private/cloud-before.json",
+    "requireApplicationReceiptWithActualAfterHashes": true,
+    "refuseRestoreIfAnyCurrentHashDiffersFromReceipt": true,
+    "restoreOriginalDocumentsAndRemoveOnlyMatchingTombstones": true,
+    "neverOverwritePostApplicationChanges": true
+  },
+  "exclusions": {
+    "editorialHolds": [
+      "tappe/tappa_02_rotorua",
+      "tappe/tappa_03_tekapo",
+      "tappe/tappa_04_queenstown",
+      "tappe/tappa_21",
+      "attivita/tappa_21",
+      "tappe/tappa_52",
+      "attivita/tappa_52"
+    ],
+    "blockers": [
+      "CA783",
+      "CI75",
+      "Travellers Autobarn"
+    ],
+    "paymentReconciliationsApplied": 0
+  }
+}

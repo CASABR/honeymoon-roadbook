@@ -72,14 +72,16 @@ const additions = [
     id: operation.id,
     collection: operation.collection,
     data: operation.data,
-    kind: 'new'
+    kind: 'new',
+    status: operation.status
   })),
-  ...(plan.migrations || []).filter(isReady).map((operation) => ({
+  ...(plan.migrations || []).map((operation) => ({
     id: operation.id,
     collection: operation.toCollection,
     data: { ...requireRecord(before, operation.fromCollection, operation.id), ...operation.set },
     kind: 'migration',
-    source: `${operation.fromCollection}/${operation.id}`
+    source: `${operation.fromCollection}/${operation.id}`,
+    status: operation.status
   }))
 ];
 
@@ -127,23 +129,25 @@ for (const blocker of requiredBlockers) {
 assert((plan.paymentReconciliations || []).length === 5, 'Sono richieste cinque riconciliazioni pagamento.');
 assert((plan.paymentReconciliations || []).every((item) => item.apply === false), 'Una riconciliazione pagamento risulta applicabile automaticamente.');
 
-const sourceChecks = await verifySourcePropagation();
-const mapLimitations = [
-  'alloggi/alloggio_21',
-  'attivita/spot_lake_pukaki_20261213',
-  'attivita/spot_werri_beach_20261224',
-  'attivita/tappa_10',
-  'attivita/tappa_15',
-  'attivita/tappa_21',
-  'attivita/tappa_24',
-  'attivita/tappa_26',
-  'attivita/tappa_52',
-  'attivita/tappa_72'
-].filter((key) => {
+const editorialHolds = [
+  'tappe/tappa_02_rotorua',
+  'tappe/tappa_03_tekapo',
+  'tappe/tappa_04_queenstown',
+  'tappe/tappa_21',
+  'tappe/tappa_52'
+];
+for (const key of editorialHolds) {
   const [collection, id] = key.split('/');
-  const record = (after[collection] || []).find((candidate) => candidate.id === id);
-  return record && !record.coordinate;
-});
+  const operation = (plan.deletes || []).find(item => item.collection === collection && item.id === id)
+    || (plan.migrations || []).find(item => item.fromCollection === collection && item.id === id);
+  assert(operation?.status === 'blocked', `Hold editoriale non bloccato: ${key}`);
+}
+
+const sourceChecks = await verifySourcePropagation();
+const coordinateVerifications = plan.coordinateVerifications || [];
+assert(coordinateVerifications.length === 10, 'La revisione deve coprire tutte le 10 coordinate mancanti.');
+const mapLimitations = coordinateVerifications.filter(item => item.status === 'address_only').map(item => item.key);
+const verifiedCoordinates = coordinateVerifications.filter(item => item.coordinate).map(item => item.key);
 
 const report = {
   mode: 'DRY_RUN_REVIEW_ONLY',
@@ -172,9 +176,11 @@ const report = {
   propagation: {
     sourceChecks,
     mapRecordsWithoutExactCoordinates: mapLimitations,
+    mapRecordsWithVerifiedCoordinates: verifiedCoordinates,
     paymentViewsCurrencySafe: false,
-    pdfIncludesCopilotNotes: false,
-    pdfIncludesStructuredTrekkingMetrics: false
+    pdfIncludesCopilotNotes: sourceChecks.pdfIncludesCopilotNotes,
+    pdfIncludesStructuredTrekkingMetrics: sourceChecks.pdfIncludesStructuredTrekkingMetrics,
+    pdfIncludesOperationalAddressesAndTimes: sourceChecks.pdfIncludesOperationalAddressesAndTimes
   },
   invariants: {
     noRealWrites: true,
@@ -192,6 +198,7 @@ console.log(JSON.stringify({
   additions: report.additions.total,
   duplicateAdditions: report.additions.duplicatesFound,
   payments: report.payments.prepared,
+  verifiedCoordinates: report.propagation.mapRecordsWithVerifiedCoordinates.length,
   mapLimitations: report.propagation.mapRecordsWithoutExactCoordinates.length,
   noRealWrites: report.invariants.noRealWrites
 }, null, 2));
@@ -279,6 +286,9 @@ async function verifySourcePropagation() {
     expensesReadCanonicalCollections: files.expenses.includes('getTransports()') && files.expenses.includes('getAccommodations()') && files.expenses.includes('getActivities()'),
     mapReadsAffectedCollections: files.map.includes('getTappe()') && files.map.includes('getAccommodations()') && files.map.includes('getActivities()'),
     pdfReadsAffectedCollections: files.pdf.includes('getActivities()') && files.pdf.includes('getTransports()') && files.pdf.includes('getAccommodations()') && files.pdf.includes('getTappe()'),
+    pdfIncludesCopilotNotes: files.pdf.includes('a.noteCopilota') && files.pdf.includes('t.noteCopilota') && files.pdf.includes('day.accommodation.noteCopilota'),
+    pdfIncludesStructuredTrekkingMetrics: files.pdf.includes('activity.distanceKm') && files.pdf.includes('activity.elevationGainM') && files.pdf.includes('activity.hikingDurationMinutes'),
+    pdfIncludesOperationalAddressesAndTimes: files.pdf.includes('day.accommodation.address') && files.pdf.includes('transport.checkinCutoff') && files.pdf.includes('transport.terminalGate'),
     todayReadsAffectedCollections: files.today.includes('getAccommodations()') && files.today.includes('getTransports()') && files.today.includes('getTappe()')
   };
   assert(Object.values(checks).every(Boolean), 'Una vista non legge le collezioni canoniche attese.');

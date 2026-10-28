@@ -7,7 +7,7 @@
 ## Perimetro analizzato
 
 - 441 record locali IndexedDB e 485 documenti Firestore/LIVE, per 926 copie confrontate.
-- 460 record logici cloud prima della proposta; 446 dopo la simulazione.
+- 460 record logici cloud prima della proposta; 450 dopo la simulazione con i cinque hold editoriali esclusi.
 - Le collezioni operative locali e cloud hanno gli stessi ID e conteggi. Le 88 `routes` sono cache solo locale; `members`, `devices` e `locks` sono correttamente solo cloud.
 - Le differenze degli allegati riguardano esclusivamente il chunking Firestore; non sono duplicati logici.
 - `inviteTokens` non è enumerabile dall'account corrente (`403`), ma non è coinvolta dalle correzioni.
@@ -18,8 +18,8 @@ HOUNIGO è offline-first: IndexedDB e Firestore sono entrambi scrivibili e preva
 
 ## Esito simulazione
 
-- 77 record aggiornati, 23 rimossi e 10 aggiunti nel diff eseguibile; la ventiquattresima rimozione (CA783) resta bloccata.
-- 611 campi coinvolti complessivamente, inclusi campi di record aggiunti/rimossi; 23 tombstone pronte e una sospesa.
+- 79 record aggiornati, 18 rimossi e 8 aggiunti nel diff eseguibile; CA783 e le cinque eliminazioni editoriali restano bloccate.
+- 514 campi coinvolti complessivamente, inclusi campi di record aggiunti/rimossi; 18 tombstone pronte e 6 rimozioni sospese.
 - Nessun ID è cambiato negli aggiornamenti; le 7 migrazioni conservano l'ID passando da `tappe` ad `attivita`.
 - Restano bloccati i pagamenti multivaluta/shuttle e le tre discrepanze obbligatorie Travellers, CI75 e CA783.
 
@@ -27,6 +27,7 @@ HOUNIGO è offline-first: IndexedDB e Firestore sono entrambi scrivibili e preva
 
 - A/C/D: `before-after.md`, `patch-plan.json`, `generated/proposed-diff.json`.
 - Revisione per approvazione: `final-dry-run-review.md` e `generated/final-review.json`.
+- Applicazione recuperabile: `application-plan.md` e `generated/application-manifest.json`.
 - B: `roadbook-proposto.md`.
 - E/F/G/H/I/J/K/L/M: `verifiche.md`.
 - Inventario completo: `generated/record-inventory-before.csv`.
