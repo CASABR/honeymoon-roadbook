@@ -1,0 +1,677 @@
+{
+  "mode": "DRY_RUN_REVIEW_ONLY",
+  "tripId": "0000",
+  "generatedAt": "2026-10-28T07:44:07.235Z",
+  "deletionOperations": {
+    "total": 24,
+    "blocked": 1,
+    "doubtful": 6,
+    "items": [
+      {
+        "key": "trasporti/trn_03_volo_ca783",
+        "action": "delete",
+        "target": "trasporti/transport_flight_pek_akl",
+        "title": "Air China CA783 (Prosecuzione CA950)",
+        "date": "2026-12-01",
+        "reason": "Duplicato CA783; eliminazione sospesa finché data e orari del record canonico non sono confermati",
+        "status": "blocked",
+        "bookingReferences": [
+          "***REMOVED***"
+        ],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": true,
+        "doubt": "BLOCCANTE: data e orari CA783 non confermati; non eliminare."
+      },
+      {
+        "key": "attivita/att_38",
+        "action": "delete",
+        "target": "trasporti/trn_14_tao_expedition",
+        "title": "Spedizione Avventura TAO Philippines (El Nido -> Coron)",
+        "date": "2027-01-03",
+        "reason": "Duplicato TAO",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": true,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "attivita/act_026",
+        "action": "delete",
+        "target": "trasporti/trn_14_sydney_ferry",
+        "title": "Traghetto Panoramico Wharf 3 per Manly",
+        "date": "2026-12-27",
+        "reason": "Duplicato traghetto Manly",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "attivita/att_22",
+        "action": "delete",
+        "target": null,
+        "title": "Hanson Bay Wildlife Sanctuary (Koala Walk)",
+        "date": "2026-12-17",
+        "reason": "Hanson Bay escluso",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "tappe/tappa_46",
+        "action": "delete",
+        "target": null,
+        "title": "Hanson Bay & Baudin Beach",
+        "date": "2026-12-17",
+        "reason": "Hanson Bay escluso",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "tappe/tappa_08",
+        "action": "delete",
+        "target": null,
+        "title": "Marokopa Falls",
+        "date": "2026-12-02",
+        "reason": "Marokopa Falls rimossa il 02/12",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "tappe/tappa_02_rotorua",
+        "action": "delete",
+        "target": null,
+        "title": "Rotorua Terme & Geyser",
+        "date": "2026-12-03",
+        "reason": "Mock legacy senza dettagli unici",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": true,
+        "doubt": "Confermare che il mock generico non abbia valore editoriale residuo."
+      },
+      {
+        "key": "tappe/tappa_03_tekapo",
+        "action": "delete",
+        "target": "tappe/tappa_37",
+        "title": "Lago Tekapo & Good Shepherd",
+        "date": "2026-12-08",
+        "reason": "Versione obsoleta Lago Tekapo",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": true,
+        "doubt": "Confermare la sostituzione con tappa_37; coordinate e nota vengono preservate."
+      },
+      {
+        "key": "tappe/tappa_04_queenstown",
+        "action": "delete",
+        "target": null,
+        "title": "Queenstown & Fiordland",
+        "date": "2026-12-11",
+        "reason": "Mock legacy generico",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": true,
+        "doubt": "Confermare che il mock generico non abbia valore editoriale residuo."
+      },
+      {
+        "key": "shopping/fuel_g11",
+        "action": "delete",
+        "target": "shopping/shop_04",
+        "title": "Allied Te Anau (Self-service 24/7)",
+        "date": "2026-12-08",
+        "reason": "Allied Te Anau duplicato e data errata",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": true,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "shopping/shop_001",
+        "action": "delete",
+        "target": "shopping/shop_04",
+        "title": "Allied Te Anau (Self-service 24/7)",
+        "date": "2026-12-11",
+        "reason": "Allied Te Anau duplicato",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": true,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "shopping/shop_002",
+        "action": "delete",
+        "target": "shopping/fuel_g15_1",
+        "title": "Waitomo Christchurch Airport Fuel Stop",
+        "date": "2026-12-15",
+        "reason": "Christchurch fuel duplicato",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "shopping/fuel_g15_2",
+        "action": "delete",
+        "target": null,
+        "title": "OTR Yankalilla",
+        "date": "2026-12-12",
+        "reason": "Stop Australia copiato sul 12/12 NZ",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": true,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "shopping/fuel_g17",
+        "action": "delete",
+        "target": "shopping/shop_06",
+        "title": "EG Ampol Richmond",
+        "date": "2026-12-14",
+        "reason": "Richmond fuel duplicato e data errata",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "shopping/shop_003",
+        "action": "delete",
+        "target": "shopping/shop_06",
+        "title": "EG Ampol Richmond",
+        "date": "2026-12-17",
+        "reason": "Richmond fuel duplicato",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "shopping/fuel_g28",
+        "action": "delete",
+        "target": "shopping/shop_005",
+        "title": "Budget Petrol Mascot",
+        "date": "2026-12-25",
+        "reason": "Mascot fuel duplicato e data errata",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "shopping/shop_004",
+        "action": "delete",
+        "target": "shopping/shop_08",
+        "title": "Ampol Batemans Bay",
+        "date": "2026-12-23",
+        "reason": "Batemans Bay duplicato senza data",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "tappe/tappa_10",
+        "action": "migrate",
+        "target": "attivita/tappa_10",
+        "title": "Ruakuri Bushwalk",
+        "date": "2026-12-02",
+        "reason": "Rende strutturati i dati del trekking mantenendo lo stesso ID.",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": true,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "tappe/tappa_15",
+        "action": "migrate",
+        "target": "attivita/tappa_15",
+        "title": "Tawhai Falls (Gollum Pool)",
+        "date": "2026-12-04",
+        "reason": "Rende strutturati i dati del trekking mantenendo lo stesso ID.",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "tappe/tappa_21",
+        "action": "migrate",
+        "target": "attivita/tappa_21",
+        "title": "Kaikoura Peninsula Walkway",
+        "date": "2026-12-07",
+        "reason": "Usa la sottocategoria dedicata senza duplicare la tappa.",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": true,
+        "doubt": "La Peninsula Walkway viene ridotta a spot Point Kean di 20 minuti."
+      },
+      {
+        "key": "tappe/tappa_24",
+        "action": "migrate",
+        "target": "attivita/tappa_24",
+        "title": "Hokitika Beach (Scritta Legni)",
+        "date": "2026-12-08",
+        "reason": "Usa la sottocategoria dedicata senza duplicare la tappa.",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "tappe/tappa_26",
+        "action": "migrate",
+        "target": "attivita/tappa_26",
+        "title": "Knights Point Lookout",
+        "date": "2026-12-10",
+        "reason": "Usa la sottocategoria dedicata senza duplicare la tappa.",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      },
+      {
+        "key": "tappe/tappa_52",
+        "action": "migrate",
+        "target": "attivita/tappa_52",
+        "title": "Split Point & Teddy's Lookout",
+        "date": "2026-12-18",
+        "reason": "Sceglie un solo spot compatibile e mantiene l'ID.",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": true,
+        "doubt": "Il record Split Point + Teddy’s Lookout viene ridotto al solo Split Point."
+      },
+      {
+        "key": "tappe/tappa_72",
+        "action": "migrate",
+        "target": "attivita/tappa_72",
+        "title": "Mrs Macquarie's Chair",
+        "date": "2026-12-26",
+        "reason": "Usa la sottocategoria dedicata senza duplicare la tappa.",
+        "status": "ready_after_approval",
+        "bookingReferences": [],
+        "attachments": 0,
+        "linkedBusinessRecords": [],
+        "transientLock": false,
+        "doubtful": false,
+        "doubt": null
+      }
+    ]
+  },
+  "additions": {
+    "total": 10,
+    "migrations": 7,
+    "newRecords": 3,
+    "duplicatesFound": 0,
+    "items": [
+      {
+        "key": "trasporti/trn_16_ceb_tpe_ci706",
+        "kind": "new",
+        "source": null,
+        "title": "China Airlines CI706",
+        "date": "2027-01-09",
+        "candidates": [],
+        "duplicateFound": false,
+        "conclusion": "Nessun CI706 o tratta CEB–TPE equivalente presente."
+      },
+      {
+        "key": "attivita/spot_lake_pukaki_20261213",
+        "kind": "new",
+        "source": null,
+        "title": "Spot fotografico — Lake Pukaki",
+        "date": "2026-12-13",
+        "candidates": [],
+        "duplicateFound": false,
+        "conclusion": "Esistono tappe nella regione, ma nessuno spot Lake Pukaki equivalente."
+      },
+      {
+        "key": "attivita/spot_werri_beach_20261224",
+        "kind": "new",
+        "source": null,
+        "title": "Spot fotografico — Werri Beach",
+        "date": "2026-12-24",
+        "candidates": [],
+        "duplicateFound": false,
+        "conclusion": "L’alloggio Werri e Chinamans Beach non duplicano lo spot fotografico al tramonto."
+      },
+      {
+        "key": "attivita/tappa_10",
+        "kind": "migration",
+        "source": "tappe/tappa_10",
+        "title": "Ruakuri Walk",
+        "date": "2026-12-02",
+        "candidates": [
+          "tappe/tappa_10"
+        ],
+        "duplicateFound": false,
+        "conclusion": "Migrazione 1:1: la sorgente viene tombstonata e lo stesso ID passa ad attività."
+      },
+      {
+        "key": "attivita/tappa_15",
+        "kind": "migration",
+        "source": "tappe/tappa_15",
+        "title": "Tawhai Falls Track",
+        "date": "2026-12-04",
+        "candidates": [
+          "tappe/tappa_15"
+        ],
+        "duplicateFound": false,
+        "conclusion": "Migrazione 1:1: la sorgente viene tombstonata e lo stesso ID passa ad attività."
+      },
+      {
+        "key": "attivita/tappa_21",
+        "kind": "migration",
+        "source": "tappe/tappa_21",
+        "title": "Spot fotografico — Point Kean",
+        "date": "2026-12-07",
+        "candidates": [
+          "tappe/tappa_21"
+        ],
+        "duplicateFound": false,
+        "conclusion": "Migrazione 1:1: la sorgente viene tombstonata e lo stesso ID passa ad attività."
+      },
+      {
+        "key": "attivita/tappa_24",
+        "kind": "migration",
+        "source": "tappe/tappa_24",
+        "title": "Spot fotografico — Hokitika waterfront",
+        "date": "2026-12-08",
+        "candidates": [
+          "tappe/tappa_24"
+        ],
+        "duplicateFound": false,
+        "conclusion": "Migrazione 1:1: la sorgente viene tombstonata e lo stesso ID passa ad attività."
+      },
+      {
+        "key": "attivita/tappa_26",
+        "kind": "migration",
+        "source": "tappe/tappa_26",
+        "title": "Spot fotografico — Knights Point",
+        "date": "2026-12-10",
+        "candidates": [
+          "tappe/tappa_26"
+        ],
+        "duplicateFound": false,
+        "conclusion": "Migrazione 1:1: la sorgente viene tombstonata e lo stesso ID passa ad attività."
+      },
+      {
+        "key": "attivita/tappa_52",
+        "kind": "migration",
+        "source": "tappe/tappa_52",
+        "title": "Spot fotografico — Split Point Lighthouse",
+        "date": "2026-12-18",
+        "candidates": [
+          "tappe/tappa_52"
+        ],
+        "duplicateFound": false,
+        "conclusion": "Migrazione 1:1: la sorgente viene tombstonata e lo stesso ID passa ad attività."
+      },
+      {
+        "key": "attivita/tappa_72",
+        "kind": "migration",
+        "source": "tappe/tappa_72",
+        "title": "Spot fotografico — Mrs Macquarie's Chair",
+        "date": "2026-12-26",
+        "candidates": [
+          "tappe/tappa_72"
+        ],
+        "duplicateFound": false,
+        "conclusion": "Migrazione 1:1: la sorgente viene tombstonata e lo stesso ID passa ad attività."
+      }
+    ]
+  },
+  "copyAccounting": {
+    "localCopies": 441,
+    "cloudCopies": 485,
+    "comparedCopies": 926,
+    "logicalCloudRecords": 460,
+    "sharedLogicalRecords": 353,
+    "sharedReplicas": 706,
+    "localOnlyRouteCache": 88,
+    "cloudOnlyCollaborationMetadata": 107,
+    "firestoreAttachmentChunks": 19,
+    "tripAndLiveDocuments": 6
+  },
+  "payments": {
+    "prepared": 5,
+    "automaticallyApplied": 0,
+    "items": [
+      {
+        "id": "payment-shallow-inlet",
+        "records": [
+          "alloggi/alloggio_21"
+        ],
+        "original": {
+          "cost": "38.00",
+          "currency": "non strutturata",
+          "depositPaid": "0.00",
+          "paymentStatus": "da_saldare"
+        },
+        "proposed": {
+          "cost": "62.00",
+          "currency": "AUD",
+          "depositPaid": "0.00",
+          "remaining": "62.00",
+          "securityDeposit": "50.00",
+          "securityDepositCurrency": "AUD",
+          "securityDepositRefundable": true,
+          "paymentStatus": "da_saldare",
+          "paidCheckbox": false
+        },
+        "source": "Email Shallow Inlet 28/10 e mandato proprietario",
+        "apply": false,
+        "reason": "Costo, saldo e cauzione devono restare distinti; l'interfaccia alloggi non preserva ancora la valuta."
+      },
+      {
+        "id": "payment-werri-***REMOVED***",
+        "records": [
+          "alloggi/alloggio_25"
+        ],
+        "original": {
+          "cost": "48.00",
+          "currency": "non strutturata",
+          "depositPaid": "0.00",
+          "acconto": "48.00",
+          "paymentStatus": "saldato"
+        },
+        "proposed": {
+          "cost": "78.00",
+          "currency": "AUD",
+          "depositPaid": "0.00",
+          "remaining": "78.00",
+          "securityDeposit": "0.00",
+          "paymentStatus": "da_saldare",
+          "paidCheckbox": false
+        },
+        "source": "Prenotazione #***REMOVED*** e mandato proprietario",
+        "apply": false,
+        "reason": "Nessuna prova di pagamento; non attivare la spunta."
+      },
+      {
+        "id": "payment-tao-1500-usd",
+        "records": [
+          "trasporti/trn_14_tao_expedition",
+          "alloggi/alloggio_35"
+        ],
+        "original": {
+          "cost": "1410.65 €",
+          "currency": "incorporata nella stringa",
+          "depositPaid": "1410.65 €",
+          "paymentStatus": "saldato"
+        },
+        "proposed": {
+          "cost": "1500.00",
+          "currency": "USD",
+          "depositPaid": "1500.00",
+          "remaining": "0.00",
+          "securityDeposit": "0.00",
+          "paymentStatus": "saldato",
+          "paidCheckbox": true,
+          "expenseOwnerRecord": "trasporti/trn_14_tao_expedition"
+        },
+        "source": "Email TAO: pagamento 1.500 USD ricevuto",
+        "apply": false,
+        "reason": "Preservare l'importo originale USD senza riconversione; alloggio incluso senza secondo costo."
+      },
+      {
+        "id": "payment-sealink-323dy9",
+        "records": [
+          "trasporti/trn_07_sealink_andata",
+          "trasporti/trn_08_sealink_ritorno"
+        ],
+        "original": {
+          "outboundCost": "0.00",
+          "returnCost": "0.00",
+          "currency": "non strutturata",
+          "paymentStatus": "non valorizzato"
+        },
+        "proposed": {
+          "cost": "655.49",
+          "currency": "AUD",
+          "depositPaid": "655.49",
+          "remaining": "0.00",
+          "securityDeposit": "0.00",
+          "paymentStatus": "saldato",
+          "paidCheckbox": true,
+          "expenseOwnerRecord": "trasporti/trn_07_sealink_andata",
+          "includedRecord": "trasporti/trn_08_sealink_ritorno"
+        },
+        "source": "Email SeaLink #***REMOVED***: totale pagato 655,49 AUD",
+        "apply": false,
+        "reason": "Una sola spesa per entrambe le tratte; nessuna conversione o duplicazione."
+      },
+      {
+        "id": "payment-tongariro-shuttle",
+        "records": [
+          "trasporti/trn_06_tongariro_shuttle"
+        ],
+        "original": {
+          "recordState": "assente con tombstone attivo",
+          "currency": "NZD da conferma"
+        },
+        "proposed": {
+          "cost": "147.30",
+          "currency": "NZD",
+          "depositPaid": "147.30",
+          "remaining": "0.00",
+          "securityDeposit": "0.00",
+          "paymentStatus": "saldato",
+          "paidCheckbox": true
+        },
+        "source": "Email National Park Shuttles: 147,30 NZD pagati",
+        "apply": false,
+        "reason": "Il ripristino deve usare lo stesso ID con createdAt successivo alla tombstone."
+      }
+    ]
+  },
+  "blockers": [
+    "Travellers Autobarn: voucher 29/12 15:00 contro itinerario 28/12 mattina.",
+    "CI75: arrivo FCO 07:15 contro riepilogo owner 07:05.",
+    "CA783: confermare data operativa e orari completi prima di fondere o eliminare il duplicato."
+  ],
+  "propagation": {
+    "sourceChecks": {
+      "bookingsReadCanonicalCollections": true,
+      "accommodationsReadCanonicalCollection": true,
+      "expensesReadCanonicalCollections": true,
+      "mapReadsAffectedCollections": true,
+      "pdfReadsAffectedCollections": true,
+      "todayReadsAffectedCollections": true
+    },
+    "mapRecordsWithoutExactCoordinates": [
+      "alloggi/alloggio_21",
+      "attivita/spot_lake_pukaki_20261213",
+      "attivita/spot_werri_beach_20261224",
+      "attivita/tappa_10",
+      "attivita/tappa_15",
+      "attivita/tappa_21",
+      "attivita/tappa_24",
+      "attivita/tappa_26",
+      "attivita/tappa_52",
+      "attivita/tappa_72"
+    ],
+    "paymentViewsCurrencySafe": false,
+    "pdfIncludesCopilotNotes": false,
+    "pdfIncludesStructuredTrekkingMetrics": false
+  },
+  "invariants": {
+    "noRealWrites": true,
+    "noCurrencyConversion": true,
+    "allDeletesUseTombstones": true,
+    "allPaymentChangesRequireApproval": true,
+    "requiredBlockersPreserved": true
+  }
+}

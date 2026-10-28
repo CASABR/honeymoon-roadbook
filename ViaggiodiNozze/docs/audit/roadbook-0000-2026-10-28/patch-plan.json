@@ -1,0 +1,744 @@
+{
+  "format": "hounigo-roadbook-0000-patch-plan-v1",
+  "tripId": "0000",
+  "mode": "dry-run-only",
+  "approvalRequired": true,
+  "bulkUpdates": [
+    {
+      "id": "normalize-future-accommodation-status",
+      "collection": "alloggi",
+      "match": { "status": "completato" },
+      "set": { "status": "prenotato" },
+      "reason": "Il soggiorno è futuro: completato alterava anche il saldo in Spese.",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "normalize-future-transport-status",
+      "collection": "trasporti",
+      "match": { "status": "completato" },
+      "set": { "status": "prenotato" },
+      "reason": "Il trasporto è futuro: completato veniva interpretato come pagamento saldato.",
+      "status": "ready_after_approval"
+    }
+  ],
+  "updates": [
+    {
+      "id": "transport_flight_pek_akl",
+      "collection": "trasporti",
+      "set": {
+        "date": "2026-12-01",
+        "departureTime": "00:25",
+        "arrivalDate": "2026-12-01",
+        "carrier": "Air China CA783 (prosecuzione CA950)",
+        "packageIncluded": true,
+        "cost": "Incluso nel pacchetto",
+        "paymentStatus": "saldato",
+        "status": "prenotato",
+        "noteCopilota": "Tratta unica CA783, senza duplicati. Rientrare a PEK T3 con margine; NZeTA e biosicurezza all'arrivo. Orario di arrivo 17:25/17:34 da verificare sul voucher più recente."
+      },
+      "unset": ["depositPaid", "acconto", "amountPaid"],
+      "reason": "Record CA783 più antico e autorevole; assorbe i dati utili del duplicato seed.",
+      "source": "Mandato utente; record Firestore corrente",
+      "status": "blocked"
+    },
+    {
+      "id": "trn_03_snap_rentals",
+      "collection": "trasporti",
+      "set": {
+        "departureTime": "10:00",
+        "bookingCode": "Ref 742210189 / ***REMOVED***",
+        "status": "prenotato",
+        "noteCopilota": "Ritiro Auckland Parnell 02/12 ore 10:00; riconsegna Christchurch 15/12 entro le 12:00. Carta di credito fisica e patente internazionale. Saldo indicato nelle note da riconciliare in NZD."
+      },
+      "reason": "Allinea l'orario prenotato e preserva entrambi i riferimenti.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "trn_07_sealink_andata",
+      "collection": "trasporti",
+      "set": {
+        "bookingCode": "***REMOVED***",
+        "status": "prenotato",
+        "paymentStatus": "saldato",
+        "noteCopilota": "SeaLink #***REMOVED***: andata 16/12 ore 07:40. Totale pratica andata+ritorno 655,49 AUD, pagato."
+      },
+      "reason": "Riconcilia riferimento e pagamento SeaLink.",
+      "source": "Mandato utente",
+      "status": "blocked"
+    },
+    {
+      "id": "trn_08_sealink_ritorno",
+      "collection": "trasporti",
+      "set": {
+        "bookingCode": "***REMOVED***",
+        "status": "prenotato",
+        "paymentStatus": "saldato",
+        "packageIncluded": true,
+        "cost": "Incluso nella pratica #***REMOVED***",
+        "noteCopilota": "SeaLink #***REMOVED***: ritorno 17/12 ore 12:20; proteggere il margine per Adelaide e VA242."
+      },
+      "reason": "Evita doppio conteggio del totale SeaLink.",
+      "source": "Mandato utente",
+      "status": "blocked"
+    },
+    {
+      "id": "trn_14_tao_expedition",
+      "collection": "trasporti",
+      "set": {
+        "departureTime": "08:00",
+        "arrivalDate": "2027-01-07",
+        "arrivalTime": "12:00",
+        "status": "prenotato",
+        "paymentStatus": "saldato",
+        "noteCopilota": "TAO Original 4D4N, El Nido → Coron, 2 persone. Briefing 02/01 ore 18:00; fallback ufficio entro le 07:00 del 03/01 previa comunicazione. 1.500 USD ricevuti."
+      },
+      "reason": "Consolida la sola versione autorevole TAO.",
+      "source": "Mandato utente",
+      "status": "blocked"
+    },
+    {
+      "id": "trn_15_usu_ceb",
+      "collection": "trasporti",
+      "set": {
+        "departureTime": "16:20",
+        "arrivalTime": "17:35",
+        "status": "prenotato",
+        "checkinCutoff": "Verificare il voucher aggiornato e presentarsi con il margine richiesto dalla compagnia."
+      },
+      "reason": "Aggiorna ***REMOVED*** agli orari comunicati.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "alloggio_21",
+      "collection": "alloggi",
+      "set": {
+        "name": "Shallow Inlet Campground",
+        "location": "Shallow Inlet, Yanakie VIC, Australia",
+        "address": "Shallow Inlet, Yanakie VIC, Australia",
+        "status": "prenotato",
+        "noteCopilota": "Piazzola Shallow Inlet, Yanakie, 20–21/12. Saldo 62 AUD da versare; cauzione chiave 50 AUD cash separata e rimborsabile. Chiamare vicino al 20/12 per comunicare ETA; arrivo tardivo consentito."
+      },
+      "reason": "Sostituisce Seaspray nello stesso record; la riconciliazione economica resta separata.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "alloggio_25",
+      "collection": "alloggi",
+      "set": {
+        "bookingCode": "***REMOVED***",
+        "status": "prenotato",
+        "noteCopilota": "Prenotazione #***REMOVED***: residuo 78 AUD da saldare. Late arrival comunicato; nessuna boom gate. Non usare link di pagamento ricevuti via WhatsApp: truffe segnalate dal fornitore il 27/10."
+      },
+      "reason": "Corregge riferimento e istruzioni Werri Beach; il saldo resta separato.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "rist_05",
+      "collection": "ristoranti",
+      "set": {
+        "orario": "12:30",
+        "time": "12:30",
+        "sottocategoria": "pranzo",
+        "noteCopilota": "Pranzo opzionale dopo Whale Watch; nessuna cena a Kaikōura perché il pernottamento è a Otira."
+      },
+      "reason": "Rimuove la cena incompatibile con il trasferimento a Otira.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "rist_14",
+      "collection": "ristoranti",
+      "set": {
+        "orario": "12:00",
+        "time": "12:00",
+        "sottocategoria": "pranzo",
+        "noteCopilota": "Sosta pranzo opzionale; saltare se riduce il margine di guida verso Hobart Beach."
+      },
+      "reason": "Evita una cena a Marlo incompatibile con il pernottamento successivo.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "shop_01",
+      "collection": "shopping",
+      "set": {
+        "orario": "08:00",
+        "time": "08:00",
+        "noteCopilota": "Spesa opzionale prima del ritiro Snap; saltare se riduce il margine per Waitomo 14:50. Non collocarla dopo Waitomo."
+      },
+      "reason": "Corregge la collocazione geografica errata delle 17:00 dopo Waitomo.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "trn_14_sydney_ferry",
+      "collection": "trasporti",
+      "set": {
+        "notes": "Durata circa 30 minuti; biglietto contactless ai tornelli.",
+        "noteCopilota": "Tratta panoramica di circa 30 minuti con vista su Opera House e Harbour Bridge; accesso contactless ai tornelli."
+      },
+      "reason": "Preserva le informazioni uniche prima di eliminare la scheda attività duplicata.",
+      "source": "attivita/act_026 e record canonico",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "shop_04",
+      "collection": "shopping",
+      "set": {
+        "indirizzo": "35 Town Centre, Te Anau 9600, New Zealand",
+        "scopo": "Rifornimento",
+        "nota": "Fare il pieno prima di Milford Sound; nessun distributore per i successivi 120 km."
+      },
+      "reason": "Preserva indirizzo e istruzione unici dai due duplicati Allied Te Anau.",
+      "source": "shopping/fuel_g11 e shopping/shop_001",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_37",
+      "collection": "tappe",
+      "set": {
+        "coordinate": { "lat": -44.0047, "lng": 170.4771 },
+        "nota": "Church of the Good Shepherd sul lago; stargazing serale solo opzionale."
+      },
+      "reason": "Preserva coordinate e contesto utili prima di eliminare il mock Tekapo obsoleto.",
+      "source": "tappe/tappa_03_tekapo e record canonico",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_01",
+      "collection": "attivita",
+      "set": { "time": "14:00", "duration": "2h 00m", "status": "non_bloccato" },
+      "reason": "Museo del Novecento 14:00–16:00; non rappresentarlo come prenotato senza biglietto.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_02",
+      "collection": "attivita",
+      "set": {
+        "time": "08:30",
+        "status": "da_valutare",
+        "noteCopilota": "Orario proposto, non prenotato: partire solo dopo ingresso in Cina e controllo margine per CA783 delle 00:25 del 01/12. Ridurre o annullare se le formalità ritardano."
+      },
+      "reason": "Elimina l'uscita irrealistica delle 07:30.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_08",
+      "collection": "attivita",
+      "set": { "status": "da_valutare" },
+      "reason": "Polynesian Spa resta opzionale, non prenotato.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_10",
+      "collection": "attivita",
+      "set": {
+        "time": "07:00",
+        "orarioRitrovo": "06:45",
+        "orarioInizio": "07:00",
+        "distanceKm": 20.2,
+        "elevationGainM": 1196,
+        "hikingDurationMinutes": 450,
+        "duration": "7–8 h",
+        "routeType": "lineare",
+        "difficulty": "Difficile — alta forma fisica",
+        "status": "prenotato",
+        "noteCopilota": "Shuttle prenotato: ritrovo Ketetahi 06:45, partenza 07:00. GO/NO-GO meteo la mattina; nessuna altra attività impegnativa dopo il trekking."
+      },
+      "reason": "Corregge anello/distanza e completa i metadati trekking.",
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/central-north-island/places/tongariro-national-park/things-to-do/tracks/tongariro-alpine-crossing/",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_12",
+      "collection": "attivita",
+      "set": {
+        "sottocategoria": "Trekking",
+        "distanceKm": 1.6,
+        "hikingDurationMinutes": 90,
+        "duration": "1h 30m",
+        "routeType": "anello",
+        "difficulty": "Facile–intermedio",
+        "noteCopilota": "Percorso completo via ponte sospeso superiore; non confondere con il solo lookout breve. Verificare pioggia e livello del fiume."
+      },
+      "reason": "Struttura Hokitika Gorge come trekking completo.",
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/west-coast/places/hokitika-gorge-scenic-reserve/things-to-do/tracks/hokitika-gorge-walk/",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_15",
+      "collection": "attivita",
+      "set": {
+        "title": "Minnehaha Walk",
+        "sottocategoria": "Trekking",
+        "distanceKm": 1.2,
+        "hikingDurationMinutes": 20,
+        "duration": "20 min",
+        "routeType": "anello",
+        "difficulty": "Facile",
+        "status": "non_bloccato"
+      },
+      "reason": "Allinea nome e metadati DOC senza duplicare la passeggiata.",
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/west-coast/places/westland-tai-poutini-national-park/things-to-do/tracks/minnehaha-walk/",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_16",
+      "collection": "attivita",
+      "set": {
+        "sottocategoria": "Trekking",
+        "distanceKm": 2.4,
+        "hikingDurationMinutes": 45,
+        "duration": "45 min",
+        "routeType": "andata_ritorno",
+        "difficulty": "Facile",
+        "noteCopilota": "Jetty Lookout 2,4 km A/R in 45 min. Circuito completo 4,4 km / 1h30 solo come alternativa se meteo e tempi lo consentono."
+      },
+      "reason": "Distingue il percorso breve dal circuito completo.",
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/west-coast/places/westland-tai-poutini-national-park/things-to-do/tracks/lake-matheson-te-ara-kairaumati-walk",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "act_019",
+      "collection": "attivita",
+      "set": {
+        "title": "Mt John / Astro Café — visita diurna",
+        "status": "da_valutare",
+        "noteCopilota": "Visita diurna proposta alle 13:00. Stargazing serale solo come opzione separata e non prenotata."
+      },
+      "reason": "Non rappresenta lo stargazing diurno come evento serale prenotato.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_23",
+      "collection": "attivita",
+      "set": {
+        "sottocategoria": "Trekking",
+        "distanceKm": 0.8,
+        "hikingDurationMinutes": 30,
+        "duration": "30 min",
+        "routeType": "anello",
+        "difficulty": "Facile"
+      },
+      "reason": "Completa i metadati Maits Rest.",
+      "source": "https://www.parks.vic.gov.au/",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_24",
+      "collection": "attivita",
+      "set": {
+        "status": "da_valutare",
+        "noteCopilota": "Slot Twelve Apostles obbligatorio dal 16/10/2026: prenotazione ancora da fare, gratuita fino ad aprile 2027. Le 18:30 sono una proposta, non garanzia di tramonto. Gibson Steps e Loch Ard da verificare 24–48 h prima."
+      },
+      "reason": "Separa proposta e prenotazione effettiva.",
+      "source": "https://www.greatoceanroadauthority.vic.gov.au/Projects/Keerray-Woorroong-Visitor-Centre-Twelve-Apostles",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_26",
+      "collection": "attivita",
+      "set": {
+        "sottocategoria": "Trekking",
+        "distanceKm": 6.8,
+        "hikingDurationMinutes": 120,
+        "duration": "2 h",
+        "routeType": "andata_ritorno",
+        "difficulty": "Grade 4",
+        "location": "Telegraph Saddle, Wilsons Promontory VIC",
+        "noteCopilota": "Partenza Telegraph Saddle. In periodo di shuttle la strada è chiusa alle auto: verificare servizio e avvisi Parks Victoria."
+      },
+      "reason": "Completa i metadati Mount Oberon e l'accesso reale.",
+      "source": "https://www.parks.vic.gov.au/places-to-see/sites/telegraph-saddle-carpark",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_27",
+      "collection": "attivita",
+      "set": {
+        "sottocategoria": "Trekking",
+        "distanceKm": 2.3,
+        "hikingDurationMinutes": 45,
+        "duration": "45 min",
+        "routeType": "anello",
+        "difficulty": "Grade 2"
+      },
+      "reason": "Completa i metadati Prom Wildlife Walk.",
+      "source": "https://www.parks.vic.gov.au/places-to-see/sites/prom-wildlife-walk",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_30",
+      "collection": "attivita",
+      "set": {
+        "time": "10:30",
+        "sottocategoria": "Trekking",
+        "distanceKm": 1.4,
+        "hikingDurationMinutes": 60,
+        "duration": "45–60 min",
+        "routeType": "andata_ritorno",
+        "difficulty": "Grade 3",
+        "noteCopilota": "Circa 200 gradini; restare sul tracciato e verificare eventuali chiusure per meteo/incendi."
+      },
+      "reason": "Corregge orario e struttura Wentworth Falls.",
+      "source": "https://www.nationalparks.nsw.gov.au/things-to-do/walking-tracks/wentworth-falls-track",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_31",
+      "collection": "attivita",
+      "set": { "time": "13:00" },
+      "reason": "Allinea Echo Point alla sequenza del 25/12.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "att_37",
+      "collection": "attivita",
+      "set": {
+        "time": "18:00",
+        "orarioRitrovo": "18:00",
+        "orarioInizio": "18:00",
+        "noteCopilota": "Briefing TAO previsto alle 18:00, compatibilità subordinata a volo, bagagli e transfer. Fallback confermato: ufficio entro le 07:00 del 03/01, avvisando TAO."
+      },
+      "reason": "Corregge il briefing da 17:30 a 18:00 e registra il fallback.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_68",
+      "collection": "tappe",
+      "set": {
+        "titolo": "Chinamans Beach — sosta pomeridiana",
+        "time": "14:30",
+        "orario": "14:30",
+        "noteCopilota": "Sosta breve nel pomeriggio; il tramonto è previsto a Werri/Gerringong."
+      },
+      "reason": "Sposta il riferimento al tramonto sulla località corretta.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_75",
+      "collection": "tappe",
+      "set": {
+        "time": "08:45",
+        "orario": "08:45",
+        "noteCopilota": "Hotel 07:30, carburante 08:00, riconsegna 08:45–09:00, arrivo SYD T1 09:15–09:30. Applicare solo dopo conferma voucher Travellers Autobarn."
+      },
+      "reason": "Sequenza prudente per il volo delle 12:15.",
+      "source": "Mandato utente",
+      "status": "blocked"
+    },
+    {
+      "id": "fuel_g15_1",
+      "collection": "shopping",
+      "set": {
+        "date": "2026-12-15",
+        "data": "2026-12-15",
+        "dayId": "day_2026-12-15",
+        "time": "11:15",
+        "orario": "11:15",
+        "nome": "Rifornimento Christchurch Airport",
+        "scopo": "Rifornimento",
+        "nota": "Rifornimento prima della riconsegna Snap Rentals entro le 12:00.",
+        "noteCopilota": "Rifornire alle 11:15 e raggiungere il deposito Snap per la restituzione entro le 12:00."
+      },
+      "reason": "Rifornimento Christchurch prima della riconsegna Snap, non il 12/12.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "shop_005",
+      "collection": "shopping",
+      "set": { "date": "2026-12-28", "data": "2026-12-28", "dayId": "day_2026-12-28", "time": "08:00", "orario": "08:00" },
+      "reason": "Rifornimento van nella sequenza del 28/12.",
+      "source": "Mandato utente",
+      "status": "blocked"
+    },
+    {
+      "id": "trn_10_travellers_camper",
+      "collection": "trasporti",
+      "set": {},
+      "reason": "Voucher storico indica 29/12 15:00 mentre itinerario richiede 28/12 mattina: nessuna modifica fino a prova.",
+      "source": "Mandato utente",
+      "status": "blocked"
+    },
+    {
+      "id": "trn_16_ceb_tpe_fco",
+      "collection": "trasporti",
+      "set": {},
+      "reason": "Arrivo CI75 07:15 su fonte Amex contro 07:05 nel riepilogo owner.",
+      "source": "Mandato utente",
+      "status": "blocked"
+    }
+  ],
+  "deletes": [
+    { "collection": "trasporti", "id": "trn_03_volo_ca783", "tombstone": true, "preserveInto": "trasporti/transport_flight_pek_akl", "reason": "Duplicato CA783; eliminazione sospesa finché data e orari del record canonico non sono confermati", "status": "blocked" },
+    { "collection": "attivita", "id": "att_38", "tombstone": true, "preserveInto": "trasporti/trn_14_tao_expedition", "reason": "Duplicato TAO", "status": "ready_after_approval" },
+    { "collection": "attivita", "id": "act_026", "tombstone": true, "preserveInto": "trasporti/trn_14_sydney_ferry", "reason": "Duplicato traghetto Manly", "status": "ready_after_approval" },
+    { "collection": "attivita", "id": "att_22", "tombstone": true, "reason": "Hanson Bay escluso", "status": "ready_after_approval" },
+    { "collection": "tappe", "id": "tappa_46", "tombstone": true, "reason": "Hanson Bay escluso", "status": "ready_after_approval" },
+    { "collection": "tappe", "id": "tappa_08", "tombstone": true, "reason": "Marokopa Falls rimossa il 02/12", "status": "ready_after_approval" },
+    { "collection": "tappe", "id": "tappa_02_rotorua", "tombstone": true, "reason": "Mock legacy senza dettagli unici", "status": "ready_after_approval" },
+    { "collection": "tappe", "id": "tappa_03_tekapo", "tombstone": true, "preserveInto": "tappe/tappa_37", "reason": "Versione obsoleta Lago Tekapo", "status": "ready_after_approval" },
+    { "collection": "tappe", "id": "tappa_04_queenstown", "tombstone": true, "reason": "Mock legacy generico", "status": "ready_after_approval" },
+    { "collection": "shopping", "id": "fuel_g11", "tombstone": true, "preserveInto": "shopping/shop_04", "reason": "Allied Te Anau duplicato e data errata", "status": "ready_after_approval" },
+    { "collection": "shopping", "id": "shop_001", "tombstone": true, "preserveInto": "shopping/shop_04", "reason": "Allied Te Anau duplicato", "status": "ready_after_approval" },
+    { "collection": "shopping", "id": "shop_002", "tombstone": true, "preserveInto": "shopping/fuel_g15_1", "reason": "Christchurch fuel duplicato", "status": "ready_after_approval" },
+    { "collection": "shopping", "id": "fuel_g15_2", "tombstone": true, "reason": "Stop Australia copiato sul 12/12 NZ", "status": "ready_after_approval" },
+    { "collection": "shopping", "id": "fuel_g17", "tombstone": true, "preserveInto": "shopping/shop_06", "reason": "Richmond fuel duplicato e data errata", "status": "ready_after_approval" },
+    { "collection": "shopping", "id": "shop_003", "tombstone": true, "preserveInto": "shopping/shop_06", "reason": "Richmond fuel duplicato", "status": "ready_after_approval" },
+    { "collection": "shopping", "id": "fuel_g28", "tombstone": true, "preserveInto": "shopping/shop_005", "reason": "Mascot fuel duplicato e data errata", "status": "ready_after_approval" },
+    { "collection": "shopping", "id": "shop_004", "tombstone": true, "preserveInto": "shopping/shop_08", "reason": "Batemans Bay duplicato senza data", "status": "ready_after_approval" }
+  ],
+  "adds": [
+    {
+      "collection": "trasporti",
+      "id": "trn_06_tongariro_shuttle",
+      "data": {
+        "type": "transfer",
+        "date": "2026-12-05",
+        "departureTime": "07:00",
+        "arrivalDate": "2026-12-05",
+        "departureLocation": "Ketetahi",
+        "arrivalLocation": "Mangatepōpō",
+        "carrier": "National Park Shuttles",
+        "cost": "147.30",
+        "currency": "NZD",
+        "depositPaid": "147.30",
+        "paymentStatus": "saldato",
+        "status": "prenotato",
+        "checkinCutoff": "Presentarsi a Ketetahi entro le 06:45",
+        "noteCopilota": "Shuttle Tongariro per 2 persone, pagato."
+      },
+      "recreateAfterTombstone": true,
+      "reason": "Ripristina la prenotazione confermata usando l'ID originale.",
+      "source": "Mandato utente",
+      "status": "blocked"
+    },
+    {
+      "collection": "trasporti",
+      "id": "trn_16_ceb_tpe_ci706",
+      "data": {
+        "type": "volo",
+        "date": "2027-01-09",
+        "departureTime": "12:10",
+        "arrivalDate": "2027-01-09",
+        "arrivalTime": "14:55",
+        "departureLocation": "Cebu Mactan International",
+        "departureIata": "CEB",
+        "arrivalLocation": "Taipei Taoyuan International",
+        "arrivalIata": "TPE",
+        "carrier": "China Airlines CI706",
+        "status": "prenotato",
+        "noteCopilota": "Prima tratta del rientro; coincidenza con CI75 delle 23:25."
+      },
+      "reason": "Segmento mancante confermato dal mandato.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "collection": "attivita",
+      "id": "spot_lake_pukaki_20261213",
+      "data": {
+        "dayId": "day_2026-12-13",
+        "date": "2026-12-13",
+        "title": "Spot fotografico — Lake Pukaki",
+        "location": "Lake Pukaki, Canterbury, Nuova Zelanda",
+        "category": "natura",
+        "sottocategoria": "Spot fotografico",
+        "duration": "15 min",
+        "lightWindow": "qualsiasi",
+        "photoSubject": "Lago e Aoraki/Mount Cook",
+        "status": "da_valutare",
+        "cost": "0.00"
+      },
+      "reason": "Spot breve lungo la rotta, sacrificabile.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "collection": "attivita",
+      "id": "spot_werri_beach_20261224",
+      "data": {
+        "dayId": "day_2026-12-24",
+        "date": "2026-12-24",
+        "title": "Spot fotografico — Werri Beach",
+        "location": "Werri Beach, Gerringong NSW, Australia",
+        "category": "natura",
+        "sottocategoria": "Spot fotografico",
+        "duration": "20 min",
+        "lightWindow": "tramonto",
+        "photoSubject": "Spiaggia e costa di Gerringong",
+        "status": "da_valutare",
+        "cost": "0.00"
+      },
+      "reason": "Sposta il tramonto dal Jervis Bay alla notte effettiva di Werri.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    }
+  ],
+  "migrations": [
+    {
+      "id": "tappa_10",
+      "fromCollection": "tappe",
+      "toCollection": "attivita",
+      "tombstone": true,
+      "set": {
+        "dayId": "day_2026-12-02",
+        "date": "2026-12-02",
+        "title": "Ruakuri Walk",
+        "location": "Ruakuri Scenic Reserve, Waitomo",
+        "category": "natura",
+        "sottocategoria": "Trekking",
+        "distanceKm": 1,
+        "hikingDurationMinutes": 45,
+        "duration": "45 min",
+        "routeType": "anello",
+        "difficulty": "Facile",
+        "status": "non_bloccato",
+        "cost": "0.00"
+      },
+      "reason": "Rende strutturati i dati del trekking mantenendo lo stesso ID.",
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/waikato/places/waitomo-area/tracks/ruakuri-walk/",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_15",
+      "fromCollection": "tappe",
+      "toCollection": "attivita",
+      "tombstone": true,
+      "set": {
+        "dayId": "day_2026-12-04",
+        "date": "2026-12-04",
+        "title": "Tawhai Falls Track",
+        "location": "SH48, Tongariro National Park",
+        "category": "natura",
+        "sottocategoria": "Trekking",
+        "distanceKm": 0.8,
+        "hikingDurationMinutes": 15,
+        "duration": "15 min",
+        "routeType": "andata_ritorno",
+        "difficulty": "Facile",
+        "status": "non_bloccato",
+        "cost": "0.00"
+      },
+      "reason": "Rende strutturati i dati del trekking mantenendo lo stesso ID.",
+      "source": "https://www.doc.govt.nz/parks-and-recreation/places-to-go/central-north-island/places/tongariro-national-park/things-to-do/tracks/tawhai-falls-track/",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_21",
+      "fromCollection": "tappe",
+      "toCollection": "attivita",
+      "tombstone": true,
+      "set": { "dayId": "day_2026-12-07", "date": "2026-12-07", "title": "Spot fotografico — Point Kean", "location": "Point Kean, Kaikōura", "category": "natura", "sottocategoria": "Spot fotografico", "duration": "20 min", "lightWindow": "qualsiasi", "photoSubject": "Costa e fauna", "status": "da_valutare", "cost": "0.00", "notes": "Breve tratto panoramico della Kaikōura Peninsula Walkway, limitato a circa 20 minuti." },
+      "reason": "Usa la sottocategoria dedicata senza duplicare la tappa.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_24",
+      "fromCollection": "tappe",
+      "toCollection": "attivita",
+      "tombstone": true,
+      "set": { "dayId": "day_2026-12-08", "date": "2026-12-08", "title": "Spot fotografico — Hokitika waterfront", "location": "Hokitika waterfront", "category": "natura", "sottocategoria": "Spot fotografico", "duration": "15 min", "lightWindow": "qualsiasi", "photoSubject": "Waterfront e scritta in legno", "status": "da_valutare", "cost": "0.00" },
+      "reason": "Usa la sottocategoria dedicata senza duplicare la tappa.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_26",
+      "fromCollection": "tappe",
+      "toCollection": "attivita",
+      "tombstone": true,
+      "set": { "dayId": "day_2026-12-10", "date": "2026-12-10", "title": "Spot fotografico — Knights Point", "location": "Knights Point, West Coast", "category": "natura", "sottocategoria": "Spot fotografico", "duration": "15 min", "lightWindow": "qualsiasi", "photoSubject": "Scogliere e costa", "status": "da_valutare", "cost": "0.00" },
+      "reason": "Usa la sottocategoria dedicata senza duplicare la tappa.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_52",
+      "fromCollection": "tappe",
+      "toCollection": "attivita",
+      "tombstone": true,
+      "set": { "dayId": "day_2026-12-18", "date": "2026-12-18", "title": "Spot fotografico — Split Point Lighthouse", "location": "Split Point Lighthouse, Aireys Inlet", "category": "natura", "sottocategoria": "Spot fotografico", "duration": "20 min", "lightWindow": "qualsiasi", "photoSubject": "Faro e costa", "status": "da_valutare", "cost": "0.00" },
+      "reason": "Sceglie un solo spot compatibile e mantiene l'ID.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    },
+    {
+      "id": "tappa_72",
+      "fromCollection": "tappe",
+      "toCollection": "attivita",
+      "tombstone": true,
+      "set": { "dayId": "day_2026-12-26", "date": "2026-12-26", "title": "Spot fotografico — Mrs Macquarie's Chair", "location": "Mrs Macquarie's Chair, Sydney", "category": "natura", "sottocategoria": "Spot fotografico", "duration": "20 min", "lightWindow": "golden_hour", "photoSubject": "Opera House e Harbour Bridge", "status": "da_valutare", "cost": "0.00" },
+      "reason": "Usa la sottocategoria dedicata senza duplicare la tappa.",
+      "source": "Mandato utente",
+      "status": "ready_after_approval"
+    }
+  ],
+  "paymentReconciliations": [
+    {
+      "id": "payment-shallow-inlet",
+      "records": ["alloggi/alloggio_21"],
+      "original": { "cost": "38.00", "currency": "non strutturata", "depositPaid": "0.00", "paymentStatus": "da_saldare" },
+      "proposed": { "cost": "62.00", "currency": "AUD", "depositPaid": "0.00", "remaining": "62.00", "securityDeposit": "50.00", "securityDepositCurrency": "AUD", "securityDepositRefundable": true, "paymentStatus": "da_saldare", "paidCheckbox": false },
+      "source": "Email Shallow Inlet 28/10 e mandato proprietario",
+      "apply": false,
+      "reason": "Costo, saldo e cauzione devono restare distinti; l'interfaccia alloggi non preserva ancora la valuta."
+    },
+    {
+      "id": "payment-werri-***REMOVED***",
+      "records": ["alloggi/alloggio_25"],
+      "original": { "cost": "48.00", "currency": "non strutturata", "depositPaid": "0.00", "acconto": "48.00", "paymentStatus": "saldato" },
+      "proposed": { "cost": "78.00", "currency": "AUD", "depositPaid": "0.00", "remaining": "78.00", "securityDeposit": "0.00", "paymentStatus": "da_saldare", "paidCheckbox": false },
+      "source": "Prenotazione #***REMOVED*** e mandato proprietario",
+      "apply": false,
+      "reason": "Nessuna prova di pagamento; non attivare la spunta."
+    },
+    {
+      "id": "payment-tao-1500-usd",
+      "records": ["trasporti/trn_14_tao_expedition", "alloggi/alloggio_35"],
+      "original": { "cost": "1410.65 €", "currency": "incorporata nella stringa", "depositPaid": "1410.65 €", "paymentStatus": "saldato" },
+      "proposed": { "cost": "1500.00", "currency": "USD", "depositPaid": "1500.00", "remaining": "0.00", "securityDeposit": "0.00", "paymentStatus": "saldato", "paidCheckbox": true, "expenseOwnerRecord": "trasporti/trn_14_tao_expedition" },
+      "source": "Email TAO: pagamento 1.500 USD ricevuto",
+      "apply": false,
+      "reason": "Preservare l'importo originale USD senza riconversione; alloggio incluso senza secondo costo."
+    },
+    {
+      "id": "payment-sealink-323dy9",
+      "records": ["trasporti/trn_07_sealink_andata", "trasporti/trn_08_sealink_ritorno"],
+      "original": { "outboundCost": "0.00", "returnCost": "0.00", "currency": "non strutturata", "paymentStatus": "non valorizzato" },
+      "proposed": { "cost": "655.49", "currency": "AUD", "depositPaid": "655.49", "remaining": "0.00", "securityDeposit": "0.00", "paymentStatus": "saldato", "paidCheckbox": true, "expenseOwnerRecord": "trasporti/trn_07_sealink_andata", "includedRecord": "trasporti/trn_08_sealink_ritorno" },
+      "source": "Email SeaLink #***REMOVED***: totale pagato 655,49 AUD",
+      "apply": false,
+      "reason": "Una sola spesa per entrambe le tratte; nessuna conversione o duplicazione."
+    },
+    {
+      "id": "payment-tongariro-shuttle",
+      "records": ["trasporti/trn_06_tongariro_shuttle"],
+      "original": { "recordState": "assente con tombstone attivo", "currency": "NZD da conferma" },
+      "proposed": { "cost": "147.30", "currency": "NZD", "depositPaid": "147.30", "remaining": "0.00", "securityDeposit": "0.00", "paymentStatus": "saldato", "paidCheckbox": true },
+      "source": "Email National Park Shuttles: 147,30 NZD pagati",
+      "apply": false,
+      "reason": "Il ripristino deve usare lo stesso ID con createdAt successivo alla tombstone."
+    }
+  ],
+  "blockingDiscrepancies": [
+    "Travellers Autobarn: voucher 29/12 15:00 contro itinerario 28/12 mattina.",
+    "CI75: arrivo FCO 07:15 contro riepilogo owner 07:05.",
+    "CA783: confermare data operativa e orari completi prima di fondere o eliminare il duplicato.",
+    "Il budget applicativo interpreta ogni importo come EUR: AUD/NZD/USD non sono riconciliabili senza una politica valuta/conversione.",
+    "Mancano prove documentali per i campeggi marcati pagati; restano NON VERIFICATI."
+  ]
+}

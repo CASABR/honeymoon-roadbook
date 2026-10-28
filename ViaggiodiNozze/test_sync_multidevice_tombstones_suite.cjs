@@ -80,12 +80,15 @@ runTest('STATICO', 'storageService.ts: addTappa, addRistorante e addShopping ver
   for (const fnName of ['addTappa', 'addRistorante', 'addShopping']) {
     const fnIdx = code.indexOf(`async ${fnName}`);
     assert.ok(fnIdx !== -1, `${fnName} deve essere definito`);
-    const fnBlock = code.slice(fnIdx, fnIdx + 1100);
+    const nextMethodIdx = code.indexOf('\n  async ', fnIdx + `async ${fnName}`.length);
+    const fnBlock = code.slice(fnIdx, nextMethodIdx === -1 ? code.length : nextMethodIdx);
     assert.ok(fnBlock.includes('validateSaveAgainstTombstone'), `${fnName} deve invocare validateSaveAgainstTombstone`);
     assert.ok(fnBlock.includes('throw new Error('), `${fnName} deve lanciare un errore se tombstone attivo`);
     const valIdx = fnBlock.indexOf('validateSaveAgainstTombstone');
     const putIdx = fnBlock.indexOf('idbPut(');
     const notifyIdx = fnBlock.indexOf('notifyDataChanged(');
+    assert.ok(putIdx !== -1, `${fnName} deve persistere tramite idbPut`);
+    assert.ok(notifyIdx !== -1, `${fnName} deve notificare la mutazione`);
     assert.ok(valIdx < putIdx, `${fnName}: validateSaveAgainstTombstone deve precedere idbPut`);
     assert.ok(valIdx < notifyIdx, `${fnName}: validateSaveAgainstTombstone deve precedere notifyDataChanged`);
   }
