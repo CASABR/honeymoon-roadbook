@@ -2,7 +2,7 @@
   "format": "hounigo-roadbook-0000-application-manifest-v1",
   "mode": "PREPARATION_ONLY_NO_WRITES",
   "tripId": "0000",
-  "generatedAt": "2026-10-28T08:30:38.111Z",
+  "generatedAt": "2026-10-28T09:47:44.897Z",
   "idempotencyKey": "roadbook-0000-cc5be9891257ea349ffd0e06",
   "source": {
     "cloudBackupSha256": "96a6e76e6f7ba3d2cbcff65dfa963983a7c8c8e7b9368e4fc23652a7e2bf588a",

@@ -6,12 +6,13 @@ Solo preparazione manifest: **nessuna scrittura su Firestore o IndexedDB reale**
 Il piano include le decisioni editoriali approvate e isola rigorosamente i blocchi non certi.
 
 - **Record logici analizzati**: 460 pre-audit → 450 post-audit (differenza netta: -10 record logici).
-- **Record applicabili nel manifest sicuro**:
-  - **84 record aggiornati** (79 normalizzazioni/correzioni tecniche certe + 5 decisioni editoriali approvate in-place: `tappa_02_rotorua`, `tappa_03_tekapo`, `tappa_04_queenstown`, `tappa_21`, `tappa_52`).
-  - **18 record rimossi** con tombstone preventiva e nessun legame con prenotazioni/spese (19 proposte di rimozione meno 1 bloccata).
-  - **8 record aggiunti** (3 nuovi spot/voli certi e 5 migrazioni da tappe ad attività con ID identico).
+- **Record applicabili nel manifest sicuro (102 operazioni distinte)**:
+  - **76 record aggiornati** (action `update`: 71 normalizzazioni/correzioni tecniche certe + 5 decisioni editoriali approvate in-place: `tappa_02_rotorua`, `tappa_03_tekapo`, `tappa_04_queenstown`, `tappa_21`, `tappa_52`).
+  - **18 record rimossi** (action `delete`, con 18 tombstone preventive e nessun legame con prenotazioni/spese).
+  - **8 record aggiunti** (action `add`: 3 nuovi spot/voli certi e 5 migrazioni da tappe ad attività con ID identico).
+  - *(Nota di raccordo: i 76 aggiornamenti + 8 aggiunte costituiscono gli 84 record positivi modificati/creati rilevati dal dry-run summary).*
   - **18 tombstone** generate preventivamente (`settings/tombstone_<collezione>_<id>`).
-  - **Totale transazione**: 102 operazioni logiche + 18 tombstones = **120 scritture Firestore** (sotto la soglia di 500).
+  - **Totale transazione**: 102 operazioni logiche (76 + 18 + 8) + 18 tombstones = **120 scritture Firestore** (sotto la soglia di 500).
 - **Record esclusi / bloccati (nessuna scrittura)**:
   1. `trasporti/trn_03_volo_ca783` (rimozione bloccata) e `trasporti/transport_flight_pek_akl` (aggiornamento bloccato per conferma data/orari).
   2. `trasporti/trn_16_ceb_tpe_fco` (volo CI75: bloccato per discordanza orario arrivo 07:05 vs 07:15).

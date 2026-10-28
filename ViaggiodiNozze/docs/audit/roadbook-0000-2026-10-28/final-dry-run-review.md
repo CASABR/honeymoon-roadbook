@@ -142,9 +142,10 @@ Il dry-run è coerente a livello di source collection e ID. Il limite PDF è ris
 ## 9. Ultima rigenerazione e validazione
 
 - **Dry-run**: 460 record logici prima, 450 dopo.
-- **Operazioni manifest**:
-  - 84 record aggiornati (79 tecnici + 5 record editoriali approvati in-place).
-  - 18 record rimossi (con 18 tombstone generate).
-  - 8 record aggiunti (0 duplicati o collisioni).
+- **Operazioni manifest (102 operazioni distinte)**:
+  - 76 record aggiornati (action `update`: 71 tecnici + 5 record editoriali approvati in-place).
+  - 18 record rimossi (action `delete`, con 18 tombstone generate).
+  - 8 record aggiunti (action `add`, 0 duplicati o collisioni).
+  - *(Nota: i 76 aggiornati + 8 aggiunti costituiscono gli 84 record positivi risultanti).*
 - **Transazione Firestore sicura**: 102 operazioni logiche + 18 tombstones = **120 scritture totali** in singola transazione atomica (limite 500).
 - **Validazione**: test tombstone/sync 26/26, export PDF 15/15, `npm run build` superato. Nessuna scrittura reale, push o deploy.
