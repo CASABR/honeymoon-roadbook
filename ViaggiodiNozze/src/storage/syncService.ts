@@ -15,6 +15,7 @@ export class SyncService {
   private autoSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private isDestroyed = false;
   private pendingSyncTimeout: ReturnType<typeof setTimeout> | null = null;
+  private initialSyncRequested = false;
 
   constructor(tripId: string) {
     this.tripId = tripId;
@@ -22,10 +23,16 @@ export class SyncService {
     this.setupCloudListeners();
     // Avvia sincronizzazione iniziale solo se già autorizzati, altrimenti il listener houni_cloud_role_changed la avvierà non appena confermato
     if (isCloudAuthorized()) {
-      this.syncBidirectional().catch(err => console.warn('[SyncService] Errore sync iniziale:', err));
+      this.requestInitialSync('constructor');
     } else {
       console.log('[SyncService] Avvio sync iniziale posticipato: in attesa di autorizzazione cloud.');
     }
+  }
+
+  private requestInitialSync(reason: string): void {
+    if (this.isDestroyed || this.initialSyncRequested) return;
+    this.initialSyncRequested = true;
+    this.syncBidirectional().catch(err => console.warn(`[SyncService] Errore sync iniziale (${reason}):`, err));
   }
 
   public triggerAutomaticSync(reason: string): void {
@@ -487,7 +494,7 @@ export class SyncService {
       if (role === 'owner' || role === 'copilota') {
         console.log(`[SyncService] Rilevato ruolo autorizzato (${role}): trigger sincronizzazione automatica.`);
         this.flushPendingPushes().catch(() => {});
-        this.triggerAutomaticSync('cloud_role_authorized');
+        this.requestInitialSync('cloud_role_authorized');
       }
     }) as EventListener);
 
