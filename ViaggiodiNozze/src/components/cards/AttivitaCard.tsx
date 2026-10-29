@@ -123,9 +123,12 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
         {isTrekking ? (
           <>
             <div className="flex items-center justify-between gap-3 border-b border-slate-200/80 pb-2.5 dark:border-slate-700">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">
-                <span aria-hidden="true">△</span> Trekking
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">
+                  <span aria-hidden="true">△</span> Trekking
+                </span>
+                {displayTime && <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 font-mono text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">⏰ {displayTime}</span>}
+              </div>
               <button
                 type="button"
                 onClick={(event) => { event.stopPropagation(); setIsCopilotOpen(true); }}
@@ -192,6 +195,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                   <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l1.5-3h5Z"/><circle cx="12" cy="13" r="3.5"/></svg>
                   Spot fotografico
                 </span>
+                {displayTime && <span className="rounded-full border border-white/20 bg-slate-950/65 px-2.5 py-1 font-mono text-[10px] font-bold text-white backdrop-blur-md">⏰ {displayTime}</span>}
               </div>
               <button
                 type="button"
@@ -233,8 +237,8 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                         Ritrovo {activity.orarioRitrovo} • Inizio {activity.orarioInizio}
                       </span>
                     ) : displayTime ? (
-                      <span className="text-xs font-normal leading-relaxed text-slate-600 dark:text-slate-300">
-                        Ore {displayTime}
+                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-medium text-slate-800 dark:bg-slate-700 dark:text-slate-200">
+                        ⏰ {displayTime}
                       </span>
                     ) : null}
                     {activity.duration && (

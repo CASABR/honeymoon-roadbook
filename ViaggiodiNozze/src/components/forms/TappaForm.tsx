@@ -9,12 +9,13 @@ import type { PlaceSuggestion } from '../../services/photonService';
 interface TappaFormProps {
   initialData?: Tappa | null;
   defaultDate?: string;
+  defaultTime?: string;
   onSave: (data: Omit<Tappa, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   onCancel: () => void;
   onDelete?: () => void;
 }
 
-export default function TappaForm({ initialData, defaultDate, onSave, onCancel, onDelete }: TappaFormProps) {
+export default function TappaForm({ initialData, defaultDate, defaultTime, onSave, onCancel, onDelete }: TappaFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
   const [data, setData] = useState(() => initialData?.data || (initialData as any)?.date || defaultDate || new Date().toISOString().split('T')[0]);
@@ -42,12 +43,12 @@ export default function TappaForm({ initialData, defaultDate, onSave, onCancel, 
       setData(defaultDate || new Date().toISOString().split('T')[0]);
       setSottocategoria('Sosta panoramica');
       setTitolo('');
-      setOrario('');
+      setOrario(defaultTime || '');
       setIndirizzo('');
       setNoteCopilota('');
       setNota('');
     }
-  }, [initialData, defaultDate]);
+  }, [defaultDate, defaultTime, initialData]);
 
   const handleSelectPlace = (place: PlaceSuggestion) => {
     setTitolo(place.title);

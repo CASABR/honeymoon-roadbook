@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ModalProps {
@@ -10,22 +10,48 @@ interface ModalProps {
 }
 
 export default function Modal({ isOpen, onClose, title, children, accentVariant = 'amber' }: ModalProps) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') onClose();
-      };
-      window.addEventListener('keydown', handleKeyDown);
-      return () => {
-        document.body.style.overflow = '';
-        window.removeEventListener('keydown', handleKeyDown);
-      };
-    } else {
-      document.body.style.overflow = '';
-    }
+    if (!isOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    document.body.style.overflow = 'hidden';
+
+    const focusTimer = window.setTimeout(() => modalRef.current?.focus(), 0);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab' || !modalRef.current) return;
+      const focusable = Array.from(modalRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+      )).filter((element) => element.offsetParent !== null);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        modalRef.current.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
     return () => {
-      document.body.style.overflow = '';
+      window.clearTimeout(focusTimer);
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+      previousFocus?.focus();
     };
   }, [isOpen, onClose]);
 
@@ -53,6 +79,11 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
 
       {/* Modal / Sheet Container */}
       <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
         className={`modal-sheet-container relative z-[100000] w-full max-w-lg flex flex-col overflow-hidden border-t sm:border rounded-t-3xl sm:rounded-2xl ${accentBorder} text-[#172033] dark:text-slate-100 dark:bg-[#1E293B] dark:border-slate-700 max-h-[90dvh] sm:my-auto`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -63,7 +94,7 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5e3dd] dark:border-slate-800 bg-[#fffdfa]/95 dark:bg-[#1E293B]/95 backdrop-blur sticky top-0 z-20 shrink-0 min-w-0">
-          <h2 className="hounigo-title text-lg dark:text-slate-100 truncate break-words min-w-0 mr-3">{title}</h2>
+          <h2 id={titleId} className="hounigo-title text-lg dark:text-slate-100 truncate break-words min-w-0 mr-3">{title}</h2>
           <button
             type="button"
             onClick={onClose}

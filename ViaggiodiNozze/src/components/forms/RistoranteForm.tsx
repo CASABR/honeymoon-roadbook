@@ -8,11 +8,13 @@ import type { PlaceSuggestion } from '../../services/photonService';
 
 interface RistoranteFormProps {
   initialData?: Ristorante | null;
+  defaultDate?: string;
+  defaultTime?: string;
   onSave: (data: Omit<Ristorante, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   onCancel: () => void;
 }
 
-export default function RistoranteForm({ initialData, onSave, onCancel }: RistoranteFormProps) {
+export default function RistoranteForm({ initialData, defaultDate, defaultTime, onSave, onCancel }: RistoranteFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
   const [nome, setNome] = useState('');
@@ -49,15 +51,10 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       setStatus(initialData.status === 'saldato' || (initialData as any).completed ? 'saldato' : 'da_saldare');
       setCoordinate(initialData.coordinate);
     } else {
-      const today = new Date();
-      const yyyy = today.getFullYear();
-      const mm = String(today.getMonth() + 1).padStart(2, '0');
-      const dd = String(today.getDate()).padStart(2, '0');
-      
       setNome('');
       setSottocategoria('');
-      setData(`${yyyy}-${mm}-${dd}`);
-      setOrario('');
+      setData(defaultDate || new Date().toISOString().split('T')[0]);
+      setOrario(defaultTime || '');
       setIndirizzo('');
       setTelefono('');
       setLinkPrenotazione('');
@@ -66,7 +63,7 @@ export default function RistoranteForm({ initialData, onSave, onCancel }: Ristor
       setCoordinate(undefined);
       setStatus('da_saldare');
     }
-  }, [initialData]);
+  }, [defaultDate, defaultTime, initialData]);
 
   useEffect(() => {
     setIsConflictConfirmed(false);

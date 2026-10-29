@@ -56,7 +56,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200 transition-colors cursor-pointer"
               title="Inserisci orario per questa tappa"
             >
-              ⏰ + Orario
+              ⏰ {tappa.sottocategoria === 'Sosta fotografica' ? 'Orario libero' : '+ Orario'}
             </button>
           )}
           {tappa.data && (

@@ -9,12 +9,14 @@ import type { PlaceSuggestion } from '../../services/photonService';
 
 interface AlloggioFormProps {
   initialData?: Alloggio | null;
+  defaultDate?: string;
+  defaultTime?: string;
   onSave: (data: Omit<Alloggio, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   onCancel: () => void;
   onDelete?: () => void;
 }
 
-export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }: AlloggioFormProps) {
+export default function AlloggioForm({ initialData, defaultDate, defaultTime, onSave, onCancel, onDelete }: AlloggioFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
   const [sottocategoria, setSottocategoria] = useState<Alloggio['sottocategoria'] | ''>('');
@@ -66,7 +68,7 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
       setCancellazioneGratuitaEntro(initialData.cancellazioneGratuitaEntro || '');
       setNotes(initialData.notes || '');
     } else {
-      const today = new Date();
+      const today = defaultDate ? new Date(`${defaultDate}T12:00:00`) : new Date();
       const yyyy = today.getFullYear();
       const mm = String(today.getMonth() + 1).padStart(2, '0');
       const dd = String(today.getDate()).padStart(2, '0');
@@ -81,8 +83,8 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
       setName('');
       setCheckIn(`${yyyy}-${mm}-${dd}`);
       setCheckOut(`${tm_yyyy}-${tm_mm}-${tm_dd}`);
-      setCheckInTime('14:00');
-      setCheckOutTime('10:00');
+      setCheckInTime(defaultTime || '');
+      setCheckOutTime('');
       setAddress('');
       setPinCode('');
       setPhone('');
@@ -92,7 +94,7 @@ export default function AlloggioForm({ initialData, onSave, onCancel, onDelete }
       setCancellazioneGratuitaEntro('');
       setNotes('');
     }
-  }, [initialData]);
+  }, [defaultDate, defaultTime, initialData]);
 
   const calculateSaldo = () => {
     const c = parseFloat(cost.replace(',', '.')) || 0;

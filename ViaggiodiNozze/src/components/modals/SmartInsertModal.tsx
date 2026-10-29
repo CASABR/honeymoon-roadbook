@@ -299,6 +299,9 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
     } else if (cat === 'tappa') {
       initial.title = d.titolo || '';
       initial.dateStart = d.data || '';
+      initial.time = d.orario || d.time || '';
+      initial.location = d.indirizzo || d.mapsUrl || '';
+      initial.sottocategoria = d.sottocategoria || 'Sosta panoramica';
       initial.notes = d.nota || '';
       const all = await storageService.getTappe();
       existingItem = all.find(a => a.titolo.toLowerCase().includes(initial.title.toLowerCase()) && (a.data === initial.dateStart || a.date === initial.dateStart));
@@ -450,6 +453,11 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
             titolo: editData.title,
             data: editData.dateStart,
             date: editData.dateStart,
+            orario: editData.time || undefined,
+            time: editData.time || undefined,
+            indirizzo: editData.location || undefined,
+            mapsUrl: editData.location || undefined,
+            sottocategoria: editData.sottocategoria || existingData.sottocategoria,
             nota: editData.notes
           });
           notifyDataChanged('tappe', 'save', { id: existingData.id, titolo: editData.title });
@@ -561,6 +569,12 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
             titolo: editData.title,
             data: editData.dateStart,
             date: editData.dateStart,
+            dayId: editData.dateStart ? `day_${editData.dateStart}` : undefined,
+            orario: editData.time || undefined,
+            time: editData.time || undefined,
+            indirizzo: editData.location || undefined,
+            mapsUrl: editData.location || undefined,
+            sottocategoria: editData.sottocategoria || 'Sosta panoramica',
             nota: editData.notes
           };
           await storageService.addTappa(newTappa);
@@ -1100,6 +1114,21 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   </div>
                 )}
 
+                {editData.category === 'tappa' && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Categoria Sosta</label>
+                    <select
+                      value={editData.sottocategoria || 'Sosta panoramica'}
+                      onChange={(e) => setEditData({...editData, sottocategoria: e.target.value})}
+                      className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                    >
+                      <option value="Sosta panoramica">⛰️ Sosta panoramica</option>
+                      <option value="Sosta fotografica">📸 Sosta fotografica</option>
+                      <option value="Sosta">📍 Sosta generica</option>
+                    </select>
+                  </div>
+                )}
+
                 <div className="overflow-y-auto max-h-[45vh] pr-1 pb-2 custom-scrollbar space-y-3 min-w-0">
                   {editData.category === 'trasporto' && editData.layover?.airport && (
                     <div className="p-2.5 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 flex items-center gap-2">
@@ -1119,20 +1148,18 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                     />
                   </div>
                   
-                  {editData.category !== 'tappa' && (
-                    <div className="min-w-0">
-                      <label className="text-xs font-semibold text-slate-600 mb-1 block truncate">
-                        {editData.category === 'trasporto' ? 'Da -> A (Partenza -> Arrivo)' : 'Luogo / Indirizzo'}
-                      </label>
-                      <input 
-                        type="text" 
-                        value={editData.location || ''} 
-                        onChange={(e) => setEditData({...editData, location: e.target.value})}
-                        placeholder={editData.category === 'trasporto' ? 'DXB -> AKL' : 'Indirizzo o città'}
-                        className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
-                      />
-                    </div>
-                  )}
+                  <div className="min-w-0">
+                    <label className="text-xs font-semibold text-slate-600 mb-1 block truncate">
+                      {editData.category === 'trasporto' ? 'Da -> A (Partenza -> Arrivo)' : 'Luogo / Indirizzo'}
+                    </label>
+                    <input
+                      type="text"
+                      value={editData.location || ''}
+                      onChange={(e) => setEditData({...editData, location: e.target.value})}
+                      placeholder={editData.category === 'trasporto' ? 'DXB -> AKL' : 'Indirizzo o città'}
+                      className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                    />
+                  </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0">
                     <div>
@@ -1146,9 +1173,11 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                         className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F] [color-scheme:light]"
                       />
                     </div>
-                    {!['tappa', 'alloggio'].includes(editData.category) && (
+                    {editData.category !== 'alloggio' && (
                       <div>
-                        <label className="text-xs font-semibold text-slate-600 mb-1 block">Orario (Partenza / Inizio)</label>
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">
+                          {editData.category === 'tappa' ? 'Orario sosta (opzionale)' : 'Orario (Partenza / Inizio)'}
+                        </label>
                         <input 
                           type="time" 
                           value={editData.time || ''} 

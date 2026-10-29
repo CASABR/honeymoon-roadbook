@@ -83,11 +83,9 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
             </span>
           )}
           {shopping.orario && (
-            <div className="flex flex-col ml-1">
-              <span className="text-[10px] font-semibold text-slate-600 dark:text-slate-300">
-                Orario: {shopping.orario}
-              </span>
-            </div>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200 text-[11px] font-medium font-mono">
+              ⏰ {shopping.orario}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-2">

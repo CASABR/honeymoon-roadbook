@@ -5,11 +5,13 @@ import { extractFromText } from '../../services/aiExtractor';
 
 interface ShoppingFormProps {
   initialData?: Shopping | null;
+  defaultDate?: string;
+  defaultTime?: string;
   onSave: (data: Omit<Shopping, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   onCancel: () => void;
 }
 
-export default function ShoppingForm({ initialData, onSave, onCancel }: ShoppingFormProps) {
+export default function ShoppingForm({ initialData, defaultDate, defaultTime, onSave, onCancel }: ShoppingFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
   const [sottocategoria, setSottocategoria] = useState('');
@@ -48,15 +50,15 @@ export default function ShoppingForm({ initialData, onSave, onCancel }: Shopping
       setSottocategoria('');
       setNome('');
       setScopo('');
-      setData('');
-      setOrario('');
+      setData(defaultDate || '');
+      setOrario(defaultTime || '');
       setIndirizzo('');
       setBudget('');
       setLink('');
       setNota('');
       setCopilota(false);
     }
-  }, [initialData]);
+  }, [defaultDate, defaultTime, initialData]);
 
   const handleAiExtraction = async () => {
     if (!aiText.trim()) return;

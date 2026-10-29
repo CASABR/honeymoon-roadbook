@@ -31,6 +31,34 @@ interface OggiViewProps {
   onNavigateTab?: (tab: SectionTab, categoria?: CategoriaTab, subView?: any) => void;
 }
 
+type InsertCategory = 'tappa' | 'attivita' | 'ristorante' | 'alloggio' | 'trasporto' | 'shopping';
+
+const INSERT_CATEGORIES: { type: InsertCategory; label: string; icon: string }[] = [
+  { type: 'tappa', label: 'Tappa', icon: '📍' },
+  { type: 'attivita', label: 'Attività', icon: '🥾' },
+  { type: 'ristorante', label: 'Ristorante', icon: '🍽️' },
+  { type: 'alloggio', label: 'Alloggio', icon: '🛏️' },
+  { type: 'trasporto', label: 'Trasporto', icon: '✈️' },
+  { type: 'shopping', label: 'Shopping', icon: '🛍️' }
+];
+
+function suggestTimeBetween(
+  previous: { time: string; timeIsDefault?: boolean },
+  next: { time: string; timeIsDefault?: boolean }
+): string {
+  if (previous.timeIsDefault || next.timeIsDefault) return '';
+  const parseMinutes = (value: string) => {
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) return null;
+    const [hours, minutes] = value.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+  const start = parseMinutes(previous.time);
+  const end = parseMinutes(next.time);
+  if (start === null || end === null || end - start < 2) return '';
+  const midpoint = Math.floor((start + end) / 2);
+  return `${String(Math.floor(midpoint / 60)).padStart(2, '0')}:${String(midpoint % 60).padStart(2, '0')}`;
+}
+
 import { generateTripDays, getTripDateRange, type TripDayItem } from '../utils/tripDates';
 import { getTripConfig } from '../utils/tripConfig';
 
@@ -121,6 +149,49 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [heroEditTitle, setHeroEditTitle] = useState('');
   const [heroTitleMode, setHeroTitleMode] = useState<'custom' | 'auto'>('custom');
   const heroBgInputRef = useRef<HTMLInputElement>(null);
+  const heroModalRef = useRef<HTMLDivElement>(null);
+  const copilotModalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isHeroEditOpen && !copilotPopoverActivity) return;
+    const dialog = isHeroEditOpen ? heroModalRef.current : copilotModalRef.current;
+    const previousOverflow = document.body.style.overflow;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    document.body.style.overflow = 'hidden';
+    const focusTimer = window.setTimeout(() => dialog?.focus(), 0);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (isHeroEditOpen) setIsHeroEditOpen(false);
+        else setCopilotPopoverActivity(null);
+        return;
+      }
+      if (event.key !== 'Tab' || !dialog) return;
+      const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])'
+      )).filter((element) => element.offsetParent !== null);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [copilotPopoverActivity, isHeroEditOpen]);
 
   const [dayMapsRoutes, setDayMapsRoutes] = useState<DayMapsRoutes>({});
 
@@ -172,6 +243,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [editingAlloggioItem, setEditingAlloggioItem] = useState<Alloggio | null>(null);
   const [editingRistoranteItem, setEditingRistoranteItem] = useState<Ristorante | null>(null);
   const [editingShoppingItem, setEditingShoppingItem] = useState<Shopping | null>(null);
+  const [creatingCategory, setCreatingCategory] = useState<InsertCategory | null>(null);
+  const [insertMenuAfterId, setInsertMenuAfterId] = useState<string | null>(null);
+  const [insertDraftTime, setInsertDraftTime] = useState('');
   const [activeCollision, setActiveCollision] = useState<TimeCollision | null>(null);
   const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
 
@@ -181,6 +255,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       setFeedbackBanner(prev => (prev === msg ? null : prev));
     }, 3500);
   }, []);
+
+  const closeCreateForm = () => {
+    setCreatingCategory(null);
+    setInsertDraftTime('');
+  };
 
   const scrollToCurrentEvent = useCallback(() => {
     if (!timeline || timeline.length === 0) return;
@@ -538,6 +617,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     };
     await storageService.saveActivity(activityToSave);
     setEditingActivityItem(null);
+    setCreatingCategory(null);
+    setInsertDraftTime('');
 
     // Se l'attività è stata spostata su un altro giorno (es. dal 29 al 28), imposta automaticamente selectedDate sul nuovo giorno
     const matchedDay = daysData.find(d => d.id === activityToSave.dayId);
@@ -567,6 +648,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     };
     await storageService.saveTransport(transportToSave);
     setEditingTransportItem(null);
+    setCreatingCategory(null);
+    setInsertDraftTime('');
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
         detail: { action: 'save_transport', item: transportToSave }
@@ -617,6 +700,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     };
     await storageService.saveTappa(tappaToSave);
     setEditingTappaItem(null);
+    setCreatingCategory(null);
+    setInsertDraftTime('');
 
     // Se la tappa è stata spostata su un'altra data, allinea la vista
     if (cleanDate && cleanDate !== selectedDate) {
@@ -646,6 +731,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     };
     await storageService.saveAccommodation(alloggioToSave);
     setEditingAlloggioItem(null);
+    setCreatingCategory(null);
+    setInsertDraftTime('');
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
         detail: { action: 'save_alloggio', item: alloggioToSave }
@@ -679,6 +766,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     };
     await storageService.saveRistorante(ristoranteToSave);
     setEditingRistoranteItem(null);
+    setCreatingCategory(null);
+    setInsertDraftTime('');
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
         detail: { action: 'save_ristorante', item: ristoranteToSave }
@@ -698,6 +787,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     };
     await storageService.saveShopping(shoppingToSave);
     setEditingShoppingItem(null);
+    setCreatingCategory(null);
+    setInsertDraftTime('');
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
         detail: { action: 'save_shopping', item: shoppingToSave }
@@ -852,6 +943,41 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       )}
 
       {/* ─── LIVELLO 1: MASTHEAD EDITORIALE CARTOGRAFICO & FOCUS IMMEDIATO ─── */}
+      <div className="hidden lg:flex sticky top-0 z-40 items-center justify-between gap-4 rounded-2xl border border-slate-200/90 dark:border-slate-700 bg-white/95 dark:bg-[#172033]/95 px-4 py-2.5 shadow-sm backdrop-blur">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-[#FF6B5F]">
+            <span>{currentDayMeta?.dayNum ? `Giorno ${currentDayMeta.dayNum}` : 'Pre-viaggio'}</span>
+            <span aria-hidden="true">•</span>
+            <span>{formatDateHuman(selectedDate)}</span>
+          </div>
+          {currentDayData?.location && (
+            <p className="truncate text-sm font-bold text-slate-800 dark:text-slate-100">
+              {currentDayData.location}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-2" aria-label="Cambia giorno">
+          <button
+            type="button"
+            disabled={currentIndex <= 0}
+            onClick={() => currentIndex > 0 && setSelectedDate(tripDays[currentIndex - 1].dateStr)}
+            className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 transition hover:border-[#FF6B5F] hover:text-[#FF6B5F] disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="Giorno precedente"
+          >
+            ← Prima
+          </button>
+          <button
+            type="button"
+            disabled={currentIndex < 0 || currentIndex >= tripDays.length - 1}
+            onClick={() => currentIndex >= 0 && currentIndex < tripDays.length - 1 && setSelectedDate(tripDays[currentIndex + 1].dateStr)}
+            className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 transition hover:border-[#FF6B5F] hover:text-[#FF6B5F] disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="Giorno successivo"
+          >
+            Dopo →
+          </button>
+        </div>
+      </div>
+
       <div className="space-y-3">
         {/* Masthead Editoriale / Diario di Bordo */}
         <div
@@ -1189,6 +1315,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           onClick={() => setIsHeroEditOpen(false)}
         >
           <div
+            ref={heroModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Personalizza header"
+            tabIndex={-1}
             className="modal-sheet-container rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
             onClick={e => e.stopPropagation()}
           >
@@ -1436,6 +1567,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             displayMode?: import('../types').TransportDisplayMode;
             stateLabel?: string;
             segmentContext?: import('../types').TransportSegmentContext;
+            timeIsDefault?: boolean;
           }[] = [];
 
           // Ordina rigorosamente per orario (HH:mm)
@@ -1484,7 +1616,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 title: `Check-in disponibile: ${tonightsAccommodation.name}`,
                 location: accLoc,
                 coordinate: tonightsAccommodation.coordinate,
-                originalData: tonightsAccommodation
+                originalData: tonightsAccommodation,
+                timeIsDefault: false
               });
               addedCheckinCallout = true;
             }
@@ -1503,7 +1636,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               noteCopilota: item.noteCopilota || (item.originalData as any)?.noteCopilota,
               displayMode: (item as any).displayMode,
               stateLabel: (item as any).stateLabel,
-              segmentContext: (item as any).segmentContext
+              segmentContext: (item as any).segmentContext,
+              timeIsDefault: item.timeIsDefault
             });
           });
 
@@ -1659,6 +1793,72 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         ) : (
                           <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm text-center text-slate-500 text-sm">
                             {item.title}
+                          </div>
+                        )}
+
+                        {canEdit && nextItem && (
+                          <div className="group relative hidden min-h-7 items-center justify-center lg:flex">
+                            <div className="absolute inset-x-8 top-1/2 border-t border-dashed border-slate-200 dark:border-slate-800" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (insertMenuAfterId === item.id) {
+                                  setInsertMenuAfterId(null);
+                                  return;
+                                }
+                                setInsertDraftTime(suggestTimeBetween(item, nextItem));
+                                setInsertMenuAfterId(item.id);
+                              }}
+                              className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-white text-base font-bold text-slate-500 shadow-sm transition hover:border-[#FF6B5F] hover:text-[#FF6B5F] focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#FF6B5F]/35 dark:border-slate-700 dark:bg-slate-900 ${insertMenuAfterId === item.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`}
+                              aria-label={`Inserisci una card dopo ${item.title}`}
+                              aria-expanded={insertMenuAfterId === item.id}
+                            >
+                              +
+                            </button>
+                            {insertMenuAfterId === item.id && (
+                              <div className="absolute top-8 z-50 w-[min(34rem,calc(100vw-3rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-[#172033]">
+                                <div className="mb-3 flex items-end gap-3">
+                                  <label className="min-w-0 flex-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                                    Orario della nuova card
+                                    <input
+                                      type="time"
+                                      value={insertDraftTime}
+                                      onChange={(event) => setInsertDraftTime(event.target.value)}
+                                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#FF6B5F] dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                    />
+                                  </label>
+                                  <button
+                                    type="button"
+                                    onClick={() => setInsertMenuAfterId(null)}
+                                    className="rounded-lg px-2 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                  >
+                                    Chiudi
+                                  </button>
+                                </div>
+                                {!insertDraftTime && (
+                                  <p className="mb-2 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+                                    Gli orari vicini non consentono una deduzione sicura: scegli l'orario.
+                                  </p>
+                                )}
+                                <div className="grid grid-cols-3 gap-2">
+                                  {INSERT_CATEGORIES.map((category) => (
+                                    <button
+                                      key={category.type}
+                                      type="button"
+                                      disabled={!insertDraftTime}
+                                      onClick={() => {
+                                        setCreatingCategory(category.type);
+                                        setInsertMenuAfterId(null);
+                                      }}
+                                      className="rounded-xl border border-slate-200 px-2 py-2 text-left text-[11px] font-bold text-slate-700 transition hover:border-[#FF6B5F] hover:text-[#FF6B5F] disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
+                                    >
+                                      <span className="mr-1" aria-hidden="true">{category.icon}</span>
+                                      {category.label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         )}
 
@@ -1868,92 +2068,102 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
       {/* Modale Form Attività */}
       <Modal
-        isOpen={Boolean(editingActivityItem)}
-        onClose={() => setEditingActivityItem(null)}
-        title="Modifica Attività"
+        isOpen={Boolean(editingActivityItem) || creatingCategory === 'attivita'}
+        onClose={() => { setEditingActivityItem(null); closeCreateForm(); }}
+        title={editingActivityItem ? 'Modifica Attività' : 'Nuova Attività'}
         accentVariant="amber"
       >
         <AttivitaForm
           days={daysData}
-          selectedDayId={editingActivityItem?.dayId}
+          selectedDayId={editingActivityItem?.dayId || `day_${selectedDate}`}
+          defaultTime={creatingCategory === 'attivita' ? insertDraftTime : undefined}
           initialData={editingActivityItem}
           onSave={handleSaveActivity}
-          onCancel={() => setEditingActivityItem(null)}
+          onCancel={() => { setEditingActivityItem(null); closeCreateForm(); }}
           onDelete={handleDeleteActivityFromForm}
         />
       </Modal>
 
       {/* Modale Form Trasporto */}
       <Modal
-        isOpen={Boolean(editingTransportItem)}
-        onClose={() => setEditingTransportItem(null)}
-        title="Modifica Trasporto"
+        isOpen={Boolean(editingTransportItem) || creatingCategory === 'trasporto'}
+        onClose={() => { setEditingTransportItem(null); closeCreateForm(); }}
+        title={editingTransportItem ? 'Modifica Trasporto' : 'Nuovo Trasporto'}
         accentVariant="sky"
       >
         <TrasportoForm
           initialData={editingTransportItem}
+          defaultDate={creatingCategory === 'trasporto' ? selectedDate : undefined}
+          defaultTime={creatingCategory === 'trasporto' ? insertDraftTime : undefined}
           onSave={handleSaveTransport}
-          onCancel={() => setEditingTransportItem(null)}
+          onCancel={() => { setEditingTransportItem(null); closeCreateForm(); }}
           onDelete={handleDeleteTransportFromForm}
         />
       </Modal>
 
       {/* Modale Form Tappa */}
       <Modal
-        isOpen={Boolean(editingTappaItem)}
-        onClose={() => setEditingTappaItem(null)}
-        title="Modifica Tappa"
+        isOpen={Boolean(editingTappaItem) || creatingCategory === 'tappa'}
+        onClose={() => { setEditingTappaItem(null); closeCreateForm(); }}
+        title={editingTappaItem ? 'Modifica Tappa' : 'Nuova Tappa'}
         accentVariant="rose"
       >
         <TappaForm
           initialData={editingTappaItem}
           defaultDate={selectedDate}
+          defaultTime={creatingCategory === 'tappa' ? insertDraftTime : undefined}
           onSave={handleSaveTappa}
-          onCancel={() => setEditingTappaItem(null)}
+          onCancel={() => { setEditingTappaItem(null); closeCreateForm(); }}
           onDelete={handleDeleteTappaFromForm}
         />
       </Modal>
 
       {/* Modale Form Alloggio */}
       <Modal
-        isOpen={Boolean(editingAlloggioItem)}
-        onClose={() => setEditingAlloggioItem(null)}
-        title="Modifica Alloggio"
+        isOpen={Boolean(editingAlloggioItem) || creatingCategory === 'alloggio'}
+        onClose={() => { setEditingAlloggioItem(null); closeCreateForm(); }}
+        title={editingAlloggioItem ? 'Modifica Alloggio' : 'Nuovo Alloggio'}
         accentVariant="purple"
       >
         <AlloggioForm
           initialData={editingAlloggioItem}
+          defaultDate={creatingCategory === 'alloggio' ? selectedDate : undefined}
+          defaultTime={creatingCategory === 'alloggio' ? insertDraftTime : undefined}
           onSave={handleSaveAlloggio}
-          onCancel={() => setEditingAlloggioItem(null)}
+          onCancel={() => { setEditingAlloggioItem(null); closeCreateForm(); }}
           onDelete={handleDeleteAlloggioFromForm}
         />
       </Modal>
 
       {/* Modale Form Ristorante */}
       <Modal
-        isOpen={Boolean(editingRistoranteItem)}
-        onClose={() => setEditingRistoranteItem(null)}
-        title="Modifica Ristorante"
+        isOpen={Boolean(editingRistoranteItem) || creatingCategory === 'ristorante'}
+        onClose={() => { setEditingRistoranteItem(null); closeCreateForm(); }}
+        title={editingRistoranteItem ? 'Modifica Ristorante' : 'Nuovo Ristorante'}
         accentVariant="emerald"
       >
         <RistoranteForm
           initialData={editingRistoranteItem}
+          defaultDate={creatingCategory === 'ristorante' ? selectedDate : undefined}
+          defaultTime={creatingCategory === 'ristorante' ? insertDraftTime : undefined}
           onSave={handleSaveRistorante}
-          onCancel={() => setEditingRistoranteItem(null)}
+          onCancel={() => { setEditingRistoranteItem(null); closeCreateForm(); }}
         />
       </Modal>
 
       {/* Modale Form Shopping */}
       <Modal
-        isOpen={Boolean(editingShoppingItem)}
-        onClose={() => setEditingShoppingItem(null)}
-        title="Modifica Shopping"
+        isOpen={Boolean(editingShoppingItem) || creatingCategory === 'shopping'}
+        onClose={() => { setEditingShoppingItem(null); closeCreateForm(); }}
+        title={editingShoppingItem ? 'Modifica Shopping' : 'Nuovo Shopping'}
         accentVariant="rose"
       >
         <ShoppingForm
           initialData={editingShoppingItem}
+          defaultDate={creatingCategory === 'shopping' ? selectedDate : undefined}
+          defaultTime={creatingCategory === 'shopping' ? insertDraftTime : undefined}
           onSave={handleSaveShopping}
-          onCancel={() => setEditingShoppingItem(null)}
+          onCancel={() => { setEditingShoppingItem(null); closeCreateForm(); }}
         />
       </Modal>
 
@@ -2142,16 +2352,21 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       />
 
       {/* Popover / Modale Note del Co-pilota (Stile iOS con modifica diretta) */}
-      {copilotPopoverActivity && (
+      {copilotPopoverActivity && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in"
+          className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/40 backdrop-blur-xs animate-fade-in"
           onClick={(e) => {
             e.stopPropagation();
             setCopilotPopoverActivity(null);
           }}
         >
           <div 
-            className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-2xl border border-slate-200/80 dark:border-slate-800 animate-scale-up space-y-3.5"
+            ref={copilotModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Note Copilota"
+            tabIndex={-1}
+            className="w-full max-w-sm max-h-[90dvh] overflow-y-auto bg-white dark:bg-slate-900 rounded-3xl p-5 shadow-2xl border border-slate-200/80 dark:border-slate-800 animate-scale-up space-y-3.5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2 border-b border-[#FFF0ED] dark:border-slate-800">
@@ -2243,7 +2458,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modal Copilota Globale della giornata */}

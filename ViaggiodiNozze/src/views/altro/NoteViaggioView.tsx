@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { NotaViaggio, ColorNota } from '../../types';
 import { storageService } from '../../storage/storageService';
 
@@ -80,6 +80,9 @@ export default function NoteViaggioView({ onBack }: NoteViaggioViewProps) {
   const [deletingNota, setDeletingNota] = useState<NotaViaggio | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [draggedNoteId, setDraggedNoteId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const isReorderingRef = useRef(false);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -122,7 +125,9 @@ export default function NoteViaggioView({ onBack }: NoteViaggioViewProps) {
   }, []);
 
   useEffect(() => {
-    const handler = () => loadNote();
+    const handler = () => {
+      if (!isReorderingRef.current) loadNote();
+    };
     window.addEventListener('roadbook_data_mutated', handler);
     return () => window.removeEventListener('roadbook_data_mutated', handler);
   }, []);
@@ -152,6 +157,7 @@ export default function NoteViaggioView({ onBack }: NoteViaggioViewProps) {
         title: formTitle.trim() || undefined,
         content: formContent.trim(),
         color: formColor,
+        order: editingNota?.order ?? (note.length ? Math.min(...note.map(item => Number.isFinite(item.order) ? Number(item.order) : 0)) - 1 : 0),
         createdAt: editingNota?.createdAt || Date.now(),
         updatedAt: Date.now(),
       };
@@ -177,6 +183,44 @@ export default function NoteViaggioView({ onBack }: NoteViaggioViewProps) {
       console.error('[NoteViaggioView] Errore eliminazione:', err);
       alert('Impossibile eliminare la nota. Riprova.');
     }
+  };
+
+  const persistOrder = async (next: NotaViaggio[]) => {
+    const ordered = next.map((item, index) => ({ ...item, order: index }));
+    setNote(ordered);
+    isReorderingRef.current = true;
+    try {
+      await storageService.reorderNote(ordered.map(item => item.id));
+      showToast('Ordine note aggiornato');
+    } catch (err) {
+      console.error('[NoteViaggioView] Errore riordino note:', err);
+      await loadNote();
+    } finally {
+      isReorderingRef.current = false;
+    }
+  };
+
+  const moveNote = async (noteId: string, direction: -1 | 1) => {
+    const fromIndex = note.findIndex(item => item.id === noteId);
+    const toIndex = fromIndex + direction;
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= note.length) return;
+    const next = [...note];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    await persistOrder(next);
+  };
+
+  const dropNote = async (targetId: string) => {
+    if (!draggedNoteId || draggedNoteId === targetId) return;
+    const fromIndex = note.findIndex(item => item.id === draggedNoteId);
+    const toIndex = note.findIndex(item => item.id === targetId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const next = [...note];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setDraggedNoteId(null);
+    setDropTargetId(null);
+    await persistOrder(next);
   };
 
   return (
@@ -245,15 +289,35 @@ export default function NoteViaggioView({ onBack }: NoteViaggioViewProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {note.map((nota) => {
+          {note.map((nota, noteIndex) => {
             const c = getColorConfig(nota.color);
             const rotation = ((nota.id.charCodeAt(nota.id.length - 1) % 5) - 2);
             return (
               <div
                 key={nota.id}
-                className={`relative ${c.bg} ${c.border} border rounded-2xl p-4 pt-5 shadow-sm hover:shadow-md transition-all group`}
+                onDragOver={(event) => { event.preventDefault(); setDropTargetId(nota.id); }}
+                onDragLeave={() => setDropTargetId(current => current === nota.id ? null : current)}
+                onDrop={(event) => { event.preventDefault(); dropNote(nota.id); }}
+                className={`relative ${c.bg} ${c.border} border rounded-2xl p-4 pt-7 shadow-sm hover:shadow-md transition-all group ${draggedNoteId === nota.id ? 'opacity-50 scale-[0.98]' : ''} ${dropTargetId === nota.id && draggedNoteId !== nota.id ? 'ring-2 ring-[#FF6B5F] ring-offset-2' : ''}`}
                 style={{ transform: `rotate(${rotation}deg)`, transformOrigin: 'center' }}
               >
+                {canManageNotes && (
+                  <div className="absolute left-2 top-2 flex items-center gap-1">
+                    <button
+                      type="button"
+                      draggable
+                      onDragStart={(event) => { setDraggedNoteId(nota.id); event.dataTransfer.effectAllowed = 'move'; }}
+                      onDragEnd={() => { setDraggedNoteId(null); setDropTargetId(null); }}
+                      className="flex h-7 w-7 cursor-grab items-center justify-center rounded-lg border border-black/5 bg-white/80 text-slate-500 shadow-xs active:cursor-grabbing dark:border-white/10 dark:bg-slate-800/90 dark:text-slate-300"
+                      title="Trascina per riordinare"
+                      aria-label={`Trascina ${nota.title || 'nota'} per riordinare`}
+                    >
+                      ⠿
+                    </button>
+                    <button type="button" disabled={noteIndex === 0} onClick={() => moveNote(nota.id, -1)} className="h-7 w-7 rounded-lg border border-black/5 bg-white/80 text-xs text-slate-600 disabled:opacity-30 dark:border-white/10 dark:bg-slate-800/90 dark:text-slate-300" aria-label="Sposta nota prima">↑</button>
+                    <button type="button" disabled={noteIndex === note.length - 1} onClick={() => moveNote(nota.id, 1)} className="h-7 w-7 rounded-lg border border-black/5 bg-white/80 text-xs text-slate-600 disabled:opacity-30 dark:border-white/10 dark:bg-slate-800/90 dark:text-slate-300" aria-label="Sposta nota dopo">↓</button>
+                  </div>
+                )}
                 {/* Pin in alto */}
                 <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-2">
                   <div className={`w-3.5 h-3.5 rounded-full ${c.pin} shadow border border-white/70 dark:border-slate-800`} />

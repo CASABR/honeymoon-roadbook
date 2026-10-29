@@ -11,13 +11,14 @@ import { isPhotoSpotActivity, isTrekkingActivity, PHOTO_LIGHT_LABELS, TREKKING_R
 interface AttivitaFormProps {
   days?: any[];
   selectedDayId?: string;
+  defaultTime?: string;
   initialData?: Attivita | null;
   onSave: (data: Omit<Attivita, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   onCancel: () => void;
   onDelete?: () => void;
 }
 
-export default function AttivitaForm({ selectedDayId, initialData, onSave, onCancel, onDelete }: AttivitaFormProps) {
+export default function AttivitaForm({ selectedDayId, defaultTime, initialData, onSave, onCancel, onDelete }: AttivitaFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
   const SOTTOCATEGORIE: Attivita['sottocategoria'][] = ['Trekking', 'Spot fotografico', 'Escursione', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'];
@@ -118,7 +119,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       setSottocategoria('');
       setTitle('');
       setOrarioRitrovo('');
-      setOrarioInizio('');
+      setOrarioInizio(defaultTime || '');
       setDuration('');
       setDistanceKm('');
       setElevationGainM('');
@@ -142,7 +143,7 @@ export default function AttivitaForm({ selectedDayId, initialData, onSave, onCan
       setStatus('prenotato');
       setAttachments([]);
     }
-  }, [initialData, selectedDayId]);
+  }, [defaultTime, initialData, selectedDayId]);
 
 
 

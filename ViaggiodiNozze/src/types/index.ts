@@ -333,6 +333,7 @@ export interface NotaViaggio {
   title?: string;
   content: string;
   color: ColorNota;
+  order?: number;
   createdAt: number;
   updatedAt: number;
 }

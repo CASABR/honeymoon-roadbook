@@ -4,12 +4,14 @@ import type { Trasporto, TipoTrasporto, StatoTrasporto } from '../../types';
 
 interface TrasportoFormProps {
   initialData?: Trasporto | null;
+  defaultDate?: string;
+  defaultTime?: string;
   onSave: (data: Omit<Trasporto, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
   onCancel: () => void;
   onDelete?: () => void;
 }
 
-export default function TrasportoForm({ initialData, onSave, onCancel, onDelete }: TrasportoFormProps) {
+export default function TrasportoForm({ initialData, defaultDate, defaultTime, onSave, onCancel, onDelete }: TrasportoFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
   const [type, setType] = useState<TipoTrasporto>('volo');
@@ -114,7 +116,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
       setBookingCode('');
       setDepartureLocation('');
       setDepartureIata('');
-      setDepartureDate('');
+      setDepartureDate(defaultDate && defaultTime ? `${defaultDate}T${defaultTime}` : '');
       setArrivalLocation('');
       setArrivalIata('');
       setArrivalDate('');
@@ -133,7 +135,7 @@ export default function TrasportoForm({ initialData, onSave, onCancel, onDelete 
       setNoteCopilota('');
       setCopilota(false);
     }
-  }, [initialData, isRental]);
+  }, [defaultDate, defaultTime, initialData, isRental]);
 
   useEffect(() => {
     if (isSaldato && cost) {

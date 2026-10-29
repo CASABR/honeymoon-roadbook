@@ -1457,7 +1457,14 @@ class StorageService {
   async getNote(): Promise<NotaViaggio[]> {
     try {
       const items = await idbGetAll<NotaViaggio>(STORES.NOTE);
-      return items.sort((a, b) => normalizeTimestamp(b.updatedAt) - normalizeTimestamp(a.updatedAt));
+      return items.sort((a, b) => {
+        const orderA = Number.isFinite(a.order) ? Number(a.order) : null;
+        const orderB = Number.isFinite(b.order) ? Number(b.order) : null;
+        if (orderA !== null && orderB !== null && orderA !== orderB) return orderA - orderB;
+        if (orderA !== null) return -1;
+        if (orderB !== null) return 1;
+        return normalizeTimestamp(b.updatedAt) - normalizeTimestamp(a.updatedAt);
+      });
     } catch (err) {
       console.error('[StorageService] Errore lettura note:', err);
       return [];
@@ -1480,6 +1487,18 @@ class StorageService {
       await this.removeTombstoneIfRecreated('note', item.id, item.createdAt);
     } catch (err) {
       console.warn('[StorageService] Errore rimozione tombstone post-ricreazione note:', err);
+    }
+  }
+
+  async reorderNote(noteIds: string[]): Promise<void> {
+    const uniqueIds = Array.from(new Set(noteIds.filter(Boolean)));
+    const now = Date.now();
+    for (let index = 0; index < uniqueIds.length; index++) {
+      const existing = await idbGet<NotaViaggio>(STORES.NOTE, uniqueIds[index]);
+      if (!existing) continue;
+      const updated: NotaViaggio = { ...existing, order: index, updatedAt: now + index };
+      await idbPut(STORES.NOTE, updated);
+      notifyDataChanged('note', 'save', updated);
     }
   }
 
