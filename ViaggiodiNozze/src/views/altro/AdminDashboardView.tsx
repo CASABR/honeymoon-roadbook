@@ -25,6 +25,21 @@ import { db, auth } from '../../firebase';
 import { getTripConfig } from '../../utils/tripConfig';
 import { formatDateIT, formatDateTimeIT, formatDateRangeIT } from '../../utils/tripDates';
 import { fetchUsersAccessPage, type UserAccessEntry } from '../../services/userAccessService';
+import {
+  formatStorageBytes,
+  calculateQuotaPercentage,
+  calculateTripRootDocSize
+} from '../../utils/firestoreStorageCalculator';
+import {
+  OFFICIAL_FIRESTORE_METRIC,
+  type OfficialFirestoreStorageSnapshot
+} from '../../config/officialFirestoreStorage';
+import {
+  calculateDetailedTripStorage,
+  getTripStorageFromCache,
+  clearTripStorageCache
+} from '../../services/tripStorageService';
+import { DatabaseUsagePanel } from './DatabaseUsagePanel';
 
 /** Sottocollezioni note del viaggio gestite dall'app */
 export const KNOWN_ADMIN_DELETION_SUBCOLLECTIONS = [
@@ -185,6 +200,9 @@ export interface TripSummary {
   tappeCount?: number;
   estimatedStorageBytes?: number;
   storageStatus: 'calcolata' | 'parziale' | 'non_disponibile';
+  docsCount?: number;
+  quotaPercentage?: number;
+  subcollectionsBreakdown?: Record<string, { docsCount: number; bytes: number }>;
   createdAt?: number;
   updatedAt?: number;
   lastActiveAt?: number;
@@ -192,6 +210,7 @@ export interface TripSummary {
   timeStatus: 'upcoming' | 'in_progress' | 'completed' | 'not_set';
   activityStatus: 'active' | 'dormant' | 'abandoned' | 'unknown';
   daysSinceActivity: number | null;
+  _rawDocData?: Record<string, any>;
 }
 
 interface StorageEstimateData {
@@ -346,19 +365,21 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(25);
 
-  // Diagnostica storage
+  // Diagnostica storage locale
   const [storageData, setStorageData] = useState<StorageEstimateData | null>(null);
   const [storageLoading, setStorageLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const [recentEvents, setRecentEvents] = useState<Array<{ id: string; time: string; text: string; type: 'info' | 'warn' | 'success' }>>([]);
 
-  // Calcolo formattazione byte
+  // Metrica ufficiale Cloud Monitoring e stato calcoli storage Firestore
+  const [officialMetric, setOfficialMetric] = useState<OfficialFirestoreStorageSnapshot>(OFFICIAL_FIRESTORE_METRIC);
+  const [calculatingStorageTripId, setCalculatingStorageTripId] = useState<string | null>(null);
+  const [isBatchCalculatingStorage, setIsBatchCalculatingStorage] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<{ current: number; total: number } | null>(null);
+
+  // Calcolo formattazione byte standard KiB / MiB / GiB
   const formatBytes = (bytes: number): string => {
-    if (!bytes || bytes <= 0) return '0 B';
-    const k = 1024;
-    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    return formatStorageBytes(bytes);
   };
 
   // Misura storage locale
@@ -502,16 +523,30 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
         const ownerEmail = d.ownerEmail || d.creatorEmail || undefined;
         const ownerName = d.ownerName || d.creatorName || undefined;
 
-        // Calcolo della dimensione logica serializzata del documento Firestore
-        // Trasparenza Hounigo: dichiara esplicitamente se la stima è parziale o non disponibile
+        // Calcolo della dimensione documentale Firestore conforme alle specifiche ufficiali Google
+        // Trasparenza Hounigo: se presente in cache di sessione, usa la stima dettagliata già calcolata
+        const cachedDetail = getTripStorageFromCache(id);
         let estimatedStorageBytes = 0;
         let storageStatus: TripSummary['storageStatus'] = 'parziale';
-        try {
-          const serializedStr = JSON.stringify(d);
-          // La dimensione del documento include i dati serializzati + overhead ID
-          estimatedStorageBytes = new Blob([serializedStr]).size + id.length;
-        } catch {
-          storageStatus = 'non_disponibile';
+        let docsCount = 1;
+        let quotaPercentage = 0;
+        let subcollectionsBreakdown: Record<string, { docsCount: number; bytes: number }> | undefined = undefined;
+
+        if (cachedDetail) {
+          estimatedStorageBytes = cachedDetail.totalBytes;
+          storageStatus = cachedDetail.status;
+          docsCount = cachedDetail.docsCount;
+          quotaPercentage = cachedDetail.quotaPercentage;
+          subcollectionsBreakdown = cachedDetail.subcollectionsBreakdown;
+        } else {
+          try {
+            estimatedStorageBytes = calculateTripRootDocSize(id, d);
+            quotaPercentage = calculateQuotaPercentage(estimatedStorageBytes);
+            storageStatus = 'parziale';
+            docsCount = 1;
+          } catch {
+            storageStatus = 'non_disponibile';
+          }
         }
 
         return {
@@ -529,13 +564,17 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
           tappeCount: typeof d.tappeCount === 'number' ? d.tappeCount : undefined,
           estimatedStorageBytes,
           storageStatus,
+          docsCount,
+          quotaPercentage,
+          subcollectionsBreakdown,
           createdAt,
           updatedAt,
           lastActiveAt,
           headerImageUrl,
           timeStatus,
           activityStatus,
-          daysSinceActivity
+          daysSinceActivity,
+          _rawDocData: d
         };
       });
 
@@ -564,6 +603,90 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
     } finally {
       setLoadingTrips(false);
     }
+  };
+
+  // Calcolo stima dettagliata per un singolo viaggio
+  const handleCalculateSingleTripStorage = async (tripId: string) => {
+    if (!db || calculatingStorageTripId || isBatchCalculatingStorage) return;
+    setCalculatingStorageTripId(tripId);
+    try {
+      const existingTrip = trips.find(t => t.id === tripId);
+      const detail = await calculateDetailedTripStorage(db, tripId, existingTrip?._rawDocData);
+      setTrips(prev => prev.map(t => {
+        if (t.id === tripId) {
+          return {
+            ...t,
+            estimatedStorageBytes: detail.totalBytes,
+            storageStatus: detail.status,
+            docsCount: detail.docsCount,
+            quotaPercentage: detail.quotaPercentage,
+            subcollectionsBreakdown: detail.subcollectionsBreakdown
+          };
+        }
+        return t;
+      }));
+      logDiag(`Stima spazio per viaggio ${tripId}: ${formatStorageBytes(detail.totalBytes)} (${detail.docsCount} doc)`, 'success');
+    } catch (err: any) {
+      console.error(`[AdminDashboard] Errore calcolo spazio ${tripId}:`, err);
+      logDiag(`Errore calcolo spazio per ${tripId}: ${err?.message}`, 'warn');
+    } finally {
+      setCalculatingStorageTripId(null);
+    }
+  };
+
+  // Calcolo batch efficiente delle stime per i viaggi
+  const handleBatchCalculateStorage = async () => {
+    if (!db || isBatchCalculatingStorage || calculatingStorageTripId) return;
+    const targetList = paginatedTrips.length > 0 ? paginatedTrips : trips;
+    if (!targetList.length) return;
+
+    setIsBatchCalculatingStorage(true);
+    setBatchProgress({ current: 0, total: targetList.length });
+
+    let count = 0;
+    for (const t of targetList) {
+      try {
+        setBatchProgress({ current: count + 1, total: targetList.length });
+        const detail = await calculateDetailedTripStorage(db, t.id, t._rawDocData);
+        setTrips(prev => prev.map(item => {
+          if (item.id === t.id) {
+            return {
+              ...item,
+              estimatedStorageBytes: detail.totalBytes,
+              storageStatus: detail.status,
+              docsCount: detail.docsCount,
+              quotaPercentage: detail.quotaPercentage,
+              subcollectionsBreakdown: detail.subcollectionsBreakdown
+            };
+          }
+          return item;
+        }));
+      } catch (err) {
+        console.warn(`[AdminDashboard] Errore scansione subcollezioni ${t.id}:`, err);
+      }
+      count++;
+    }
+
+    logDiag(`Calcolo stime completato con successo per ${count} viaggi`, 'success');
+    setIsBatchCalculatingStorage(false);
+    setBatchProgress(null);
+  };
+
+  const handleClearStorageCache = () => {
+    clearTripStorageCache();
+    // Reimposta a stima documentale radice
+    setTrips(prev => prev.map(t => {
+      const rootBytes = t._rawDocData ? calculateTripRootDocSize(t.id, t._rawDocData) : (t.estimatedStorageBytes || 0);
+      return {
+        ...t,
+        estimatedStorageBytes: rootBytes,
+        storageStatus: 'parziale',
+        docsCount: 1,
+        quotaPercentage: calculateQuotaPercentage(rootBytes),
+        subcollectionsBreakdown: undefined
+      };
+    }));
+    logDiag('Cache stime archiviata in sessionStorage azzerata', 'info');
   };
 
   // Esecuzione eliminazione sicura client-side (Firebase Spark nativo, 0 Cloud Functions)
@@ -1579,6 +1702,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                 </div>
                 <p className="text-xs leading-relaxed opacity-95">
                   L'account attualmente connesso è autenticato, ma non è presente nella collezione degli amministratori di sistema. Le Firestore Security Rules proteggono l'elenco globale dei viaggi dei viaggiatori.
+                  Per richiedere l'abilitazione, fornisci il tuo UID all'amministratore dell'infrastruttura.
                 </p>
                 <div className="bg-amber-100/60 dark:bg-amber-900/40 rounded-xl p-3 text-[11px] space-y-1.5 border border-amber-300/50 dark:border-amber-800/50 font-mono">
                   <div className="font-bold text-amber-900 dark:text-amber-100 font-sans">
@@ -1653,6 +1777,21 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
             )}
           </div>
 
+          {/* Monitoraggio Utilizzo Database Firestore (Quota Spark 1 GiB) */}
+          {accessStatus === 'authorized' && (
+            <DatabaseUsagePanel
+              officialMetric={officialMetric}
+              onToggleOfficialMetricAvailability={(available) =>
+                setOfficialMetric(prev => ({ ...prev, available }))
+              }
+              trips={trips}
+              isBatchCalculating={isBatchCalculatingStorage}
+              batchProgress={batchProgress}
+              onBatchCalculate={handleBatchCalculateStorage}
+              onClearCache={handleClearStorageCache}
+            />
+          )}
+
           {/* 2. FILTRI, RICERCA E TABELLA GLOBALE */}
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-5 space-y-4">
             {/* Barra dei Filtri */}
@@ -1717,6 +1856,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                     className="flex-1 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
                   >
                     <option value="activity">Ultima Attività</option>
+                    <option value="storage">Spazio Occupato (Stimato)</option>
                     <option value="created">Data Creazione</option>
                     <option value="title">Titolo Alfabetico</option>
                     <option value="startDate">Data Inizio</option>
@@ -1904,24 +2044,43 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
 
                         {/* Memoria Occupata Stimata */}
                         <td className="p-3">
-                          <div className="font-mono font-bold text-slate-900 dark:text-white">
-                            {formatBytes(trip.estimatedStorageBytes || 0)}
+                          <div className="flex flex-col gap-1 items-start">
+                            <div className="font-mono font-extrabold text-xs text-slate-900 dark:text-white">
+                              {formatStorageBytes(trip.estimatedStorageBytes || 0)}
+                            </div>
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                              {(trip.quotaPercentage || calculateQuotaPercentage(trip.estimatedStorageBytes || 0)).toFixed(4)}% di 1 GiB
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                              <span
+                                className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold uppercase tracking-wider ${
+                                  trip.storageStatus === 'calcolata'
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                    : trip.storageStatus === 'parziale'
+                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                    : 'bg-slate-100 text-slate-500'
+                                }`}
+                              >
+                                {trip.storageStatus === 'calcolata'
+                                  ? `✓ Dettagliata (${trip.docsCount || 1} doc)`
+                                  : trip.storageStatus === 'parziale'
+                                  ? `Stima parziale (${trip.docsCount || 1} doc)`
+                                  : 'Non disp.'}
+                              </span>
+                              <button
+                                type="button"
+                                disabled={calculatingStorageTripId === trip.id || isBatchCalculatingStorage}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleCalculateSingleTripStorage(trip.id);
+                                }}
+                                className="text-[9px] px-2 py-0.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/80 text-indigo-700 dark:text-indigo-300 rounded-md font-bold transition-colors cursor-pointer disabled:opacity-50"
+                                title="Calcola o aggiorna lo spazio occupato dalle sottocollezioni di questo viaggio"
+                              >
+                                {calculatingStorageTripId === trip.id ? 'Calcolo…' : trip.storageStatus === 'calcolata' ? 'Aggiorna' : '⚡ Dettaglio'}
+                              </button>
+                            </div>
                           </div>
-                          <span
-                            className={`text-[9px] px-1.5 py-0.2 rounded-md font-semibold ${
-                              trip.storageStatus === 'calcolata'
-                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
-                                : trip.storageStatus === 'parziale'
-                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
-                                : 'bg-slate-100 text-slate-500'
-                            }`}
-                          >
-                            {trip.storageStatus === 'calcolata'
-                              ? 'Calcolata'
-                              : trip.storageStatus === 'parziale'
-                              ? 'Stima doc radice'
-                              : 'Non disponibile'}
-                          </span>
                         </td>
 
                         {/* Badge Stato */}
@@ -2879,33 +3038,74 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                   <div>
                     <h2 className="text-sm font-extrabold text-slate-900 dark:text-white">Archiviazione Cloud (Firestore)</h2>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                      Quota e limiti del database di sincronizzazione
+                      Quota Spark 1 GiB e metrica ufficiale Google Cloud Monitoring
                     </p>
                   </div>
                 </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300">
-                  DATO REALE
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                  officialMetric.available && officialMetric.bytes > 0
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+                }`}>
+                  {officialMetric.available && officialMetric.bytes > 0 ? 'DATO CERTIFICATO' : 'DATO PARZIALE'}
                 </span>
               </div>
 
-              <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-2.5">
-                <div className="flex items-start gap-2">
-                  <span className="text-base text-amber-500 shrink-0">ℹ️</span>
-                  <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1">
-                    <p className="font-extrabold text-slate-900 dark:text-white">Dato di quota cloud non esposto dal client</p>
-                    <p className="leading-relaxed">
-                      L'SDK Web client di Google Cloud Firestore non espone API per la percentuale di occupazione del database Spark.
-                    </p>
+              {officialMetric.available && officialMetric.bytes > 0 ? (
+                <div className="space-y-3">
+                  <div>
+                    <div className="flex justify-between text-xs font-bold text-slate-700 dark:text-slate-200 mb-1.5">
+                      <span>Totale ufficiale: {formatStorageBytes(officialMetric.bytes)}</span>
+                      <span>Residuo: {formatStorageBytes(Math.max(0, officialMetric.quotaLimitBytes - officialMetric.bytes))}</span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3 overflow-hidden border border-slate-200 dark:border-slate-700">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${
+                          calculateQuotaPercentage(officialMetric.bytes, officialMetric.quotaLimitBytes) >= 95
+                            ? 'bg-rose-500'
+                            : calculateQuotaPercentage(officialMetric.bytes, officialMetric.quotaLimitBytes) >= 85
+                            ? 'bg-amber-500'
+                            : calculateQuotaPercentage(officialMetric.bytes, officialMetric.quotaLimitBytes) >= 70
+                            ? 'bg-yellow-500'
+                            : 'bg-indigo-600'
+                        }`}
+                        style={{ width: `${Math.max(1, calculateQuotaPercentage(officialMetric.bytes, officialMetric.quotaLimitBytes))}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      <span>Quota Spark: {formatStorageBytes(officialMetric.quotaLimitBytes)}</span>
+                      <span className="font-semibold">{calculateQuotaPercentage(officialMetric.bytes, officialMetric.quotaLimitBytes).toFixed(2)}% occupato</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
+                    <div className="flex justify-between">
+                      <span className="truncate max-w-[200px]">Metrica: <code>data_and_index_storage</code></span>
+                      <span>Aggiornato: {formatDateTimeIT(officialMetric.measuredAt)}</span>
+                    </div>
+                    <div className="text-[10px] text-slate-400">
+                      Include documenti e overhead indici dell'intero database <code>(default)</code>.
+                    </div>
                   </div>
                 </div>
-                <div className="text-[11px] bg-white dark:bg-slate-900 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800 text-slate-500 dark:text-slate-400 space-y-1">
-                  <p><strong>Politica Trasparenza Hounigo:</strong> Nessuna quota fittizia simulata.</p>
+              ) : (
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-200 dark:border-slate-700/80 space-y-2.5">
+                  <div className="flex items-start gap-2">
+                    <span className="text-base text-amber-500 shrink-0">ℹ️</span>
+                    <div className="text-xs text-slate-600 dark:text-slate-300 space-y-1">
+                      <p className="font-extrabold text-slate-900 dark:text-white">Totale ufficiale non disponibile</p>
+                      <p className="leading-relaxed">
+                        L'SDK Web client non dispone di credenziali per invocare l'API Cloud Monitoring.
+                        Consulta il pannello Viaggi per la somma delle stime documentali.
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between pt-1">
-                <span>Fonte: Firebase Client SDK v10</span>
-                <span>Piano: No Blaze (Spark Free)</span>
+                <span>Database: <code>(default)</code></span>
+                <span>Piano: Spark Free (1 GiB)</span>
               </div>
             </div>
           </div>
