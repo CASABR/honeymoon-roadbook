@@ -83,7 +83,7 @@ export async function createTripInvite(tripId: string): Promise<{
   const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000; // 7 giorni
 
   let tripTitle = 'Viaggio';
-  let ownerName = user.displayName || '***REMOVED***';
+  let ownerName = user.displayName || 'Owner';
   try {
     const tripSnap = await getDoc(doc(db, 'trips', tripId));
     if (tripSnap.exists()) {
@@ -358,4 +358,3 @@ export async function revokeTripInvite(tripId: string, token: string): Promise<v
     updatedAt: serverTimestamp()
   });
 }
-

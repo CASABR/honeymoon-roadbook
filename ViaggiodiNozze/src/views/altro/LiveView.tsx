@@ -244,7 +244,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const membersMap = useMemo(() => {
     const map: Record<string, string> = {};
     if (activeTripCfg?.ownerUid) {
-      map[activeTripCfg.ownerUid] = activeTripCfg.ownerName || '***REMOVED***';
+      map[activeTripCfg.ownerUid] = activeTripCfg.ownerName || 'Owner';
     }
     tripMembers.forEach(m => {
       if (m.name) map[m.uid] = m.name;
@@ -1715,7 +1715,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       gpsDevices={gpsDevices}
       tripMembers={tripMembers}
       membersMap={membersMap}
-      ownerName={activeTripCfg?.ownerName || '***REMOVED***'}
+      ownerName={activeTripCfg?.ownerName || 'Owner'}
       ownerUid={activeTripCfg?.ownerUid || ''}
       onStartGps={handleStartGps}
       onPauseGps={() => handlePauseOrStopGps('paused')}

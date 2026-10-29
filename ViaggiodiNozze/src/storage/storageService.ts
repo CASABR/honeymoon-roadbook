@@ -8,75 +8,10 @@ import {
   getActiveTripId,
   MASTER_TRIP_ID
 } from './indexedDB';
-import { REAL_ACTIVITIES } from './seedActivities';
-import { initialTransports } from './seedTransports';
 import { formatDateIT, normalizeTimestamp } from '../utils/tripDates';
 import { assertCanMutate } from '../utils/useAuthIdentity';
 
 export const SEED_FLAG_KEY = 'honeymoon_roadbook_seeded_v1';
-
-export const DEFAULT_DOCUMENTS: TravelDocument[] = [
-  {
-    id: 'doc_assicurazione',
-    category: 'assicurazione',
-    title: 'Polizza Assicurazione Viaggio',
-    description: 'Polizza Europ Assistance Viaggi No-Stop, massimale illimitato spese mediche e assistenza h24.',
-    status: 'Valido',
-    validity: 'Valida per l\'intero viaggio (28 Nov 2026 – 12 Gen 2027)',
-    attachments: [],
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'doc_passaporti',
-    category: 'passaporto',
-    title: 'Passaporti Elettronici (Sposo & Sposa)',
-    description: 'Scansioni dei passaporti biometrici validi per espatrio con scadenza superiore a 6 mesi.',
-    status: 'Valido',
-    validity: 'Validi (> 6 mesi oltre il rientro, fino al 2036)',
-    attachments: [],
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'doc_visto_nzeta',
-    category: 'visto',
-    title: 'Visto NZeTA + Tassa IVL (Nuova Zelanda)',
-    description: 'Autorizzazione elettronica di viaggio e conservazione turistica per ingresso in Nuova Zelanda.',
-    status: 'Valido',
-    validity: 'Valido 2 anni (ingressi multipli)',
-    attachments: [],
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'doc_visto_australia',
-    category: 'visto',
-    title: 'Visto eVisitor Subclass 651 (Australia)',
-    description: 'Visto turistico australiano collegato al passaporto europeo, valido 12 mesi.',
-    status: 'Valido',
-    validity: 'Valido 12 mesi (max 3 mesi per soggiorno)',
-    attachments: [],
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'doc_visto_filippine',
-    category: 'visto',
-    title: 'Registrazione eTravel (Filippine)',
-    description: 'QR Code eTravel da compilare nelle 72 ore precedenti il volo per le Filippine.',
-    status: 'Da richiedere',
-    validity: 'Da compilare 72 ore prima del volo (Dicembre 2026)',
-    attachments: [],
-    updatedAt: new Date().toISOString()
-  },
-  {
-    id: 'doc_patente',
-    category: 'patente',
-    title: 'Patente Internazionale di Guida (IDP)',
-    description: 'Permesso internazionale di guida convenzione Ginevra 1949 / Vienna 1968 per campervan e auto.',
-    status: 'Valido',
-    validity: 'Valida 1 anno (Convenzione Ginevra 1949)',
-    attachments: [],
-    updatedAt: new Date().toISOString()
-  }
-];
 
 export function notifyDataChanged(entityType: string, action: 'save' | 'delete', data?: any, source: 'local' | 'cloud' = 'local'): void {
   if (typeof window === 'undefined') return;
@@ -391,276 +326,12 @@ class StorageService {
   }
 
   async ensureMasterTripSeedData(): Promise<void> {
-    if (this.getCurrentTripId() !== MASTER_TRIP_ID) {
-      return;
-    }
-    const transports = await idbGetAll<Trasporto>(STORES.TRASPORTI);
-    if (transports.length > 0) {
-      await this.logLocalDataCounts('[StorageService] Re-seed 0000 non necessario');
-      return;
-    }
-
-    console.warn('[StorageService] Trasporti locali vuoti per "0000": avvio re-seed dati storici.');
-    const now = Date.now();
-
-    await idbPut(STORES.GIORNI, {
-      id: 'day_2026-11-29',
-      date: '2026-11-29',
-      title: 'Milano',
-      location: 'Milano',
-      notes: 'Partenza viaggio di nozze',
-      createdAt: now,
-      updatedAt: now
-    } satisfies Giorno);
-
-    for (const act of REAL_ACTIVITIES) {
-      await idbPut(STORES.ATTIVITA, {
-        ...act,
-        attachments: act.attachments || [],
-        createdAt: now,
-        updatedAt: now
-      });
-    }
-
-    // Elimina eventuali chiavi mock legacy da sessioni precedenti
-    await idbDelete(STORES.TAPPE, 'tappa_01_auckland').catch(() => {});
-    await idbDelete(STORES.TAPPE, 'tappa_02_rotorua').catch(() => {});
-    await idbDelete(STORES.TAPPE, 'tappa_03_tekapo').catch(() => {});
-    await idbDelete(STORES.TAPPE, 'tappa_04_queenstown').catch(() => {});
-    await idbDelete(STORES.ALLOGGI, 'acc_01_auckland').catch(() => {});
-
-    await this.seedTransports(true);
-    await this.ensureRefuels();
-
-    for (const doc of DEFAULT_DOCUMENTS) {
-      await idbPut(STORES.DOCUMENTI, doc);
-    }
-
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem(SEED_FLAG_KEY, 'true');
-    }
-
-    await this.logLocalDataCounts('[StorageService] Re-seed 0000 completato');
-    notifyDataChanged('all', 'save');
+    return;
   }
 
   async ensureRefuels(): Promise<void> {
-    if (this.getCurrentTripId() !== MASTER_TRIP_ID) {
-      return;
-    }
-    // Rimozione proattiva di vecchi mockup/placeholder
-    await idbDelete(STORES.ALLOGGI, 'acc_01_auckland').catch(() => {});
-    await idbDelete(STORES.TAPPE, 'tappa_01_auckland').catch(() => {});
-    await idbDelete(STORES.TAPPE, 'tappa_02_rotorua').catch(() => {});
-    await idbDelete(STORES.TAPPE, 'tappa_03_tekapo').catch(() => {});
-    await idbDelete(STORES.TAPPE, 'tappa_04_queenstown').catch(() => {});
-
-    const existingShopping = await idbGetAll<import('../types').Shopping>(STORES.SHOPPING);
-    const existingAlloggi = await idbGetAll<import('../types').Alloggio>(STORES.ALLOGGI);
-    const now = Date.now();
-    
-    const { SEED_SHOPPING } = await import('./seedShopping');
-    const { SEED_ALLOGGI } = await import('./seedAlloggi');
-    const { SEED_RISTORANTI } = await import('./seedRistoranti');
-
-    // 1. Inserisci Shopping solo se mancante e non eliminato intenzionalmente
-    for (const fuel of SEED_SHOPPING) {
-      if (!existingShopping.some(s => s.id === fuel.id)) {
-        if (await this.isItemDeleted('shopping', fuel.id)) continue;
-        const item = { ...fuel, createdAt: now, updatedAt: now } as import('../types').Shopping;
-        await idbPut(STORES.SHOPPING, item);
-        notifyDataChanged('shopping', 'save', item);
-      }
-    }
-
-    // 2. Inserisci Alloggi solo se mancante e non eliminato intenzionalmente
-    for (const acc of SEED_ALLOGGI) {
-      if (!existingAlloggi.some(s => s.id === acc.id)) {
-        if (await this.isItemDeleted('alloggi', acc.id)) continue;
-        const item: import('../types').Alloggio = { ...acc, createdAt: now, updatedAt: now };
-        await idbPut(STORES.ALLOGGI, item);
-        notifyDataChanged('alloggi', 'save', item);
-      }
-    }
-
-    // 3. Attività: inserisci SOLO se NON esiste già nel DB e non eliminata intenzionalmente
-    const existingActivities = await idbGetAll<import('../types').Attivita>(STORES.ATTIVITA);
-    let insertedAnyAct = false;
-    for (const act of REAL_ACTIVITIES) {
-      const actTitle = (act.title || (act as any).titolo || '').toLowerCase().trim();
-      const existing = existingActivities.find(e =>
-        e.id === act.id ||
-        (e.date === act.date && ((e.title || (e as any).titolo || '').toLowerCase().trim() === actTitle))
-      );
-      if (!existing) {
-        if (await this.isItemDeleted('attivita', act.id)) continue;
-        await idbPut(STORES.ATTIVITA, { ...act, createdAt: now, updatedAt: now });
-        insertedAnyAct = true;
-      }
-    }
-    if (insertedAnyAct) {
-      notifyDataChanged('attivita', 'save', {});
-    }
-    
-    // 4. Tappe: inserisci SOLO se NON esiste già nel DB e non eliminata intenzionalmente
-    const { REAL_TAPPE, SEED_TAPPE_VERSION } = await import('./seedTappe');
-    const existingTappe = await idbGetAll<import('../types').Tappa>(STORES.TAPPE);
-    let insertedAnyTappa = false;
-    for (const tappa of REAL_TAPPE) {
-      const existing = existingTappe.find(e => 
-        e.id === tappa.id ||
-        (e.date === tappa.date && (
-          e.titolo.toLowerCase().trim() === tappa.titolo.toLowerCase().trim() ||
-          e.titolo.toLowerCase().includes(tappa.titolo.toLowerCase().slice(0, 8)) ||
-          tappa.titolo.toLowerCase().includes(e.titolo.toLowerCase().slice(0, 8))
-        ))
-      );
-
-      if (!existing) {
-        if (await this.isItemDeleted('tappe', tappa.id)) continue;
-        await idbPut(STORES.TAPPE, { ...tappa, createdAt: now, updatedAt: now });
-        insertedAnyTappa = true;
-      }
-    }
-    if (typeof localStorage !== 'undefined') {
-      localStorage.setItem('tappe_seed_version', SEED_TAPPE_VERSION);
-    }
-    if (insertedAnyTappa) {
-      notifyDataChanged('tappe', 'save', {});
-    }
-
-    // 5. Ristoranti: inserisci SOLO se mancante e non eliminato
-    const existingRist = await idbGetAll<import('../types').Ristorante>(STORES.RISTORANTI);
-    let insertedAnyRist = false;
-    for (const rist of SEED_RISTORANTI) {
-      const existing = existingRist.find(e => 
-        e.id === rist.id ||
-        (e.date === rist.date && 
-         e.nome.toLowerCase().trim() === rist.nome.toLowerCase().trim())
-      );
-
-      if (!existing) {
-        if (await this.isItemDeleted('ristoranti', rist.id)) continue;
-        await idbPut(STORES.RISTORANTI, { ...rist, createdAt: now, updatedAt: now });
-        insertedAnyRist = true;
-      }
-    }
-    if (insertedAnyRist) {
-      notifyDataChanged('ristoranti', 'save', {});
-    }
-
-    // 6. Shopping: inserisci SOLO se mancante e non eliminato
-    const existingShop = await idbGetAll<import('../types').Shopping>(STORES.SHOPPING);
-    let insertedAnyShop = false;
-    for (const shop of SEED_SHOPPING) {
-      const existing = existingShop.find(e => 
-        e.id === shop.id ||
-        (e.date === shop.date && 
-         e.nome.toLowerCase().trim() === shop.nome.toLowerCase().trim())
-      );
-
-      if (!existing) {
-        if (await this.isItemDeleted('shopping', shop.id)) continue;
-        await idbPut(STORES.SHOPPING, { ...shop, createdAt: now, updatedAt: now });
-        insertedAnyShop = true;
-      }
-    }
-    if (insertedAnyShop) {
-      notifyDataChanged('shopping', 'save', {});
-    }
-
-    // 7. Trasporti certificati: inserisci SOLO se mancanti e non eliminati
-    const existingTransports = await idbGetAll<import('../types').Trasporto>(STORES.TRASPORTI);
-    const { initialTransports: certifiedTransports } = await import('./seedTransports');
-    let insertedAnyTrn = false;
-    for (const trn of certifiedTransports) {
-      const trnId = trn.id;
-      const existing = existingTransports.find(e => 
-        e.id === trnId ||
-        (e.date === trn.date && (
-          (e.carrier && trn.carrier && (e.carrier.toLowerCase().includes(trn.carrier.toLowerCase().split(' ')[0]) || trn.carrier.toLowerCase().includes(e.carrier.toLowerCase().split(' ')[0]))) ||
-          (e.type === trn.type && (e.departureLocation?.toLowerCase().includes(trn.departureLocation?.toLowerCase().slice(0, 5)) || false))
-        ))
-      );
-
-      if (!existing) {
-        if (await this.isItemDeleted('trasporti', trnId)) continue;
-        await idbPut(STORES.TRASPORTI, {
-          ...trn,
-          id: trnId,
-          attachments: trn.attachments || [],
-          createdAt: now,
-          updatedAt: now
-        });
-        insertedAnyTrn = true;
-      }
-    }
-    if (insertedAnyTrn) {
-      notifyDataChanged('trasporti', 'save', {});
-    }
-
-    // 8. Deduplicazione e pulizia una tantum solo per vecchi mock duplicati
-    try {
-      const allTransports = await idbGetAll<import('../types').Trasporto>(STORES.TRASPORTI);
-      let changedAny = false;
-
-      for (const t of allTransports) {
-        // Treno 28 Nov - Rimuovi il vecchio generico mock
-        if (t.type === 'treno' && t.date === '2026-11-28') {
-          if (t.carrier === 'TRENO ROMA TERMINI - MILANO CENTRALE' || t.departureTime === '00:00' || !t.departureTime) {
-            await idbDelete(STORES.TRASPORTI, t.id);
-            changedAny = true;
-            continue;
-          }
-        }
-        
-        // Volo 29 Nov / 01 Dic - Rimuovi volo aggregato Air China CA950 + CA783
-        if (t.type === 'volo' && (t.date === '2026-11-29' || t.date === '2026-12-01')) {
-          if (t.carrier && t.carrier.includes('CA950 + CA783')) {
-            await idbDelete(STORES.TRASPORTI, t.id);
-            changedAny = true;
-            continue;
-          }
-        }
-
-        // Volo Pechino -> Auckland (CA783): normalizza a segmento di coincidenza incluso senza debito fittizio
-        if (t.type === 'volo' && (t.id === 'trn_03_volo_ca783' || (t.carrier && t.carrier.includes('CA783')))) {
-          const costStr = String(t.cost || '').trim();
-          if (costStr === '1' || costStr === '1 €' || costStr === '1.00' || costStr === '0.00' || costStr === '0' || !t.packageIncluded) {
-            t.cost = 'Incluso nel pacchetto';
-            t.packageIncluded = true;
-            t.paymentStatus = undefined;
-            t.carrier = 'Air China CA783 (Prosecuzione CA950)';
-            await idbPut(STORES.TRASPORTI, t);
-            changedAny = true;
-          }
-        }
-
-        // Traghetto 06 Dic - Rimuovi vecchio Interislander mock
-        if (t.type === 'traghetto' && t.date === '2026-12-06') {
-          if (t.carrier && t.carrier.includes('Interislander')) {
-            await idbDelete(STORES.TRASPORTI, t.id);
-            changedAny = true;
-            continue;
-          }
-        }
-
-        // Elimina vecchi duplicati generici (Volo e Traghetto) privi di carrier o orari
-        if ((t.type === 'volo' || t.type === 'traghetto') && (!t.carrier || t.carrier === 'Volo' || t.carrier === 'Traghetto') && (!t.departureTime || t.departureTime === '00:00')) {
-             await idbDelete(STORES.TRASPORTI, t.id);
-             changedAny = true;
-             continue;
-        }
-      }
-
-      if (changedAny) {
-        notifyDataChanged('trasporti', 'save', {});
-      }
-    } catch(err) {
-      console.warn('[StorageService] Errore deduplicazione', err);
-    }
+    return;
   }
-
   async logLocalDataCounts(prefix = '[StorageService] Conteggio IndexedDB'): Promise<void> {
     const [giorni, attivita, alloggi, trasporti, documenti, tappe, ristoranti, shopping, spese, note, bagagli] = await Promise.all([
       idbGetAll(STORES.GIORNI),
@@ -821,28 +492,9 @@ class StorageService {
 
   // --- TRASPORTI ---
   async seedTransports(force = false): Promise<void> {
-    if (this.getCurrentTripId() !== MASTER_TRIP_ID) return;
-    try {
-      const existing = await idbGetAll<Trasporto>(STORES.TRASPORTI);
-      if (!force && existing.length > 0) return;
-
-      const now = Date.now();
-      for (const item of initialTransports) {
-        await idbPut(STORES.TRASPORTI, {
-          ...item,
-          id: item.id || `trn_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-          attachments: item.attachments || [],
-          createdAt: now,
-          updatedAt: now
-        });
-      }
-      console.log(`[StorageService] Seed trasporti completato: ${initialTransports.length} record.`);
-      notifyDataChanged('trasporti', 'save');
-    } catch (err) {
-      console.error('[StorageService] Errore durante il seeding dei trasporti:', err);
-    }
+    void force;
+    return;
   }
-
   async getTransports(): Promise<Trasporto[]> {
     try {
       if (this.memoryCache.has(STORES.TRASPORTI)) {
@@ -2095,25 +1747,9 @@ class StorageService {
 
   // --- SEED ATTIVITÀ REALI ---
   async seedRealActivities(): Promise<void> {
-    if (this.getCurrentTripId() !== MASTER_TRIP_ID) {
-      return;
-    }
-    try {
-      console.log('[StorageService] Avvio seeding forzato attività reali...');
-      const now = Date.now();
-      
-      // Inseriamo o sovrascriviamo le attività reali. 
-      // Poiché hanno un 'id' fisso in seedActivities.ts, idbPut aggiornerà quelle esistenti o creerà le nuove.
-      for (const act of REAL_ACTIVITIES) {
-        await this.saveActivity({ ...act, createdAt: now, updatedAt: now } as any);
-      }
-      
-      console.log('[StorageService] Seeding attività reali completato con successo!');
-      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { entityType: 'activity', action: 'seed' } }));
-    } catch (err) {
-      console.error('[StorageService] Errore durante il seeding attività:', err);
-    }
+    return;
   }
+
 }
 
 export const storageService = new StorageService();

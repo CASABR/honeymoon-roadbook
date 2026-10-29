@@ -134,8 +134,8 @@ export function useAuthIdentity(): AuthIdentityState {
   const config = getTripConfig();
   const tripId = config?.id || '0000';
   
-  // ownerName: fallback visivo 'nunzio' solo per trip '0000'
-  const ownerName = authoritativeOwnerName || config?.ownerName || (tripId === '0000' ? 'nunzio' : 'Non specificato');
+  // ownerName: usa il dato autorevole, la configurazione locale o un ruolo generico
+  const ownerName = authoritativeOwnerName || config?.ownerName || (tripId === '0000' ? 'Owner' : 'Non specificato');
   
   // ownerUid: proviene prioritariamente dal documento remoto Firestore attendibile
   const ownerUid = authoritativeOwnerUid || config?.ownerUid || null;
@@ -231,7 +231,7 @@ export function useAuthIdentity(): AuthIdentityState {
 
         const tripData = tripSnap.data();
         const remoteOwnerUid = tripData?.ownerUid || null;
-        const remoteOwnerName = tripData?.ownerName || (tripId === '0000' ? 'nunzio' : undefined);
+        const remoteOwnerName = tripData?.ownerName || (tripId === '0000' ? 'Owner' : undefined);
         const remoteMembers: string[] = Array.isArray(tripData?.members) ? tripData.members : [];
 
         if (isMounted) {

@@ -45,12 +45,6 @@ const COLOR_OPTIONS = [
   },
 ];
 
-const SEED_NOTE: NotaViaggio[] = [
-  { id: 'nota_seed_1', title: 'Prima del volo', content: 'Adattatori presa AU/NZ (tipo I), passaporti fisici, patente internazionale!', color: 'amber', createdAt: Date.now() - 3000, updatedAt: Date.now() - 3000 },
-  { id: 'nota_seed_2', title: 'SIM e Dati', content: "Acquistare eSIM Airalo o Spark all'arrivo ad Auckland T1. Piano dati: almeno 10 GB.", color: 'sky', createdAt: Date.now() - 2000, updatedAt: Date.now() - 2000 },
-  { id: 'nota_seed_3', title: 'Souvenir da prendere', content: 'Miele di Manuka in NZ, Opali a Sydney, Perle a Palawan.', color: 'rose', createdAt: Date.now() - 1000, updatedAt: Date.now() - 1000 },
-];
-
 function getColorConfig(color: ColorNota) {
   return COLOR_OPTIONS.find(c => c.id === color) || COLOR_OPTIONS[0];
 }
@@ -92,26 +86,7 @@ export default function NoteViaggioView({ onBack }: NoteViaggioViewProps) {
   const loadNote = async () => {
     try {
       setLoading(true);
-      let items = await storageService.getNote();
-      const currentTripId = storageService.getCurrentTripId();
-      const seedKey = `houni_notes_seeded_${currentTripId}`;
-      const alreadySeeded = typeof localStorage !== 'undefined' ? localStorage.getItem(seedKey) : null;
-
-      // Seed iniziale una sola volta sul viaggio 0000
-      if (items.length === 0 && currentTripId === '0000' && !alreadySeeded) {
-        for (const seed of SEED_NOTE) {
-          await storageService.saveNota(seed);
-        }
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(seedKey, 'true');
-        }
-        items = await storageService.getNote();
-      } else if (items.length > 0 && currentTripId === '0000' && !alreadySeeded) {
-        // Viaggio 0000 contiene già note, marchiamo il flag per evitare re-seed infinito se l'utente le cancella
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem(seedKey, 'true');
-        }
-      }
+      const items = await storageService.getNote();
       setNote(items);
     } catch (err) {
       console.error('[NoteViaggioView] Errore lettura note:', err);

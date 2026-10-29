@@ -34,7 +34,7 @@ export function normalizeTripConfig(config: TripConfig): TripConfig {
     normalized.startDate = normalized.startDate || MASTER_TRIP_START_DATE;
     normalized.endDate = normalized.endDate || MASTER_TRIP_END_DATE;
     normalized.totalDays = normalized.totalDays || MASTER_TRIP_TOTAL_DAYS;
-    normalized.ownerName = normalized.ownerName || 'nunzio';
+    normalized.ownerName = normalized.ownerName || 'Owner';
     // ownerUid non è hardcoded: proviene dal documento Firestore attendibile
     return normalized;
   }
@@ -128,4 +128,3 @@ export function clearTripConfig(): void {
   window.dispatchEvent(new Event('trip_config_changed'));
   window.dispatchEvent(new Event('roadbook_trips_updated'));
 }
-

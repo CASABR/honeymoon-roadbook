@@ -1492,10 +1492,10 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   if (mode === 'role') {
     const isTrip0000 = tempConfig?.id === '0000';
     const guidaTitle = isTrip0000
-      ? '***REMOVED*** • Guida (Navigazione)'
+      ? 'Guida (Navigazione)'
       : `${tempConfig?.ownerName || 'Organizzatore'} • Guida (Master GPS)`;
     const copilotaTitle = isTrip0000
-      ? '***REMOVED*** • Copilota (Organizzazione)'
+      ? 'Copilota (Organizzazione)'
       : 'Copilota (Roadbook & Spese)';
 
     return renderLayout(

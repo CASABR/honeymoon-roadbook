@@ -669,14 +669,14 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
                     required
                     value={newMemberUid}
                     onChange={(e) => setNewMemberUid(e.target.value)}
-                    placeholder={initialConfig?.id === '0000' ? 'UID dispositivo di ***REMOVED*** *' : 'UID dispositivo Co-pilota *'}
+                    placeholder="UID dispositivo Co-pilota *"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                   />
                   <input
                     type="text"
                     value={newMemberName}
                     onChange={(e) => setNewMemberName(e.target.value)}
-                    placeholder={initialConfig?.id === '0000' ? 'Nome visualizzato (es. ***REMOVED***)' : 'Nome visualizzato (es. Co-pilota)'}
+                    placeholder="Nome visualizzato (es. Co-pilota)"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
                   />
                 </div>
