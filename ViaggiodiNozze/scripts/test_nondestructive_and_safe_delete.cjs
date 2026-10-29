@@ -60,6 +60,8 @@ test('Nessun orario viene spostato: i valori predefiniti restano invariati', () 
     assert.ok(src.includes('showMissing=true'), 'enumera documenti orfani');
     assert.ok(src.includes('INCOMPLETO') && src.includes('COMPLETATO e VERIFICATO'), 'successo solo dopo verifica');
     assert.ok(src.includes('Backup non verificato'), 'backup obbligatorio');
+    assert.ok(src.includes('FIREBASE_ADMIN_ACCESS_TOKEN'), 'token IAM temporaneo richiesto');
+    assert.ok(!src.includes('client_secret') && !src.includes('refresh_token'), 'nessuna credenziale OAuth incorporata');
   });
   console.log(`\n${passed} test superati`);
 })();

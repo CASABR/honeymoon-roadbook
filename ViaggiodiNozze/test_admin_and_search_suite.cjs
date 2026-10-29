@@ -466,16 +466,16 @@ runTest('7. Eliminazione Client-Side Spark: blocco assoluto 0000, regole subcoll
   const adminViewCode = fs.readFileSync(adminViewPath, 'utf8');
 
   assert.ok(
-    adminViewCode.includes('deleteTripAdminClientSide'),
-    'AdminDashboardView.tsx deve definire la funzione deleteTripAdminClientSide'
+    adminViewCode.includes('buildPrivilegedTripDeletionCommands'),
+    'AdminDashboardView.tsx deve preparare il comando privilegiato senza cancellare dal browser'
   );
   assert.ok(
     adminViewCode.includes("cleanId === '0000'"),
     'deleteTripAdminClientSide deve contenere il controllo rigoroso per bloccare 0000'
   );
   assert.ok(
-    adminViewCode.includes('writeBatch(firestoreDb)'),
-    'deleteTripAdminClientSide deve utilizzare writeBatch per la cancellazione atomica dei documenti'
+    !adminViewCode.includes('deleteTripAdminClientSide'),
+    'La Console Admin non deve contenere una procedura di cancellazione client-side'
   );
   assert.ok(
     adminViewCode.includes('KNOWN_ADMIN_DELETION_SUBCOLLECTIONS'),
@@ -495,7 +495,7 @@ runTest('7. Eliminazione Client-Side Spark: blocco assoluto 0000, regole subcoll
   const rulesPath = path.join(__dirname, 'firestore.rules');
   const rulesCode = fs.readFileSync(rulesPath, 'utf8');
   assert.ok(
-    rulesCode.includes("allow delete: if (isTripOwner(tripId) || isGlobalAdmin()) && tripId != '0000';"),
+    rulesCode.includes("allow delete: if tripId != '0000' && (isTripOwner(tripId) || isGlobalAdmin());"),
     'firestore.rules deve consentire la cancellazione all\'amministratore globale preservando tripId != 0000'
   );
   assert.ok(
@@ -629,8 +629,8 @@ runTest('7. Eliminazione Client-Side Spark: blocco assoluto 0000, regole subcoll
     'AdminDashboardView deve disabilitare il pulsante durante l\'eliminazione per prevenire doppi clic'
   );
   assert.ok(
-    adminViewCode.includes('PartialDeletionError'),
-    'AdminDashboardView deve esportare e gestire la classe PartialDeletionError'
+    adminViewCode.includes('Nessun dato è stato modificato dal browser'),
+    'AdminDashboardView deve dichiarare esplicitamente che la preparazione non modifica dati'
   );
 
   // Test funzionale onProgress e anti-doppio clic
@@ -929,52 +929,41 @@ runTest('9. Gestione Copiloti Admin: identificazione, rinomina visualizzata ed e
 });
 
 // -----------------------------------------------------------------------------
-// 10. Verifica Risoluzione Blocco UI Eliminazione & Spinner Visivo
+// 10. Verifica preparazione sicura eliminazione privilegiata
 // -----------------------------------------------------------------------------
-runTest('10. Risoluzione blocco UI eliminazione: rotazione spinner (inline-block), timeout 30s e report di successo in modale', () => {
+runTest('10. Eliminazione Admin: nessuna scrittura browser, conferma ID e script privilegiato senza credenziali incorporate', () => {
   const fs = require('fs');
   const code = fs.readFileSync('src/views/altro/AdminDashboardView.tsx', 'utf8');
+  const script = fs.readFileSync('scripts/admin-delete-trip.mjs', 'utf8');
   const rulesCode = fs.readFileSync('firestore.rules', 'utf8');
 
-  // 1. Lo spinner deve essere inline-block (o block), mai solo inline, altrimenti CSS transform non si applica
   assert.ok(
-    code.includes('inline-block') && code.includes('animate-spin'),
-    'Lo spinner animato deve avere la classe inline-block per consentire la rotazione CSS transform nel browser'
+    !code.includes('deleteTripAdminClientSide') && code.includes('buildPrivilegedTripDeletionCommands'),
+    'La Console deve preparare la procedura senza cancellare documenti dal browser'
+  );
+  assert.ok(
+    code.includes('deleteConfirmId.trim() !== deleteTargetTrip.id'),
+    'La preparazione deve richiedere la conferma esatta dell’ID viaggio'
+  );
+  assert.ok(
+    code.includes('Nessun dato è stato modificato dal browser'),
+    'La Console deve dichiarare esplicitamente l’assenza di scritture'
+  );
+  assert.ok(
+    script.includes('FIREBASE_ADMIN_ACCESS_TOKEN') && !script.includes('client_secret') && !script.includes('refresh_token'),
+    'Lo script deve richiedere un token IAM temporaneo senza incorporare credenziali OAuth'
+  );
+  assert.ok(
+    script.includes('Backup non verificato') && script.includes('INCOMPLETO') && script.includes('COMPLETATO e VERIFICATO'),
+    'Lo script deve imporre backup e verifica dei residui'
   );
 
-  // 2. Timeout di sicurezza
   assert.ok(
-    code.includes('Timeout operazione') || code.includes('30000'),
-    'Deve essere presente un timeout di sicurezza per prevenire blocchi indefiniti della UI'
-  );
-
-  // 3. Fasi comprensibili: «Elimino i dati…» e «Verifico il risultato…»
-  assert.ok(
-    code.includes('Elimino i dati…'),
-    'Deve mostrare la fase "Elimino i dati…"'
-  );
-  assert.ok(
-    code.includes('Verifico il risultato…'),
-    'Deve mostrare la fase "Verifico il risultato…"'
-  );
-
-  // 4. Modale di successo post-verifica (invece di smontaggio istantaneo)
-  assert.ok(
-    code.includes('Viaggio eliminato correttamente'),
-    'La modale deve mostrare "Viaggio eliminato correttamente" e i dettagli dei dati verificati rimossi'
-  );
-  assert.ok(
-    code.includes('Chiudi e Aggiorna Elenco'),
-    'La modale di successo deve mostrare il pulsante "Chiudi e Aggiorna Elenco"'
-  );
-
-  // 5. Verifica regole Firestore per copiloti ed eliminazione sicura
-  assert.ok(
-    rulesCode.includes("isGlobalAdmin()) && tripId != '0000'"),
+    rulesCode.includes("tripId != '0000' && (isTripOwner(tripId) || isGlobalAdmin())"),
     'Le regole Firestore devono autorizzare l\'Admin globale con protezione esplicita del viaggio 0000'
   );
   assert.ok(
-    rulesCode.includes('allow delete: if (isTripOwner(tripId) || isGlobalAdmin()) && tripId != \'0000\';'),
+    rulesCode.includes("allow delete: if tripId != '0000' && (isTripOwner(tripId) || isGlobalAdmin());"),
     'Le regole Firestore devono autorizzare la cancellazione da parte dell\'Admin globale per viaggi != 0000'
   );
 });
@@ -1032,7 +1021,7 @@ runTest('11. GestioneViaggio: rimozione copilota client-side Spark, timeout 15s,
 
   // 8. Security rules: trip 0000 protetto da eliminazione del viaggio
   assert.ok(
-    rulesCode.includes("allow delete: if (isTripOwner(tripId) || isGlobalAdmin()) && tripId != '0000';"),
+    rulesCode.includes("allow delete: if tripId != '0000' && (isTripOwner(tripId) || isGlobalAdmin());"),
     'La cancellazione del viaggio 0000 rimane protetta da tripId != 0000'
   );
 
@@ -1104,5 +1093,3 @@ runTest('12. Ultimi Accessi: architettura Spark, regole Firestore /users/{userId
 console.log('\n-----------------------------------------------------------------');
 console.log('RISULTATO SUITE ADMIN & RICERCA: 12/12 TEST COMPLETATI CON SUCCESSO!');
 console.log('-----------------------------------------------------------------\n');
-
-

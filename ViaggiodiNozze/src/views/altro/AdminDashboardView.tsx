@@ -3,14 +3,9 @@ import {
   collection,
   getDocs,
   doc,
-  getDoc,
-  deleteDoc,
   setDoc,
   arrayRemove,
   writeBatch,
-  query,
-  limit,
-  type Firestore,
   type QueryDocumentSnapshot
 } from 'firebase/firestore';
 import {
@@ -60,129 +55,16 @@ export const KNOWN_ADMIN_DELETION_SUBCOLLECTIONS = [
   'inviteTokens'
 ] as const;
 
-export class PartialDeletionError extends Error {
-  isPartial: boolean;
-  deletedSubDocsCount: number;
-  constructor(message: string, deletedSubDocsCount: number) {
-    super(message);
-    this.name = 'PartialDeletionError';
-    this.isPartial = true;
-    this.deletedSubDocsCount = deletedSubDocsCount;
-  }
-}
-
-/**
- * Eliminazione completa di un viaggio e di tutti i documenti discendenti
- * tramite SDK client Firestore, compatibile con il piano gratuito Firebase Spark (0 Cloud Functions).
- */
-export async function deleteTripAdminClientSide(
-  firestoreDb: Firestore,
-  tripId: string,
-  onProgress?: (phase: string) => void
-): Promise<{ success: boolean; deletedTripId: string; deletedSubDocsCount: number }> {
+export function buildPrivilegedTripDeletionCommands(tripId: string): { inspect: string; execute: string } {
   const cleanId = String(tripId || '').trim();
-  if (!cleanId) {
+  if (!cleanId || /[\/\s]/.test(cleanId) || cleanId === '.' || cleanId === '..') {
     throw new Error('Identificativo tripId mancante o non valido.');
   }
-
-  // PROTEZIONE ASSOLUTA: Il viaggio reale 0000 non può MAI essere eliminato
-  if (cleanId === '0000') {
-    throw new Error('Il viaggio reale 0000 è protetto e non può essere eliminato in alcun caso.');
-  }
-
-  let totalDeletedSubDocs = 0;
-
-  try {
-    // 1. Eliminazione a pagine (massimo 400 doc per batch, sotto il limite Firestore di 500) di ogni sottocollezione
-    for (const subcol of KNOWN_ADMIN_DELETION_SUBCOLLECTIONS) {
-      onProgress?.(`Elimino i dati… (sottocollezione ${subcol})`);
-      const colRef = collection(firestoreDb, 'trips', cleanId, subcol);
-      let hasMore = true;
-      while (hasMore) {
-        const q = query(colRef, limit(400));
-        const snap = await getDocs(q);
-        if (snap.empty) {
-          hasMore = false;
-          break;
-        }
-        const batch = writeBatch(firestoreDb);
-        snap.docs.forEach(docSnap => {
-          batch.delete(docSnap.ref);
-        });
-        await batch.commit();
-        totalDeletedSubDocs += snap.size;
-        if (snap.size < 400) {
-          hasMore = false;
-        }
-      }
-    }
-
-    // 2. Pulizia live_feeds associato al viaggio (se presente)
-    try {
-      onProgress?.('Elimino i dati… (live feed e aggiornamenti)');
-      const feedUpdatesRef = collection(firestoreDb, 'live_feeds', cleanId, 'updates');
-      let feedHasMore = true;
-      while (feedHasMore) {
-        const snap = await getDocs(query(feedUpdatesRef, limit(400)));
-        if (snap.empty) {
-          feedHasMore = false;
-          break;
-        }
-        const batch = writeBatch(firestoreDb);
-        snap.docs.forEach(d => batch.delete(d.ref));
-        await batch.commit();
-        totalDeletedSubDocs += snap.size;
-        if (snap.size < 400) feedHasMore = false;
-      }
-      await deleteDoc(doc(firestoreDb, 'live_feeds', cleanId)).catch(() => {});
-    } catch (feedErr) {
-      console.warn('[AdminDashboard] Pulizia live_feeds non critica:', feedErr);
-    }
-
-    // 3. Eliminazione del documento principale trips/{tripId}
-    onProgress?.('Elimino i dati… (documento principale del viaggio)');
-    const rootTripRef = doc(firestoreDb, 'trips', cleanId);
-    await deleteDoc(rootTripRef);
-
-    // 4. Verifica post-cancellazione: il documento radice non deve più esistere
-    onProgress?.('Verifico il risultato… (controllo assenza documento principale)');
-    const verifyRoot = await getDoc(rootTripRef);
-    if (verifyRoot.exists()) {
-      throw new PartialDeletionError(
-        `Verifica post-cancellazione fallita: il documento trips/${cleanId} risulta ancora presente.`,
-        totalDeletedSubDocs
-      );
-    }
-
-    // 5. Verifica post-cancellazione: nessuna sottocollezione deve contenere documenti residui
-    for (const subcol of KNOWN_ADMIN_DELETION_SUBCOLLECTIONS) {
-      onProgress?.(`Verifico il risultato… (controllo assenza dati in ${subcol})`);
-      const residualSnap = await getDocs(query(collection(firestoreDb, 'trips', cleanId, subcol), limit(1)));
-      if (!residualSnap.empty) {
-        throw new PartialDeletionError(
-          `Verifica post-cancellazione fallita: rilevati documenti orfani residui in trips/${cleanId}/${subcol}.`,
-          totalDeletedSubDocs
-        );
-      }
-    }
-
-    return {
-      success: true,
-      deletedTripId: cleanId,
-      deletedSubDocsCount: totalDeletedSubDocs
-    };
-  } catch (err: any) {
-    if (err instanceof PartialDeletionError) {
-      throw err;
-    }
-    if (totalDeletedSubDocs > 0) {
-      throw new PartialDeletionError(
-        err?.message || 'Errore durante la cancellazione parziale delle sottocollezioni.',
-        totalDeletedSubDocs
-      );
-    }
-    throw err;
-  }
+  if (cleanId === '0000') throw new Error('Il viaggio reale 0000 è protetto e non può essere eliminato.');
+  return {
+    inspect: `node scripts/admin-delete-trip.mjs --trip-id=${cleanId}`,
+    execute: `node scripts/admin-delete-trip.mjs --trip-id=${cleanId} --execute --confirm-id=${cleanId}`
+  };
 }
 
 export interface TripSummary {
@@ -323,12 +205,14 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
 
   // Stato Modale Eliminazione Sicura Amministrativa
   const [deleteTargetTrip, setDeleteTargetTrip] = useState<TripSummary | null>(null);
-  const [isDeletingTrip, setIsDeletingTrip] = useState(false);
+  const isDeletingTrip = false;
   const [deletionPhase, setDeletionPhase] = useState<string | null>(null);
   const [deletionStatus, setDeletionStatus] = useState<'idle' | 'deleting' | 'success' | 'error' | 'partial'>('idle');
   const [deleteActionError, setDeleteActionError] = useState<string | null>(null);
   const [deleteSuccessMsg, setDeleteSuccessMsg] = useState<string | null>(null);
   const [deletedTripReport, setDeletedTripReport] = useState<{ id: string; title: string; count: number } | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState('');
+  const [deletionCommands, setDeletionCommands] = useState<{ inspect: string; execute: string } | null>(null);
 
   // Stato Gestione Copiloti Globale
   const [copilotsMeta, setCopilotsMeta] = useState<Map<string, { name?: string; role?: string; joinedAt?: any }>>(new Map());
@@ -689,7 +573,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
     logDiag('Cache stime archiviata in sessionStorage azzerata', 'info');
   };
 
-  // Esecuzione eliminazione sicura client-side (Firebase Spark nativo, 0 Cloud Functions)
+  // Prepara la procedura privilegiata; il browser non esegue cancellazioni.
   const handleConfirmDeleteTrip = async () => {
     if (!deleteTargetTrip) return;
 
@@ -699,84 +583,21 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
       return;
     }
 
-    // Controllo preventivo autenticazione amministratore
-    if (!currentAdminUser || currentAdminUser.isAnonymous) {
-      const isTripOwner = Boolean(deleteTargetTrip.ownerUid && deleteTargetTrip.ownerUid === currentAdminUser?.uid);
-      if (!isTripOwner) {
-        setDeleteActionError(
-          'Autorizzazione mancante: per eliminare viaggi non tuoi su Firebase Spark devi prima accedere con l\'account amministratore autorizzato (es. nunzio114@gmail.com) nel riquadro in cima alla dashboard.'
-        );
-        return;
-      }
+    if (deleteConfirmId.trim() !== deleteTargetTrip.id) {
+      setDeleteActionError('Digita esattamente l’ID del viaggio per preparare la procedura privilegiata.');
+      return;
     }
 
-    setIsDeletingTrip(true);
-    setDeletionStatus('deleting');
-    setDeletionPhase('Elimino i dati… (avvio procedura)');
-    setDeleteActionError(null);
-    setDeleteSuccessMsg(null);
-    setDeletedTripReport(null);
-
     try {
-      if (!db) {
-        throw new Error('Database Firestore non inizializzato.');
-      }
-
-      // Timeout di sicurezza (30 secondi): garantisce che la UI non resti mai bloccata
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => {
-          reject(new Error('Timeout operazione: la cancellazione o la verifica ha impiegato più di 30 secondi. Verifica la connessione di rete.'));
-        }, 30000);
-      });
-
-      // Procedura client-side nativa Firebase Spark tramite SDK Firestore con feedback avanzato
-      const deletionPromise = deleteTripAdminClientSide(db, deleteTargetTrip.id, phase => {
-        setDeletionPhase(phase);
-      });
-
-      const response = await Promise.race([deletionPromise, timeoutPromise]);
-
-      if (response.success) {
-        const deletedId = response.deletedTripId;
-        const subCount = response.deletedSubDocsCount;
-        setDeletedTripReport({
-          id: deletedId,
-          title: deleteTargetTrip.title,
-          count: subCount
-        });
-        setDeletionStatus('success');
-        setDeleteSuccessMsg(`Viaggio eliminato correttamente: "${deleteTargetTrip.title}" (${deletedId}) e tutti i ${subCount} documenti correlati sono stati rimossi.`);
-        logDiag(`Eliminato viaggio ${deletedId} da Admin (Spark Client SDK, ${subCount} doc verificati)`, 'success');
-        
-        // Rimuove immediatamente il viaggio dall'elenco della dashboard SOLO dopo conferma reale
-        setTrips(prev => prev.filter(t => t.id !== deletedId));
-        if (selectedTripId === deletedId) {
-          setSelectedTripId(null);
-        }
-      } else {
-        setDeletionStatus('error');
-        setDeleteActionError('Operazione completata ma senza conferma positiva.');
-      }
+      const commands = buildPrivilegedTripDeletionCommands(deleteTargetTrip.id);
+      setDeletionCommands(commands);
+      setDeletionStatus('success');
+      setDeleteActionError(null);
+      setDeleteSuccessMsg(`Richiesta amministrativa preparata per ${deleteTargetTrip.id}. Nessun dato è stato modificato dal browser.`);
+      logDiag(`Preparata richiesta di eliminazione privilegiata per ${deleteTargetTrip.id}; nessuna scrittura eseguita`, 'info');
     } catch (err: any) {
-      console.error('[AdminDashboard] Errore eliminazione viaggio:', err);
-      if (err?.isPartial || (err?.deletedSubDocsCount && err.deletedSubDocsCount > 0)) {
-        setDeletionStatus('partial');
-        setDeleteActionError(
-          `Cancellazione parziale: ${err.message} (${err.deletedSubDocsCount || 0} documenti rimossi). Alcuni documenti potrebbero essere rimasti orfani nel database ed è necessario un intervento di recupero o ripetere l'eliminazione.`
-        );
-      } else if (err?.code === 'permission-denied') {
-        setDeletionStatus('error');
-        setDeleteActionError('Permesso negato da Firestore: la cancellazione diretta richiede un amministratore globale autorizzato dalle Firestore Rules.');
-      } else if (err?.code === 'unauthenticated') {
-        setDeletionStatus('error');
-        setDeleteActionError('Devi effettuare il login persistente come amministratore per eseguire questa operazione.');
-      } else {
-        setDeletionStatus('error');
-        setDeleteActionError(err?.message || 'Errore durante l\'eliminazione del viaggio.');
-      }
-    } finally {
-      setIsDeletingTrip(false);
-      setDeletionPhase(null);
+      setDeletionStatus('error');
+      setDeleteActionError(err?.message || 'Impossibile preparare la procedura amministrativa.');
     }
   };
 
@@ -2157,6 +1978,8 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                                   e.stopPropagation();
                                   setDeleteTargetTrip(trip);
                                   setDeleteActionError(null);
+                                  setDeleteConfirmId('');
+                                  setDeletionCommands(null);
                                 }}
                                 className="px-2 py-1 rounded-lg text-xs font-bold bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-400 transition-colors cursor-pointer"
                                 title="Elimina viaggio (Solo Admin)"
@@ -3198,10 +3021,10 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                   <span className="text-2xl p-2 bg-rose-100 dark:bg-rose-950 text-rose-600 rounded-2xl">⚠️</span>
                   <div className="flex-1">
                     <h3 className="font-extrabold text-sm text-slate-900 dark:text-white">
-                      Conferma Eliminazione Definitiva
+                      Prepara eliminazione privilegiata
                     </h3>
                     <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                      Operazione irreversibile ad esclusivo privilegio dell'amministratore.
+                      Nessuna cancellazione viene eseguita dalla Console nel browser.
                     </p>
                   </div>
                   <button
@@ -3231,7 +3054,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                     <strong>ID:</strong> {deleteTargetTrip.id}
                   </div>
                   <p className="text-[10px] text-rose-700 dark:text-rose-300 pt-1 border-t border-rose-200/60 dark:border-rose-900/60">
-                    Verranno eliminati il documento principale e tutte le relative sottocollezioni annidate (membri, tappe, alloggi, trasporti, spese, ecc.) tramite procedura protetta Spark SDK.
+                    Lo script locale enumera documento principale, discendenti e LIVE, crea il backup e verifica i residui prima di dichiarare il completamento.
                   </p>
                 </div>
 
@@ -3239,7 +3062,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                 {currentAdminUser && !currentAdminUser.isAnonymous ? (
                   <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-200 text-[11px] flex items-center gap-1.5 font-semibold">
                     <span>✓</span>
-                    <span>Sessione amministratore attiva: <strong>{currentAdminUser.email || currentAdminUser.uid}</strong></span>
+                    <span>Sessione amministratore verificata: <strong>{currentAdminUser.email || currentAdminUser.uid}</strong>. L'esecuzione richiede comunque un token IAM temporaneo fuori dal browser.</span>
                   </div>
                 ) : (
                   <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-[11px] space-y-1">
@@ -3248,7 +3071,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                       <span>Sessione Anonima (Non Amministratore)</span>
                     </div>
                     <p className="text-[10px] leading-relaxed opacity-90">
-                      L'eliminazione diretta su Firebase Spark è protetta a livello di regole Firestore: per eliminare viaggi altrui devi effettuare il login con un account autorizzato (es. <code>nunzio114@gmail.com</code>) nel riquadro in cima alla dashboard.
+                      La Console può solo preparare la procedura. L'esecuzione resta riservata a un operatore IAM autorizzato fuori dal browser.
                     </p>
                   </div>
                 )}
@@ -3272,8 +3095,29 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                   </div>
                 )}
 
+                <label className="block space-y-1 text-xs text-slate-700 dark:text-slate-300">
+                  <span className="font-bold">Conferma ID viaggio</span>
+                  <input
+                    value={deleteConfirmId}
+                    onChange={event => setDeleteConfirmId(event.target.value)}
+                    placeholder={deleteTargetTrip.id}
+                    autoComplete="off"
+                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-rose-500"
+                  />
+                </label>
+
+                {deletionCommands && (
+                  <div className="space-y-2 rounded-2xl border border-indigo-200 dark:border-indigo-900 bg-indigo-50/70 dark:bg-indigo-950/30 p-3 text-[11px] text-indigo-950 dark:text-indigo-200">
+                    <p className="font-bold">Procedura pronta, ma non eseguita.</p>
+                    <p>1. Ricognizione e identificazione certa dei residui:</p>
+                    <code className="block overflow-x-auto rounded-lg bg-slate-950 p-2 text-slate-100">{deletionCommands.inspect}</code>
+                    <p>2. Solo dopo verifica umana, backup e token IAM temporaneo:</p>
+                    <code className="block overflow-x-auto rounded-lg bg-slate-950 p-2 text-slate-100">{deletionCommands.execute}</code>
+                  </div>
+                )}
+
                 <p className="text-xs text-slate-600 dark:text-slate-300">
-                  Sei sicuro di voler eliminare definitivamente il viaggio <strong>{deleteTargetTrip.title}</strong> (<span className="font-mono text-rose-600 font-semibold">{deleteTargetTrip.id}</span>)? Questa operazione non può essere annullata.
+                  La Console non cancella più dati dal browser. Prepara una procedura locale privilegiata con backup, ripresa e verifica dei residui per <strong>{deleteTargetTrip.title}</strong> (<span className="font-mono text-rose-600 font-semibold">{deleteTargetTrip.id}</span>).
                 </p>
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
@@ -3305,7 +3149,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                     ) : (
                       <>
                         <span>🗑️</span>
-                        <span>Elimina Definitivamente</span>
+                        <span>Prepara procedura sicura</span>
                       </>
                     )}
                   </button>

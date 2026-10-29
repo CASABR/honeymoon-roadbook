@@ -39,20 +39,11 @@ export function validateTripId(id) {
 }
 
 async function getToken() {
-  const cfg = JSON.parse(await readFile('C:/Users/CUSI/.config/configstore/firebase-tools.json', 'utf8'));
-  const res = await fetch('https://oauth2.googleapis.com/token', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      client_id: '563584335869-fgrhgmd47bqnekij5i8b5pr03ho849e6.apps.googleusercontent.com',
-      client_secret: 'j9iVZfS8kkCEFUPaAeJV0sAi',
-      grant_type: 'refresh_token',
-      refresh_token: cfg.tokens.refresh_token
-    })
-  });
-  const data = await res.json();
-  if (!data.access_token) throw new Error('Token OAuth non ottenuto');
-  return data.access_token;
+  const token = process.env.FIREBASE_ADMIN_ACCESS_TOKEN?.trim();
+  if (!token) {
+    throw new Error('FIREBASE_ADMIN_ACCESS_TOKEN mancante: usa un token OAuth IAM temporaneo dell\'operatore autorizzato. Nessuna credenziale viene letta dal profilo locale.');
+  }
+  return token;
 }
 
 async function api(token, url, init = {}, retries = 4) {
