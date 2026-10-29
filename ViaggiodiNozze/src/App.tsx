@@ -226,33 +226,9 @@ export default function App() {
     // Ensure alloggi and refuels are populated
     storageService.ensureRefuels().catch(console.error);
 
-    // --- DEDUPLICAZIONE FORZATA AL PRIMO RENDER ---
-    const runDeduplication = async () => {
-      try {
-        const allTransports = await storageService.getTransports();
-        let deletedAny = false;
-        for (const t of allTransports) {
-          if (t.date === '2026-11-28') {
-            if (t.carrier === 'TRENO ROMA TERMINI - MILANO CENTRALE' || t.departureTime === '00:00' || (!t.carrier?.toLowerCase().includes('frecciarossa') && !t.carrier?.toLowerCase().includes('italo'))) {
-              await storageService.deleteTransport(t.id);
-              deletedAny = true;
-            }
-          }
-          if (t.carrier && (t.carrier.includes('(CA950 + CA783)') || t.carrier.includes('CA950 + CA783'))) {
-            await storageService.deleteTransport(t.id);
-            deletedAny = true;
-          }
-        }
-        if (deletedAny) {
-          const { notifyDataChanged } = await import('./storage/storageService');
-          notifyDataChanged('trasporti', 'delete', {});
-        }
-      } catch (err) {
-        console.error('[App] Errore deduplicazione forzata:', err);
-      }
-    };
-    runDeduplication();
-    
+    // NOTA: nessuna deduplicazione/cancellazione automatica all'avvio.
+    // L'apertura dell'app non deve mai eliminare record (le cancellazioni sono solo azioni esplicite dell'utente).
+
     return () => window.removeEventListener('trip_config_changed', handleConfigChange);
   }, []);
 

@@ -224,32 +224,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const fetchTimeline = useCallback(async (dateToFetch?: string) => {
     const target = dateToFetch || selectedDate;
     const items = await storageService.getTimelineForDate(target);
-    
-    // --- FILTRO RIGIDO DEDUPLICAZIONE ---
-    const filteredItems = [];
-    for (const item of items) {
-      if (item.type === 'trasporto' && item.originalData) {
-        const t = item.originalData as import('../types').Trasporto;
-        
-        // CANCELLAZIONE ***REMOVED*** E SCARTO TRENO 28/11
-        if (t.date === '2026-11-28' && t.type === 'treno') {
-          if (t.carrier === 'TRENO ROMA TERMINI - MILANO CENTRALE' || t.departureTime === '00:00') {
-             await storageService.deleteTransport(t.id);
-             continue; // SCARTA
-          }
-        }
-        
-        // CANCELLAZIONE ***REMOVED*** E SCARTO VOLO CUMULATIVO 29/11 - 01/12
-        if (t.type === 'volo' && (t.date === '2026-11-29' || t.date === '2026-12-01')) {
-          if (t.carrier && (t.carrier.includes('(CA950 + CA783)') || t.carrier.includes('CA950 + CA783'))) {
-             await storageService.deleteTransport(t.id);
-             continue; // SCARTA
-          }
-        }
-      }
-      filteredItems.push(item);
-    }
-    
+
+    // SOLA LETTURA: aprire o aggiornare la schermata non deve MAI cancellare record.
+    // (Rimosse le vecchie cancellazioni hardcoded sul roadbook originale: i record legacy
+    // sono già stati riconciliati con tombstone dal manifest 0000.)
+    const filteredItems = items;
+
     setTimeline(filteredItems);
 
     // Rilevamento collisioni orarie (2 o più eventi allo stesso orario non fittizio)
@@ -257,6 +237,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       const byTime: { [time: string]: TimelineItem[] } = {};
       filteredItems.forEach(item => {
         if (!item.time || item.time === '00:00' || item.time === '12:00' && item.type === 'tappa') return;
+        // Orari predefiniti/indicativi e promemoria alloggio non sono dati certi: mai collisioni
+        if (item.timeIsDefault || item.type === 'alloggio') return;
         // Non considerare segmenti di transito o arrivo collegati dello stesso volo
         if (item.id.endsWith('_arrival') || item.id.endsWith('_state')) return;
         if (!byTime[item.time]) byTime[item.time] = [];

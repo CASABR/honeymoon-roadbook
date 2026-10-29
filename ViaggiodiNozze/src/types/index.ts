@@ -305,6 +305,8 @@ export interface TimelineItem {
   displayMode?: TransportDisplayMode;
   stateLabel?: string;
   segmentContext?: TransportSegmentContext;
+  /** true se `time` è un valore predefinito/indicativo (non inserito dall'utente né da una prenotazione) */
+  timeIsDefault?: boolean;
 }
 
 export type CategoriaSpesa = 'trasporti' | 'alloggi' | 'attivita' | 'ristoranti' | 'shopping' | 'altro';
