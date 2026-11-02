@@ -7,6 +7,7 @@ import type { Alloggio, Coordinate } from '../../types';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import type { PlaceSuggestion } from '../../services/photonService';
 import TimeZoneInput from '../common/TimeZoneInput';
+import TimePickerInput from '../common/TimePickerInput';
 
 interface AlloggioFormProps {
   initialData?: Alloggio | null;
@@ -283,13 +284,7 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Check-in struttura
           </label>
-          <input
-            type="time"
-            value={checkInTime}
-            onChange={(e) => setCheckInTime(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F]"
-            title="Orario consentito dalla struttura"
-          />
+          <TimePickerInput value={checkInTime} onChange={setCheckInTime} ariaLabel="Check-in struttura" />
           <span className="text-[10px] text-slate-400 mt-0.5 block">Es. dalle 15:00</span>
         </div>
         <div>
@@ -297,26 +292,14 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
             <span>🧳</span>
             <span>Arrivo previsto</span>
           </label>
-          <input
-            type="time"
-            value={arrivalTime}
-            onChange={(e) => setArrivalTime(e.target.value)}
-            className="w-full h-11 px-3 bg-indigo-50/60 border border-indigo-200 rounded-xl text-slate-900 text-sm font-semibold focus:outline-none focus:bg-white focus:border-indigo-500"
-            title="Il tuo orario stimato di arrivo in alloggio"
-          />
+          <TimePickerInput value={arrivalTime} onChange={setArrivalTime} ariaLabel="Arrivo previsto" className="border-indigo-200 bg-indigo-50/60" />
           <span className="text-[10px] text-indigo-600 font-semibold mt-0.5 block">Mio orario (es. 18:30)</span>
         </div>
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Check-out struttura
           </label>
-          <input
-            type="time"
-            value={checkOutTime}
-            onChange={(e) => setCheckOutTime(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F]"
-            title="Orario massimo rilascio camera"
-          />
+          <TimePickerInput value={checkOutTime} onChange={setCheckOutTime} ariaLabel="Check-out struttura" />
           <span className="text-[10px] text-slate-400 mt-0.5 block">Es. entro le 10:00</span>
         </div>
       </div>

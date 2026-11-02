@@ -9,6 +9,7 @@ import QRCodeModal from '../modals/QRCodeModal';
 import { formatDateIT } from '../../utils/tripDates';
 import { processFileForAttachment } from '../../utils/fileAttachment';
 import { formatHikingDuration, isPhotoSpotActivity, isTrekkingActivity, PHOTO_LIGHT_LABELS, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
+import OpeningHoursBadge from '../common/OpeningHoursBadge';
 
 interface AttivitaCardProps {
   activity: Attivita;
@@ -281,6 +282,10 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
             </div>
           </>
         )}
+
+        <div>
+          <OpeningHoursBadge info={activity.openingHours} date={activity.date} time={displayTime} />
+        </div>
 
         {/* BOTTOM */}
         <div className="mt-1 pt-2 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">

@@ -2,7 +2,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
-const distDir = path.join(root, 'dist');
+const distArg = process.argv.find(value => value.startsWith('--dist='));
+const distDir = distArg ? path.resolve(distArg.slice('--dist='.length)) : path.join(root, 'dist');
 const seedFiles = [
   'src/storage/seedActivities.ts',
   'src/storage/seedAlloggi.ts',

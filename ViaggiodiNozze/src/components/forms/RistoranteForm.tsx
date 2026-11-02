@@ -5,6 +5,7 @@ import type { Ristorante, Coordinate } from '../../types';
 import { storageService } from '../../storage/storageService';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import type { PlaceSuggestion } from '../../services/photonService';
+import TimePickerInput from '../common/TimePickerInput';
 
 interface RistoranteFormProps {
   initialData?: Ristorante | null;
@@ -229,12 +230,7 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Ora Prenotazione
           </label>
-          <input
-            type="time"
-            value={orario}
-            onChange={(e) => setOrario(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] transition-colors"
-          />
+          <TimePickerInput value={orario} onChange={setOrario} ariaLabel="Ora prenotazione ristorante" />
         </div>
       </div>
 

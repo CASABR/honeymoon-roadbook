@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import type { Trasporto, TipoTrasporto, StatoTrasporto } from '../../types';
 import TimeZoneInput from '../common/TimeZoneInput';
+import { DateTimePickerInput } from '../common/TimePickerInput';
 
 interface TrasportoFormProps {
   initialData?: Trasporto | null;
@@ -336,13 +337,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               />
             </div>
           </div>
-          <input
-            type="datetime-local"
-            value={departureDate}
-            onChange={(e) => setDepartureDate(e.target.value)}
-            className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-            required
-          />
+          <DateTimePickerInput value={departureDate} onChange={setDepartureDate} required dateLabel="Data partenza" timeLabel="Orario partenza" />
           <TimeZoneInput value={departureTimeZone} onChange={setDepartureTimeZone} label="Fuso orario di partenza" />
         </div>
 
@@ -372,12 +367,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               />
             </div>
           </div>
-          <input
-            type="datetime-local"
-            value={arrivalDate}
-            onChange={(e) => setArrivalDate(e.target.value)}
-            className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-          />
+          <DateTimePickerInput value={arrivalDate} onChange={setArrivalDate} dateLabel={isRental ? 'Data riconsegna' : 'Data arrivo'} timeLabel={isRental ? 'Orario riconsegna' : 'Orario arrivo'} />
           {isRental && (
             <TimeZoneInput value={dropoffTimeZone} onChange={setDropoffTimeZone} label="Fuso orario di riconsegna" />
           )}

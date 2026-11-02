@@ -6,6 +6,7 @@ import { storageService, notifyDataChanged } from '../../storage/storageService'
 import { processFileForAttachment, formatFileSize } from '../../utils/fileAttachment';
 import type { TransportAttachment, Attivita, Tappa, Alloggio, Ristorante, Trasporto } from '../../types';
 import { formatDateIT } from '../../utils/tripDates';
+import TimePickerInput from '../common/TimePickerInput';
 
 interface UnifiedBookingModalProps {
   isOpen: boolean;
@@ -848,12 +849,7 @@ export default function UnifiedBookingModal({
               <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
                 {category === 'alloggio' ? 'Orario Check-in' : 'Orario'}
               </label>
-              <input
-                type="time"
-                value={time}
-                onChange={e => setTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900 font-semibold"
-              />
+              <TimePickerInput value={time} onChange={setTime} ariaLabel={category === 'alloggio' ? 'Orario check-in' : 'Orario prenotazione'} />
             </div>
 
             {/* Fine per Alloggio, Noleggio o Attività */}
@@ -875,12 +871,7 @@ export default function UnifiedBookingModal({
                     <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
                       {category === 'alloggio' ? 'Orario Check-out' : 'Orario Riconsegna'}
                     </label>
-                    <input
-                      type="time"
-                      value={checkOutTime}
-                      onChange={e => setCheckOutTime(e.target.value)}
-                      className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900 font-semibold"
-                    />
+                    <TimePickerInput value={checkOutTime} onChange={setCheckOutTime} ariaLabel={category === 'alloggio' ? 'Orario check-out' : 'Orario riconsegna'} />
                   </div>
                 )}
               </>

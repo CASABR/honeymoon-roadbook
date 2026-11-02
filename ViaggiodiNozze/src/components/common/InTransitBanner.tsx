@@ -1,5 +1,6 @@
 
 import type { Trasporto, TransportSegmentContext } from '../../types';
+import { formatDateIT } from '../../utils/tripDates';
 
 interface InTransitBannerProps {
   transport: Trasporto;
@@ -7,17 +8,34 @@ interface InTransitBannerProps {
   segmentContext?: TransportSegmentContext;
 }
 
+const ARRIVAL_ICONS: Record<string, string> = {
+  volo: '🛬',
+  treno: '🚆',
+  traghetto: '⛴️',
+  transfer: '🚐',
+  taxi: '🚕',
+};
+
 export default function InTransitBanner({ transport, dateStr, segmentContext }: InTransitBannerProps) {
   const layover = transport.layover;
   const finalArrivalDate = layover?.arrivalDate || transport.arrivalDate;
-  const isArrival = segmentContext === 'arrival' || (finalArrivalDate === dateStr && transport.date !== dateStr);
-  
-  let icon = '🛬';
+  const isRental = transport.type === 'auto' || transport.type === 'camper';
+  const isArrival = !isRental && (segmentContext === 'arrival' || (finalArrivalDate === dateStr && transport.date !== dateStr));
+
+  let icon = ARRIVAL_ICONS[transport.type] || '📍';
   let title = `Arrivo a ${transport.arrivalLocation}`;
   let subtitle = '';
 
-  if (segmentContext === 'scalo' && layover) {
-    // We are in layover
+  if (isRental) {
+    // Noleggio: mai "Arrivo". Giorno intermedio = veicolo attivo; la riconsegna e' una card dedicata nel giorno dropoffDate.
+    const label = transport.type === 'camper' ? 'camper' : 'auto';
+    icon = transport.type === 'camper' ? '🚐' : '🚗';
+    const place = transport.dropoffLocation?.split('(')[0]?.trim() || transport.arrivalLocation?.split('(')[0]?.trim() || '';
+    title = `Noleggio ${label} in corso${transport.carrier ? ` • ${transport.carrier.split('(')[0].trim()}` : ''}`;
+    if (transport.dropoffDate) {
+      subtitle = `Riconsegna ${label} il ${formatDateIT(transport.dropoffDate)}${transport.dropoffTime ? ` alle ${transport.dropoffTime}` : ''}${place ? ` • ${place}` : ''}`;
+    }
+  } else if (segmentContext === 'scalo' && layover) {
     icon = '🛑';
     title = `Scalo a ${layover.airport.split(' ')[0]}`;
     if (layover.duration) {
@@ -30,7 +48,6 @@ export default function InTransitBanner({ transport, dateStr, segmentContext }: 
       subtitle = `In attesa del volo successivo`;
     }
   } else if (isArrival) {
-    icon = '🛬';
     title = `Arrivo a ${transport.arrivalLocation}`;
     const arrivalTime = layover?.arrivalTime || transport.arrivalTime;
     if (arrivalTime) {

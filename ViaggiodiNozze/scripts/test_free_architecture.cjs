@@ -28,7 +28,7 @@ function test(name, callback) {
   console.log(`[PASS ${passed}] ${name}`);
 }
 
-test('La release è 1.3.0', () => assert.equal(packageJson.version, '1.3.0'));
+test('La release è 1.4.0', () => assert.equal(packageJson.version, '1.4.0'));
 
 test('AI usa solo il Worker approvato e mantiene il fallback senza URL', () => {
   assert.equal(config.includes("VITE_HOUNIAI_WORKER_URL || ''"), true);
@@ -42,19 +42,22 @@ test('Workers AI usa binding diretto e non provider esterni', () => {
   assert.equal(gateway.includes('generativelanguage.googleapis.com'), false);
 });
 
-test('La sincronizzazione non accoda chiamate push', () => {
-  assert.equal(sync.includes("import('../services/pushNotificationService')"), false);
-  assert.equal(sync.includes('recordPushMutation({'), false);
+test('La sincronizzazione accoda push solo per mutazioni esplicite e configurate', () => {
+  assert.equal(sync.includes("import { recordPushMutation } from '../services/pushNotificationService'"), true);
+  assert.equal(sync.includes('options.notifyCollaborators && options.mutationId'), true);
+  assert.equal(config.includes('PUSH_VAPID_PUBLIC_KEY.length > 40'), true);
+  assert.equal(productionEnv.includes('VITE_PUSH_WORKER_URL'), false);
 });
 
-test('La UI dichiara push disattivate senza simularle', () => {
-  assert.equal(pushModal.includes('PUSH OFF'), true);
-  assert.equal(pushModal.includes('usePushNotifications'), false);
-  assert.equal(pushModal.includes('Invia notifica di prova'), false);
+test('La UI mantiene il fallback e mostra il test solo con backend configurato', () => {
+  assert.equal(pushModal.includes('BACKGROUND_PUSH_ENABLED'), true);
+  assert.equal(pushModal.includes('usePushNotifications'), true);
+  assert.equal(pushModal.includes('Invia notifica di prova'), true);
 });
 
 test('Nessuna chiave AI o VAPID è richiesta al frontend', () => {
-  assert.equal(envExample.includes('VITE_VAPID_PUBLIC_KEY'), false);
+  assert.equal(envExample.includes('VITE_VAPID_PUBLIC_KEY='), true);
+  assert.equal(envExample.includes('VAPID_PRIVATE_KEY'), false);
   assert.equal(envExample.includes('VITE_GEMINI_API_KEY'), false);
   assert.equal(envExample.includes('CLOUDFLARE_API_TOKEN'), false);
 });

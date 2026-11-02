@@ -16,6 +16,7 @@ import {
   grantCloudflareAiConsent,
   hasCloudflareAiConsent,
 } from '../../config/freeArchitecture';
+import TimePickerInput from '../common/TimePickerInput';
 
 interface SmartInsertModalProps {
   isOpen: boolean;
@@ -1267,23 +1268,13 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                         <label className="text-xs font-semibold text-slate-600 mb-1 block">
                           {editData.category === 'tappa' ? 'Orario sosta (opzionale)' : 'Orario (Partenza / Inizio)'}
                         </label>
-                        <input 
-                          type="time" 
-                          value={editData.time || ''} 
-                          onChange={(e) => setEditData({...editData, time: e.target.value})}
-                          className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F] [color-scheme:light]"
-                        />
+                        <TimePickerInput value={editData.time || ''} onChange={(time) => setEditData({...editData, time})} ariaLabel="Orario partenza o inizio" />
                       </div>
                     )}
                     {editData.category === 'trasporto' && (
                       <div>
                         <label className="text-xs font-semibold text-slate-600 mb-1 block">Orario Arrivo (opzionale)</label>
-                        <input 
-                          type="time" 
-                          value={editData.arrivalTime || ''} 
-                          onChange={(e) => setEditData({...editData, arrivalTime: e.target.value})}
-                          className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F] [color-scheme:light]"
-                        />
+                        <TimePickerInput value={editData.arrivalTime || ''} onChange={(arrivalTime) => setEditData({...editData, arrivalTime})} ariaLabel="Orario arrivo" />
                       </div>
                     )}
                     {['alloggio', 'trasporto'].includes(editData.category) && (
@@ -1449,12 +1440,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1.5">Orario (opzionale)</label>
-                <input 
-                  type="time"
-                  value={pickerTime}
-                  onChange={(e) => setPickerTime(e.target.value)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:border-[#FF6B5F] [color-scheme:light_dark]"
-                />
+                <TimePickerInput value={pickerTime} onChange={setPickerTime} ariaLabel="Orario suggerimento" />
               </div>
             </div>
 

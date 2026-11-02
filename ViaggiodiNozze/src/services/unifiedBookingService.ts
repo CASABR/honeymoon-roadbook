@@ -5,6 +5,8 @@ import type {
   Attivita,
   Ristorante,
   Shopping,
+  Tappa,
+  TravelDocument,
   TransportAttachment
 } from '../types';
 import { parseEuro, resolvePaymentInfo } from '../utils/priceHelper';
@@ -34,8 +36,9 @@ export interface UnifiedBookingItem {
   hasAttachments: boolean;
   attachmentsCount: number;
   attachments?: TransportAttachment[];
+  readonlyAttachments?: TransportAttachment[];
   carrierOrProvider?: string;
-  rawType: 'trasporto' | 'alloggio' | 'attivita' | 'ristorante' | 'shopping' | 'documento';
+  rawType: 'trasporto' | 'alloggio' | 'attivita' | 'ristorante' | 'shopping' | 'documento' | 'tappa';
   rawItem: any;
   updatedAt?: number | string;
 }
@@ -112,16 +115,41 @@ export const BOOKING_CATEGORY_META: Record<BookingCategory, {
   }
 };
 
+export function getTappaBookingEvidence(tappa: Tappa, documents: TravelDocument[] = []) {
+  const linkedIds = new Set([
+    tappa.linkedDocumentId,
+    ...(tappa.linkedDocumentIds || []),
+  ].filter((value): value is string => Boolean(value)));
+  const linkedDocuments = documents.filter(document =>
+    linkedIds.has(document.id)
+    || (document.linkedEntityType === 'tappa' && document.linkedEntityId === tappa.id)
+  );
+  const attachments = tappa.attachments || [];
+  const hasExplicitReference = Boolean(
+    tappa.bookingCode?.trim()
+    || tappa.qrCode?.trim()
+    || tappa.ticketUrl?.trim()
+    || tappa.linkedBookingId?.trim()
+  );
+  return {
+    attachments,
+    linkedDocuments,
+    hasEvidence: attachments.length > 0 || linkedDocuments.length > 0 || hasExplicitReference,
+  };
+}
+
 /**
  * Legge tutte le collezioni del viaggio e restituisce un elenco unificato di prenotazioni.
  */
 export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
-  const [transports, accommodations, activities, restaurants, shoppingItems] = await Promise.all([
+  const [transports, accommodations, activities, restaurants, shoppingItems, tappe, documents] = await Promise.all([
     storageService.getTransports().catch(() => [] as Trasporto[]),
     storageService.getAccommodations().catch(() => [] as Alloggio[]),
     storageService.getActivities().catch(() => [] as Attivita[]),
     storageService.getRistoranti ? storageService.getRistoranti().catch(() => [] as Ristorante[]) : Promise.resolve([] as Ristorante[]),
-    storageService.getShopping ? storageService.getShopping().catch(() => [] as Shopping[]) : Promise.resolve([] as Shopping[])
+    storageService.getShopping ? storageService.getShopping().catch(() => [] as Shopping[]) : Promise.resolve([] as Shopping[]),
+    storageService.getTappe().catch(() => [] as Tappa[]),
+    storageService.getDocuments().catch(() => [] as TravelDocument[])
   ]);
 
   const items: UnifiedBookingItem[] = [];
@@ -330,11 +358,44 @@ export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
     });
   });
 
+  // 6. TAPPE: solo con prenotazione, biglietto, QR o documento esplicitamente collegato.
+  // Le normali soste dell'itinerario restano escluse dall'archivio prenotazioni.
+  tappe.forEach((tappa) => {
+    const evidence = getTappaBookingEvidence(tappa, documents);
+    if (!evidence.hasEvidence) return;
+    const linkedAttachments = evidence.linkedDocuments.flatMap(document => document.attachments || []);
+    const attachments = [...evidence.attachments, ...linkedAttachments]
+      .filter((attachment, index, all) => all.findIndex(candidate => candidate.id === attachment.id) === index);
+    items.push({
+      id: tappa.id,
+      category: 'attivita',
+      title: tappa.titolo,
+      subtitle: tappa.sottocategoria || 'Tappa con prenotazione',
+      date: tappa.data || tappa.date,
+      time: tappa.orario || tappa.time,
+      location: tappa.indirizzo,
+      locationDetails: tappa.indirizzo,
+      bookingCode: tappa.bookingCode || tappa.qrCode,
+      status: 'prenotato',
+      notes: tappa.nota,
+      noteCopilota: tappa.noteCopilota,
+      hasAttachments: attachments.length > 0,
+      attachmentsCount: attachments.length,
+      attachments: evidence.attachments,
+      readonlyAttachments: linkedAttachments,
+      carrierOrProvider: tappa.titolo,
+      rawType: 'tappa',
+      rawItem: tappa,
+      updatedAt: tappa.updatedAt
+    });
+  });
+
   // Deduplicazione deterministica per ID
   const mapById = new Map<string, UnifiedBookingItem>();
   for (const item of items) {
     if (item.id) {
-      mapById.set(item.id, item);
+      const existing = mapById.get(item.id);
+      if (!existing || item.rawType !== 'tappa') mapById.set(item.id, item);
     }
   }
 
@@ -397,6 +458,10 @@ export async function updateBookingAttachments(
       await storageService.saveDocument(updated);
       notifyDataChanged('documenti', 'save', updated);
       break;
+    case 'tappa':
+      await storageService.saveTappa(updated);
+      notifyDataChanged('tappe', 'save', updated);
+      break;
   }
 
   window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
@@ -432,6 +497,10 @@ export async function deleteBookingItem(booking: UnifiedBookingItem): Promise<vo
     case 'documento':
       await storageService.deleteDocument(booking.id);
       notifyDataChanged('documenti', 'delete', { id: booking.id });
+      break;
+    case 'tappa':
+      await storageService.deleteTappa(booking.id);
+      notifyDataChanged('tappe', 'delete', { id: booking.id });
       break;
   }
 

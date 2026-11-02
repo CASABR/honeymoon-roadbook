@@ -1,6 +1,8 @@
 export const HOUNIAI_WORKER_URL = (import.meta.env.VITE_HOUNIAI_WORKER_URL || '').trim();
 export const EXTERNAL_AI_ENABLED = /^https:\/\//.test(HOUNIAI_WORKER_URL);
-export const BACKGROUND_PUSH_ENABLED = false;
+export const PUSH_WORKER_URL = (import.meta.env.VITE_PUSH_WORKER_URL || '').trim().replace(/\/$/, '');
+export const PUSH_VAPID_PUBLIC_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY || '').trim();
+export const BACKGROUND_PUSH_ENABLED = /^https:\/\//.test(PUSH_WORKER_URL) && PUSH_VAPID_PUBLIC_KEY.length > 40;
 export const CLOUDFLARE_AI_CONSENT_VERSION = 'cloudflare-workers-ai-v1';
 
 const CLOUDFLARE_AI_CONSENT_KEY = 'hounigo_cloudflare_ai_consent';

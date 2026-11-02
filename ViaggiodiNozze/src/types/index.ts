@@ -77,6 +77,7 @@ export interface Attivita {
   coordinate?: Coordinate;
   qrCode?: string; // Codice testuale, numero biglietto o URL per QR code
   attachments?: TransportAttachment[]; // File, biglietti, immagini o QR code salvati offline
+  openingHours?: OpeningHoursInfo;
   createdAt: number;
   updatedAt: number;
 }
@@ -94,12 +95,35 @@ export interface Tappa {
   coordinate?: Coordinate;
   indirizzo?: string;
   mapsUrl?: string; // Link o indirizzo Maps
+  bookingCode?: string; // Riferimento di una prenotazione effettiva
+  qrCode?: string; // Codice QR o biglietto associato
+  ticketUrl?: string; // Biglietto o voucher collegato
+  linkedBookingId?: string; // Prenotazione esplicitamente associata
+  linkedDocumentId?: string; // Documento esplicitamente associato
+  linkedDocumentIds?: string[];
+  attachments?: TransportAttachment[];
+  openingHours?: OpeningHoursInfo;
   nota?: string; // Note generali
   noteCopilota?: string; // Note specifiche per il copilota
   copilota?: boolean;
   completed?: boolean;
   createdAt: number;
   updatedAt: number;
+}
+
+export type OpeningHoursDay = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
+export type OpeningHoursStatus = 'unverified' | 'manual' | 'verified';
+export type OpeningHoursAccessType = 'unknown' | 'attraction' | 'outdoor';
+
+export interface OpeningHoursInfo {
+  status: OpeningHoursStatus;
+  accessType: OpeningHoursAccessType;
+  weekly?: Partial<Record<OpeningHoursDay, string>>;
+  exceptions?: Record<string, string>;
+  source?: string;
+  verifiedAt?: string;
+  timeZone?: string;
+  notes?: string;
 }
 
 export interface Ristorante {
@@ -187,6 +211,8 @@ export interface TravelDocument {
   usefulContacts?: string;
   coverage?: string;
   notes?: string;
+  linkedEntityType?: 'tappa' | 'attivita' | 'trasporto' | 'alloggio' | 'ristorante' | 'shopping';
+  linkedEntityId?: string;
   attachments: TransportAttachment[];
   createdAt?: number | string;
   updatedAt: string | number;

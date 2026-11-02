@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { TimelineItem } from '../../types';
+import TimePickerInput from '../common/TimePickerInput';
 
 export interface TimeCollision {
   id: string; // key univoca della collisione es: `collision_${itemA.id}_${itemB.id}`
@@ -260,12 +261,7 @@ export default function TimeCollisionModal({
                   </span>
                 )}
               </span>
-              <input
-                type="time"
-                value={customTime}
-                onChange={(e) => setCustomTime(e.target.value)}
-                className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono font-bold text-slate-900 dark:text-white"
-              />
+              <div className="w-44"><TimePickerInput value={customTime} onChange={setCustomTime} ariaLabel="Nuovo orario" /></div>
             </div>
 
             {/* Quick shift buttons */}

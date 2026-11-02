@@ -28,6 +28,7 @@ import { formatDateIT } from '../utils/tripDates';
 import { compareTimelineItems, isPhysicalTimelineItem, timelineMinutes } from '../utils/timelineOrdering';
 import { getEffectiveDeadlineStatus, isDeadlineReminderActive } from '../utils/deadlines';
 import { CalendarClock } from 'lucide-react';
+import TimePickerInput from '../components/common/TimePickerInput';
 
 
 interface OggiViewProps {
@@ -1916,13 +1917,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                 <div className="mb-3 flex items-end gap-3">
                                   <label className="min-w-0 flex-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
                                     Orario della nuova card
-                                    <input
-                                      ref={insertMenuInputRef}
-                                      type="time"
-                                      value={insertDraftTime}
-                                      onChange={(event) => setInsertDraftTime(event.target.value)}
-                                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-900 outline-none focus:border-[#FF6B5F] dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                                    />
+                                    <span className="mt-1 block"><TimePickerInput inputRef={insertMenuInputRef} value={insertDraftTime} onChange={setInsertDraftTime} ariaLabel="Orario della nuova card" /></span>
                                   </label>
                                   <button
                                     type="button"

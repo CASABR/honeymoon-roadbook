@@ -19,12 +19,14 @@
 import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 
 const PROJECT = 'app-viaggio-di-nozze';
 const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/(default)/documents`;
 const DOC_PREFIX = `projects/${PROJECT}/databases/(default)/documents/`;
 const PROTECTED_IDS = new Set(['0000']);
 const OUT_DIR = 'docs/audit/trip-deletion/private';
+const RELATED_COLLECTIONS = ['invite_tokens', 'push_subscribers', 'push_jobs', 'push_dispatches'];
 
 const arg = (name) => process.argv.find(a => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=');
 const tripId = (arg('trip-id') || '').trim();
@@ -36,6 +38,14 @@ export function validateTripId(id) {
   if (/[\/\s]/.test(id) || id === '.' || id === '..') throw new Error(`ID non valido: "${id}"`);
   if (PROTECTED_IDS.has(id)) throw new Error(`Viaggio ${id} PROTETTO: cancellazione rifiutata in modo permanente.`);
   return id;
+}
+
+export function isAllowedDeletionPath(documentPath, id) {
+  if (documentPath === `trips/${id}` || documentPath.startsWith(`trips/${id}/`)) return true;
+  if (documentPath === `live_feeds/${id}` || documentPath.startsWith(`live_feeds/${id}/`)) return true;
+  return RELATED_COLLECTIONS.some(collection =>
+    documentPath.startsWith(`${collection}/`) && documentPath.split('/').length === 2
+  );
 }
 
 async function getToken() {
@@ -80,6 +90,29 @@ async function enumerateDescendants(token, docPath, out) {
   }
 }
 
+async function enumerateRelatedDocuments(token, collectionId, id, out) {
+  const response = await api(token, `${BASE}:runQuery`, {
+    method: 'POST',
+    body: JSON.stringify({
+      structuredQuery: {
+        from: [{ collectionId }],
+        where: {
+          fieldFilter: {
+            field: { fieldPath: 'tripId' },
+            op: 'EQUAL',
+            value: { stringValue: id }
+          }
+        }
+      }
+    })
+  });
+  if (!response.ok) throw new Error(`runQuery ${collectionId}: HTTP ${response.status} ${await response.text()}`);
+  const rows = await response.json();
+  for (const row of rows) {
+    if (row.document?.name) out.add(row.document.name.slice(DOC_PREFIX.length));
+  }
+}
+
 async function collect(token, id) {
   const all = new Set();
   const roots = [`trips/${id}`, `live_feeds/${id}`];
@@ -90,8 +123,11 @@ async function collect(token, id) {
     if (r.status === 200) all.add(root);
     await enumerateDescendants(token, root, all);
   }
+  for (const collectionId of RELATED_COLLECTIONS) {
+    await enumerateRelatedDocuments(token, collectionId, id, all);
+  }
   for (const p of all) {
-    if (!(p === `trips/${id}` || p.startsWith(`trips/${id}/`) || p === `live_feeds/${id}` || p.startsWith(`live_feeds/${id}/`))) {
+    if (!isAllowedDeletionPath(p, id)) {
       throw new Error(`Percorso fuori ambito rilevato, abort: ${p}`);
     }
   }
@@ -110,8 +146,11 @@ async function backup(token, id, paths) {
     else if (r.status !== 404) throw new Error(`Backup ${p}: HTTP ${r.status}`);
   }
   const file = path.join(OUT_DIR, `backup-${id}-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
-  await writeFile(file, JSON.stringify({ tripId: id, takenAt: new Date().toISOString(), count: docs.length, docs }, null, 1));
-  return { file, count: docs.length };
+  await writeFile(file, JSON.stringify({ tripId: id, takenAt: new Date().toISOString(), count: docs.length, paths, docs }, null, 1));
+  const persisted = await readFile(file);
+  const sha256 = createHash('sha256').update(persisted).digest('hex');
+  if (persisted.length === 0 || !sha256) throw new Error('Backup non rileggibile: cancellazione annullata');
+  return { file, count: docs.length, sha256 };
 }
 
 async function deletePaths(token, paths, journalFile) {
@@ -128,7 +167,12 @@ async function deletePaths(token, paths, journalFile) {
     const failed = (j.status || []).map((s, k) => ({ s, p: chunk[k] })).filter(x => x.s.code && x.s.code !== 0);
     if (failed.length) throw new Error(`Cancellazione fallita per ${failed.length} documenti, primo: ${failed[0].p} (${failed[0].s.message})`);
     done += chunk.length;
-    await writeFile(journalFile, JSON.stringify({ lastUpdate: new Date().toISOString(), deleted: done, total: ordered.length }));
+    await writeFile(journalFile, JSON.stringify({
+      lastUpdate: new Date().toISOString(),
+      deleted: done,
+      total: ordered.length,
+      remaining: ordered.slice(done)
+    }, null, 1));
   }
   return done;
 }
@@ -147,7 +191,7 @@ async function main() {
 
   const bk = await backup(token, id, paths);
   if (!existsSync(bk.file) || bk.count === 0) throw new Error('Backup non verificato: cancellazione annullata');
-  console.log(`Backup privato verificato: ${bk.count} documenti -> ${bk.file}`);
+  console.log(`Backup privato verificato: ${bk.count} documenti, SHA-256 ${bk.sha256.slice(0, 12)}â€¦ -> ${bk.file}`);
 
   await mkdir(OUT_DIR, { recursive: true });
   const deleted = await deletePaths(token, paths, path.join(OUT_DIR, `journal-${id}.json`));

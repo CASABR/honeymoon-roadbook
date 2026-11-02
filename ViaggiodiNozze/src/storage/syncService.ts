@@ -4,6 +4,7 @@ import { STORES, idbPut, idbDelete, idbGetAll, idbGet, type StoreName } from './
 import { notifyDataChanged } from './storageService';
 import { normalizeTimestamp } from '../utils/tripDates';
 import { isCloudAuthorized } from '../utils/useAuthIdentity';
+import { recordPushMutation } from '../services/pushNotificationService';
 
 export class SyncService {
   private unsubscribes: (() => void)[] = [];
@@ -668,6 +669,16 @@ export class SyncService {
       console.log(`[Cloud Sync] Salvato ${entityType} ${data.id}`);
     }
 
+    if (options.notifyCollaborators && options.mutationId) {
+      void recordPushMutation({
+        tripId: this.tripId,
+        entityType,
+        action,
+        entityId: data.id,
+        mutationId: options.mutationId,
+        data: action === 'save' ? data : undefined,
+      }).catch(() => undefined);
+    }
   }
 
   // --- 2. CLOUD TO LOCAL ---

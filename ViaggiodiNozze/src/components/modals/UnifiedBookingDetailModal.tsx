@@ -80,7 +80,9 @@ export default function UnifiedBookingDetailModal({
     badgeBorder: 'border-slate-200'
   };
 
-  const attachments = booking.attachments || [];
+  const editableAttachments = booking.attachments || [];
+  const readonlyAttachmentIds = new Set((booking.readonlyAttachments || []).map(attachment => attachment.id));
+  const attachments = [...editableAttachments, ...(booking.readonlyAttachments || [])];
 
   const handleFilesBatch = async (files: File[]) => {
     if (!files || files.length === 0) return;
@@ -93,7 +95,7 @@ export default function UnifiedBookingDetailModal({
         const processed = await processFileForAttachment(files[i]);
         added.push(processed);
       }
-      const updatedList = [...attachments, ...added];
+      const updatedList = [...editableAttachments, ...added];
       await updateBookingAttachments(booking, updatedList);
       onUpdated();
     } catch (err: any) {
@@ -105,9 +107,10 @@ export default function UnifiedBookingDetailModal({
   };
 
   const handleRemoveAttachment = async (id: string) => {
+    if (readonlyAttachmentIds.has(id)) return;
     if (!confirm('Rimuovere questo allegato dalla prenotazione?')) return;
     try {
-      const updatedList = attachments.filter(a => a.id !== id);
+      const updatedList = editableAttachments.filter(a => a.id !== id);
       await updateBookingAttachments(booking, updatedList);
       onUpdated();
     } catch (err: any) {
@@ -467,7 +470,7 @@ export default function UnifiedBookingDetailModal({
                           >
                             Scarica
                           </a>
-                          {canEdit && (
+                          {canEdit && !readonlyAttachmentIds.has(att.id) && (
                             <button
                               type="button"
                               onClick={() => handleRemoveAttachment(att.id)}

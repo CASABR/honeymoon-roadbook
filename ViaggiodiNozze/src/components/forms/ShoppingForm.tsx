@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import type { Shopping } from '../../types';
 import { extractFromText } from '../../services/aiExtractor';
+import TimePickerInput from '../common/TimePickerInput';
 
 interface ShoppingFormProps {
   initialData?: Shopping | null;
@@ -242,12 +243,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
               Orario (opzionale)
             </label>
-            <input
-              type="time"
-              value={orario}
-              onChange={(e) => setOrario(e.target.value)}
-              className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors"
-            />
+            <TimePickerInput value={orario} onChange={setOrario} ariaLabel="Orario shopping" />
           </div>
         </div>
 

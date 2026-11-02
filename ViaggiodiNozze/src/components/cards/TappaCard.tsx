@@ -4,6 +4,7 @@ import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
 import { resolveMapUrl } from '../../utils/mapsHelper';
 import { formatDateIT } from '../../utils/tripDates';
+import OpeningHoursBadge from '../common/OpeningHoursBadge';
 
 interface TappaCardProps {
   tappa: Tappa;
@@ -96,6 +97,9 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
             <span className="truncate">{tappa.indirizzo}</span>
           </p>
         )}
+        <div className="mt-2">
+          <OpeningHoursBadge info={tappa.openingHours} date={tappa.data || tappa.date} time={orario} />
+        </div>
       </div>
 
       {/* BOTTOM */}

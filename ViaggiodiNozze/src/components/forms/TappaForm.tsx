@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
 import DestinationSearchModal from '../modals/DestinationSearchModal';
-import type { Tappa, Coordinate } from '../../types';
+import type { Tappa, Coordinate, OpeningHoursInfo } from '../../types';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import type { PlaceSuggestion } from '../../services/photonService';
+import TimePickerInput from '../common/TimePickerInput';
+import OpeningHoursFields from '../common/OpeningHoursFields';
 
 interface TappaFormProps {
   initialData?: Tappa | null;
@@ -26,6 +28,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
   const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
   const [noteCopilota, setNoteCopilota] = useState('');
   const [nota, setNota] = useState('');
+  const [openingHours, setOpeningHours] = useState<OpeningHoursInfo | undefined>(() => initialData?.openingHours);
   const [error, setError] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -39,6 +42,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       setIndirizzo(initialData.indirizzo || initialData.mapsUrl || '');
       setNoteCopilota(initialData.noteCopilota || '');
       setNota(initialData.nota || '');
+      setOpeningHours(initialData.openingHours);
     } else {
       setData(defaultDate || new Date().toISOString().split('T')[0]);
       setSottocategoria('Sosta panoramica');
@@ -47,6 +51,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       setIndirizzo('');
       setNoteCopilota('');
       setNota('');
+      setOpeningHours(undefined);
     }
   }, [defaultDate, defaultTime, initialData]);
 
@@ -112,7 +117,8 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       data: dateClean,
       date: dateClean,
       dayId: dateClean ? `day_${dateClean}` : initialData?.dayId,
-      completed: initialData?.completed
+      completed: initialData?.completed,
+      openingHours
     });
   };
 
@@ -175,12 +181,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
           <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
             ⏰ Orario (HH:mm)
           </label>
-          <input
-            type="time"
-            value={orario}
-            onChange={(e) => setOrario(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-750 focus:border-[#FF6B5F] transition-colors"
-          />
+          <TimePickerInput value={orario} onChange={setOrario} ariaLabel="Orario tappa" />
         </div>
       </div>
 
@@ -222,6 +223,8 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
           className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-750 focus:border-[#FF6B5F] transition-colors"
         />
       </div>
+
+      <OpeningHoursFields value={openingHours} onChange={setOpeningHours} date={data} time={orario} />
 
       {/* 4. Note Copilota */}
       <div className="p-3 bg-[#F0FAF9] dark:bg-slate-800/80 border border-[#DDF4F5] dark:border-slate-700 rounded-2xl">

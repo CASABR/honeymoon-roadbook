@@ -15,9 +15,11 @@ import AlloggioForm from '../../components/forms/AlloggioForm';
 import AttivitaForm from '../../components/forms/AttivitaForm';
 import RistoranteForm from '../../components/forms/RistoranteForm';
 import ShoppingForm from '../../components/forms/ShoppingForm';
+import TappaForm from '../../components/forms/TappaForm';
+import TappaCard from '../../components/cards/TappaCard';
 import DocumentValidityModal from '../../components/modals/DocumentValidityModal';
 import { storageService } from '../../storage/storageService';
-import type { Trasporto, Alloggio, Attivita, Ristorante, Shopping, TravelDocument } from '../../types';
+import type { Trasporto, Alloggio, Attivita, Ristorante, Shopping, Tappa, TravelDocument } from '../../types';
 import { formatDateIT, normalizeDateToISO } from '../../utils/tripDates';
 
 interface PrenotazioniWorkspaceViewProps {
@@ -32,6 +34,7 @@ export default function PrenotazioniWorkspaceView({
   const { canEdit } = useDeviceRole();
 
   const [bookings, setBookings] = useState<UnifiedBookingItem[]>([]);
+  const [tappe, setTappe] = useState<Tappa[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isSlowLoading, setIsSlowLoading] = useState(false);
@@ -47,6 +50,8 @@ export default function PrenotazioniWorkspaceView({
   const [selectedCategory, setSelectedCategory] = useState<BookingCategory | 'tutte'>('tutte');
   const [timeFilter, setTimeFilter] = useState<'tutte' | 'future' | 'passate'>('tutte');
   const [attachmentFilterOnly, setAttachmentFilterOnly] = useState(false);
+  const [workspaceSection, setWorkspaceSection] = useState<'prenotazioni' | 'tappe'>('prenotazioni');
+  const [tappaSearchQuery, setTappaSearchQuery] = useState('');
 
   // Modali
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -61,6 +66,7 @@ export default function PrenotazioniWorkspaceView({
   const [editingRestaurantItem, setEditingRestaurantItem] = useState<Ristorante | null>(null);
   const [editingShoppingItem, setEditingShoppingItem] = useState<Shopping | null>(null);
   const [editingDocumentItem, setEditingDocumentItem] = useState<TravelDocument | null>(null);
+  const [editingTappaItem, setEditingTappaItem] = useState<Tappa | null>(null);
 
   const handleOpenEditBooking = useCallback((booking: UnifiedBookingItem) => {
     setSelectedBookingForDetail(null);
@@ -82,6 +88,9 @@ export default function PrenotazioniWorkspaceView({
         break;
       case 'documento':
         setEditingDocumentItem(booking.rawItem as TravelDocument);
+        break;
+      case 'tappa':
+        setEditingTappaItem(booking.rawItem as Tappa);
         break;
     }
   }, []);
@@ -173,6 +182,26 @@ export default function PrenotazioniWorkspaceView({
     await loadBookings();
   };
 
+  const handleSaveTappa = async (data: Omit<Tappa, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
+    if (!editingTappaItem) return;
+    await storageService.saveTappa({
+      ...editingTappaItem,
+      ...data,
+      id: editingTappaItem.id,
+      createdAt: editingTappaItem.createdAt,
+      updatedAt: Date.now()
+    });
+    setEditingTappaItem(null);
+    await loadBookings();
+  };
+
+  const handleDeleteTappa = async () => {
+    if (!editingTappaItem) return;
+    await storageService.deleteTappa(editingTappaItem.id);
+    setEditingTappaItem(null);
+    await loadBookings();
+  };
+
   const loadBookings = useCallback(async (isInitial = false) => {
     if (isFetchingRef.current) return;
     isFetchingRef.current = true;
@@ -186,8 +215,12 @@ export default function PrenotazioniWorkspaceView({
       if (isInitial && bookingsRef.current.length === 0) {
         setLoading(true);
       }
-      const data = await getAllUnifiedBookings();
+      const [data, allTappe] = await Promise.all([
+        getAllUnifiedBookings(),
+        storageService.getTappe().catch(() => [] as Tappa[])
+      ]);
       setBookings(data);
+      setTappe(allTappe);
       setLoadError(null);
     } catch (err: any) {
       console.error('Errore caricamento prenotazioni:', err);
@@ -307,6 +340,30 @@ export default function PrenotazioniWorkspaceView({
     }));
   }, [filteredBookings]);
 
+  const filteredTappe = useMemo(() => {
+    const query = tappaSearchQuery.trim().toLowerCase();
+    return [...tappe]
+      .filter((tappa) => !query || `${tappa.titolo} ${tappa.sottocategoria || ''} ${tappa.indirizzo || ''} ${tappa.data || tappa.date || ''}`.toLowerCase().includes(query))
+      .sort((first, second) => {
+        const firstDate = first.data || first.date || '9999-12-31';
+        const secondDate = second.data || second.date || '9999-12-31';
+        return firstDate.localeCompare(secondDate)
+          || (first.orario || first.time || '99:99').localeCompare(second.orario || second.time || '99:99')
+          || (first.order || 0) - (second.order || 0);
+      });
+  }, [tappe, tappaSearchQuery]);
+
+  const groupedTappe = useMemo(() => {
+    const groups = new Map<string, Tappa[]>();
+    filteredTappe.forEach((tappa) => {
+      const date = tappa.data || tappa.date || 'Senza data';
+      groups.set(date, [...(groups.get(date) || []), tappa]);
+    });
+    return Array.from(groups, ([date, items]) => ({ date, items }));
+  }, [filteredTappe]);
+
+  const bookedTappaIds = useMemo(() => new Set(bookings.filter((booking) => booking.rawType === 'tappa').map((booking) => booking.id)), [bookings]);
+
   const handleOpenAddWithCategory = (cat: BookingCategory) => {
     setAddModalInitialCategory(cat);
     setIsAddModalOpen(true);
@@ -360,6 +417,12 @@ export default function PrenotazioniWorkspaceView({
       </div>
 
       {/* ─── PANORAMICA STATISTICHE DESKTOP ─────────────────────────────── */}
+      <div className="inline-flex w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900" role="tablist" aria-label="Archivio viaggio">
+        <button type="button" role="tab" aria-selected={workspaceSection === 'prenotazioni'} onClick={() => setWorkspaceSection('prenotazioni')} className={`min-h-11 flex-1 rounded-xl px-3 text-xs font-extrabold transition-colors ${workspaceSection === 'prenotazioni' ? 'bg-[#172033] text-white dark:bg-white dark:text-[#172033]' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'}`}>Prenotazioni e voucher</button>
+        <button type="button" role="tab" aria-selected={workspaceSection === 'tappe'} onClick={() => setWorkspaceSection('tappe')} className={`min-h-11 flex-1 rounded-xl px-3 text-xs font-extrabold transition-colors ${workspaceSection === 'tappe' ? 'bg-[#172033] text-white dark:bg-white dark:text-[#172033]' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800'}`}>Tappe dell'itinerario ({tappe.length})</button>
+      </div>
+
+      {workspaceSection === 'prenotazioni' ? <>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
         <div className="bg-white dark:bg-slate-900 p-4.5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
           <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
@@ -697,6 +760,49 @@ export default function PrenotazioniWorkspaceView({
       )}
 
       {/* ─── MODALI INTEGRATI ───────────────────────────────────────────── */}
+      </> : (
+        <section className="space-y-5" aria-label="Tappe dell'itinerario">
+          <div className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/90">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-lg font-black text-[#172033] dark:text-white">Tappe dell'itinerario</h2>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Comprende anche soste libere senza biglietto. Non vengono conteggiate come voucher mancanti.</p>
+              </div>
+              <div className="relative w-full sm:max-w-sm">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
+                <input value={tappaSearchQuery} onChange={(event) => setTappaSearchQuery(event.target.value)} placeholder="Cerca tappa, luogo o data…" className="h-11 w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 text-sm outline-none focus:border-[#FF6B5F] dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              </div>
+            </div>
+          </div>
+
+          {loading && tappe.length === 0 ? (
+            <div className="py-16 text-center text-sm font-semibold text-slate-500">Caricamento tappe…</div>
+          ) : filteredTappe.length === 0 ? (
+            <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 dark:border-slate-800 dark:bg-slate-900">Nessuna tappa corrisponde alla ricerca.</div>
+          ) : (
+            <div className="space-y-6">
+              {groupedTappe.map(({ date, items }) => (
+                <div key={date} className="space-y-3">
+                  <div className="flex items-center gap-3 px-1">
+                    <h3 className="text-xs font-black uppercase tracking-wide text-[#172033] dark:text-white">{date === 'Senza data' ? date : formatDateIT(date)}</h3>
+                    <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+                    <span className="text-[11px] font-bold text-slate-400">{items.length} {items.length === 1 ? 'tappa' : 'tappe'}</span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {items.map((tappa) => (
+                      <div key={tappa.id} className="relative">
+                        {bookedTappaIds.has(tappa.id) && <span className="absolute right-3 top-3 z-10 rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-extrabold uppercase text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">Prenotazione collegata</span>}
+                        <TappaCard tappa={tappa} onEdit={() => { if (canEdit) setEditingTappaItem(tappa); }} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {/* Modale Creazione Manuale */}
       <UnifiedBookingModal
         isOpen={isAddModalOpen}
@@ -811,6 +917,20 @@ export default function PrenotazioniWorkspaceView({
         document={editingDocumentItem}
         onSave={handleSaveDocument}
       />
+
+      <Modal
+        isOpen={Boolean(editingTappaItem)}
+        onClose={() => setEditingTappaItem(null)}
+        title="Modifica Tappa prenotata"
+        accentVariant="amber"
+      >
+        <TappaForm
+          initialData={editingTappaItem}
+          onSave={handleSaveTappa}
+          onCancel={() => setEditingTappaItem(null)}
+          onDelete={handleDeleteTappa}
+        />
+      </Modal>
     </div>
   );
 }

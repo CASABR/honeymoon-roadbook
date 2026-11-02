@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.4.0 — 2026-11-02
+
+- Sezione Tappe dell'itinerario in Prenotazioni e orari di apertura manuali con selettore a 5 minuti.
+- Banner e stati noleggio auto e camper coerenti con date e luoghi effettivi di riconsegna.
+- Garantita lettura sicura e non distruttiva all'avvio senza cancellazioni automatiche.
+
 ## 1.3.0 — 2026-11-02
 
 - HouniAI gratuita disponibile per chat e importazione da testo, PDF e immagini.

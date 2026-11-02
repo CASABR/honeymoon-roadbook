@@ -54,6 +54,20 @@ test('Gli orari assenti restano assenti senza valori fittizi', () => {
     for (const bad of ['', 'a/b', '..', ' x y']) assert.throws(() => mod.validateTripId(bad));
   });
   test('admin-delete-trip: ID normale accettato', () => { assert.strictEqual(mod.validateTripId('abc123'), 'abc123'); });
+  test('admin-delete-trip: percorsi consentiti limitati al viaggio e ai riferimenti top-level', () => {
+    for (const allowed of [
+      'trips/abc123',
+      'trips/abc123/tappe/t1',
+      'live_feeds/abc123/entries/e1',
+      'invite_tokens/token1',
+      'push_subscribers/sub1',
+      'push_jobs/job1',
+      'push_dispatches/dispatch1'
+    ]) assert.strictEqual(mod.isAllowedDeletionPath(allowed, 'abc123'), true, allowed);
+    for (const denied of ['trips/0000', 'trips/other', 'users/u1', 'invite_tokens/token1/child/x']) {
+      assert.strictEqual(mod.isAllowedDeletionPath(denied, 'abc123'), false, denied);
+    }
+  });
   test('admin-delete-trip: default = sola lettura, conferma obbligatoria, verifica residui', () => {
     const src = read('scripts/admin-delete-trip.mjs');
     assert.ok(src.includes("process.argv.includes('--execute')"));
@@ -61,6 +75,9 @@ test('Gli orari assenti restano assenti senza valori fittizi', () => {
     assert.ok(src.includes('showMissing=true'), 'enumera documenti orfani');
     assert.ok(src.includes('INCOMPLETO') && src.includes('COMPLETATO e VERIFICATO'), 'successo solo dopo verifica');
     assert.ok(src.includes('Backup non verificato'), 'backup obbligatorio');
+    assert.ok(src.includes("createHash('sha256')"), 'backup riletto e verificato con digest');
+    assert.ok(src.includes('RELATED_COLLECTIONS'), 'riferimenti top-level inclusi');
+    assert.ok(src.includes('remaining: ordered.slice(done)'), 'journal riprendibile conserva i residui');
     assert.ok(src.includes('FIREBASE_ADMIN_ACCESS_TOKEN'), 'token IAM temporaneo richiesto');
     assert.ok(!src.includes('client_secret') && !src.includes('refresh_token'), 'nessuna credenziale OAuth incorporata');
   });

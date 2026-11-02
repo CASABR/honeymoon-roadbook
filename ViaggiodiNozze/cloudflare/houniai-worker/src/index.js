@@ -11,6 +11,7 @@ import {
   normalizeAiResponse,
   validateTripId,
 } from './core.js';
+import { dispatchDuePushJobs, handlePushRequest } from './push.js';
 
 function corsHeaders(origin, env) {
   return {
@@ -96,7 +97,10 @@ export async function handleRequest(request, env) {
   const origin = request.headers.get('Origin') || '';
   if (origin !== env.ALLOWED_ORIGIN) return json(origin, env, 403, { error: 'Origine non autorizzata.' });
   if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(origin, env) });
-  if (request.method !== 'POST' || new URL(request.url).pathname !== '/v1/houniai') {
+  const pathname = new URL(request.url).pathname;
+  const isAiRequest = pathname === '/v1/houniai';
+  const isPushRequest = pathname.startsWith('/v1/push/');
+  if (request.method !== 'POST' || (!isAiRequest && !isPushRequest)) {
     return json(origin, env, 404, { error: 'Endpoint non disponibile.' });
   }
   const contentLength = Number(request.headers.get('Content-Length') || 0);
@@ -118,11 +122,27 @@ export async function handleRequest(request, env) {
   }
   const tripId = validateTripId(payload?.tripId);
   if (!tripId) return json(origin, env, 400, { error: 'Viaggio non valido.' });
-  if (payload?.consentVersion !== CONSENT_VERSION) {
+  if (isAiRequest && payload?.consentVersion !== CONSENT_VERSION) {
     return json(origin, env, 428, { error: 'Informativa privacy non accettata.' });
   }
   if (!(await assertEditor(uid, tripId, idToken, env))) {
     return json(origin, env, 403, { error: 'HouniAI è riservata a Owner e Copilota autorizzati.' });
+  }
+
+  if (isPushRequest) {
+    try {
+      const result = await handlePushRequest(pathname, uid, tripId, payload, env);
+      return json(origin, env, 200, result);
+    } catch (error) {
+      const code = error?.message || 'PUSH_UNAVAILABLE';
+      const status = code.includes('NOT_AUTHORIZED') ? 403
+        : code.includes('NOT_FOUND') ? 404
+        : code.includes('RATE_LIMITED') || code.includes('QUOTA') ? 429
+        : code.includes('INVALID') ? 400 : 503;
+      return json(origin, env, status, { error: status === 503
+        ? 'Notifiche non disponibili. I promemoria nell’app restano attivi.'
+        : code });
+    }
   }
 
   try {
@@ -136,4 +156,9 @@ export async function handleRequest(request, env) {
   }
 }
 
-export default { fetch: handleRequest };
+export default {
+  fetch: handleRequest,
+  scheduled(_controller, env, context) {
+    context.waitUntil(dispatchDuePushJobs(env));
+  }
+};

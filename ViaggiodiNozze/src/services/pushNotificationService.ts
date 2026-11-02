@@ -1,7 +1,8 @@
-import { httpsCallable } from 'firebase/functions';
-import { auth, cloudFunctions } from '../firebase';
+import { auth } from '../firebase';
 import { getOrCreateDeviceId } from '../utils/deviceSession';
 import { getTripConfig } from '../utils/tripConfig';
+import { BACKGROUND_PUSH_ENABLED, PUSH_WORKER_URL } from '../config/freeArchitecture';
+import { buildClientPushReminders } from '../utils/pushReminders';
 
 export interface PushPreferences {
   transports: boolean;
@@ -31,6 +32,25 @@ export const DEFAULT_PUSH_PREFERENCES: PushPreferences = {
 };
 
 const STORAGE_KEY = 'hounigo_push_registration_v2';
+const COLLABORATION_ENTITIES = new Set([
+  'trasporto', 'trasporti', 'attivita', 'activity', 'alloggio', 'alloggi',
+  'tappa', 'tappe', 'ristorante', 'ristoranti', 'shopping', 'note', 'nota', 'documenti'
+]);
+
+async function callPush<T>(action: string, payload: Record<string, unknown>): Promise<T> {
+  if (!BACKGROUND_PUSH_ENABLED || !PUSH_WORKER_URL) throw new Error('Servizio push gratuito non ancora attivo.');
+  const user = auth.currentUser;
+  if (!user) throw new Error('Accedi al tuo account prima di usare le notifiche.');
+  const token = await user.getIdToken();
+  const response = await fetch(`${PUSH_WORKER_URL}/${action}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json().catch(() => ({})) as T & { error?: string };
+  if (!response.ok) throw new Error(result.error || 'Servizio push non disponibile.');
+  return result;
+}
 
 async function sha256(value: string): Promise<string> {
   if (!globalThis.crypto?.subtle) throw new Error('Crittografia browser non disponibile.');
@@ -72,11 +92,9 @@ export function clearStoredPushRegistration(): void {
 }
 
 export async function registerPushOnServer(subscription: PushSubscription, preferences: PushPreferences) {
-  if (!cloudFunctions) throw new Error('Servizio push server non configurato.');
   const identity = await getPushIdentity(subscription.endpoint);
   const previous = readStoredPushRegistration();
-  const callable = httpsCallable(cloudFunctions, 'registerPushSubscription');
-  const response = await callable({
+  const data = await callPush<{ active?: boolean }>('register', {
     tripId: identity.tripId,
     deviceId: identity.deviceId,
     subscriberId: identity.subscriberId,
@@ -85,7 +103,6 @@ export async function registerPushOnServer(subscription: PushSubscription, prefe
     preferences,
     userAgent: navigator.userAgent,
   });
-  const data = response.data as { active?: boolean };
   if (data.active !== true) throw new Error('Il server non ha confermato la subscription.');
   const stored: StoredPushRegistration = { ...identity, preferences };
   saveStoredPushRegistration(stored);
@@ -93,24 +110,22 @@ export async function registerPushOnServer(subscription: PushSubscription, prefe
 }
 
 export async function checkPushOnServer(subscription: PushSubscription) {
-  if (!cloudFunctions) throw new Error('Servizio push server non configurato.');
   const identity = await getPushIdentity(subscription.endpoint);
-  const callable = httpsCallable(cloudFunctions, 'getPushRegistrationStatus');
-  const response = await callable(identity);
-  return { identity, ...(response.data as { active: boolean; reason?: string; preferences?: PushPreferences | null }) };
+  const data = await callPush<{ active: boolean; reason?: string; preferences?: PushPreferences | null }>('status', identity);
+  return { identity, ...data };
 }
 
 export async function unregisterPushOnServer(subscriberId: string): Promise<void> {
-  if (!cloudFunctions) throw new Error('Servizio push server non configurato.');
-  const callable = httpsCallable(cloudFunctions, 'unregisterPushSubscription');
-  await callable({ subscriberId });
+  const identity = await getPushIdentity();
+  await callPush('unregister', { tripId: identity.tripId, subscriberId });
 }
 
 export async function sendPushTestOnServer(subscriberId: string) {
-  if (!cloudFunctions) throw new Error('Servizio push server non configurato.');
-  const callable = httpsCallable(cloudFunctions, 'sendTestPush');
-  const response = await callable({ subscriberId });
-  return response.data as { accepted: boolean; deliveryConfirmed: false; status: string };
+  const identity = await getPushIdentity();
+  return callPush<{ accepted: boolean; deliveryConfirmed: false; status: string }>('test', {
+    tripId: identity.tripId,
+    subscriberId,
+  });
 }
 
 export async function recordPushMutation(input: {
@@ -119,8 +134,11 @@ export async function recordPushMutation(input: {
   action: 'save' | 'delete';
   entityId: string;
   mutationId: string;
+  data?: Record<string, unknown>;
 }): Promise<void> {
-  if (!cloudFunctions || !auth.currentUser) return;
-  const callable = httpsCallable(cloudFunctions, 'recordPushMutation');
-  await callable(input);
+  if (!BACKGROUND_PUSH_ENABLED || !auth.currentUser || !COLLABORATION_ENTITIES.has(input.entityType)) return;
+  const reminders = input.action === 'save' && input.data
+    ? buildClientPushReminders(input.entityType, input.data)
+    : [];
+  await callPush('mutation', { ...input, reminders });
 }

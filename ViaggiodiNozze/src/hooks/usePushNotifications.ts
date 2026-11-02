@@ -9,8 +9,9 @@ import {
   unregisterPushOnServer,
   type PushPreferences,
 } from '../services/pushNotificationService';
+import { PUSH_VAPID_PUBLIC_KEY } from '../config/freeArchitecture';
 
-const PUBLIC_VAPID_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY || '').trim();
+const PUBLIC_VAPID_KEY = PUSH_VAPID_PUBLIC_KEY;
 
 export type PushRegistrationState =
   | 'checking'

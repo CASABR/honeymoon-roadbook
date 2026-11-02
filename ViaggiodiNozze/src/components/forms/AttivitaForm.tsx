@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
-import type { Attivita, TransportAttachment, Coordinate, TipologiaPercorsoTrekking, FasciaLuceFotografica, Tappa } from '../../types';
+import type { Attivita, TransportAttachment, Coordinate, TipologiaPercorsoTrekking, FasciaLuceFotografica, Tappa, OpeningHoursInfo } from '../../types';
 import { processFileForAttachment, formatFileSize, openAttachmentInNewTab, checkStorageAvailability, isSupportedImageFile } from '../../utils/fileAttachment';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import DropZone from '../common/DropZone';
@@ -9,6 +9,8 @@ import type { PlaceSuggestion } from '../../services/photonService';
 import { isPhotoSpotActivity, isTrekkingActivity, PHOTO_LIGHT_LABELS, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
 import TimeZoneInput from '../common/TimeZoneInput';
 import TappaForm from './TappaForm';
+import TimePickerInput from '../common/TimePickerInput';
+import OpeningHoursFields from '../common/OpeningHoursFields';
 
 interface AttivitaFormProps {
   days?: any[];
@@ -118,6 +120,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
   const [qrCode, setQrCode] = useState('');
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState<Attivita['status']>('prenotato');
+  const [openingHours, setOpeningHours] = useState<OpeningHoursInfo | undefined>(() => initialData?.openingHours);
 
   // Gestione Allegati (PDF / QR Code / Immagini)
   const [attachments, setAttachments] = useState<TransportAttachment[]>([]);
@@ -170,6 +173,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setQrCode(initialData.qrCode || '');
       setNotes(initialData.notes || '');
       setStatus(initialData.status || 'prenotato');
+      setOpeningHours(initialData.openingHours);
       setAttachments(initialData.attachments || []);
     } else {
       if (selectedDayId && selectedDayId.startsWith('day_')) {
@@ -210,6 +214,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setQrCode('');
       setNotes('');
       setStatus('prenotato');
+      setOpeningHours(undefined);
       setAttachments([]);
     }
   }, [defaultTime, initialData, selectedDayId]);
@@ -361,7 +366,8 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       attachments: attachments.length > 0 ? attachments : undefined,
       copilota: initialData?.copilota,
       noteCopilota: initialData?.noteCopilota,
-      platform: initialData?.platform
+      platform: initialData?.platform,
+      openingHours
     });
   };
 
@@ -470,7 +476,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
             </label>
             <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
               <span className="block uppercase tracking-wider mb-1.5">Ora di partenza</span>
-              <input type="time" value={orarioInizio} onChange={(e) => setOrarioInizio(e.target.value)} className="w-full h-11 px-3 hounigo-card-subtle rounded-xl text-sm" />
+              <TimePickerInput value={orarioInizio} onChange={setOrarioInizio} ariaLabel="Ora di partenza trekking" />
             </label>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -570,23 +576,13 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
           <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Ore Ritrovo
           </label>
-          <input
-            type="time"
-            value={orarioRitrovo}
-            onChange={(e) => setOrarioRitrovo(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F]"
-          />
+          <TimePickerInput value={orarioRitrovo} onChange={setOrarioRitrovo} ariaLabel="Ora ritrovo" />
         </div>
         <div>
           <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Ore Inizio
           </label>
-          <input
-            type="time"
-            value={orarioInizio}
-            onChange={(e) => setOrarioInizio(e.target.value)}
-            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F]"
-          />
+          <TimePickerInput value={orarioInizio} onChange={setOrarioInizio} ariaLabel="Ora inizio" />
         </div>
         <div>
           <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -834,6 +830,8 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       </div>
 
       </>}
+
+      <OpeningHoursFields value={openingHours} onChange={setOpeningHours} date={customDate} time={orarioInizio || orarioRitrovo} />
 
       <TimeZoneInput value={timeZone} onChange={setTimeZone} label="Fuso orario dell'attività" />
 

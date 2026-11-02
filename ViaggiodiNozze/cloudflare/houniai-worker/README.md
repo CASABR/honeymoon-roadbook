@@ -31,3 +31,5 @@ Gateway distribuito su Cloudflare Workers Free. Usa esclusivamente l’AI bindin
 Il test live usa cinque richieste sintetiche, rispetta i limiti temporali del Worker e non salva automaticamente alcun risultato.
 
 Non configurare Workers Paid, AI Gateway credits o un metodo di pagamento.
+
+La parte push Ã¨ presente ma resta disattivata nel frontend finchÃ© migration D1, VAPID ruotata, segreti e test fisici non sono completati. Nessuna notifica viene simulata; la procedura Ã¨ in `docs/CLOUDFLARE_PUSH_ACTIVATION.md`.
