@@ -8,6 +8,7 @@ import AccountSyncModal from '../modals/AccountSyncModal';
 import PushNotificationModal from '../modals/PushNotificationModal';
 import { APP_VERSION, BUILD_TIME, COMMIT_HASH } from '../../utils/appVersion';
 import { openAppInfo } from './AppInfo';
+import { BACKGROUND_PUSH_ENABLED } from '../../config/freeArchitecture';
 
 /**
  * Menu Impostazioni compatto, ordinato e mirato.
@@ -210,8 +211,12 @@ export default function SettingsMenu() {
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">🔔</span>
                   <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Promemoria</span>
-                    <span className="block text-[10px] text-slate-400 font-normal">Avvisi nell’app; push non attive</span>
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">
+                      {BACKGROUND_PUSH_ENABLED ? 'Notifiche e promemoria' : 'Promemoria'}
+                    </span>
+                    <span className="block text-[10px] text-slate-400 font-normal">
+                      {BACKGROUND_PUSH_ENABLED ? 'Push in background e avvisi del viaggio' : 'Avvisi nell’app; push non attive'}
+                    </span>
                   </div>
                 </div>
                 <span className="text-slate-400 text-xs">›</span>

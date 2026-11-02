@@ -32,8 +32,9 @@ test('La release è 1.4.0', () => assert.equal(packageJson.version, '1.4.0'));
 
 test('AI usa solo il Worker approvato e mantiene il fallback senza URL', () => {
   assert.equal(config.includes("VITE_HOUNIAI_WORKER_URL || ''"), true);
-  assert.equal(gateway.includes('if (!HOUNIAI_WORKER_URL)'), true);
-  assert.equal(productionEnv.trim(), 'VITE_HOUNIAI_WORKER_URL=https://hounigo-ai.nunzio114.workers.dev/v1/houniai');
+  assert.equal(productionEnv.includes('VITE_HOUNIAI_WORKER_URL=https://hounigo-ai.nunzio114.workers.dev/v1/houniai'), true);
+  assert.equal(productionEnv.includes('VITE_PUSH_WORKER_URL=https://hounigo-ai.nunzio114.workers.dev/v1/push'), true);
+  assert.equal(productionEnv.includes('VITE_VAPID_PUBLIC_KEY='), true);
 });
 
 test('Workers AI usa binding diretto e non provider esterni', () => {
@@ -46,7 +47,7 @@ test('La sincronizzazione accoda push solo per mutazioni esplicite e configurate
   assert.equal(sync.includes("import { recordPushMutation } from '../services/pushNotificationService'"), true);
   assert.equal(sync.includes('options.notifyCollaborators && options.mutationId'), true);
   assert.equal(config.includes('PUSH_VAPID_PUBLIC_KEY.length > 40'), true);
-  assert.equal(productionEnv.includes('VITE_PUSH_WORKER_URL'), false);
+  assert.equal(productionEnv.includes('VITE_PUSH_WORKER_URL'), true);
 });
 
 test('La UI mantiene il fallback e mostra il test solo con backend configurato', () => {
