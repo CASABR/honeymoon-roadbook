@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cloudflare/workers-sdk/main/packages/wrangler/config-schema.json",
+  "name": "hounigo-ai",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-31",
+  "workers_dev": true,
+  "ai": {
+    "binding": "AI"
+  },
+  "d1_databases": [
+    {
+      "binding": "RATE_LIMITS",
+      "database_name": "hounigo-ai-rate-limits",
+      "database_id": "c603218e-7b0c-40f1-9b3d-15b1e2c5822b",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "ALLOWED_ORIGIN": "https://casabr.github.io",
+    "FIREBASE_PROJECT_ID": "app-viaggio-di-nozze"
+  },
+  "observability": {
+    "enabled": false
+  }
+}

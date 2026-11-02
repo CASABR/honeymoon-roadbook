@@ -47,7 +47,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
           )}
           {orario ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200 text-[11px] font-medium font-mono">
-              ⏰ {orario}
+              ⏰ Ore {orario} · indicativo
             </span>
           ) : (
             <button
@@ -56,7 +56,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200 transition-colors cursor-pointer"
               title="Inserisci orario per questa tappa"
             >
-              ⏰ {tappa.sottocategoria === 'Sosta fotografica' ? 'Orario libero' : '+ Orario'}
+              ⏰ {tappa.sottocategoria === 'Sosta fotografica' ? 'Orario non indicato' : '+ Orario'}
             </button>
           )}
           {tappa.data && (

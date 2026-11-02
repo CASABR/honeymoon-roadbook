@@ -1,13 +1,22 @@
 {
   "name": "viaggio-di-nozze",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite --host",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "test:ux-refinements": "node scripts/test_ux_chronology_import.cjs",
+    "test:versioning": "node scripts/test_release_versioning.cjs",
+    "test:deadlines": "node scripts/test_deadlines.cjs",
+    "test:houniai": "node scripts/test_houniai_secure_gateway.cjs",
+    "test:free-architecture": "node scripts/test_free_architecture.cjs",
+    "test:cloudflare-ai": "node scripts/test_cloudflare_houniai.mjs && node scripts/test_pdf_text_extraction.mjs",
+    "test:cloudflare-ai:live": "node scripts/test_cloudflare_houniai_live.mjs",
+    "release:prepare": "node scripts/prepare-release.mjs prepare",
+    "release:publish": "node scripts/prepare-release.mjs publish",
     "predeploy": "npm run build",
     "deploy": "gh-pages -d dist --repo https://github.com/CASABR/honeymoon-roadbook.git",
     "notify": "node scripts/send-update-notification.cjs"
@@ -17,13 +26,14 @@
     "dotenv": "^18.0.5",
     "firebase": "^12.16.0",
     "firebase-admin": "^14.5.0",
+    "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^1.52.0",
+    "pdfjs-dist": "^6.4.299",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-leaflet": "^5.0.0",
-    "web-push": "^3.6.7",
-    "jspdf": "^4.2.1"
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.2",

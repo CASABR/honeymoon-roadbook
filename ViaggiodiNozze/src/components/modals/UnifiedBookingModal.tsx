@@ -231,7 +231,7 @@ export default function UnifiedBookingModal({
         isCategoryMatch = item.sourceType === 'alloggio' || item.sourceType === 'tappa';
       } else if (category === 'ristorante') {
         isCategoryMatch = item.sourceType === 'ristorante' || item.sourceType === 'tappa';
-      } else if (category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper') {
+      } else if (category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper' || category === 'taxi') {
         isCategoryMatch = item.sourceType === 'trasporto' || item.sourceType === 'tappa';
       } else {
         isCategoryMatch = true;
@@ -259,7 +259,7 @@ export default function UnifiedBookingModal({
         setHotelAddress(s.location);
       } else if (category === 'ristorante' && !ristoranteIndirizzo) {
         setRistoranteIndirizzo(s.location);
-      } else if ((category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper') && !departureLocation) {
+      } else if ((category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper' || category === 'taxi') && !departureLocation) {
         setDepartureLocation(s.location);
       }
     }
@@ -358,11 +358,12 @@ export default function UnifiedBookingModal({
       const uniqueId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `item_${now}`;
       const formattedCost = cost.trim() ? (cost.includes('€') ? cost.trim() : `${cost.trim()} €`) : undefined;
 
-      if (category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper') {
-        let typeVal: 'volo' | 'treno' | 'traghetto' | 'auto' | 'camper' | 'transfer' = 'volo';
+      if (category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper' || category === 'taxi') {
+        let typeVal: 'volo' | 'treno' | 'traghetto' | 'auto' | 'camper' | 'transfer' | 'taxi' = 'volo';
         if (category === 'treno') typeVal = 'treno';
         else if (category === 'traghetto') typeVal = 'traghetto';
         else if (category === 'auto_camper') typeVal = 'auto';
+        else if (category === 'taxi') typeVal = 'taxi';
 
         const finalCost = packageIncluded ? 'Incluso nel pacchetto' : formattedCost;
         const transportPayload: any = {
@@ -566,7 +567,7 @@ export default function UnifiedBookingModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 bg-white dark:bg-slate-800/80 p-4.5 rounded-2xl border border-slate-200/70 dark:border-slate-800 shadow-2xs">
             <div className="sm:col-span-2">
               <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
-                {category === 'volo' || category === 'treno' || category === 'traghetto'
+                {category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'taxi'
                   ? 'Compagnia / Nome Viaggio *'
                   : category === 'alloggio'
                   ? 'Nome Struttura / Hotel *'
@@ -650,7 +651,7 @@ export default function UnifiedBookingModal({
             </div>
 
             {/* Dettagli per Trasporti (Partenza / Arrivo) */}
-            {(category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper') && (
+            {(category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper' || category === 'taxi') && (
               <>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
@@ -903,7 +904,7 @@ export default function UnifiedBookingModal({
                 <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                   Costo Totale (€)
                 </label>
-                {(category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper') && (
+                {(category === 'volo' || category === 'treno' || category === 'traghetto' || category === 'auto_camper' || category === 'taxi') && (
                   <label className="inline-flex items-center gap-1.5 cursor-pointer text-[10px] font-bold text-sky-600 dark:text-sky-400">
                     <input
                       type="checkbox"

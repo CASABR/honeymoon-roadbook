@@ -80,6 +80,20 @@ async function run() {
       }));
       return true;
     })()`);
+    await evaluate(`new Promise((resolve, reject) => {
+      const request = indexedDB.open('ViaggiodiNozzeDB', 8);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const transaction = db.transaction('tappe', 'readwrite');
+        const store = transaction.objectStore('tappe');
+        const now = Date.now();
+        store.put({ id: 'ux-test-a', titolo: 'Tappa test A', data: '2026-11-28', orario: '09:00', createdAt: now, updatedAt: now });
+        store.put({ id: 'ux-test-b', titolo: 'Tappa test B', data: '2026-11-28', orario: '11:00', createdAt: now, updatedAt: now });
+        transaction.oncomplete = () => { db.close(); resolve(true); };
+        transaction.onerror = () => reject(transaction.error);
+      };
+    })`);
     await send('Page.addScriptToEvaluateOnNewDocument', {
       source: "Object.defineProperty(Navigator.prototype, 'onLine', { configurable: true, get: () => false });"
     });
@@ -114,24 +128,28 @@ async function run() {
     await sleep(250);
 
     const chooser = await evaluate(`(() => {
-      const input = document.querySelector('input[type="time"]');
-      if (!input) return { categories: 0, hasTime: false };
-      const panel = input.closest('div.absolute');
+      const panel = document.querySelector('[role="dialog"][aria-label="Inserisci una nuova card"]');
+      const input = panel?.querySelector('input[type="time"]');
+      if (!input || !panel) return { categories: 0, hasTime: false, insideViewport: false };
       const categories = panel ? Array.from(panel.querySelectorAll('button')).filter(button =>
         ['Tappa', 'Attività', 'Ristorante', 'Alloggio', 'Trasporto', 'Shopping'].some(label => button.textContent.includes(label))
       ) : [];
+      const rect = panel.getBoundingClientRect();
       const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
       setter.call(input, input.value || '12:34');
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
-      return { categories: categories.length, hasTime: Boolean(input.value) };
+      return {
+        categories: categories.length,
+        hasTime: Boolean(input.value),
+        insideViewport: rect.top >= 0 && rect.left >= 0 && rect.bottom <= innerHeight + 1 && rect.right <= innerWidth + 1
+      };
     })()`);
-    if (chooser.categories !== 6 || !chooser.hasTime) throw new Error('Selettore inserimento incompleto');
+    if (chooser.categories !== 6 || !chooser.hasTime || !chooser.insideViewport) throw new Error(`Selettore inserimento incompleto: ${JSON.stringify(chooser)}`);
     await sleep(100);
 
     await evaluate(`(() => {
-      const input = document.querySelector('input[type="time"]');
-      const panel = input.closest('div.absolute');
+      const panel = document.querySelector('[role="dialog"][aria-label="Inserisci una nuova card"]');
       const button = Array.from(panel.querySelectorAll('button')).find(item => item.textContent.includes('Tappa'));
       button.click();
       return true;
@@ -185,8 +203,8 @@ async function run() {
     } else {
       chrome.kill();
     }
-    await sleep(500);
-    fs.rmSync(profileDirectory, { recursive: true, force: true });
+    await sleep(1500);
+    fs.rmSync(profileDirectory, { recursive: true, force: true, maxRetries: 5, retryDelay: 300 });
   }
 }
 

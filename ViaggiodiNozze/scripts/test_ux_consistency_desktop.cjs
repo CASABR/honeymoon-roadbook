@@ -53,7 +53,7 @@ test('La sosta fotografica espone orario nei percorsi rapido e completo',
   smartInsert.includes("value=\"Sosta fotografica\"") &&
   smartInsert.includes("type=\"time\"") &&
   forms[3].includes('defaultTime') &&
-  cards[3].includes('Orario libero'));
+  cards[3].includes('Orario non indicato'));
 
 test('Il riordino note persiste senza modificare gli ID',
   types.includes('order?: number') &&
@@ -69,6 +69,12 @@ test('L inserimento desktop offre esattamente le sei categorie',
   oggi.includes('INSERT_CATEGORIES.map') &&
   oggi.includes('{canEdit && nextItem && (') &&
   oggi.includes('hidden min-h-7 items-center justify-center lg:flex'));
+
+test('Il menu di inserimento desktop usa un portale sopra le card',
+  oggi.includes('z-[100000]') &&
+  oggi.includes('max-h-[calc(100vh-1.5rem)] overflow-y-auto') &&
+  oggi.includes("transform: insertMenuPosition.openAbove ? 'translateY(-100%)'") &&
+  oggi.includes('document.body'));
 
 test('L orario intermedio usa solo valori reali e richiede conferma quando non sicuro',
   oggi.includes('previous.timeIsDefault || next.timeIsDefault') &&

@@ -6,6 +6,7 @@ import DestinationSearchModal from '../modals/DestinationSearchModal';
 import type { Alloggio, Coordinate } from '../../types';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import type { PlaceSuggestion } from '../../services/photonService';
+import TimeZoneInput from '../common/TimeZoneInput';
 
 interface AlloggioFormProps {
   initialData?: Alloggio | null;
@@ -28,6 +29,7 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
   const [checkInTime, setCheckInTime] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
   const [checkOutTime, setCheckOutTime] = useState('');
+  const [timeZone, setTimeZone] = useState('');
   const [address, setAddress] = useState('');
   const [pinCode, setPinCode] = useState('');
   const [phone, setPhone] = useState('');
@@ -52,6 +54,7 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
       setCheckInTime(initialData.checkInTime || '');
       setArrivalTime(initialData.arrivalTime || '');
       setCheckOutTime(initialData.checkOutTime || '');
+      setTimeZone(initialData.timeZone || '');
       setAddress(initialData.address || '');
       setPinCode(initialData.pinCode || '');
       setPhone(initialData.phone || '');
@@ -85,6 +88,7 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
       setCheckOut(`${tm_yyyy}-${tm_mm}-${tm_dd}`);
       setCheckInTime(defaultTime || '');
       setCheckOutTime('');
+      setTimeZone('');
       setAddress('');
       setPinCode('');
       setPhone('');
@@ -154,6 +158,7 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
       checkInTime: checkInTime.trim() || undefined,
       arrivalTime: arrivalTime.trim() || undefined,
       checkOutTime: checkOutTime.trim() || undefined,
+      timeZone: timeZone.trim() || undefined,
       address: address.trim() || name.trim(),
       pinCode: pinCode.trim() || undefined,
       phone: phone.trim() || undefined,
@@ -315,6 +320,8 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
           <span className="text-[10px] text-slate-400 mt-0.5 block">Es. entro le 10:00</span>
         </div>
       </div>
+
+      <TimeZoneInput value={timeZone} onChange={setTimeZone} label="Fuso orario della struttura" />
 
       <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">

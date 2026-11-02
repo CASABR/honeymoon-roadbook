@@ -5,8 +5,7 @@ import { useAuthIdentity } from '../../utils/useAuthIdentity';
 import DarkModeToggle from '../common/DarkModeToggle';
 import SettingsMenu from '../common/SettingsMenu';
 import HounigoLogo from '../common/HounigoLogo';
-
-declare const __BUILD_TIME__: string;
+import { AppInfoButton } from '../common/AppInfo';
 
 export type DesktopNavSection =
   | 'prenotazioni'
@@ -154,6 +153,7 @@ export default function DesktopNavigation({
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
+            <AppInfoButton />
             <DarkModeToggle />
             <SettingsMenu />
           </div>

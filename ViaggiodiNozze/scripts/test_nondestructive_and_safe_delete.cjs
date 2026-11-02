@@ -39,9 +39,10 @@ test('Rilevamento collisioni ignora orari predefiniti e alloggi', () => {
   assert.ok(src.includes("item.timeIsDefault || item.type === 'alloggio'"), 'filtro collisioni presente');
 });
 
-test('Nessun orario viene spostato: i valori predefiniti restano invariati', () => {
+test('Gli orari assenti restano assenti senza valori fittizi', () => {
   const body = read('src/storage/storageService.ts');
-  for (const d of ["'14:00'", "'19:30'", "'16:00'", "'21:00'"]) assert.ok(body.includes(d), 'default ' + d + ' invariato');
+  for (const d of ["'14:00'", "'19:30'", "'16:00'", "'21:00'"]) assert.ok(!body.includes(`time: ${d}`), 'default fittizio ' + d + ' rimosso');
+  assert.ok(body.includes("time: r.orario || ''"), 'ristoranti senza fallback fittizio');
 });
 
 (async () => {

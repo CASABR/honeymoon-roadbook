@@ -42,7 +42,7 @@ test('Editor mostra il form dedicato solo per Trekking', () => {
   for (const label of ['Titolo del trekking', 'Distanza km', 'Dislivello + m', 'Cammino ore', 'Tipologia percorso', 'Punto di partenza', 'Link percorso o traccia', 'Difficoltà']) {
     assert.ok(form.includes(label), `Controllo mancante: ${label}`);
   }
-  assert.ok(form.includes('{!isTrekking && <>'), 'Form standard non preservato separatamente');
+  assert.ok(form.includes('{!isTrekking && !isPhotoSpot && <>'), 'Form standard non preservato separatamente');
 });
 
 test('Valori numerici mancanti restano undefined', () => {
@@ -53,7 +53,7 @@ test('Valori numerici mancanti restano undefined', () => {
 });
 
 test('Card trekking evidenzia metriche senza zeri fittizi', () => {
-  for (const label of ['Partenza', 'Distanza', 'Dislivello +', 'Cammino']) assert.ok(card.includes(label));
+  for (const label of ['Partenza', 'Distanza', 'Dislivello', 'Durata']) assert.ok(card.includes(label));
   assert.ok(card.includes('activity.distanceKm != null && activity.distanceKm > 0'));
   assert.ok(card.includes('activity.elevationGainM != null && activity.elevationGainM > 0'));
   assert.ok(card.includes("trekkingPrice &&"));
@@ -95,7 +95,7 @@ test('Round-trip locale preserva creazione e modifica', () => {
 
 test('Form e card includono layout mobile, desktop e dark', () => {
   assert.ok(form.includes('grid-cols-2 sm:grid-cols-4'));
-  assert.ok(card.includes('grid-cols-2 sm:grid-cols-4'));
+  assert.ok(card.includes('gridTemplateColumns') && card.includes('minmax(0, 1fr)'));
   assert.ok(form.includes('dark:bg-slate-800'));
   assert.ok(card.includes('dark:text-white'));
 });

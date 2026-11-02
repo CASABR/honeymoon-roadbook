@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "releases": [
+    {
+      "version": "1.3.0",
+      "publishedAt": "2026-11-02",
+      "sourceCommit": "b51c227",
+      "changes": [
+        "HouniAI gratuita disponibile per chat e importazione da testo, PDF e immagini.",
+        "Accesso HouniAI riservato a Owner e Copilota, con quote gratuite e fallback manuale.",
+        "Smart Import mantiene revisione e approvazione individuale prima di ogni salvataggio."
+      ]
+    },
+    {
+      "version": "1.2.0",
+      "publishedAt": "2026-10-30",
+      "sourceCommit": "9c52b8c",
+      "changes": [
+        "Nuova sezione Scadenze accessibile da Oggi e Altro, con stati, link e date da verificare.",
+        "Promemoria visibili nell'app anche offline, sincronizzati tra Owner e Copilota con tombstone preservati.",
+        "Preparazione push documentata; le notifiche server restano disattivate fino alla configurazione Firebase autorizzata."
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "publishedAt": "2026-10-30",
+      "sourceCommit": "95f9ca1",
+      "changes": [
+        "Timeline cronologica corretta, card più leggibili, orari evidenziati, soste fotografiche e Taxi.",
+        "Migliorati desktop e popup, note riordinabili, allegati, Biglietti e QR.",
+        "Smart Import con approvazione individuale e nuova area informazioni con versione e cronologia."
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "publishedAt": "2026-10-29",
+      "sourceCommit": "573477f",
+      "changes": [
+        "Migliorata l’esperienza desktop e la coerenza delle schede.",
+        "Ridotte le letture Firestore ripetute durante l’apertura del viaggio.",
+        "Rimossi dal pacchetto pubblico i contenuti precompilati non necessari."
+      ]
+    }
+  ]
+}

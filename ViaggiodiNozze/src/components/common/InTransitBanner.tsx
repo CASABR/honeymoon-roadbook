@@ -1,20 +1,22 @@
 
-import type { Trasporto } from '../../types';
+import type { Trasporto, TransportSegmentContext } from '../../types';
 
 interface InTransitBannerProps {
   transport: Trasporto;
   dateStr: string;
+  segmentContext?: TransportSegmentContext;
 }
 
-export default function InTransitBanner({ transport, dateStr }: InTransitBannerProps) {
+export default function InTransitBanner({ transport, dateStr, segmentContext }: InTransitBannerProps) {
   const layover = transport.layover;
-  const isArrival = transport.arrivalDate === dateStr && transport.date !== dateStr;
+  const finalArrivalDate = layover?.arrivalDate || transport.arrivalDate;
+  const isArrival = segmentContext === 'arrival' || (finalArrivalDate === dateStr && transport.date !== dateStr);
   
   let icon = '🛬';
   let title = `Arrivo a ${transport.arrivalLocation}`;
   let subtitle = '';
 
-  if (layover && (layover.departureDate === dateStr || transport.arrivalDate === dateStr)) {
+  if (segmentContext === 'scalo' && layover) {
     // We are in layover
     icon = '🛑';
     title = `Scalo a ${layover.airport.split(' ')[0]}`;
@@ -30,8 +32,9 @@ export default function InTransitBanner({ transport, dateStr }: InTransitBannerP
   } else if (isArrival) {
     icon = '🛬';
     title = `Arrivo a ${transport.arrivalLocation}`;
-    if (transport.arrivalTime) {
-      subtitle = `Arrivo previsto alle ${transport.arrivalTime}`;
+    const arrivalTime = layover?.arrivalTime || transport.arrivalTime;
+    if (arrivalTime) {
+      subtitle = `Arrivo previsto alle ${arrivalTime}`;
     }
   }
 

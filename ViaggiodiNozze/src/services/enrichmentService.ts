@@ -1,4 +1,4 @@
-import { getWorkingGeminiModel, resolveGeminiApiKey } from './aiExtractor';
+import { callHouniAi } from './houniAiGateway';
 
 const cache = new Map<string, { data: any, ts: number }>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minuti
@@ -22,13 +22,6 @@ export async function enrichRistorante(nome: string, indirizzo: string): Promise
   Se non trovi dati certi, restituisci null per quei campi. NON includere markdown come \`\`\`json.`;
 
   try {
-    const rawApiKey = resolveGeminiApiKey();
-    if (!rawApiKey) return {};
-    const cleanKey = rawApiKey.trim().replace(/['"]/g, '');
-    
-    const activeModel = await getWorkingGeminiModel(cleanKey);
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${activeModel}:generateContent?key=${cleanKey}`;
-    
     const requestBody = {
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       generationConfig: {
@@ -38,28 +31,8 @@ export async function enrichRistorante(nome: string, indirizzo: string): Promise
       }
     };
     
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
-    
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': cleanKey
-      },
-      body: JSON.stringify(requestBody),
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    
-    if (!response.ok) {
-      console.warn(`[EnrichmentService] API rejected HTTP ${response.status}`);
-      return {};
-    }
-    
-    const responseJson = await response.json();
-    const text = responseJson?.candidates?.[0]?.content?.parts?.[0]?.text;
+    const response = await callHouniAi(requestBody);
+    const text = response.ok ? response.text : '';
     
     if (text) {
       const parsed = JSON.parse(text);

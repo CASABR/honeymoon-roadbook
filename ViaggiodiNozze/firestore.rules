@@ -374,18 +374,15 @@ service cloud.firestore {
     // 4. PUSH SUBSCRIBERS
     // =========================================================================
     match /push_subscribers/{docId} {
-      allow read: if false;
-      allow create: if isSignedIn()
-                    && request.resource.data.uid == request.auth.uid
-                    && isTripMember(request.resource.data.tripId);
-      allow update: if isSignedIn()
-                    && resource.data.uid == request.auth.uid
-                    && request.resource.data.uid == request.auth.uid
-                    && request.resource.data.tripId == resource.data.tripId
-                    && request.resource.data.deviceId == docId
-                    && isTripMember(resource.data.tripId);
-      allow delete: if isSignedIn()
-                    && resource.data.uid == request.auth.uid;
+      allow read, write: if false;
+    }
+
+    match /push_jobs/{docId} {
+      allow read, write: if false;
+    }
+
+    match /push_dispatches/{docId} {
+      allow read, write: if false;
     }
 
     // =========================================================================

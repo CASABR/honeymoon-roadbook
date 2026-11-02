@@ -10,7 +10,6 @@ import SwipeToDelete from '../../components/common/SwipeToDelete';
 import RistoranteCard from '../../components/cards/RistoranteCard';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { getTripDateRange, formatDate, type TripDayItem } from '../../utils/tripDates';
-import { enrichRistorante } from '../../services/enrichmentService';
 import TimeCollisionModal, { type TimeCollision } from '../../components/modals/TimeCollisionModal';
 import type { TimelineItem } from '../../types';
 import DesktopEconomySummary from '../../components/common/DesktopEconomySummary';
@@ -53,35 +52,6 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
 
       setRistoranti(loadedRistoranti || []);
 
-      // Background Enrichment
-      if (typeof navigator !== 'undefined' && navigator.onLine) {
-        setTimeout(async () => {
-          const toEnrich = (loadedRistoranti || []).filter(r => 
-            r.nome && (!r.telefono || !r.linkPrenotazione) && !r._enriched
-          );
-          for (const r of toEnrich) {
-            try {
-              const enrichedData = await enrichRistorante(r.nome, r.indirizzo || '');
-              if (enrichedData.telefono || enrichedData.linkMenu) {
-                const updated = { 
-                  ...r, 
-                  telefono: r.telefono || enrichedData.telefono || '', 
-                  linkPrenotazione: r.linkPrenotazione || enrichedData.linkMenu || '',
-                  _enriched: true 
-                };
-                await storageService.updateRistorante(updated.id, updated as any);
-                setRistoranti(prev => prev.map(pr => pr.id === updated.id ? updated as any : pr));
-              } else {
-                // segna come arricchito per non riprovare
-                const updated = { ...r, _enriched: true };
-                await storageService.updateRistorante(updated.id, updated as any);
-              }
-            } catch (e) {
-              console.error("Errore durante auto-enrichment:", e);
-            }
-          }
-        }, 3000);
-      }
       if (range) setTripDays(range.tripDays);
     } catch (err) {
       console.error('Errore nel caricamento dei ristoranti:', err);

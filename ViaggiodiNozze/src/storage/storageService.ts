@@ -1,4 +1,4 @@
-import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Shopping, Spesa, DeviceRole, NotaViaggio, Bagaglio, DayMapsRoutes, DayMapRouteEntry, DayRouteTransportMode } from '../types';
+import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Shopping, Spesa, DeviceRole, NotaViaggio, Scadenza, Bagaglio, DayMapsRoutes, DayMapRouteEntry, DayRouteTransportMode } from '../types';
 import {
   STORES,
   idbGetAll,
@@ -10,6 +10,8 @@ import {
 } from './indexedDB';
 import { formatDateIT, normalizeTimestamp } from '../utils/tripDates';
 import { assertCanMutate } from '../utils/useAuthIdentity';
+import { compareTimelineItems } from '../utils/timelineOrdering';
+import { sortDeadlines } from '../utils/deadlines';
 
 export const SEED_FLAG_KEY = 'honeymoon_roadbook_seeded_v1';
 
@@ -1108,7 +1110,8 @@ class StorageService {
   // --- NOTE DI VIAGGIO (Post-it) ---
   async getNote(): Promise<NotaViaggio[]> {
     try {
-      const items = await idbGetAll<NotaViaggio>(STORES.NOTE);
+      const records = await idbGetAll<NotaViaggio | Scadenza>(STORES.NOTE);
+      const items = records.filter((item): item is NotaViaggio => item.recordKind !== 'scadenza');
       return items.sort((a, b) => {
         const orderA = Number.isFinite(a.order) ? Number(a.order) : null;
         const orderB = Number.isFinite(b.order) ? Number(b.order) : null;
@@ -1155,6 +1158,44 @@ class StorageService {
   }
 
   async deleteNota(id: string): Promise<void> {
+    await this.recordTombstone('note', id);
+    await idbDelete(STORES.NOTE, id);
+    notifyDataChanged('note', 'delete', { id });
+  }
+
+  // --- SCADENZE (record tipizzati nella raccolta note, già autorizzata e sincronizzata) ---
+  async getScadenze(): Promise<Scadenza[]> {
+    try {
+      const records = await idbGetAll<NotaViaggio | Scadenza>(STORES.NOTE);
+      return sortDeadlines(records.filter((item): item is Scadenza => item.recordKind === 'scadenza'));
+    } catch (err) {
+      console.error('[StorageService] Errore lettura scadenze:', err);
+      return [];
+    }
+  }
+
+  async saveScadenza(scadenza: Scadenza): Promise<void> {
+    assertCanMutate('note');
+    const now = Date.now();
+    const item: Scadenza = {
+      ...scadenza,
+      recordKind: 'scadenza',
+      color: 'rose',
+      createdAt: scadenza.createdAt || now,
+      updatedAt: now
+    };
+    if (!await this.validateSaveAgainstTombstone('note', item.id, item.createdAt)) return;
+    await idbPut(STORES.NOTE, item);
+    notifyDataChanged('note', 'save', item);
+    try {
+      await this.removeTombstoneIfRecreated('note', item.id, item.createdAt);
+    } catch (err) {
+      console.warn('[StorageService] Errore rimozione tombstone scadenza:', err);
+    }
+  }
+
+  async deleteScadenza(id: string): Promise<void> {
+    assertCanMutate('note');
     await this.recordTombstone('note', id);
     await idbDelete(STORES.NOTE, id);
     notifyDataChanged('note', 'delete', { id });
@@ -1419,7 +1460,7 @@ class StorageService {
       // Trasporti del giorno e segmenti volo
       dayTransports.forEach(t => {
         const isRental = t.type === 'auto' || t.type === 'camper';
-        const isShortTransfer = t.type === 'transfer';
+        const isShortTransfer = t.type === 'transfer' || t.type === 'taxi';
         
         if (isRental) {
           // Giorno di ritiro -> Card completa
@@ -1427,7 +1468,7 @@ class StorageService {
             timeline.push({
               id: `${t.id}_pickup`,
               type: 'trasporto',
-              time: t.departureTime || '00:00',
+              time: t.departureTime || '',
               title: `${t.type.toUpperCase()} • Ritiro${t.carrier ? ` (${t.carrier.split('(')[0].trim()})` : ''}`,
               location: t.departureLocation || '',
               categoryOrType: t.type,
@@ -1435,7 +1476,9 @@ class StorageService {
               completed: t.completed,
               coordinate: t.coordinate,
               originalData: t,
-              displayMode: 'full'
+              displayMode: 'full',
+              effectiveDate: t.date,
+              physicalLocation: true
             });
           } 
           // Giorno di riconsegna -> Card completa o compatta
@@ -1443,14 +1486,16 @@ class StorageService {
             timeline.push({
               id: `${t.id}_dropoff`,
               type: 'trasporto',
-              time: t.dropoffTime || t.arrivalTime || '00:00',
+              time: t.dropoffTime || t.arrivalTime || '',
               title: `${t.type.toUpperCase()} • Riconsegna${t.carrier ? ` (${t.carrier.split('(')[0].trim()})` : ''}`,
               location: t.dropoffLocation || t.arrivalLocation || '',
               categoryOrType: t.type,
               copilota: t.copilota,
               completed: t.completed,
               originalData: t,
-              displayMode: 'full'
+              displayMode: 'full',
+              effectiveDate: t.dropoffDate,
+              physicalLocation: true
             });
           } 
           // Giorni intermedi -> Solo stato
@@ -1458,12 +1503,15 @@ class StorageService {
             timeline.push({
               id: `${t.id}_state`,
               type: 'trasporto',
-              time: '00:00',
+              time: '',
               title: '',
               location: '',
               categoryOrType: t.type,
               originalData: t,
               displayMode: 'state',
+              effectiveDate: dateStr,
+              informational: true,
+              physicalLocation: false,
               stateLabel: `${t.type === 'auto' ? '🚗' : '🚐'} Veicolo attivo: ${t.carrier?.split('(')[0]?.trim() || 'Veicolo'} • Riconsegna il ${t.dropoffDate ? formatDateIT(t.dropoffDate) : '...'} a ${t.dropoffLocation?.split('(')[0]?.trim() || t.arrivalLocation || 'destinazione'}`
             });
           }
@@ -1477,7 +1525,7 @@ class StorageService {
           timeline.push({
             id: t.id,
             type: 'trasporto',
-            time: t.departureTime || '00:00',
+            time: t.departureTime || '',
             title: t.carrier ? `${t.type.toUpperCase()} • ${t.carrier}` : t.type.toUpperCase(),
             location: t.departureLocation ? `${t.departureLocation} ➔ ${t.arrivalLocation}` : t.arrivalLocation,
             categoryOrType: t.type,
@@ -1485,7 +1533,10 @@ class StorageService {
             completed: t.completed,
             coordinate: t.coordinate,
             originalData: t,
-            displayMode: isShortTransfer ? 'compact' : 'full'
+            displayMode: isShortTransfer ? 'compact' : 'full',
+            effectiveDate: t.date,
+            segmentContext: 'leg1',
+            physicalLocation: true
           });
         }
         
@@ -1498,27 +1549,35 @@ class StorageService {
              timeline.push({
                id: `${t.id}_state`,
                type: 'trasporto',
-               time: t.layover.departureTime || '00:00',
+               time: t.layover.departureTime || t.layover.arrivalTime || '',
                title: '',
                location: '',
                categoryOrType: 'scalo',
                originalData: t,
                displayMode: 'state',
+               effectiveDate: dateStr,
+               segmentContext: 'scalo',
+               informational: true,
+               physicalLocation: false,
                stateLabel: `🛬 Scalo a ${t.layover.airport.split(' ')[0]} ${t.layover.duration ? `• Attesa ${t.layover.duration}` : ''}`
              });
         }
-        // Se atterra a destinazione in un giorno diverso da quello di origine
-        else if (finalArrivalDate === dateStr && finalArrivalDate !== t.date) {
+        // L'arrivo finale e' un evento autonomo: non deve essere sostituito dal banner di scalo.
+        if (finalArrivalDate === dateStr && finalArrivalDate !== t.date) {
              timeline.push({
                id: `${t.id}_arrival`,
                type: 'trasporto',
-               time: t.layover?.arrivalTime || t.arrivalTime || '00:00',
+               time: t.layover?.arrivalTime || t.arrivalTime || '',
                title: `Arrivo a ${t.arrivalLocation}`,
                location: `Da ${t.departureLocation}`,
                categoryOrType: t.type,
                completed: t.completed,
+               coordinate: t.coordinate,
                originalData: t,
-               displayMode: 'compact'
+               displayMode: 'compact',
+               effectiveDate: finalArrivalDate,
+               segmentContext: 'arrival',
+               physicalLocation: true
              });
         }
         
@@ -1528,12 +1587,16 @@ class StorageService {
               timeline.push({
                 id: `${t.id}_state`,
                 type: 'trasporto',
-                time: '00:00',
+                time: '',
                 title: '',
                 location: '',
                 categoryOrType: 'scalo',
                 originalData: t,
                 displayMode: 'state',
+                effectiveDate: dateStr,
+                segmentContext: 'scalo',
+                informational: true,
+                physicalLocation: false,
                 stateLabel: `⏳ In scalo a ${t.layover.airport.split(' ')[0]}`
               });
            }
@@ -1545,7 +1608,7 @@ class StorageService {
         timeline.push({
           id: t.id,
           type: 'tappa',
-          time: t.orario || (t as any).time || (t.order ? `${String(8 + t.order).padStart(2, '0')}:00` : '10:00'),
+          time: t.orario || (t as any).time || '',
           timeIsDefault: !(t.orario || (t as any).time),
           title: t.titolo,
           location: t.titolo,
@@ -1553,7 +1616,10 @@ class StorageService {
           copilota: t.copilota,
           completed: t.completed,
           coordinate: t.coordinate,
-          originalData: t
+          originalData: t,
+          effectiveDate: dateStr,
+          sortOrder: t.order,
+          physicalLocation: true
         });
       });
 
@@ -1562,7 +1628,7 @@ class StorageService {
         timeline.push({
           id: a.id,
           type: 'attivita',
-          time: a.time || a.orarioInizio || a.orarioRitrovo || '14:00',
+          time: a.time || a.orarioInizio || a.orarioRitrovo || '',
           timeIsDefault: !(a.time || a.orarioInizio || a.orarioRitrovo),
           title: a.title,
           location: a.location,
@@ -1571,7 +1637,9 @@ class StorageService {
           completed: a.completed,
           noteCopilota: a.noteCopilota,
           coordinate: a.coordinate,
-          originalData: a
+          originalData: a,
+          effectiveDate: a.date || dateStr,
+          physicalLocation: true
         });
       });
 
@@ -1580,7 +1648,7 @@ class StorageService {
         timeline.push({
           id: r.id,
           type: 'ristorante',
-          time: r.orario || '19:30',
+          time: r.orario || '',
           timeIsDefault: !r.orario,
           title: r.nome,
           location: r.indirizzo || r.nome,
@@ -1588,7 +1656,9 @@ class StorageService {
           copilota: r.copilota,
           completed: r.completed,
           coordinate: r.coordinate,
-          originalData: r
+          originalData: r,
+          effectiveDate: r.data || r.date || dateStr,
+          physicalLocation: true
         });
       });
 
@@ -1597,7 +1667,7 @@ class StorageService {
         timeline.push({
           id: s.id,
           type: 'shopping',
-          time: s.orario || '16:00',
+          time: s.orario || '',
           timeIsDefault: !s.orario,
           title: s.nome,
           location: s.indirizzo || s.nome,
@@ -1605,7 +1675,9 @@ class StorageService {
           copilota: s.copilota,
           completed: s.completed,
           coordinate: s.coordinate,
-          originalData: s
+          originalData: s,
+          effectiveDate: s.data || s.date || dateStr,
+          physicalLocation: true
         });
       });
 
@@ -1617,14 +1689,17 @@ class StorageService {
           timeline.push({
             id: acc.id,
             type: 'alloggio',
-            time: '21:00',
-            timeIsDefault: true,
+            time: acc.arrivalTime || acc.checkInTime || '',
+            timeIsDefault: !acc.arrivalTime,
             title: `Pernottamento presso: ${acc.name}`,
             location: acc.address || acc.location,
             categoryOrType: 'alloggio',
             completed: acc.completed,
             coordinate: undefined,
-            originalData: acc
+            originalData: acc,
+            effectiveDate: dateStr,
+            informational: true,
+            physicalLocation: false
           });
         }
       });
@@ -1637,7 +1712,7 @@ class StorageService {
         }
       });
 
-      const merged = Array.from(uniqueMap.values()).sort((a, b) => a.time.localeCompare(b.time));
+      const merged = Array.from(uniqueMap.values()).sort(compareTimelineItems);
       
       return merged;
     } catch (err) {

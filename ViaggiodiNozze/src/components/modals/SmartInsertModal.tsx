@@ -10,6 +10,12 @@ import { GoogleAuthProvider } from 'firebase/auth';
 import GmailConnectionRow from '../common/GmailConnectionRow';
 import { TrailAi } from '../icons/TrailIcons';
 import { GMAIL_READONLY_SCOPE, getFriendlyGmailMessage } from '../../services/gmailOAuth';
+import {
+  EXTERNAL_AI_ENABLED,
+  PRIVATE_AI_DISABLED_MESSAGE,
+  grantCloudflareAiConsent,
+  hasCloudflareAiConsent,
+} from '../../config/freeArchitecture';
 
 interface SmartInsertModalProps {
   isOpen: boolean;
@@ -24,7 +30,15 @@ export interface ChatMessage {
   suggestions?: any[];
 }
 
-type Step = 'input' | 'extracting' | 'multiChoice' | 'review' | 'saving' | 'done' | 'error' | 'gmailLoading';
+type Step = 'input' | 'extracting' | 'queue' | 'review' | 'saving' | 'done' | 'error' | 'gmailLoading';
+type QueueStatus = 'pending' | 'approved' | 'skipped';
+
+interface ImportQueueItem {
+  id: string;
+  entity: ExtractedEntity;
+  status: QueueStatus;
+  attachment?: TransportAttachment | null;
+}
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 function generateId(prefix: string): string {
@@ -77,13 +91,22 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   const [editData, setEditData] = useState<any>({});
   const [attachedFile, setAttachedFile] = useState<TransportAttachment | null>(null);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
-  const [multiBookings, setMultiBookings] = useState<ExtractedEntity[]>([]);
+  const [importQueue, setImportQueue] = useState<ImportQueueItem[]>([]);
+  const [activeQueueId, setActiveQueueId] = useState<string | null>(null);
+  const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
+  const saveInFlightRef = useRef(false);
   const [pendingSuggestion, setPendingSuggestion] = useState<any>(null);
   const [pickerDate, setPickerDate] = useState(defaultSuggestionDate());
   const [pickerTime, setPickerTime] = useState('');
   const [showPrivacyDetails, setShowPrivacyDetails] = useState(false);
+  const [showCloudflareConsent, setShowCloudflareConsent] = useState(false);
 
   const handleGmailImport = async () => {
+    if (!EXTERNAL_AI_ENABLED) {
+      setStep('input');
+      setGmailNotice(PRIVATE_AI_DISABLED_MESSAGE);
+      return;
+    }
     try {
       const provider = new GoogleAuthProvider();
       provider.addScope(GMAIL_READONLY_SCOPE);
@@ -208,23 +231,25 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
   useEffect(() => {
     if (isOpen) {
-      if (mode === 'gmail') {
+      if (mode === 'gmail' && EXTERNAL_AI_ENABLED) {
         setStep('gmailLoading');
         setText('');
         setErrorMsg('');
         setGmailNotice('');
         setEditData({});
         setAttachedFile(null);
-        setMultiBookings([]);
+        setImportQueue([]);
+        setActiveQueueId(null);
         handleGmailImport();
       } else {
         setStep('input');
         setText('');
         setErrorMsg('');
-        setGmailNotice('');
+        setGmailNotice(mode === 'gmail' ? PRIVATE_AI_DISABLED_MESSAGE : '');
         setEditData({});
         setAttachedFile(null);
-        setMultiBookings([]);
+        setImportQueue([]);
+        setActiveQueueId(null);
         setTimeout(() => textAreaRef.current?.focus(), 100);
       }
     }
@@ -252,7 +277,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   };
 
   // Prepara la scheda di revisione per una data entità estratta
-  const prepareReviewForEntity = async (entity: ExtractedEntity, currentAttachment?: TransportAttachment | null) => {
+  const prepareReviewForEntity = async (entity: ExtractedEntity, currentAttachment?: TransportAttachment | null, queueId?: string) => {
     const d: any = entity;
     const cat = entity.type;
     const initial: any = { category: cat };
@@ -341,6 +366,8 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
     }
 
     setExistingData(existingItem || null);
+    setDuplicateConfirmed(false);
+    setActiveQueueId(queueId || null);
     if (existingItem) {
       initial.id = existingItem.id;
     }
@@ -349,6 +376,15 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   };
 
   const handleExtract = async () => {
+    if (!EXTERNAL_AI_ENABLED) {
+      setErrorMsg(PRIVATE_AI_DISABLED_MESSAGE);
+      setStep('error');
+      return;
+    }
+    if (!hasCloudflareAiConsent()) {
+      setShowCloudflareConsent(true);
+      return;
+    }
     // Verifica se c'è testo oppure un allegato caricato
     if (!text.trim() && !attachedFile) return;
 
@@ -398,8 +434,14 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
       // Se sono state rilevate più prenotazioni distinte (es. Volo andata + ritorno)
       if (res.multipleItems && res.multipleItems.length > 1) {
-        setMultiBookings(res.multipleItems);
-        setStep('multiChoice');
+        setImportQueue(res.multipleItems.map((entity: ExtractedEntity, index: number) => ({
+          id: `queue_${Date.now()}_${index}`,
+          entity,
+          status: 'pending',
+          attachment: attachedFile
+        })));
+        setActiveQueueId(null);
+        setStep('queue');
         return;
       }
 
@@ -420,6 +462,8 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   };
 
   const handleSave = async () => {
+    if (saveInFlightRef.current || (existingData && !duplicateConfirmed)) return;
+    saveInFlightRef.current = true;
     setStep('saving');
     try {
       const now = Date.now();
@@ -667,12 +711,22 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       }
       
       onSaved?.(cat as any);
-      setStep('done');
-      setTimeout(() => onClose(), 1800);
+      if (activeQueueId) {
+        setImportQueue(queue => queue.map(item => item.id === activeQueueId ? { ...item, status: 'approved' } : item));
+        setActiveQueueId(null);
+        setExistingData(null);
+        setEditData({});
+        setStep('queue');
+      } else {
+        setStep('done');
+        setTimeout(() => onClose(), 1800);
+      }
     } catch (err) {
       console.error('Errore salvataggio:', err);
       setErrorMsg(err instanceof Error ? err.message : 'Errore salvataggio.');
       setStep('error');
+    } finally {
+      saveInFlightRef.current = false;
     }
   };
 
@@ -754,9 +808,10 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                 <button
                   type="button"
                   onClick={() => setInputMode('chat')}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${inputMode === 'chat' ? 'bg-[#172033] text-white shadow-xs' : 'text-slate-600 hover:text-[#172033]'}`}
+                  disabled={!EXTERNAL_AI_ENABLED}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${EXTERNAL_AI_ENABLED ? 'cursor-pointer' : 'cursor-not-allowed opacity-45'} ${inputMode === 'chat' ? 'bg-[#172033] text-white shadow-xs' : 'text-slate-600 hover:text-[#172033]'}`}
                 >
-                  Chiedi al Concierge
+                  {EXTERNAL_AI_ENABLED ? 'Chiedi al Concierge' : 'Concierge non attivo'}
                 </button>
               </div>
 
@@ -856,7 +911,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-1.5 min-w-0">
                     <span className="text-slate-500 text-xs shrink-0">🔒</span>
-                    <span className="font-semibold text-[#172033] truncate">Privacy AI: i contenuti vengono inviati a Google Gemini</span>
+                    <span className="font-semibold text-[#172033] truncate">Privacy AI: invio solo dopo conferma</span>
                   </div>
                   <button
                     type="button"
@@ -864,13 +919,13 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                     className="text-[10px] font-bold text-[#FF6B5F] hover:underline shrink-0 cursor-pointer flex items-center gap-0.5"
                     aria-expanded={showPrivacyDetails}
                   >
-                    <span>{showPrivacyDetails ? 'Meno info' : 'Come vengono usati i dati?'}</span>
+                    <span>{showPrivacyDetails ? 'Meno info' : 'Come sono protetti i dati?'}</span>
                     <span className={`text-[9px] transition-transform ${showPrivacyDetails ? 'rotate-180' : ''}`}>▾</span>
                   </button>
                 </div>
                 {showPrivacyDetails && (
                   <p className="mt-2 pt-2 border-t border-slate-200 text-[10px] leading-relaxed text-slate-500 animate-fade-in">
-                    Testi e file vengono inviati alle API Google Gemini per estrarre i dati del roadbook. Conservazione, revisione e uso dei contenuti dipendono dal piano e dalle impostazioni del progetto API; Google può mantenere log per sicurezza e prevenzione abusi. Non caricare documenti d'identità, passaporti, dati bancari o altri contenuti sensibili.
+                    HouniAI usa modelli ospitati direttamente da Cloudflare. Cloudflare dichiara zero conservazione per l’inferenza standard e nessun uso dei contenuti per addestrare modelli. Nessun file viene inviato automaticamente; puoi sempre continuare manualmente.
                   </p>
                 )}
               </div>
@@ -886,7 +941,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
               )}
 
               {/* Collegamento Gmail Compatto (1 riga) */}
-              {inputMode === 'import' && (
+              {inputMode === 'import' && EXTERNAL_AI_ENABLED && (
                 <GmailConnectionRow
                   compactDark={false}
                   onSearchEmails={handleGmailImport}
@@ -909,8 +964,8 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   placeholder={
                     inputMode === 'import'
                       ? attachedFile 
-                        ? "File pronto! Premi 'Estrai Dati con AI' per elaborarlo o aggiungi eventuali note..."
-                        : "Incolla il testo della conferma oppure usa '📎 Allega prenotazione' per caricare PDF o immagini..."
+                        ? "File disponibile solo sul dispositivo. Consulta i dati e inseriscili nelle schede manuali."
+                        : "Puoi consultare qui testo, PDF o immagini senza inviarli a servizi AI esterni."
                       : "Scrivi un messaggio o chiedi un consiglio al Concierge..."
                   }
                   className={`w-full p-4 bg-[#F8F7F3] border border-slate-200 text-[#172033] text-sm resize-none focus:outline-none focus:border-[#FF6B5F] focus:ring-1 focus:ring-[#FF6B5F]/30 placeholder:text-slate-400 ${inputMode === 'chat' ? 'h-20 rounded-2xl pr-14' : 'h-32 rounded-2xl leading-relaxed'}`}
@@ -918,7 +973,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                 {inputMode === 'chat' && (
                   <button
                     onClick={handleExtract}
-                    disabled={!text.trim() && !attachedFile}
+                    disabled={!EXTERNAL_AI_ENABLED || (!text.trim() && !attachedFile)}
                     className="absolute right-3 top-3 bottom-3 w-10 h-10 rounded-xl bg-[#FF6B5F] text-white flex items-center justify-center hover:bg-[#e85c50] disabled:opacity-50 transition cursor-pointer shadow-md"
                     title="Invia messaggio"
                   >
@@ -946,13 +1001,22 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   <button
                     type="button"
                     onClick={handleExtract}
-                    disabled={!text.trim() && !attachedFile}
+                    disabled={!EXTERNAL_AI_ENABLED || (!text.trim() && !attachedFile)}
                     className="flex-1 py-3 px-4 rounded-xl font-bold bg-[#FF6B5F] text-white shadow-md shadow-rose-500/20 hover:bg-[#e85c50] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>
-                    <span>Estrai Dati con AI</span>
+                    <span>{EXTERNAL_AI_ENABLED ? 'Estrai Dati con AI' : 'AI non disponibile'}</span>
+                  </button>
+                )}
+                {!EXTERNAL_AI_ENABLED && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                  >
+                    Inserisci manualmente
                   </button>
                 )}
               </div>
@@ -975,39 +1039,54 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
             </div>
           )}
 
-          {/* ─── Step: MULTI-CHOICE (Se sono state rilevate più prenotazioni) ─── */}
-          {step === 'multiChoice' && multiBookings.length > 0 && (
+          {/* ─── Step: QUEUE (revisione individuale, nessun salvataggio automatico) ─── */}
+          {step === 'queue' && importQueue.length > 0 && (
             <div className="space-y-4">
               <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
-                <p className="text-sm font-bold text-indigo-900">Trovate {multiBookings.length} prenotazioni nel documento</p>
-                <p className="text-xs text-slate-600 mt-1">Seleziona quale prenotazione desideri verificare e inserire per prima:</p>
+                <p className="text-sm font-bold text-indigo-900">Trovate {importQueue.length} prenotazioni</p>
+                <p className="text-xs text-slate-600 mt-1">Nessun elemento viene salvato finché non lo approvi singolarmente.</p>
               </div>
 
               <div className="space-y-2 max-h-[50vh] overflow-y-auto custom-scrollbar">
-                {multiBookings.map((b: any, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => prepareReviewForEntity(b, attachedFile)}
-                    className="p-3.5 bg-white hover:bg-[#F8F7F3] border border-slate-200 rounded-xl cursor-pointer transition flex items-center justify-between gap-3 group shadow-2xs"
-                  >
+                {importQueue.map((queueItem) => {
+                  const booking: any = queueItem.entity;
+                  const statusLabel = queueItem.status === 'approved' ? 'Approvata' : queueItem.status === 'skipped' ? 'Saltata' : 'Da verificare';
+                  return (
+                  <div key={queueItem.id} className="p-3.5 bg-white border border-slate-200 rounded-xl transition flex items-center justify-between gap-3 shadow-2xs">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 uppercase">
-                          {b.type}
+                          {booking.type}
                         </span>
                         <h4 className="text-sm font-bold text-[#172033] truncate">
-                          {b.name || b.title || b.titolo || `${b.departureLocation} -> ${b.arrivalLocation}`}
+                          {booking.name || booking.title || booking.titolo || `${booking.departureLocation} -> ${booking.arrivalLocation}`}
                         </h4>
                       </div>
                       <p className="text-xs text-slate-500 mt-1 truncate">
-                        {b.date || b.checkIn || b.data || 'Data da verificare'} {b.bookingCode ? `• Cod: ${b.bookingCode}` : ''}
+                        {booking.date || booking.checkIn || booking.data || 'Data da verificare'} · {statusLabel}
                       </p>
                     </div>
-                    <span className="text-sm font-bold text-[#FF6B5F] group-hover:translate-x-1 transition shrink-0">
-                      Scegli →
-                    </span>
+                    <div className="flex shrink-0 gap-1.5">
+                      {queueItem.status !== 'approved' && (
+                        <button
+                          type="button"
+                          onClick={() => setImportQueue(queue => queue.map(item => item.id === queueItem.id ? { ...item, status: item.status === 'skipped' ? 'pending' : 'skipped' } : item))}
+                          className="rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
+                        >
+                          {queueItem.status === 'skipped' ? 'Ripristina' : 'Salta'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={queueItem.status === 'approved'}
+                        onClick={() => prepareReviewForEntity(queueItem.entity, queueItem.attachment, queueItem.id)}
+                        className="rounded-lg bg-[#FF6B5F] px-2.5 py-1.5 text-[11px] font-bold text-white disabled:bg-emerald-600"
+                      >
+                        {queueItem.status === 'approved' ? 'Salvata' : 'Modifica'}
+                      </button>
+                    </div>
                   </div>
-                ))}
+                );})}
               </div>
 
               <button
@@ -1015,7 +1094,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                 onClick={() => setStep('input')}
                 className="w-full py-2.5 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
               >
-                ← Torna indietro
+                ← Torna al testo
               </button>
             </div>
           )}
@@ -1032,6 +1111,15 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                        <p className="text-xs mt-0.5 text-amber-700">
                          Trovato "{existingData.title || existingData.nome || existingData.name || existingData.titolo}" in questa data / codice. Puoi integrare i dati mancanti e allegare il documento senza duplicare.
                        </p>
+                       <label className="mt-2 flex cursor-pointer items-start gap-2 text-xs font-semibold text-amber-900">
+                         <input
+                           type="checkbox"
+                           checked={duplicateConfirmed}
+                           onChange={(event) => setDuplicateConfirmed(event.target.checked)}
+                           className="mt-0.5"
+                         />
+                         <span>Confermo di aggiornare questo record esistente invece di crearne uno nuovo.</span>
+                       </label>
                      </div>
                    </div>
                 </div>
@@ -1093,6 +1181,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                       <option value="auto">🚗 Noleggio Auto</option>
                       <option value="camper">🚐 Camper</option>
                       <option value="transfer">🚐 Transfer</option>
+                      <option value="taxi">🚕 Taxi</option>
                     </select>
                   </div>
                 )}
@@ -1253,17 +1342,18 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
               <div className="flex gap-3 pt-2 border-t border-slate-200">
                 <button
                   type="button"
-                  onClick={() => existingData ? onClose() : (multiBookings.length > 1 ? setStep('multiChoice') : setStep('input'))}
+                  onClick={() => activeQueueId ? setStep('queue') : setStep('input')}
                   className="flex-1 py-3 px-5 rounded-xl text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50 active:scale-[0.98] transition cursor-pointer"
                 >
-                  {existingData ? 'Mantieni Invariato' : '← Annulla'}
+                  {activeQueueId ? '← Torna alla lista' : '← Annulla'}
                 </button>
                 <button
                   type="button"
                   onClick={handleSave}
-                  className="flex-[2] py-3 px-6 rounded-xl text-sm font-semibold bg-[#FF6B5F] text-white shadow-md shadow-rose-500/20 hover:opacity-95 active:scale-[0.98] transition flex items-center justify-center gap-2 cursor-pointer"
+                  disabled={Boolean(existingData && !duplicateConfirmed)}
+                  className="flex-[2] py-3 px-6 rounded-xl text-sm font-semibold bg-[#FF6B5F] text-white shadow-md shadow-rose-500/20 hover:opacity-95 active:scale-[0.98] transition flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                 >
-                  {existingData ? '✅ Aggiorna e Allega' : '✅ Conferma e Crea Prenotazione'}
+                  {existingData ? '✅ Approva aggiornamento' : '✅ Approva e salva'}
                 </button>
               </div>
             </div>
@@ -1300,37 +1390,9 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                     <p className="text-sm font-bold text-rose-800">{inputMode === 'chat' ? 'Concierge non raggiungibile' : 'Estrazione non riuscita'}</p>
                     <p className="text-xs text-rose-700 mt-1 leading-relaxed">{errorMsg}</p>
                     
-                    {errorMsg.toLowerCase().includes('chiave') && (
-                      <div className="mt-3 pt-3 border-t border-rose-200">
-                        <label className="text-[11px] font-semibold text-rose-800 block mb-1">
-                          Inserisci Chiave API Google Gemini (salvata per sempre):
-                        </label>
-                        <div className="flex gap-2">
-                          <input
-                            type="password"
-                            id="inline-gemini-key"
-                            placeholder="Incolla chiave API..."
-                            className="flex-1 px-3 py-2 bg-white border border-rose-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:border-[#FF6B5F]"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const inputEl = document.getElementById('inline-gemini-key') as HTMLInputElement;
-                              if (inputEl && inputEl.value.trim()) {
-                                const cleanKey = inputEl.value.trim().replace(/['"]/g, '');
-                                localStorage.setItem('gemini_api_key', cleanKey);
-                                setErrorMsg('');
-                                setStep('input');
-                                handleExtract();
-                              }
-                            }}
-                            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
-                          >
-                            Salva e Riprova
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                    <p className="text-[11px] text-rose-700 mt-3 pt-3 border-t border-rose-200">
+                      Il testo e gli allegati restano pronti: puoi riprovare senza reinserirli.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1348,6 +1410,28 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       </div>
 
       {/* Mini-Modal Quando vuoi andare? */}
+      {showCloudflareConsent && (
+        <div className="fixed inset-0 z-[1000000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+          <div role="dialog" aria-modal="true" aria-labelledby="cloudflare-ai-consent-title" className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+            <h3 id="cloudflare-ai-consent-title" className="text-lg font-extrabold text-slate-900 dark:text-white">Prima di usare HouniAI</h3>
+            <div className="mt-3 space-y-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+              <p>Il testo o l’immagine scelti saranno inviati a Cloudflare Workers AI solo dopo questa conferma.</p>
+              <p>Cloudflare dichiara zero conservazione per l’inferenza standard e nessun addestramento sui contenuti. Può conservare metadati operativi senza il contenuto.</p>
+              <p>I PDF testuali vengono letti sul dispositivo e viene inviato soltanto il testo estratto. Non inviare documenti d’identità, dati bancari o contenuti non necessari.</p>
+              <p>Nessuna scheda viene salvata finché non la approvi singolarmente.</p>
+            </div>
+            <div className="mt-5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button type="button" onClick={() => setShowCloudflareConsent(false)} className="rounded-xl border border-slate-300 px-4 py-3 text-xs font-bold text-slate-700 dark:border-slate-600 dark:text-slate-200">Continua manualmente</button>
+              <button type="button" onClick={() => {
+                grantCloudflareAiConsent();
+                setShowCloudflareConsent(false);
+                void handleExtract();
+              }} className="rounded-xl bg-[#FF6B5F] px-4 py-3 text-xs font-bold text-white">Ho capito, invia</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {pendingSuggestion && (
         <div className="fixed inset-0 z-[1000000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
           <div className="bg-white dark:bg-[#1E293B] rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700 animate-scale-up">

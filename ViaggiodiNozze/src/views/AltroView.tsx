@@ -4,6 +4,7 @@ import AssicurazioneView from './altro/AssicurazioneView';
 import DocumentiGalleriaView from './altro/DocumentiGalleriaView';
 import BagagliView from './altro/BagagliView';
 import NoteViaggioView from './altro/NoteViaggioView';
+import ScadenzeView from './altro/ScadenzeView';
 import GestioneViaggioView from './altro/GestioneViaggioView';
 import { EmergenzeView, TravelToolkitView } from './altro/EmergenzeToolkitView';
 
@@ -26,6 +27,7 @@ import {
 } from '../components/icons/TrailIcons';
 import PdfExportModal from '../components/modals/PdfExportModal';
 import { useGlobalAdminAccess } from '../hooks/useGlobalAdminAccess';
+import { CalendarClock } from 'lucide-react';
 
 const LiveView = lazyWithRetry(() => import('./altro/LiveView'), 'LiveView');
 const SpeseBudgetView = lazyWithRetry(() => import('./altro/SpeseBudgetView'), 'SpeseBudgetView');
@@ -33,7 +35,7 @@ import { storageService } from '../storage/storageService';
 import { getTripConfig } from '../utils/tripConfig';
 import type { DeviceRole } from '../types';
 
-type SubViewType = 'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | 'gestione' | null;
+type SubViewType = 'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'scadenze' | 'galleria' | 'gestione' | null;
 
 interface AltroViewProps {
   initialSubView?: SubViewType;
@@ -127,6 +129,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   }
   if (activeSubView === 'bagagli') return <BagagliView onBack={handleBack} />;
   if (activeSubView === 'note') return <NoteViaggioView onBack={handleBack} />;
+  if (activeSubView === 'scadenze') return <ScadenzeView onBack={handleBack} />;
   if (activeSubView === 'galleria') return <DocumentiGalleriaView onBack={handleBack} />;
   if (activeSubView === 'gestione') return <GestioneViaggioView onBack={handleBack} />;
 
@@ -252,6 +255,18 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
       </div>
 
       {/* ───────────────────────────────────────────────────────────── */}
+      <button
+        type="button"
+        onClick={() => setActiveSubView('scadenze')}
+        className="hounigo-route-item hounigo-touch-feedback w-full rounded-2xl border border-amber-200/90 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/20 px-4 py-3.5 flex items-center justify-between text-left shadow-xs hover:shadow-sm transition-all"
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm"><CalendarClock size={20} /></div>
+          <div className="min-w-0"><h4 className="text-sm font-extrabold text-[#172033] dark:text-white">Scadenze</h4><p className="text-[11px] text-slate-600 dark:text-slate-300 truncate">Check-in, documenti, pagamenti e promemoria</p></div>
+        </div>
+        <span className="text-slate-400 text-sm ml-2">›</span>
+      </button>
+
       {/* 3. SICUREZZA E ASSISTENZA */}
       {/* ───────────────────────────────────────────────────────────── */}
       <div className="space-y-1.5">

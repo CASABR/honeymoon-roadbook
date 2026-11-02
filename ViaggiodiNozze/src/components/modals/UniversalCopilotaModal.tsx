@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Modal from '../common/Modal';
 import { Compass, Check } from 'lucide-react';
 
@@ -22,12 +22,14 @@ export default function UniversalCopilotaModal({
   const [notes, setNotes] = useState(noteCopilota || '');
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
+  const wasOpenRef = useRef(false);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !wasOpenRef.current) {
       setNotes(noteCopilota || '');
       setShowSavedFeedback(false);
     }
+    wasOpenRef.current = isOpen;
   }, [isOpen, noteCopilota]);
 
   const handleSave = async () => {
@@ -66,6 +68,7 @@ export default function UniversalCopilotaModal({
         {/* Textarea */}
         <div className="flex-1">
           <textarea
+            data-copilota-editor="stable"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             disabled={!canEdit || isSaving}

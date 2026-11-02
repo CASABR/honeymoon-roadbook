@@ -100,7 +100,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             <div className="flex items-center gap-1.5 ml-1 flex-wrap text-xs">
               {accommodation.checkInTime && (
                 <span className="text-slate-600 dark:text-slate-300">
-                  In {accommodation.checkInTime}
+                  Disponibile dalle {accommodation.checkInTime}
                 </span>
               )}
               {accommodation.arrivalTime && (
@@ -115,6 +115,9 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
                 </span>
               )}
             </div>
+          )}
+          {!accommodation.checkInTime && !accommodation.arrivalTime && !accommodation.checkOutTime && (
+            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Orario non indicato</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -251,9 +254,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
           )}
           {(() => {
             const hasQrOrAttachment = Boolean(
-              accommodation.bookingCode?.trim() ||
-              (accommodation as any).pinCode?.trim() ||
-              (accommodation.attachments && accommodation.attachments.length > 0)
+              accommodation.attachments?.some((attachment) => Boolean(attachment.dataUrl?.trim()))
             );
             return (
               <button
@@ -265,11 +266,11 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
                 className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer border ${
                   hasQrOrAttachment
                     ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-800'
-                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 dark:text-indigo-300 dark:border-indigo-800'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 dark:border-slate-600'
                 }`}
-                title="Voucher / Allegati / QR"
+                title="Biglietti e QR"
               >
-                <span className="text-[10px]">🎫</span> Voucher/QR
+                <span className="text-[10px]">🎫</span> Biglietti e QR
               </button>
             );
           })()}

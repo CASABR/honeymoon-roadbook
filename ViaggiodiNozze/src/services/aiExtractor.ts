@@ -1,3 +1,5 @@
+import { callHouniAi } from './houniAiGateway';
+
 /**
  * aiExtractor.ts
  * ─────────────────────────────────────────────────────────────────────────────
@@ -6,7 +8,7 @@
 
 /**
  * Servizio client-side di estrazione dati con Gemini AI.
- * Effettua la chiamata diretta all'API REST di Gemini tramite la chiave VITE_GEMINI_API_KEY.
+ * Invia le richieste al gateway callable autenticato di HouniAI.
  *
  * Modalità:
  *  - 'import' : Importazione Voucher/Testo → estrae campi strutturati per il database.
@@ -43,7 +45,7 @@ export interface ExtractedTappa {
 
 export interface ExtractedTrasporto {
   type: 'trasporto';
-  tipoTrasporto: 'volo' | 'treno' | 'traghetto' | 'auto' | 'transfer';
+  tipoTrasporto: 'volo' | 'treno' | 'traghetto' | 'auto' | 'transfer' | 'taxi';
   date: string;           // YYYY-MM-DD
   departureTime?: string; // HH:mm
   arrivalDate?: string;   // YYYY-MM-DD
@@ -173,7 +175,7 @@ const SINGLE_BOOKING_PROPERTIES = {
     type: "object",
     description: "Dati trasporto. Per voli con scalo compila l'oggetto layover e usa arrivalDate per l'arrivo finale.",
     properties: {
-      tipoTrasporto: { type: "string", enum: ["volo", "treno", "traghetto", "auto", "transfer"] },
+      tipoTrasporto: { type: "string", enum: ["volo", "treno", "traghetto", "auto", "transfer", "taxi"] },
       date: { type: "string", description: "Data partenza nel formato YYYY-MM-DD" },
       departureTime: { type: "string", description: "Orario partenza HH:mm" },
       arrivalDate: { type: "string", description: "Data arrivo a destinazione finale YYYY-MM-DD se diversa da partenza" },
@@ -288,7 +290,7 @@ const SYSTEM_PROMPT = `Sei un assistente specializzato nell'estrarre informazion
 Categorie ammesse:
 - attivita: musei, parchi, zoo, tour, escursioni, spettacoli (Es. "Prenotazione per Zoo Safari Fasano" => attivita).
 - alloggio: SOLO per pernottamenti (hotel, b&b, resort, appartamenti). Non includere zoo o parchi qui.
-- trasporto: voli, treni, traghetti, noleggi auto, transfer.
+- trasporto: voli, treni, traghetti, noleggi auto, transfer e taxi.
 - ristorante: pranzi, cene, degustazioni.
 - shopping: acquisti, negozi, centri commerciali, mercati, souvenir, rifornimenti.
 - tappa: città, spostamenti generali dell'itinerario.
@@ -342,193 +344,8 @@ export function stripHtml(html: string): string {
 const apiCache = new Map<string, { data: any, ts: number }>();
 const CACHE_TTL = 10 * 60 * 1000;
 
-/** Modello di fallback predefinito */
-/** Modello di default ufficiale */
-export let GEMINI_MODEL = 'gemini-3.1-flash-lite';
-
-// Modelli supportati in ordine di disponibilità ed efficienza verificata:
-// gemini-3.1-flash-lite e 3.5-flash-lite rispondono in pochi secondi senza sovraccarico 503
-export const PREFERRED_GEMINI_MODELS = [
-  'gemini-3.1-flash-lite',
-  'gemini-3.5-flash-lite',
-  'gemini-3.5-flash',
-  'gemini-3.8-flash',
-  'gemini-flash-latest'
-];
-
-// Cache in memoria del modello verificato funzionante
-let cachedWorkingModel: string | null = null;
-
-/**
- * Risolve dinamicamente il miglior modello Gemini disponibile per la chiave API corrente.
- * Se listModels ha successo, sceglie tra i modelli Flash moderni supportati (priorità a gemini-3.1-flash-lite).
- */
-export async function getWorkingGeminiModel(cleanKey: string): Promise<string> {
-  if (cachedWorkingModel) return cachedWorkingModel;
-
-  try {
-    const listController = new AbortController();
-    const listTimeout = setTimeout(() => listController.abort(), 4000);
-    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`;
-    const res = await fetch(listUrl, { signal: listController.signal });
-    clearTimeout(listTimeout);
-
-    if (res.ok) {
-      const data = await res.json();
-      const models: Array<{ name: string; supportedGenerationMethods?: string[] }> = data.models || [];
-      const supported = models.filter(m => Array.isArray(m.supportedGenerationMethods) && m.supportedGenerationMethods.includes('generateContent'));
-      
-      if (supported.length > 0) {
-        // Normalizza il nome (es: "models/gemini-3.1-flash-lite" -> "gemini-3.1-flash-lite")
-        const cleanNames = supported.map(m => m.name.replace(/^models\//, ''));
-        
-        const match = PREFERRED_GEMINI_MODELS.find(pref => cleanNames.includes(pref));
-        if (match) {
-          cachedWorkingModel = match;
-          GEMINI_MODEL = match;
-          return match;
-        }
-      }
-    }
-  } catch (e) {
-    console.warn('[Gemini] Fallback automatico su modello default a causa di errore listModels:', e);
-  }
-
-  cachedWorkingModel = 'gemini-3.1-flash-lite';
-  return 'gemini-3.1-flash-lite';
-}
-
-/**
- * Risolve la chiave API: 
- * Modello BYOK (Bring Your Own Key) sicuro.
- * La chiave viene letta esclusivamente da localStorage ('gemini_api_key'),
- * memorizzata privatamente sul dispositivo dell'utente.
- * Nessuna chiave statica di ambiente viene incorporata o letta dal bundle pubblico di produzione.
- */
-export function resolveGeminiApiKey(): string {
-  let apiKey: string | null | undefined = null;
-  if (typeof localStorage !== 'undefined') {
-    apiKey = localStorage.getItem('gemini_api_key');
-  }
-  const cleaned = (apiKey || '').trim().replace(/['"]/g, '').trim();
-  if (cleaned.includes('la_tua_chiave')) {
-    return '';
-  }
-  return cleaned;
-}
-
-/** Chiamata a Gemini tramite REST API diretta con fallback automatico e gestione diagnostica HTTP accurata. */
 async function callGemini(requestBody: any): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
-  try {
-    const rawApiKey = resolveGeminiApiKey();
-    if (!rawApiKey) {
-      return { 
-        ok: false, 
-        error: 'Chiave API Gemini mancante o non configurata. Inserisci la tua chiave API Google AI nelle Impostazioni o direttamente qui sotto.' 
-      };
-    }
-    const cleanKey = rawApiKey.trim().replace(/['"]/g, '');
-
-    // Seleziona modello iniziale
-    const initialModel = await getWorkingGeminiModel(cleanKey);
-    const candidateModels = [
-      initialModel,
-      ...PREFERRED_GEMINI_MODELS.filter(m => m !== initialModel)
-    ];
-
-    let lastErrorMsg = '';
-
-    for (const modelToUse of candidateModels) {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelToUse}:generateContent?key=${cleanKey}`;
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 8500);
-
-      try {
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(requestBody),
-          signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        if (response.ok) {
-          cachedWorkingModel = modelToUse;
-          GEMINI_MODEL = modelToUse;
-          const responseJson = await response.json();
-          const parts = responseJson?.candidates?.[0]?.content?.parts || [];
-          const rawText = parts.map((p: any) => p?.text || '').join('');
-
-          if (!rawText) return { ok: false, error: 'Risposta vuota o formato non valido.' };
-          return { ok: true, text: rawText };
-        }
-
-        const errText = await response.text();
-        let parsedErr: any = null;
-        try {
-          parsedErr = JSON.parse(errText);
-        } catch {
-          parsedErr = null;
-        }
-
-        const gError = parsedErr?.error || parsedErr;
-        const errMsg = gError?.message || errText;
-        console.warn(`[Gemini API] Modello ${modelToUse} HTTP ${response.status}:`, errMsg);
-
-        // 401 / 403: Credenziali o permessi non validi -> non riprovare altri modelli con la stessa chiave
-        if (response.status === 401 || response.status === 403) {
-          return { 
-            ok: false, 
-            error: `Errore credenziali API Gemini (${response.status}): la chiave non è autorizzata o è scaduta. Inserisci una chiave Google AI valida.` 
-          };
-        }
-
-        // 400: Parametri non validi
-        if (response.status === 400) {
-          return { 
-            ok: false, 
-            error: `Richiesta non valida per il modello ${modelToUse} (${response.status}): ${errMsg}` 
-          };
-        }
-
-        // 429: Limite di utilizzo (Rate Limit)
-        if (response.status === 429) {
-          lastErrorMsg = `Limite richieste per ${modelToUse} (429). Tentativo su modello alternativo...`;
-          continue;
-        }
-
-        // 404: Modello non disponibile
-        if (response.status === 404) {
-          lastErrorMsg = `Modello ${modelToUse} non disponibile (404). Tentativo su modello alternativo...`;
-          continue;
-        }
-
-        // 503: Servizio temporaneamente non disponibile / sovraccarico
-        if (response.status === 503) {
-          lastErrorMsg = `Modello ${modelToUse} momentaneamente sovraccarico (503). Tentativo su modello alternativo...`;
-          continue;
-        }
-
-        lastErrorMsg = `Errore API Gemini (${response.status}): ${errMsg}`;
-      } catch (networkErr: any) {
-        clearTimeout(timeoutId);
-        const isTimeout = networkErr.name === 'AbortError';
-        const msg = isTimeout ? `Tempo scaduto su ${modelToUse} (timeout 8s). Tentativo su modello alternativo...` : (networkErr.message || 'Errore di connessione a Gemini');
-        console.warn(`[Gemini Network Error] su ${modelToUse}:`, msg);
-        lastErrorMsg = msg;
-      }
-    }
-
-    return { 
-      ok: false, 
-      error: lastErrorMsg || 'Tutti i modelli Gemini configurati sono momentaneamente occupati o non raggiungibili.' 
-    };
-  } catch (error: any) {
-    console.error('Errore chiamata Gemini REST API:', error);
-    return { ok: false, error: `Errore rete: ${error.message || 'Sconosciuto'}` };
-  }
+  return callHouniAi(requestBody);
 }
 
 const sanitizeSuggestion = (s: any): ConciergeSuggestion | undefined => {
@@ -784,8 +601,29 @@ export async function extractFromAttachment(
     return { success: false, entityType: 'sconosciuto', error: 'Nessun file fornito per l\'analisi.' };
   }
 
+  if (attachment.type === 'pdf') {
+    try {
+      const { extractTextFromPdfDataUrl } = await import('./pdfTextExtractor');
+      const extractedText = await extractTextFromPdfDataUrl(attachment.dataUrl);
+      if (extractedText.trim().length < 30) {
+        return {
+          success: false,
+          entityType: 'sconosciuto',
+          error: 'Il PDF non contiene testo leggibile. I PDF scannerizzati richiedono una prova vision reale; inserisci i dati manualmente.'
+        };
+      }
+      return extractFromText(`Documento: ${attachment.name}\n\n${extractedText}`, contextStr, 'import');
+    } catch {
+      return {
+        success: false,
+        entityType: 'sconosciuto',
+        error: 'Non è stato possibile leggere il testo del PDF sul dispositivo. Inserisci i dati manualmente.'
+      };
+    }
+  }
+
   // Estrai mimeType e rawBase64
-  let mimeType = attachment.type === 'pdf' ? 'application/pdf' : 'image/jpeg';
+  let mimeType = 'image/jpeg';
   let base64Data = attachment.dataUrl;
 
   if (attachment.dataUrl.startsWith('data:')) {

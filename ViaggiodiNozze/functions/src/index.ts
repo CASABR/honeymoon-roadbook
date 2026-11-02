@@ -2,6 +2,14 @@ import * as functions from 'firebase-functions/v2';
 import * as admin from 'firebase-admin';
 import * as crypto from 'crypto';
 import { performAdminTripDeletion, TripDeletionError } from './tripDeletion';
+export {
+  dispatchDuePushNotifications,
+  getPushRegistrationStatus,
+  recordPushMutation,
+  registerPushSubscription,
+  sendTestPush,
+  unregisterPushSubscription,
+} from './pushFunctions';
 
 admin.initializeApp();
 
@@ -87,8 +95,51 @@ Il tuo compito:
 import { defineSecret } from "firebase-functions/params";
 const geminiApiKey = defineSecret("GEMINI_API_KEY");
 
+function requireAiTripId(value: unknown): string {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value.trim())) {
+    throw new functions.https.HttpsError('invalid-argument', 'Viaggio non valido.');
+  }
+  return value.trim();
+}
+
+async function assertAiEditor(tripId: string, uid: string): Promise<void> {
+  const tripRef = admin.firestore().collection('trips').doc(tripId);
+  const [trip, member] = await Promise.all([tripRef.get(), tripRef.collection('members').doc(uid).get()]);
+  const tripData = trip.data() || {};
+  const memberRole = member.data()?.role;
+  const isOwner = trip.exists && (tripData.ownerUid === uid || tripData.ownerId === uid);
+  const isCopilota = member.exists && (memberRole === 'owner' || memberRole === 'copilota');
+  if (!isOwner && !isCopilota) {
+    throw new functions.https.HttpsError('permission-denied', 'HouniAI è riservata a Owner e Copilota autorizzati.');
+  }
+}
+
+async function enforceAiRateLimit(tripId: string, uid: string): Promise<void> {
+  const now = Date.now();
+  const minuteBucket = Math.floor(now / 60_000);
+  const dayBucket = new Date(now).toISOString().slice(0, 10);
+  const identity = crypto.createHash('sha256').update(`${tripId}|${uid}`).digest('hex').slice(0, 40);
+  const rateRef = admin.firestore().collection('ai_rate_limits').doc(identity);
+  await admin.firestore().runTransaction(async transaction => {
+    const current = await transaction.get(rateRef);
+    const data = current.data() || {};
+    const minuteCount = data.minuteBucket === minuteBucket ? Number(data.minuteCount || 0) : 0;
+    const dayCount = data.dayBucket === dayBucket ? Number(data.dayCount || 0) : 0;
+    if (minuteCount >= 6 || dayCount >= 40) {
+      throw new functions.https.HttpsError('resource-exhausted', 'Limite HouniAI raggiunto.');
+    }
+    transaction.set(rateRef, {
+      minuteBucket,
+      minuteCount: minuteCount + 1,
+      dayBucket,
+      dayCount: dayCount + 1,
+      updatedAt: now,
+    }, { merge: true });
+  });
+}
+
 export const smartExtract = functions.https.onCall(
-  { secrets: [geminiApiKey], cors: true },
+  { secrets: [geminiApiKey], cors: true, enforceAppCheck: true, consumeAppCheckToken: true },
   async (request) => {
     // 1. Verifica autenticazione (facoltativo ma consigliato)
     if (!request.auth) {
@@ -97,6 +148,10 @@ export const smartExtract = functions.https.onCall(
         "Devi essere autenticato per usare questa funzione."
       );
     }
+
+    const tripId = requireAiTripId(request.data?.tripId);
+    await assertAiEditor(tripId, request.auth.uid);
+    await enforceAiRateLimit(tripId, request.auth.uid);
 
     const text = request.data.text;
     if (!text || typeof text !== "string") {
@@ -115,11 +170,7 @@ export const smartExtract = functions.https.onCall(
     }
 
     // Modello predefinito: gemini-3.8-flash (con fallback automatico a 3.5 o flash-latest se in alta domanda)
-    const preferredModels = [
-      "gemini-3.8-flash",
-      "gemini-3.5-flash",
-      "gemini-flash-latest"
-    ];
+    const preferredModels = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.8-flash"];
 
     let lastError = null;
     let responseJson = null;
@@ -159,8 +210,8 @@ export const smartExtract = functions.https.onCall(
           break;
         }
 
-        const errorText = await response.text();
-        console.warn(`[smartExtract] Modello ${model} ha risposto HTTP ${response.status}:`, errorText);
+        await response.text();
+        console.warn(`[smartExtract] Modello ${model} ha risposto HTTP ${response.status}.`);
         lastError = `Errore API Gemini (${response.status}) su ${model}`;
         // Se 404 o 503, prova il modello successivo
         if (response.status !== 404 && response.status !== 503) {
@@ -198,27 +249,29 @@ export const smartExtract = functions.https.onCall(
  * Richiede autenticazione.
  */
 export const callGeminiApi = functions.https.onCall(
-  { secrets: [geminiApiKey], cors: true },
+  { secrets: [geminiApiKey], cors: true, enforceAppCheck: true, consumeAppCheckToken: true },
   async (request) => {
     if (!request.auth) {
       throw new functions.https.HttpsError("unauthenticated", "Devi essere autenticato.");
     }
+    const tripId = requireAiTripId(request.data?.tripId);
+    await assertAiEditor(tripId, request.auth.uid);
+    await enforceAiRateLimit(tripId, request.auth.uid);
+
     const requestBody = request.data?.requestBody;
     if (!requestBody) {
       throw new functions.https.HttpsError("invalid-argument", "Manca requestBody.");
     }
+    if (JSON.stringify(requestBody).length > 8_000_000) {
+      throw new functions.https.HttpsError('invalid-argument', 'Contenuto troppo grande.');
+    }
     const apiKey = geminiApiKey.value();
     if (!apiKey) {
-      throw new functions.https.HttpsError("internal", "API Key non configurata lato server.");
+      throw new functions.https.HttpsError("failed-precondition", "HouniAI non configurata lato server.");
     }
 
-    const modelsToTry = [
-      "gemini-3.8-flash",
-      "gemini-3.5-flash",
-      "gemini-flash-latest"
-    ];
+    const modelsToTry = ["gemini-3.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3.8-flash"];
 
-    let lastErrorText = "";
     for (const model of modelsToTry) {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
       try {
@@ -230,8 +283,11 @@ export const callGeminiApi = functions.https.onCall(
         if (response.ok) {
           return await response.json();
         }
-        lastErrorText = await response.text();
-        console.warn(`[callGeminiApi] Modello ${model} HTTP ${response.status}:`, lastErrorText);
+        await response.text();
+        console.warn(`[callGeminiApi] Modello ${model} HTTP ${response.status}.`);
+        if (response.status === 429) {
+          throw new functions.https.HttpsError("resource-exhausted", "Quota HouniAI temporaneamente esaurita.");
+        }
         if (response.status !== 404 && response.status !== 503) {
           throw new functions.https.HttpsError("internal", `Errore API Gemini (${response.status})`);
         }
@@ -240,7 +296,7 @@ export const callGeminiApi = functions.https.onCall(
       }
     }
 
-    throw new functions.https.HttpsError("internal", "Nessun modello Gemini ha risposto con successo.");
+    throw new functions.https.HttpsError("unavailable", "HouniAI temporaneamente non disponibile.");
   }
 );
 

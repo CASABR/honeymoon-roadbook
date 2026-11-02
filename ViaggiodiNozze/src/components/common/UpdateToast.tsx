@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRegisterSW } from 'virtual:pwa-register/react';
+import { setAppUpdateAvailable } from '../../utils/appUpdateState';
 
 /**
  * Toast non invasivo che appare quando il Service Worker ha una nuova versione disponibile.
@@ -21,6 +22,7 @@ export default function UpdateToast() {
   });
 
   useEffect(() => {
+    setAppUpdateAvailable(needRefresh);
     if (needRefresh) setVisible(true);
   }, [needRefresh]);
 

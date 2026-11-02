@@ -39,9 +39,7 @@ import SmartInsertModal from './components/modals/SmartInsertModal';
 import { InstallPWA } from './components/InstallPWA';
 import DesktopNavigation, { type DesktopNavSection } from './components/common/DesktopNavigation';
 import PrenotazioniWorkspaceView from './views/desktop/PrenotazioniWorkspaceView';
-// Dichiarazione della costante globale iniettata da Vite
-declare const __BUILD_TIME__: string;
-declare const __COMMIT_HASH__: string;
+import AppInfoModal, { AppInfoButton } from './components/common/AppInfo';
 
 /**
  * Config iniziale sincrona: localStorage, solo se il dispositivo è autenticato per un viaggio
@@ -390,7 +388,7 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<SectionTab>('oggi');
   const [activeCategoria, setActiveCategoria] = useState<CategoriaTab | null>(null);
-  const [altroSubView, setAltroSubView] = useState<'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'galleria' | null>(null);
+  const [altroSubView, setAltroSubView] = useState<'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'scadenze' | 'galleria' | null>(null);
   const [isCategorieOpen, setIsCategorieOpen] = useState(false);
 
   const [isSmartInsertOpen, setIsSmartInsertOpen] = useState(false);
@@ -416,6 +414,15 @@ export default function App() {
     };
     window.addEventListener('open_smart_insert', handleOpenSmartInsert);
     window.addEventListener('navigate_to', handleNavigateTo);
+    const pushParams = new URLSearchParams(window.location.search);
+    const pushView = pushParams.get('pushView');
+    if (pushView === 'oggi' || pushView === 'trasporti' || pushView === 'attivita' || pushView === 'alloggi' || pushView === 'scadenze') {
+      if (pushView === 'scadenze') handleTabChange('altro', undefined, 'scadenze');
+      else handleTabChange(pushView === 'oggi' ? 'oggi' : 'categorie', pushView === 'oggi' ? undefined : pushView as CategoriaTab);
+      pushParams.delete('pushView');
+      const cleanQuery = pushParams.toString();
+      window.history.replaceState({}, '', `${window.location.pathname}${cleanQuery ? `?${cleanQuery}` : ''}${window.location.hash}`);
+    }
     return () => {
       window.removeEventListener('open_smart_insert', handleOpenSmartInsert);
       window.removeEventListener('navigate_to', handleNavigateTo);
@@ -740,11 +747,6 @@ export default function App() {
         <header className={`w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3]/90 dark:bg-[#172033]/90 backdrop-blur-md sticky top-0 z-30`}>
           <div className="flex items-center gap-1.5">
             <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="h-6 w-auto object-contain max-w-[100px]" />
-            {typeof __BUILD_TIME__ !== 'undefined' && (
-              <span className="text-[9px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/60 px-1.5 py-0.5 rounded-full font-mono">
-                🟢 {typeof __COMMIT_HASH__ !== 'undefined' ? `${__COMMIT_HASH__} · ` : ''}{__BUILD_TIME__}
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
@@ -754,6 +756,7 @@ export default function App() {
             >
               <span className="text-sm font-bold">?</span>
             </button>
+            <AppInfoButton />
             <DarkModeToggle />
             <SettingsMenu />
           </div>
@@ -864,6 +867,9 @@ export default function App() {
 
       {/* PWA Update Toast */}
       <UpdateToast />
+
+      {/* Versione installata e cronologia aggiornamenti */}
+      <AppInfoModal />
 
       {/* PWA Install Button */}
       <InstallPWA />

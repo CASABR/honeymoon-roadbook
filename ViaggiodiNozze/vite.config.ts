@@ -6,9 +6,11 @@ import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 import { execSync } from "child_process";
+import { readFileSync } from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const packageMetadata = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf8"));
 
 let commitHash = 'unknown';
 try {
@@ -40,6 +42,7 @@ export default defineConfig(({ command }) => ({
   // In produzione ('npm run build') la base è '/honeymoon-roadbook/' per GitHub Pages
   base: command === "serve" ? "/" : "/honeymoon-roadbook/",
   define: {
+    __APP_VERSION__: JSON.stringify(packageMetadata.version),
     __BUILD_TIME__: JSON.stringify(new Date().toLocaleString('it-IT', { 
       day: '2-digit', 
       month: 'short', 
@@ -47,8 +50,6 @@ export default defineConfig(({ command }) => ({
       minute: '2-digit' 
     })),
     __COMMIT_HASH__: JSON.stringify(commitHash),
-    'import.meta.env.VITE_GEMINI_API_KEY': JSON.stringify(''),
-    'import.meta.env.VITE_GEMINI_API_KEY_B64': JSON.stringify(''),
   },
   plugins: [
     react(),
@@ -60,6 +61,9 @@ export default defineConfig(({ command }) => ({
         name: "Hounigo",
         short_name: "Hounigo",
         description: "Organizza il viaggio, vivi ogni momento e condividilo con chi vuoi.",
+        id: "/honeymoon-roadbook/",
+        start_url: "/honeymoon-roadbook/",
+        scope: "/honeymoon-roadbook/",
         theme_color: "#FF6B5F",
         background_color: "#ffffff",
         display: "standalone",

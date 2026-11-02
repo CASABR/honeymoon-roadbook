@@ -1,0 +1,27 @@
+# Cronologia aggiornamenti HOUNIGO
+
+Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
+
+## 1.3.0 — 2026-11-02
+
+- HouniAI gratuita disponibile per chat e importazione da testo, PDF e immagini.
+- Accesso HouniAI riservato a Owner e Copilota, con quote gratuite e fallback manuale.
+- Smart Import mantiene revisione e approvazione individuale prima di ogni salvataggio.
+
+## 1.2.0 — 2026-10-30
+
+- Nuova sezione Scadenze accessibile da Oggi e Altro, con stati, link e date da verificare.
+- Promemoria visibili nell'app anche offline, sincronizzati tra Owner e Copilota con tombstone preservati.
+- Preparazione push documentata; le notifiche server restano disattivate fino alla configurazione Firebase autorizzata.
+
+## 1.1.0 — 2026-10-30
+
+- Timeline cronologica corretta, card più leggibili, orari evidenziati, soste fotografiche e Taxi.
+- Migliorati desktop e popup, note riordinabili, allegati, Biglietti e QR.
+- Smart Import con approvazione individuale e nuova area informazioni con versione e cronologia.
+
+## 1.0.0 — 2026-10-29
+
+- Migliorata l’esperienza desktop e la coerenza delle schede.
+- Ridotte le letture Firestore ripetute durante l’apertura del viaggio.
+- Rimossi dal pacchetto pubblico i contenuti precompilati non necessari.

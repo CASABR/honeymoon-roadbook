@@ -47,6 +47,7 @@ export interface Attivita {
   endDate?: string; // YYYY-MM-DD (per attività multi-giorno o escursioni estese)
   title: string;
   time?: string; // HH:mm
+  timeZone?: string; // IANA, es. Europe/Rome
   location: string;
   cost?: string; // Costo in €
   category: CategoriaAttivita;
@@ -139,6 +140,7 @@ export interface Alloggio {
   arrivalTime?: string; // HH:mm (mio orario di arrivo previsto)
   checkOut: string; // YYYY-MM-DD
   checkOutTime?: string; // HH:mm (orario check-out struttura)
+  timeZone?: string; // IANA, usato esclusivamente per promemoria certi
   address: string;
   cost?: string; // Costo totale in €
   depositPaid?: string; // Somma versata / saldo pagato
@@ -158,7 +160,7 @@ export interface Alloggio {
   updatedAt: number;
 }
 
-export type TipoTrasporto = 'volo' | 'traghetto' | 'auto' | 'camper' | 'transfer' | 'treno';
+export type TipoTrasporto = 'volo' | 'traghetto' | 'auto' | 'camper' | 'transfer' | 'taxi' | 'treno';
 export type StatoTrasporto = 'pianificato' | 'prenotato' | 'da_prenotare' | 'completato' | 'annullato';
 
 export interface TransportAttachment {
@@ -195,6 +197,7 @@ export interface Trasporto {
   type: TipoTrasporto;
   date: string; // YYYY-MM-DD
   departureTime?: string; // HH:mm
+  departureTimeZone?: string; // IANA, es. Pacific/Auckland
   arrivalDate?: string; // YYYY-MM-DD (per voli notturni / multi-giorno)
   arrivalTime?: string; // HH:mm
   departureLocation: string;
@@ -203,6 +206,7 @@ export interface Trasporto {
   arrivalIata?: string;
   dropoffDate?: string; // YYYY-MM-DD (per noleggi auto e camper)
   dropoffTime?: string; // HH:mm
+  dropoffTimeZone?: string; // IANA, per riconsegna noleggio
   dropoffLocation?: string; // Luogo di riconsegna
   carrier?: string;
   bookingCode?: string;
@@ -293,7 +297,7 @@ export type TransportSegmentContext = 'leg1' | 'leg2' | 'scalo' | 'arrival' | 'd
 export interface TimelineItem {
   id: string;
   type: 'attivita' | 'trasporto' | 'tappa' | 'ristorante' | 'alloggio' | 'shopping';
-  time: string; // HH:mm or '23:59' if undefined
+  time: string; // HH:mm; stringa vuota se l'orario non e' disponibile
   title: string;
   location: string;
   categoryOrType: string;
@@ -307,6 +311,11 @@ export interface TimelineItem {
   segmentContext?: TransportSegmentContext;
   /** true se `time` è un valore predefinito/indicativo (non inserito dall'utente né da una prenotazione) */
   timeIsDefault?: boolean;
+  effectiveDate?: string;
+  sortTime?: string;
+  sortOrder?: number;
+  physicalLocation?: boolean;
+  informational?: boolean;
 }
 
 export type CategoriaSpesa = 'trasporti' | 'alloggi' | 'attivita' | 'ristoranti' | 'shopping' | 'altro';
@@ -333,7 +342,32 @@ export interface NotaViaggio {
   title?: string;
   content: string;
   color: ColorNota;
+  recordKind?: 'nota';
   order?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type StatoScadenza = 'da_fare' | 'in_attesa' | 'completata' | 'scaduta';
+export type TipoCollegamentoScadenza = 'attivita' | 'alloggio' | 'trasporto' | 'tappa';
+
+export interface Scadenza {
+  id: string;
+  recordKind: 'scadenza';
+  title: string;
+  content: string;
+  color: ColorNota;
+  dueDate?: string;
+  dueTime?: string;
+  timeZone?: string;
+  dateVerified: boolean;
+  status: StatoScadenza;
+  reminderMinutesBefore: number;
+  linkedEntityType?: TipoCollegamentoScadenza;
+  linkedEntityId?: string;
+  linkedEntityLabel?: string;
+  externalUrl?: string;
+  copilotNotes?: string;
   createdAt: number;
   updatedAt: number;
 }

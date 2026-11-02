@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante, Shopping } from '../types';
+import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante, Shopping, Scadenza } from '../types';
 import { storageService } from '../storage/storageService';
 import TimelineItemDetailModal from '../components/modals/TimelineItemDetailModal';
 import Modal from '../components/common/Modal';
@@ -25,6 +25,9 @@ import UniversalCopilotaModal from '../components/modals/UniversalCopilotaModal'
 import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
 import { useDeviceRole } from '../utils/useDeviceRole';
 import { formatDateIT } from '../utils/tripDates';
+import { compareTimelineItems, isPhysicalTimelineItem, timelineMinutes } from '../utils/timelineOrdering';
+import { getEffectiveDeadlineStatus, isDeadlineReminderActive } from '../utils/deadlines';
+import { CalendarClock } from 'lucide-react';
 
 
 interface OggiViewProps {
@@ -92,10 +95,21 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     return getDefaultSelectedDate(tripConfig?.startDate, tripConfig?.endDate, tripConfig?.id);
   });
   const [accommodations, setAccommodations] = useState<Alloggio[]>([]);
+  const [deadlines, setDeadlines] = useState<Scadenza[]>([]);
   const [daysData, setDaysData] = useState<Giorno[]>([]);
   const [, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
   const [bookingCodeCopied, setBookingCodeCopied] = useState(false);
+  useEffect(() => {
+    const loadDeadlines = async () => setDeadlines(await storageService.getScadenze());
+    loadDeadlines();
+    const handleMutation = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (!detail?.entityType || detail.entityType === 'note') loadDeadlines();
+    };
+    window.addEventListener('roadbook_data_mutated', handleMutation);
+    return () => window.removeEventListener('roadbook_data_mutated', handleMutation);
+  }, [tripId]);
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -233,6 +247,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   const calendarContainerRef = useRef<HTMLDivElement>(null);
   const selectedDayBtnRef = useRef<HTMLButtonElement>(null);
+  const insertMenuInputRef = useRef<HTMLInputElement>(null);
   const timelineItemRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   // Modali Dettaglio e Modifica
@@ -246,6 +261,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [creatingCategory, setCreatingCategory] = useState<InsertCategory | null>(null);
   const [insertMenuAfterId, setInsertMenuAfterId] = useState<string | null>(null);
   const [insertDraftTime, setInsertDraftTime] = useState('');
+  const [insertMenuPosition, setInsertMenuPosition] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    openAbove: boolean;
+  } | null>(null);
   const [activeCollision, setActiveCollision] = useState<TimeCollision | null>(null);
   const [feedbackBanner, setFeedbackBanner] = useState<string | null>(null);
 
@@ -261,6 +282,25 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     setInsertDraftTime('');
   };
 
+  const closeInsertMenu = useCallback(() => {
+    setInsertMenuAfterId(null);
+    setInsertMenuPosition(null);
+  }, []);
+
+  useEffect(() => {
+    if (!insertMenuAfterId) return;
+    insertMenuInputRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeInsertMenu();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('resize', closeInsertMenu);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('resize', closeInsertMenu);
+    };
+  }, [closeInsertMenu, insertMenuAfterId]);
+
   const scrollToCurrentEvent = useCallback(() => {
     if (!timeline || timeline.length === 0) return;
     const now = new Date();
@@ -270,10 +310,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     let minDiff = Infinity;
 
     timeline.forEach(item => {
-      const timeStr = item.time || '12:00';
-      const [h, m] = timeStr.split(':').map(Number);
-      if (!isNaN(h) && !isNaN(m)) {
-        const itemMin = h * 60 + m;
+      const itemMin = timelineMinutes(item.time);
+      if (itemMin !== null) {
         const diff = Math.abs(itemMin - currentMin);
         if (diff < minDiff) {
           minDiff = diff;
@@ -315,7 +353,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     try {
       const byTime: { [time: string]: TimelineItem[] } = {};
       filteredItems.forEach(item => {
-        if (!item.time || item.time === '00:00' || item.time === '12:00' && item.type === 'tappa') return;
+        if (!item.time) return;
         // Orari predefiniti/indicativi e promemoria alloggio non sono dati certi: mai collisioni
         if (item.timeIsDefault || item.type === 'alloggio') return;
         // Non considerare segmenti di transito o arrivo collegati dello stesso volo
@@ -369,9 +407,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     const tomorrowStr = getTomorrowDateStr(target);
     if (tomorrowStr) {
       const tItems = await storageService.getTimelineForDate(tomorrowStr);
-      // Filtriamo voli/trasporti che arrivano a mezzanotte esatta (00:00) dal giorno precedente
-      const filteredTItems = tItems.filter(item => !(item.type === 'trasporto' && item.time === '00:00'));
-      setTomorrowTimeline(filteredTItems);
+      setTomorrowTimeline(tItems);
     } else {
       setTomorrowTimeline([]);
     }
@@ -930,6 +966,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     return orig.bookingCode || orig.codicePrenotazione || orig.pnr || orig.conferma || orig.bookingReference || null;
   }, [nextEventItem]);
 
+  const deadlineSummary = useMemo(() => {
+    const active = deadlines.filter(item => getEffectiveDeadlineStatus(item) !== 'completata');
+    const reminders = active.filter(item => isDeadlineReminderActive(item));
+    return { active: active.length, reminders: reminders.length, next: active[0] || null };
+  }, [deadlines]);
+
   return (
     <div className="space-y-4 pt-1 animate-fade-in pb-20 sm:pb-24">
       {/* Toast Feedback Operazioni */}
@@ -1094,6 +1136,21 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           canEdit={canEdit}
           onOpenLive={() => onNavigateTab?.('altro', undefined, 'live')}
         />
+
+        <button
+          type="button"
+          onClick={() => onNavigateTab?.('altro', undefined, 'scadenze')}
+          className="w-full rounded-2xl border border-amber-200/90 dark:border-amber-900/60 bg-amber-50/75 dark:bg-amber-950/20 px-4 py-3 text-left flex items-center justify-between gap-3 shadow-xs hover:shadow-sm transition-all hounigo-touch-feedback"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0"><CalendarClock size={20} /></div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2"><span className="text-sm font-extrabold text-[#172033] dark:text-white">Scadenze</span>{deadlineSummary.reminders > 0 && <span className="rounded-full bg-rose-100 dark:bg-rose-950/60 px-2 py-0.5 text-[9px] font-black text-rose-700 dark:text-rose-300">{deadlineSummary.reminders} da vedere</span>}</div>
+              <p className="text-[11px] text-slate-600 dark:text-slate-300 truncate">{deadlineSummary.next ? `${deadlineSummary.next.title} · ${deadlineSummary.active} attive` : 'Nessun promemoria attivo'}</p>
+            </div>
+          </div>
+          <span className="text-slate-400">›</span>
+        </button>
 
         {/* ─── LIVELLO 1: CARD PROSSIMO PASSO / FOCUS TEMPORALE REALE ─── */}
         {(() => {
@@ -1568,19 +1625,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             stateLabel?: string;
             segmentContext?: import('../types').TransportSegmentContext;
             timeIsDefault?: boolean;
+            effectiveDate?: string;
+            physicalLocation?: boolean;
+            informational?: boolean;
           }[] = [];
 
-          // Ordina rigorosamente per orario (HH:mm)
-          const sortedTimeline = [...timeline].sort((a, b) => {
-            const dateA = a.originalData?.date || a.originalData?.data || a.originalData?.checkIn || '2026-11-28';
-            const dateB = b.originalData?.date || b.originalData?.data || b.originalData?.checkIn || '2026-11-28';
-            const isoA = ((dateA || '').split('-').length === 3 && (dateA || '').split('-')[0].length === 2 ? (dateA || '').split('-').reverse().join('-') : (dateA || ''));
-            const isoB = ((dateB || '').split('-').length === 3 && (dateB || '').split('-')[0].length === 2 ? (dateB || '').split('-').reverse().join('-') : (dateB || ''));
-            if (isoA !== isoB) return isoA.localeCompare(isoB);
-            const timeA = a.time || '12:00';
-            const timeB = b.time || '12:00';
-            return timeA.localeCompare(timeB);
-          });
+          const sortedTimeline = [...timeline].sort(compareTimelineItems);
 
           // Se l'alloggio notturno ha un check-in orario che cade durante il giorno prima dell'ultimo evento,
           // generiamo un piccolo richiamo informativo cronologico 'checkin_callout'
@@ -1596,8 +1646,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
             if (item.type === 'trasporto') {
               const tr = item.originalData as Trasporto;
-              departurePoint = tr.departureLocation || item.location;
-              arrivalPoint = tr.dropoffLocation || tr.arrivalLocation || item.location;
+              if (item.segmentContext === 'arrival') {
+                departurePoint = tr.arrivalLocation || item.location;
+                arrivalPoint = tr.arrivalLocation || item.location;
+              } else {
+                departurePoint = tr.departureLocation || item.location;
+                arrivalPoint = tr.dropoffLocation || tr.arrivalLocation || item.location;
+              }
             }
 
             // Inserisci richiamo informativo se l'orario di check-in è precedente all'item corrente
@@ -1617,7 +1672,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 location: accLoc,
                 coordinate: tonightsAccommodation.coordinate,
                 originalData: tonightsAccommodation,
-                timeIsDefault: false
+                timeIsDefault: false,
+                informational: true,
+                physicalLocation: false
               });
               addedCheckinCallout = true;
             }
@@ -1637,12 +1694,30 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               displayMode: (item as any).displayMode,
               stateLabel: (item as any).stateLabel,
               segmentContext: (item as any).segmentContext,
-              timeIsDefault: item.timeIsDefault
+              timeIsDefault: item.timeIsDefault,
+              effectiveDate: item.effectiveDate,
+              informational: item.informational,
+              physicalLocation: item.physicalLocation
             });
           });
 
-          const activeStates = dayItems.filter(i => i.displayMode === 'state');
-          const visibleCards = dayItems.filter(i => i.displayMode !== 'state');
+          if (tonightsAccommodation && checkInTime && !addedCheckinCallout) {
+            const accLoc = tonightsAccommodation.address || tonightsAccommodation.location || tonightsAccommodation.name;
+            dayItems.push({
+              id: `checkin_callout_${tonightsAccommodation.id}`,
+              type: 'checkin_callout',
+              time: checkInTime,
+              title: `Check-in disponibile: ${tonightsAccommodation.name}`,
+              location: accLoc,
+              coordinate: tonightsAccommodation.coordinate,
+              originalData: tonightsAccommodation,
+              timeIsDefault: false,
+              informational: true,
+              physicalLocation: false
+            });
+          }
+
+          const visibleCards = dayItems;
 
           if (dayItems.length === 0 && !tonightsAccommodation) {
             return (
@@ -1656,16 +1731,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           return (
             <div className="space-y-4">
-              {activeStates.length > 0 && (
-                <div className="flex flex-col gap-2 mb-4">
-                  {activeStates.map((stateItem, idx) => (
-                    <div key={`state-${stateItem.id || idx}`} className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800/60 rounded-2xl p-3 shadow-xs flex items-center justify-center text-center">
-                       <span className="text-[11px] font-bold text-amber-800 dark:text-amber-200 tracking-tight">{stateItem.stateLabel}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
               {/* TIMELINE CRONOLOGICA DEGLI EVENTI DI GIORNATA */}
               {visibleCards.length > 0 && (
                 <div className="space-y-3">
@@ -1677,7 +1742,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   </div>
 
                   {visibleCards.map((item, idx) => {
-                    const nextItem = visibleCards[idx + 1];
+                    const nextItem = isPhysicalTimelineItem(item as TimelineItem)
+                      ? visibleCards.slice(idx + 1).find(candidate => isPhysicalTimelineItem(candidate as TimelineItem))
+                      : undefined;
 
                     const fromLoc = item.arrivalPoint || item.location;
                     const toLoc = nextItem ? (nextItem.departurePoint || nextItem.location) : '';
@@ -1728,7 +1795,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                           </div>
                         ) : isTransport ? (
                           item.id.endsWith('_arrival') || item.id.endsWith('_state') ? (
-                            <InTransitBanner transport={item.originalData as Trasporto} dateStr={selectedDate} />
+                            <InTransitBanner transport={item.originalData as Trasporto} dateStr={selectedDate} segmentContext={item.segmentContext} />
                           ) : (
                             <TrasportoCard
                               transport={item.originalData as Trasporto}
@@ -1801,12 +1868,25 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                             <div className="absolute inset-x-8 top-1/2 border-t border-dashed border-slate-200 dark:border-slate-800" />
                             <button
                               type="button"
-                              onClick={() => {
+                              onClick={(event) => {
                                 if (insertMenuAfterId === item.id) {
-                                  setInsertMenuAfterId(null);
+                                  closeInsertMenu();
                                   return;
                                 }
+                                const rect = event.currentTarget.getBoundingClientRect();
+                                const width = Math.min(544, window.innerWidth - 24);
+                                const openAbove = window.innerHeight - rect.bottom < 260 && rect.top > 260;
+                                const left = Math.min(
+                                  Math.max(12, rect.left + (rect.width / 2) - (width / 2)),
+                                  window.innerWidth - width - 12
+                                );
                                 setInsertDraftTime(suggestTimeBetween(item, nextItem));
+                                setInsertMenuPosition({
+                                  left,
+                                  top: openAbove ? rect.top - 8 : rect.bottom + 8,
+                                  width,
+                                  openAbove
+                                });
                                 setInsertMenuAfterId(item.id);
                               }}
                               className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-full border border-slate-300 bg-white text-base font-bold text-slate-500 shadow-sm transition hover:border-[#FF6B5F] hover:text-[#FF6B5F] focus:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#FF6B5F]/35 dark:border-slate-700 dark:bg-slate-900 ${insertMenuAfterId === item.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'}`}
@@ -1815,12 +1895,29 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                             >
                               +
                             </button>
-                            {insertMenuAfterId === item.id && (
-                              <div className="absolute top-8 z-50 w-[min(34rem,calc(100vw-3rem))] rounded-2xl border border-slate-200 bg-white p-3 shadow-xl dark:border-slate-700 dark:bg-[#172033]">
+                            {insertMenuAfterId === item.id && insertMenuPosition && createPortal(
+                              <div
+                                className="fixed inset-0 z-[100000]"
+                                onMouseDown={closeInsertMenu}
+                                role="presentation"
+                              >
+                              <div
+                                className="fixed max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-3 shadow-2xl dark:border-slate-700 dark:bg-[#172033]"
+                                style={{
+                                  left: insertMenuPosition.left,
+                                  top: insertMenuPosition.top,
+                                  width: insertMenuPosition.width,
+                                  transform: insertMenuPosition.openAbove ? 'translateY(-100%)' : undefined
+                                }}
+                                onMouseDown={(event) => event.stopPropagation()}
+                                role="dialog"
+                                aria-label="Inserisci una nuova card"
+                              >
                                 <div className="mb-3 flex items-end gap-3">
                                   <label className="min-w-0 flex-1 text-[11px] font-bold text-slate-600 dark:text-slate-300">
                                     Orario della nuova card
                                     <input
+                                      ref={insertMenuInputRef}
                                       type="time"
                                       value={insertDraftTime}
                                       onChange={(event) => setInsertDraftTime(event.target.value)}
@@ -1829,7 +1926,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                   </label>
                                   <button
                                     type="button"
-                                    onClick={() => setInsertMenuAfterId(null)}
+                                    onClick={closeInsertMenu}
                                     className="rounded-lg px-2 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
                                   >
                                     Chiudi
@@ -1848,7 +1945,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                       disabled={!insertDraftTime}
                                       onClick={() => {
                                         setCreatingCategory(category.type);
-                                        setInsertMenuAfterId(null);
+                                        closeInsertMenu();
                                       }}
                                       className="rounded-xl border border-slate-200 px-2 py-2 text-left text-[11px] font-bold text-slate-700 transition hover:border-[#FF6B5F] hover:text-[#FF6B5F] disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
                                     >
@@ -1858,12 +1955,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                   ))}
                                 </div>
                               </div>
+                              </div>,
+                              document.body
                             )}
                           </div>
                         )}
 
                         {/* ROUTEBADGE SEQUENZIALE CON SFONDO/PERCORSO TRATTEGGIATO */}
-                        {nextItem && fromLoc && toLoc && fromLoc.trim().toLowerCase() !== toLoc.trim().toLowerCase() && (
+                        {isPhysicalTimelineItem(item as TimelineItem) && nextItem && fromLoc && toLoc && fromLoc.trim().toLowerCase() !== toLoc.trim().toLowerCase() && (
                           <div className="flex flex-col items-center justify-center my-0.5 relative">
                             {/* Tratto tratteggiato superiore */}
                             <div className="w-0.5 h-3 border-l-2 border-dashed border-slate-300 dark:border-slate-700" />

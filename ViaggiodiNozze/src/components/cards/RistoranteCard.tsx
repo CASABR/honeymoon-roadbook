@@ -69,9 +69,10 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
           )}
           {ristorante.orario && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200 text-[11px] font-medium font-mono">
-              ⏰ {ristorante.orario}
+              ⏰ Ore {ristorante.orario} · indicativo
             </span>
           )}
+          {!ristorante.orario && <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Orario non indicato</span>}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -160,9 +161,8 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
           )}
           {(() => {
             const hasQrOrAttachment = Boolean(
-              (ristorante as any).bookingCode?.trim() ||
               (ristorante as any).qrCode?.trim() ||
-              (ristorante.attachments && ristorante.attachments.length > 0)
+              ristorante.attachments?.some((attachment) => Boolean(attachment.dataUrl?.trim()))
             );
             return (
               <button
@@ -174,11 +174,11 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
                 className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs font-semibold transition-colors shadow-2xs cursor-pointer border ${
                   hasQrOrAttachment
                     ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-800'
-                    : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 dark:text-indigo-300 dark:border-indigo-800'
+                    : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 dark:border-slate-600'
                 }`}
-                title="Voucher / Ricevuta / QR"
+                title="Biglietti e QR"
               >
-                <span className="text-[10px]">🎫</span> Voucher/QR
+                <span className="text-[10px]">🎫</span> Biglietti e QR
               </button>
             );
           })()}

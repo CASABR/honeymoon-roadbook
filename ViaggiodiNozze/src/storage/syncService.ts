@@ -11,7 +11,7 @@ export class SyncService {
   private tripId: string;
   private isSyncing = false;
   private pendingSyncRequest = false;
-  private pendingPushQueue: { entityType: string; action: 'save' | 'delete'; data: any }[] = [];
+  private pendingPushQueue: { entityType: string; action: 'save' | 'delete'; data: any; notifyCollaborators: boolean; mutationId?: string }[] = [];
   private autoSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private isDestroyed = false;
   private pendingSyncTimeout: ReturnType<typeof setTimeout> | null = null;
@@ -472,7 +472,10 @@ export class SyncService {
       if (source === 'cloud') return;
       
       try {
-        await this.pushToCloud(entityType, action, data);
+        const mutationId = typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function'
+          ? globalThis.crypto.randomUUID()
+          : `mutation_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        await this.pushToCloud(entityType, action, data, { notifyCollaborators: true, mutationId });
       } catch (err) {
         console.error('[SyncService] Errore Push to Cloud:', err);
       }
@@ -532,22 +535,42 @@ export class SyncService {
     console.log(`[SyncService] Svuotamento coda push in sospeso (${queue.length} elementi)...`);
     for (const item of queue) {
       try {
-        await this.pushToCloud(item.entityType, item.action, item.data);
+        await this.pushToCloud(item.entityType, item.action, item.data, {
+          notifyCollaborators: item.notifyCollaborators,
+          mutationId: item.mutationId,
+        });
       } catch (err) {
         console.warn(`[SyncService] Errore svuotamento push in sospeso per ${item.entityType}:`, err);
       }
     }
   }
 
-  private async pushToCloud(entityType: string, action: 'save' | 'delete', data: any) {
+  private async pushToCloud(
+    entityType: string,
+    action: 'save' | 'delete',
+    data: any,
+    options: { notifyCollaborators?: boolean; mutationId?: string } = {}
+  ) {
     if (!data || !data.id) return;
     if (!isCloudAuthorized()) {
       console.warn(`[SyncService] Push to cloud differito (in coda): sessione non ancora autorizzata dal Cloud per ${entityType}/${data.id}`);
       const existsIndex = this.pendingPushQueue.findIndex(p => p.entityType === entityType && p.data?.id === data.id);
       if (existsIndex >= 0) {
-        this.pendingPushQueue[existsIndex] = { entityType, action, data };
+        this.pendingPushQueue[existsIndex] = {
+          entityType,
+          action,
+          data,
+          notifyCollaborators: options.notifyCollaborators === true,
+          mutationId: options.mutationId,
+        };
       } else {
-        this.pendingPushQueue.push({ entityType, action, data });
+        this.pendingPushQueue.push({
+          entityType,
+          action,
+          data,
+          notifyCollaborators: options.notifyCollaborators === true,
+          mutationId: options.mutationId,
+        });
       }
       return;
     }
@@ -644,6 +667,7 @@ export class SyncService {
       }
       console.log(`[Cloud Sync] Salvato ${entityType} ${data.id}`);
     }
+
   }
 
   // --- 2. CLOUD TO LOCAL ---

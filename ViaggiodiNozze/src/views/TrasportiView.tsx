@@ -24,7 +24,7 @@ const detectCountry = (t: Trasporto): string => {
   return '🌍 Altro';
 };
 
-type FilterType = 'tutti' | 'volo' | 'treno' | 'traghetto' | 'auto_camper' | 'transfer';
+type FilterType = 'tutti' | 'volo' | 'treno' | 'traghetto' | 'auto_camper' | 'transfer' | 'taxi';
 type CountryFilterType = 'tutti' | '🇳🇿 Nuova Zelanda' | '🇦🇺 Australia' | '🇵🇭 Filippine' | '✈️ Intercontinentali' | '🌍 Altro';
 
 export default function TrasportiView() {
@@ -198,7 +198,8 @@ export default function TrasportiView() {
                       (activeFilter === 'treno' && t.type === 'treno') ||
                       (activeFilter === 'traghetto' && t.type === 'traghetto') ||
                       (activeFilter === 'auto_camper' && (t.type === 'auto' || t.type === 'camper')) ||
-                      (activeFilter === 'transfer' && t.type === 'transfer');
+                      (activeFilter === 'transfer' && t.type === 'transfer') ||
+                      (activeFilter === 'taxi' && t.type === 'taxi');
     
     const c = detectCountry(t);
     const countryMatch = (activeCountryFilter === 'tutti') || (activeCountryFilter === c);
@@ -214,7 +215,8 @@ export default function TrasportiView() {
     treno: transports.filter((t) => t.type === 'treno').length,
     traghetto: transports.filter((t) => t.type === 'traghetto').length,
     auto_camper: transports.filter((t) => t.type === 'auto' || t.type === 'camper').length,
-    transfer: transports.filter((t) => t.type === 'transfer').length
+    transfer: transports.filter((t) => t.type === 'transfer').length,
+    taxi: transports.filter((t) => t.type === 'taxi').length
   };
 
   const filterChips: { id: FilterType; label: string; icon: string; count: number }[] = [
@@ -223,7 +225,8 @@ export default function TrasportiView() {
     { id: 'treno', label: 'Treni', icon: '🚆', count: counts.treno },
     { id: 'traghetto', label: 'Traghetti', icon: '🚢', count: counts.traghetto },
     { id: 'auto_camper', label: 'Noleggi & Auto', icon: '🚗', count: counts.auto_camper },
-    { id: 'transfer', label: 'Transfer / Bus', icon: '🚐', count: counts.transfer }
+    { id: 'transfer', label: 'Transfer / Bus', icon: '🚐', count: counts.transfer },
+    { id: 'taxi', label: 'Taxi', icon: '🚕', count: counts.taxi }
   ];
 
   const countryChips: { id: CountryFilterType; label: string }[] = [

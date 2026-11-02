@@ -43,7 +43,7 @@ export default function GmailConnectionRow({ onSearchEmails, className = '', com
           <div className="min-w-0">
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-xs font-bold">Importazione da Gmail</span>
-              <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">Solo tester OAuth</span>
+              <span className="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/30">Accesso OAuth limitato</span>
             </div>
             <p className="text-[10px] text-slate-500 dark:text-slate-400">Il login Google non autorizza la lettura delle email.</p>
           </div>
@@ -56,8 +56,8 @@ export default function GmailConnectionRow({ onSearchEmails, className = '', com
           <p className="rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60 p-2.5 text-amber-900 dark:text-amber-200">
             Hounigo richiede esclusivamente lo scope in sola lettura <code>{GMAIL_READONLY_SCOPE}</code>. Per utenti esterni Google può bloccarlo finché il progetto OAuth non è verificato.
           </p>
-          <p className="text-slate-500 dark:text-slate-400"><strong>Per la verifica futura:</strong> schermata consenso in produzione, dominio e privacy policy verificati, motivazione dello scope, video dimostrativo e revisione Google.</p>
-          <p className="text-slate-500 dark:text-slate-400"><strong>Per un inoltro email dedicato futuro:</strong> serviranno un indirizzo inbound, un backend sicuro di ricezione/parsing e regole chiare di conservazione. Non è attivo nella beta.</p>
+          <p className="text-slate-500 dark:text-slate-400"><strong>Per la verifica futura:</strong> schermata consenso in produzione, dominio e privacy policy verificati, motivazione dello scope, video illustrativo e revisione Google.</p>
+          <p className="text-slate-500 dark:text-slate-400"><strong>Per un inoltro email dedicato futuro:</strong> serviranno un indirizzo inbound, un backend sicuro di ricezione/parsing e regole chiare di conservazione. Il servizio non è ancora disponibile.</p>
           <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-100 dark:border-slate-800">
             <span className="truncate text-[10px] text-slate-400">{googleEmail ? `Account Google: ${googleEmail}` : 'Nessun account Google collegato'}</span>
             <button type="button" onClick={handleTryGmail} className="shrink-0 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 underline">Prova Gmail</button>

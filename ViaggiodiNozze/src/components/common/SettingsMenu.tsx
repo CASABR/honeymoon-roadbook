@@ -4,11 +4,10 @@ import { storageService } from '../../storage/storageService';
 import { clearTripConfig } from '../../utils/tripConfig';
 import { clearDeviceSession } from '../../utils/deviceSession';
 import { idbClearAll } from '../../storage/indexedDB';
-import { usePushNotifications } from '../../hooks/usePushNotifications';
 import AccountSyncModal from '../modals/AccountSyncModal';
-
-declare const __BUILD_TIME__: string;
-declare const __COMMIT_HASH__: string;
+import PushNotificationModal from '../modals/PushNotificationModal';
+import { APP_VERSION, BUILD_TIME, COMMIT_HASH } from '../../utils/appVersion';
+import { openAppInfo } from './AppInfo';
 
 /**
  * Menu Impostazioni compatto, ordinato e mirato.
@@ -22,11 +21,10 @@ export default function SettingsMenu() {
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState<{ type: 'ok' | 'error'; msg: string } | null>(null);
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [showPushModal, setShowPushModal] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [menuCoords, setMenuCoords] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
-
-  const { isSupported, permission, subscription, subscribeToPush, unsubscribeFromPush, isSubscribing } = usePushNotifications();
 
   // Calcolo dinamico coordinate portale per non tagliare mai il menu
   useEffect(() => {
@@ -203,49 +201,20 @@ export default function SettingsMenu() {
               {/* 2. Notifiche Push */}
               <button
                 type="button"
-                disabled={isSubscribing}
-                onClick={async () => {
-                  if (!isSupported) {
-                    showToast('error', 'Notifiche non supportate sul dispositivo.');
-                    return;
-                  }
-                  try {
-                    if (subscription) {
-                      await unsubscribeFromPush();
-                      showToast('ok', '🔕 Notifiche disattivate.');
-                    } else {
-                      const sub = await subscribeToPush();
-                      if (sub) {
-                        showToast('ok', '🔔 Notifiche attivate con successo!');
-                      } else if (permission === 'denied') {
-                        showToast('error', 'Permesso notifiche negato dal browser.');
-                      }
-                    }
-                  } catch (err: any) {
-                    showToast('error', err.message || 'Errore notifiche.');
-                  }
+                onClick={() => {
+                  setOpen(false);
+                  setShowPushModal(true);
                 }}
-                className={`w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800 ${isSubscribing ? 'opacity-70 cursor-not-allowed' : ''}`}
+                className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800"
               >
                 <div className="flex items-center gap-2.5">
-                  <span className="text-base">{subscription ? '🔔' : '🔕'}</span>
+                  <span className="text-base">🔔</span>
                   <div className="text-left">
-                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Notifiche Push</span>
-                    <span className="block text-[10px] text-slate-400 font-normal">
-                      {isSubscribing ? 'Attendere...' : (subscription ? 'Attive' : 'Disattivate')}
-                    </span>
+                    <span className="block text-xs font-bold text-slate-800 dark:text-slate-100">Promemoria</span>
+                    <span className="block text-[10px] text-slate-400 font-normal">Avvisi nell’app; push non attive</span>
                   </div>
                 </div>
-                {!isSubscribing && subscription && (
-                  <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-100 dark:border-emerald-800">
-                    ON
-                  </span>
-                )}
-                {!isSubscribing && !subscription && permission !== 'denied' && (
-                  <span className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-600">
-                    OFF
-                  </span>
-                )}
+                <span className="text-slate-400 text-xs">›</span>
               </button>
 
               {/* 3. Blocca Schermo */}
@@ -355,24 +324,6 @@ export default function SettingsMenu() {
                       <span>{importing ? 'Importazione...' : 'Importa backup JSON'}</span>
                     </button>
 
-                    {/* Chiave API Gemini */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const current = localStorage.getItem('gemini_api_key') || '';
-                        const key = window.prompt('Inserisci la chiave API Gemini:', current);
-                        if (key !== null) {
-                          localStorage.setItem('gemini_api_key', key.trim());
-                          showToast('ok', 'Chiave API Gemini salvata!');
-                        }
-                        setOpen(false);
-                      }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors cursor-pointer border-t border-slate-100 dark:border-slate-800"
-                    >
-                      <span className="text-indigo-400">🔑</span>
-                      <span>Chiave API Gemini</span>
-                    </button>
-
                     {/* Verifica Aggiornamenti PWA */}
                     <button
                       type="button"
@@ -405,8 +356,8 @@ export default function SettingsMenu() {
 
                     {/* Versione Build Tecnica */}
                     <div className="px-4 py-2 text-[10px] text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800 font-mono">
-                      <span>Build: {typeof __COMMIT_HASH__ !== 'undefined' ? __COMMIT_HASH__ : 'git'}</span>
-                      {typeof __BUILD_TIME__ !== 'undefined' && <span> • {__BUILD_TIME__}</span>}
+                      <span>Build: {COMMIT_HASH}</span>
+                      {BUILD_TIME && <span> • {BUILD_TIME}</span>}
                     </div>
 
                     {/* Strumenti amministrativi protetti (visibili SOLO con parametro esplicito ?admin=1) */}
@@ -439,6 +390,17 @@ export default function SettingsMenu() {
                   </div>
                 )}
               </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  openAppInfo();
+                }}
+                className="w-full px-4 py-2.5 text-center text-[10px] font-bold tracking-wide text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 border-t border-slate-100 dark:border-slate-800 transition-colors cursor-pointer"
+              >
+                HOUNIGO v{APP_VERSION}
+              </button>
             </div>
           </div>,
           document.body
@@ -460,6 +422,8 @@ export default function SettingsMenu() {
           onClose={() => setShowAccountModal(false)}
         />
       )}
+
+      <PushNotificationModal isOpen={showPushModal} onClose={() => setShowPushModal(false)} />
 
       {/* Toast Feedback */}
       {toast && (

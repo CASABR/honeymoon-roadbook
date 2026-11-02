@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import type { Trasporto, TipoTrasporto, StatoTrasporto } from '../../types';
+import TimeZoneInput from '../common/TimeZoneInput';
 
 interface TrasportoFormProps {
   initialData?: Trasporto | null;
@@ -24,11 +25,13 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   const [departureLocation, setDepartureLocation] = useState('');
   const [departureIata, setDepartureIata] = useState('');
   const [departureDate, setDepartureDate] = useState(''); // Usa datetime-local -> YYYY-MM-DDTHH:mm
+  const [departureTimeZone, setDepartureTimeZone] = useState('');
 
   // Arrivo / Riconsegna
   const [arrivalLocation, setArrivalLocation] = useState('');
   const [arrivalIata, setArrivalIata] = useState('');
   const [arrivalDate, setArrivalDate] = useState(''); // Usa datetime-local -> YYYY-MM-DDTHH:mm
+  const [dropoffTimeZone, setDropoffTimeZone] = useState('');
 
   // Condizionali Volo/Treno
   const [posti, setPosti] = useState('');
@@ -74,10 +77,12 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setDepartureLocation(initialData.departureLocation || '');
       setDepartureIata(initialData.departureIata || '');
       setDepartureDate(formatForInput(initialData.date, initialData.departureTime));
+      setDepartureTimeZone(initialData.departureTimeZone || '');
       
       if (isRental) {
         setArrivalLocation(initialData.dropoffLocation || initialData.arrivalLocation || '');
-        setArrivalDate(formatForInput(initialData.dropoffDate, initialData.dropoffTime));
+      setArrivalDate(formatForInput(initialData.dropoffDate, initialData.dropoffTime));
+        setDropoffTimeZone(initialData.dropoffTimeZone || '');
       } else {
         setArrivalLocation(initialData.arrivalLocation || '');
         setArrivalIata(initialData.arrivalIata || '');
@@ -117,9 +122,11 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setDepartureLocation('');
       setDepartureIata('');
       setDepartureDate(defaultDate && defaultTime ? `${defaultDate}T${defaultTime}` : '');
+      setDepartureTimeZone('');
       setArrivalLocation('');
       setArrivalIata('');
       setArrivalDate('');
+      setDropoffTimeZone('');
       setPosti('');
       setBagagli('');
       setHasLayover(false);
@@ -176,6 +183,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       
       date: parsedDepDate,
       departureTime: parsedDepTime || undefined,
+      departureTimeZone: departureTimeZone.trim() || undefined,
       departureLocation: departureLocation.trim(),
       departureIata: departureIata.trim() || undefined,
       
@@ -201,6 +209,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         dropoffLocation: arrivalLocation.trim() || undefined,
         dropoffDate: parsedArrDate || undefined,
         dropoffTime: parsedArrTime || undefined,
+        dropoffTimeZone: dropoffTimeZone.trim() || undefined,
       });
     } else {
       onSave({
@@ -254,7 +263,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               { id: 'auto', label: '🚗 Noleggio Auto' },
               { id: 'camper', label: '🚐 Camper' },
               { id: 'traghetto', label: '⛴️ Traghetto' },
-              { id: 'transfer', label: '🚌 Bus / Transfer' }
+              { id: 'transfer', label: '🚌 Bus / Transfer' },
+              { id: 'taxi', label: '🚕 Taxi' }
             ].map(cat => (
               <button
                 key={cat.id}
@@ -333,6 +343,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
             required
           />
+          <TimeZoneInput value={departureTimeZone} onChange={setDepartureTimeZone} label="Fuso orario di partenza" />
         </div>
 
         {/* 5. Arrivo */}
@@ -367,6 +378,9 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             onChange={(e) => setArrivalDate(e.target.value)}
             className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
           />
+          {isRental && (
+            <TimeZoneInput value={dropoffTimeZone} onChange={setDropoffTimeZone} label="Fuso orario di riconsegna" />
+          )}
         </div>
 
         {/* 6. Campi Specifici (Aereo/Treno) */}

@@ -143,6 +143,12 @@ async function run() {
     await testFails(deleteDoc(doc(adminAuthorized, 'system_admins', 'admin-a')), 'Admin stesso NON può cancellare da client su system_admins');
     await testFails(getDocs(collection(adminAuthorized, 'system_admins')), 'Nessun client può eseguire list su system_admins');
 
+    console.log('\n--- BLOCCO 6B: CODE PUSH ACCESSIBILI SOLO DAL BACKEND ---');
+    await testFails(setDoc(doc(owner, 'push_subscribers', 'device-a'), { uid: 'owner-a', tripId: 'trip-a' }), 'Owner NON registra subscription direttamente dal client');
+    await testFails(getDoc(doc(owner, 'push_subscribers', 'device-a')), 'Owner NON legge endpoint push dal client');
+    await testFails(setDoc(doc(adminAuthorized, 'push_jobs', 'job-a'), { tripId: 'trip-a' }), 'Admin client NON crea job push');
+    await testFails(setDoc(doc(copilot, 'push_dispatches', 'dispatch-a'), { tripId: 'trip-a' }), 'Copilota NON altera deduplicazione push');
+
     console.log('\n--- BLOCCO 7: AGGIUNTA E REVOCA COPILOTI VIA BATCH (Spark Nativo) ---');
     const addBatch = writeBatch(owner);
     addBatch.update(doc(owner, 'trips', 'trip-a'), { members: arrayUnion('copilot-new') });
@@ -163,7 +169,7 @@ async function run() {
     await testFails(setDoc(doc(copilot, 'trips', 'trip-a', 'devices', 'dev-after-revoke'), { role: 'copilota' }), 'Copilota revocato perde accesso in scrittura alle sottocollezioni');
 
     console.log('\n=================================================================');
-    console.log(`EMULATOR TEST COMPLETATI: ${passedCount}/46 ASSERZIONI SUPERATE CON SUCCESSO!`);
+    console.log(`EMULATOR TEST COMPLETATI: ${passedCount}/54 ASSERZIONI SUPERATE CON SUCCESSO!`);
     console.log('=================================================================\n');
   } finally {
     await testEnv.cleanup();

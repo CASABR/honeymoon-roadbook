@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
-import type { Attivita, TransportAttachment, Coordinate, TipologiaPercorsoTrekking, FasciaLuceFotografica } from '../../types';
+import type { Attivita, TransportAttachment, Coordinate, TipologiaPercorsoTrekking, FasciaLuceFotografica, Tappa } from '../../types';
 import { processFileForAttachment, formatFileSize, openAttachmentInNewTab, checkStorageAvailability, isSupportedImageFile } from '../../utils/fileAttachment';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import DropZone from '../common/DropZone';
 import type { PlaceSuggestion } from '../../services/photonService';
 import { isPhotoSpotActivity, isTrekkingActivity, PHOTO_LIGHT_LABELS, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
+import TimeZoneInput from '../common/TimeZoneInput';
+import TappaForm from './TappaForm';
 
 interface AttivitaFormProps {
   days?: any[];
@@ -18,10 +20,74 @@ interface AttivitaFormProps {
   onDelete?: () => void;
 }
 
-export default function AttivitaForm({ selectedDayId, defaultTime, initialData, onSave, onCancel, onDelete }: AttivitaFormProps) {
+function LegacyPhotoStopForm({ initialData, defaultTime, onSave, onCancel, onDelete }: AttivitaFormProps) {
+  const activity = initialData as Attivita;
+  const legacyTappa: Tappa = {
+    id: activity.id,
+    titolo: activity.title,
+    sottocategoria: 'Sosta fotografica',
+    data: activity.date,
+    date: activity.date,
+    dayId: activity.dayId,
+    orario: activity.time || activity.orarioInizio || activity.orarioRitrovo,
+    time: activity.time || activity.orarioInizio || activity.orarioRitrovo,
+    coordinate: activity.coordinate,
+    indirizzo: activity.address || activity.location,
+    mapsUrl: activity.link || activity.address || activity.location,
+    nota: activity.notes,
+    noteCopilota: activity.noteCopilota,
+    copilota: activity.copilota,
+    completed: activity.completed,
+    createdAt: activity.createdAt,
+    updatedAt: activity.updatedAt
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+        Sosta fotografica legacy: viene modificata con il formato Tappa senza duplicare o migrare il record.
+      </div>
+      <TappaForm
+        initialData={legacyTappa}
+        defaultTime={defaultTime}
+        onCancel={onCancel}
+        onDelete={onDelete}
+        onSave={(tappa) => onSave({
+          ...activity,
+          id: activity.id,
+          dayId: tappa.dayId || activity.dayId,
+          date: tappa.data || tappa.date || activity.date,
+          title: tappa.titolo,
+          time: tappa.orario || tappa.time,
+          orarioInizio: tappa.orario || tappa.time,
+          orarioRitrovo: tappa.orario || tappa.time,
+          location: tappa.indirizzo || tappa.mapsUrl || tappa.titolo,
+          address: tappa.indirizzo,
+          coordinate: tappa.coordinate,
+          notes: tappa.nota,
+          noteCopilota: tappa.noteCopilota,
+          copilota: tappa.copilota,
+          completed: tappa.completed,
+          sottocategoria: 'Spot fotografico',
+          category: activity.category || 'natura',
+          status: activity.status || 'da_valutare'
+        })}
+      />
+    </div>
+  );
+}
+
+export default function AttivitaForm(props: AttivitaFormProps) {
+  if (props.initialData && isPhotoSpotActivity(props.initialData)) {
+    return <LegacyPhotoStopForm {...props} />;
+  }
+  return <StandardAttivitaForm {...props} />;
+}
+
+function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave, onCancel, onDelete }: AttivitaFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
-  const SOTTOCATEGORIE: Attivita['sottocategoria'][] = ['Trekking', 'Spot fotografico', 'Escursione', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'];
+  const SOTTOCATEGORIE: Attivita['sottocategoria'][] = ['Trekking', 'Escursione', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'];
 
   const [sottocategoria, setSottocategoria] = useState<Attivita['sottocategoria'] | ''>('');
   const [title, setTitle] = useState('');
@@ -29,6 +95,7 @@ export default function AttivitaForm({ selectedDayId, defaultTime, initialData, 
   const [endDate, setEndDate] = useState('');
   const [orarioRitrovo, setOrarioRitrovo] = useState('');
   const [orarioInizio, setOrarioInizio] = useState('');
+  const [timeZone, setTimeZone] = useState('');
   const [duration, setDuration] = useState('');
   const [distanceKm, setDistanceKm] = useState('');
   const [elevationGainM, setElevationGainM] = useState('');
@@ -79,6 +146,7 @@ export default function AttivitaForm({ selectedDayId, defaultTime, initialData, 
       setCustomDate(dateVal);
       setOrarioRitrovo(initialData.orarioRitrovo || '');
       setOrarioInizio(initialData.orarioInizio || initialData.time || '');
+      setTimeZone(initialData.timeZone || '');
       setDuration(initialData.duration || '');
       setDistanceKm(initialData.distanceKm?.toString() || '');
       setElevationGainM(initialData.elevationGainM?.toString() || '');
@@ -120,6 +188,7 @@ export default function AttivitaForm({ selectedDayId, defaultTime, initialData, 
       setTitle('');
       setOrarioRitrovo('');
       setOrarioInizio(defaultTime || '');
+      setTimeZone('');
       setDuration('');
       setDistanceKm('');
       setElevationGainM('');
@@ -268,6 +337,7 @@ export default function AttivitaForm({ selectedDayId, defaultTime, initialData, 
       orarioRitrovo: finalRitrovo,
       time: effectiveTime, // primary timeline time
       orarioInizio: finalInizio,
+      timeZone: timeZone.trim() || undefined,
       duration: duration || undefined,
       distanceKm: trekking && parsedDistance && parsedDistance > 0 ? parsedDistance : initialData?.distanceKm,
       elevationGainM: trekking && parsedElevation && parsedElevation > 0 ? parsedElevation : initialData?.elevationGainM,
@@ -764,6 +834,8 @@ export default function AttivitaForm({ selectedDayId, defaultTime, initialData, 
       </div>
 
       </>}
+
+      <TimeZoneInput value={timeZone} onChange={setTimeZone} label="Fuso orario dell'attività" />
 
       {!isTrekking && !isPhotoSpot && <div>
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">

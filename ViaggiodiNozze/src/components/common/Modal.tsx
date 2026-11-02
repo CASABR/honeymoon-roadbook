@@ -7,9 +7,10 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   accentVariant?: 'amber' | 'purple' | 'sky' | 'indigo' | 'rose' | 'emerald';
+  centered?: boolean;
 }
 
-export default function Modal({ isOpen, onClose, title, children, accentVariant = 'amber' }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, accentVariant = 'amber', centered = false }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
@@ -68,7 +69,7 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
 
   const modalNode = (
     <div 
-        className="modal-backdrop-layer fixed inset-0 z-[99999] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-900/65 backdrop-blur-sm"
+        className={`modal-backdrop-layer fixed inset-0 z-[99999] flex justify-center bg-slate-900/65 backdrop-blur-sm ${centered ? 'items-center p-4' : 'items-end sm:items-center p-0 sm:p-4'}`}
     >
       {/* Click outside to close */}
       <div 
@@ -84,11 +85,11 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`modal-sheet-container relative z-[100000] w-full max-w-lg flex flex-col overflow-hidden border-t sm:border rounded-t-3xl sm:rounded-2xl ${accentBorder} text-[#172033] dark:text-slate-100 dark:bg-[#1E293B] dark:border-slate-700 max-h-[90dvh] sm:my-auto`}
+        className={`modal-sheet-container relative z-[100000] max-w-lg flex flex-col overflow-hidden ${centered ? 'w-full border rounded-2xl' : 'w-full border-t sm:border rounded-t-3xl sm:rounded-2xl'} ${accentBorder} text-[#172033] dark:text-slate-100 dark:bg-[#1E293B] dark:border-slate-700 max-h-[90dvh] sm:my-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* iOS Drag Handle Pill on Mobile */}
-        <div className="w-full flex justify-center pt-2.5 pb-1 sm:hidden shrink-0">
+        <div className={`w-full justify-center pt-2.5 pb-1 sm:hidden shrink-0 ${centered ? 'hidden' : 'flex'}`}>
           <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
         </div>
 

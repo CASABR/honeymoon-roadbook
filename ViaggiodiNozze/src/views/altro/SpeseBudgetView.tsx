@@ -191,6 +191,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             switch (tType) {
               case 'volo': return { name: 'Voli', icon: '✈️' };
               case 'traghetto': return { name: 'Traghetti', icon: '⛴️' };
+              case 'taxi': return { name: 'Taxi', icon: '🚕' };
               case 'auto': return { name: 'Noleggio Auto', icon: '🚗' };
               case 'camper': return { name: 'Camper / Van', icon: '🚐' };
               case 'transfer': return { name: 'Transfer / Bus', icon: '🚌' };
@@ -305,6 +306,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
       let subName = 'Voli';
       let subIcon = '✈️';
       if (tType === 'traghetto') { subName = 'Traghetti'; subIcon = '⛴️'; }
+      else if (tType === 'taxi') { subName = 'Taxi'; subIcon = '🚕'; }
       else if (tType === 'auto') { subName = 'Noleggio Auto'; subIcon = '🚗'; }
       else if (tType === 'camper') { subName = 'Camper / Van'; subIcon = '🚐'; }
       else if (tType === 'transfer') { subName = 'Transfer / Bus'; subIcon = '🚌'; }

@@ -137,7 +137,7 @@ export default function PreDeparturePhotoCard({ tripId, startDate, canEdit, onOp
         )}
         {photo && onOpenLive && <button type="button" onClick={onOpenLive} className="min-h-10 px-2 text-xs font-bold text-slate-500 hover:text-[#172033] dark:hover:text-white">Apri diario LIVE →</button>}
       </div>
-      {photo && <p className="mt-2 text-[10px] leading-relaxed text-slate-500">LIVE è il diario pubblico per gli invitati. In questa beta viene condivisa la cartolina; la foto resta privata sul dispositivo finché non sarà disponibile lo storage immagini verificato.</p>}
+      {photo && <p className="mt-2 text-[10px] leading-relaxed text-slate-500">LIVE è il diario pubblico per gli invitati. Viene condivisa la cartolina; la foto resta privata sul dispositivo finché non sarà disponibile lo spazio immagini dedicato.</p>}
       {message && <p className="mt-2 text-[11px] font-semibold text-slate-700 dark:text-slate-200" role="status">{message}</p>}
     </section>
   );

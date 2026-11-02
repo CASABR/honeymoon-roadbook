@@ -269,7 +269,8 @@ export default function TrasportoCard({
     traghetto: { label: 'Traghetto', icon: '⛴️', modeIcon: '🚢' },
     camper: { label: 'Campervan', icon: '🚐', modeIcon: '🚐' },
     auto: { label: 'Auto a Noleggio', icon: '🚗', modeIcon: '🚗' },
-    transfer: { label: 'Transfer / Taxi', icon: '🚕', modeIcon: '🚕' },
+    transfer: { label: 'Transfer / Bus', icon: '🚐', modeIcon: '🚐' },
+    taxi: { label: 'Taxi', icon: '🚕', modeIcon: '🚕' },
     treno: { label: 'Treno', icon: '🚆', modeIcon: '🚆' }
   };
   const currentType = typeConfig[transport.type] || typeConfig.transfer;
@@ -283,7 +284,7 @@ export default function TrasportoCard({
 
   const hasTicket = Boolean(
     transport.ticketUrl?.trim() ||
-    (transport.attachments && transport.attachments.length > 0)
+    transport.attachments?.some((attachment) => Boolean(attachment.dataUrl?.trim()))
   );
 
   const hasPnr = Boolean(transport.bookingCode && transport.bookingCode.trim());
@@ -307,9 +308,6 @@ export default function TrasportoCard({
             <div className="min-w-0">
               <span className="font-extrabold text-xs uppercase tracking-wider text-slate-900 dark:text-white truncate block">
                 {transport.carrier ? `${transport.carrier}` : currentType.label}
-                {transport.type === 'volo' && transport.bookingCode && !transport.carrier?.includes(transport.bookingCode)
-                  ? ` · ${transport.bookingCode}`
-                  : ''}
               </span>
               <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 block mt-0.5">
                 {formatDateIT(transport.date)}
@@ -358,6 +356,10 @@ export default function TrasportoCard({
           >
             {/* ORIGINE */}
             <div className="min-w-0 text-left">
+              {transport.departureTime && transport.status === 'prenotato' && (
+                <span className="mb-1 block text-[9px] font-extrabold uppercase tracking-wide text-rose-600 dark:text-rose-300">Orario da rispettare</span>
+              )}
+              {!transport.departureTime && <span className="mb-1 block text-[9px] font-semibold text-slate-400 dark:text-slate-500">Orario non indicato</span>}
               <div className="text-xl sm:text-2xl md:text-3xl font-black text-slate-950 dark:text-white tracking-tight font-mono tabular-nums leading-none">
                 {transport.departureTime || originInfo.code}
               </div>
@@ -439,7 +441,7 @@ export default function TrasportoCard({
             </div>
           )}
 
-          {/* 4. STATO CHECK-IN IN UNA RIGA COMPATTA (BETA RELEASE CANDIDATE) */}
+          {/* 4. STATO CHECK-IN IN UNA RIGA COMPATTA */}
           {checkinInfo.cutoffTime && !isCompact && (
             <div className="mt-2 min-w-0 px-2.5 py-1 rounded-lg bg-slate-50/90 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/60 flex items-center justify-between gap-1.5 text-xs">
               <div className="flex items-center gap-1.5 min-w-0 truncate">
@@ -511,25 +513,25 @@ export default function TrasportoCard({
                 type="button"
                 onClick={handleCopyPnr}
                 className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200 text-xs font-bold transition-all border border-slate-200 dark:border-slate-700 max-w-[150px] sm:max-w-[200px] min-w-0"
-                title={`Copia PNR: ${transport.bookingCode}`}
+                title="Copia codice prenotazione"
               >
                 <span className="shrink-0">{pnrCopied ? '✓' : '#️⃣'}</span>
-                <span className="truncate">{pnrCopied ? 'Copiato' : transport.bookingCode}</span>
+                <span className="truncate">{pnrCopied ? 'Codice copiato' : 'Copia codice'}</span>
               </button>
             )}
 
             {/* APRI BIGLIETTO / QR (SOLO SE PRESENTE UN DOCUMENTO) */}
-            {hasTicket && (
+            {
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setIsTicketsOpen(true); }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#172033] hover:bg-slate-800 text-white dark:bg-[#FF6B5F] dark:hover:bg-[#ff5545] text-xs font-bold transition-all shadow-2xs"
-                title="Apri Biglietto o Carta d'Imbarco"
+                className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs border ${hasTicket ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800' : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600'}`}
+                title="Biglietti e QR"
               >
                 <span>🎫</span>
-                <span>Biglietto</span>
+                <span>Biglietti e QR</span>
               </button>
-            )}
+            }
 
             {/* LINK MAPS */}
             {activeMapUrl && (
