@@ -28,6 +28,7 @@ export const KNOWN_COORDINATES: Record<string, Coordinate> = {
   mount_cook: { lat: -43.7342, lng: 170.0963 },
   christchurch: { lat: -43.5321, lng: 172.6362 },
   chc: { lat: -43.4894, lng: 172.5322 }, // Aeroporto Christchurch
+  orchard: { lat: -43.4894, lng: 172.5322 }, // Snap Rentals Christchurch Airport (Orchard Road)
   kaikoura: { lat: -42.4008, lng: 173.6814 },
 
   // Aeroporti e Città Australia
@@ -127,6 +128,11 @@ export const KNOWN_COORDINATES: Record<string, Coordinate> = {
   flinders_chase: { lat: -35.9500, lng: 136.7167 },
   remarkable_rocks: { lat: -36.0500, lng: 136.7547 },
   admirals_arch: { lat: -36.0667, lng: 136.7028 },
+  hanson_bay: { lat: -35.9658, lng: 136.8206 }, // Hanson Bay Wildlife Sanctuary, Kangaroo Island
+  baudin_beach: { lat: -35.7770, lng: 137.8707 }, // Baudin Beach, Kangaroo Island
+  karatta: { lat: -35.9615, lng: 136.8093 }, // Karatta, Kangaroo Island
+  playford_hwy: { lat: -35.7865, lng: 137.1933 }, // Playford Highway, Kangaroo Island
+  stawell: { lat: -37.0605, lng: 142.7585 }, // Stawell, Victoria (Mainland)
   marleston: { lat: -34.9450, lng: 138.5600 },
   tullamarine: { lat: -37.7000, lng: 144.8833 },
   torquay: { lat: -38.3333, lng: 144.3167 },

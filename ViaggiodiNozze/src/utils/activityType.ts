@@ -15,11 +15,24 @@ export const PHOTO_LIGHT_LABELS: Record<FasciaLuceFotografica, string> = {
 };
 
 export function isTrekkingActivity(activity: Pick<Attivita, 'title' | 'sottocategoria'>): boolean {
-  return activity.sottocategoria === 'Trekking' || /\btrekking\b/i.test(activity.title || '');
+  return activity.sottocategoria === 'Trekking' || activity.sottocategoria === 'Escursione' || /\btrekking\b/i.test(activity.title || '');
 }
 
 export function isPhotoSpotActivity(activity: Pick<Attivita, 'sottocategoria'>): boolean {
   return activity.sottocategoria === 'Spot fotografico';
+}
+
+export function isPasseggiataActivity(activity: Pick<Attivita, 'title' | 'sottocategoria'>): boolean {
+  return activity.sottocategoria === 'Passeggiata' || /\bpasseggiat[ae]\b/i.test(activity.title || '');
+}
+
+/**
+ * Mappa la visualizzazione retrocompatibile: 'Escursione' viene mostrata come 'Trekking'.
+ */
+export function getDisplaySubcategory(sottocategoria?: string): string {
+  if (!sottocategoria) return '';
+  if (sottocategoria === 'Escursione') return 'Trekking';
+  return sottocategoria;
 }
 
 export function formatHikingDuration(minutes?: number): string | null {

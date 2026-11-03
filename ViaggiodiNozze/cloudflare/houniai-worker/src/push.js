@@ -239,6 +239,79 @@ export async function handlePushRequest(path, uid, tripId, payload, env) {
 
   if (path === '/v1/push/mutation') return scheduleMutationJobs(uid, tripId, payload, env);
 
+  if (path === '/v1/push/admin-send') {
+    const title = String(payload.title || '').trim().slice(0, 100);
+    const body = String(payload.body || '').trim().slice(0, 250);
+    const target = payload.target || 'all_subscribers';
+    const isDryRun = Boolean(payload.dryRun);
+
+    if (!title || !body) throw new Error('INVALID_PAYLOAD');
+
+    // Anti-spam globale giornaliero: max 100 invii al giorno per Cloudflare Free
+    const dailyCount = await env.RATE_LIMITS.prepare(
+      'SELECT count(*) as total FROM push_dispatches WHERE trip_id = ?1 AND created_at > ?2'
+    ).bind(tripId, Date.now() - 86_400_000).first();
+    if (dailyCount && Number(dailyCount.total) >= MAX_DAILY_SENDS) {
+      throw new Error('DAILY_PUSH_QUOTA_EXCEEDED');
+    }
+
+    // Deduplicazione: stesso titolo e testo inviati entro 60 secondi
+    const dispatchHash = (await sha256(`admin|${tripId}|${title}|${body}`)).slice(0, 48);
+    const recent = await env.RATE_LIMITS.prepare(
+      'SELECT created_at FROM push_dispatches WHERE dispatch_key = ?1'
+    ).bind(dispatchHash).first();
+    if (recent && Date.now() - Number(recent.created_at) < 60_000) {
+      return { success: true, duplicate: true, recipientCount: 0, message: 'Notifica identica già registrata di recente (deduplicazione attiva).' };
+    }
+
+    // Selezione destinatari autorizzati con consenso esplicito (enabled = 1)
+    let queryStr = 'SELECT subscriber_id, subscription_json FROM push_subscriptions WHERE trip_id = ?1 AND enabled = 1';
+    let params = [tripId];
+    if (target === 'custom_uid' && payload.customUid) {
+      queryStr += ' AND uid = ?2';
+      params.push(String(payload.customUid).trim());
+    }
+    const subscribers = await env.RATE_LIMITS.prepare(queryStr).bind(...params).all();
+    const recipientCount = subscribers.results ? subscribers.results.length : 0;
+
+    if (isDryRun) {
+      return {
+        success: true,
+        dryRun: true,
+        recipientCount,
+        message: `Simulazione dry-run verificata con successo: ${recipientCount} dispositivi con consenso rilevati. Nessuna notifica reale inviata.`
+      };
+    }
+
+    // Registra nel log dispatches
+    await env.RATE_LIMITS.prepare(
+      'INSERT OR REPLACE INTO push_dispatches (dispatch_key, trip_id, created_at) VALUES (?1, ?2, ?3)'
+    ).bind(dispatchHash, tripId, Date.now()).run();
+
+    let sentCount = 0;
+    for (const sub of subscribers.results || []) {
+      try {
+        await sendPush(JSON.parse(sub.subscription_json), {
+          title,
+          body,
+          url: `${BASE_PATH}?pushView=oggi`,
+          tag: `admin-broadcast-${Date.now()}`,
+          type: 'announcement'
+        }, env);
+        sentCount++;
+      } catch (err) {
+        console.warn('Errore invio singolo push:', err);
+      }
+    }
+
+    return {
+      success: true,
+      dryRun: false,
+      recipientCount: sentCount,
+      message: `Notifica manuale inviata con successo a ${sentCount} dispositivi autorizzati.`
+    };
+  }
+
   const subscriberId = String(payload.subscriberId || '');
   const registration = subscriberId
     ? await env.RATE_LIMITS.prepare('SELECT * FROM push_subscriptions WHERE subscriber_id = ?1').bind(subscriberId).first()

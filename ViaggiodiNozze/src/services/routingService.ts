@@ -76,13 +76,75 @@ function calculateFallbackRoute(
   if (start && end) {
     const directKm = calculateHaversineDistance(start, end);
 
-    // Se la distanza in linea d'aria supera i 500 km, si tratta di un volo transoceanico/aereo
-    if (directKm > 500) {
+    if (directKm < 0.1) {
+      return {
+        distanceKm: directKm,
+        formattedDistance: '< 100 m',
+        durationSeconds: 60,
+        formattedDuration: '1 min',
+        profile,
+        manualOverride: false
+      };
+    }
+
+    const combined = `${from} ${to}`.toLowerCase();
+    const hasFlightEvidence = (
+      combined.includes('volo') ||
+      combined.includes('flight') ||
+      combined.includes('aeroporto') ||
+      combined.includes('airport') ||
+      combined.includes('terminal internazionale') ||
+      combined.includes('iata')
+    );
+
+    // Se c'è evidenza esplicita di volo o salto intercontinentale accertato
+    if (hasFlightEvidence && directKm > 250) {
       return {
         distanceKm: directKm,
         formattedDistance: 'Tratta aerea',
         durationSeconds: Math.round((directKm / 800) * 3600), // ~800 km/h volo
         formattedDuration: 'Volo',
+        profile,
+        manualOverride: false
+      };
+    }
+
+    // Kangaroo Island coordinate bounding box: isolamento insulare senza traghetto né volo
+    const isKangarooIsland = (c: Coordinate) => {
+      if (c.lat < -36.2 || c.lat > -35.5 || c.lng < 136.5 || c.lng > 138.15) return false;
+      // Cape Jervis si trova sulla terraferma alla latitudine -35.6067 e longitudine 138.0967
+      if (c.lat > -35.65 && c.lng > 138.05) return false;
+      return true;
+    };
+    const hasFerryEvidence = (
+      combined.includes('ferry') ||
+      combined.includes('traghetto') ||
+      combined.includes('sealink') ||
+      combined.includes('penneshaw') ||
+      combined.includes('cape jervis')
+    );
+
+    const isIslandMismatch = (isKangarooIsland(start) !== isKangarooIsland(end)) && !hasFerryEvidence && !hasFlightEvidence;
+
+    // Se c'è una discontinuità geografica evidente (es. Kangaroo Island verso Victoria continentale senza traghetto né volo)
+    if (isIslandMismatch) {
+      return {
+        distanceKm: directKm,
+        formattedDistance: 'Posizione o percorso da verificare',
+        durationSeconds: 0,
+        formattedDuration: 'Percorso non raggiungibile via terra',
+        profile,
+        manualOverride: false
+      };
+    }
+
+    // Se la distanza supera 1000 km senza evidenza di volo: tratta da verificare anziché falso volo
+    if (directKm > 1000 && !hasFlightEvidence) {
+      return {
+        distanceKm: directKm,
+        formattedDistance: 'Posizione o percorso da verificare',
+        durationSeconds: 0,
+        formattedDuration: 'Posizione o percorso da verificare',
         profile,
         manualOverride: false
       };
@@ -229,10 +291,33 @@ export async function getRoute(
     let start = fromCoord;
     let end = toCoord;
 
-    if (!start) start = (await geocode(from)) || lookupKnownCoordinate(from) || undefined;
-    if (!end) end = (await geocode(to)) || lookupKnownCoordinate(to) || undefined;
+    if (!start) start = lookupKnownCoordinate(from) || (await geocode(from)) || undefined;
+    if (!end) end = lookupKnownCoordinate(to) || (await geocode(to)) || undefined;
 
-    if (!start || !end) {
+    const combined = `${from} ${to}`.toLowerCase();
+    const hasFlightEvidence = (
+      combined.includes('volo') ||
+      combined.includes('flight') ||
+      combined.includes('aeroporto') ||
+      combined.includes('airport') ||
+      combined.includes('terminal internazionale') ||
+      combined.includes('iata')
+    );
+    const isKangarooIsland = (c: Coordinate) => {
+      if (c.lat < -36.2 || c.lat > -35.5 || c.lng < 136.5 || c.lng > 138.15) return false;
+      if (c.lat > -35.65 && c.lng > 138.05) return false;
+      return true;
+    };
+    const hasFerryEvidence = (
+      combined.includes('ferry') ||
+      combined.includes('traghetto') ||
+      combined.includes('sealink') ||
+      combined.includes('penneshaw') ||
+      combined.includes('cape jervis')
+    );
+    const isIslandMismatch = Boolean(start && end && (isKangarooIsland(start) !== isKangarooIsland(end)) && !hasFerryEvidence && !hasFlightEvidence);
+
+    if (!start || !end || isIslandMismatch) {
       const fallback = calculateFallbackRoute(from, to, profile, start, end);
       try {
         await storageService.saveRouteCache({

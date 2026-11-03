@@ -82,12 +82,17 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
               <span>{shopping.scopo}</span>
             </span>
           )}
-          {shopping.orario && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200 text-[11px] font-medium font-mono">
-              ⏰ Ore {shopping.orario} · indicativo
+          {shopping.orario ? (
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium font-mono ${
+              shopping.timeStatus === 'indicativo'
+                ? 'bg-amber-50 text-amber-800 border border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-300'
+                : 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
+            }`}>
+              ⏰ Ore {shopping.orario} {shopping.timeStatus === 'indicativo' ? '· indicativo' : ''}
             </span>
+          ) : (
+            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Orario non specificato</span>
           )}
-          {!shopping.orario && <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Orario non indicato</span>}
         </div>
         <div className="flex items-center gap-2">
           <button

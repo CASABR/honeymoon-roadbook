@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
-import type { Attivita } from '../../types';
+import type { Attivita, Tappa } from '../../types';
 import { resolveMapUrl } from '../../utils/mapsHelper';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
 import AttivitaTicketsModal from '../modals/AttivitaTicketsModal';
 import QRCodeModal from '../modals/QRCodeModal';
 import { formatDateIT } from '../../utils/tripDates';
 import { processFileForAttachment } from '../../utils/fileAttachment';
-import { formatHikingDuration, isPhotoSpotActivity, isTrekkingActivity, PHOTO_LIGHT_LABELS, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
+import { formatHikingDuration, isPhotoSpotActivity, isTrekkingActivity, isPasseggiataActivity, getDisplaySubcategory, PHOTO_LIGHT_LABELS, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
 import OpeningHoursBadge from '../common/OpeningHoursBadge';
 
 interface AttivitaCardProps {
@@ -17,6 +17,7 @@ interface AttivitaCardProps {
   onDelete?: () => void;
   onDetail?: () => void;
   onUpdate?: (updated: Attivita) => void;
+  variant?: 'compact' | 'full';
 }
 
 function buildVerifiedRoutePath(activity: Attivita): string | null {
@@ -50,14 +51,27 @@ function getTrekkingDistanceKm(activity: Attivita): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: AttivitaCardProps) {
+export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate, variant }: AttivitaCardProps) {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const initialCopilot = (activity as any).noteCopilota || (activity as any).notes || '';
   const [copilotNotes, setCopilotNotes] = useState<string>(initialCopilot);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [childTappe, setChildTappe] = useState<Tappa[]>(activity.childTappe || []);
 
   useEffect(() => {
     const nextNotes = (activity as any).noteCopilota || (activity as any).notes || '';
     setCopilotNotes(nextNotes);
+  }, [activity]);
+
+  useEffect(() => {
+    if (activity.childTappe) {
+      setChildTappe(activity.childTappe);
+    } else if (activity.id && (activity.sottocategoria === 'Passeggiata' || isPasseggiataActivity(activity))) {
+      storageService.getTappe().then(tappe => {
+        const linked = tappe.filter(t => t.passeggiataId === activity.id);
+        setChildTappe(linked);
+      }).catch(() => {});
+    }
   }, [activity]);
 
   const hasCopilotNotes = Boolean(copilotNotes.trim());
@@ -114,6 +128,97 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
   const verifiedRoutePath = buildVerifiedRoutePath(activity);
   const trekkingStartPoint = activity.address || activity.location;
 
+  const isMeetingDiscrepancy = Boolean(
+    activity.orarioRitrovo && activity.orarioInizio && activity.orarioRitrovo > activity.orarioInizio
+  );
+
+  if (variant === 'compact') {
+    const hasTickets = Boolean(
+      (activity as any).ticketUrl?.trim() ||
+      activity.attachments?.some(a => Boolean(a.dataUrl?.trim())) ||
+      ((activity as any).tickets && (activity as any).tickets.length > 0)
+    );
+
+    return (
+      <>
+        <div
+          onClick={onDetail || onEdit}
+          className="w-full rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#172033] hover:border-slate-300 dark:hover:border-slate-700 p-3 sm:p-3.5 transition-all cursor-pointer shadow-xs hover:shadow-sm"
+        >
+          <div className="flex items-start gap-3">
+            {/* Colonna Orario Tabulare */}
+            <div className="shrink-0 text-left min-w-[56px] pt-0.5">
+              <span className="font-mono text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white tabular-nums block">
+                {displayTime || '—:—'}
+              </span>
+              {(activity.duration || hikingDuration) && (
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block mt-0.5">
+                  {activity.duration || hikingDuration}
+                </span>
+              )}
+            </div>
+
+            {/* Divisore */}
+            <div className="w-px self-stretch bg-slate-100 dark:bg-slate-800 shrink-0" />
+
+            {/* Contenuto principale */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0 truncate">
+                  <span className="text-sm shrink-0">{isTrekking ? '△' : isPhotoSpot ? '📸' : icon}</span>
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                    {activity.title}
+                  </h3>
+                </div>
+
+                {/* Indicatori discreti */}
+                <div className="flex items-center gap-1.5 shrink-0 text-xs">
+                  {hasTickets && <span title="Biglietto o voucher presente">🎫</span>}
+                  {hasCopilotNotes && <span title="Note Copilota">🧭</span>}
+                  {costNum > 0 && (
+                    <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                      {costNum.toFixed(0)} €
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Posizione indispensabile */}
+              {activity.location && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-1">
+                  <span>📍</span>
+                  <span className="truncate">{activity.location}</span>
+                </p>
+              )}
+
+              {/* Segnalazione Discrepanza Ritrovo / Inizio (FASE 6) */}
+              {isMeetingDiscrepancy && (
+                <div className="mt-1.5 flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 px-2 py-0.5 rounded-md">
+                  <span>⚠️</span>
+                  <span>Ritrovo ({activity.orarioRitrovo}) successivo all'inizio ({activity.orarioInizio}) — da verificare</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Modal Copilota accessibile */}
+        <UniversalCopilotaModal
+          isOpen={isCopilotOpen}
+          onClose={() => setIsCopilotOpen(false)}
+          noteCopilota={copilotNotes}
+          title={`Note Copilota · ${activity.title}`}
+          onSave={async (notes: string) => {
+            setCopilotNotes(notes);
+            const updated = { ...activity, noteCopilota: notes, updatedAt: Date.now() };
+            await storageService.saveActivity(updated as any);
+            onUpdate?.(updated as any);
+          }}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <div 
@@ -128,7 +233,15 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300">
                   <span aria-hidden="true">△</span> Trekking
                 </span>
-                {displayTime && <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 font-mono text-[10px] font-bold text-slate-700 dark:bg-slate-700 dark:text-slate-200">⏰ Ore {displayTime} · indicativo</span>}
+                {displayTime && (
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 font-mono text-[10px] font-bold ${
+                    activity.timeStatus === 'indicativo'
+                      ? 'bg-amber-50 text-amber-800 border border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-300'
+                      : 'bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                  }`}>
+                    ⏰ Ore {displayTime} {activity.timeStatus === 'indicativo' ? '· indicativo' : ''}
+                  </span>
+                )}
               </div>
               <button
                 type="button"
@@ -196,7 +309,15 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                   <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M14.5 4 16 7h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l1.5-3h5Z"/><circle cx="12" cy="13" r="3.5"/></svg>
                   Spot fotografico
                 </span>
-                {displayTime && <span className="rounded-full border border-white/20 bg-slate-950/65 px-2.5 py-1 font-mono text-[10px] font-bold text-white backdrop-blur-md">⏰ Ore {displayTime} · indicativo</span>}
+                {displayTime && (
+                  <span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-bold backdrop-blur-md ${
+                    activity.timeStatus === 'indicativo'
+                      ? 'bg-amber-950/75 text-amber-200 border-amber-500/40'
+                      : 'border-white/20 bg-slate-950/65 text-white'
+                  }`}>
+                    ⏰ Ore {displayTime} {activity.timeStatus === 'indicativo' ? '· indicativo' : ''}
+                  </span>
+                )}
               </div>
               <button
                 type="button"
@@ -227,8 +348,8 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 </span>
                 {(activity.sottocategoria || activity.category) && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700/80 dark:text-slate-200 dark:border-slate-600 text-[10px] font-bold tracking-wide">
-                    <span>🎯</span>
-                    <span>{activity.sottocategoria || activity.category}</span>
+                    <span>{activity.sottocategoria === 'Passeggiata' ? '🚶' : '🎯'}</span>
+                    <span>{getDisplaySubcategory(activity.sottocategoria) || activity.category}</span>
                   </span>
                 )}
                 {(displayTime || activity.duration || activity.endDate) && (
@@ -238,8 +359,12 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                         Ritrovo {activity.orarioRitrovo} • Inizio {activity.orarioInizio}
                       </span>
                     ) : displayTime ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 font-mono text-[11px] font-medium text-slate-800 dark:bg-slate-700 dark:text-slate-200">
-                        ⏰ {activity.status === 'prenotato' && activity.orarioRitrovo ? 'Orario da rispettare' : 'Orario indicativo'} · {displayTime}
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[11px] font-medium ${
+                        activity.timeStatus === 'indicativo'
+                          ? 'bg-amber-50 text-amber-800 border border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-300'
+                          : 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
+                      }`}>
+                        ⏰ {activity.status === 'prenotato' && activity.orarioRitrovo ? 'Orario da rispettare · ' : activity.timeStatus === 'indicativo' ? 'Orario indicativo · ' : 'Ore '}{displayTime}
                       </span>
                     ) : null}
                     {activity.duration && (
@@ -278,6 +403,116 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                   <span>📍</span>
                   <span className="truncate">{activity.location}</span>
                 </p>
+              )}
+
+              {/* Link Google Maps o Percorso separato */}
+              {(activity.googleMapsUrl || activity.isRoute) && (
+                <div className="mt-2 flex items-center gap-2 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = resolveMapUrl(activity.googleMapsUrl || activity.location);
+                      if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg hover:bg-emerald-100 transition-colors cursor-pointer"
+                  >
+                    <span>🗺️</span>
+                    <span>{activity.isRoute ? 'Percorso a piedi su Maps' : 'Apri in Google Maps'}</span>
+                  </button>
+                  {activity.originLocation && activity.destinationLocation && (
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                      {activity.originLocation} ➔ {activity.destinationLocation}
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Sezione Contenitore Passeggiata & Tappe Subordinate */}
+              {childTappe.length > 0 && (
+                <div 
+                  className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-700/60"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 text-[10px] font-extrabold uppercase tracking-wider border border-emerald-200 dark:border-emerald-800">
+                      <span>🚶</span> {childTappe.length} {childTappe.length === 1 ? 'tappa subordinata' : 'tappe subordinate'}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsExpanded(!isExpanded)}
+                      className="text-xs font-bold text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 px-2 py-1 rounded-md hover:bg-emerald-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>{isExpanded ? 'Riduci tappe' : 'Espandi tappe'}</span>
+                      <span>{isExpanded ? '▲' : '▼'}</span>
+                    </button>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="mt-2 space-y-1.5 pl-2 border-l-2 border-emerald-400 dark:border-emerald-600">
+                      {childTappe.map(tappa => (
+                        <div 
+                          key={tappa.id} 
+                          className="p-2 bg-slate-50 dark:bg-slate-700/50 rounded-xl flex items-center justify-between gap-2 text-xs hover:bg-emerald-50/50 transition-colors"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-mono text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-white dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-600">
+                                ⏰ {tappa.orario || (tappa as any).time || '--:--'}
+                              </span>
+                              <span className="font-bold text-slate-800 dark:text-slate-100 truncate">{tappa.titolo}</span>
+                            </div>
+                            {tappa.indirizzo && (
+                              <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5 pl-0.5">
+                                📍 {tappa.indirizzo}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            {(tappa.mapsUrl || tappa.indirizzo || tappa.titolo) && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const url = resolveMapUrl(tappa.mapsUrl || tappa.indirizzo || tappa.titolo);
+                                  if (url) window.open(url, '_blank', 'noopener,noreferrer');
+                                }}
+                                className="px-2 py-1 text-[11px] font-medium text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-800 hover:bg-slate-100 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors cursor-pointer"
+                                title="Apri in Google Maps"
+                              >
+                                🗺️
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.dispatchEvent(new CustomEvent('open_edit_tappa_modal', { detail: { tappa } }));
+                              }}
+                              className="px-2 py-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer"
+                              title="Modifica tappa singola"
+                            >
+                              Modifica
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async (e) => {
+                                e.stopPropagation();
+                                await storageService.updateTappa(tappa.id, { passeggiataId: undefined });
+                                setChildTappe(prev => prev.filter(t => t.id !== tappa.id));
+                                window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'tappa', entityId: tappa.id } }));
+                              }}
+                              className="px-2 py-1 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+                              title="Scollega dalla passeggiata (rimane una tappa autonoma)"
+                            >
+                              Scollega
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </>

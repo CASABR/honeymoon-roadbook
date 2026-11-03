@@ -12,9 +12,10 @@ interface RistoranteCardProps {
   onDelete?: () => void;
   onDetail?: () => void;
   onUpdate?: (updated: Ristorante) => void;
+  variant?: 'compact' | 'full';
 }
 
-export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate }: RistoranteCardProps) {
+export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate, variant }: RistoranteCardProps) {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isAttachmentOpen, setIsAttachmentOpen] = useState(false);
   const copilotData = (ristorante as any).noteCopilota || (ristorante as any).nota || (ristorante as any).notes || '';
@@ -50,6 +51,75 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
 
   const mapTarget = ristorante.indirizzo || ristorante.nome;
 
+  if (variant === 'compact') {
+    const time = ristorante.orario || (ristorante as any).time;
+    return (
+      <>
+        <div 
+          onClick={onDetail || onEdit} 
+          className="w-full rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#172033] hover:border-slate-300 dark:hover:border-slate-700 p-3 sm:p-3.5 transition-all cursor-pointer shadow-xs hover:shadow-sm"
+        >
+          <div className="flex items-start gap-3">
+            {/* Colonna Orario */}
+            <div className="shrink-0 text-left min-w-[56px] pt-0.5">
+              <span className="font-mono text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white tabular-nums block">
+                {time || '—:—'}
+              </span>
+              {ristorante.sottocategoria && (
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block capitalize">
+                  {ristorante.sottocategoria}
+                </span>
+              )}
+            </div>
+
+            {/* Divisore */}
+            <div className="w-px self-stretch bg-slate-100 dark:bg-slate-800 shrink-0" />
+
+            {/* Contenuto */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0 truncate">
+                  <span className="text-sm shrink-0">🍽️</span>
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                    {ristorante.nome}
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0 text-xs">
+                  {hasCopilotNotes && <span title="Note Copilota">🧭</span>}
+                  {costNum > 0 && (
+                    <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                      {costNum.toFixed(0)} €
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {ristorante.indirizzo && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-1">
+                  <span>📍</span>
+                  <span className="truncate">{ristorante.indirizzo}</span>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <UniversalCopilotaModal
+          isOpen={isCopilotOpen}
+          onClose={() => setIsCopilotOpen(false)}
+          noteCopilota={copilotData}
+          title={`Note Copilota · ${ristorante.nome}`}
+          onSave={async (notes: string) => {
+            const updated = { ...ristorante, noteCopilota: notes, updatedAt: Date.now() };
+            await storageService.saveRistorante(updated as any);
+            onUpdate?.(updated as any);
+          }}
+        />
+      </>
+    );
+  }
+
   return (
     <div 
       onClick={onDetail || onEdit} 
@@ -67,12 +137,17 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate 
               <span>{ristorante.sottocategoria}</span>
             </span>
           )}
-          {ristorante.orario && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200 text-[11px] font-medium font-mono">
-              ⏰ Ore {ristorante.orario} · indicativo
+          {ristorante.orario ? (
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium font-mono ${
+              ristorante.timeStatus === 'indicativo'
+                ? 'bg-amber-50 text-amber-800 border border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-300'
+                : 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
+            }`}>
+              ⏰ Ore {ristorante.orario} {ristorante.timeStatus === 'indicativo' ? '· indicativo' : ''}
             </span>
+          ) : (
+            <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Orario non specificato</span>
           )}
-          {!ristorante.orario && <span className="text-[10px] font-semibold text-slate-400 dark:text-slate-500">Orario non indicato</span>}
         </div>
         <div className="flex items-center gap-2">
           <button

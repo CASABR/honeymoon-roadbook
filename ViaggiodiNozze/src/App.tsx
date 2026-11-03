@@ -17,6 +17,7 @@ import RouteErrorBoundary from './components/common/RouteErrorBoundary';
 const MappaView = lazyWithRetry(() => import('./views/MappaView'), 'MappaView');
 const SpeseBudgetView = lazyWithRetry(() => import('./views/altro/SpeseBudgetView'), 'SpeseBudgetView');
 import DarkModeToggle from './components/common/DarkModeToggle';
+import HounigoLogo from './components/common/HounigoLogo';
 import UpdateToast from './components/common/UpdateToast';
 import { SyncService } from './storage/syncService';
 import OnboardingView from './views/OnboardingView';
@@ -29,7 +30,7 @@ import { auth } from './firebase';
 import { signInAnonymously, onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
-import { recordUserAccess } from './services/userAccessService';
+import { recordUserAccess, recordUserActivity } from './services/userAccessService';
 import { blocksMainNavigationSwipe, getAdjacentMainSection } from './utils/mainNavigation';
 
 const LiveView = lazyWithRetry(() => import('./views/altro/LiveView'), 'LiveView');
@@ -281,6 +282,20 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!authUser) return;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        recordUserActivity(authUser, tripConfig?.id);
+      }
+    };
+    if (document.visibilityState === 'visible') {
+      recordUserActivity(authUser, tripConfig?.id);
+    }
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [authUser, tripConfig?.id]);
 
   useEffect(() => {
     // Aspettiamo di avere sia il config del viaggio sia l'autenticazione prima di avviare il sync
@@ -745,8 +760,8 @@ export default function App() {
         
         {/* Top Header Mobile / Tablet Header (o sempre in modalità mobile forzata) */}
         <header className={`w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3]/90 dark:bg-[#172033]/90 backdrop-blur-md sticky top-0 z-30`}>
-          <div className="flex items-center gap-1.5">
-            <img src={`${import.meta.env.BASE_URL}favicon.svg`} alt="Hounigo" className="h-6 w-auto object-contain max-w-[100px]" />
+          <div className="flex items-center">
+            <HounigoLogo size="xs" className="h-6 w-auto" />
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button

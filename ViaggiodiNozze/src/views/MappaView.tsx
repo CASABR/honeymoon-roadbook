@@ -1,11 +1,12 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { storageService } from '../storage/storageService';
 import { lookupKnownCoordinate } from '../services/routingService';
 import type { Coordinate } from '../types';
 import { formatDateIT } from '../utils/tripDates';
+import { getTripConfig } from '../utils/tripConfig';
 
 export type POICategory = 'tappa' | 'alloggio' | 'attivita' | 'ristorante';
 
@@ -149,10 +150,22 @@ function MapController({
   const map = useMap();
   const hasInitializedRef = useRef(false);
   const userCenteringActiveRef = useRef(false);
+  const userManuallyMovedRef = useRef(false);
 
-  // Se l'utente clicca "Dove sono io", vola e mantieni il focus sulla posizione utente
+  // Ascolta interazioni manuali dell'utente: drag o zoom disattivano il ricentramento automatico
+  useMapEvents({
+    dragstart() {
+      userManuallyMovedRef.current = true;
+    },
+    zoomstart() {
+      userManuallyMovedRef.current = true;
+    }
+  });
+
+  // Se l'utente clicca "Torna alla mia posizione" o volo iniziale, vola e riallinea il focus
   useEffect(() => {
     if (shouldFlyToUser && userLocation) {
+      userManuallyMovedRef.current = false;
       userCenteringActiveRef.current = true;
       map.flyTo([userLocation.lat, userLocation.lng], 15, { animate: true, duration: 1.2 });
     }
@@ -161,6 +174,7 @@ function MapController({
   // Se l'utente seleziona un marker esplicito dalla lista
   useEffect(() => {
     if (selectedMarker) {
+      userManuallyMovedRef.current = false;
       userCenteringActiveRef.current = false;
       map.setView([selectedMarker.coord.lat, selectedMarker.coord.lng], Math.max(map.getZoom(), 13), {
         animate: true
@@ -168,14 +182,16 @@ function MapController({
     }
   }, [selectedMarker, map]);
 
-  // Adatta i bordi iniziali una sola volta all'avvio o solo se non siamo centrati sull'utente
+  // Adatta i bordi iniziali una sola volta all'avvio solo se non stiamo già centrando sulla posizione utente
   useEffect(() => {
     if (!hasInitializedRef.current && markers.length > 0) {
       hasInitializedRef.current = true;
-      const bounds = L.latLngBounds(markers.map((m) => [m.coord.lat, m.coord.lng]));
-      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 13 });
+      if (!userLocation && !shouldFlyToUser) {
+        const bounds = L.latLngBounds(markers.map((m) => [m.coord.lat, m.coord.lng]));
+        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 13 });
+      }
     }
-  }, [markers, map]);
+  }, [markers, map, userLocation, shouldFlyToUser]);
 
   return null;
 }
@@ -185,6 +201,10 @@ export interface MappaViewProps {
 }
 
 export default function MappaView({ onNavigateTab }: MappaViewProps = {}) {
+  const tripConfig = getTripConfig();
+  const tripId = tripConfig?.id || '0000';
+  const GPS_PREF_KEY = `hounigo_map_gps_pref_${tripId}`;
+
   const [markers, setMarkers] = useState<MapMarkerData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<POICategory | 'all'>('all');
@@ -192,15 +212,27 @@ export default function MappaView({ onNavigateTab }: MappaViewProps = {}) {
 
   // Stato Geolocalizzazione "Dove sono io"
   const [userLocation, setUserLocation] = useState<Coordinate | null>(null);
+  const [locationTimestamp, setLocationTimestamp] = useState<number | null>(null);
   const [isLocating, setIsLocating] = useState(false);
   const [shouldFlyToUser, setShouldFlyToUser] = useState(false);
   const [locationToast, setLocationToast] = useState<string | null>(null);
+  const [isGpsPreferenceActive, setIsGpsPreferenceActive] = useState<boolean>(() => {
+    if (typeof localStorage === 'undefined') return false;
+    return localStorage.getItem(GPS_PREF_KEY) === 'true';
+  });
 
   const markerRefs = useRef<Record<string, L.Marker | null>>({});
 
-  const handleLocateMe = () => {
-    if (!navigator.geolocation) {
-      showToast("Geolocalizzazione non supportata dal tuo browser");
+  const showToast = useCallback((msg: string) => {
+    setLocationToast(msg);
+    setTimeout(() => {
+      setLocationToast(null);
+    }, 3500);
+  }, []);
+
+  const requestPosition = useCallback((isManual = false) => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      if (isManual) showToast("Geolocalizzazione non supportata dal tuo browser");
       return;
     }
     setIsLocating(true);
@@ -212,29 +244,44 @@ export default function MappaView({ onNavigateTab }: MappaViewProps = {}) {
           lng: position.coords.longitude
         };
         setUserLocation(newCoord);
+        setLocationTimestamp(Date.now());
         setShouldFlyToUser(true);
-        // Reset flag dopo il volo
+        setIsGpsPreferenceActive(true);
+        try { localStorage.setItem(GPS_PREF_KEY, 'true'); } catch {}
         setTimeout(() => setShouldFlyToUser(false), 1500);
       },
       (error) => {
         setIsLocating(false);
-        console.warn("Errore geolocalizzazione utente:", error);
-        showToast("Impossibile rilevare la posizione attuale");
+        console.warn("Geolocalizzazione utente:", error);
+        if (error.code === error.PERMISSION_DENIED) {
+          setIsGpsPreferenceActive(false);
+          try { localStorage.removeItem(GPS_PREF_KEY); } catch {}
+          if (isManual) showToast("Permesso di localizzazione negato");
+        } else if (error.code === error.TIMEOUT) {
+          if (isManual) showToast("Rilevamento GPS scaduto per timeout");
+        } else {
+          if (isManual) showToast("Impossibile rilevare la posizione attuale");
+        }
       },
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 5000
+        maximumAge: 10000
       }
     );
+  }, [GPS_PREF_KEY, showToast]);
+
+  const handleLocateMe = () => {
+    requestPosition(true);
   };
 
-  const showToast = (msg: string) => {
-    setLocationToast(msg);
-    setTimeout(() => {
-      setLocationToast(null);
-    }, 3500);
-  };
+  // Se l'utente ha la preferenza attiva per questo viaggio/dispositivo,
+  // alla riapertura della mappa richiedi la posizione aggiornata e centrala automaticamente
+  useEffect(() => {
+    if (isGpsPreferenceActive) {
+      requestPosition(false);
+    }
+  }, [isGpsPreferenceActive, requestPosition]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -546,28 +593,47 @@ export default function MappaView({ onNavigateTab }: MappaViewProps = {}) {
           </MapContainer>
         )}
 
-        {/* Pulsante Flottante "Dove sono io" */}
+        {/* Badge Stato Posizione (Attuale vs Ultima nota) */}
+        {userLocation && (
+          <div className="absolute top-3 left-3 z-[400] flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 dark:bg-slate-900/95 text-[11px] font-bold text-slate-700 dark:text-slate-200 shadow-md border border-slate-200/80 dark:border-slate-800 backdrop-blur-xs animate-fade-in pointer-events-none">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${locationTimestamp && (Date.now() - locationTimestamp < 60000) ? 'bg-blue-500 animate-pulse' : 'bg-slate-400'}`} />
+            <span>
+              {locationTimestamp && (Date.now() - locationTimestamp < 60000)
+                ? 'Posizione GPS rilevata'
+                : `Ultima nota (${Math.max(1, Math.round((Date.now() - (locationTimestamp || Date.now())) / 60000))} min fa)`}
+            </span>
+          </div>
+        )}
+
+        {/* Pulsante Flottante "Torna alla mia posizione" */}
         <button
           type="button"
           onClick={handleLocateMe}
           disabled={isLocating}
-          title="Dove sono io"
-          aria-label="La mia posizione"
-          className="absolute bottom-4 right-4 z-[400] w-11 h-11 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-full shadow-lg border border-slate-200/80 dark:border-slate-700 flex items-center justify-center hover:bg-slate-50 dark:hover:bg-slate-700 active:scale-95 transition-all cursor-pointer"
+          title="Torna alla mia posizione"
+          aria-label="Torna alla mia posizione"
+          className={`absolute bottom-4 right-4 z-[400] flex items-center gap-2 px-3.5 py-2.5 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 rounded-full shadow-lg border transition-all cursor-pointer active:scale-95 ${
+            isGpsPreferenceActive
+              ? 'border-blue-500/60 ring-2 ring-blue-500/20'
+              : 'border-slate-200/90 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700'
+          }`}
         >
           {isLocating ? (
-            <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin shrink-0" />
           ) : (
-            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="4" strokeWidth="2.5" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 2v3m0 14v3M2 12h3m14 0h3" />
             </svg>
           )}
+          <span className="text-xs font-bold text-slate-700 dark:text-slate-200 hidden sm:inline">
+            La mia posizione
+          </span>
         </button>
 
         {/* Toast Notifica Posizione Sobrio e non bloccante */}
         {locationToast && (
-          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[500] px-3.5 py-1.5 rounded-full bg-slate-900/90 text-white text-xs font-semibold shadow-md backdrop-blur-xs flex items-center gap-2 animate-fade-in">
+          <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[500] px-3.5 py-1.5 rounded-full bg-slate-900/90 text-white text-xs font-semibold shadow-md backdrop-blur-xs flex items-center gap-2 animate-fade-in pointer-events-none">
             <span>ℹ️</span>
             <span>{locationToast}</span>
           </div>

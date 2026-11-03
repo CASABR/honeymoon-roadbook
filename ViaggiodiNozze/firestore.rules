@@ -395,7 +395,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 6. USERS (PROFILI ED ***REMOVED*** ACCESSO UTENTE - FIREBASE SPARK)
+    // 6. USERS (PROFILI ED ACCESSO RECENTE UTENTE - FIREBASE SPARK)
     // =========================================================================
     // Ogni utente può aggiornare unicamente il proprio record.
     // L'Admin globale può leggere ed interrogare l'elenco utenti per la dashboard accessi.
@@ -406,10 +406,14 @@ service cloud.firestore {
       allow create, update: if isSignedIn()
                             && request.auth.uid == userId
                             && request.resource.data.uid == userId
-                            && request.resource.data.keys().hasOnly(['uid', 'displayName', 'isAnonymous', 'lastAccessAt', 'updatedAt', 'lastTripId', 'associatedTripIds'])
+                            && request.resource.data.keys().hasOnly(['uid', 'displayName', 'isAnonymous', 'lastAccessAt', 'lastSeenAt', 'updatedAt', 'lastTripId', 'associatedTripIds'])
                             && (
                               !('lastAccessAt' in request.resource.data)
                               || request.resource.data.lastAccessAt == request.time
+                            )
+                            && (
+                              !('lastSeenAt' in request.resource.data)
+                              || request.resource.data.lastSeenAt == request.time
                             );
       allow delete: if false;
     }

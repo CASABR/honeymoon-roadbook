@@ -370,6 +370,9 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       }, { force: true });
       lastGpsPublishRef.current = Date.now();
       startGpsWatcher();
+      try {
+        localStorage.setItem(`hounigo_live_sharing_enabled_${activeTripId}`, 'true');
+      } catch {}
       setGpsFeedback('Posizione condivisa e confermata dal server.');
     } catch (error) {
       const candidate = error as { message?: string; name?: string };
@@ -394,6 +397,11 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       await liveGpsService.pauseOrStop(activeTripId, status);
       if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
       gpsWatchRef.current = null;
+      if (status === 'stopped') {
+        try {
+          localStorage.removeItem(`hounigo_live_sharing_enabled_${activeTripId}`);
+        } catch {}
+      }
       setRemoteGpsLocation(null);
       setLiveGpsState(null);
       setGpsFeedback(status === 'paused' ? 'Condivisione sospesa.' : 'Condivisione interrotta.');
@@ -2501,8 +2509,12 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
                   </div>
 
                   <div className="flex flex-col items-end shrink-0 gap-1">
-                    <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded-md border border-slate-200/50">
-                      {item.time}
+                    <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md border ${
+                      item.timeStatus === 'indicativo'
+                        ? 'bg-amber-50 text-amber-800 border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-300'
+                        : 'bg-slate-100 text-slate-700 border-slate-200/50'
+                    }`}>
+                      {item.timeStatus === 'indicativo' ? `~${item.time}` : item.time || 'Orario non specificato'}
                     </span>
 
                     {/* Stato dell'evento */}

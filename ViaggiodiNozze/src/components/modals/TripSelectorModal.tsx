@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { auth } from '../../firebase';
 import {
   fetchUserTripsReport,
@@ -120,9 +121,15 @@ export default function TripSelectorModal({
   const ownedTrips = trips.filter(t => t.isOwner || t.role === 'owner');
   const copilotTrips = trips.filter(t => !t.isOwner && t.role === 'copilota');
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-5 sm:p-6 overflow-hidden flex flex-col max-h-[85vh]">
+  const modalNode = (
+    <div
+      className="fixed inset-0 z-[100] flex justify-center bg-slate-950/70 backdrop-blur-sm animate-fade-in items-end sm:items-center p-0 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border-t sm:border border-slate-200 dark:border-slate-800 shadow-2xl p-5 sm:p-6 overflow-hidden flex flex-col max-h-[90dvh] sm:max-h-[85vh] pb-[max(1.25rem,env(safe-area-inset-bottom,1.25rem))] sm:pb-6"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -304,6 +311,12 @@ export default function TripSelectorModal({
       </div>
     </div>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalNode, document.body);
+  }
+
+  return modalNode;
 
   function renderTripCard(trip: UserTripSummary) {
     const isCurrent = trip.id === currentTripId;

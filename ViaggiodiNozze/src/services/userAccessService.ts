@@ -19,6 +19,7 @@ export interface UserAccessEntry {
   displayName: string | null;
   isAnonymous: boolean;
   lastAccessAt: number | null; // millisecond timestamp o null se mancante
+  lastSeenAt?: number | null; // millisecond timestamp dell'ultima attività in primo piano
   lastTripId?: string | null;
   associatedTripIds?: string[];
 }
@@ -78,6 +79,45 @@ export async function recordUserAccess(user: User | null, tripId?: string): Prom
   }
 }
 
+let lastSeenRecordedUid: string | null = null;
+let lastSeenRecordedTime = 0;
+
+/**
+ * Registra in modo leggero e sicuro l'ultima attività dell'utente con app in primo piano.
+ * Throttle a 15 minuti per ridurre al minimo le scritture su Firestore.
+ * Utilizza serverTimestamp() per garantire autenticità e orario autorevole del server.
+ */
+export async function recordUserActivity(user: User | null, tripId?: string): Promise<void> {
+  if (!db || !user?.uid) return;
+  if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+
+  const now = Date.now();
+  if (lastSeenRecordedUid === user.uid && (now - lastSeenRecordedTime) < 15 * 60 * 1000) {
+    return;
+  }
+
+  try {
+    const cleanTripId = tripId && tripId.trim() !== '' ? tripId.trim() : undefined;
+    const userRef = doc(db, 'users', user.uid);
+    const payload: Record<string, any> = {
+      uid: user.uid,
+      displayName: user.displayName || (user.isAnonymous ? 'Utente Anonimo' : null),
+      isAnonymous: Boolean(user.isAnonymous),
+      lastSeenAt: serverTimestamp(),
+      updatedAt: now
+    };
+    if (cleanTripId) {
+      payload.lastTripId = cleanTripId;
+      payload.associatedTripIds = arrayUnion(cleanTripId);
+    }
+    await setDoc(userRef, payload, { merge: true });
+    lastSeenRecordedUid = user.uid;
+    lastSeenRecordedTime = now;
+  } catch (err) {
+    console.warn('[userAccess] Impossibile registrare attività utente:', err);
+  }
+}
+
 
 /**
  * Converte un campo timestamp Firestore o numerico in millisecondi.
@@ -98,7 +138,8 @@ export function parseLastAccessTimestamp(raw: any): number | null {
  */
 export async function fetchUsersAccessPage(
   pageSize: number = 20,
-  cursor?: QueryDocumentSnapshot | null
+  cursor?: QueryDocumentSnapshot | null,
+  sortBy: 'lastAccessAt' | 'lastSeenAt' = 'lastAccessAt'
 ): Promise<{
   users: UserAccessEntry[];
   lastVisible: QueryDocumentSnapshot | null;
@@ -113,8 +154,8 @@ export async function fetchUsersAccessPage(
   const colRef = collection(db, 'users');
 
   const q = cursor
-    ? query(colRef, orderBy('lastAccessAt', 'desc'), startAfter(cursor), limit(fetchLimit))
-    : query(colRef, orderBy('lastAccessAt', 'desc'), limit(fetchLimit));
+    ? query(colRef, orderBy(sortBy, 'desc'), startAfter(cursor), limit(fetchLimit))
+    : query(colRef, orderBy(sortBy, 'desc'), limit(fetchLimit));
 
   const snap = await getDocs(q);
 
@@ -133,6 +174,7 @@ export async function fetchUsersAccessPage(
       displayName: data.displayName || null,
       isAnonymous: Boolean(data.isAnonymous),
       lastAccessAt: parseLastAccessTimestamp(data.lastAccessAt),
+      lastSeenAt: parseLastAccessTimestamp(data.lastSeenAt),
       lastTripId: data.lastTripId || null,
       associatedTripIds: Array.isArray(data.associatedTripIds) ? data.associatedTripIds : []
     };

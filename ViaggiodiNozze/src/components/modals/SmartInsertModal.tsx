@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { extractFromText, extractFromAttachment, type ExtractedEntity } from '../../services/aiExtractor';
+import { extractFromText, extractFromAttachment, type ExtractedEntity, type ExtractedTappa } from '../../services/aiExtractor';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
 import { IMAGE_OR_PDF_FILE_ACCEPT, processFileForAttachment, formatFileSize, openAttachmentInNewTab } from '../../utils/fileAttachment';
 import type { TransportAttachment } from '../../types';
@@ -17,6 +17,12 @@ import {
   hasCloudflareAiConsent,
 } from '../../config/freeArchitecture';
 import TimePickerInput from '../common/TimePickerInput';
+import {
+  getStoredHouniAiQuota,
+  formatQuotaCountdown,
+  formatLocalResetTime,
+  type HouniAiQuotaState
+} from '../../services/houniAiGateway';
 
 interface SmartInsertModalProps {
   isOpen: boolean;
@@ -95,12 +101,47 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   const [importQueue, setImportQueue] = useState<ImportQueueItem[]>([]);
   const [activeQueueId, setActiveQueueId] = useState<string | null>(null);
   const [duplicateConfirmed, setDuplicateConfirmed] = useState(false);
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
+  const [successMsg, setSuccessMsg] = useState('');
   const saveInFlightRef = useRef(false);
   const [pendingSuggestion, setPendingSuggestion] = useState<any>(null);
   const [pickerDate, setPickerDate] = useState(defaultSuggestionDate());
   const [pickerTime, setPickerTime] = useState('');
   const [showPrivacyDetails, setShowPrivacyDetails] = useState(false);
   const [showCloudflareConsent, setShowCloudflareConsent] = useState(false);
+
+  const [quotaState, setQuotaState] = useState<HouniAiQuotaState>(() => getStoredHouniAiQuota());
+  const [countdownStr, setCountdownStr] = useState<string>(() => formatQuotaCountdown(quotaState.resetAtUtc));
+  const [minuteCountdown, setMinuteCountdown] = useState<number>(0);
+
+  useEffect(() => {
+    const syncQuota = () => {
+      const q = getStoredHouniAiQuota();
+      setQuotaState(q);
+      setCountdownStr(formatQuotaCountdown(q.resetAtUtc));
+      if (q.blockedUntil && q.blockedUntil > Date.now()) {
+        setMinuteCountdown(Math.ceil((q.blockedUntil - Date.now()) / 1000));
+      } else {
+        setMinuteCountdown(0);
+      }
+    };
+
+    syncQuota();
+    const timer = setInterval(syncQuota, 1000);
+
+    const handleUpdated = (e: any) => {
+      if (e?.detail) {
+        setQuotaState(e.detail);
+        setCountdownStr(formatQuotaCountdown(e.detail.resetAtUtc));
+      }
+    };
+    window.addEventListener('houniai_quota_updated' as any, handleUpdated);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('houniai_quota_updated' as any, handleUpdated);
+    };
+  }, []);
 
   const handleGmailImport = async () => {
     if (!EXTERNAL_AI_ENABLED) {
@@ -327,7 +368,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       initial.dateStart = d.data || '';
       initial.time = d.orario || d.time || '';
       initial.location = d.indirizzo || d.mapsUrl || '';
-      initial.sottocategoria = d.sottocategoria || 'Sosta panoramica';
+      initial.sottocategoria = d.sottocategoria || 'Tappa';
       initial.notes = d.nota || '';
       const all = await storageService.getTappe();
       existingItem = all.find(a => a.titolo.toLowerCase().includes(initial.title.toLowerCase()) && (a.data === initial.dateStart || a.date === initial.dateStart));
@@ -619,7 +660,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
             time: editData.time || undefined,
             indirizzo: editData.location || undefined,
             mapsUrl: editData.location || undefined,
-            sottocategoria: editData.sottocategoria || 'Sosta panoramica',
+            sottocategoria: editData.sottocategoria || 'Tappa',
             nota: editData.notes
           };
           await storageService.addTappa(newTappa);
@@ -731,6 +772,145 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
     }
   };
 
+  const saveEntityDirectly = async (entity: ExtractedEntity, att?: TransportAttachment | null) => {
+    const cat = entity.type;
+    const now = Date.now();
+
+    if (cat === 'tappa') {
+      const t = entity as ExtractedTappa;
+      const dateStart = t.data;
+      const orario = t.orario || t.time;
+      const newTappa = {
+        titolo: t.titolo || 'Tappa',
+        data: dateStart,
+        date: dateStart,
+        dayId: dateStart ? `day_${dateStart}` : undefined,
+        orario: orario || undefined,
+        time: orario || undefined,
+        timeStatus: orario ? 'confermato' : 'non_specificato',
+        indirizzo: t.indirizzo || undefined,
+        mapsUrl: t.mapsUrl || (t.indirizzo?.startsWith('http') ? t.indirizzo : undefined),
+        sottocategoria: t.sottocategoria || 'Tappa',
+        nota: t.nota
+      };
+      await storageService.addTappa(newTappa as any);
+      notifyDataChanged('tappe', 'save', newTappa);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'tappe', data: newTappa } }));
+    } else if (cat === 'attivita') {
+      const act = entity as any;
+      const newAct = {
+        id: generateId('attivita'),
+        dayId: act.date ? `day_${act.date}` : 'day_1',
+        date: act.date || '',
+        title: act.title,
+        location: act.location || '',
+        cost: act.cost || '',
+        time: act.time || '',
+        timeStatus: act.time ? 'confermato' : 'non_specificato',
+        qrCode: act.bookingCode || '',
+        category: 'visita',
+        status: 'prenotato',
+        notes: act.notes || '',
+        attachments: att ? [att] : [],
+        createdAt: now,
+        updatedAt: now
+      };
+      await storageService.saveActivity(newAct as any);
+      notifyDataChanged('attivita', 'save', newAct);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'attivita', data: newAct } }));
+    } else if (cat === 'alloggio') {
+      const a = entity as any;
+      const newAlloggio = {
+        id: generateId('alloggio'),
+        name: a.name,
+        location: a.location || '',
+        checkIn: a.checkIn || '',
+        checkOut: a.checkOut || a.checkIn || '',
+        checkInTime: a.checkInTime || '',
+        address: a.address || a.location || '',
+        cost: a.cost || '',
+        bookingCode: a.bookingCode || '',
+        notes: a.notes || '',
+        status: 'prenotato',
+        attachments: att ? [att] : [],
+        createdAt: now,
+        updatedAt: now
+      };
+      await storageService.saveAccommodation(newAlloggio as any);
+      notifyDataChanged('alloggi', 'save', newAlloggio);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'alloggi', data: newAlloggio } }));
+    } else if (cat === 'ristorante') {
+      const r = entity as any;
+      const newRist = {
+        id: generateId('rist'),
+        nome: r.name,
+        data: r.date || '',
+        date: r.date || '',
+        dayId: r.date ? `day_${r.date}` : 'day_1',
+        indirizzo: r.location || '',
+        budget: r.cost || '',
+        orario: r.time || '',
+        timeStatus: r.time ? 'confermato' : 'non_specificato',
+        nota: r.notes || '',
+        attachments: att ? [att] : [],
+        createdAt: now,
+        updatedAt: now
+      };
+      await storageService.saveRistorante(newRist as any);
+      notifyDataChanged('ristoranti', 'save', newRist);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'ristoranti', data: newRist } }));
+    } else if (cat === 'trasporto') {
+      const tr = entity as any;
+      const newTr = {
+        id: generateId('trasporto'),
+        type: (tr.tipoTrasporto || 'volo') as any,
+        carrier: tr.carrier || '',
+        date: tr.date || '',
+        arrivalDate: tr.arrivalDate || tr.date || '',
+        departureLocation: tr.departureLocation || '',
+        arrivalLocation: tr.arrivalLocation || '',
+        cost: tr.cost || '',
+        departureTime: tr.departureTime || '',
+        arrivalTime: tr.arrivalTime || '',
+        bookingCode: tr.bookingCode || '',
+        notes: tr.notes || '',
+        status: 'prenotato',
+        attachments: att ? [att] : [],
+        createdAt: now,
+        updatedAt: now
+      };
+      await storageService.saveTransport(newTr as any);
+      notifyDataChanged('trasporti', 'save', newTr);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'trasporti', data: newTr } }));
+    }
+  };
+
+  const handleApproveSingle = async (queueItem: ImportQueueItem) => {
+    try {
+      await saveEntityDirectly(queueItem.entity, queueItem.attachment);
+      setImportQueue(queue => queue.map(i => i.id === queueItem.id ? { ...i, status: 'approved' } : i));
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Errore durante il salvataggio.');
+    }
+  };
+
+  const handleApproveAllPending = async () => {
+    setIsBulkSaving(true);
+    setErrorMsg('');
+    try {
+      const pending = importQueue.filter(i => i.status === 'pending');
+      for (const item of pending) {
+        await saveEntityDirectly(item.entity, item.attachment);
+      }
+      setImportQueue(queue => queue.map(i => ({ ...i, status: 'approved' })));
+      setSuccessMsg(`Tutte le ${pending.length} voci sono state salvate con successo nell'itinerario!`);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Errore durante il salvataggio multiplo.');
+    } finally {
+      setIsBulkSaving(false);
+    }
+  };
+
   const entityLabel: Record<string, string> = {
     alloggio: '🏨 Alloggio',
     tappa: '📍 Tappa',
@@ -785,6 +965,43 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
               </button>
             )}
           </div>
+
+          {/* ─── Indicatore Quote HouniAI con Countdown ─── */}
+          {(() => {
+            let quotaStatusText = '';
+            let dotColor = 'bg-emerald-500';
+
+            if (minuteCountdown > 0) {
+              quotaStatusText = `Troppe richieste · Riprova tra ${minuteCountdown}s`;
+              dotColor = 'bg-amber-500 animate-pulse';
+            } else if (quotaState.isSharedLimitReached) {
+              quotaStatusText = `Disponibilità globale condivisa esaurita · Reset tra ${countdownStr}`;
+              dotColor = 'bg-amber-500';
+            } else if (quotaState.remainingToday === 0) {
+              quotaStatusText = `Quota personale esaurita (0/${quotaState.maxDaily}) · Ripristino tra ${countdownStr}`;
+              dotColor = 'bg-amber-500';
+            } else {
+              quotaStatusText = `${quotaState.remainingToday} richieste disponibili · Ripristino tra ${countdownStr}`;
+              dotColor = 'bg-emerald-500';
+            }
+
+            return (
+              <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs mb-3 shadow-2xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
+                  <span className="font-semibold text-slate-700 truncate">
+                    {quotaStatusText}
+                  </span>
+                </div>
+                <span
+                  className="text-[10px] text-slate-400 font-medium shrink-0 ml-2 cursor-help"
+                  title={`Reset a mezzanotte UTC (ore ${formatLocalResetTime(quotaState.resetAtUtc)} locali). Limite personale: ${quotaState.maxDaily}/giorno.`}
+                >
+                  Reset ore {formatLocalResetTime(quotaState.resetAtUtc)}
+                </span>
+              </div>
+            );
+          })()}
 
           {/* ─── Step: GMAIL LOADING ─── */}
           {step === 'gmailLoading' && (
@@ -1040,63 +1257,124 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
             </div>
           )}
 
-          {/* ─── Step: QUEUE (revisione individuale, nessun salvataggio automatico) ─── */}
+          {/* ─── Step: QUEUE (revisione individuale o multipla con approvazione verificata) ─── */}
           {step === 'queue' && importQueue.length > 0 && (
             <div className="space-y-4">
-              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl">
-                <p className="text-sm font-bold text-indigo-900">Trovate {importQueue.length} prenotazioni</p>
-                <p className="text-xs text-slate-600 mt-1">Nessun elemento viene salvato finché non lo approvi singolarmente.</p>
+              <div className="p-3 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded-xl">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div>
+                    <p className="text-sm font-bold text-indigo-900 dark:text-indigo-200">
+                      Trovate {importQueue.length} voci distinte
+                    </p>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                      Puoi approvare ciascuna voce singolarmente, modificarla o approvarle tutte con un solo tocco.
+                    </p>
+                  </div>
+                  {importQueue.some(i => i.status === 'pending') && (
+                    <button
+                      type="button"
+                      disabled={isBulkSaving}
+                      onClick={handleApproveAllPending}
+                      className="px-3 py-1.5 rounded-lg bg-[#FF6B5F] hover:bg-[#e85c50] text-white text-xs font-bold transition shadow-xs cursor-pointer disabled:opacity-50"
+                    >
+                      {isBulkSaving ? 'Salvataggio...' : `✓ Approva tutte (${importQueue.filter(i => i.status === 'pending').length})`}
+                    </button>
+                  )}
+                </div>
               </div>
+
+              {successMsg && (
+                <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-xl text-xs font-bold text-emerald-800 dark:text-emerald-200">
+                  {successMsg}
+                </div>
+              )}
 
               <div className="space-y-2 max-h-[50vh] overflow-y-auto custom-scrollbar">
                 {importQueue.map((queueItem) => {
                   const booking: any = queueItem.entity;
-                  const statusLabel = queueItem.status === 'approved' ? 'Approvata' : queueItem.status === 'skipped' ? 'Saltata' : 'Da verificare';
+                  const statusLabel = queueItem.status === 'approved' ? 'Salvata' : queueItem.status === 'skipped' ? 'Saltata' : 'Da verificare';
+                  const orarioDisplay = booking.orario || booking.time || booking.departureTime || booking.checkInTime;
+
                   return (
-                  <div key={queueItem.id} className="p-3.5 bg-white border border-slate-200 rounded-xl transition flex items-center justify-between gap-3 shadow-2xs">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 uppercase">
+                  <div key={queueItem.id} className="p-3.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl transition flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase">
                           {booking.type}
                         </span>
-                        <h4 className="text-sm font-bold text-[#172033] truncate">
+                        {orarioDisplay && (
+                          <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-rose-50 dark:bg-rose-950/50 text-[#FF6B5F] border border-rose-200/60 dark:border-rose-900/40">
+                            ⏰ {orarioDisplay}
+                          </span>
+                        )}
+                        <h4 className="text-sm font-bold text-[#172033] dark:text-white truncate">
                           {booking.name || booking.title || booking.titolo || `${booking.departureLocation} -> ${booking.arrivalLocation}`}
                         </h4>
                       </div>
-                      <p className="text-xs text-slate-500 mt-1 truncate">
-                        {booking.date || booking.checkIn || booking.data || 'Data da verificare'} · {statusLabel}
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 truncate">
+                        {booking.date || booking.checkIn || booking.data || 'Data da verificare'}
+                        {booking.indirizzo ? ` · ${booking.indirizzo}` : ''}
+                        {' · '}
+                        <span className={queueItem.status === 'approved' ? 'text-emerald-600 font-bold' : queueItem.status === 'skipped' ? 'text-slate-400' : 'text-amber-600 font-semibold'}>
+                          {statusLabel}
+                        </span>
                       </p>
                     </div>
-                    <div className="flex shrink-0 gap-1.5">
+                    <div className="flex shrink-0 gap-1.5 items-center">
                       {queueItem.status !== 'approved' && (
-                        <button
-                          type="button"
-                          onClick={() => setImportQueue(queue => queue.map(item => item.id === queueItem.id ? { ...item, status: item.status === 'skipped' ? 'pending' : 'skipped' } : item))}
-                          className="rounded-lg border border-slate-200 px-2 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50"
-                        >
-                          {queueItem.status === 'skipped' ? 'Ripristina' : 'Salta'}
-                        </button>
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleApproveSingle(queueItem)}
+                            className="rounded-lg bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1.5 text-[11px] font-bold text-white transition cursor-pointer"
+                            title="Approva e salva questa voce"
+                          >
+                            ✓ Approva
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => prepareReviewForEntity(queueItem.entity, queueItem.attachment, queueItem.id)}
+                            className="rounded-lg border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 px-2 py-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-200 transition cursor-pointer"
+                          >
+                            Modifica
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setImportQueue(queue => queue.map(item => item.id === queueItem.id ? { ...item, status: item.status === 'skipped' ? 'pending' : 'skipped' } : item))}
+                            className="rounded-lg border border-slate-200 dark:border-slate-800 px-2 py-1.5 text-[11px] font-bold text-slate-400 hover:text-slate-600"
+                          >
+                            {queueItem.status === 'skipped' ? 'Ripristina' : 'Salta'}
+                          </button>
+                        </>
                       )}
-                      <button
-                        type="button"
-                        disabled={queueItem.status === 'approved'}
-                        onClick={() => prepareReviewForEntity(queueItem.entity, queueItem.attachment, queueItem.id)}
-                        className="rounded-lg bg-[#FF6B5F] px-2.5 py-1.5 text-[11px] font-bold text-white disabled:bg-emerald-600"
-                      >
-                        {queueItem.status === 'approved' ? 'Salvata' : 'Modifica'}
-                      </button>
+                      {queueItem.status === 'approved' && (
+                        <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                          ✓ Salvata
+                        </span>
+                      )}
                     </div>
                   </div>
                 );})}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setStep('input')}
-                className="w-full py-2.5 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-              >
-                ← Torna al testo
-              </button>
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => { setStep('input'); setSuccessMsg(''); }}
+                  className="py-2 px-3 rounded-xl text-xs font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+                >
+                  ← Torna al testo
+                </button>
+                {importQueue.every(i => i.status === 'approved') && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="py-2 px-4 rounded-xl text-xs font-bold bg-[#172033] dark:bg-white dark:text-[#172033] text-white transition cursor-pointer"
+                  >
+                    Fatto, chiudi ➔
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -1208,10 +1486,11 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   <div>
                     <label className="text-xs font-semibold text-slate-600 mb-1 block">Categoria Sosta</label>
                     <select
-                      value={editData.sottocategoria || 'Sosta panoramica'}
+                      value={editData.sottocategoria || 'Tappa'}
                       onChange={(e) => setEditData({...editData, sottocategoria: e.target.value})}
                       className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
                     >
+                      <option value="Tappa">📍 Tappa</option>
                       <option value="Sosta panoramica">⛰️ Sosta panoramica</option>
                       <option value="Sosta fotografica">📸 Sosta fotografica</option>
                       <option value="Sosta">📍 Sosta generica</option>

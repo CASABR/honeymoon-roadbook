@@ -3,9 +3,9 @@ export const VISION_MODEL = '@cf/qwen/qwen3.8-27b';
 export const CONSENT_VERSION = 'cloudflare-workers-ai-v1';
 export const MAX_BODY_BYTES = 2_200_000;
 export const MAX_IMAGE_BYTES = 1_500_000;
-export const MAX_UID_REQUESTS_PER_DAY = 5;
-export const MAX_GLOBAL_REQUESTS_PER_DAY = 20;
-export const MAX_UID_REQUESTS_PER_MINUTE = 2;
+export const MAX_UID_REQUESTS_PER_DAY = 30;
+export const MAX_GLOBAL_REQUESTS_PER_DAY = 150;
+export const MAX_UID_REQUESTS_PER_MINUTE = 6;
 
 export function readFirestoreValue(value) {
   if (!value || typeof value !== 'object') return undefined;

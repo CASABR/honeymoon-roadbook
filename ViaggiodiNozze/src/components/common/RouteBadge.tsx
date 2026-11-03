@@ -13,6 +13,7 @@ interface RouteBadgeProps {
   toCoord?: Coordinate;
   defaultProfile?: RouteProfile;
   className?: string;
+  isFlight?: boolean;
   onDistanceCalculated?: (distanceKm: number) => void;
 }
 
@@ -24,6 +25,7 @@ export default function RouteBadge({
   toCoord,
   defaultProfile = 'driving-car',
   className = '',
+  isFlight = false,
   onDistanceCalculated
 }: RouteBadgeProps) {
   // Chiave univoca specifica per singola tratta
@@ -105,10 +107,28 @@ export default function RouteBadge({
     };
   }, [from, to, mode, fromCoord, toCoord, onDistanceCalculated]);
 
+  const isExplicitFlight = isFlight || (route?.formattedDistance || '').toLowerCase().includes('aereo') || (route?.formattedDistance || '').toLowerCase().includes('transoceanic') || (route?.formattedDuration || '').toLowerCase().includes('volo');
+  const isUnverified = Boolean(
+    route && (
+      (route.formattedDistance || '').toLowerCase().includes('verificare') ||
+      (route.formattedDuration || '').toLowerCase().includes('verificare') ||
+      (!isExplicitFlight && route.distanceKm > 1000)
+    )
+  );
+  const isTransoceanic = route && isExplicitFlight && route.distanceKm > 250;
+
   const handleOpenMaps = (e: React.MouseEvent) => {
     e.stopPropagation();
     const queryOrigin = fromCoord ? `${fromCoord.lat},${fromCoord.lng}` : encodeURIComponent(from);
     const queryDest = toCoord ? `${toCoord.lat},${toCoord.lng}` : encodeURIComponent(to);
+    
+    // Se la tratta non è verificata o le coordinate sono incoerenti, apri la ricerca della destinazione invece di indicazioni assurde
+    if (isUnverified) {
+      const searchUrl = `https://www.google.com/maps/search/?api=1&query=${queryDest}`;
+      openMapLink(searchUrl);
+      return;
+    }
+
     const travelModeParam = mode === 'transit' ? 'transit' : mode === 'walking' ? 'walking' : 'driving';
     const mapsUrl = `https://www.google.com/maps/dir/?api=1&origin=${queryOrigin}&destination=${queryDest}&travelmode=${travelModeParam}`;
     openMapLink(mapsUrl);
@@ -180,7 +200,26 @@ export default function RouteBadge({
     );
   }
 
-  const isTransoceanic = route && (route.distanceKm > 500 || (route?.formattedDistance || '').toLowerCase().includes('aereo') || (route?.formattedDistance || '').toLowerCase().includes('transoceanic'));
+  if (isUnverified) {
+    return (
+      <div
+        className={`flex items-center justify-between flex-nowrap gap-2 py-1 px-3 rounded-2xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-xs shadow-2xs ${className}`}
+      >
+        <div className="flex items-center gap-1.5 text-amber-900 dark:text-amber-200 font-bold text-[11px] truncate">
+          <span>⚠️</span>
+          <span>Posizione o percorso da verificare</span>
+        </div>
+        <button
+          type="button"
+          onClick={handleOpenMaps}
+          title="Verifica destinazione su Google Maps"
+          className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-slate-700 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 text-[10px] font-semibold transition-all cursor-pointer active:scale-95"
+        >
+          <span>Verifica Maps ↗</span>
+        </button>
+      </div>
+    );
+  }
 
   if (isTransoceanic) {
     return (

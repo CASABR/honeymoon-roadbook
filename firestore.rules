@@ -398,7 +398,7 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 6. USERS (PROFILI ED ***REMOVED*** ACCESSO UTENTE - FIREBASE SPARK)
+    // 6. USERS (PROFILI ED ACCESSO RECENTE UTENTE - FIREBASE SPARK)
     // =========================================================================
     // Ogni utente può aggiornare unicamente il proprio record.
     // L'Admin globale può leggere ed interrogare l'elenco utenti per la dashboard accessi.

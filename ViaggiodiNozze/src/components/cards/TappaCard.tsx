@@ -12,9 +12,10 @@ interface TappaCardProps {
   onDelete?: () => void;
   onDetail?: () => void;
   onUpdate?: (updated: Tappa) => void;
+  variant?: 'compact' | 'full';
 }
 
-export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCardProps) {
+export default function TappaCard({ tappa, onEdit, onDetail, onUpdate, variant }: TappaCardProps) {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const initialCopilot = (tappa as any).noteCopilota || (tappa as any).nota || (tappa as any).notes || '';
   const [copilotNotes, setCopilotNotes] = useState<string>(initialCopilot);
@@ -29,6 +30,69 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
 
   const mapTarget = tappa.mapsUrl || tappa.titolo;
 
+  if (variant === 'compact') {
+    return (
+      <>
+        <div
+          onClick={onDetail || onEdit}
+          className="w-full rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#172033] hover:border-slate-300 dark:hover:border-slate-700 p-3 sm:p-3.5 transition-all cursor-pointer shadow-xs hover:shadow-sm"
+        >
+          <div className="flex items-start gap-3">
+            {/* Colonna Orario */}
+            <div className="shrink-0 text-left min-w-[56px] pt-0.5">
+              <span className="font-mono text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white tabular-nums block">
+                {orario || '—:—'}
+              </span>
+              {(tappa as any).sottocategoria && (
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium block truncate max-w-[56px]">
+                  {(tappa as any).sottocategoria}
+                </span>
+              )}
+            </div>
+
+            {/* Divisore */}
+            <div className="w-px self-stretch bg-slate-100 dark:bg-slate-800 shrink-0" />
+
+            {/* Contenuto */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0 truncate">
+                  <span className="text-sm shrink-0">📍</span>
+                  <h3 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white truncate">
+                    {tappa.titolo}
+                  </h3>
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0 text-xs">
+                  {hasCopilotNotes && <span title="Note Copilota">🧭</span>}
+                </div>
+              </div>
+
+              {tappa.indirizzo && (
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-1">
+                  <span>📍</span>
+                  <span className="truncate">{tappa.indirizzo}</span>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        <UniversalCopilotaModal
+          isOpen={isCopilotOpen}
+          onClose={() => setIsCopilotOpen(false)}
+          noteCopilota={copilotNotes}
+          title={`Note Copilota · ${tappa.titolo}`}
+          onSave={async (notes: string) => {
+            setCopilotNotes(notes);
+            await storageService.updateTappa(tappa.id, { noteCopilota: notes });
+            onUpdate?.({ ...tappa, noteCopilota: notes } as any);
+          }}
+        />
+      </>
+    );
+  }
+
   return (
     <div 
       onClick={onDetail || onEdit} 
@@ -40,15 +104,19 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-pink-50 text-pink-700 border border-pink-100 dark:bg-pink-500/10 dark:text-pink-400 dark:border-pink-500/20 text-[11px] font-semibold uppercase tracking-wider">
             <span className="text-sm">📍</span> Tappa
           </span>
-          {(tappa as any).sottocategoria && (
+          {(tappa as any).sottocategoria && (tappa as any).sottocategoria !== 'Tappa' && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700/80 dark:text-slate-200 dark:border-slate-600 text-[10px] font-bold tracking-wide">
               <span>🏷️</span>
               <span>{(tappa as any).sottocategoria}</span>
             </span>
           )}
           {orario ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200 text-[11px] font-medium font-mono">
-              ⏰ Ore {orario} · indicativo
+            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full font-mono text-[11px] font-medium ${
+              tappa.timeStatus === 'indicativo'
+                ? 'bg-amber-50 text-amber-800 border border-amber-200/70 dark:bg-amber-950/40 dark:text-amber-300'
+                : 'bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-200'
+            }`}>
+              ⏰ Ore {orario} {tappa.timeStatus === 'indicativo' ? '· indicativo' : ''}
             </span>
           ) : (
             <button
@@ -57,7 +125,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate }: TappaCa
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 px-2 py-0.5 rounded-full border border-rose-200 transition-colors cursor-pointer"
               title="Inserisci orario per questa tappa"
             >
-              ⏰ {tappa.sottocategoria === 'Sosta fotografica' ? 'Orario non indicato' : '+ Orario'}
+              ⏰ {tappa.sottocategoria === 'Sosta fotografica' ? 'Orario non specificato' : '+ Orario'}
             </button>
           )}
           {tappa.data && (

@@ -40,6 +40,8 @@ export interface TrekkingRoutePreview {
   sourceLabel?: string;
 }
 
+export type TimeStatus = 'confermato' | 'indicativo' | 'non_specificato';
+
 export interface Attivita {
   id: string;
   dayId: string;
@@ -47,11 +49,12 @@ export interface Attivita {
   endDate?: string; // YYYY-MM-DD (per attività multi-giorno o escursioni estese)
   title: string;
   time?: string; // HH:mm
+  timeStatus?: TimeStatus; // 'confermato' (default su inserimento manuale) | 'indicativo'
   timeZone?: string; // IANA, es. Europe/Rome
   location: string;
   cost?: string; // Costo in €
   category: CategoriaAttivita;
-  sottocategoria?: 'Trekking' | 'Spot fotografico' | 'Escursione' | 'Tour Guidato' | 'Museo' | 'Adrenalina' | 'Altro';
+  sottocategoria?: 'Passeggiata' | 'Trekking' | 'Spot fotografico' | 'Escursione' | 'Tour Guidato' | 'Museo' | 'Adrenalina' | 'Altro';
   duration?: string;
   distanceKm?: number;
   elevationGainM?: number;
@@ -65,6 +68,11 @@ export interface Attivita {
   orarioRitrovo?: string; // HH:mm
   orarioInizio?: string; // HH:mm
   address?: string;
+  googleMapsUrl?: string; // Link Google Maps separato
+  originLocation?: string; // Eventuale percorso con origine
+  destinationLocation?: string; // Eventuale percorso con destinazione
+  isRoute?: boolean; // Flag se è un percorso (es. Google Maps Directions)
+  childTappe?: Tappa[]; // Tappe subordinate collegate (opzionale a runtime/timeline)
   acconto?: string;
   paymentStatus?: 'saldato' | 'da_saldare';
   notes?: string;
@@ -86,12 +94,14 @@ export interface Tappa {
   id: string;
   titolo: string;
   sottocategoria?: string;
+  passeggiataId?: string; // Collegamento facoltativo alla Passeggiata contenitore
   data?: string; // YYYY-MM-DD
   date?: string; // Alias di data YYYY-MM-DD
   dayId?: string;
   order?: number; // Ordine cronologico
   orario?: string; // HH:mm
   time?: string; // Alias di orario HH:mm
+  timeStatus?: TimeStatus;
   coordinate?: Coordinate;
   indirizzo?: string;
   mapsUrl?: string; // Link o indirizzo Maps
@@ -134,6 +144,7 @@ export interface Ristorante {
   date?: string; // Alias di data YYYY-MM-DD
   dayId?: string;
   orario?: string; // HH:mm
+  timeStatus?: TimeStatus;
   budget?: string; // es. 45 €
   coordinate?: Coordinate;
   indirizzo?: string;
@@ -162,6 +173,7 @@ export interface Alloggio {
   checkIn: string; // YYYY-MM-DD
   checkInTime?: string; // HH:mm (orario check-in struttura)
   arrivalTime?: string; // HH:mm (mio orario di arrivo previsto)
+  timeStatus?: TimeStatus;
   checkOut: string; // YYYY-MM-DD
   checkOutTime?: string; // HH:mm (orario check-out struttura)
   timeZone?: string; // IANA, usato esclusivamente per promemoria certi
@@ -223,6 +235,7 @@ export interface Trasporto {
   type: TipoTrasporto;
   date: string; // YYYY-MM-DD
   departureTime?: string; // HH:mm
+  timeStatus?: TimeStatus;
   departureTimeZone?: string; // IANA, es. Pacific/Auckland
   arrivalDate?: string; // YYYY-MM-DD (per voli notturni / multi-giorno)
   arrivalTime?: string; // HH:mm
@@ -234,6 +247,7 @@ export interface Trasporto {
   dropoffTime?: string; // HH:mm
   dropoffTimeZone?: string; // IANA, per riconsegna noleggio
   dropoffLocation?: string; // Luogo di riconsegna
+  dropoffCoordinate?: Coordinate; // Coordinate geografiche punto riconsegna
   carrier?: string;
   bookingCode?: string;
   ticketUrl?: string;
@@ -296,6 +310,7 @@ export interface Shopping {
   date?: string; // Alias di data YYYY-MM-DD
   dayId?: string;
   orario?: string; // HH:mm
+  timeStatus?: TimeStatus;
   budget?: string; // es. 50 €
   cost?: string; // Alias di budget
   acconto?: string; // Importo versato/acconto
@@ -337,6 +352,7 @@ export interface TimelineItem {
   segmentContext?: TransportSegmentContext;
   /** true se `time` è un valore predefinito/indicativo (non inserito dall'utente né da una prenotazione) */
   timeIsDefault?: boolean;
+  timeStatus?: TimeStatus;
   effectiveDate?: string;
   sortTime?: string;
   sortOrder?: number;

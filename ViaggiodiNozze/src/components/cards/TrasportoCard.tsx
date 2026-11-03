@@ -223,41 +223,53 @@ export default function TrasportoCard({
     }
   };
 
+  const isFlight = transport.type === 'volo';
+
   const extractCodeOrCity = (locationStr: string, explicitIata?: string): { code: string; name: string } => {
-    if (explicitIata && explicitIata.trim()) {
+    if (!locationStr) return { code: '', name: 'Destinazione' };
+
+    // Solo per i voli usiamo codici aeroportuali IATA (es. MXP, PEK, FCO)
+    if (isFlight) {
+      if (explicitIata && explicitIata.trim()) {
+        return {
+          code: explicitIata.trim().toUpperCase(),
+          name: locationStr ? (locationStr.length > 25 ? locationStr.slice(0, 22) + '…' : locationStr) : explicitIata.trim().toUpperCase()
+        };
+      }
+      const match = locationStr.match(/\(([A-Z]{3,4})\)/i);
+      if (match && match[1]) {
+        const code = match[1].toUpperCase();
+        const name = locationStr.split('(')[0].trim();
+        return { code, name };
+      }
+      const l = locationStr.toLowerCase();
+      if (l.includes('malpensa')) return { code: 'MXP', name: 'Milano Malpensa' };
+      if (l.includes('pechino') || l.includes('beijing')) return { code: 'PEK', name: 'Pechino' };
+      if (l.includes('fiumicino')) return { code: 'FCO', name: 'Roma Fiumicino' };
+      if (l.includes('auckland')) return { code: 'AKL', name: 'Auckland' };
+      if (l.includes('christchurch')) return { code: 'CHC', name: 'Christchurch' };
+      if (l.includes('wellington')) return { code: 'WLG', name: 'Wellington' };
+      if (l.includes('picton')) return { code: 'PCN', name: 'Picton' };
+      if (l.includes('adelaide')) return { code: 'ADL', name: 'Adelaide' };
+      if (l.includes('melbourne')) return { code: 'MEL', name: 'Melbourne' };
+      if (l.includes('sydney')) return { code: 'SYD', name: 'Sydney' };
+      if (l.includes('manila')) return { code: 'MNL', name: 'Manila' };
+      if (l.includes('caticlan') || l.includes('boracay')) return { code: 'MPH', name: 'Boracay' };
+      if (l.includes('el nido')) return { code: 'ENI', name: 'El Nido' };
+      if (l.includes('coron') || l.includes('busuanga')) return { code: 'USU', name: 'Coron' };
+      if (l.includes('cebu')) return { code: 'CEB', name: 'Cebu' };
+      const parts = locationStr.split(/[,\-–\s]+/);
+      const firstWord = parts[0] || 'AER';
       return {
-        code: explicitIata.trim().toUpperCase(),
-        name: locationStr ? (locationStr.length > 25 ? locationStr.slice(0, 22) + '…' : locationStr) : explicitIata.trim().toUpperCase()
+        code: firstWord.length > 4 ? firstWord.slice(0, 3).toUpperCase() : firstWord.toUpperCase(),
+        name: locationStr.length > 25 ? locationStr.slice(0, 22) + '…' : locationStr
       };
     }
-    if (!locationStr) return { code: 'LOC', name: 'Destinazione' };
-    const match = locationStr.match(/\(([A-Z]{3,4})\)/i);
-    if (match && match[1]) {
-      const code = match[1].toUpperCase();
-      const name = locationStr.split('(')[0].trim();
-      return { code, name };
-    }
-    const l = locationStr.toLowerCase();
-    if (l.includes('malpensa') || l.includes('milano')) return { code: 'MXP', name: 'Milano' };
-    if (l.includes('pechino') || l.includes('beijing')) return { code: 'PEK', name: 'Pechino' };
-    if (l.includes('fiumicino') || l.includes('roma')) return { code: 'FCO', name: 'Roma' };
-    if (l.includes('auckland')) return { code: 'AKL', name: 'Auckland' };
-    if (l.includes('christchurch')) return { code: 'CHC', name: 'Christchurch' };
-    if (l.includes('wellington')) return { code: 'WLG', name: 'Wellington' };
-    if (l.includes('picton')) return { code: 'PCN', name: 'Picton' };
-    if (l.includes('adelaide')) return { code: 'ADL', name: 'Adelaide' };
-    if (l.includes('melbourne')) return { code: 'MEL', name: 'Melbourne' };
-    if (l.includes('sydney')) return { code: 'SYD', name: 'Sydney' };
-    if (l.includes('manila')) return { code: 'MNL', name: 'Manila' };
-    if (l.includes('caticlan') || l.includes('boracay')) return { code: 'MPH', name: 'Boracay' };
-    if (l.includes('el nido')) return { code: 'ENI', name: 'El Nido' };
-    if (l.includes('coron') || l.includes('busuanga')) return { code: 'USU', name: 'Coron' };
-    if (l.includes('cebu')) return { code: 'CEB', name: 'Cebu' };
-    const parts = locationStr.split(/[,\-–\s]+/);
-    const firstWord = parts[0] || 'LOC';
+
+    // Per treni, traghetti, auto e transfer: NESSUNA sigla aeroportuale; mostra la stazione o luogo effettivo
     return {
-      code: firstWord.length > 4 ? firstWord.slice(0, 3).toUpperCase() : firstWord.toUpperCase(),
-      name: locationStr.length > 25 ? locationStr.slice(0, 22) + '…' : locationStr
+      code: '',
+      name: locationStr.trim()
     };
   };
 
@@ -289,13 +301,106 @@ export default function TrasportoCard({
 
   const hasPnr = Boolean(transport.bookingCode && transport.bookingCode.trim());
 
+  if (isCompact) {
+    const depTime = transport.departureTime || '';
+    const arrTime = transport.arrivalTime || transport.dropoffTime || '';
+    const originLabel = originInfo.code ? `${originInfo.code} · ${originInfo.name}` : originInfo.name;
+    const destLabel = destInfo.code ? `${destInfo.code} · ${destInfo.name}` : destInfo.name;
+
+    return (
+      <>
+        <div
+          onClick={onDetail || onEdit}
+          className="w-full max-w-full min-w-0 rounded-2xl border border-slate-200/90 dark:border-slate-800 bg-white dark:bg-[#172033] hover:border-slate-300 dark:hover:border-slate-700 p-3 sm:p-3.5 transition-all cursor-pointer shadow-xs hover:shadow-sm"
+        >
+          <div className="flex items-start gap-3">
+            {/* Colonna Orario Tabulare */}
+            <div className="shrink-0 text-left min-w-[56px] pt-0.5">
+              <span className="font-mono text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white tabular-nums block">
+                {depTime || '—:—'}
+              </span>
+              {arrTime && (
+                <span className="font-mono text-[10px] text-slate-500 dark:text-slate-400 font-semibold block mt-0.5">
+                  ➔ {arrTime} {isNextDayArrival ? '+1' : ''}
+                </span>
+              )}
+            </div>
+
+            {/* Divisore */}
+            <div className="w-px self-stretch bg-slate-100 dark:bg-slate-800 shrink-0" />
+
+            {/* Contenuto Principale */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0 truncate">
+                  <span className="text-sm shrink-0">{currentType.icon}</span>
+                  <span className="font-bold text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                    {transport.carrier ? transport.carrier : currentType.label}
+                  </span>
+                </div>
+
+                {/* Indicatori discreti */}
+                <div className="flex items-center gap-1.5 shrink-0 text-xs">
+                  {hasPnr && (
+                    <span className="font-mono text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-1.5 py-0.5 rounded border border-slate-200/80 dark:border-slate-700">
+                      {transport.bookingCode && transport.bookingCode.length > 14 ? transport.bookingCode.slice(0, 12) + '…' : transport.bookingCode}
+                    </span>
+                  )}
+                  {hasTicket && <span title="Biglietto / allegato presente">🎫</span>}
+                  {hasCopilotNotes && <span title="Note Copilota">🧭</span>}
+                  {transport.cost && (
+                    <span className="font-mono text-[11px] font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                      {displayText}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Tratta: Origine ➔ Destinazione */}
+              <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300 truncate mt-0.5 flex items-center gap-1">
+                <span className="truncate">{originLabel}</span>
+                <span className="text-slate-400">➔</span>
+                <span className="truncate">{destLabel}</span>
+              </p>
+
+              {/* Dettagli operativi minimi: Carrozza/Posto o Terminal */}
+              {(transport.terminalGate || transport.posti) && (
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate mt-0.5">
+                  {transport.terminalGate && <span>{transport.type === 'treno' ? 'Binario: ' : 'Gate: '}{transport.terminalGate} </span>}
+                  {transport.posti && <span>• Posto: {transport.posti}</span>}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Modal sempre disponibili */}
+        <TrasportoTicketsModal
+          isOpen={isTicketsOpen}
+          onClose={() => setIsTicketsOpen(false)}
+          transport={transport}
+          onUpdateTransport={(updated) => onUpdate?.(updated)}
+        />
+        <TrasportoBagagliModal isOpen={isBagagliOpen} onClose={() => setIsBagagliOpen(false)} transport={transport} />
+        <UniversalCopilotaModal
+          isOpen={isCopilotOpen}
+          onClose={() => setIsCopilotOpen(false)}
+          noteCopilota={transport.noteCopilota || ''}
+          title={`Note Copilota · ${transport.carrier || currentType.label}`}
+          onSave={async (nextNotes: string) => {
+            (transport as any).noteCopilota = nextNotes;
+            onUpdate?.(transport);
+          }}
+        />
+      </>
+    );
+  }
+
   return (
     <>
       <div
         onClick={onDetail || onEdit}
-        className={`w-full max-w-full min-w-0 rounded-2xl relative overflow-hidden transition-all duration-200 cursor-pointer border bg-white dark:bg-[#172033] border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md ${
-          isCompact ? 'p-3' : 'p-3.5 sm:p-5'
-        }`}
+        className="w-full max-w-full min-w-0 rounded-2xl relative overflow-hidden transition-all duration-200 cursor-pointer border bg-white dark:bg-[#172033] border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-md p-3.5 sm:p-5"
       >
         {/* TACCHE LATERALI BOARDING PASS EDITORIAL */}
         <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#F8F7F3] dark:bg-slate-950 border border-slate-200 dark:border-slate-800 pointer-events-none" />
@@ -348,7 +453,7 @@ export default function TrasportoCard({
           </div>
         </div>
 
-        {/* 2. ***REMOVED***: ORIGINE -> DESTINAZIONE (NUMERI TABULARI, ORARI CHIARI) */}
+        {/* 2. TRATTA: ORIGINE -> DESTINAZIONE (NUMERI TABULARI, ORARI CHIARI) */}
         <div className="py-3">
           <div
             className="items-center gap-1.5 sm:gap-4"
@@ -361,19 +466,19 @@ export default function TrasportoCard({
               )}
               {!transport.departureTime && <span className="mb-1 block text-[9px] font-semibold text-slate-400 dark:text-slate-500">Orario non indicato</span>}
               <div className="text-xl sm:text-2xl md:text-3xl font-black text-slate-950 dark:text-white tracking-tight font-mono tabular-nums leading-none">
-                {transport.departureTime || originInfo.code}
+                {transport.departureTime || originInfo.code || originInfo.name}
               </div>
               <p className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide truncate mt-1">
-                {originInfo.code} · {originInfo.name}
+                {originInfo.code ? `${originInfo.code} · ${originInfo.name}` : originInfo.name}
               </p>
-              {transport.departureLocation && transport.departureLocation !== originInfo.name && (
+              {transport.departureLocation && originInfo.code && transport.departureLocation !== originInfo.name && (
                 <p className="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 truncate">
                   {transport.departureLocation}
                 </p>
               )}
             </div>
 
-            {/* SEGNO GRAFICO MINIMALE ***REMOVED*** */}
+            {/* SEGNO GRAFICO MINIMALE TRATTA */}
             <div className="flex flex-col items-center justify-center px-1 sm:px-2 shrink-0">
               <div className="w-8 sm:w-12 md:w-16 flex items-center justify-center relative">
                 <div className="hounigo-transport-route w-full border-t border-slate-300 dark:border-slate-700" />
@@ -395,7 +500,7 @@ export default function TrasportoCard({
             {/* DESTINAZIONE */}
             <div className="min-w-0 text-right">
               <div className="text-xl sm:text-2xl md:text-3xl font-black text-slate-950 dark:text-white tracking-tight font-mono tabular-nums leading-none flex items-center justify-end gap-1">
-                <span>{transport.arrivalTime || transport.dropoffTime || destInfo.code}</span>
+                <span>{transport.arrivalTime || transport.dropoffTime || destInfo.code || destInfo.name}</span>
                 {isNextDayArrival && (
                   <span className="text-[8px] sm:text-[9px] font-extrabold uppercase px-1 py-0.5 rounded-md bg-[#FF6B5F]/15 text-[#FF6B5F] align-top">
                     +1
@@ -403,9 +508,9 @@ export default function TrasportoCard({
                 )}
               </div>
               <p className="text-[11px] sm:text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wide truncate mt-1">
-                {destInfo.code} · {destInfo.name}
+                {destInfo.code ? `${destInfo.code} · ${destInfo.name}` : destInfo.name}
               </p>
-              {(transport.dropoffLocation || transport.arrivalLocation) && (
+              {(transport.dropoffLocation || transport.arrivalLocation) && destInfo.code && (transport.dropoffLocation || transport.arrivalLocation) !== destInfo.name && (
                 <p className="text-[10px] sm:text-[11px] text-slate-400 dark:text-slate-500 truncate">
                   {transport.dropoffLocation || transport.arrivalLocation}
                 </p>

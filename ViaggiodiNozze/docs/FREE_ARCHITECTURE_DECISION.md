@@ -8,7 +8,7 @@ HOUNIGO 1.2.0 continua a usare Firebase Spark per autenticazione, Firestore e PW
 
 - Workers AI Free include 10.000 Neurons al giorno. Superata la quota, le operazioni falliscono; l’uso ulteriore richiede un passaggio esplicito a Workers Paid.
 - Workers Free offre 100.000 richieste al giorno e 10 ms CPU per richiesta. D1 Free offre 5 milioni di righe lette, 100.000 scritte al giorno e 5 GB; al limite le query falliscono fino al reset.
-- Il gateway impone limiti più bassi: 2 richieste/minuto e 5/giorno per UID+viaggio, 20/giorno globali.
+- Il gateway impone limiti anti-abuso calibrati sul consumo effettivo: 6 richieste/minuto, 30 richieste/giorno per UID+viaggio (~600 Neurons/giorno stimati su 10.000 disponibili) e 150/giorno globali, con reset a mezzanotte UTC (01:00/02:00 CET), rollback dei tentativi falliti e caching client-side.
 - Non vengono configurati Workers Paid, AI Gateway credits, carte o account di fatturazione.
 
 ## Privacy
@@ -25,6 +25,14 @@ HOUNIGO 1.2.0 continua a usare Firebase Spark per autenticazione, Firestore e PW
 - Il Worker verifica il token con Firebase Auth REST, quindi legge puntualmente viaggio e membership tramite Firestore REST usando lo stesso token.
 - Firestore applica le Rules esistenti. Il Worker consente l’inferenza soltanto se `ownerUid`/`ownerId` corrisponde oppure il documento membro riporta `owner` o `copilota`.
 - Nessuna credenziale Firebase Admin o chiave privata AI entra nel frontend.
+
+## Tracciamento Accesso e Attività Utente (Privacy & Spark)
+
+- **Ultimo Accesso (`lastAccessAt`)**: registrato al momento del login o avvio sessione autenticata.
+- **Ultima Attività (`lastSeenAt`)**: registrata in modo leggero e discreto solo con sessione autenticata attiva e app visibile in primo piano (`document.visibilityState === 'visible'`).
+- **Controllo Frequenza (Throttling)**: le scritture client sono limitate a un massimo di una ogni 15 minuti tramite cache locale `sessionStorage`, evitando consumo di scritture Firestore Spark (max 20.000 scritture/giorno).
+- **Protezione Timestamp**: il valore deve coincidere con `request.time` (`serverTimestamp()`), impedendo falsificazioni orarie da parte del client.
+- **Isolamento e Privacy**: ogni utente può scrivere solo sul proprio record `/users/{uid}` (`request.auth.uid == userId`); la lettura dell'elenco utenti è riservata esclusivamente ai Global Admin autorizzati in `/system_admins/{uid}`. Nessuna cronologia o coordinata GPS viene registrata.
 
 ## Modelli e licenze
 

@@ -39,8 +39,12 @@ export interface ExtractedTappa {
   type: 'tappa';
   titolo: string;
   data?: string;          // YYYY-MM-DD
-  mapsUrl?: string;
+  orario?: string;        // HH:mm
+  time?: string;          // HH:mm alias
+  indirizzo?: string;     // Indirizzo o località leggibile
+  mapsUrl?: string;       // Link Google Maps
   nota?: string;
+  sottocategoria?: string;
 }
 
 export interface ExtractedTrasporto {
@@ -162,11 +166,13 @@ const SINGLE_BOOKING_PROPERTIES = {
   },
   tappa: {
     type: "object",
-    description: "Dati tappa (città, spostamenti generali).",
+    description: "Dati tappa, sosta o fermata dell'itinerario a piedi o in auto.",
     properties: {
-      titolo: { type: "string", description: "Titolo o nome della tappa / destinazione" },
+      titolo: { type: "string", description: "Titolo o nome della tappa / sosta (es. 'Bridge of Remembrance e passeggiata lungo l\\'Avon')" },
       data: { type: "string", description: "Data visita nel formato YYYY-MM-DD" },
-      mapsUrl: { type: "string", description: "URL Google Maps o indirizzo" },
+      orario: { type: "string", description: "Orario della tappa nel formato HH:mm, se presente (es. '15:30')" },
+      indirizzo: { type: "string", description: "Indirizzo testuale leggibile o luogo (NON URL Maps lunghi)" },
+      mapsUrl: { type: "string", description: "URL o link a Google Maps se fornito separatamente" },
       nota: { type: "string", description: "Note o informazioni sulla tappa" }
     },
     required: ["titolo"]
@@ -260,7 +266,16 @@ const EXTRACTION_SCHEMA = {
     ...SINGLE_BOOKING_PROPERTIES,
     multipleBookings: {
       type: "array",
-      description: "Compila questo array SE nel documento/testo sono presenti 2 o più prenotazioni distinte (es. volo andata + volo ritorno, oppure hotel + attività, oppure conferme multiple).",
+      description: "Compila questo array SE nel documento/testo sono presenti 2 o più entità distinte (es. elenco di tappe separate a piedi, soste, voli andata + ritorno, hotel + attività, ristoranti multipli). Se l'utente specifica N tappe o elenca N orari separati, questo array DEVE contenere esattamente N elementi distinti!",
+      items: {
+        type: "object",
+        properties: SINGLE_BOOKING_PROPERTIES,
+        required: ["entityType"]
+      }
+    },
+    items: {
+      type: "array",
+      description: "Alias di multipleBookings",
       items: {
         type: "object",
         properties: SINGLE_BOOKING_PROPERTIES,
@@ -311,7 +326,20 @@ Il tuo compito:
 2. Estrai i campi formattando date in YYYY-MM-DD e orari in HH:mm.
 3. Se estrai un importo/costo, formattalo SEMPRE come numero semplice o decimale (es. "1250.50" o "319"), senza NESSUN separatore delle migliaia (non usare MAI "1.250,50" o "406.075"). Usa il punto per i decimali.
 4. Se è una richiesta di "info", usa le informazioni di contesto fornite (Data, Città, Posizione) per dare suggerimenti mirati.
-5. Non usare MAI "sconosciuto" se puoi rispondere come "info".`;
+5. Non usare MAI "sconosciuto" se puoi rispondere come "info".
+6. REGOLE CRITICHE PER TAPPE MULTIPLE ED ELENCHI DI SOSTE:
+- Se il testo contiene un elenco di tappe, soste o orari distinti (es. "inserisci le seguenti tappe: 15:30 tappa A, 15:55 tappa B, 16:30 tappa C, 17:00 tappa D, 17:35 tappa E..."):
+  * DEVI OBBLIGATORIAMENTE restituire ogni singola tappa come elemento distinto nell'array "multipleBookings".
+  * Se nel testo ci sono 5 tappe, multipleBookings DEVE contenere ESATTAMENTE 5 elementi!
+  * NON ACCORPARE MAI tappe o orari separati in un'unica entità o passeggiata riassuntiva!
+  * NON cambiare la categoria in "attivita/passeggiata" quando l'utente richiede "tappe separate". Mantieni entityType: "tappa" per ciascuna.
+  * La categoria predefinita per le tappe è "Tappa" generica (sottocategoria non specificata o "Tappa"): NON dedurre automaticamente "Sosta panoramica" o altre categorie specialistiche se non esplicitamente richieste nel testo.
+  * Preserva esattamente per ciascuna tappa: titolo fedele, orario (formato HH:mm, es. "15:30") nel campo "orario", e data (YYYY-MM-DD).
+  * Non inserire URL Google Maps nel campo indirizzo: usa il campo "mapsUrl" solo se fornito separatamente.
+7. REGOLE PER WAYPOINT E PERCORSI STRADALI:
+- Distingui rigorosamente i waypoint intermedi o puramente stradali di navigazione (es. transiti su autostrade come Playford Hwy o Western Hwy, bivi, rotonde) dalle VERE TAPPE turistiche.
+- I waypoint puramente stradali NON devono essere trasformati in tappe autonome dell'itinerario a meno che l'utente non lo richieda esplicitamente come fermata programmata con orario.
+- Non estrarre MAI fermate o incroci omonimi geograficamente incompatibili (es. Stawell in Victoria) se il contesto del percorso o del giorno è su un'altra isola o regione (es. Kangaroo Island).`;
 
 const CHAT_PROMPT = `Sei Houni AI, il Concierge di viaggio di una coppia in luna di miele.
 Rispondi in italiano, in modo caldo ma sintetico (max ~120 parole), a domande su cibo, meteo, tappe, orari, trasporti e consigli pratici.
@@ -404,27 +432,98 @@ export async function askConcierge(_text: string, contextStr: string, cleanTextO
 // ─── Helper conversione entità estratta da JSON ────────────────────────────────
 export function parseEntityItem(item: any): ExtractedEntity | null {
   if (!item || typeof item !== 'object') return null;
-  const entityType: ExtractedEntityType = item.entityType || 'sconosciuto';
+  const entityType: ExtractedEntityType = item.entityType || (item.type ? item.type : 'sconosciuto');
 
-  if (entityType === 'alloggio' && item.alloggio) {
-    return { type: 'alloggio', ...item.alloggio } as ExtractedAlloggio;
+  if (entityType === 'alloggio' || item.alloggio) {
+    const a = item.alloggio || item;
+    return { type: 'alloggio', ...a } as ExtractedAlloggio;
   }
-  if (entityType === 'tappa' && item.tappa) {
-    return { type: 'tappa', ...item.tappa } as ExtractedTappa;
+  if (entityType === 'tappa' || item.type === 'tappa' || (item.titolo && !item.tipoTrasporto)) {
+    const t = item.tappa || item;
+    return {
+      type: 'tappa',
+      titolo: t.titolo || t.title || 'Tappa',
+      data: t.data || t.date,
+      orario: t.orario || t.time,
+      time: t.orario || t.time,
+      indirizzo: t.indirizzo || t.address || t.location,
+      mapsUrl: t.mapsUrl || t.link,
+      nota: t.nota || t.notes,
+      sottocategoria: t.sottocategoria
+    } as ExtractedTappa;
   }
-  if (entityType === 'trasporto' && item.trasporto) {
-    return { type: 'trasporto', ...item.trasporto } as ExtractedTrasporto;
+  if (entityType === 'trasporto' || item.trasporto || item.tipoTrasporto) {
+    const tr = item.trasporto || item;
+    return { type: 'trasporto', ...tr } as ExtractedTrasporto;
   }
-  if (entityType === 'attivita' && item.attivita) {
-    return { type: 'attivita', ...item.attivita } as ExtractedAttivita;
+  if (entityType === 'attivita' || item.attivita) {
+    const act = item.attivita || item;
+    return { type: 'attivita', ...act } as ExtractedAttivita;
   }
-  if (entityType === 'ristorante' && item.ristorante) {
-    return { type: 'ristorante', ...item.ristorante } as ExtractedRistorante;
+  if (entityType === 'ristorante' || item.ristorante) {
+    const r = item.ristorante || item;
+    return { type: 'ristorante', ...r } as ExtractedRistorante;
   }
-  if (entityType === 'shopping' && item.shopping) {
-    return { type: 'shopping', ...item.shopping } as ExtractedShopping;
+  if (entityType === 'shopping' || item.shopping) {
+    const s = item.shopping || item;
+    return { type: 'shopping', ...s } as ExtractedShopping;
   }
   return null;
+}
+
+/**
+ * Riconosce elenchi strutturati espliciti di tappe/soste con orari nel testo
+ * (es. "15:30 tappa A\n15:55 tappa B..."), garantendo estrazione deterministica a 0 errori
+ */
+export function tryExtractMultipleTappe(text: string, defaultDate?: string): ExtractedTappa[] | null {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  let extractedDate = defaultDate;
+  const dateMatchIso = text.match(/\b(202\d-[01]\d-[0-3]\d)\b/);
+  const dateMatchIt = text.match(/\b([0-3]?\d)[\/\-\.]([01]?\d)(?:[\/\-\.](202\d))?\b/);
+  const dateMatchText = text.match(/\b([0-3]?\d)\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)(?:\s+(202\d))?\b/i);
+
+  if (dateMatchIso) {
+    extractedDate = dateMatchIso[1];
+  } else if (dateMatchText) {
+    const day = dateMatchText[1].padStart(2, '0');
+    const months: Record<string, string> = {
+      gennaio: '01', febbraio: '02', marzo: '03', aprile: '04',
+      maggio: '05', giugno: '06', luglio: '07', agosto: '08',
+      settembre: '09', ottobre: '10', novembre: '11', dicembre: '12'
+    };
+    const month = months[dateMatchText[2].toLowerCase()] || '12';
+    const year = dateMatchText[3] || '2026';
+    extractedDate = `${year}-${month}-${day}`;
+  } else if (dateMatchIt) {
+    const day = dateMatchIt[1].padStart(2, '0');
+    const month = dateMatchIt[2].padStart(2, '0');
+    const year = dateMatchIt[3] || '2026';
+    extractedDate = `${year}-${month}-${day}`;
+  }
+
+  const items: ExtractedTappa[] = [];
+  const linePattern = /^(?:[-*•]|\d+[\.\)\-–])?\s*([0-2]?\d:[0-5]\d)\s*(?:[-–—:]|tappa|sosta)?\s*(.+)$/i;
+
+  for (const line of lines) {
+    const m = line.match(linePattern);
+    if (m) {
+      const orario = m[1].padStart(5, '0');
+      let title = m[2].trim();
+      title = title.replace(/^(?:tappa|sosta)\s*[:\-–]?\s*/i, '').trim();
+      if (title.length > 2) {
+        items.push({
+          type: 'tappa',
+          titolo: title,
+          data: extractedDate,
+          orario,
+          time: orario
+        });
+      }
+    }
+  }
+
+  return items.length >= 2 ? items : null;
 }
 
 export function parseAIResponse(rawJsonText: string): AIExtractionResult {
@@ -440,8 +539,15 @@ export function parseAIResponse(rawJsonText: string): AIExtractionResult {
   }
 
   const multipleItems: ExtractedEntity[] = [];
-  if (Array.isArray(parsed?.multipleBookings) && parsed.multipleBookings.length > 0) {
-    for (const b of parsed.multipleBookings) {
+  const rawList = Array.isArray(parsed)
+    ? parsed
+    : (Array.isArray(parsed?.multipleBookings) ? parsed.multipleBookings
+      : (Array.isArray(parsed?.items) ? parsed.items
+        : (Array.isArray(parsed?.tappe) ? parsed.tappe
+          : (Array.isArray(parsed?.entities) ? parsed.entities : []))));
+
+  if (rawList.length > 0) {
+    for (const b of rawList) {
       const parsedItem = parseEntityItem(b);
       if (parsedItem) multipleItems.push(parsedItem);
     }
@@ -508,6 +614,27 @@ export async function extractFromText(
     };
   }
 
+  // Cache deduplicata per evitare doppie chiamate identiche e consumo inutile di quota
+  const cacheKey = `extract_${cleanText.slice(0, 500)}_${contextStr}`;
+  const cached = apiCache.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CACHE_TTL) {
+    return cached.data;
+  }
+
+  // Riconoscimento prioritario per elenchi espliciti di tappe separate con orari
+  const explicitTappe = tryExtractMultipleTappe(cleanText);
+  if (explicitTappe && explicitTappe.length >= 2) {
+    const result: AIExtractionResult = {
+      success: true,
+      entityType: 'tappa',
+      data: explicitTappe[0],
+      multipleItems: explicitTappe,
+      raw: cleanText
+    };
+    apiCache.set(cacheKey, { data: result, ts: Date.now() });
+    return result;
+  }
+
   // Modalità Concierge esplicita, o domanda evidente in modalità auto
   if (mode === 'chat' || (mode === 'auto' && looksLikeQuestion(cleanText))) {
     return askConcierge(cleanText, contextStr);
@@ -558,23 +685,27 @@ export async function extractFromText(
 
   if (multipleItems.length > 1) {
     const mainItem = primaryItem || multipleItems[0];
-    return {
+    const result: AIExtractionResult = {
       success: true,
       entityType: mainItem.type,
       data: mainItem,
       multipleItems,
       raw: res.text
     };
+    apiCache.set(cacheKey, { data: result, ts: Date.now() });
+    return result;
   }
 
   if (primaryItem) {
-    return {
+    const result: AIExtractionResult = {
       success: true,
       entityType: primaryItem.type,
       data: primaryItem,
       multipleItems: multipleItems.length > 0 ? multipleItems : undefined,
       raw: res.text
     };
+    apiCache.set(cacheKey, { data: result, ts: Date.now() });
+    return result;
   }
 
   // Fallback: nessuna prenotazione riconosciuta → rispondiamo come Concierge invece di fallire

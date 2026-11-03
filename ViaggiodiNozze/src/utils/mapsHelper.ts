@@ -1,4 +1,82 @@
 import type { Trasporto, Coordinate } from '../types';
+import { lookupKnownCoordinate } from './geoCoordinatesHelper';
+
+/**
+ * Controlla se la stringa fornita corrisponde a un URL Google Maps
+ */
+export function isGoogleMapsUrl(input?: string): boolean {
+  if (!input || !input.trim()) return false;
+  return /https?:\/\/(www\.)?(google\.[a-z.]+\/maps|maps\.google\.[a-z.]+|maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(input.trim());
+}
+
+/**
+ * Riconosce se un URL Google Maps è un percorso/itinerario con indicazioni (Directions)
+ */
+export function isGoogleMapsDirectionsUrl(input?: string): boolean {
+  if (!input || !input.trim()) return false;
+  const str = input.trim();
+  return isGoogleMapsUrl(str) && (
+    /\/dir\//i.test(str) ||
+    /[?&]api=1&origin=/i.test(str) ||
+    /[?&]destination=/i.test(str)
+  );
+}
+
+/**
+ * Separa un URL Google Maps dal testo/indirizzo leggibile ed estrae eventuali origine e destinazione da percorsi Directions
+ */
+export function extractMapsUrlFromText(rawText?: string): {
+  cleanText: string;
+  mapsUrl?: string;
+  isRoute: boolean;
+  origin?: string;
+  destination?: string;
+} {
+  if (!rawText || !rawText.trim()) {
+    return { cleanText: '', isRoute: false };
+  }
+
+  const urlMatch = rawText.match(/https?:\/\/[^\s]+/i);
+  if (!urlMatch) {
+    return { cleanText: rawText.trim(), isRoute: false };
+  }
+
+  const matchedUrl = urlMatch[0];
+  const remaining = rawText.replace(matchedUrl, '').replace(/\s+/g, ' ').trim();
+  const isRoute = isGoogleMapsDirectionsUrl(matchedUrl);
+
+  let origin: string | undefined;
+  let destination: string | undefined;
+
+  if (isRoute) {
+    // Esempio: /dir/Bridge+of+Remembrance/New+Regent+Street
+    const dirMatch = matchedUrl.match(/\/dir\/([^/]+)\/([^/?#]+)/i);
+    if (dirMatch) {
+      try {
+        origin = decodeURIComponent(dirMatch[1].replace(/\+/g, ' '));
+        destination = decodeURIComponent(dirMatch[2].replace(/\+/g, ' '));
+      } catch {}
+    } else {
+      try {
+        const urlObj = new URL(matchedUrl);
+        const origParam = urlObj.searchParams.get('origin');
+        const destParam = urlObj.searchParams.get('destination');
+        if (origParam) origin = origParam;
+        if (destParam) destination = destParam;
+      } catch {}
+    }
+  }
+
+  const cleanText = remaining || (isRoute ? 'Percorso a piedi' : '');
+
+  return {
+    cleanText,
+    mapsUrl: matchedUrl,
+    isRoute,
+    origin,
+    destination
+  };
+}
 
 /**
  * Risolve un input (che può essere un URL Maps diretto o un indirizzo/testo) nel corretto URL Google Maps.
@@ -238,24 +316,32 @@ export function calculateDistance(coord1?: Coordinate, coord2?: Coordinate): num
  * Funzione prevista per geocodificare un indirizzo testuale o URL in Coordinate (lat, lng).
  * Da collegare a un provider di geocoding (es. Google Geocoding API o OpenStreetMap Nominatim).
  */
-export async function getCoordinatesFromAddress(address: string): Promise<Coordinate | null> {
+export async function getCoordinatesFromAddress(address: string, contextHint?: string): Promise<Coordinate | null> {
   if (!address || !address.trim()) return null;
-  // Se è un URL di Google Maps puro senza query di testo, è difficile geocodificarlo con Nominatim
-  // Proviamo a pulirlo
+
+  // 1. Priorità lookup interno curato
+  const known = lookupKnownCoordinate(address);
+  if (known) return known;
+
   let query = address.trim();
   if (query.startsWith('http')) {
-    // Cerchiamo di estrarre la query dal link
     try {
       const url = new URL(query);
       if (url.searchParams.has('query')) {
         query = url.searchParams.get('query') || query;
       } else {
-        // Probabilmente un link corto come maps.app.goo.gl, impossibile geocodificare senza espanderlo
         return null;
       }
     } catch {
-      // url invalido
+      return null;
     }
+  }
+
+  // Se è una strada lunga senza indicazione di contesto specifico, non assegnare coordinate arbitrarie
+  const lower = query.toLowerCase();
+  const isGenericLongHighway = (lower === 'playford hwy' || lower === 'playford highway') && !lower.includes('kangaroo');
+  if (isGenericLongHighway) {
+    return null;
   }
 
   try {
@@ -267,9 +353,21 @@ export async function getCoordinatesFromAddress(address: string): Promise<Coordi
     if (!res.ok) return null;
     const data = await res.json();
     if (data && data.length > 0) {
+      const first = data[0];
+      const lat = parseFloat(first.lat);
+      const lng = parseFloat(first.lon);
+      const displayName = (first.display_name || '').toLowerCase();
+
+      // Controllo coerenza geografica: rifiuta incongruenze evidenti di stato o isola (es. Kangaroo Island vs Victoria)
+      const combined = `${lower} ${contextHint || ''}`.toLowerCase();
+      if ((combined.includes('kangaroo island') || combined.includes('karatta') || combined.includes('baudin beach')) && (displayName.includes('victoria') || lat < -36.5 || lng > 140)) {
+        console.warn(`[Geocoding] Rifiutata corrispondenza incompatibile: ${first.display_name} per query: ${query}`);
+        return null;
+      }
+
       return {
-        lat: parseFloat(data[0].lat),
-        lng: parseFloat(data[0].lon)
+        lat,
+        lng
       };
     }
   } catch (err) {

@@ -73,7 +73,7 @@ export default function TimelineItemDetailModal({
             </p>
           </div>
           <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-xl shrink-0">
-            ⏰ {item.time}
+            ⏰ {item.time || 'Orario non specificato'} {item.timeStatus === 'indicativo' ? '· indicativo' : ''}
           </span>
         </div>
 
@@ -395,7 +395,7 @@ export default function TimelineItemDetailModal({
                       <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
                         Orario Sosta / Passaggio
                       </span>
-                      <p className="font-semibold text-slate-700">⏰ {tp.orario || (tp as any).time}</p>
+                      <p className="font-semibold text-slate-700">⏰ {tp.orario || (tp as any).time} {tp.timeStatus === 'indicativo' ? '· indicativo' : ''}</p>
                     </div>
                   )}
                 </div>
@@ -463,7 +463,7 @@ export default function TimelineItemDetailModal({
                       <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
                         Orario Previsto
                       </span>
-                      <span className="font-semibold text-slate-700">⏰ {sh.orario}</span>
+                      <span className="font-semibold text-slate-700">⏰ {sh.orario} {sh.timeStatus === 'indicativo' ? '· indicativo' : ''}</span>
                     </div>
                   )}
                   {sh.budget && (
@@ -544,7 +544,7 @@ export default function TimelineItemDetailModal({
                       <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
                         Orario Prenotazione
                       </span>
-                      <span className="font-semibold text-slate-700">⏰ {rt.orario}</span>
+                      <span className="font-semibold text-slate-700">⏰ {rt.orario} {rt.timeStatus === 'indicativo' ? '· indicativo' : ''}</span>
                     </div>
                   )}
                   {rt.budget && (

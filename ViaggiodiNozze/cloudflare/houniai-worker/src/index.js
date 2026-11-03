@@ -55,6 +55,15 @@ async function getFirestoreDocument(path, idToken, env) {
   return response.json();
 }
 
+async function assertGlobalAdmin(uid, idToken, env) {
+  try {
+    const adminDoc = await getFirestoreDocument(`system_admins/${encodeURIComponent(uid)}`, idToken, env).catch(() => null);
+    return Boolean(adminDoc && adminDoc.fields);
+  } catch {
+    return false;
+  }
+}
+
 async function assertEditor(uid, tripId, idToken, env) {
   const encodedTripId = encodeURIComponent(tripId);
   const [trip, member] = await Promise.all([
@@ -64,7 +73,13 @@ async function assertEditor(uid, tripId, idToken, env) {
   return Boolean(trip && isAuthorizedEditor(uid, trip, member));
 }
 
-async function incrementCounter(database, bucket, identityHash, limit, now) {
+function getMidnightUtcIso() {
+  const d = new Date();
+  const next = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1, 0, 0, 0));
+  return next.toISOString();
+}
+
+async function incrementCounter(database, bucket, identityHash, limit, now, errorType) {
   const result = await database.prepare(`
     INSERT INTO ai_rate_limits (bucket, identity_hash, request_count, updated_at)
     VALUES (?1, ?2, 1, ?3)
@@ -73,7 +88,9 @@ async function incrementCounter(database, bucket, identityHash, limit, now) {
       updated_at = excluded.updated_at
     RETURNING request_count
   `).bind(bucket, identityHash, now).first();
-  if (!result || Number(result.request_count) > limit) throw new Error('RATE_LIMITED');
+  const count = Number(result?.request_count || 1);
+  if (count > limit) throw new Error(errorType || 'RATE_LIMITED');
+  return count;
 }
 
 async function enforceRateLimits(uid, tripId, env) {
@@ -81,9 +98,21 @@ async function enforceRateLimits(uid, tripId, env) {
   const day = new Date(now).toISOString().slice(0, 10);
   const minute = Math.floor(now / 60_000);
   const identityHash = await hashIdentity(`${uid}|${tripId}`);
-  await incrementCounter(env.RATE_LIMITS, `minute:${minute}`, identityHash, MAX_UID_REQUESTS_PER_MINUTE, now);
-  await incrementCounter(env.RATE_LIMITS, `day:${day}`, identityHash, MAX_UID_REQUESTS_PER_DAY, now);
-  await incrementCounter(env.RATE_LIMITS, `global:${day}`, 'global', MAX_GLOBAL_REQUESTS_PER_DAY, now);
+  await incrementCounter(env.RATE_LIMITS, `minute:${minute}`, identityHash, MAX_UID_REQUESTS_PER_MINUTE, now, 'RATE_LIMITED_MINUTE');
+  const userCount = await incrementCounter(env.RATE_LIMITS, `day:${day}`, identityHash, MAX_UID_REQUESTS_PER_DAY, now, 'RATE_LIMITED_USER_DAILY');
+  await incrementCounter(env.RATE_LIMITS, `global:${day}`, 'global', MAX_GLOBAL_REQUESTS_PER_DAY, now, 'RATE_LIMITED_GLOBAL_DAILY');
+
+  const remainingToday = Math.max(0, MAX_UID_REQUESTS_PER_DAY - userCount);
+  const resetAtUtc = getMidnightUtcIso();
+
+  const rollback = async () => {
+    await env.RATE_LIMITS.prepare('UPDATE ai_rate_limits SET request_count = MAX(0, request_count - 1) WHERE bucket = ?1 AND identity_hash = ?2')
+      .bind(`day:${day}`, identityHash).run().catch(() => null);
+    await env.RATE_LIMITS.prepare('UPDATE ai_rate_limits SET request_count = MAX(0, request_count - 1) WHERE bucket = ?1 AND identity_hash = ?2')
+      .bind(`global:${day}`, 'global').run().catch(() => null);
+  };
+
+  return { remainingToday, resetAtUtc, rollback };
 }
 
 async function runAi(requestBody, env) {
@@ -125,8 +154,14 @@ export async function handleRequest(request, env) {
   if (isAiRequest && payload?.consentVersion !== CONSENT_VERSION) {
     return json(origin, env, 428, { error: 'Informativa privacy non accettata.' });
   }
-  if (!(await assertEditor(uid, tripId, idToken, env))) {
-    return json(origin, env, 403, { error: 'HouniAI è riservata a Owner e Copilota autorizzati.' });
+  const isAdminPushRequest = pathname.startsWith('/v1/push/admin-');
+  if (isAdminPushRequest) {
+    const isAdmin = await assertGlobalAdmin(uid, idToken, env);
+    if (!isAdmin) {
+      return json(origin, env, 403, { error: 'Operazione riservata esclusivamente agli amministratori globali (system_admins).' });
+    }
+  } else if (!(await assertEditor(uid, tripId, idToken, env))) {
+    return json(origin, env, 403, { error: 'HouniAI e le notifiche del viaggio sono riservate a Owner e Copilota autorizzati.' });
   }
 
   if (isPushRequest) {
@@ -145,13 +180,47 @@ export async function handleRequest(request, env) {
     }
   }
 
+  let quotaInfo = null;
   try {
-    await enforceRateLimits(uid, tripId, env);
+    quotaInfo = await enforceRateLimits(uid, tripId, env);
     const text = await runAi(payload?.requestBody, env);
-    return json(origin, env, 200, { text });
+    return json(origin, env, 200, {
+      text,
+      remainingToday: quotaInfo.remainingToday,
+      resetAtUtc: quotaInfo.resetAtUtc
+    });
   } catch (error) {
-    if (error?.message === 'RATE_LIMITED') return json(origin, env, 429, { error: 'Quota HouniAI giornaliera raggiunta.' });
+    if (error?.message === 'RATE_LIMITED_MINUTE') {
+      return json(origin, env, 429, {
+        error: 'Troppe richieste ravvicinate. Attendi 30 secondi prima di riprovare.',
+        reason: 'rate_limited_minute',
+        retryAfter: 30
+      });
+    }
+    if (error?.message === 'RATE_LIMITED_USER_DAILY') {
+      const resetUtc = getMidnightUtcIso();
+      return json(origin, env, 429, {
+        error: `Quota giornaliera HouniAI raggiunta (${MAX_UID_REQUESTS_PER_DAY}/${MAX_UID_REQUESTS_PER_DAY}). Reset alle 00:00 UTC (ore 01:00/02:00 italiane).`,
+        reason: 'daily_user_limit',
+        remainingToday: 0,
+        resetAtUtc: resetUtc
+      });
+    }
+    if (error?.message === 'RATE_LIMITED_GLOBAL_DAILY') {
+      const resetUtc = getMidnightUtcIso();
+      return json(origin, env, 429, {
+        error: 'Quota globale del servizio temporaneamente esaurita per oggi. Reset alle 00:00 UTC.',
+        reason: 'daily_global_limit',
+        resetAtUtc: resetUtc
+      });
+    }
+    if (error?.message === 'RATE_LIMITED') {
+      return json(origin, env, 429, { error: 'Quota HouniAI raggiunta. Riprova più tardi.', reason: 'rate_limited' });
+    }
     if (error?.message === 'IMAGE_TOO_LARGE') return json(origin, env, 413, { error: 'Immagine troppo grande per l’analisi gratuita.' });
+    if (quotaInfo?.rollback) {
+      await quotaInfo.rollback().catch(() => null);
+    }
     return json(origin, env, 503, { error: 'HouniAI non disponibile. Continua con l’inserimento manuale.' });
   }
 }

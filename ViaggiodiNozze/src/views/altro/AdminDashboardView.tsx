@@ -35,6 +35,7 @@ import {
   clearTripStorageCache
 } from '../../services/tripStorageService';
 import { DatabaseUsagePanel } from './DatabaseUsagePanel';
+import { AdminNotificationsPanel } from './AdminNotificationsPanel';
 
 /** Sottocollezioni note del viaggio gestite dall'app */
 export const KNOWN_ADMIN_DELETION_SUBCOLLECTIONS = [
@@ -116,7 +117,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
   const currentTripConfig = getTripConfig();
 
   // Tab di navigazione interna all'Admin
-  const [activeAdminTab, setActiveAdminTab] = useState<'trips' | 'copilots' | 'users' | 'diagnostics'>('trips');
+  const [activeAdminTab, setActiveAdminTab] = useState<'trips' | 'copilots' | 'users' | 'notifications' | 'diagnostics'>('trips');
 
   // Stato autorizzazione e query globale dalle Firestore Security Rules
   const [accessStatus, setAccessStatus] = useState<GlobalAdminAccessStatus>('checking');
@@ -129,13 +130,14 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
   const [usersCursorStack, setUsersCursorStack] = useState<(QueryDocumentSnapshot | null)[]>([null]);
   const [usersLastVisible, setUsersLastVisible] = useState<QueryDocumentSnapshot | null>(null);
   const [usersHasMore, setUsersHasMore] = useState(false);
+  const [usersSortBy, setUsersSortBy] = useState<'lastAccessAt' | 'lastSeenAt'>('lastAccessAt');
   const [copiedUid, setCopiedUid] = useState<string | null>(null);
 
-  const loadUsersPage = async (page: number, cursor: QueryDocumentSnapshot | null) => {
+  const loadUsersPage = async (page: number, cursor: QueryDocumentSnapshot | null, sortField = usersSortBy) => {
     setLoadingUsers(true);
     setUsersError(null);
     try {
-      const res = await fetchUsersAccessPage(20, cursor);
+      const res = await fetchUsersAccessPage(20, cursor, sortField);
       setUsersList(res.users);
       setUsersLastVisible(res.lastVisible);
       setUsersHasMore(res.hasMore);
@@ -1202,6 +1204,17 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
               }`}
             >
               👥 Ultimi Accessi
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('notifications')}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeAdminTab === 'notifications'
+                  ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+              }`}
+            >
+              🔔 Notifiche Push
             </button>
             <button
               type="button"
@@ -2571,13 +2584,48 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="inline-flex rounded-xl border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (usersSortBy === 'lastAccessAt') return;
+                      setUsersSortBy('lastAccessAt');
+                      setUsersCursorStack([null]);
+                      loadUsersPage(1, null, 'lastAccessAt');
+                    }}
+                    className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                      usersSortBy === 'lastAccessAt'
+                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    🔑 Ultimo Accesso
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (usersSortBy === 'lastSeenAt') return;
+                      setUsersSortBy('lastSeenAt');
+                      setUsersCursorStack([null]);
+                      loadUsersPage(1, null, 'lastSeenAt');
+                    }}
+                    className={`px-2.5 py-1 rounded-lg transition-colors cursor-pointer ${
+                      usersSortBy === 'lastSeenAt'
+                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    ⚡ Ultima Attività
+                  </button>
+                </div>
+
                 <button
                   type="button"
                   disabled={loadingUsers}
                   onClick={() => {
                     setUsersCursorStack([null]);
-                    loadUsersPage(1, null);
+                    loadUsersPage(1, null, usersSortBy);
                   }}
                   className="px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
                   title="Ricarica elenco utenti da Firestore"
@@ -2595,12 +2643,13 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                 <span>Architettura Dati & Limiti Tecnologici Firebase Spark</span>
               </div>
               <p className="leading-relaxed opacity-90">
-                La registrazione dell'ultimo accesso avviene in modo trasparente e conforme al piano gratuito Firebase Spark (0 Cloud Functions). Ogni utente autenticato aggiorna esclusivamente il proprio record in <code>/users/{'{uid}'}</code> con <code>serverTimestamp()</code> protetto da regole di sicurezza.
+                La registrazione dell'ultimo accesso e dell'ultima attività avviene in modo trasparente e conforme al piano gratuito Firebase Spark (0 Cloud Functions). Ogni utente autenticato aggiorna esclusivamente il proprio record in <code>/users/{'{uid}'}</code> con <code>serverTimestamp()</code> protetto da regole di sicurezza.
               </p>
               <ul className="list-disc pl-4 space-y-0.5 text-[10px] opacity-80">
-                <li>I dati di accesso sono tracciati a partire dall'introduzione di questa funzionalità (nessuno storico retroattivo fittizio).</li>
-                <li>Se un partecipante non ha ancora effettuato l'accesso o non ha un record registrato, la data viene correttamente indicata come <strong>Non disponibile</strong>.</li>
-                <li>Non vengono effettuate chiamate non autorizzate a Firebase Auth Client; l'elenco rispetta la collezione Firestore autorizzata all'Amministratore.</li>
+                <li><strong>Ultimo Accesso:</strong> registrato all'avvio dell'applicazione con sessione attiva.</li>
+                <li><strong>Ultima Attività:</strong> registrata in modo leggero e discreto solo con app in primo piano, con un intervallo minimo di 15 minuti tra le scritture per preservare la quota Spark.</li>
+                <li><strong>Tutela Privacy:</strong> nessun tracciamento di navigazione o geolocalizzazione; il dato è accessibile unicamente all'amministratore autorizzato e modificabile dall'utente solo per il proprio record.</li>
+                <li>Se un partecipante non ha ancora un record registrato, la data viene correttamente indicata come <strong>Non disponibile</strong>.</li>
               </ul>
             </div>
 
@@ -2629,13 +2678,14 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                     <th className="py-3 px-4">UID Utente</th>
                     <th className="py-3 px-4">Viaggi Associati</th>
                     <th className="py-3 px-4">Ultimo Accesso</th>
+                    <th className="py-3 px-4">Ultima Attività</th>
                     <th className="py-3 px-4 text-center">Stato Dato</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 font-medium">
                   {loadingUsers && usersList.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-12 text-center text-slate-400">
+                      <td colSpan={6} className="py-12 text-center text-slate-400">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <span className="inline-block w-6 h-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
                           <span className="text-xs">Interrogazione collezione /users su Firestore in corso…</span>
@@ -2644,7 +2694,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                     </tr>
                   ) : usersList.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-10 text-center text-slate-400">
+                      <td colSpan={6} className="py-10 text-center text-slate-400">
                         Nessun utente registrato nella collezione /users.
                       </td>
                     </tr>
@@ -2736,12 +2786,25 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                             )}
                           </td>
 
+                          {/* Ultima Attività (lastSeenAt) */}
+                          <td className="py-3 px-4">
+                            {user.lastSeenAt ? (
+                              <div className="font-semibold text-indigo-700 dark:text-indigo-300">
+                                {formatDateTimeIT(user.lastSeenAt)}
+                              </div>
+                            ) : (
+                              <span className="inline-block px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 text-[10px]">
+                                Nessuna attività
+                              </span>
+                            )}
+                          </td>
+
                           {/* Stato Dato */}
                           <td className="py-3 px-4 text-center">
-                            {user.lastAccessAt ? (
+                            {user.lastAccessAt || user.lastSeenAt ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-300/60">
                                 <span>✓</span>
-                                <span>Registrato</span>
+                                <span>Attivo</span>
                               </span>
                             ) : (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300/60">
@@ -2973,6 +3036,11 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
             )}
           </div>
         </div>
+      )}
+
+      {/* ─── TAB GESTIONE NOTIFICHE PUSH (CONSOLE ADMIN) ───────── */}
+      {activeAdminTab === 'notifications' && (
+        <AdminNotificationsPanel currentTrip={currentTripConfig} />
       )}
 
       {/* ─── MODALE DI CONFERMA ELIMINAZIONE SICURA AMMINISTRATIVA ─── */}

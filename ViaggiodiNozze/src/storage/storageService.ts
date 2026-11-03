@@ -12,6 +12,7 @@ import { formatDateIT, normalizeTimestamp } from '../utils/tripDates';
 import { assertCanMutate } from '../utils/useAuthIdentity';
 import { compareTimelineItems } from '../utils/timelineOrdering';
 import { sortDeadlines } from '../utils/deadlines';
+import { lookupKnownCoordinate } from '../utils/geoCoordinatesHelper';
 
 export const SEED_FLAG_KEY = 'honeymoon_roadbook_seeded_v1';
 
@@ -429,6 +430,15 @@ class StorageService {
 
   async deleteActivity(id: string): Promise<void> {
     assertCanMutate('attivita');
+    try {
+      const tappe = await this.getTappe();
+      const linked = tappe.filter(t => t.passeggiataId === id);
+      for (const t of linked) {
+        await this.updateTappa(t.id, { passeggiataId: undefined });
+      }
+    } catch (err) {
+      console.warn('[StorageService] Errore scollegamento tappe figlie da passeggiata rimossa:', err);
+    }
     this.memoryCache.delete(STORES.ATTIVITA);
     await this.recordTombstone('attivita', id);
     await idbDelete(STORES.ATTIVITA, id);
@@ -1465,6 +1475,7 @@ class StorageService {
         if (isRental) {
           // Giorno di ritiro -> Card completa
           if (t.date === dateStr) {
+            const pickupCoord = t.coordinate || (t.departureLocation ? lookupKnownCoordinate(t.departureLocation) : undefined) || undefined;
             timeline.push({
               id: `${t.id}_pickup`,
               type: 'trasporto',
@@ -1474,7 +1485,7 @@ class StorageService {
               categoryOrType: t.type,
               copilota: t.copilota,
               completed: t.completed,
-              coordinate: t.coordinate,
+              coordinate: pickupCoord,
               originalData: t,
               displayMode: 'full',
               effectiveDate: t.date,
@@ -1483,15 +1494,18 @@ class StorageService {
           } 
           // Giorno di riconsegna -> Card completa o compatta
           else if (t.dropoffDate === dateStr) {
+            const dropoffLoc = t.dropoffLocation || t.arrivalLocation || '';
+            const dropoffCoord = t.dropoffCoordinate || (dropoffLoc ? lookupKnownCoordinate(dropoffLoc) : undefined) || undefined;
             timeline.push({
               id: `${t.id}_dropoff`,
               type: 'trasporto',
               time: t.dropoffTime || t.arrivalTime || '',
               title: `Riconsegna ${t.type === 'camper' ? 'camper' : 'auto'}${t.carrier ? ` (${t.carrier.split('(')[0].trim()})` : ''}`,
-              location: t.dropoffLocation || t.arrivalLocation || '',
+              location: dropoffLoc,
               categoryOrType: t.type,
               copilota: t.copilota,
               completed: t.completed,
+              coordinate: dropoffCoord,
               originalData: t,
               displayMode: 'full',
               effectiveDate: t.dropoffDate,
@@ -1522,10 +1536,14 @@ class StorageService {
         
         // 1. Partenza (genera un'unica card principale nel giorno di partenza)
         if (t.date === dateStr) {
+          const departureTime = t.departureTime || '';
+          const timeStatus = t.timeStatus || (departureTime ? 'confermato' : 'non_specificato');
           timeline.push({
             id: t.id,
             type: 'trasporto',
-            time: t.departureTime || '',
+            time: departureTime,
+            timeStatus,
+            timeIsDefault: timeStatus === 'indicativo' || !departureTime,
             title: t.carrier ? `${t.type.toUpperCase()} • ${t.carrier}` : t.type.toUpperCase(),
             location: t.departureLocation ? `${t.departureLocation} ➔ ${t.arrivalLocation}` : t.arrivalLocation,
             categoryOrType: t.type,
@@ -1603,15 +1621,49 @@ class StorageService {
         }
       });
 
-      // Tappe programmate per la data
+      // Tappe programmate per la data:
+      // se una tappa è subordinata a una Passeggiata del giorno, viene raggruppata come figlia
+      // ed esclusa dalle card autonome di primo livello (evitando duplicazioni nella timeline).
+      const childTappeMap = new Map<string, Tappa[]>();
+      const standaloneTappe: Tappa[] = [];
+
       dayTappe.forEach(t => {
+        if (t.passeggiataId && activities.some(a => a.id === t.passeggiataId)) {
+          const list = childTappeMap.get(t.passeggiataId) || [];
+          list.push(t);
+          childTappeMap.set(t.passeggiataId, list);
+        } else {
+          standaloneTappe.push(t);
+        }
+      });
+
+      // Associa le tappe figlie ordinate cronologicamente all'attività genitore
+      childTappeMap.forEach((list, parentId) => {
+        list.sort((a, b) => {
+          const timeA = a.orario || (a as any).time || '';
+          const timeB = b.orario || (b as any).time || '';
+          if (timeA && timeB && timeA !== timeB) return timeA.localeCompare(timeB);
+          if (a.order !== undefined && b.order !== undefined && a.order !== b.order) return a.order - b.order;
+          return (a.titolo || '').localeCompare(b.titolo || '');
+        });
+        const parentAct = activities.find(a => a.id === parentId);
+        if (parentAct) {
+          parentAct.childTappe = list;
+        }
+      });
+
+      // Tappe autonome di primo livello
+      standaloneTappe.forEach(t => {
+        const time = t.orario || (t as any).time || '';
+        const timeStatus = t.timeStatus || (time ? 'confermato' : 'non_specificato');
         timeline.push({
           id: t.id,
           type: 'tappa',
-          time: t.orario || (t as any).time || '',
-          timeIsDefault: !(t.orario || (t as any).time),
+          time,
+          timeStatus,
+          timeIsDefault: timeStatus === 'indicativo' || !time,
           title: t.titolo,
-          location: t.titolo,
+          location: t.indirizzo || t.titolo,
           categoryOrType: 'tappa',
           copilota: t.copilota,
           completed: t.completed,
@@ -1625,11 +1677,14 @@ class StorageService {
 
       // Attività
       activities.forEach(a => {
+        const time = a.time || a.orarioInizio || a.orarioRitrovo || '';
+        const timeStatus = a.timeStatus || (time ? (a.status === 'prenotato' || !a.timeStatus ? 'confermato' : 'indicativo') : 'non_specificato');
         timeline.push({
           id: a.id,
           type: 'attivita',
-          time: a.time || a.orarioInizio || a.orarioRitrovo || '',
-          timeIsDefault: !(a.time || a.orarioInizio || a.orarioRitrovo),
+          time,
+          timeStatus,
+          timeIsDefault: timeStatus === 'indicativo' || !time,
           title: a.title,
           location: a.location,
           categoryOrType: a.category,
@@ -1645,11 +1700,14 @@ class StorageService {
 
       // Prenotazioni Ristoranti
       dayRistoranti.forEach(r => {
+        const time = r.orario || '';
+        const timeStatus = r.timeStatus || (time ? 'confermato' : 'non_specificato');
         timeline.push({
           id: r.id,
           type: 'ristorante',
-          time: r.orario || '',
-          timeIsDefault: !r.orario,
+          time,
+          timeStatus,
+          timeIsDefault: timeStatus === 'indicativo' || !time,
           title: r.nome,
           location: r.indirizzo || r.nome,
           categoryOrType: 'ristorante',
@@ -1664,11 +1722,14 @@ class StorageService {
 
       // Shopping & Acquisti
       dayShopping.forEach(s => {
+        const time = s.orario || '';
+        const timeStatus = s.timeStatus || (time ? 'confermato' : 'non_specificato');
         timeline.push({
           id: s.id,
           type: 'shopping',
-          time: s.orario || '',
-          timeIsDefault: !s.orario,
+          time,
+          timeStatus,
+          timeIsDefault: timeStatus === 'indicativo' || !time,
           title: s.nome,
           location: s.indirizzo || s.nome,
           categoryOrType: 'shopping',
@@ -1686,11 +1747,14 @@ class StorageService {
       dayAccommodations.forEach(acc => {
         if (!seenAccIds.has(acc.id)) {
           seenAccIds.add(acc.id);
+          const time = acc.arrivalTime || acc.checkInTime || '';
+          const timeStatus = acc.timeStatus || (time ? 'confermato' : 'non_specificato');
           timeline.push({
             id: acc.id,
             type: 'alloggio',
-            time: acc.arrivalTime || acc.checkInTime || '',
-            timeIsDefault: !acc.arrivalTime,
+            time,
+            timeStatus,
+            timeIsDefault: timeStatus === 'indicativo' || !time,
             title: `Pernottamento presso: ${acc.name}`,
             location: acc.address || acc.location,
             categoryOrType: 'alloggio',

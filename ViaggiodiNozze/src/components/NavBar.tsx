@@ -22,11 +22,11 @@ export default function NavBar({
 }: NavBarProps) {
   const tabDetails = {
     oggi: {
-      label: 'Itinerario',
+      label: 'Oggi',
       icon: (active: boolean) => <TrailItinerario size={20} active={active} />
     },
     categorie: {
-      label: 'Categorie',
+      label: 'Itinerario',
       icon: (active: boolean) => <TrailCategorie size={20} active={active} />
     },
     mappa: {
