@@ -49,6 +49,11 @@ export function setAuthoritativeCloudRole(role: CloudRole): void {
  * sia accreditato con ruolo locale guida o copilota (verificato precedentemente).
  */
 export function isCloudAuthorized(): boolean {
+  if (import.meta.env.DEV) {
+    const sim = getSimulatedRole();
+    if (sim === 'owner' || sim === 'copilota') return true;
+    if (sim === 'viewer') return false;
+  }
   if (authoritativeCloudRole === 'owner' || authoritativeCloudRole === 'copilota') {
     return true;
   }

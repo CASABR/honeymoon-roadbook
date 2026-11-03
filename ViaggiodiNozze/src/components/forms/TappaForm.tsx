@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
-import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
+import { getCoordinatesFromAddress, extractMapsUrlFromText } from '../../utils/mapsHelper';
+import { storageService } from '../../storage/storageService';
+import { isPasseggiataActivity } from '../../utils/activityType';
 import DestinationSearchModal from '../modals/DestinationSearchModal';
-import type { Tappa, Coordinate, OpeningHoursInfo } from '../../types';
+import type { Tappa, Attivita, Coordinate, OpeningHoursInfo, TimeStatus } from '../../types';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import type { PlaceSuggestion } from '../../services/photonService';
 import TimePickerInput from '../common/TimePickerInput';
@@ -21,10 +23,14 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
   const [data, setData] = useState(() => initialData?.data || (initialData as any)?.date || defaultDate || new Date().toISOString().split('T')[0]);
-  const [sottocategoria, setSottocategoria] = useState('Sosta panoramica');
+  const [sottocategoria, setSottocategoria] = useState(() => initialData?.sottocategoria || 'Tappa');
+  const [passeggiataId, setPasseggiataId] = useState<string | undefined>(() => initialData?.passeggiataId);
+  const [availablePasseggiate, setAvailablePasseggiate] = useState<Attivita[]>([]);
   const [titolo, setTitolo] = useState('');
   const [orario, setOrario] = useState('');
+  const [timeStatus, setTimeStatus] = useState<TimeStatus>(initialData?.timeStatus || 'confermato');
   const [indirizzo, setIndirizzo] = useState('');
+  const [mapsUrl, setMapsUrl] = useState('');
   const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
   const [noteCopilota, setNoteCopilota] = useState('');
   const [nota, setNota] = useState('');
@@ -34,21 +40,45 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
 
   useEffect(() => {
+    storageService.getActivities().then(activities => {
+      const list = activities.filter(a => {
+        const matchesDate = a.date === data || a.dayId === `day_${data}`;
+        return matchesDate && isPasseggiataActivity(a);
+      });
+      setAvailablePasseggiate(list);
+    }).catch(() => {});
+  }, [data]);
+
+  const initializedIdRef = useRef<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    const currentId = initialData?.id || '__new__';
+    if (initializedIdRef.current === currentId) {
+      return;
+    }
+    initializedIdRef.current = currentId;
+
     if (initialData) {
       setData(initialData.data || (initialData as any)?.date || defaultDate || new Date().toISOString().split('T')[0]);
-      setSottocategoria(initialData.sottocategoria || 'Sosta panoramica');
+      setSottocategoria(initialData.sottocategoria || 'Tappa');
+      setPasseggiataId(initialData.passeggiataId);
       setTitolo(initialData.titolo || '');
       setOrario(initialData.orario || (initialData as any).time || '');
-      setIndirizzo(initialData.indirizzo || initialData.mapsUrl || '');
+      setTimeStatus(initialData.timeStatus || 'confermato');
+      setIndirizzo(initialData.indirizzo || '');
+      setMapsUrl(initialData.mapsUrl || '');
       setNoteCopilota(initialData.noteCopilota || '');
       setNota(initialData.nota || '');
       setOpeningHours(initialData.openingHours);
     } else {
       setData(defaultDate || new Date().toISOString().split('T')[0]);
-      setSottocategoria('Sosta panoramica');
+      setSottocategoria('Tappa');
+      setPasseggiataId(undefined);
       setTitolo('');
       setOrario(defaultTime || '');
+      setTimeStatus('confermato');
       setIndirizzo('');
+      setMapsUrl('');
       setNoteCopilota('');
       setNota('');
       setOpeningHours(undefined);
@@ -106,10 +136,12 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       id: initialData?.id,
       titolo: titolo.trim(),
       sottocategoria: sottocategoria.trim() || undefined,
+      passeggiataId: passeggiataId || undefined,
       orario: orario.trim() || undefined,
       time: orario.trim() || undefined,
+      timeStatus: orario.trim() ? timeStatus : undefined,
       indirizzo: indirizzo.trim() || undefined,
-      mapsUrl: indirizzo.trim() || undefined, // manteniamo mapsUrl allineato con indirizzo per retrocompatibilità
+      mapsUrl: mapsUrl.trim() || undefined,
       coordinate: finalCoord,
       noteCopilota: noteCopilota.trim() || undefined,
       nota: nota.trim() || undefined,
@@ -167,10 +199,11 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
             Categoria Sosta
           </label>
           <select
-            value={sottocategoria}
+            value={sottocategoria || 'Tappa'}
             onChange={(e) => setSottocategoria(e.target.value)}
             className="w-full h-11 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F]"
           >
+            <option value="Tappa">📍 Tappa</option>
             <option value="Sosta panoramica">⛰️ Sosta panoramica</option>
             <option value="Sosta fotografica">📸 Sosta fotografica</option>
             <option value="Sosta">📍 Sosta generica</option>
@@ -178,9 +211,37 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-            ⏰ Orario (HH:mm)
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              ⏰ Orario (HH:mm)
+            </label>
+            {orario && (
+              <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setTimeStatus('confermato')}
+                  className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                    timeStatus === 'confermato'
+                      ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  ✓ Confermato
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTimeStatus('indicativo')}
+                  className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                    timeStatus === 'indicativo'
+                      ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  ~ Indicativo
+                </button>
+              </div>
+            )}
+          </div>
           <TimePickerInput value={orario} onChange={setOrario} ariaLabel="Orario tappa" />
         </div>
       </div>
@@ -210,19 +271,64 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
         />
       </div>
 
-      {/* 3. Indirizzo / Posizione */}
-      <div>
-        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-          Indirizzo / Link Maps
-        </label>
-        <input
-          type="text"
-          placeholder="es. State Highway 8, Lake Pukaki"
-          value={indirizzo}
-          onChange={(e) => setIndirizzo(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-750 focus:border-[#FF6B5F] transition-colors"
-        />
+      {/* 3. Indirizzo e Link Maps separati */}
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            Indirizzo / Luogo leggibile
+          </label>
+          <input
+            type="text"
+            placeholder="es. Bridge of Remembrance, Oxford Terrace"
+            value={indirizzo}
+            onChange={(e) => {
+              const extracted = extractMapsUrlFromText(e.target.value);
+              if (extracted.mapsUrl) {
+                setIndirizzo(extracted.cleanText);
+                setMapsUrl(extracted.mapsUrl);
+              } else {
+                setIndirizzo(e.target.value);
+              }
+            }}
+            className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-750 focus:border-[#FF6B5F] transition-colors"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+            Link Google Maps (separato)
+          </label>
+          <input
+            type="url"
+            placeholder="es. https://maps.app.goo.gl/... o https://www.google.com/maps/..."
+            value={mapsUrl}
+            onChange={(e) => setMapsUrl(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-750 focus:border-[#FF6B5F] transition-colors"
+          />
+        </div>
       </div>
+
+      {/* Collegamento a Passeggiata contenitore (opzionale) */}
+      {availablePasseggiate.length > 0 && (
+        <div className="p-3 bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-xl">
+          <label className="block text-xs font-bold text-emerald-900 dark:text-emerald-200 uppercase tracking-wider mb-1.5">
+            🚶 Collega a Passeggiata del giorno (facoltativo)
+          </label>
+          <select
+            value={passeggiataId || ''}
+            onChange={(e) => setPasseggiataId(e.target.value || undefined)}
+            className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F]"
+          >
+            <option value="">Nessuna (Tappa indipendente)</option>
+            {availablePasseggiate.map(p => (
+              <option key={p.id} value={p.id}>🚶 {p.title} {p.time ? `(${p.time})` : ''}</option>
+            ))}
+          </select>
+          <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 mt-1">
+            Se collegata, questa tappa viene inclusa nella card della Passeggiata ed evitata come duplicato nella timeline.
+          </p>
+        </div>
+      )}
 
       <OpeningHoursFields value={openingHours} onChange={setOpeningHours} date={data} time={orario} />
 

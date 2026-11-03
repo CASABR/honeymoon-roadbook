@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import type { Trasporto, TipoTrasporto, StatoTrasporto } from '../../types';
 import TimeZoneInput from '../common/TimeZoneInput';
@@ -69,7 +69,15 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
     return t ? `${d}T${t}` : `${d}T00:00`;
   };
 
+  const initializedIdRef = useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
+    const currentId = initialData?.id || '__new__';
+    if (initializedIdRef.current === currentId) {
+      return;
+    }
+    initializedIdRef.current = currentId;
+
     if (initialData) {
       setType(initialData.type);
       setCarrier(initialData.carrier || '');
@@ -80,9 +88,10 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setDepartureDate(formatForInput(initialData.date, initialData.departureTime));
       setDepartureTimeZone(initialData.departureTimeZone || '');
       
-      if (isRental) {
+      const isRentalType = initialData.type === 'auto' || initialData.type === 'camper';
+      if (isRentalType) {
         setArrivalLocation(initialData.dropoffLocation || initialData.arrivalLocation || '');
-      setArrivalDate(formatForInput(initialData.dropoffDate, initialData.dropoffTime));
+        setArrivalDate(formatForInput(initialData.dropoffDate, initialData.dropoffTime));
         setDropoffTimeZone(initialData.dropoffTimeZone || '');
       } else {
         setArrivalLocation(initialData.arrivalLocation || '');
@@ -95,8 +104,6 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setHasLayover(!!initialData.layover?.airport);
       setLayoverAirport(initialData.layover?.airport || '');
       setLayoverDuration(initialData.layover?.duration || '');
-
-
 
       setCost(initialData.cost || '');
       setPackageIncluded(initialData.packageIncluded === true || (initialData.cost === 'Incluso' || initialData.cost === 'Incluso nel pacchetto'));
@@ -143,7 +150,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setNoteCopilota('');
       setCopilota(false);
     }
-  }, [defaultDate, defaultTime, initialData, isRental]);
+  }, [defaultDate, defaultTime, initialData]);
 
   useEffect(() => {
     if (isSaldato && cost) {

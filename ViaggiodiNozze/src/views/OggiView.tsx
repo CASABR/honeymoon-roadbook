@@ -26,9 +26,10 @@ import TimeCollisionModal, { type TimeCollision } from '../components/modals/Tim
 import { useDeviceRole } from '../utils/useDeviceRole';
 import { formatDateIT } from '../utils/tripDates';
 import { compareTimelineItems, isPhysicalTimelineItem, timelineMinutes } from '../utils/timelineOrdering';
+import { computeDayFocalEvent } from '../utils/dayFocusPriority';
 import { getEffectiveDeadlineStatus, isDeadlineReminderActive } from '../utils/deadlines';
-import { CalendarClock } from 'lucide-react';
 import TimePickerInput from '../components/common/TimePickerInput';
+import { lookupKnownCoordinate } from '../utils/geoCoordinatesHelper';
 
 
 interface OggiViewProps {
@@ -173,7 +174,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     const previousOverflow = document.body.style.overflow;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = 'hidden';
-    const focusTimer = window.setTimeout(() => dialog?.focus(), 0);
+    const focusTimer = window.setTimeout(() => {
+      if (dialog && !dialog.contains(document.activeElement)) {
+        dialog.focus();
+      }
+    }, 0);
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         if (isHeroEditOpen) setIsHeroEditOpen(false);
@@ -286,6 +291,17 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const closeInsertMenu = useCallback(() => {
     setInsertMenuAfterId(null);
     setInsertMenuPosition(null);
+  }, []);
+
+  useEffect(() => {
+    const handleOpenEditTappa = (e: Event) => {
+      const custom = e as CustomEvent;
+      if (custom.detail?.tappa) {
+        setEditingTappaItem(custom.detail.tappa);
+      }
+    };
+    window.addEventListener('open_edit_tappa_modal', handleOpenEditTappa);
+    return () => window.removeEventListener('open_edit_tappa_modal', handleOpenEditTappa);
   }, []);
 
   useEffect(() => {
@@ -939,27 +955,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     storageService.saveSetting('hero_bg_image', null);
   };
 
-  // ─── LIVELLO 1: Calcolo prossimo evento focale / Prossimo Passo ───
-  const nextEventItem = useMemo(() => {
-    if (!timeline || timeline.length === 0) return null;
-    const now = new Date();
-    const todayStr = now.toISOString().split('T')[0];
-    const isToday = selectedDate === todayStr;
-
-    if (isToday) {
-      const currentMin = now.getHours() * 60 + now.getMinutes();
-      const upcoming = timeline.find(item => {
-        if (!item.time || item.time === '00:00' || (item.time === '12:00' && item.type === 'tappa')) return false;
-        const [h, m] = item.time.split(':').map(Number);
-        if (isNaN(h)) return false;
-        return (h * 60 + (m || 0)) >= currentMin;
-      });
-      if (upcoming) return upcoming;
-    }
-
-    const firstWithTime = timeline.find(item => item.time && item.time !== '00:00' && item.type !== 'tappa');
-    return firstWithTime || timeline[0] || null;
+  // ─── LIVELLO 1: Calcolo deterministico evento focale della giornata (FASE 1) ───
+  const focalResult = useMemo(() => {
+    return computeDayFocalEvent(timeline, selectedDate, new Date());
   }, [timeline, selectedDate]);
+
+  const nextEventItem = focalResult.focalItem;
 
   const nextEventBookingCode = useMemo(() => {
     if (!nextEventItem?.originalData) return null;
@@ -974,7 +975,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   }, [deadlines]);
 
   return (
-    <div className="space-y-4 pt-1 animate-fade-in pb-20 sm:pb-24">
+    <div className="space-y-4 pt-1 animate-fade-in pb-6 sm:pb-8">
       {/* Toast Feedback Operazioni */}
       {feedbackBanner && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-bounce-subtle pointer-events-none">
@@ -1022,7 +1023,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       </div>
 
       <div className="space-y-3">
-        {/* Masthead Editoriale / Diario di Bordo */}
+        {/* Masthead Editoriale / Taccuino di Bordo Compatto */}
         <div
           className={`relative overflow-hidden rounded-2xl border transition-all ${
             heroBgImage
@@ -1037,17 +1038,17 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             <div className="absolute inset-0 bg-black/55 backdrop-blur-[0.5px]" />
           )}
 
-          <div className="relative z-10 p-4 sm:p-5 space-y-3">
-            {/* Riga 1: Kicker Cartografico & Status */}
+          <div className="relative z-10 px-4 py-3 sm:px-5 sm:py-3.5 space-y-2">
+            {/* Riga 1: Kicker Taccuino, Status e Badge Scadenze Compatto */}
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2">
-                <span className={`text-[10px] font-black uppercase tracking-widest ${heroBgImage ? 'text-white/80' : 'text-slate-500 dark:text-slate-400'}`}>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-[10px] font-black uppercase tracking-wider ${heroBgImage ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}`}>
                   {currentDayMeta && currentDayMeta.dayNum > 0
                     ? `GIORNO ${currentDayMeta.dayNum} DI ${tripDays.length} • ${formatDateHuman(selectedDate).toUpperCase()}`
                     : `PRE-VIAGGIO • ${formatDateHuman(selectedDate).toUpperCase()}`}
                 </span>
-                
-                {/* Indicatore Stato: Viaggio Futuro vs In Corso vs Offline */}
+
+                {/* Indicatore Stato */}
                 {(() => {
                   const todayStr = new Date().toISOString().split('T')[0];
                   const startDateStr = tripDays[0]?.dateStr || '2026-11-28';
@@ -1074,86 +1075,86 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   return null;
                 })()}
 
+                {/* Badge Scadenze Compatto Integrato */}
+                {deadlineSummary.active > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab?.('altro', undefined, 'scadenze')}
+                    className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold transition-all cursor-pointer ${
+                      deadlineSummary.reminders > 0
+                        ? 'bg-rose-500/20 text-rose-700 dark:text-rose-300 border border-rose-500/40 animate-pulse shadow-xs'
+                        : heroBgImage
+                        ? 'bg-amber-400/25 text-amber-200 border border-amber-400/40'
+                        : 'bg-amber-500/15 text-amber-800 dark:text-amber-200 border border-amber-500/30'
+                    }`}
+                    title="Visualizza scadenze e promemoria"
+                  >
+                    <span>🔔</span>
+                    <span>{deadlineSummary.reminders > 0 ? `${deadlineSummary.reminders} da fare` : `${deadlineSummary.active} scadenze`}</span>
+                  </button>
+                )}
+
                 {!isOnline && (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    OFFLINE • ROADBOOK LOCALE
+                    OFFLINE
                   </span>
                 )}
               </div>
 
-              {/* Azioni Header: Modifica copertina */}
+              {/* Azioni Header: Personalizza */}
               {canEdit && (
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={handleOpenHeroEdit}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold transition-all cursor-pointer ${
-                      heroBgImage
-                        ? 'bg-white/20 hover:bg-white/30 text-white'
-                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200/80 dark:border-slate-700'
-                    }`}
-                    title="Personalizza titolo o sfondo"
-                  >
-                    <span>✏️</span>
-                    <span className="hidden sm:inline">Modifica copertina</span>
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={handleOpenHeroEdit}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-lg transition-colors cursor-pointer ${
+                    heroBgImage
+                      ? 'bg-white/20 hover:bg-white/30 text-white'
+                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
+                  }`}
+                  title="Personalizza copertina o titolo"
+                >
+                  ✏️ Modifica
+                </button>
               )}
             </div>
 
-            {/* Riga 2: Destinazione Principale & Riferimento Cartografico */}
-            <div>
-              <h1 className={`text-xl sm:text-2xl font-black font-brand-title tracking-tight leading-tight ${
-                heroBgImage ? 'text-white' : 'text-[#172033] dark:text-white'
-              }`}>
-                {currentDayData?.title || dynamicCountries || 'Diario di Viaggio'}
-              </h1>
-              
-              <div className="flex items-center gap-3 mt-1 text-xs">
+            {/* Riga 2: Titolo Taccuino & Posizione Chiave */}
+            <div className="flex items-baseline justify-between gap-3 pt-0.5">
+              <div className="min-w-0 flex-1">
+                <h1 className={`text-lg sm:text-xl font-black font-brand-title tracking-tight leading-tight truncate ${
+                  heroBgImage ? 'text-white' : 'text-[#172033] dark:text-white'
+                }`}>
+                  {currentDayData?.title || dynamicCountries || 'Diario di Bordo'}
+                </h1>
+                
                 {currentDayData?.location && (
-                  <span className={`font-semibold flex items-center gap-1 ${
+                  <p className={`text-xs font-semibold flex items-center gap-1 mt-0.5 truncate ${
                     heroBgImage ? 'text-rose-200' : 'text-slate-600 dark:text-slate-300'
                   }`}>
-                    <span>📍</span>
-                    <span>{currentDayData.location}</span>
-                  </span>
-                )}
-                {tripConfig && (
-                  <span className={`text-[11px] font-medium ${
-                    heroBgImage ? 'text-white/70' : 'text-slate-400'
-                  }`}>
-                    {tripConfig.startDate} → {tripConfig.endDate}
-                  </span>
+                    <span className="text-rose-500 shrink-0">📍</span>
+                    <span className="truncate">{currentDayData.location}</span>
+                  </p>
                 )}
               </div>
+
+              {/* Scorciatoia "Torna a Oggi" se l'utente sta consultando un'altra data */}
+              {selectedDate !== new Date().toISOString().split('T')[0] && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+                  className="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-[#FFF0ED] text-[#FF6B5F] dark:bg-rose-950/40 dark:text-rose-300 border border-[#FF6B5F]/30 hover:bg-[#FFE2DE] transition-colors cursor-pointer"
+                >
+                  Torna a Oggi ➔
+                </button>
+              )}
             </div>
           </div>
         </div>
 
-        <PreDeparturePhotoCard
-          tripId={tripId}
-          startDate={tripConfig?.startDate || tripDays[0]?.dateStr || (isMasterTrip ? TRIP_START_DATE : '')}
-          canEdit={canEdit}
-          onOpenLive={() => onNavigateTab?.('altro', undefined, 'live')}
-        />
 
-        <button
-          type="button"
-          onClick={() => onNavigateTab?.('altro', undefined, 'scadenze')}
-          className="w-full rounded-2xl border border-amber-200/90 dark:border-amber-900/60 bg-amber-50/75 dark:bg-amber-950/20 px-4 py-3 text-left flex items-center justify-between gap-3 shadow-xs hover:shadow-sm transition-all hounigo-touch-feedback"
-        >
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0"><CalendarClock size={20} /></div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2"><span className="text-sm font-extrabold text-[#172033] dark:text-white">Scadenze</span>{deadlineSummary.reminders > 0 && <span className="rounded-full bg-rose-100 dark:bg-rose-950/60 px-2 py-0.5 text-[9px] font-black text-rose-700 dark:text-rose-300">{deadlineSummary.reminders} da vedere</span>}</div>
-              <p className="text-[11px] text-slate-600 dark:text-slate-300 truncate">{deadlineSummary.next ? `${deadlineSummary.next.title} · ${deadlineSummary.active} attive` : 'Nessun promemoria attivo'}</p>
-            </div>
-          </div>
-          <span className="text-slate-400">›</span>
-        </button>
 
-        {/* ─── LIVELLO 1: CARD PROSSIMO PASSO / FOCUS TEMPORALE REALE ─── */}
+        {/* ─── LIVELLO 1: HERO PROSSIMA ATTIVITÀ / FOCUS TEMPORALE REALE ─── */}
         {(() => {
           const todayStr = new Date().toISOString().split('T')[0];
           const startDateStr = tripConfig?.startDate || tripDays[0]?.dateStr || (isMasterTrip ? '2026-11-28' : todayStr);
@@ -1164,56 +1165,85 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           if (isViewingOtherDate) {
             return (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-4 shadow-xs space-y-3">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-3.5 sm:p-4 shadow-xs space-y-2.5">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF6B5F] flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
-                    Programma del {formatDateHuman(selectedDate)}
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F]" />
+                    Focus del {formatDateHuman(selectedDate)}
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDate(todayStr)}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#FF6B5F] bg-[#FFF0ED] dark:bg-rose-950/40 hover:bg-[#FFE2DE] dark:hover:bg-rose-900/60 border border-[#FF6B5F]/30 transition-colors cursor-pointer"
-                  >
-                    Torna a Oggi ➔
-                  </button>
+                  {nextEventItem?.time ? (
+                    <span className="font-mono text-[11px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md border border-indigo-200/60 dark:border-indigo-800/60 shrink-0">
+                      ⏰ {nextEventItem.time} {nextEventItem.timeStatus === 'indicativo' ? '· indicativo' : ''}
+                    </span>
+                  ) : nextEventItem ? (
+                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md shrink-0">
+                      Orario non specificato
+                    </span>
+                  ) : null}
                 </div>
 
                 {nextEventItem ? (
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h2 className="text-base font-extrabold text-[#172033] dark:text-white leading-snug">
-                            {nextEventItem.title}
-                          </h2>
-                          {nextEventItem.time && (
-                            <span className="font-mono text-xs font-black text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md border border-indigo-200/60 dark:border-indigo-800/60 shrink-0">
-                              ⏰ {nextEventItem.time}
-                            </span>
-                          )}
-                        </div>
+                        <h2 className="text-sm sm:text-base font-extrabold text-[#172033] dark:text-white leading-snug">
+                          {nextEventItem.title}
+                        </h2>
                         <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 flex items-center gap-1 truncate">
                           <span>📍</span>
-                          <span>{nextEventItem.location || 'Posizione programmata'}</span>
+                          <span className="truncate">{nextEventItem.location || 'Posizione programmata'}</span>
                         </p>
                       </div>
 
                       <button
                         type="button"
                         onClick={() => setDetailItem(nextEventItem)}
-                        className="shrink-0 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#172033] hover:text-white dark:hover:bg-white dark:hover:text-[#172033] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
+                        className="shrink-0 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#172033] hover:text-white dark:hover:bg-white dark:hover:text-[#172033] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
                       >
                         Dettagli ➔
                       </button>
                     </div>
+
+                    {/* Barra Azioni Rapide */}
+                    <div className="flex items-center gap-2 flex-wrap pt-0.5 text-[11px]">
+                      {nextEventBookingCode && (
+                        <button
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              await navigator.clipboard.writeText(nextEventBookingCode);
+                              setBookingCodeCopied(true);
+                              setTimeout(() => setBookingCodeCopied(false), 2000);
+                            } catch {}
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition-colors cursor-pointer text-[11px]"
+                          title="Copia codice di prenotazione / PNR"
+                        >
+                          <span>🎫</span>
+                          <span className="font-mono">{nextEventBookingCode}</span>
+                          <span className="text-[9px] opacity-70 ml-0.5">{bookingCodeCopied ? '✓' : 'Copia'}</span>
+                        </button>
+                      )}
+                      {nextEventItem.coordinate && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = `https://www.google.com/maps/search/?api=1&query=${nextEventItem.coordinate?.lat},${nextEventItem.coordinate?.lng}`;
+                            window.open(url, '_blank');
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold border border-sky-200/60 dark:border-sky-800/60 hover:bg-sky-100 transition-colors cursor-pointer"
+                        >
+                          <span>🧭</span>
+                          <span>Naviga ↗</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ) : (
-                  <div className="py-1">
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Nessun impegno a orario fisso in questa giornata.
-                    </p>
-                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 py-0.5">
+                    Nessun impegno a orario fisso registrato in questa giornata.
+                  </p>
                 )}
               </div>
             );
@@ -1221,26 +1251,26 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           if (isPreTrip) {
             return (
-              <div className="bg-white dark:bg-[#172033] rounded-2xl border border-slate-200/80 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-4 shadow-xs space-y-2">
+              <div className="bg-white dark:bg-[#172033] rounded-2xl border border-slate-200/90 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-3.5 sm:p-4 shadow-xs space-y-2">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF6B5F] flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
+                    <span className="w-2 h-2 rounded-full bg-[#FF6B5F] animate-pulse" />
                     In attesa della partenza
                   </span>
                   <button
                     type="button"
                     onClick={() => setSelectedDate(startDateStr)}
-                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#FF6B5F] bg-[#FFF0ED] dark:bg-rose-950/40 hover:bg-[#FFE2DE] dark:hover:bg-rose-900/60 border border-[#FF6B5F]/30 transition-colors cursor-pointer"
+                    className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#FF6B5F] bg-[#FFF0ED] dark:bg-rose-950/40 hover:bg-[#FFE2DE] border border-[#FF6B5F]/30 transition-colors cursor-pointer"
                   >
                     Giorno 1 ({formatDateHuman(startDateStr)}) ➔
                   </button>
                 </div>
                 <div>
-                  <h2 className="text-base font-extrabold font-brand-title text-[#172033] dark:text-white">
-                    Partenza programmata: {formatDateHuman(startDateStr)}
+                  <h2 className="text-sm sm:text-base font-extrabold font-brand-title text-[#172033] dark:text-white">
+                    Partenza: {formatDateHuman(startDateStr)}
                   </h2>
                   <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                    {calculateCountdown()} • Nessun impegno o trasferimento in corso nella data odierna.
+                    {calculateCountdown()} • Consulta le tappe nel calendario sottostante per preparare i dettagli.
                   </p>
                 </div>
               </div>
@@ -1249,49 +1279,75 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           if (isPostTrip) {
             return (
-              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-emerald-950/40 rounded-2xl border border-emerald-200/80 dark:border-emerald-800/60 border-l-4 border-l-emerald-500 p-4 shadow-xs space-y-2">
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-slate-900 dark:to-emerald-950/40 rounded-2xl border border-emerald-200/80 dark:border-emerald-800/60 border-l-4 border-l-emerald-500 p-3.5 sm:p-4 shadow-xs space-y-2">
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-700 dark:text-emerald-300 flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
                   Viaggio completato
                 </span>
                 <div>
-                  <h2 className="text-base font-extrabold text-[#172033] dark:text-white">
+                  <h2 className="text-sm sm:text-base font-extrabold text-[#172033] dark:text-white">
                     💍 Viaggio concluso il {formatDateHuman(endDateStr)}
                   </h2>
                   <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                    Tutte le tappe del diario sono state completate con successo. Puoi consultare l&apos;itinerario completo nelle sezioni dell&apos;app.
+                    Tutte le tappe del diario sono state completate. Puoi ripercorrere l'itinerario e i ricordi nelle sezioni dell'app.
                   </p>
                 </div>
               </div>
             );
           }
 
-          // Durante il viaggio nella data odierna
+          // Se tutte le attività programmate di oggi sono concluse
+          if (focalResult.allCompleted) {
+            return (
+              <div className="bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200/90 dark:border-slate-800 border-l-4 border-l-emerald-500 p-3.5 sm:p-4 shadow-xs space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Attività di oggi completate
+                  </span>
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-extrabold text-[#172033] dark:text-white">
+                    Tutti gli impegni di oggi sono stati conclusi
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {tonightsAccommodation ? `Pernottamento serale: ${tonightsAccommodation.name}. Riposa o goditi la serata.` : 'Tempo libero e relax serale.'}
+                  </p>
+                </div>
+              </div>
+            );
+          }
+
+          // Durante il viaggio nella data odierna: prossimo passo attivo
           return (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-4 shadow-xs space-y-3">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-3.5 sm:p-4 shadow-xs space-y-2.5">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF6B5F] flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
+                  <span className="w-2 h-2 rounded-full bg-[#FF6B5F] animate-pulse" />
                   In questo momento • Prossimo passo
                 </span>
 
-                {nextEventItem?.time && (
+                {nextEventItem?.time ? (
                   <span className="font-mono text-xs font-black text-[#172033] dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700">
-                    ⏰ {nextEventItem.time}
+                    ⏰ {nextEventItem.time} {nextEventItem.timeStatus === 'indicativo' ? '· indicativo' : ''}
                   </span>
-                )}
+                ) : nextEventItem ? (
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
+                    Orario non specificato
+                  </span>
+                ) : null}
               </div>
 
               {nextEventItem ? (
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <h2 className="text-base font-extrabold text-[#172033] dark:text-white leading-snug">
+                      <h2 className="text-sm sm:text-base font-extrabold text-[#172033] dark:text-white leading-snug">
                         {nextEventItem.title}
                       </h2>
                       <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 flex items-center gap-1 truncate">
                         <span>📍</span>
-                        <span>
+                        <span className="truncate">
                           {(() => {
                             if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
                               const tr = nextEventItem.originalData as Trasporto;
@@ -1308,13 +1364,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     <button
                       type="button"
                       onClick={() => setDetailItem(nextEventItem)}
-                      className="shrink-0 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#172033] hover:text-white dark:hover:bg-white dark:hover:text-[#172033] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
+                      className="shrink-0 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#172033] hover:text-white dark:hover:bg-white dark:hover:text-[#172033] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
                     >
                       Dettagli ➔
                     </button>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-wrap pt-1 text-[11px]">
+                  {/* Azioni Rapide: PNR, Mappa, Voucher */}
+                  <div className="flex items-center gap-2 flex-wrap pt-0.5 text-[11px]">
                     {nextEventBookingCode && (
                       <button
                         type="button"
@@ -1330,7 +1387,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         title="Clicca per copiare il codice di prenotazione / PNR"
                       >
                         <span>🎫</span>
-                        <span className="font-mono">Prenotazione: {nextEventBookingCode}</span>
+                        <span className="font-mono">PNR: {nextEventBookingCode}</span>
                         <span className="text-[9px] opacity-70 ml-0.5 font-sans">{bookingCodeCopied ? '✓ Copiato' : 'Copia'}</span>
                       </button>
                     )}
@@ -1350,13 +1407,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   </div>
                 </div>
               ) : (
-                <div className="py-2">
-                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                <div className="py-1">
+                  <p className="text-xs sm:text-sm font-bold text-slate-800 dark:text-slate-200">
                     Giornata libera senza trasferimenti programmati
                   </p>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     {tonightsAccommodation
-                      ? `Pernottamento previsto presso ${tonightsAccommodation.name}. Tempo a disposizione per visite ed esplorazioni.`
+                      ? `Pernottamento presso ${tonightsAccommodation.name}. Tempo a disposizione per visite ed esplorazioni.`
                       : 'Nessun impegno a orario fisso registrato nel roadbook per questo orario.'}
                   </p>
                 </div>
@@ -1364,6 +1421,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             </div>
           );
         })()}
+
+        {/* Suggerimento Foto Pre-partenza (discreto, accessibile ma subordinato all'evento prioritario) */}
+        <PreDeparturePhotoCard
+          tripId={tripId}
+          startDate={tripConfig?.startDate || tripDays[0]?.dateStr || (isMasterTrip ? TRIP_START_DATE : '')}
+          canEdit={canEdit}
+          onOpenLive={() => onNavigateTab?.('altro', undefined, 'live')}
+        />
       </div>
 
       {/* HERO EDIT MODAL */}
@@ -1626,6 +1691,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             stateLabel?: string;
             segmentContext?: import('../types').TransportSegmentContext;
             timeIsDefault?: boolean;
+            timeStatus?: import('../types').TimeStatus;
             effectiveDate?: string;
             physicalLocation?: boolean;
             informational?: boolean;
@@ -1647,9 +1713,20 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
             if (item.type === 'trasporto') {
               const tr = item.originalData as Trasporto;
+              const isDropoffEvent = item.id.endsWith('_dropoff') || (tr && (tr.type === 'auto' || tr.type === 'camper') && tr.dropoffDate === selectedDate && tr.dropoffDate !== tr.date);
+              const isPickupEvent = item.id.endsWith('_pickup') || (tr && (tr.type === 'auto' || tr.type === 'camper') && tr.date === selectedDate);
+
               if (item.segmentContext === 'arrival') {
                 departurePoint = tr.arrivalLocation || item.location;
                 arrivalPoint = tr.arrivalLocation || item.location;
+              } else if (isDropoffEvent) {
+                // Per un evento di riconsegna noleggio, il punto geografico è il deposito di riconsegna
+                departurePoint = tr.dropoffLocation || tr.arrivalLocation || item.location;
+                arrivalPoint = tr.dropoffLocation || tr.arrivalLocation || item.location;
+              } else if (isPickupEvent) {
+                // Per il ritiro noleggio, il punto geografico è il deposito di ritiro
+                departurePoint = tr.departureLocation || item.location;
+                arrivalPoint = tr.departureLocation || item.location;
               } else {
                 departurePoint = tr.departureLocation || item.location;
                 arrivalPoint = tr.dropoffLocation || tr.arrivalLocation || item.location;
@@ -1688,7 +1765,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               location: item.location,
               departurePoint,
               arrivalPoint,
-              coordinate: item.coordinate,
+              coordinate: item.coordinate || (departurePoint ? lookupKnownCoordinate(departurePoint) || undefined : undefined),
               originalData: item.originalData,
               copilota: item.copilota,
               noteCopilota: item.noteCopilota || (item.originalData as any)?.noteCopilota,
@@ -1696,6 +1773,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               stateLabel: (item as any).stateLabel,
               segmentContext: (item as any).segmentContext,
               timeIsDefault: item.timeIsDefault,
+              timeStatus: item.timeStatus,
               effectiveDate: item.effectiveDate,
               informational: item.informational,
               physicalLocation: item.physicalLocation
@@ -1718,9 +1796,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             });
           }
 
-          const visibleCards = dayItems;
+          const activeRentalItems = dayItems.filter(item => item.id.endsWith('_state') || (item as any).displayMode === 'state');
+          const visibleCards = dayItems.filter(item => !item.id.endsWith('_state') && (item as any).displayMode !== 'state');
 
-          if (dayItems.length === 0 && !tonightsAccommodation) {
+          if (visibleCards.length === 0 && !tonightsAccommodation && activeRentalItems.length === 0) {
             return (
               <div className="bg-slate-50 dark:bg-slate-900/60 rounded-3xl border border-slate-200/80 dark:border-slate-800 border-dashed p-6 text-center">
                 <span className="text-2xl mb-1 block">🧭</span>
@@ -1731,10 +1810,58 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           }
 
           return (
-            <div className="space-y-4">
+            <div className="space-y-3">
+              {/* ─── LIVELLO C: INFORMAZIONI DI CONTESTO (Noleggi attivi senza spezzare la timeline) ─── */}
+              {activeRentalItems.length > 0 && (
+                <div className="space-y-2">
+                  {activeRentalItems.map(item => {
+                    const tr = item.originalData as Trasporto;
+                    const isCar = tr?.type === 'auto';
+                    const tomorrowDateStr = getTomorrowDateStr(selectedDate);
+                    const isTomorrowDropoff = tr?.dropoffDate === tomorrowDateStr;
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => setDetailItem(item as any as TimelineItem)}
+                        className={`rounded-2xl border p-3 flex items-center justify-between gap-3 transition-all cursor-pointer shadow-2xs hover:shadow-xs ${
+                          isTomorrowDropoff
+                            ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-950 dark:text-amber-100'
+                            : 'bg-white dark:bg-[#172033] border-slate-200/90 dark:border-slate-800 text-slate-800 dark:text-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-sm shrink-0">
+                            {isCar ? '🚗' : '🚐'}
+                          </span>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                                {isCar ? 'Auto a noleggio attiva' : 'Campervan attivo'}
+                                {tr?.carrier ? ` • ${tr.carrier.split('(')[0].trim()}` : ''}
+                              </span>
+                              {isTomorrowDropoff && (
+                                <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-amber-200/90 text-amber-950 dark:bg-amber-900/60 dark:text-amber-200 uppercase">
+                                  Riconsegna domani
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                              Riconsegna il {tr?.dropoffDate ? formatDateIT(tr.dropoffDate) : '...'} {tr?.dropoffTime ? `alle ${tr.dropoffTime}` : ''} a {tr?.dropoffLocation?.split('(')[0]?.trim() || tr?.arrivalLocation || 'destinazione'}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-xs font-bold text-slate-400 dark:text-slate-500 shrink-0">
+                          Dettagli ➔
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* TIMELINE CRONOLOGICA DEGLI EVENTI DI GIORNATA */}
               {visibleCards.length > 0 && (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   <div className="flex items-center gap-2 px-1 pt-1">
                     <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
                     <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
@@ -1746,12 +1873,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     const nextItem = isPhysicalTimelineItem(item as TimelineItem)
                       ? visibleCards.slice(idx + 1).find(candidate => isPhysicalTimelineItem(candidate as TimelineItem))
                       : undefined;
-
                     const fromLoc = item.arrivalPoint || item.location;
                     const toLoc = nextItem ? (nextItem.departurePoint || nextItem.location) : '';
                     const fromCoord = item.coordinate;
                     const toCoord = nextItem ? nextItem.coordinate : undefined;
-
                     const isCheckinCallout = item.type === 'checkin_callout';
                     const isTransport = item.type === 'trasporto';
                     const isTappa = item.type === 'tappa';
@@ -1767,7 +1892,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         style={{ animationDelay: `${Math.min(idx * 28, 168)}ms` }}
                       >
                         {isCheckinCallout ? (
-                          /* Tappa informativa rapida per check-in senza duplicazioni economiche */
+                          /* Tappa informativa rapida per check-in */
                           <div
                             onClick={() => {
                               const targetEl = timelineItemRefs.current[`lodging_${tonightsAccommodation?.id}`];
@@ -1775,7 +1900,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                 targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
                               }
                             }}
-                            className="bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/70 dark:border-purple-800/60 rounded-2xl p-3 flex items-center justify-between gap-3 hover:bg-purple-100/60 transition-all cursor-pointer shadow-2xs"
+                            className="bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/70 dark:border-purple-800/60 rounded-2xl p-2.5 sm:p-3 flex items-center justify-between gap-3 hover:bg-purple-100/60 transition-all cursor-pointer shadow-2xs"
                           >
                             <div className="flex items-center gap-2.5 min-w-0">
                               <span className="w-7 h-7 rounded-xl bg-purple-100 dark:bg-purple-900/60 flex items-center justify-center text-sm shrink-0">
@@ -1795,12 +1920,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                             </span>
                           </div>
                         ) : isTransport ? (
-                          item.id.endsWith('_arrival') || item.id.endsWith('_state') ? (
+                          item.id.endsWith('_arrival') ? (
                             <InTransitBanner transport={item.originalData as Trasporto} dateStr={selectedDate} segmentContext={item.segmentContext} />
                           ) : (
                             <TrasportoCard
                               transport={item.originalData as Trasporto}
-                              variant={item.displayMode === 'compact' ? 'compact' : 'full'}
+                              variant="compact"
                               onEdit={() => setEditingTransportItem(item.originalData as Trasporto)}
                               onDelete={async () => {
                                 await storageService.deleteTransport(item.originalData?.id || '');
@@ -1812,6 +1937,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         ) : isAttivita ? (
                           <AttivitaCard
                             activity={item.originalData as Attivita}
+                            variant="compact"
                             onEdit={() => {
                               const found = timeline.find(t => t.id === item.id);
                               if (found) setDetailItem(found);
@@ -1825,6 +1951,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         ) : isRistorante ? (
                           <RistoranteCard
                             ristorante={item.originalData}
+                            variant="compact"
                             onEdit={() => {
                               const found = timeline.find(t => t.id === item.id);
                               if (found) setDetailItem(found);
@@ -1849,6 +1976,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         ) : isTappa ? (
                           <TappaCard
                             tappa={item.originalData}
+                            variant="compact"
                             onEdit={() => {
                               const found = timeline.find(t => t.id === item.id);
                               if (found) setDetailItem(found);
@@ -1969,6 +2097,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                 to={toLoc}
                                 fromCoord={fromCoord}
                                 toCoord={toCoord}
+                                isFlight={(item.type === 'trasporto' && (item.originalData as Trasporto)?.type === 'volo') || (nextItem.type === 'trasporto' && (nextItem.originalData as Trasporto)?.type === 'volo')}
                                 className="scale-95 shadow-xs mx-2"
                               />
                               <div className="flex-1 border-t border-dashed border-slate-200 dark:border-slate-800 hidden sm:block" />
@@ -2087,7 +2216,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
         {/* Carosello orizzontale eventi di domani */}
         {tomorrowTimeline && tomorrowTimeline.length > 0 ? (
-          <div className="flex gap-3 overflow-x-auto snap-x no-scrollbar pb-2 pt-1">
+          <div className="flex gap-3 overflow-x-auto snap-x no-scrollbar px-1 pb-2 pt-1 -mx-1">
             {tomorrowTimeline.map((item, idx) => {
               const isLodging = item.type === 'alloggio';
               const isTransport = item.type === 'trasporto';
@@ -2148,9 +2277,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           </div>
         )}
       </div>
-
-      {/* Spacer invisibile a fine pagina per consentire di scrollare l'ultima card interamente sopra la dock */}
-      <div className="h-36 w-full shrink-0" aria-hidden="true" />
 
       {/* Modale Dettaglio Timeline */}
       <TimelineItemDetailModal

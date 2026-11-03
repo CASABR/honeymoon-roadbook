@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
-import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
-import type { Attivita, TransportAttachment, Coordinate, TipologiaPercorsoTrekking, FasciaLuceFotografica, Tappa, OpeningHoursInfo } from '../../types';
+import { getCoordinatesFromAddress, extractMapsUrlFromText, isGoogleMapsUrl } from '../../utils/mapsHelper';
+import { storageService } from '../../storage/storageService';
+import type { Attivita, TransportAttachment, Coordinate, TipologiaPercorsoTrekking, FasciaLuceFotografica, Tappa, OpeningHoursInfo, TimeStatus } from '../../types';
 import { processFileForAttachment, formatFileSize, openAttachmentInNewTab, checkStorageAvailability, isSupportedImageFile } from '../../utils/fileAttachment';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import DropZone from '../common/DropZone';
 import type { PlaceSuggestion } from '../../services/photonService';
-import { isPhotoSpotActivity, isTrekkingActivity, PHOTO_LIGHT_LABELS, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
+import { isPhotoSpotActivity, isTrekkingActivity, isPasseggiataActivity, PHOTO_LIGHT_LABELS, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
 import TimeZoneInput from '../common/TimeZoneInput';
 import TappaForm from './TappaForm';
 import TimePickerInput from '../common/TimePickerInput';
@@ -89,7 +90,7 @@ export default function AttivitaForm(props: AttivitaFormProps) {
 function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave, onCancel, onDelete }: AttivitaFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
-  const SOTTOCATEGORIE: Attivita['sottocategoria'][] = ['Trekking', 'Escursione', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'];
+  const SOTTOCATEGORIE: Attivita['sottocategoria'][] = ['Passeggiata', 'Trekking', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'];
 
   const [sottocategoria, setSottocategoria] = useState<Attivita['sottocategoria'] | ''>('');
   const [title, setTitle] = useState('');
@@ -97,6 +98,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
   const [endDate, setEndDate] = useState('');
   const [orarioRitrovo, setOrarioRitrovo] = useState('');
   const [orarioInizio, setOrarioInizio] = useState('');
+  const [timeStatus, setTimeStatus] = useState<TimeStatus>(initialData?.timeStatus || 'confermato');
   const [timeZone, setTimeZone] = useState('');
   const [duration, setDuration] = useState('');
   const [distanceKm, setDistanceKm] = useState('');
@@ -109,6 +111,13 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
   const [lightWindow, setLightWindow] = useState<FasciaLuceFotografica>('qualsiasi');
   const [photoSubject, setPhotoSubject] = useState('');
   const [address, setAddress] = useState('');
+  const [googleMapsUrl, setGoogleMapsUrl] = useState('');
+  const [originLocation, setOriginLocation] = useState('');
+  const [destinationLocation, setDestinationLocation] = useState('');
+  const [isRoute, setIsRoute] = useState(false);
+  const [childTappe, setChildTappe] = useState<Tappa[]>([]);
+  const [availableTappeForDay, setAvailableTappeForDay] = useState<Tappa[]>([]);
+  const [selectedTappaToLink, setSelectedTappaToLink] = useState('');
   const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
@@ -141,14 +150,24 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
   const [isGeocoding, setIsGeocoding] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
+  const initializedIdRef = useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
+    const currentId = initialData?.id || '__new__';
+    if (initializedIdRef.current === currentId) {
+      return;
+    }
+    initializedIdRef.current = currentId;
+
     if (initialData) {
-      setSottocategoria(initialData.sottocategoria || '');
+      const mappedSub = initialData.sottocategoria === 'Escursione' ? 'Trekking' : (initialData.sottocategoria || '');
+      setSottocategoria(mappedSub);
       setTitle(initialData.title);
       const dateVal = initialData.date || (initialData.dayId.startsWith('day_') ? initialData.dayId.replace('day_', '') : '');
       setCustomDate(dateVal);
       setOrarioRitrovo(initialData.orarioRitrovo || '');
       setOrarioInizio(initialData.orarioInizio || initialData.time || '');
+      setTimeStatus(initialData.timeStatus || 'confermato');
       setTimeZone(initialData.timeZone || '');
       setDuration(initialData.duration || '');
       setDistanceKm(initialData.distanceKm?.toString() || '');
@@ -162,6 +181,10 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setLightWindow(initialData.lightWindow || 'qualsiasi');
       setPhotoSubject(initialData.photoSubject || '');
       setAddress(initialData.address || initialData.location || '');
+      setGoogleMapsUrl(initialData.googleMapsUrl || (isGoogleMapsUrl(initialData.link) ? (initialData.link || '') : ''));
+      setOriginLocation(initialData.originLocation || '');
+      setDestinationLocation(initialData.destinationLocation || '');
+      setIsRoute(Boolean(initialData.isRoute));
       setCoordinate(initialData.coordinate);
       setLatitude(initialData.coordinate?.lat?.toString() || '');
       setLongitude(initialData.coordinate?.lng?.toString() || '');
@@ -175,6 +198,13 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setStatus(initialData.status || 'prenotato');
       setOpeningHours(initialData.openingHours);
       setAttachments(initialData.attachments || []);
+
+      if (initialData.id) {
+        storageService.getTappe().then(allTappe => {
+          setChildTappe(allTappe.filter(t => t.passeggiataId === initialData.id));
+          setAvailableTappeForDay(allTappe.filter(t => (t.data === dateVal || t.date === dateVal) && (!t.passeggiataId || t.passeggiataId === initialData.id)));
+        }).catch(() => {});
+      }
     } else {
       if (selectedDayId && selectedDayId.startsWith('day_')) {
         setCustomDate(selectedDayId.replace('day_', ''));
@@ -192,6 +222,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setTitle('');
       setOrarioRitrovo('');
       setOrarioInizio(defaultTime || '');
+      setTimeStatus('confermato');
       setTimeZone('');
       setDuration('');
       setDistanceKm('');
@@ -204,6 +235,12 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setLightWindow('qualsiasi');
       setPhotoSubject('');
       setAddress('');
+      setGoogleMapsUrl('');
+      setOriginLocation('');
+      setDestinationLocation('');
+      setIsRoute(false);
+      setChildTappe([]);
+      setAvailableTappeForDay([]);
       setCoordinate(undefined);
       setLatitude('');
       setLongitude('');
@@ -337,10 +374,11 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       date: customDate,
       endDate: endDate.trim() || undefined,
       title: title.trim(),
-      sottocategoria: trekking ? 'Trekking' : (photoSpot ? 'Spot fotografico' : (sottocategoria || undefined)),
-      category: trekking || photoSpot ? 'natura' : (initialData?.category || 'visita'),
+      sottocategoria: trekking ? 'Trekking' : (photoSpot ? 'Spot fotografico' : (isPasseggiata ? 'Passeggiata' : (sottocategoria || undefined))),
+      category: trekking || photoSpot || isPasseggiata ? 'natura' : (initialData?.category || 'visita'),
       orarioRitrovo: finalRitrovo,
       time: effectiveTime, // primary timeline time
+      timeStatus: effectiveTime ? timeStatus : undefined,
       orarioInizio: finalInizio,
       timeZone: timeZone.trim() || undefined,
       duration: duration || undefined,
@@ -354,6 +392,10 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       lightWindow: photoSpot ? lightWindow : initialData?.lightWindow,
       photoSubject: photoSpot && photoSubject.trim() ? photoSubject.trim() : initialData?.photoSubject,
       address: address.trim() || undefined,
+      googleMapsUrl: googleMapsUrl.trim() || undefined,
+      originLocation: isRoute ? (originLocation.trim() || undefined) : undefined,
+      destinationLocation: isRoute ? (destinationLocation.trim() || undefined) : undefined,
+      isRoute: Boolean(isRoute),
       location: address.trim() || title.trim(),
       coordinate: finalCoordToSave,
       cost: cost.trim() || undefined,
@@ -383,6 +425,25 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
   const isPhotoSpot = sottocategoria
     ? sottocategoria === 'Spot fotografico'
     : Boolean(initialData && isPhotoSpotActivity(initialData));
+  const isPasseggiata = sottocategoria
+    ? sottocategoria === 'Passeggiata'
+    : Boolean(initialData && isPasseggiataActivity(initialData));
+
+  const handleUnlinkChild = async (tappaId: string) => {
+    await storageService.updateTappa(tappaId, { passeggiataId: undefined });
+    setChildTappe(prev => prev.filter(t => t.id !== tappaId));
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'tappa', entityId: tappaId } }));
+  };
+
+  const handleLinkChild = async (tappaId: string) => {
+    if (!initialData?.id || !tappaId) return;
+    await storageService.updateTappa(tappaId, { passeggiataId: initialData.id });
+    const allTappe = await storageService.getTappe();
+    setChildTappe(allTappe.filter(t => t.passeggiataId === initialData.id));
+    setSelectedTappaToLink('');
+    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'tappa', entityId: tappaId } }));
+  };
+
   const photoAttachments = attachments.filter((attachment) => attachment.type === 'image' && attachment.purpose === 'photo');
 
   const renderPhotoField = (titleText: string, subtitleText: string) => (
@@ -474,10 +535,26 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
               <span className="block uppercase tracking-wider mb-1.5">Data *</span>
               <input type="date" value={customDate} onChange={(e) => setCustomDate(e.target.value)} required className="w-full h-11 px-3 hounigo-card-subtle rounded-xl text-sm" />
             </label>
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
-              <span className="block uppercase tracking-wider mb-1.5">Ora di partenza</span>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">Ora di partenza</span>
+                {orarioInizio && (
+                  <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
+                    <button
+                      type="button"
+                      onClick={() => setTimeStatus('confermato')}
+                      className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'confermato' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+                    >✓ Confermato</button>
+                    <button
+                      type="button"
+                      onClick={() => setTimeStatus('indicativo')}
+                      className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'indicativo' ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+                    >~ Indicativo</button>
+                  </div>
+                )}
+              </div>
               <TimePickerInput value={orarioInizio} onChange={setOrarioInizio} ariaLabel="Ora di partenza trekking" />
-            </label>
+            </div>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Distanza km</span><input type="number" min="0" step="0.1" inputMode="decimal" value={distanceKm} onChange={(e) => setDistanceKm(e.target.value)} placeholder="19,4" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
@@ -571,6 +648,26 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
         </div>
       </div>
 
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Orari Evento</span>
+          {(orarioRitrovo || orarioInizio) && (
+            <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
+              <button
+                type="button"
+                onClick={() => setTimeStatus('confermato')}
+                className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'confermato' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+              >✓ Confermato</button>
+              <button
+                type="button"
+                onClick={() => setTimeStatus('indicativo')}
+                className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'indicativo' ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+              >~ Indicativo</button>
+            </div>
+          )}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div>
           <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -598,18 +695,161 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
         </div>
       </div>
 
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Punto di Ritrovo / Indirizzo Maps
-        </label>
-        <input
-          type="text"
-          placeholder="es. Molo 4, Marina Grande"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-          className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] placeholder:text-slate-400"
-        />
+      {/* Indirizzo e Link Maps separati */}
+      <div className="space-y-3">
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Punto di Ritrovo / Indirizzo leggibile
+          </label>
+          <input
+            type="text"
+            placeholder="es. Molo 4, Marina Grande o Piazza Duomo"
+            value={address}
+            onChange={(e) => {
+              const extracted = extractMapsUrlFromText(e.target.value);
+              if (extracted.mapsUrl) {
+                setAddress(extracted.cleanText);
+                setGoogleMapsUrl(extracted.mapsUrl);
+                if (extracted.isRoute) {
+                  setIsRoute(true);
+                  if (extracted.origin) setOriginLocation(extracted.origin);
+                  if (extracted.destination) setDestinationLocation(extracted.destination);
+                }
+              } else {
+                setAddress(e.target.value);
+              }
+            }}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] placeholder:text-slate-400"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Link Google Maps (separato)
+          </label>
+          <input
+            type="url"
+            placeholder="es. https://maps.app.goo.gl/... o https://www.google.com/maps/..."
+            value={googleMapsUrl}
+            onChange={(e) => setGoogleMapsUrl(e.target.value)}
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] placeholder:text-slate-400"
+          />
+        </div>
       </div>
+
+      {/* Dettagli specifici per Passeggiata e Tappe subordinate */}
+      {isPasseggiata && (
+        <div className="p-4 bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-2xl space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 uppercase tracking-wider flex items-center gap-1.5">
+              <span>🚶</span> Percorso Passeggiata
+            </span>
+            <label className="inline-flex items-center gap-1.5 text-xs text-emerald-800 dark:text-emerald-300 cursor-pointer font-medium">
+              <input
+                type="checkbox"
+                checked={isRoute}
+                onChange={(e) => setIsRoute(e.target.checked)}
+                className="rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
+              />
+              <span>Percorso a piedi con indicazioni stradali (Directions)</span>
+            </label>
+          </div>
+
+          {isRoute && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <label className="block text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider mb-1">
+                  Origine / Partenza
+                </label>
+                <input
+                  type="text"
+                  placeholder="es. Bridge of Remembrance"
+                  value={originLocation}
+                  onChange={(e) => setOriginLocation(e.target.value)}
+                  className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wider mb-1">
+                  Destinazione / Arrivo
+                </label>
+                <input
+                  type="text"
+                  placeholder="es. New Regent Street"
+                  value={destinationLocation}
+                  onChange={(e) => setDestinationLocation(e.target.value)}
+                  className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                />
+              </div>
+            </div>
+          )}
+
+          {initialData?.id && (
+            <div className="pt-2 border-t border-emerald-200/70 dark:border-emerald-800/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-emerald-900 dark:text-emerald-200 uppercase tracking-wider">
+                  Tappe subordinate collegate ({childTappe.length})
+                </span>
+                <span className="text-[11px] text-emerald-700 dark:text-emerald-300">
+                  Ordinamento cronologico
+                </span>
+              </div>
+
+              {childTappe.length > 0 ? (
+                <div className="space-y-1.5">
+                  {childTappe.map(t => (
+                    <div key={t.id} className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-800 border border-emerald-100 dark:border-emerald-900/60 rounded-xl text-xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/40 px-1.5 py-0.5 rounded">
+                          {t.orario || (t as any).time || '--:--'}
+                        </span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">{t.titolo}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleUnlinkChild(t.id)}
+                        className="px-2 py-1 text-[11px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+                        title="Scollega da questa passeggiata (la tappa non verrà cancellata)"
+                      >
+                        Scollega
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 italic">
+                  Nessuna tappa subordinata collegata. Puoi associare tappe di questo giorno dal selettore qui sotto o dalla schermata della singola tappa.
+                </p>
+              )}
+
+              {availableTappeForDay.filter(t => !t.passeggiataId).length > 0 && (
+                <div className="flex gap-2 pt-1">
+                  <select
+                    value={selectedTappaToLink}
+                    onChange={(e) => setSelectedTappaToLink(e.target.value)}
+                    className="flex-1 h-9 px-2.5 bg-white dark:bg-slate-800 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs"
+                  >
+                    <option value="">+ Collega una tappa del giorno a questa passeggiata...</option>
+                    {availableTappeForDay.filter(t => !t.passeggiataId).map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.orario ? `${t.orario} · ` : ''}{t.titolo}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!selectedTappaToLink}
+                    onClick={() => handleLinkChild(selectedTappaToLink)}
+                    className="px-3 h-9 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
+                  >
+                    Collega
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-3">
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">

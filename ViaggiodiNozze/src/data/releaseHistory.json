@@ -2,6 +2,25 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.1",
+      "publishedAt": "2026-11-03",
+      "sourceCommit": "f9daae4",
+      "changes": [
+        "Hotfix stabilizzazione focus: eliminata perdita del cursore durante la digitazione continua nei campi e nelle modali.",
+        "Selettore orario accessibile: etichetta 'Scegli orario' con icona orologio, overlay prioritario e auto-format rapido."
+      ]
+    },
+    {
+      "version": "1.5.0",
+      "publishedAt": "2026-11-03",
+      "sourceCommit": "0128c63",
+      "changes": [
+        "Eliminazione tappe fantasma da link Google Maps e isolamento waypoint stradali da soste reali.",
+        "Nuovo design compatto di Oggi e gestione orari confermati/indicativi.",
+        "Contenitore Passeggiata con sottocard e importazione simultanea con anteprima."
+      ]
+    },
+    {
       "version": "1.4.0",
       "publishedAt": "2026-11-02",
       "sourceCommit": "3f7d316",

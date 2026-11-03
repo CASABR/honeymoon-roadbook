@@ -599,9 +599,9 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
   };
 
   // ============================================================================
-  // COMPONENTE RIGA (Condiviso tra Drill-Down e Lista Principale)
+  // FUNZIONE RENDER RIGA (Condivisa tra Drill-Down e Lista Principale - evita rimontaggio su digitazione)
   // ============================================================================
-  const ExpenseRow = ({ item }: { item: UnifiedExpense }) => {
+  const renderExpenseRow = (item: UnifiedExpense, keyPrefix = '') => {
     const config = CATEGORY_CONFIG[item.category];
     const isEditingThis = editingItemId === item.id;
     
@@ -612,6 +612,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
 
     return (
       <div 
+        key={keyPrefix ? `${keyPrefix}_${item.id}` : `${item.category}_${item.id}`}
         onClick={() => {
           if (canEdit && !isEditingThis) {
             openItemEdit(item);
@@ -967,9 +968,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
                 <p className="text-xs text-slate-500">Non ci sono spese che corrispondono ai filtri attuali.</p>
               </div>
             ) : (
-              filteredUnifiedExpenses.map((expense) => (
-                <ExpenseRow key={`${expense.category}_${expense.id}`} item={expense} />
-              ))
+              filteredUnifiedExpenses.map((expense) => renderExpenseRow(expense))
             )}
           </div>
         </div>
@@ -1078,9 +1077,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
                     <span className="text-slate-400 text-xs">Nessuna spesa in questa categoria.</span>
                   </div>
                 ) : (
-                  items.map(expense => (
-                    <ExpenseRow key={`drill_${expense.id}`} item={expense} />
-                  ))
+                  items.map(expense => renderExpenseRow(expense, 'drill'))
                 )}
               </div>
               

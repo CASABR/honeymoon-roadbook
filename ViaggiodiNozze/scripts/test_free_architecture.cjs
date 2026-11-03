@@ -28,7 +28,7 @@ function test(name, callback) {
   console.log(`[PASS ${passed}] ${name}`);
 }
 
-test('La release è 1.4.0', () => assert.equal(packageJson.version, '1.4.0'));
+test('La release è 1.5.1', () => assert.equal(packageJson.version, '1.5.1'));
 
 test('AI usa solo il Worker approvato e mantiene il fallback senza URL', () => {
   assert.equal(config.includes("VITE_HOUNIAI_WORKER_URL || ''"), true);

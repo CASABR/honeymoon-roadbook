@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
-import type { Shopping } from '../../types';
+import type { Shopping, TimeStatus } from '../../types';
 import { extractFromText } from '../../services/aiExtractor';
 import TimePickerInput from '../common/TimePickerInput';
 
@@ -20,6 +20,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
   const [scopo, setScopo] = useState('');
   const [data, setData] = useState('');
   const [orario, setOrario] = useState('');
+  const [timeStatus, setTimeStatus] = useState<TimeStatus>(initialData?.timeStatus || 'confermato');
   const [indirizzo, setIndirizzo] = useState('');
   const [budget, setBudget] = useState('');
   const [link, setLink] = useState('');
@@ -35,13 +36,22 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
 
   const SOTTOCATEGORIE = ['Abbigliamento', 'Souvenir', 'Alimentari', 'Elettronica', 'Carburante', 'Altro'];
 
+  const initializedIdRef = useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
+    const currentId = initialData?.id || '__new__';
+    if (initializedIdRef.current === currentId) {
+      return;
+    }
+    initializedIdRef.current = currentId;
+
     if (initialData) {
       setSottocategoria(initialData.sottocategoria || '');
       setNome(initialData.nome || '');
       setScopo(initialData.scopo || '');
       setData(initialData.data || '');
       setOrario(initialData.orario || '');
+      setTimeStatus(initialData.timeStatus || 'confermato');
       setIndirizzo(initialData.indirizzo || '');
       setBudget(initialData.budget || '');
       setLink(initialData.link || '');
@@ -53,6 +63,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       setScopo('');
       setData(defaultDate || '');
       setOrario(defaultTime || '');
+      setTimeStatus('confermato');
       setIndirizzo('');
       setBudget('');
       setLink('');
@@ -106,6 +117,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       scopo: scopo.trim() || undefined,
       data: data || undefined,
       orario: orario || undefined,
+      timeStatus: orario ? timeStatus : undefined,
       indirizzo: indirizzo.trim() || undefined,
       budget: budget.trim() || undefined,
       link: link.trim() || undefined,
@@ -240,9 +252,37 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
             />
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Orario (opzionale)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Orario (opzionale)
+              </label>
+              {orario && (
+                <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setTimeStatus('confermato')}
+                    className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                      timeStatus === 'confermato'
+                        ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    ✓ Confermato
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTimeStatus('indicativo')}
+                    className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                      timeStatus === 'indicativo'
+                        ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs'
+                        : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    ~ Indicativo
+                  </button>
+                </div>
+              )}
+            </div>
             <TimePickerInput value={orario} onChange={setOrario} ariaLabel="Orario shopping" />
           </div>
         </div>

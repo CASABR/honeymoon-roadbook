@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
@@ -46,7 +46,15 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
 
   const SOTTOCATEGORIE: Alloggio['sottocategoria'][] = ['Hotel', 'B&B', 'Appartamento', 'Campeggio/Piazzola', 'Altro'];
 
+  const initializedIdRef = useRef<string | null | undefined>(undefined);
+
   useEffect(() => {
+    const currentId = initialData?.id || '__new__';
+    if (initializedIdRef.current === currentId) {
+      return;
+    }
+    initializedIdRef.current = currentId;
+
     if (initialData) {
       setSottocategoria(initialData.sottocategoria || '');
       setName(initialData.name || '');

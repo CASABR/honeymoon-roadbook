@@ -13,19 +13,28 @@ interface ModalProps {
 export default function Modal({ isOpen, onClose, title, children, accentVariant = 'amber', centered = false }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const previousOverflow = document.body.style.overflow;
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = 'hidden';
 
-    const focusTimer = window.setTimeout(() => modalRef.current?.focus(), 0);
+    // Only focus the modal container if no element inside already has focus
+    const focusTimer = window.setTimeout(() => {
+      if (modalRef.current && !modalRef.current.contains(document.activeElement)) {
+        modalRef.current.focus();
+      }
+    }, 0);
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== 'Tab' || !modalRef.current) return;
@@ -52,9 +61,11 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
       window.clearTimeout(focusTimer);
       document.body.style.overflow = previousOverflow;
       window.removeEventListener('keydown', handleKeyDown);
-      previousFocus?.focus();
+      if (previousFocusRef.current && document.contains(previousFocusRef.current)) {
+        previousFocusRef.current.focus();
+      }
     };
-  }, [isOpen, onClose]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -116,7 +127,7 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
             minHeight: 0,
             overflowY: 'auto',
             WebkitOverflowScrolling: 'touch',
-            padding: '1.25rem 1.5rem 5.5rem 1.5rem',
+            padding: '1.25rem 1.5rem max(1.5rem, env(safe-area-inset-bottom, 1.5rem)) 1.5rem',
           }}
         >
           {children}
