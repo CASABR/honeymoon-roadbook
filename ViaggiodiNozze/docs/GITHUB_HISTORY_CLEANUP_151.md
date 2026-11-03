@@ -4,7 +4,7 @@ Nessuna operazione remota di riscrittura è eseguita senza autorizzazione esplic
 
 ## 1. Stato verificato della cleanroom locale
 
-- **Cleanroom `main`**: commit `6f8cc27758bfbcfeb22431f9f7227a99be1df01c` (`6f8cc27`), codice HOUNIGO 1.5.1 completo con hotfix focus, TimePickerInput accessibile, TwoWheelTimePicker portal e moduli protetti.
+- **Cleanroom `main`**: commit `c9cc867cb161b97ca96a8be4ba86fe2aa4d41221` (`fcd1853`), codice HOUNIGO 1.5.1 completo con hotfix focus, TimePickerInput accessibile, TwoWheelTimePicker portal e moduli protetti.
 - **Cleanroom `gh-pages`**: commit `89c341fe11f5121913035bf0a9f61f46d13dda5b` (`89c341f`), tree `f28866e7c2a0b3a3b4e210f6a0d0b7aac2f705a5` identico al bundle 1.5.1 attualmente pubblicato online (`a23cf31`).
 - **Verifica privacy cronologia**: `PASS` (4.987 oggetti analizzati, 0 marker privati, 0 percorsi seed riservati rilevati).
 - **Backup permanente verificato (fuori da C:\tmp e fuori dal repo)**:
@@ -56,7 +56,7 @@ We request your assistance with the following:
 1. Please run garbage collection (`git gc --prune=now`) on `CASABR/honeymoon-roadbook` to purge unreachable / orphaned commits, cached pull request refs, and web view caches associated with the old commit SHAs.
 2. The old tip SHA for `main` was: 1dfd423f83b1538e652c80c59d1da5f564373df8
 3. The old tip SHA for `gh-pages` was: a23cf313e8aba8bd18e4ba488139859e0b23efb5
-4. The new sanitized tip SHA for `main` is: 6f8cc27758bfbcfeb22431f9f7227a99be1df01c
+4. The new sanitized tip SHA for `main` is: c9cc867cb161b97ca96a8be4ba86fe2aa4d41221
 5. The new sanitized tip SHA for `gh-pages` is: 89c341fe11f5121913035bf0a9f61f46d13dda5b
 
 Additionally, a public fork exists at:
@@ -71,5 +71,5 @@ Thank you for your assistance.
 NON ESEGUIRE SENZA ESPLICITA AUTORIZZAZIONE DEL PROPRIETARIO:
 
 ```powershell
-git -C C:\tmp\hounigo-cleanroom push https://github.com/CASABR/honeymoon-roadbook.git 6f8cc27758bfbcfeb22431f9f7227a99be1df01c:refs/heads/main --force-with-lease=refs/heads/main:1dfd423f83b1538e652c80c59d1da5f564373df8 89c341fe11f5121913035bf0a9f61f46d13dda5b:refs/heads/gh-pages --force-with-lease=refs/heads/gh-pages:a23cf313e8aba8bd18e4ba488139859e0b23efb5
+git -C C:\tmp\hounigo-cleanroom push --atomic https://github.com/CASABR/honeymoon-roadbook.git c9cc867cb161b97ca96a8be4ba86fe2aa4d41221:refs/heads/main --force-with-lease=refs/heads/main:1dfd423f83b1538e652c80c59d1da5f564373df8 89c341fe11f5121913035bf0a9f61f46d13dda5b:refs/heads/gh-pages --force-with-lease=refs/heads/gh-pages:a23cf313e8aba8bd18e4ba488139859e0b23efb5
 ```
