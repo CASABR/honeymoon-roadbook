@@ -4,6 +4,10 @@ import { getCoordinatesFromAddress, extractMapsUrlFromText } from '../../utils/m
 import { storageService } from '../../storage/storageService';
 import { isPasseggiataActivity } from '../../utils/activityType';
 import DestinationSearchModal from '../modals/DestinationSearchModal';
+import DropZone from '../common/DropZone';
+import { processFileForAttachment } from '../../utils/fileAttachment';
+import { PHOTO_LIGHT_LABELS } from '../../utils/activityType';
+import type { TransportAttachment, FasciaLuceFotografica } from '../../types';
 import type { Tappa, Attivita, Coordinate, OpeningHoursInfo, TimeStatus } from '../../types';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import type { PlaceSuggestion } from '../../services/photonService';
@@ -24,6 +28,10 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
 
   const [data, setData] = useState(() => initialData?.data || (initialData as any)?.date || defaultDate || new Date().toISOString().split('T')[0]);
   const [sottocategoria, setSottocategoria] = useState(() => initialData?.sottocategoria || 'Tappa');
+  const [attachments, setAttachments] = useState<TransportAttachment[]>(() => initialData?.attachments || []);
+  const [lightWindow, setLightWindow] = useState<FasciaLuceFotografica>(() => (initialData as any)?.lightWindow || 'qualsiasi');
+  const [photoSubject, setPhotoSubject] = useState(() => (initialData as any)?.photoSubject || '');
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [passeggiataId, setPasseggiataId] = useState<string | undefined>(() => initialData?.passeggiataId);
   const [availablePasseggiate, setAvailablePasseggiate] = useState<Attivita[]>([]);
   const [titolo, setTitolo] = useState('');
@@ -70,6 +78,9 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       setNoteCopilota(initialData.noteCopilota || '');
       setNota(initialData.nota || '');
       setOpeningHours(initialData.openingHours);
+      setAttachments(initialData.attachments || []);
+      setLightWindow((initialData as any).lightWindow || 'qualsiasi');
+      setPhotoSubject((initialData as any).photoSubject || '');
     } else {
       setData(defaultDate || new Date().toISOString().split('T')[0]);
       setSottocategoria('Tappa');
@@ -98,6 +109,31 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       if (raw.noteCopilota && !noteCopilota) setNoteCopilota(raw.noteCopilota);
       if (raw.nota && !nota) setNota(raw.nota);
     }
+  };
+
+  
+  const isPhotoSpot = sottocategoria === 'Spot fotografico' || sottocategoria === 'Sosta fotografica';
+
+  const handlePhotoFilesBatch = async (filesArray: File[]) => {
+    if (!filesArray || filesArray.length === 0) return;
+    setIsUploadingPhoto(true);
+    try {
+      const newAttachments: TransportAttachment[] = [...attachments];
+      for (let i = 0; i < filesArray.length; i++) {
+        const file = filesArray[i];
+        const processed = await processFileForAttachment(file);
+        newAttachments.push({ ...processed, purpose: 'photo' });
+      }
+      setAttachments(newAttachments);
+    } catch (err: any) {
+      console.error('Errore caricamento foto tappa:', err);
+    } finally {
+      setIsUploadingPhoto(false);
+    }
+  };
+
+  const removePhotoAttachment = (indexToRemove: number) => {
+    setAttachments(prev => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
   const processSave = async () => {
@@ -150,7 +186,10 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       date: dateClean,
       dayId: dateClean ? `day_${dateClean}` : initialData?.dayId,
       completed: initialData?.completed,
-      openingHours
+      openingHours,
+      lightWindow: isPhotoSpot ? lightWindow : undefined,
+      photoSubject: isPhotoSpot ? (photoSubject.trim() || undefined) : undefined,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
   };
 
@@ -210,6 +249,85 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
             <option value="Sosta">📍 Sosta generica</option>
           </select>
         </div>
+
+        {isPhotoSpot && (
+          <div className="p-3.5 bg-rose-50/50 dark:bg-rose-950/20 border border-rose-200/60 dark:border-rose-900/40 rounded-xl space-y-3">
+            <div className="flex items-center gap-2 text-rose-700 dark:text-rose-300 font-semibold text-xs tracking-wide">
+              <span>📸</span>
+              <span>Dettagli Spot Fotografico</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  🌅 Fascia di luce consigliata
+                </label>
+                <select
+                  value={lightWindow}
+                  onChange={(e) => setLightWindow(e.target.value as FasciaLuceFotografica)}
+                  className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                >
+                  {Object.entries(PHOTO_LIGHT_LABELS).map(([k, label]) => (
+                    <option key={k} value={k}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
+                  🎯 Soggetto / Inquadratura
+                </label>
+                <input
+                  type="text"
+                  value={photoSubject}
+                  onChange={(e) => setPhotoSubject(e.target.value)}
+                  placeholder="Es. Scorcio al tramonto, reflex su cavalletto"
+                  className="w-full h-10 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5">
+                🖼️ Foto dello spot / Ispirazione
+              </label>
+              <DropZone
+                variant={attachments.length > 0 ? 'compact' : 'hero'}
+                onFilesSelected={handlePhotoFilesBatch}
+                accept="image/*"
+                multiple
+                isUploading={isUploadingPhoto}
+                title="Foto dello spot fotografico"
+                subtitle="Trascina qui l'immagine o clicca per sfogliare"
+                disabled={isUploadingPhoto}
+              />
+              {isUploadingPhoto && (
+                <p className="text-xs text-rose-600 dark:text-rose-400 mt-1 animate-pulse">
+                  Elaborazione immagine in corso...
+                </p>
+              )}
+
+              {attachments.filter(a => a.type === 'image' || a.purpose === 'photo' || a.dataUrl).length > 0 && (
+                <div className="mt-2 grid grid-cols-3 gap-2">
+                  {attachments.map((att, idx) => (
+                    <div key={idx} className="relative group rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 aspect-video bg-slate-100 dark:bg-slate-800">
+                      <img src={att.dataUrl} alt={att.name || 'Foto spot'} className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => removePhotoAttachment(idx)}
+                        className="absolute top-1 right-1 p-1 bg-black/60 hover:bg-black/80 text-white rounded-full text-[10px]"
+                        title="Rimuovi foto"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
 
         <div>
           <div className="flex items-center justify-between mb-1.5">

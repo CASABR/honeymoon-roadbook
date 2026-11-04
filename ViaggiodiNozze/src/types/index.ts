@@ -112,6 +112,8 @@ export interface Tappa {
   linkedDocumentId?: string; // Documento esplicitamente associato
   linkedDocumentIds?: string[];
   attachments?: TransportAttachment[];
+  lightWindow?: FasciaLuceFotografica;
+  photoSubject?: string;
   openingHours?: OpeningHoursInfo;
   nota?: string; // Note generali
   noteCopilota?: string; // Note specifiche per il copilota

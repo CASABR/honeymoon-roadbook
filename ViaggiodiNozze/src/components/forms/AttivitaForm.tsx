@@ -90,7 +90,6 @@ export default function AttivitaForm(props: AttivitaFormProps) {
 function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave, onCancel, onDelete }: AttivitaFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
-  const SOTTOCATEGORIE: Attivita['sottocategoria'][] = ['Passeggiata', 'Trekking', 'Spot fotografico', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'];
 
   const [sottocategoria, setSottocategoria] = useState<Attivita['sottocategoria'] | ''>('');
   const [title, setTitle] = useState('');
@@ -497,25 +496,45 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       
 
 
-      <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Sottocategoria
+      {/* Selettore Tipologia Attività Riconcepito (Roadbook Editorial) */}
+      <div className="space-y-1.5">
+        <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          Tipologia Attività
         </label>
-        <div className="flex flex-wrap gap-2">
-          {SOTTOCATEGORIE.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => setSottocategoria(cat === sottocategoria ? '' : cat)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-colors border ${
-                cat === sottocategoria
-                  ? 'bg-[#FF6B5F] text-white border-[#FF6B5F]'
-                  : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {[
+            { id: 'Trekking', label: 'Trekking', icon: '🥾', desc: 'Sentieri & dislivelli' },
+            { id: 'Spot fotografico', label: 'Spot foto', icon: '📸', desc: 'Scorci & golden hour' },
+            { id: 'Passeggiata', label: 'Passeggiata', icon: '🚶', desc: 'Esplorazione urbana o a piedi' },
+            { id: 'Tour Guidato', label: 'Tour Guidato', icon: '🧭', desc: 'Visite organizzate' },
+            { id: 'Museo', label: 'Museo', icon: '🏛️', desc: 'Arte & mostre' },
+            { id: 'Adrenalina', label: 'Adrenalina', icon: '⚡', desc: 'Avventura & sport' },
+            { id: 'Altro', label: 'Altro', icon: '🎯', desc: 'Attività libera' }
+          ].map(cat => {
+            const isSelected = sottocategoria === cat.id;
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => setSottocategoria(isSelected ? '' : (cat.id as any))}
+                className={`flex items-center gap-2.5 p-2.5 rounded-2xl border text-left transition-all active:scale-[0.98] cursor-pointer ${
+                  isSelected
+                    ? 'bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 border-[#FF6B5F] text-[#FF6B5F] dark:text-[#ff9a90] shadow-xs'
+                    : 'bg-white dark:bg-slate-800/80 border-slate-200 dark:border-slate-700/80 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
+                }`}
+              >
+                <span className="text-xl shrink-0" aria-hidden="true">{cat.icon}</span>
+                <div className="min-w-0">
+                  <span className={`block text-xs font-bold leading-tight truncate ${isSelected ? 'text-[#FF6B5F] dark:text-[#ff9a90]' : 'text-slate-800 dark:text-slate-100'}`}>
+                    {cat.label}
+                  </span>
+                  <span className="block text-[10px] text-slate-400 dark:text-slate-500 truncate leading-none mt-0.5">
+                    {cat.desc}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 

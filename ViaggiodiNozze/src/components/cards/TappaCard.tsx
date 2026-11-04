@@ -5,6 +5,7 @@ import { storageService } from '../../storage/storageService';
 import { resolveMapUrl } from '../../utils/mapsHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import OpeningHoursBadge from '../common/OpeningHoursBadge';
+import { PHOTO_LIGHT_LABELS } from '../../utils/activityType';
 
 interface TappaCardProps {
   tappa: Tappa;
@@ -94,6 +95,31 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
               <span className="hounigo-ds-spec-label">Codice ingresso</span>
               <span className="hounigo-ds-spec-value font-mono">{tappa.bookingCode}</span>
             </div>
+          </div>
+        )}
+
+                {/* Spot fotografico: anteprima foto e finestra di luce */}
+        {(tappa.sottocategoria === 'Spot fotografico' || tappa.sottocategoria === 'Sosta fotografica') && (
+          <div className="space-y-2 mt-2.5">
+            {tappa.attachments && tappa.attachments.find(a => a.type === 'image') && (
+              <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
+                <img
+                  src={tappa.attachments.find(a => a.type === 'image')?.dataUrl}
+                  alt={tappa.titolo}
+                  className="h-full w-full object-cover"
+                />
+              </div>
+            )}
+            {tappa.lightWindow && tappa.lightWindow !== 'qualsiasi' && (
+              <div className="hounigo-ds-spec-grid">
+                <div className="hounigo-ds-spec-cell">
+                  <span className="hounigo-ds-spec-label">Finestra luce</span>
+                  <span className="hounigo-ds-spec-value font-bold text-[#FF6B5F]">
+                    {PHOTO_LIGHT_LABELS[tappa.lightWindow] || tappa.lightWindow}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
