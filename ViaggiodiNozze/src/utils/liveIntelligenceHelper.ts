@@ -288,7 +288,7 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
           transportDetails: {
             type: tr.type,
             carrier: tr.carrier,
-            code: tr.bookingCode,
+            code: undefined, // Mai esporre PNR o codici riservati nel LIVE pubblico
             departureLocation: tr.departureLocation,
             arrivalLocation: tr.arrivalLocation || tr.dropoffLocation || '',
             departureTime: tr.departureTime,

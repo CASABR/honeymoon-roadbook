@@ -1,4 +1,4 @@
-import type { TimelineItem, Attivita, Trasporto } from '../../types';
+import type { TimelineItem, Attivita, Trasporto, Alloggio } from '../../types';
 import Modal from '../common/Modal';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
 import { useDeviceRole } from '../../utils/useDeviceRole';
@@ -18,13 +18,22 @@ export default function TimelineItemDetailModal({
   item,
   onEdit
 }: TimelineItemDetailModalProps) {
-  const { canEdit } = useDeviceRole();
+  const { role, canEdit } = useDeviceRole();
+  const isExternalLiveView = typeof window !== 'undefined' && (
+    new URLSearchParams(window.location.search).get('live') === '1' ||
+    new URLSearchParams(window.location.search).get('live') === 'true' ||
+    new URLSearchParams(window.location.search).get('view') === 'live' ||
+    (window.location.hash || '').toLowerCase().includes('live')
+  );
+  const canSeePrivateInfo = !isExternalLiveView && (role === 'guida' || role === 'copilota');
+
   if (!item) return null;
 
   const isAttivita = item.type === 'attivita';
   const isTrasporto = item.type === 'trasporto';
   const isTappa = item.type === 'tappa';
   const isShopping = item.type === 'shopping';
+  const isAlloggio = item.type === 'alloggio';
   const data = item.originalData;
 
   const modalTitle = isAttivita
@@ -35,9 +44,11 @@ export default function TimelineItemDetailModal({
     ? 'Dettagli Tappa'
     : isShopping
     ? 'Dettagli Shopping'
+    : isAlloggio
+    ? 'Dettagli Alloggio'
     : 'Dettagli Ristorante';
 
-  const modalAccent = isAttivita ? 'amber' : isTrasporto ? 'sky' : isTappa ? 'rose' : isShopping ? 'rose' : 'emerald';
+  const modalAccent = isAttivita ? 'amber' : isTrasporto ? 'sky' : isTappa ? 'rose' : isShopping ? 'rose' : isAlloggio ? 'purple' : 'emerald';
 
   return (
     <Modal
@@ -69,6 +80,8 @@ export default function TimelineItemDetailModal({
                 ? 'TAPPA PROGRAMMATA'
                 : isShopping
                 ? 'SHOPPING & ACQUISTI'
+                : isAlloggio
+                ? `ALLOGGIO · ${(data as Alloggio).sottocategoria?.toUpperCase() || 'STRUTTURA'}`
                 : 'PRENOTAZIONE RISTORANTE'}
             </p>
           </div>
@@ -101,14 +114,35 @@ export default function TimelineItemDetailModal({
                   </div>
                 </div>
 
+                {(att.orarioRitrovo || att.orarioInizio) && (
+                  <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    {att.orarioRitrovo && (
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                          Orario Ritrovo
+                        </span>
+                        <span className="font-mono font-bold text-rose-700">🚩 {att.orarioRitrovo}</span>
+                      </div>
+                    )}
+                    {att.orarioInizio && (
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                          Orario Inizio
+                        </span>
+                        <span className="font-mono font-bold text-slate-800">⏱️ {att.orarioInizio}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
                       Stato
                     </span>
                     <span className="font-semibold capitalize text-slate-700">
-                      {att.status === 'prenotato' ? '🟢 Prenotato' : 
-                       att.status === 'da_valutare' ? '🟡 Da Valutare' : 
+                      {att.status === 'prenotato' ? '🟢 Prenotato' :
+                       att.status === 'da_valutare' ? '🟡 Da Valutare' :
                        att.status === 'non_bloccato' ? '🟠 Non Bloccato' : '⚪ Libero'}
                     </span>
                   </div>
@@ -125,7 +159,7 @@ export default function TimelineItemDetailModal({
                   {att.cost && (
                     <div>
                       <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                        Prezzo & Pagamento
+                        Prezzo &amp; Pagamento
                       </span>
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-slate-900 text-sm">
@@ -149,12 +183,8 @@ export default function TimelineItemDetailModal({
                   )}
                 </div>
 
-                
-
-                
-
-                {/* Sezione Biglietto / QR Code per Attività */}
-                {att.qrCode && (
+                {/* Sezione Biglietto / QR Code per Attività (riservato agli autorizzati) */}
+                {att.qrCode && canSeePrivateInfo && (
                   <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
                       <div className="min-w-0">
@@ -250,12 +280,12 @@ export default function TimelineItemDetailModal({
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
                       Arrivo / Riconsegna
                     </span>
-                    <p className="font-semibold text-slate-800">🛬 {tr.arrivalLocation}</p>
-                    {tr.arrivalTime && <p className="text-[11px] text-slate-500">Ora: {tr.arrivalTime}</p>}
+                    <p className="font-semibold text-slate-800">🛬 {tr.dropoffLocation || tr.arrivalLocation}</p>
+                    {(tr.arrivalTime || tr.dropoffTime) && <p className="text-[11px] text-slate-500">Ora: {tr.arrivalTime || tr.dropoffTime}</p>}
                   </div>
                 </div>
 
-                {(tr.carrier || tr.bookingCode) && (
+                {(tr.carrier || (tr.bookingCode && canSeePrivateInfo) || tr.terminalGate || tr.posti) && (
                   <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
                     {tr.carrier && (
                       <div>
@@ -265,12 +295,28 @@ export default function TimelineItemDetailModal({
                         <span className="font-bold text-slate-800">{tr.carrier}</span>
                       </div>
                     )}
-                    {Boolean(tr.bookingCode?.trim()) && (
+                    {Boolean(tr.bookingCode?.trim()) && canSeePrivateInfo && (
                       <div>
                         <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
                           Codice PNR / Prenotazione
                         </span>
                         <span className="font-mono font-bold text-indigo-600">{tr.bookingCode?.trim()}</span>
+                      </div>
+                    )}
+                    {tr.terminalGate && (
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                          {tr.type === 'treno' ? 'Binario' : tr.type === 'volo' ? 'Terminal / Gate' : 'Riferimento'}
+                        </span>
+                        <span className="font-bold text-slate-800">{tr.terminalGate}</span>
+                      </div>
+                    )}
+                    {tr.posti && (
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                          {tr.type === 'treno' ? 'Carrozza / Posto' : 'Posto / Veicolo'}
+                        </span>
+                        <span className="font-bold text-slate-800">{tr.posti}</span>
                       </div>
                     )}
                   </div>
@@ -357,6 +403,122 @@ export default function TimelineItemDetailModal({
               </div>
             );
           })()
+        ) : isAlloggio ? (
+          /* Informazioni specifiche per Alloggio */
+          (() => {
+            const acc = data as Alloggio;
+            const rawNotes = (acc as any).noteCopilota || acc.notes || '';
+            const safeNotes = canSeePrivateInfo
+              ? rawNotes
+              : rawNotes.replace(/\b(PIN|codice|keybox|cassaforte|digita)\s*[:=-]?\s*([A-Z0-9#*]{3,12})/gi, '$1: [Riservato]');
+            return (
+              <div className="space-y-3 text-xs">
+                <div>
+                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
+                    Indirizzo / Posizione
+                  </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-bold text-slate-800 text-sm">📍 {acc.address || acc.location || acc.name}</p>
+                    {(acc.address || acc.location || acc.name) && (
+                      <button
+                        type="button"
+                        onClick={() => openMapLink(resolveMapUrl(acc.address || acc.location || acc.name))}
+                        className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                      >
+                        Apri Maps ↗
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                      Check-in
+                    </span>
+                    <span className="font-bold text-slate-800">
+                      📅 {acc.checkIn ? formatDateIT(acc.checkIn) : '—'} {acc.checkInTime ? `· dalle ${acc.checkInTime}` : ''}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                      Check-out
+                    </span>
+                    <span className="font-bold text-slate-800">
+                      📅 {acc.checkOut ? formatDateIT(acc.checkOut) : '—'} {acc.checkOutTime ? `· entro ${acc.checkOutTime}` : ''}
+                    </span>
+                  </div>
+                  {acc.arrivalTime && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                        Arrivo previsto
+                      </span>
+                      <span className="font-mono font-bold text-indigo-700">🕒 {acc.arrivalTime}</span>
+                    </div>
+                  )}
+                  {canSeePrivateInfo && acc.bookingCode && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                        Codice Prenotazione
+                      </span>
+                      <span className="font-mono font-bold text-indigo-700">{acc.bookingCode}</span>
+                    </div>
+                  )}
+                  {canSeePrivateInfo && (acc as any).pinCode && (
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">
+                        PIN d'ingresso
+                      </span>
+                      <span className="font-mono font-bold text-amber-900">🔑 {(acc as any).pinCode}</span>
+                    </div>
+                  )}
+                </div>
+
+                {safeNotes && (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+                    <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block mb-1">
+                      🧭 Istruzioni d'ingresso &amp; Note
+                    </span>
+                    <p className="text-xs text-emerald-950 font-medium whitespace-pre-wrap">
+                      {safeNotes}
+                    </p>
+                  </div>
+                )}
+
+                {acc.attachments && acc.attachments.length > 0 && (
+                  <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex flex-col gap-2">
+                    <div className="flex items-center justify-between text-xs text-purple-900">
+                      <span className="font-semibold flex items-center gap-1.5">
+                        <span>🎟️</span>
+                        <span>{acc.attachments.length} voucher/documenti caricati</span>
+                      </span>
+                      <span className="text-[10px] text-purple-600 font-bold">Disponibili offline</span>
+                    </div>
+                    <div className="grid gap-2">
+                      {acc.attachments.map((attach, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            const content = attach.dataUrl;
+                            if (content) {
+                              openAttachmentInNewTab(content, attach.name);
+                            } else {
+                              alert('Allegato non disponibile');
+                            }
+                          }}
+                          className="w-full text-left px-3 py-2 bg-white rounded-lg border border-purple-100 hover:border-purple-300 transition-colors flex items-center justify-between text-xs cursor-pointer"
+                        >
+                          <span className="truncate font-medium">{attach.name}</span>
+                          <span className="shrink-0 text-purple-600">Apri ↗</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()
         ) : isTappa ? (
           /* Informazioni specifiche per Tappa */
           (() => {
@@ -368,11 +530,11 @@ export default function TimelineItemDetailModal({
                     Nome / Destinazione Tappa
                   </span>
                   <div className="flex items-center justify-between gap-2">
-                    <p className="font-bold text-slate-800 text-sm">📍 {tp.titolo}</p>
-                    {(tp.mapsUrl || tp.titolo) && (
+                    <p className="font-bold text-slate-800 text-sm">📍 {tp.indirizzo || tp.titolo}</p>
+                    {(tp.mapsUrl || tp.indirizzo || tp.titolo) && (
                       <button
                         type="button"
-                        onClick={() => openMapLink(resolveMapUrl(tp.mapsUrl || tp.titolo))}
+                        onClick={() => openMapLink(resolveMapUrl(tp.mapsUrl || tp.indirizzo || tp.titolo))}
                         className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
                       >
                         Apri Maps ↗
@@ -403,7 +565,7 @@ export default function TimelineItemDetailModal({
                 {tp.nota && (
                   <div>
                     <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-                      Note & Suggerimenti
+                      Note &amp; Suggerimenti
                     </span>
                     <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
                       {tp.nota}
@@ -615,29 +777,29 @@ export default function TimelineItemDetailModal({
         {/* Azioni del Modale */}
         <div className="flex items-center justify-between pt-4 border-t border-slate-100 gap-3">
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={async () => {
-                if (window.confirm('Sei sicuro di voler eliminare questo elemento?')) {
-                  const { storageService } = await import('../../storage/storageService');
-                  if (isAttivita) await storageService.deleteActivity(item.id);
-                  else if (isTrasporto) await storageService.deleteTransport(item.id);
-                  else if (isTappa) await storageService.deleteTappa(item.id);
-                  else if (isShopping) await storageService.deleteShopping(item.id);
-                  else await storageService.deleteRistorante(item.id);
-                  
-                  // Per Alloggio non è previsto qui, ma nel dubbio
-                  if (item.type === 'alloggio') await storageService.deleteAccommodation(item.id);
+            {canEdit && (
+              <button
+                type="button"
+                onClick={async () => {
+                  if (window.confirm('Sei sicuro di voler eliminare questo elemento?')) {
+                    const { storageService } = await import('../../storage/storageService');
+                    if (isAttivita) await storageService.deleteActivity(item.id);
+                    else if (isTrasporto) await storageService.deleteTransport(item.id);
+                    else if (isTappa) await storageService.deleteTappa(item.id);
+                    else if (isShopping) await storageService.deleteShopping(item.id);
+                    else if (isAlloggio) await storageService.deleteAccommodation((data as Alloggio)?.id || item.id);
+                    else await storageService.deleteRistorante(item.id);
 
-                  window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'delete' } }));
-                  onClose();
-                }
-              }}
-              className="min-h-[44px] px-4 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100 transition-colors cursor-pointer"
-              title="Elimina"
-            >
-              🗑️ Elimina
-            </button>
+                    window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'delete' } }));
+                    onClose();
+                  }
+                }}
+                className="min-h-[44px] px-4 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100 transition-colors cursor-pointer"
+                title="Elimina"
+              >
+                🗑️ Elimina
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
@@ -664,12 +826,14 @@ export default function TimelineItemDetailModal({
                                   isTrasporto ? `In viaggio verso ${item.title}` :
                                   isTappa ? `Arrivati a ${item.title}` :
                                   isShopping ? `Shopping time: ${item.title}` :
+                                  isAlloggio ? `Check-in: ${item.title}` :
                                   `A tavola: ${item.title}`;
-                    
+
                     const locationName = isAttivita ? (data as import('../../types').Attivita).location :
                                          isTrasporto ? (data as import('../../types').Trasporto).arrivalLocation :
                                          isTappa ? (data as import('../../types').Tappa).titolo :
                                          isShopping ? (data as import('../../types').Shopping).nome :
+                                         isAlloggio ? ((data as Alloggio).address || (data as Alloggio).location || (data as Alloggio).name) :
                                          (data as import('../../types').Ristorante).nome;
 
                     await liveService.publishToLive(tripId, {

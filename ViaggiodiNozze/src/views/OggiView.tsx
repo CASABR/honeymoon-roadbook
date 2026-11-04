@@ -30,6 +30,7 @@ import { computeDayFocalEvent } from '../utils/dayFocusPriority';
 import { getEffectiveDeadlineStatus, isDeadlineReminderActive } from '../utils/deadlines';
 import TimePickerInput from '../components/common/TimePickerInput';
 import { lookupKnownCoordinate } from '../utils/geoCoordinatesHelper';
+import { resolveMapUrl, getTransportMapTargets } from '../utils/mapsHelper';
 
 
 interface OggiViewProps {
@@ -80,7 +81,9 @@ function getDefaultSelectedDate(startDate?: string, endDate?: string, tripId?: s
 }
 
 export default function OggiView({ onNavigateTab }: OggiViewProps) {
-  const { canEdit } = useDeviceRole();
+  const { canEdit, role } = useDeviceRole();
+  const isExternalLiveView = typeof window !== 'undefined' && (new URLSearchParams(window.location.search).get('live') === '1' || (window.location.hash || '').toLowerCase().includes('live'));
+  const canSeePrivateInfo = !isExternalLiveView && (role === 'guida' || role === 'copilota');
   const tripConfig = getTripConfig();
   const isMasterTrip = !tripConfig || tripConfig.id === '0000';
   const tripId = tripConfig?.id || '0000';
@@ -963,9 +966,24 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const nextEventItem = focalResult.focalItem;
 
   const nextEventBookingCode = useMemo(() => {
-    if (!nextEventItem?.originalData) return null;
+    if (!canSeePrivateInfo || !nextEventItem?.originalData) return null;
     const orig = nextEventItem.originalData as any;
     return orig.bookingCode || orig.codicePrenotazione || orig.pnr || orig.conferma || orig.bookingReference || null;
+  }, [nextEventItem, canSeePrivateInfo]);
+
+  const nextEventMapUrl = useMemo(() => {
+    if (!nextEventItem) return '';
+    if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
+      const targets = getTransportMapTargets(nextEventItem.originalData as Trasporto);
+      return targets.departureUrl || targets.pickupUrl || targets.primaryUrl || targets.arrivalUrl || '';
+    }
+    if (nextEventItem.coordinate) {
+      return `https://www.google.com/maps/search/?api=1&query=${nextEventItem.coordinate.lat},${nextEventItem.coordinate.lng}`;
+    }
+    if (nextEventItem.location) {
+      return resolveMapUrl(nextEventItem.location);
+    }
+    return '';
   }, [nextEventItem]);
 
   const deadlineSummary = useMemo(() => {
@@ -1160,7 +1178,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           const startDateStr = tripConfig?.startDate || tripDays[0]?.dateStr || (isMasterTrip ? '2026-11-28' : todayStr);
           const endDateStr = tripConfig?.endDate || (isMasterTrip ? '2027-01-10' : startDateStr);
           const isViewingOtherDate = selectedDate !== todayStr;
-          const isPreTrip = !isViewingOtherDate && todayStr < startDateStr;
+          const isPreTrip = !isViewingOtherDate && todayStr < startDateStr && !nextEventItem;
           const isPostTrip = !isViewingOtherDate && todayStr > endDateStr;
 
           if (isViewingOtherDate) {
@@ -1189,10 +1207,34 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         <h2 className="text-sm sm:text-base font-extrabold text-[#172033] dark:text-white leading-snug">
                           {nextEventItem.title}
                         </h2>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 flex items-center gap-1 truncate">
+                        <p className="text-xs text-slate-600 dark:text-slate-300 font-medium mt-0.5 flex items-center gap-1 truncate">
                           <span>📍</span>
-                          <span className="truncate">{nextEventItem.location || 'Posizione programmata'}</span>
+                          <span className="truncate">
+                            {(() => {
+                              if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
+                                const tr = nextEventItem.originalData as Trasporto;
+                                const dep = tr.departureLocation || nextEventItem.location;
+                                const arr = tr.dropoffLocation || tr.arrivalLocation;
+                                if (dep && arr && dep !== arr) return `${dep} ➔ ${arr}`;
+                              }
+                              return nextEventItem.location || 'Posizione programmata';
+                            })()}
+                          </span>
                         </p>
+                        {nextEventItem.type === 'trasporto' && nextEventItem.originalData && ((nextEventItem.originalData as Trasporto).terminalGate || (nextEventItem.originalData as Trasporto).posti) && (
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-xs">
+                            {(nextEventItem.originalData as Trasporto).terminalGate && (
+                              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-700">
+                                {(nextEventItem.originalData as Trasporto).type === 'treno' ? '🚉 Binario: ' : '🛫 Gate: '}{(nextEventItem.originalData as Trasporto).terminalGate}
+                              </span>
+                            )}
+                            {(nextEventItem.originalData as Trasporto).posti && (
+                              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-700">
+                                💺 {(nextEventItem.originalData as Trasporto).posti}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       <button
@@ -1225,18 +1267,17 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                           <span className="text-[9px] opacity-70 ml-0.5">{bookingCodeCopied ? '✓' : 'Copia'}</span>
                         </button>
                       )}
-                      {nextEventItem.coordinate && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const url = `https://www.google.com/maps/search/?api=1&query=${nextEventItem.coordinate?.lat},${nextEventItem.coordinate?.lng}`;
-                            window.open(url, '_blank');
-                          }}
+                      {nextEventMapUrl && (
+                        <a
+                          href={nextEventMapUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold border border-sky-200/60 dark:border-sky-800/60 hover:bg-sky-100 transition-colors cursor-pointer"
                         >
-                          <span>🧭</span>
-                          <span>Naviga ↗</span>
-                        </button>
+                          <span>📍</span>
+                          <span>Maps ↗</span>
+                        </a>
                       )}
                     </div>
                   </div>
@@ -1391,18 +1432,17 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         <span className="text-[9px] opacity-70 ml-0.5 font-sans">{bookingCodeCopied ? '✓ Copiato' : 'Copia'}</span>
                       </button>
                     )}
-                    {nextEventItem.coordinate && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const url = `https://www.google.com/maps/search/?api=1&query=${nextEventItem.coordinate?.lat},${nextEventItem.coordinate?.lng}`;
-                          window.open(url, '_blank');
-                        }}
+                    {nextEventMapUrl && (
+                      <a
+                        href={nextEventMapUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold border border-sky-200/60 dark:border-sky-800/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors cursor-pointer"
                       >
-                        <span>🧭</span>
-                        <span>Naviga su Mappa ↗</span>
-                      </button>
+                        <span>📍</span>
+                        <span>Naviga su Maps ↗</span>
+                      </a>
                     )}
                   </div>
                 </div>
@@ -1926,6 +1966,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                             <TrasportoCard
                               transport={item.originalData as Trasporto}
                               variant="compact"
+                              contextDate={selectedDate}
+                              segmentContext={item.segmentContext}
+                              onDetail={() => {
+                                const found = timeline.find(t => t.id === item.id);
+                                if (found) setDetailItem(found);
+                                else setEditingTransportItem(item.originalData as Trasporto);
+                              }}
                               onEdit={() => setEditingTransportItem(item.originalData as Trasporto)}
                               onDelete={async () => {
                                 await storageService.deleteTransport(item.originalData?.id || '');
