@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { saveTripConfig, normalizeTripConfig } from '../utils/tripConfig';
+import { saveTripConfig, normalizeTripConfig, getTripConfig } from '../utils/tripConfig';
 import { storageService } from '../storage/storageService';
 import { auth, db } from '../firebase';
 import { signInAnonymously, type User } from 'firebase/auth';
@@ -32,6 +32,7 @@ export type OnboardingMode =
 export default function OnboardingView({ onComplete }: { onComplete?: (config: any) => void }) {
   const [mode, setMode] = useState<OnboardingMode>('select');
   const [tempConfig, setTempConfig] = useState<any>(null);
+  const [savedLocalTrip] = useState<any>(() => (typeof localStorage !== 'undefined' ? getTripConfig() : null));
   const [tempRole, setTempRole] = useState<'guida' | 'copilota'>('guida');
 
   // Create state
@@ -482,9 +483,12 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
     try {
       const report = await fetchUserTripsReport(user.uid);
       setRecoveredTrips(report.trips);
-      if (report.failedIndexedTripIds.length > 0) {
-        setLoginError('Alcuni viaggi associati non sono stati caricati. Verifica la connessione e riprova.');
-        setTripLoadFailed(report.trips.length === 0);
+      if (report.failedIndexedTripIds.length > 0 && report.trips.length === 0) {
+        setLoginError('Impossibile verificare i tuoi viaggi a causa di un problema di rete. Verifica la connessione e tocca Riprova.');
+        setTripLoadFailed(true);
+      } else if (report.failedIndexedTripIds.length > 0) {
+        // Alcuni viaggi secondari non sono stati caricati (es. timeout temporaneo), ma i principali sono disponibili
+        setTripLoadFailed(false);
       }
     } catch (err) {
       console.warn('[Onboarding] Errore recupero viaggi utente:', err);
@@ -657,64 +661,89 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           </div>
         </div>
 
-        {/* 3 AZIONI PRINCIPALI (BRAND IDENTITY INSTAGRAM) */}
+        {/* AZIONI PRINCIPALI SEMPLIFICATE E CHIARE */}
         <div className="space-y-3 pt-0">
-          {/* 1. CREA UN VIAGGIO (CORAL) */}
+          {/* Se l'utente ha già un viaggio locale attivo su questo dispositivo, mostra 'Continua il viaggio' */}
+          {savedLocalTrip && (
+            <button
+              type="button"
+              onClick={() => handleFinishOnboarding(undefined, savedLocalTrip, tempRole)}
+              className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer shadow-lg shadow-[#FF6B5F]/20 flex items-center justify-between text-left group"
+              style={{ background: '#FF6B5F', color: '#ffffff' }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 shadow-2xs text-lg">
+                  🧭
+                </div>
+                <div>
+                  <div className="font-extrabold text-base leading-tight font-brand-title">Continua il viaggio</div>
+                  <div className="text-xs text-white/90 font-normal mt-0.5 truncate max-w-[200px]">{savedLocalTrip.title || 'Apri roadbook in corso'}</div>
+                </div>
+              </div>
+              <span className="text-white text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
+            </button>
+          )}
+
+          {/* 1. CREA UN VIAGGIO */}
           <button
             type="button"
             onClick={() => setMode('create')}
-            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer shadow-lg shadow-[#FF6B5F]/20 flex items-center justify-between text-left group"
-            style={{ background: '#FF6B5F', color: '#ffffff' }}
+            className={`w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer flex items-center justify-between text-left group ${
+              savedLocalTrip ? 'border border-slate-200 bg-white hover:bg-slate-50 text-[#172033] shadow-xs' : 'shadow-lg shadow-[#FF6B5F]/20 text-white'
+            }`}
+            style={savedLocalTrip ? { color: '#172033' } : { background: '#FF6B5F', color: '#ffffff' }}
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center shrink-0 shadow-2xs">
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs ${savedLocalTrip ? 'bg-rose-50 text-[#FF6B5F]' : 'bg-white/20 text-white'}`}>
                 <TrailItinerario size={20} active />
               </div>
               <div>
                 <div className="font-extrabold text-base leading-tight font-brand-title">Crea un viaggio</div>
-                <div className="text-xs text-white/90 font-normal mt-0.5">Imposta date, tappe e itinerario</div>
+                <div className={`text-xs font-normal mt-0.5 ${savedLocalTrip ? 'text-slate-500' : 'text-white/90'}`}>Pianifica tappe, itinerario e orari</div>
               </div>
             </div>
-            <span className="text-white text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
+            <span className={`text-base font-bold group-hover:translate-x-1 transition-transform ${savedLocalTrip ? 'text-slate-400' : 'text-white'}`}>→</span>
           </button>
-          <p className="px-2 text-center text-[11px] leading-relaxed text-slate-500">
-            Con lo stesso account puoi creare e ritrovare più viaggi.
-          </p>
 
-          {/* 2. CONTINUA CON GOOGLE / ACCEDI (NAVY) */}
+          {/* 2. UNISCITI A UN VIAGGIO (COPILOTA) */}
+          <button
+            type="button"
+            onClick={() => setMode('join')}
+            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer border border-slate-200/90 hover:border-slate-300 bg-[#F8F7F3] flex items-center justify-between text-left group shadow-xs"
+            style={{ color: '#172033' }}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-white text-[#172033] flex items-center justify-center shrink-0 border border-slate-200 shadow-2xs">
+                <TrailCopiloti size={18} active />
+              </div>
+              <div>
+                <div className="font-extrabold text-base leading-tight font-brand-title">Unisciti a un viaggio</div>
+                <div className="text-xs text-slate-500 font-normal mt-0.5">Entra come copilota con link o codice</div>
+              </div>
+            </div>
+            <span className="text-slate-400 text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
+          </button>
+
+          {/* 3. SINCRONIZZA / ACCEDI CON GOOGLE (PULITO E DISCRETO) */}
           <button
             type="button"
             onClick={activeAuthUser && !activeAuthUser.isAnonymous ? () => inspectUserTrips(activeAuthUser) : handleGoogleLogin}
             disabled={loading}
-            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer shadow-md shadow-[#172033]/15 border flex items-center justify-between text-left group disabled:opacity-75 disabled:pointer-events-none"
-            style={{ background: '#172033', color: '#ffffff', borderColor: '#172033' }}
+            className="w-full py-3 px-4 rounded-2xl font-semibold text-xs transition-all duration-200 active:scale-[0.98] hover:bg-slate-100 cursor-pointer border border-slate-200/80 bg-white flex items-center justify-between text-left group disabled:opacity-75 disabled:pointer-events-none text-slate-700"
           >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0">
-                {loading ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <span className="text-base">🌐</span>
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="font-extrabold text-base leading-tight font-brand-title truncate">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <span className="text-base">🌐</span>
+              <div className="min-w-0 flex-1 truncate">
+                <span className="font-bold text-slate-800">
                   {loading
                     ? (loginProgressMsg || 'Accesso in corso…')
                     : activeAuthUser && !activeAuthUser.isAnonymous
-                    ? `I Tuoi Viaggi (${activeAuthUser.displayName || activeAuthUser.email})`
-                    : 'Continua con Google / Accedi'}
-                </div>
-                <div className="text-xs text-slate-300 font-normal mt-0.5 truncate">
-                  {loading
-                    ? 'Attendi la verifica delle credenziali'
-                    : activeAuthUser && !activeAuthUser.isAnonymous
-                    ? 'Visualizza i viaggi associati a questo account'
-                    : 'Sincronizza e ripristina i tuoi viaggi'}
-                </div>
+                    ? `I tuoi viaggi (${activeAuthUser.displayName || activeAuthUser.email})`
+                    : 'Hai già un account? Sincronizza con Google'}
+                </span>
               </div>
             </div>
-            <span className="text-slate-300 text-base font-bold group-hover:translate-x-1 transition-transform shrink-0 ml-2">→</span>
+            <span className="text-slate-400 text-xs font-bold group-hover:translate-x-1 transition-transform shrink-0 ml-2">→</span>
           </button>
 
           {/* Banner trasparente cambio account Google se già autenticato */}
@@ -733,25 +762,6 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
               </button>
             </div>
           )}
-
-          {/* 3. PARTECIPA A UN VIAGGIO (CLOUD) */}
-          <button
-            type="button"
-            onClick={() => setMode('join')}
-            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer border border-slate-200/90 hover:border-slate-300 bg-[#F8F7F3] flex items-center justify-between text-left group shadow-xs"
-            style={{ color: '#172033' }}
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white text-[#172033] flex items-center justify-center shrink-0 border border-slate-200 shadow-2xs">
-                <TrailCopiloti size={18} active />
-              </div>
-              <div>
-                <div className="font-extrabold text-base leading-tight font-brand-title">Partecipa a un viaggio</div>
-                <div className="text-xs text-slate-500 font-normal mt-0.5">Entra come copilota con link o codice</div>
-              </div>
-            </div>
-            <span className="text-slate-400 text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
-          </button>
 
           {/* Visualizzazione Errore Accesso Esplicito con Riprova */}
           {loginError && (
