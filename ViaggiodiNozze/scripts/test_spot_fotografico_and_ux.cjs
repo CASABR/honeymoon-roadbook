@@ -81,3 +81,4 @@ assert.deepStrictEqual(
 console.log('✓ Selettore Attività: 7 sottocategorie corrette, nessun form generico');
 
 console.log('--- TUTTI I TEST SPOT FOTOGRAFICO E SELETTORE ATTIVITÀ PASSATI CON SUCCESSO ---');
+

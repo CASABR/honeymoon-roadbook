@@ -248,17 +248,41 @@ export default function App() {
     document.addEventListener('visibilitychange', handleVisibility);
 
     let refreshing = false;
-    const handleControllerChange = () => {
+    let pendingReload = false;
+
+    const trySafeReload = () => {
       if (refreshing) return;
+      // Protezione: non interrompere se l'utente ha una modale o un form attivo aperto
+      const isEditing = Boolean(
+        document.querySelector('[role="dialog"]') ||
+        document.querySelector('form')
+      );
+      if (isEditing) {
+        pendingReload = true;
+        console.log('[App] Nuovo Service Worker pronto: ricarico posticipato al termine della modifica in corso.');
+        return;
+      }
       refreshing = true;
-      console.log('[App] Nuovo Service Worker rilevato: ricarico per applicare l\'aggiornamento.');
+      console.log('[App] Nuovo Service Worker attivo: ricarico per applicare l\'aggiornamento.');
       window.location.reload();
     };
+
+    const handleControllerChange = () => {
+      trySafeReload();
+    };
     navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+
+    const handleCheckPendingReload = () => {
+      if (pendingReload) {
+        trySafeReload();
+      }
+    };
+    document.addEventListener('focusout', handleCheckPendingReload);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibility);
       navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+      document.removeEventListener('focusout', handleCheckPendingReload);
     };
   }, []);
 
