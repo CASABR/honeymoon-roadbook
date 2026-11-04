@@ -190,9 +190,12 @@ export async function fetchUserTripsReport(uid: string): Promise<UserTripsReport
         timeoutPromise
       ]);
       return { tripId, result, failed: false };
-    } catch (error) {
-      console.warn(`[accountService] Verifica viaggio ${tripId} non riuscita:`, error);
-      return { tripId, result: null, failed: true };
+    } catch (error: any) {
+      const isPermissionDenied = error?.code === 'permission-denied' || String(error?.message).includes('permission-denied');
+      const isNotFound = error?.code === 'not-found';
+      const isExpectedNonAccess = Boolean(isPermissionDenied || isNotFound);
+      console.warn(`[accountService] Verifica viaggio ${tripId} (${isExpectedNonAccess ? 'inaccessibile/rimosso' : 'errore rete'}):`, error?.code || error?.message);
+      return { tripId, result: null, failed: !isExpectedNonAccess };
     }
   }));
 
