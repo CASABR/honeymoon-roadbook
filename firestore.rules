@@ -374,18 +374,15 @@ service cloud.firestore {
     // 4. PUSH SUBSCRIBERS
     // =========================================================================
     match /push_subscribers/{docId} {
-      allow read: if false;
-      allow create: if isSignedIn()
-                    && request.resource.data.uid == request.auth.uid
-                    && isTripMember(request.resource.data.tripId);
-      allow update: if isSignedIn()
-                    && resource.data.uid == request.auth.uid
-                    && request.resource.data.uid == request.auth.uid
-                    && request.resource.data.tripId == resource.data.tripId
-                    && request.resource.data.deviceId == docId
-                    && isTripMember(resource.data.tripId);
-      allow delete: if isSignedIn()
-                    && resource.data.uid == request.auth.uid;
+      allow read, write: if false;
+    }
+
+    match /push_jobs/{docId} {
+      allow read, write: if false;
+    }
+
+    match /push_dispatches/{docId} {
+      allow read, write: if false;
     }
 
     // =========================================================================
@@ -393,8 +390,12 @@ service cloud.firestore {
     // =========================================================================
     // Nessun client può leggere o scrivere /system_admins.
     // La gestione avviene esclusivamente in ambiente fidato (Admin SDK / Console).
+    // L'utente autenticato può verificare esclusivamente se il PROPRIO UID è presente (self-check sicuro).
+    // Nessun client può leggere l'elenco degli altri amministratori né scrivere o alterare record.
+    // La gestione avviene esclusivamente in ambiente fidato (Firebase Console / Admin SDK).
     match /system_admins/{adminId} {
-      allow read, write: if false;
+      allow read: if isSignedIn() && request.auth.uid == adminId;
+      allow write: if false;
     }
 
     // =========================================================================
@@ -409,10 +410,14 @@ service cloud.firestore {
       allow create, update: if isSignedIn()
                             && request.auth.uid == userId
                             && request.resource.data.uid == userId
-                            && request.resource.data.keys().hasOnly(['uid', 'displayName', 'isAnonymous', 'lastAccessAt', 'updatedAt', 'lastTripId', 'associatedTripIds'])
+                            && request.resource.data.keys().hasOnly(['uid', 'displayName', 'isAnonymous', 'lastAccessAt', 'lastSeenAt', 'updatedAt', 'lastTripId', 'associatedTripIds'])
                             && (
                               !('lastAccessAt' in request.resource.data)
                               || request.resource.data.lastAccessAt == request.time
+                            )
+                            && (
+                              !('lastSeenAt' in request.resource.data)
+                              || request.resource.data.lastSeenAt == request.time
                             );
       allow delete: if false;
     }
