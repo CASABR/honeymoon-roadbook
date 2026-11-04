@@ -66,72 +66,77 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate,
   return (
     <div
       onClick={onDetail || onEdit}
-      className="hounigo-ds-card hounigo-panel cursor-pointer"
+      className="hounigo-ds-card hounigo-ds-cat-ristorante cursor-pointer"
     >
-      {/* 1. HEADER: CATEGORIA ARANCIONE, SOTTOCATEGORIA ED EVENTUALE ORARIO PRENOTAZIONE */}
+      {/* 1. HEADER: TARGA CATEGORIA OCRA/AMBRA E CARTELLINO ORARIO PRENOTAZIONE */}
       <div className="hounigo-ds-card-header hounigo-ds-header-ristorante">
-        <div className="flex items-center justify-between gap-2 flex-wrap">
-          <div className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider min-w-0">
-            <span aria-hidden="true">🍽️</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider min-w-0 truncate">
+            <span aria-hidden="true" className="text-xs">🍽️</span>
             <span>Ristorante</span>
             {ristorante.sottocategoria && (
-              <span className="font-bold normal-case tracking-normal opacity-90">
-                · {ristorante.sottocategoria}
-              </span>
+              <>
+                <span className="opacity-45">·</span>
+                <span className="font-bold tracking-wide truncate">
+                  {ristorante.sottocategoria}
+                </span>
+              </>
             )}
           </div>
 
           {headerTimeSummary && (
-            <span className="font-mono text-xs sm:text-[13px] font-extrabold tabular-nums shrink-0">
+            <span className="hounigo-ds-time-stamp">
               {headerTimeSummary}
             </span>
           )}
         </div>
       </div>
 
-      {/* 2. BODY: NOME LOCALE, INDIRIZZO ED EVENTUALI INFORMAZIONI DI PRENOTAZIONE */}
+      {/* 2. BODY: NOME LOCALE, TRACCIATO INDIRIZZO E NOTA PRENOTAZIONE */}
       <div className="hounigo-ds-card-body">
         <h3 className="text-base sm:text-[17px] font-extrabold text-slate-900 dark:text-white leading-snug tracking-tight break-words">
           {ristorante.nome}
         </h3>
 
         {displayAddress && (
-          <p className="text-xs sm:text-[13px] text-slate-700 dark:text-slate-200 font-semibold leading-snug flex items-start gap-1.5">
-            <span className="shrink-0 mt-0.5" aria-hidden="true">📍</span>
-            <span className="break-words">{displayAddress}</span>
-          </p>
+          <div className="hounigo-ds-route-track">
+            <div className="hounigo-ds-route-stop hounigo-ds-route-stop-end">
+              <span className="hounigo-ds-route-kicker">Luogo</span>
+              <span className="font-semibold text-slate-800 dark:text-slate-200 break-words">
+                {displayAddress}
+              </span>
+            </div>
+          </div>
         )}
 
         {hasCopilotNotes && (
-          <p className="text-xs sm:text-[13px] text-slate-600 dark:text-slate-300 leading-snug line-clamp-2">
+          <p className="hounigo-ds-note line-clamp-2">
             {copilotData.trim()}
           </p>
         )}
       </div>
 
-      {/* 3. FOOTER: PREZZO/STATO SE APPLICABILI, PRENOTAZIONE/VOUCHER E MAPS */}
+      {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO & AZIONI OPERATIVE */}
       <div className="hounigo-ds-card-footer">
         <div className="flex items-center gap-2 flex-wrap">
           {isFree ? (
-            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+            <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Gratuito
             </span>
           ) : costNum > 0 ? (
             <>
-              <span className="text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
+              <span className="font-mono text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
                 {costNum.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
               </span>
               <button
                 type="button"
                 onClick={handleTogglePayment}
-                className={`inline-flex items-center text-[11px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
-                  isPaid
-                    ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-800'
-                    : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-700'
+                className={`hounigo-ds-pay-badge ${
+                  isPaid ? 'hounigo-ds-pay-saldato' : 'hounigo-ds-pay-dasaldare'
                 }`}
                 title="Clicca per invertire stato: Saldato / Da saldare"
               >
-                {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
+                {isPaid ? '✓ Saldato' : 'Da saldare'}
               </button>
             </>
           ) : null}
@@ -145,7 +150,6 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate,
               className="hounigo-ds-action-btn"
               title="Chiama il ristorante"
             >
-              <span>📞</span>
               <span>Chiama</span>
             </a>
           )}
@@ -159,8 +163,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate,
               className="hounigo-ds-action-btn"
               title="Apri prenotazione"
             >
-              <span>🌐</span>
-              <span>Prenota</span>
+              <span>Prenota ↗</span>
             </a>
           )}
 
@@ -174,7 +177,6 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate,
               className="hounigo-ds-action-btn hounigo-ds-action-btn-highlight"
               title="Voucher / Ricevuta prenotazione"
             >
-              <span>🎫</span>
               <span>Voucher</span>
             </button>
           )}
@@ -188,8 +190,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate,
               className="hounigo-ds-action-btn"
               title="Apri su Google Maps"
             >
-              <span>📍</span>
-              <span>Maps</span>
+              <span>Maps ↗</span>
             </a>
           )}
         </div>

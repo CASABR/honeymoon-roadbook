@@ -7,21 +7,30 @@ export default function OpeningHoursBadge({ info, date, time }: { info?: Opening
   const hoursText = getOpeningHoursText(info, date);
   const conciseLabel = hoursText && info.verifiedAt && info.status !== 'unverified'
     ? message.tone === 'warning'
-      ? `⚠️ Orari (${hoursText}) · ${message.text}`
+      ? `${hoursText} · ${message.text}`
       : info.accessType === 'outdoor'
-      ? `🕒 Orari verificati: ${hoursText} (luogo all'aperto)`
-      : `🕒 Orari verificati: ${hoursText}`
+      ? `${hoursText} · Accesso all'aperto`
+      : `${hoursText}`
     : message.text;
 
   return (
-    <p className={`text-xs font-semibold leading-snug ${
-      message.tone === 'warning'
-        ? 'text-amber-800 dark:text-amber-300'
-        : message.tone === 'success'
-        ? 'text-emerald-800 dark:text-emerald-300'
-        : 'text-slate-600 dark:text-slate-300'
-    }`}>
-      {conciseLabel}
-    </p>
+    <div className="hounigo-ds-spec-grid">
+      <div className={`hounigo-ds-spec-cell ${
+        message.tone === 'warning'
+          ? 'border-amber-300 dark:border-amber-700/80 bg-amber-50/70 dark:bg-amber-950/30'
+          : ''
+      }`}>
+        <span className="hounigo-ds-spec-label">
+          {message.tone === 'warning' ? 'Attenzione orari apertura' : 'Orari apertura verificati'}
+        </span>
+        <span className={`hounigo-ds-spec-value font-mono ${
+          message.tone === 'warning'
+            ? 'text-amber-900 dark:text-amber-300'
+            : ''
+        }`}>
+          {conciseLabel}
+        </span>
+      </div>
+    </div>
   );
 }

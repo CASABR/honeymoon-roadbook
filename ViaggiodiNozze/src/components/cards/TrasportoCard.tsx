@@ -326,213 +326,231 @@ export default function TrasportoCard({
     : formatDateIT(displayDateStr);
 
   const hasHeaderNotice = Boolean(checkinInfo.cutoffTime || transport.layover);
-  const hasOperationalDetails = Boolean(
+  const hasSpecCells = Boolean(
     transport.terminalGate ||
     transport.posti ||
     (!isRental && transport.bagagli) ||
     hasPnr ||
-    hasCopilotNotes ||
     (isRental && !isPickupDay && !isDropoffDay && transport.dropoffDate)
   );
+
+  const terminalGateLabel = transport.type === 'treno'
+    ? 'Binario'
+    : transport.type === 'volo'
+    ? 'Terminal / Gate'
+    : transport.type === 'traghetto'
+    ? 'Molo / Imbarco'
+    : isRental
+    ? 'Desk / Ufficio'
+    : 'Riferimento';
+
+  const seatOrVehicleLabel = transport.type === 'treno'
+    ? 'Carrozza / Posti'
+    : isRental
+    ? 'Veicolo'
+    : 'Posto assegnato';
 
   return (
     <>
       <div
         onClick={onDetail || onEdit}
         data-transport-type={transport.type}
-        className="hounigo-ds-card hounigo-panel cursor-pointer"
+        className="hounigo-ds-card hounigo-ds-cat-trasporto cursor-pointer"
       >
-        {/* 1. HEADER: CATEGORIA CORALLO, TIPOLOGIA REALE, ORARIO PARTENZA/ARRIVO ED EVENTUALE AVVISO */}
+        {/* 1. HEADER: TARGA CATEGORIA E CARTELLINO ORARIO DA TABELLONE */}
         <div className="hounigo-ds-card-header hounigo-ds-header-trasporto">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider min-w-0">
-              <span aria-hidden="true">{currentType.icon}</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider min-w-0 truncate">
+              <span aria-hidden="true" className="text-xs">{currentType.icon}</span>
               <span>Trasporto</span>
-              <span className="font-bold normal-case tracking-normal opacity-90">
-                · {headerSubType}
+              <span className="opacity-45">·</span>
+              <span className="font-bold tracking-wide truncate">
+                {headerSubType}
               </span>
             </div>
 
             {headerTimeSummary && (
-              <span className="font-mono text-xs sm:text-[13px] font-extrabold tabular-nums shrink-0">
+              <span className="hounigo-ds-time-stamp">
                 {headerTimeSummary}
               </span>
             )}
           </div>
 
           {hasHeaderNotice && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 pt-0.5 text-xs font-bold">
+            <div className="hounigo-ds-header-subrow">
               {checkinInfo.cutoffTime && (
                 <span>
-                  ⏱️ {transport.type === 'traghetto' ? 'Imbarco entro' : 'Chiusura check-in'} <strong className="font-mono font-extrabold">{checkinInfo.cutoffTime}</strong>
-                  {checkinInfo.airportArrivalTime ? ` · In ${transport.type === 'traghetto' ? 'porto' : 'aeroporto'} ${checkinInfo.airportArrivalTime}` : ''}
+                  {transport.type === 'traghetto' ? 'IMBARCO ENTRO' : 'CHIUSURA CHECK-IN'}{' '}
+                  <strong className="font-mono font-extrabold">{checkinInfo.cutoffTime}</strong>
+                  {checkinInfo.airportArrivalTime ? ` · In ${transport.type === 'traghetto' ? 'porto' : 'aeroporto'} ore ${checkinInfo.airportArrivalTime}` : ''}
                 </span>
               )}
               {transport.layover && (
                 <span>
-                  🔄 Scalo: {transport.layover.airport}{transport.layover.duration ? ` (${transport.layover.duration})` : ''}
+                  SCALO: <strong>{transport.layover.airport}</strong>
+                  {transport.layover.duration ? ` (${transport.layover.duration})` : ''}
                 </span>
               )}
             </div>
           )}
         </div>
 
-        {/* 2. BODY: OPERATORE/TITOLO, ORIGINE E DESTINAZIONE REALI, DETTAGLI OPERATIVI PERTINENTI */}
+        {/* 2. BODY: OPERATORE, TRACCIATO PARTENZA/ARRIVO E CASELLARIO OPERATIVO */}
         <div className="hounigo-ds-card-body">
           <h3 className="font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
             {transport.carrier || currentType.label}
           </h3>
 
+          {/* Tracciato di tratta (Segnaletica Partenza → Arrivo) */}
           {isRental && (isPickupDay || isDropoffDay) ? (
-            <div className="flex flex-col gap-1 text-xs sm:text-[13px]">
+            <div className="hounigo-ds-route-track">
               {isPickupDay ? (
                 <>
-                  <p className="font-bold text-slate-800 dark:text-slate-100 flex items-start gap-1.5 leading-snug">
-                    <span className="shrink-0 mt-0.5" aria-hidden="true">📍</span>
-                    <span className="break-words">Ritiro: {transport.departureLocation || 'Deposito di ritiro'}</span>
-                  </p>
+                  <div className="hounigo-ds-route-stop">
+                    <span className="hounigo-ds-route-kicker">Ritiro</span>
+                    <span className="font-bold text-slate-900 dark:text-white break-words">
+                      {transport.departureLocation || 'Deposito di ritiro'}
+                    </span>
+                  </div>
                   {(transport.dropoffDate || transport.dropoffLocation || transport.arrivalLocation) && (
-                    <p className="text-xs font-medium text-slate-600 dark:text-slate-300 flex items-start gap-1.5 leading-snug">
-                      <span className="shrink-0 mt-0.5" aria-hidden="true">🏁</span>
-                      <span className="break-words">
-                        Riconsegna prevista: {transport.dropoffDate ? formatDateIT(transport.dropoffDate) : ''}
+                    <div className="hounigo-ds-route-stop hounigo-ds-route-stop-end">
+                      <span className="hounigo-ds-route-kicker">Riconsegna</span>
+                      <span className="font-semibold text-slate-700 dark:text-slate-200 break-words">
+                        {transport.dropoffDate ? formatDateIT(transport.dropoffDate) : ''}
                         {(transport.dropoffTime || transport.arrivalTime) ? ` ore ${transport.dropoffTime || transport.arrivalTime}` : ''}
                         {(transport.dropoffLocation || transport.arrivalLocation) ? ` · ${transport.dropoffLocation || transport.arrivalLocation}` : ''}
                       </span>
-                    </p>
+                    </div>
                   )}
                 </>
               ) : (
                 <>
-                  <p className="font-bold text-slate-800 dark:text-slate-100 flex items-start gap-1.5 leading-snug">
-                    <span className="shrink-0 mt-0.5" aria-hidden="true">📍</span>
-                    <span className="break-words">
-                      Riconsegna: {transport.dropoffLocation || transport.arrivalLocation || transport.departureLocation || 'Deposito di riconsegna'}
+                  <div className="hounigo-ds-route-stop hounigo-ds-route-stop-end">
+                    <span className="hounigo-ds-route-kicker">Riconsegna</span>
+                    <span className="font-bold text-slate-900 dark:text-slate-100 break-words">
+                      {transport.dropoffLocation || transport.arrivalLocation || transport.departureLocation || 'Deposito di riconsegna'}
                     </span>
-                  </p>
+                  </div>
                   {transport.date && (
-                    <p className="text-xs font-medium text-slate-600 dark:text-slate-300 flex items-start gap-1.5 leading-snug">
-                      <span className="shrink-0 mt-0.5" aria-hidden="true">🔑</span>
-                      <span className="break-words">
-                        Ritirato il {formatDateIT(transport.date)}{transport.departureLocation ? ` · ${transport.departureLocation}` : ''}
+                    <div className="hounigo-ds-route-stop">
+                      <span className="hounigo-ds-route-kicker">Ritirato</span>
+                      <span className="font-medium text-slate-600 dark:text-slate-300 break-words">
+                        {formatDateIT(transport.date)}{transport.departureLocation ? ` · ${transport.departureLocation}` : ''}
                       </span>
-                    </p>
+                    </div>
                   )}
                 </>
               )}
             </div>
           ) : (
-            <div className="flex flex-col gap-1 text-xs sm:text-[13px] font-semibold text-slate-700 dark:text-slate-200 leading-snug">
-              <p className="flex items-start gap-1.5">
-                <span className="shrink-0 mt-0.5" aria-hidden="true">{isFlight ? '🛫' : '📍'}</span>
-                <span className="break-words">
-                  <strong className="text-slate-900 dark:text-white">Da:</strong>{' '}
+            <div className="hounigo-ds-route-track">
+              <div className="hounigo-ds-route-stop">
+                <span className="hounigo-ds-route-kicker">Da</span>
+                <span className="font-bold text-slate-900 dark:text-white break-words">
                   {isFlight
                     ? extractFlightEndpoint(transport.departureLocation, transport.departureIata)
                     : (transport.departureLocation || 'Origine')}
                 </span>
-              </p>
-              <p className="flex items-start gap-1.5">
-                <span className="shrink-0 mt-0.5" aria-hidden="true">{isFlight ? '🛬' : '🏁'}</span>
-                <span className="break-words">
-                  <strong className="text-slate-900 dark:text-white">A:</strong>{' '}
+              </div>
+              <div className="hounigo-ds-route-stop hounigo-ds-route-stop-end">
+                <span className="hounigo-ds-route-kicker">A</span>
+                <span className="font-bold text-slate-900 dark:text-white break-words">
                   {isFlight
                     ? extractFlightEndpoint(transport.arrivalLocation, transport.arrivalIata)
                     : (transport.dropoffLocation || transport.arrivalLocation || 'Destinazione')}
                 </span>
-              </p>
+              </div>
             </div>
           )}
 
-          {hasOperationalDetails && (
-            <div className="pt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-[13px] font-semibold text-slate-800 dark:text-slate-200">
+          {/* Casellario Tecnico Operativo (Zero emoji decorative) */}
+          {hasSpecCells && (
+            <div className="hounigo-ds-spec-grid">
               {transport.terminalGate && (
-                <span>
-                  {transport.type === 'treno'
-                    ? '🚉 Binario: '
-                    : transport.type === 'volo'
-                    ? '🛫 '
-                    : transport.type === 'traghetto'
-                    ? '⚓ Molo: '
-                    : isRental
-                    ? '🏢 '
-                    : 'Rif: '}
-                  <strong className="font-extrabold text-slate-950 dark:text-white">{transport.terminalGate}</strong>
-                </span>
+                <div className="hounigo-ds-spec-cell">
+                  <span className="hounigo-ds-spec-label">{terminalGateLabel}</span>
+                  <span className="hounigo-ds-spec-value font-mono">{transport.terminalGate}</span>
+                </div>
               )}
 
               {transport.posti && (
-                <span>
-                  {transport.type === 'treno' ? '💺 ' : isRental ? '🚘 ' : '💺 Posto: '}
-                  <strong className="font-extrabold text-slate-950 dark:text-white">{transport.posti}</strong>
-                </span>
+                <div className="hounigo-ds-spec-cell">
+                  <span className="hounigo-ds-spec-label">{seatOrVehicleLabel}</span>
+                  <span className="hounigo-ds-spec-value">{transport.posti}</span>
+                </div>
               )}
 
               {!isRental && transport.bagagli && (
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setIsBagagliOpen(true); }}
-                  className="inline-flex items-center gap-1 hover:underline cursor-pointer text-left"
+                  className="hounigo-ds-spec-cell text-left hover:border-slate-400 transition-colors cursor-pointer"
                   title="Dettagli bagagli"
                 >
-                  <span>🧳 Bagagli: <strong className="font-bold text-slate-900 dark:text-white">{transport.bagagli}</strong></span>
+                  <span className="hounigo-ds-spec-label">Bagagli</span>
+                  <span className="hounigo-ds-spec-value">{transport.bagagli}</span>
                 </button>
               )}
 
               {isRental && !isPickupDay && !isDropoffDay && transport.dropoffDate && (
-                <span>
-                  📅 Riconsegna: <strong className="font-extrabold text-slate-950 dark:text-white">{formatDateIT(transport.dropoffDate)} {transport.dropoffTime || ''}</strong>
-                </span>
+                <div className="hounigo-ds-spec-cell">
+                  <span className="hounigo-ds-spec-label">Riconsegna prevista</span>
+                  <span className="hounigo-ds-spec-value font-mono">
+                    {formatDateIT(transport.dropoffDate)} {transport.dropoffTime || ''}
+                  </span>
+                </div>
               )}
 
               {hasPnr && (
                 <button
                   type="button"
                   onClick={handleCopyPnr}
-                  className="inline-flex items-center gap-1 font-mono font-bold text-indigo-800 dark:text-indigo-300 hover:underline cursor-pointer"
+                  className="hounigo-ds-spec-cell text-left hover:border-slate-400 transition-colors cursor-pointer"
                   title="Copia codice prenotazione"
                 >
-                  <span>🎟️ PNR: {transport.bookingCode}</span>
-                  <span className="font-sans text-[11px]">({pnrCopied ? '✓ Copiato' : 'Copia'})</span>
+                  <span className="hounigo-ds-spec-label">
+                    PNR · {pnrCopied ? '✓ Copiato' : 'Copia'}
+                  </span>
+                  <span className="hounigo-ds-spec-value font-mono tracking-wide text-indigo-900 dark:text-indigo-300">
+                    {transport.bookingCode}
+                  </span>
                 </button>
-              )}
-
-              {hasCopilotNotes && (
-                <p className="w-full text-xs text-slate-600 dark:text-slate-300 font-medium leading-snug line-clamp-2">
-                  🧭 {copilotNotes.trim()}
-                </p>
               )}
             </div>
           )}
+
+          {hasCopilotNotes && (
+            <p className="hounigo-ds-note line-clamp-2">
+              {copilotNotes.trim()}
+            </p>
+          )}
         </div>
 
-        {/* 3. FOOTER: PREZZO E STATO PAGAMENTO A SINISTRA, AZIONI OPERATIVE A DESTRA */}
+        {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO & AZIONI OPERATIVE */}
         <div className="hounigo-ds-card-footer">
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             {isPackageIncluded ? (
-              <span className="text-xs font-bold text-sky-800 dark:text-sky-300">
+              <span className="text-xs font-extrabold uppercase tracking-wide text-sky-800 dark:text-sky-300">
                 Incluso nel pacchetto
               </span>
             ) : isFree ? (
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600 dark:text-slate-300">
                 Gratuito
               </span>
             ) : transport.cost && costNum > 0 ? (
               <>
-                <span className="text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
+                <span className="font-mono text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
                   {displayText}
                 </span>
                 <button
                   type="button"
                   onClick={handleTogglePayment}
-                  className={`inline-flex items-center text-[11px] font-extrabold uppercase tracking-wide px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
-                    isPaid
-                      ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-800'
-                      : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-700'
+                  className={`hounigo-ds-pay-badge ${
+                    isPaid ? 'hounigo-ds-pay-saldato' : 'hounigo-ds-pay-dasaldare'
                   }`}
                   title="Inverti stato pagamento"
                 >
-                  {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
+                  {isPaid ? '✓ Saldato' : 'Da saldare'}
                 </button>
               </>
             ) : null}
@@ -545,7 +563,6 @@ export default function TrasportoCard({
               className={`hounigo-ds-action-btn ${hasTicket ? 'hounigo-ds-action-btn-highlight' : ''}`}
               title={`Biglietti e QR · ${currentType.ticketLabel}`}
             >
-              <span>🎫</span>
               <span>{currentType.ticketLabel}</span>
             </button>
 
@@ -559,8 +576,7 @@ export default function TrasportoCard({
                 title="Apri navigazione su Google Maps"
                 aria-label="Apri su Google Maps"
               >
-                <span>📍</span>
-                <span>Maps</span>
+                <span>Maps ↗</span>
               </a>
             )}
           </div>

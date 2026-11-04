@@ -155,9 +155,9 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
   const headerIcon = isTrekking ? '△' : isPhotoSpot ? '📸' : '📌';
 
   const headerTimeSummary = hasDistinctMeetingTime
-    ? `Ritrovo ${meetingTime} · Inizio ${startTime}`
+    ? `${meetingTime} → ${startTime}`
     : displayTime
-    ? `Ore ${displayTime}${activity.timeStatus === 'indicativo' ? ' · indicativo' : ''}`
+    ? `Ore ${displayTime}${activity.timeStatus === 'indicativo' ? ' · ind.' : ''}`
     : '';
 
   return (
@@ -165,77 +165,120 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
       <div
         onClick={onDetail || onEdit}
         data-trekking-card={isTrekking ? 'true' : undefined}
-        className="hounigo-ds-card hounigo-panel cursor-pointer"
+        className="hounigo-ds-card hounigo-ds-cat-attivita cursor-pointer"
       >
-        {/* 1. HEADER: CATEGORIA AZZURRO/TURCHESE, SOTTOCATEGORIA REALE, ORARIO INIZIO E RITROVO DISTINTO */}
+        {/* 1. HEADER: TARGA CATEGORIA OTTANIO/TURCHESE E CARTELLINO ORARIO */}
         <div className="hounigo-ds-card-header hounigo-ds-header-attivita">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider min-w-0">
-              <span aria-hidden="true">{headerIcon}</span>
+          <div className="flex items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider min-w-0 truncate">
+              <span aria-hidden="true" className="text-xs">{headerIcon}</span>
               <span>Attività</span>
               {subcategoryLabel && (
-                <span className="font-bold normal-case tracking-normal opacity-90">
-                  · {subcategoryLabel}
-                </span>
+                <>
+                  <span className="opacity-45">·</span>
+                  <span className="font-bold tracking-wide truncate">
+                    {subcategoryLabel}
+                  </span>
+                </>
               )}
             </div>
 
             {headerTimeSummary && (
-              <span className="font-mono text-xs sm:text-[13px] font-extrabold tabular-nums shrink-0">
+              <span className="hounigo-ds-time-stamp">
                 {headerTimeSummary}
               </span>
             )}
           </div>
 
           {isMeetingDiscrepancy && (
-            <div className="pt-0.5 text-xs font-bold text-amber-900 dark:text-amber-300">
-              ⚠️ Ritrovo ({activity.orarioRitrovo}) successivo all&apos;inizio ({activity.orarioInizio}) — da verificare
+            <div className="hounigo-ds-header-subrow text-amber-900 dark:text-amber-300">
+              <span>
+                ATTENZIONE: Ritrovo ({activity.orarioRitrovo}) successivo all&apos;inizio ({activity.orarioInizio}) — da verificare
+              </span>
             </div>
           )}
         </div>
 
-        {/* 2. BODY: TITOLO, LUOGO/INDIRIZZO ED EVENTUALI DETTAGLI OPERATIVI REALI */}
+        {/* 2. BODY: TITOLO, TRACCIATO LUOGO/RITROVO E CASELLARIO OPERATIVO */}
         <div className="hounigo-ds-card-body">
           <h3 className="font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
             {activity.title}
           </h3>
 
-          {displayLocation && (
-            <p className="text-xs sm:text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200 flex items-start gap-1.5">
-              <span className="shrink-0 mt-0.5" aria-hidden="true">📍</span>
-              <span className="break-words">{displayLocation}</span>
-            </p>
+          {(displayLocation || (activity.originLocation && activity.destinationLocation)) && (
+            <div className="hounigo-ds-route-track">
+              {activity.originLocation && activity.destinationLocation ? (
+                <>
+                  <div className="hounigo-ds-route-stop">
+                    <span className="hounigo-ds-route-kicker">Da</span>
+                    <span className="font-bold text-slate-900 dark:text-white break-words">
+                      {activity.originLocation}
+                    </span>
+                  </div>
+                  <div className="hounigo-ds-route-stop hounigo-ds-route-stop-end">
+                    <span className="hounigo-ds-route-kicker">A</span>
+                    <span className="font-bold text-slate-900 dark:text-white break-words">
+                      {activity.destinationLocation}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <div className="hounigo-ds-route-stop hounigo-ds-route-stop-end">
+                  <span className="hounigo-ds-route-kicker">
+                    {hasDistinctMeetingTime ? 'Ritrovo' : 'Luogo'}
+                  </span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200 break-words">
+                    {displayLocation}
+                  </span>
+                </div>
+              )}
+            </div>
           )}
 
           {isTrekking && (
             <>
               {verifiedRoutePath && (
-                <div data-trekking-route-preview className="relative h-20 overflow-hidden rounded-xl border border-emerald-200/80 bg-[#F4F1E8] dark:border-emerald-900/60 dark:bg-slate-900 mt-1">
+                <div data-trekking-route-preview className="relative h-20 overflow-hidden rounded-lg border border-emerald-200/80 bg-[#F4F1E8] dark:border-emerald-900/60 dark:bg-slate-900 mt-0.5">
                   <svg viewBox="0 0 240 80" className="h-full w-full" role="img" aria-label="Anteprima della traccia GPS verificata">
                     <path d={verifiedRoutePath} fill="none" stroke="#FF6B5F" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
-                  <span className="absolute bottom-1.5 left-2 rounded-full bg-white/90 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-emerald-800 dark:bg-slate-950/90 dark:text-emerald-300">
+                  <span className="absolute bottom-1.5 left-2 rounded bg-white/95 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wide text-emerald-900 dark:bg-slate-950/90 dark:text-emerald-300">
                     Traccia GPS verificata
                   </span>
                 </div>
               )}
 
               {(trekkingDistanceKm || (activity.elevationGainM != null && activity.elevationGainM > 0) || hikingDuration || activity.difficulty || activity.routeType) && (
-                <div className="pt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-[13px] font-semibold text-slate-800 dark:text-slate-200">
+                <div className="hounigo-ds-spec-grid">
                   {trekkingDistanceKm && (
-                    <span>📏 Distanza: <strong className="font-extrabold">{trekkingDistanceKm.toLocaleString('it-IT')} km</strong></span>
+                    <div className="hounigo-ds-spec-cell">
+                      <span className="hounigo-ds-spec-label">Distanza</span>
+                      <span className="hounigo-ds-spec-value font-mono">{trekkingDistanceKm.toLocaleString('it-IT')} km</span>
+                    </div>
                   )}
                   {activity.elevationGainM != null && activity.elevationGainM > 0 && (
-                    <span>⛰️ Dislivello: <strong className="font-extrabold">+{activity.elevationGainM.toLocaleString('it-IT')} m</strong></span>
+                    <div className="hounigo-ds-spec-cell">
+                      <span className="hounigo-ds-spec-label">Dislivello</span>
+                      <span className="hounigo-ds-spec-value font-mono">+{activity.elevationGainM.toLocaleString('it-IT')} m</span>
+                    </div>
                   )}
                   {hikingDuration && (
-                    <span>⏱️ Durata: <strong className="font-extrabold">{hikingDuration}</strong></span>
+                    <div className="hounigo-ds-spec-cell">
+                      <span className="hounigo-ds-spec-label">Durata</span>
+                      <span className="hounigo-ds-spec-value font-mono">{hikingDuration}</span>
+                    </div>
                   )}
                   {activity.difficulty && (
-                    <span>🎯 Difficoltà: <strong className="font-extrabold">{activity.difficulty}</strong></span>
+                    <div className="hounigo-ds-spec-cell">
+                      <span className="hounigo-ds-spec-label">Difficoltà</span>
+                      <span className="hounigo-ds-spec-value">{activity.difficulty}</span>
+                    </div>
                   )}
                   {activity.routeType && (
-                    <span>🔄 {TREKKING_ROUTE_LABELS[activity.routeType]}</span>
+                    <div className="hounigo-ds-spec-cell">
+                      <span className="hounigo-ds-spec-label">Tracciato</span>
+                      <span className="hounigo-ds-spec-value">{TREKKING_ROUTE_LABELS[activity.routeType]}</span>
+                    </div>
                   )}
                 </div>
               )}
@@ -245,33 +288,54 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
           {isPhotoSpot && (
             <>
               {heroImage && (
-                <div className="relative h-36 overflow-hidden rounded-xl bg-slate-900 mt-1">
+                <div className="relative h-36 overflow-hidden rounded-lg bg-slate-900 mt-0.5">
                   <img src={heroImage.dataUrl} alt="" className="h-full w-full object-cover" />
                 </div>
               )}
               {(activity.lightWindow || activity.photoSubject) && (
-                <div className="pt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-slate-700 dark:text-slate-200">
+                <div className="hounigo-ds-spec-grid">
                   {activity.lightWindow && (
-                    <span>☀️ Luce: <strong>{PHOTO_LIGHT_LABELS[activity.lightWindow]}</strong></span>
+                    <div className="hounigo-ds-spec-cell">
+                      <span className="hounigo-ds-spec-label">Finestra luce</span>
+                      <span className="hounigo-ds-spec-value">{PHOTO_LIGHT_LABELS[activity.lightWindow]}</span>
+                    </div>
                   )}
                   {activity.photoSubject && (
-                    <span>🎯 Soggetto: <strong>{activity.photoSubject}</strong></span>
+                    <div className="hounigo-ds-spec-cell">
+                      <span className="hounigo-ds-spec-label">Soggetto</span>
+                      <span className="hounigo-ds-spec-value">{activity.photoSubject}</span>
+                    </div>
                   )}
                 </div>
               )}
             </>
           )}
 
-          {!isTrekking && !isPhotoSpot && (activity.duration || activity.endDate || (activity.originLocation && activity.destinationLocation)) && (
-            <div className="pt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs sm:text-[13px] font-semibold text-slate-800 dark:text-slate-200">
+          {!isTrekking && !isPhotoSpot && (hasDistinctMeetingTime || activity.duration || activity.endDate) && (
+            <div className="hounigo-ds-spec-grid">
+              {hasDistinctMeetingTime && (
+                <div className="hounigo-ds-spec-cell">
+                  <span className="hounigo-ds-spec-label">Orario ritrovo</span>
+                  <span className="hounigo-ds-spec-value font-mono">{meetingTime}</span>
+                </div>
+              )}
+              {hasDistinctMeetingTime && startTime && (
+                <div className="hounigo-ds-spec-cell">
+                  <span className="hounigo-ds-spec-label">Inizio attività</span>
+                  <span className="hounigo-ds-spec-value font-mono">{startTime}</span>
+                </div>
+              )}
               {activity.duration && (
-                <span>⏱️ Durata: <strong className="font-extrabold text-slate-950 dark:text-white">{activity.duration}</strong></span>
+                <div className="hounigo-ds-spec-cell">
+                  <span className="hounigo-ds-spec-label">Durata prevista</span>
+                  <span className="hounigo-ds-spec-value font-mono">{activity.duration}</span>
+                </div>
               )}
               {activity.endDate && (
-                <span>📅 Fino al {formatDateIT(activity.endDate)}</span>
-              )}
-              {activity.originLocation && activity.destinationLocation && (
-                <span>🚶 Percorso: {activity.originLocation} → {activity.destinationLocation}</span>
+                <div className="hounigo-ds-spec-cell">
+                  <span className="hounigo-ds-spec-label">Validità</span>
+                  <span className="hounigo-ds-spec-value font-mono">Fino al {formatDateIT(activity.endDate)}</span>
+                </div>
               )}
             </div>
           )}
@@ -281,19 +345,19 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
           )}
 
           {hasCopilotNotes && (
-            <p className="text-xs sm:text-[13px] text-slate-600 dark:text-slate-300 leading-snug line-clamp-2">
+            <p className="hounigo-ds-note line-clamp-2">
               {copilotNotes.trim()}
             </p>
           )}
 
           {childTappe.length > 0 && (
             <div
-              className="pt-1.5 border-t border-slate-100 dark:border-slate-700/60"
+              className="pt-1.5 border-t border-slate-200/80 dark:border-slate-700/60"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
-                  🚶 {childTappe.length} {childTappe.length === 1 ? 'tappa nella passeggiata' : 'tappe nella passeggiata'}
+                <span className="text-xs font-extrabold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
+                  {childTappe.length} {childTappe.length === 1 ? 'tappa nella passeggiata' : 'tappe nella passeggiata'}
                 </span>
                 <button
                   type="button"
@@ -306,7 +370,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
               </div>
 
               {isExpanded && (
-                <div className="mt-1.5 space-y-1 pl-2.5 border-l-2 border-emerald-400 dark:border-emerald-600">
+                <div className="mt-1.5 space-y-1 pl-2.5 border-l-2 border-emerald-500 dark:border-emerald-600">
                   {childTappe.map(tappa => (
                     <div
                       key={tappa.id}
@@ -328,7 +392,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                           }}
                           className="text-xs font-bold text-slate-700 dark:text-slate-200 hover:underline shrink-0 cursor-pointer"
                         >
-                          📍 Maps
+                          Maps ↗
                         </button>
                       )}
                     </div>
@@ -339,30 +403,28 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
           )}
         </div>
 
-        {/* 3. FOOTER: PREZZO E PAGAMENTO A SINISTRA, BIGLIETTI/QR E MAPS A DESTRA */}
+        {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO & AZIONI OPERATIVE */}
         <div className="hounigo-ds-card-footer">
           <div className="flex items-center gap-2 flex-wrap">
             {isPhotoSpot ? null : isFree ? (
-              <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+              <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600 dark:text-slate-300">
                 Gratuito
               </span>
             ) : costNum > 0 ? (
               <>
-                <span className="text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
+                <span className="font-mono text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
                   {displayText}
                 </span>
                 {!isTrekking && (
                   <button
                     type="button"
                     onClick={handleTogglePayment}
-                    className={`inline-flex items-center text-[11px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
-                      isPaid
-                        ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-800'
-                        : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-700'
+                    className={`hounigo-ds-pay-badge ${
+                      isPaid ? 'hounigo-ds-pay-saldato' : 'hounigo-ds-pay-dasaldare'
                     }`}
                     title="Clicca per invertire stato: Saldato / Da saldare"
                   >
-                    {isPaid ? '✓ Saldato' : '⏳ Da saldare'}
+                    {isPaid ? '✓ Saldato' : 'Da saldare'}
                   </button>
                 )}
               </>
@@ -380,7 +442,6 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 className={`hounigo-ds-action-btn ${hasQrOrAttachment ? 'hounigo-ds-action-btn-highlight' : ''}`}
                 title="Biglietti e QR / Voucher"
               >
-                <span>🎫</span>
                 <span>Biglietti / QR</span>
               </button>
             )}
@@ -394,8 +455,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 className="hounigo-ds-action-btn"
                 title="Sito ufficiale / Prenotazione"
               >
-                <span>🌐</span>
-                <span>{isTrekking ? 'Traccia' : 'Sito'}</span>
+                <span>{isTrekking ? 'Traccia ↗' : 'Sito ↗'}</span>
               </a>
             )}
 
@@ -408,8 +468,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 className="hounigo-ds-action-btn"
                 title="Apri su Google Maps"
               >
-                <span>📍</span>
-                <span>Maps</span>
+                <span>Maps ↗</span>
               </a>
             )}
           </div>

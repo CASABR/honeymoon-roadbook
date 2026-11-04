@@ -818,176 +818,506 @@ html.dark .modal-sheet-container legend {
 
 
 /* ============================================================================
-   HOUNIGO CARD DESIGN SYSTEM DEFINITIVO (3 SEZIONI: HEADER, BODY, FOOTER)
+   HOUNIGO ROADBOOK & WAYFINDING DESIGN SYSTEM (FIRMA VISIVA DI BRAND)
+   Ispirazione: Roadbook di spedizione · Segnaletica trasporti · Diario di bordo
+   Architettura: 3 Sezioni (HEADER targa/orario · BODY tracciato/casellario · FOOTER tagliando)
    ============================================================================ */
 
 .hounigo-ds-card {
+  --cat-accent: #FF6B5F;
+  --cat-header-bg: #FCF3F1;
+  --cat-header-border: #F5DAD4;
+  --cat-header-ink: #6E1C14;
+  --cat-badge-bg: #172033;
+  --cat-badge-ink: #FFFFFF;
+
+  position: relative;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   background-color: var(--surface-card);
-  border: 1px solid var(--border-card);
-  border-radius: 1rem;
-  box-shadow: var(--shadow-card);
+  border: 1px solid #DCE2EC;
+  border-left: 4px solid var(--cat-accent);
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 8px -2px rgba(23, 32, 51, 0.06), 0 1px 2px 0 rgba(23, 32, 51, 0.04);
   color: var(--text-main);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: box-shadow 0.18s ease, transform 0.12s ease, border-color 0.18s ease;
+  transition: box-shadow 0.16s ease, transform 0.12s ease, border-color 0.16s ease;
+}
+
+html.dark .hounigo-ds-card {
+  border-color: #2D3B52;
+  border-left: 4px solid var(--cat-accent);
+  box-shadow: 0 4px 14px -3px rgba(0, 0, 0, 0.42);
 }
 
 .hounigo-ds-card:hover {
-  box-shadow: 0 8px 20px -4px rgba(23, 32, 51, 0.08), 0 3px 8px -2px rgba(23, 32, 51, 0.04);
+  box-shadow: 0 8px 18px -4px rgba(23, 32, 51, 0.1), 0 2px 6px -1px rgba(23, 32, 51, 0.05);
 }
 
 .hounigo-ds-card:active {
-  transform: scale(0.995);
+  transform: scale(0.996);
 }
 
+/* ─── CATEGORIE CROMATICHE EDITORIALI (Dorsale + Testata) ─── */
+.hounigo-ds-cat-trasporto,
+.hounigo-ds-card:has(.hounigo-ds-header-trasporto) {
+  --cat-accent: #E85547;
+  --cat-header-bg: #FDF2F0;
+  --cat-header-border: #F6D8D3;
+  --cat-header-ink: #6E1B13;
+}
+
+.hounigo-ds-cat-alloggio,
+.hounigo-ds-card:has(.hounigo-ds-header-alloggio) {
+  --cat-accent: #6842EF;
+  --cat-header-bg: #F4F1FE;
+  --cat-header-border: #DFD6FC;
+  --cat-header-ink: #321B75;
+}
+
+.hounigo-ds-cat-attivita,
+.hounigo-ds-card:has(.hounigo-ds-header-attivita) {
+  --cat-accent: #0B8A83;
+  --cat-header-bg: #EDF9F8;
+  --cat-header-border: #C5EAE7;
+  --cat-header-ink: #0B4744;
+}
+
+.hounigo-ds-cat-tappa,
+.hounigo-ds-card:has(.hounigo-ds-header-tappa) {
+  --cat-accent: #D63E6C;
+  --cat-header-bg: #FDF1F5;
+  --cat-header-border: #F7D4E0;
+  --cat-header-ink: #731836;
+}
+
+.hounigo-ds-cat-ristorante,
+.hounigo-ds-card:has(.hounigo-ds-header-ristorante) {
+  --cat-accent: #D46B16;
+  --cat-header-bg: #FEF5EC;
+  --cat-header-border: #F9DEC3;
+  --cat-header-ink: #703108;
+}
+
+.hounigo-ds-cat-shopping,
+.hounigo-ds-card:has(.hounigo-ds-header-shopping) {
+  --cat-accent: #128C5C;
+  --cat-header-bg: #EEFBF4;
+  --cat-header-border: #C7EED9;
+  --cat-header-ink: #0C4A30;
+}
+
+/* ─── 1. HEADER: TARGA DI CATEGORIA E CARTELLINO ORARIO DA TABELLONE ─── */
 .hounigo-ds-card-header {
-  padding: 0.625rem 1rem;
-  border-bottom: 1px solid transparent;
+  padding: 0.5rem 0.875rem;
+  border-bottom: 1px solid var(--cat-header-border);
+  background-color: var(--cat-header-bg);
+  color: var(--cat-header-ink);
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: 0.35rem;
 }
 
 @media (min-width: 640px) {
   .hounigo-ds-card-header {
-    padding: 0.6875rem 1.125rem;
+    padding: 0.5625rem 1.0625rem;
   }
 }
 
-/* Palette Header per Categoria (Tinte tenui e contrasto accessibile WCAG AA/AAA) */
 .hounigo-ds-header-trasporto {
-  background-color: #FFF1EE;
-  border-bottom-color: #FFD8D2;
-  color: #7A2018;
+  background-color: #FDF2F0;
+  border-bottom-color: #F6D8D3;
+  color: #6E1B13;
 }
 
 .hounigo-ds-header-alloggio {
-  background-color: #F3EEFF;
-  border-bottom-color: #E0D4FC;
-  color: #3B1D7A;
+  background-color: #F4F1FE;
+  border-bottom-color: #DFD6FC;
+  color: #321B75;
 }
 
 .hounigo-ds-header-attivita {
-  background-color: #ECFAFC;
-  border-bottom-color: #C5EEF4;
-  color: #0E4F5C;
+  background-color: #EDF9F8;
+  border-bottom-color: #C5EAE7;
+  color: #0B4744;
 }
 
 .hounigo-ds-header-tappa {
-  background-color: #FDF0F5;
-  border-bottom-color: #F9D5E5;
-  color: #7A1C44;
+  background-color: #FDF1F5;
+  border-bottom-color: #F7D4E0;
+  color: #731836;
 }
 
 .hounigo-ds-header-ristorante {
-  background-color: #FFF4EB;
-  border-bottom-color: #FDE0C4;
-  color: #7C3208;
+  background-color: #FEF5EC;
+  border-bottom-color: #F9DEC3;
+  color: #703108;
 }
 
 .hounigo-ds-header-shopping {
-  background-color: #ECFDF3;
-  border-bottom-color: #C6F6D9;
-  color: #0D5432;
+  background-color: #EEFBF4;
+  border-bottom-color: #C7EED9;
+  color: #0C4A30;
 }
 
 html.dark .hounigo-ds-header-trasporto {
-  background-color: rgba(255, 107, 95, 0.18);
-  border-bottom-color: rgba(255, 107, 95, 0.32);
-  color: #FFD5D0;
+  background-color: rgba(232, 85, 71, 0.16);
+  border-bottom-color: rgba(232, 85, 71, 0.3);
+  color: #FFD7D2;
 }
 
 html.dark .hounigo-ds-header-alloggio {
-  background-color: rgba(168, 85, 247, 0.18);
-  border-bottom-color: rgba(168, 85, 247, 0.32);
-  color: #E9D5FF;
+  background-color: rgba(124, 92, 255, 0.16);
+  border-bottom-color: rgba(124, 92, 255, 0.3);
+  color: #E7DDFC;
 }
 
 html.dark .hounigo-ds-header-attivita {
-  background-color: rgba(6, 182, 212, 0.18);
-  border-bottom-color: rgba(6, 182, 212, 0.32);
-  color: #CFFAFE;
+  background-color: rgba(20, 184, 166, 0.16);
+  border-bottom-color: rgba(20, 184, 166, 0.3);
+  color: #CCFBF1;
 }
 
 html.dark .hounigo-ds-header-tappa {
-  background-color: rgba(236, 72, 153, 0.18);
-  border-bottom-color: rgba(236, 72, 153, 0.32);
-  color: #FBCFE8;
+  background-color: rgba(236, 72, 153, 0.16);
+  border-bottom-color: rgba(236, 72, 153, 0.3);
+  color: #FCE7F3;
 }
 
 html.dark .hounigo-ds-header-ristorante {
-  background-color: rgba(249, 115, 22, 0.18);
-  border-bottom-color: rgba(249, 115, 22, 0.32);
-  color: #FED7AA;
+  background-color: rgba(245, 158, 11, 0.16);
+  border-bottom-color: rgba(245, 158, 11, 0.3);
+  color: #FDE68A;
 }
 
 html.dark .hounigo-ds-header-shopping {
-  background-color: rgba(16, 185, 129, 0.18);
-  border-bottom-color: rgba(16, 185, 129, 0.32);
-  color: #A7F3D0;
+  background-color: rgba(16, 185, 129, 0.16);
+  border-bottom-color: rgba(16, 185, 129, 0.3);
+  color: #D1FAE5;
 }
 
+/* Cartellino Orario stile Tabellone Partenze */
+.hounigo-ds-time-stamp {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  line-height: 1.15;
+  padding: 0.2rem 0.44rem;
+  border-radius: 0.35rem;
+  background-color: #172033;
+  color: #FFFFFF;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+html.dark .hounigo-ds-time-stamp {
+  background-color: rgba(15, 23, 42, 0.85);
+  color: #F8FAFC;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+/* Fascia avviso operativo nell'header (Check-in cutoff, Scalo, Istruzioni) */
+.hounigo-ds-header-subrow {
+  padding-top: 0.28rem;
+  border-top: 1px dashed rgba(23, 32, 51, 0.14);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.25;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.75rem;
+}
+
+html.dark .hounigo-ds-header-subrow {
+  border-top-color: rgba(255, 255, 255, 0.14);
+}
+
+/* ─── 2. BODY: CONTENUTO, TRACCIATO TRATTA E CASELLARIO OPERATIVO ─── */
 .hounigo-ds-card-body {
-  padding: 0.75rem 1rem;
+  padding: 0.75rem 0.875rem;
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: 0.5rem;
   background-color: var(--surface-card);
 }
 
 @media (min-width: 640px) {
   .hounigo-ds-card-body {
-    padding: 0.875rem 1.125rem;
+    padding: 0.875rem 1.0625rem;
   }
 }
 
+/* Tracciato Partenza → Arrivo (Segnaletica Ferroviaria/Aeroportuale) */
+.hounigo-ds-route-track {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding-left: 1.05rem;
+  margin-top: 0.1rem;
+}
+
+.hounigo-ds-route-track::before {
+  content: "";
+  position: absolute;
+  left: 0.27rem;
+  top: 0.45rem;
+  bottom: 0.45rem;
+  width: 1.5px;
+  background-color: #CBD5E1;
+}
+
+.hounigo-ds-route-track:has(> :only-child)::before {
+  display: none;
+}
+
+html.dark .hounigo-ds-route-track::before {
+  background-color: #475569;
+}
+
+.hounigo-ds-route-stop {
+  position: relative;
+  display: flex;
+  flex-wrap: baseline;
+  align-items: baseline;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+}
+
+.hounigo-ds-route-stop::before {
+  content: "";
+  position: absolute;
+  left: -1.03rem;
+  top: 0.28rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background-color: var(--surface-card);
+  border: 2px solid #475569;
+}
+
+.hounigo-ds-route-stop-end::before {
+  background-color: var(--cat-accent);
+  border-color: var(--cat-accent);
+  border-radius: 2px;
+}
+
+html.dark .hounigo-ds-route-stop::before {
+  border-color: #94A3B8;
+}
+
+.hounigo-ds-route-kicker {
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #64748B;
+  flex-shrink: 0;
+  min-width: 2.1rem;
+}
+
+html.dark .hounigo-ds-route-kicker {
+  color: #94A3B8;
+}
+
+/* Casellario Tecnico Operativo (Sostituisce la pioggia di emoji nei metadati) */
+.hounigo-ds-spec-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  padding-top: 0.15rem;
+}
+
+.hounigo-ds-spec-cell {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0.28rem 0.55rem;
+  border-radius: 0.375rem;
+  background-color: #F8F7F3;
+  border: 1px solid #E2E6EE;
+  min-width: 0;
+}
+
+html.dark .hounigo-ds-spec-cell {
+  background-color: rgba(15, 23, 42, 0.55);
+  border-color: #334155;
+}
+
+.hounigo-ds-spec-label {
+  font-size: 0.6rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748B;
+  line-height: 1.1;
+}
+
+html.dark .hounigo-ds-spec-label {
+  color: #94A3B8;
+}
+
+.hounigo-ds-spec-value {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #172033;
+  line-height: 1.25;
+  margin-top: 0.08rem;
+}
+
+html.dark .hounigo-ds-spec-value {
+  color: #F8FAFC;
+}
+
+/* Nota editoriale da Diario di Bordo */
+.hounigo-ds-note {
+  border-left: 2px solid #CBD5E1;
+  padding-left: 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1.38;
+  color: #475569;
+}
+
+html.dark .hounigo-ds-note {
+  border-left-color: #475569;
+  color: #CBD5E1;
+}
+
+/* ─── 3. FOOTER: TAGLIANDO PERFORATO STATO ECONOMICO & AZIONI ─── */
 .hounigo-ds-card-footer {
-  padding: 0.5625rem 0.875rem;
-  border-top: 1px solid var(--border-subtle);
-  background-color: var(--surface-card-subtle);
+  padding: 0.5rem 0.875rem;
+  border-top: 1px dashed #CBD5E1;
+  background-color: #FAF9F6;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 0.375rem;
+  gap: 0.45rem;
+}
+
+html.dark .hounigo-ds-card-footer {
+  border-top-color: #334155;
+  background-color: rgba(15, 23, 42, 0.45);
 }
 
 @media (min-width: 640px) {
   .hounigo-ds-card-footer {
-    padding: 0.6875rem 1.125rem;
-    gap: 0.5rem;
+    padding: 0.5625rem 1.0625rem;
   }
 }
 
 .hounigo-ds-action-btn {
-  min-height: 2.0625rem;
+  min-height: 2rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0.3rem;
-  padding: 0.325rem 0.575rem;
-  border-radius: 0.625rem;
-  font-size: 0.75rem;
-  font-weight: 700;
+  padding: 0.3rem 0.625rem;
+  border-radius: 0.425rem;
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
   line-height: 1;
-  background-color: var(--surface-card);
-  color: var(--text-main);
-  border: 1px solid var(--border-subtle);
-  transition: background-color 0.15s ease, border-color 0.15s ease;
+  background-color: #FFFFFF;
+  color: #172033;
+  border: 1px solid #CBD5E1;
+  box-shadow: 0 1px 1px rgba(23, 32, 51, 0.03);
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
   cursor: pointer;
   white-space: nowrap;
 }
 
+html.dark .hounigo-ds-action-btn {
+  background-color: #1E293B;
+  color: #F1F5F9;
+  border-color: #334155;
+}
+
 .hounigo-ds-action-btn:hover {
-  background-color: var(--surface-muted);
+  border-color: #172033;
+  background-color: #F1F5F9;
+}
+
+html.dark .hounigo-ds-action-btn:hover {
+  border-color: #94A3B8;
+  background-color: #243248;
 }
 
 .hounigo-ds-action-btn-highlight {
-  background-color: var(--status-success-bg);
-  color: var(--status-success-text);
-  border-color: var(--status-success-border);
+  background-color: #172033;
+  color: #FFFFFF;
+  border-color: #172033;
+}
+
+.hounigo-ds-action-btn-highlight:hover {
+  background-color: #25334F;
+  border-color: #25334F;
+}
+
+html.dark .hounigo-ds-action-btn-highlight {
+  background-color: #FF6B5F;
+  color: #FFFFFF;
+  border-color: #FF6B5F;
+}
+
+/* Badge Stato Pagamento Tecnico */
+.hounigo-ds-pay-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.48rem;
+  border-radius: 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.hounigo-ds-pay-saldato {
+  background-color: #DCFCE7;
+  color: #14532D;
+  border-color: #86EFAC;
+}
+
+.hounigo-ds-pay-acconto {
+  background-color: #E0F2FE;
+  color: #0C4A6E;
+  border-color: #7DD3FC;
+}
+
+.hounigo-ds-pay-dasaldare {
+  background-color: #FEF3C7;
+  color: #78350F;
+  border-color: #FCD34D;
+}
+
+html.dark .hounigo-ds-pay-saldato {
+  background-color: rgba(22, 163, 74, 0.2);
+  color: #86EFAC;
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+html.dark .hounigo-ds-pay-acconto {
+  background-color: rgba(2, 132, 199, 0.2);
+  color: #7DD3FC;
+  border-color: rgba(56, 189, 248, 0.35);
+}
+
+html.dark .hounigo-ds-pay-dasaldare {
+  background-color: rgba(217, 119, 6, 0.2);
+  color: #FCD34D;
+  border-color: rgba(251, 191, 36, 0.35);
 }

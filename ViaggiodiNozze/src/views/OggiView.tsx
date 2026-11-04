@@ -1183,71 +1183,74 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           if (isViewingOtherDate) {
             return (
-              <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-3.5 sm:p-4 shadow-xs space-y-2.5">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div className="bg-[#172033] text-white rounded-xl border border-slate-800 border-l-4 border-l-[#FF6B5F] p-3.5 sm:p-4 shadow-sm space-y-2.5">
+                <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF6B5F] flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F]" />
-                    Focus del {formatDateHuman(selectedDate)}
+                    Prossimo impegno · {formatDateHuman(selectedDate)}
                   </span>
                   {nextEventItem?.time ? (
-                    <span className="font-mono text-[11px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md border border-indigo-200/60 dark:border-indigo-800/60 shrink-0">
-                      ⏰ {nextEventItem.time} {nextEventItem.timeStatus === 'indicativo' ? '· indicativo' : ''}
+                    <span className="font-mono text-xs font-extrabold text-white bg-white/12 px-2 py-0.5 rounded border border-white/15 shrink-0 tabular-nums">
+                      ORE {nextEventItem.time}{nextEventItem.timeStatus === 'indicativo' ? ' · IND.' : ''}
                     </span>
                   ) : nextEventItem ? (
-                    <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md shrink-0">
-                      Orario non specificato
+                    <span className="text-[10px] font-bold text-slate-300 bg-white/10 px-2 py-0.5 rounded shrink-0">
+                      Orario libero
                     </span>
                   ) : null}
                 </div>
 
                 {nextEventItem ? (
-                  <div className="space-y-2">
+                  <div className="space-y-2.5">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <h2 className="text-sm sm:text-base font-extrabold text-[#172033] dark:text-white leading-snug">
+                        <h2 className="text-sm sm:text-base font-extrabold text-white leading-snug tracking-tight">
                           {nextEventItem.title}
                         </h2>
-                        <p className="text-xs text-slate-600 dark:text-slate-300 font-medium mt-0.5 flex items-center gap-1 truncate">
-                          <span>📍</span>
-                          <span className="truncate">
-                            {(() => {
-                              if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
-                                const tr = nextEventItem.originalData as Trasporto;
-                                const dep = tr.departureLocation || nextEventItem.location;
-                                const arr = tr.dropoffLocation || tr.arrivalLocation;
-                                if (dep && arr && dep !== arr) return `${dep} ➔ ${arr}`;
-                              }
-                              return nextEventItem.location || 'Posizione programmata';
-                            })()}
-                          </span>
+                        <p className="text-xs text-slate-300 font-semibold mt-0.5 truncate">
+                          {(() => {
+                            if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
+                              const tr = nextEventItem.originalData as Trasporto;
+                              const dep = tr.departureLocation || nextEventItem.location;
+                              const arr = tr.dropoffLocation || tr.arrivalLocation;
+                              if (dep && arr && dep !== arr) return `${dep} → ${arr}`;
+                            }
+                            return nextEventItem.location || 'Posizione programmata';
+                          })()}
                         </p>
-                        {nextEventItem.type === 'trasporto' && nextEventItem.originalData && ((nextEventItem.originalData as Trasporto).terminalGate || (nextEventItem.originalData as Trasporto).posti) && (
-                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5 text-xs">
-                            {(nextEventItem.originalData as Trasporto).terminalGate && (
-                              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-700">
-                                {(nextEventItem.originalData as Trasporto).type === 'treno' ? '🚉 Binario: ' : '🛫 Gate: '}{(nextEventItem.originalData as Trasporto).terminalGate}
-                              </span>
-                            )}
-                            {(nextEventItem.originalData as Trasporto).posti && (
-                              <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold border border-slate-200 dark:border-slate-700">
-                                💺 {(nextEventItem.originalData as Trasporto).posti}
-                              </span>
-                            )}
-                          </div>
-                        )}
                       </div>
 
                       <button
                         type="button"
                         onClick={() => setDetailItem(nextEventItem)}
-                        className="shrink-0 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#172033] hover:text-white dark:hover:bg-white dark:hover:text-[#172033] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
+                        className="shrink-0 px-2.5 py-1.5 rounded-md bg-white/12 hover:bg-[#FF6B5F] text-white text-xs font-extrabold transition-all cursor-pointer border border-white/15"
                       >
-                        Dettagli ➔
+                        Dettagli →
                       </button>
                     </div>
 
-                    {/* Barra Azioni Rapide */}
-                    <div className="flex items-center gap-2 flex-wrap pt-0.5 text-[11px]">
+                    {/* Casellario Tecnico + Azioni Rapide */}
+                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                      {nextEventItem.type === 'trasporto' && nextEventItem.originalData && (nextEventItem.originalData as Trasporto).terminalGate && (
+                        <div className="inline-flex flex-col px-2 py-1 rounded bg-white/8 border border-white/12">
+                          <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 leading-none">
+                            {(nextEventItem.originalData as Trasporto).type === 'treno' ? 'Binario' : 'Terminal / Gate'}
+                          </span>
+                          <span className="font-mono text-xs font-extrabold text-white mt-0.5 leading-none">
+                            {(nextEventItem.originalData as Trasporto).terminalGate}
+                          </span>
+                        </div>
+                      )}
+                      {nextEventItem.type === 'trasporto' && nextEventItem.originalData && (nextEventItem.originalData as Trasporto).posti && (
+                        <div className="inline-flex flex-col px-2 py-1 rounded bg-white/8 border border-white/12">
+                          <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 leading-none">
+                            {(nextEventItem.originalData as Trasporto).type === 'treno' ? 'Carrozza / Posti' : 'Posto'}
+                          </span>
+                          <span className="text-xs font-extrabold text-white mt-0.5 leading-none">
+                            {(nextEventItem.originalData as Trasporto).posti}
+                          </span>
+                        </div>
+                      )}
                       {nextEventBookingCode && (
                         <button
                           type="button"
@@ -1255,16 +1258,19 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                             e.stopPropagation();
                             try {
                               await navigator.clipboard.writeText(nextEventBookingCode);
-                              setBookingCodeCopied(true);
-                              setTimeout(() => setBookingCodeCopied(false), 2000);
                             } catch {}
+                            setBookingCodeCopied(true);
+                            setTimeout(() => setBookingCodeCopied(false), 2000);
                           }}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition-colors cursor-pointer text-[11px]"
+                          className="inline-flex flex-col px-2 py-1 rounded bg-white/8 hover:bg-white/15 border border-white/15 text-left transition-colors cursor-pointer"
                           title="Copia codice di prenotazione / PNR"
                         >
-                          <span>🎫</span>
-                          <span className="font-mono">{nextEventBookingCode}</span>
-                          <span className="text-[9px] opacity-70 ml-0.5">{bookingCodeCopied ? '✓' : 'Copia'}</span>
+                          <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 leading-none">
+                            PNR · {bookingCodeCopied ? '✓ Copiato' : 'Copia'}
+                          </span>
+                          <span className="font-mono text-xs font-extrabold text-[#FF9B92] mt-0.5 leading-none">
+                            {nextEventBookingCode}
+                          </span>
                         </button>
                       )}
                       {nextEventMapUrl && (
@@ -1273,16 +1279,15 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold border border-sky-200/60 dark:border-sky-800/60 hover:bg-sky-100 transition-colors cursor-pointer"
+                          className="ml-auto inline-flex items-center gap-1 px-2.5 py-1.5 rounded bg-[#FF6B5F] hover:bg-[#fa5547] text-white text-xs font-extrabold transition-colors cursor-pointer"
                         >
-                          <span>📍</span>
                           <span>Maps ↗</span>
                         </a>
                       )}
                     </div>
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500 dark:text-slate-400 py-0.5">
+                  <p className="text-xs text-slate-300 py-0.5">
                     Nessun impegno a orario fisso registrato in questa giornata.
                   </p>
                 )}
@@ -1940,23 +1945,18 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                 targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
                               }
                             }}
-                            className="bg-purple-50/80 dark:bg-purple-950/40 border border-purple-200/70 dark:border-purple-800/60 rounded-2xl p-2.5 sm:p-3 flex items-center justify-between gap-3 hover:bg-purple-100/60 transition-all cursor-pointer shadow-2xs"
+                            className="bg-[#F4F1FE] dark:bg-purple-950/35 border border-[#DFD6FC] dark:border-purple-800/60 border-l-4 border-l-[#6842EF] rounded-lg px-3 py-2 flex items-center justify-between gap-3 hover:bg-[#EBE5FD] transition-all cursor-pointer"
                           >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="w-7 h-7 rounded-xl bg-purple-100 dark:bg-purple-900/60 flex items-center justify-center text-sm shrink-0">
-                                🏨
+                            <div className="min-w-0">
+                              <span className="block text-[11px] font-extrabold uppercase tracking-wide text-[#321B75] dark:text-purple-200 truncate">
+                                {item.title}
                               </span>
-                              <div className="min-w-0">
-                                <span className="block text-[11px] font-extrabold text-purple-900 dark:text-purple-200 truncate">
-                                  {item.title}
-                                </span>
-                                <span className="block text-[10px] text-purple-600 dark:text-purple-400 truncate">
-                                  Dalle ore {item.time} • Clicca per vedere la scheda in basso
-                                </span>
-                              </div>
+                              <span className="block font-mono text-[10px] font-bold text-[#53389E] dark:text-purple-300 truncate">
+                                Check-in attivo dalle ore {item.time} · Vai alla scheda alloggio
+                              </span>
                             </div>
-                            <span className="text-xs font-bold text-purple-600 dark:text-purple-400 shrink-0">
-                              Vedi alloggio ↓
+                            <span className="text-xs font-extrabold text-[#321B75] dark:text-purple-300 shrink-0">
+                              Alloggio ↓
                             </span>
                           </div>
                         ) : isTransport ? (
