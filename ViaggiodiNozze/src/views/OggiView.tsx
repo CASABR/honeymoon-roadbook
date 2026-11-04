@@ -269,6 +269,22 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [editingAlloggioItem, setEditingAlloggioItem] = useState<Alloggio | null>(null);
   const [editingRistoranteItem, setEditingRistoranteItem] = useState<Ristorante | null>(null);
   const [editingShoppingItem, setEditingShoppingItem] = useState<Shopping | null>(null);
+  const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
+  const [showAddCardHint, setShowAddCardHint] = useState(() => {
+    try {
+      return localStorage.getItem('hounigo_add_card_hint_seen_v1') !== 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const dismissAddCardHint = () => {
+    setShowAddCardHint(false);
+    try {
+      localStorage.setItem('hounigo_add_card_hint_seen_v1', 'true');
+    } catch {}
+  };
+
   const [creatingCategory, setCreatingCategory] = useState<InsertCategory | null>(null);
   const [insertMenuAfterId, setInsertMenuAfterId] = useState<string | null>(null);
   const [insertDraftTime, setInsertDraftTime] = useState('');
@@ -1745,6 +1761,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
         {/* Sequenza Unificata: timeline con sezioni chiare + alloggio fisso in fondo */}
         {(() => {
+          const todayStr = new Date().toISOString().split('T')[0];
           // Prepara gli elementi di percorso sequenziali
           const dayItems: {
             id: string;
@@ -1872,10 +1889,28 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           if (visibleCards.length === 0 && !tonightsAccommodation && activeRentalItems.length === 0) {
             return (
-              <div className="bg-slate-50 dark:bg-slate-900/60 rounded-3xl border border-slate-200/80 dark:border-slate-800 border-dashed p-6 text-center">
-                <span className="text-2xl mb-1 block">🧭</span>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Nessuna attività programmata per oggi</p>
-                <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">Giornata libera per relax, esplorazione spontanea o spostamento.</p>
+              <div className="bg-slate-50 dark:bg-slate-900/60 rounded-3xl border border-slate-200/80 dark:border-slate-800 border-dashed p-6 text-center space-y-3">
+                <span className="text-3xl mb-1 block">🧭</span>
+                <div>
+                  <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                    Nessuna attività programmata per {selectedDate === todayStr ? 'oggi' : 'questa giornata'}
+                  </p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
+                    Giornata libera per relax, esplorazione spontanea o spostamento.
+                  </p>
+                </div>
+                {canEdit && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsCategoryPickerOpen(true)}
+                      className="hounigo-button-primary inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold active:scale-95 shadow-md shadow-[#FF6B5F]/20 cursor-pointer"
+                    >
+                      <span className="text-base leading-none font-black">+</span>
+                      <span>Aggiungi la prima tappa</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           }
@@ -1927,17 +1962,57 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                       </div>
                     );
                   })}
+                  {canEdit && (
+                    <button
+                      type="button"
+                      onClick={() => setIsCategoryPickerOpen(true)}
+                      className="w-full py-3 px-4 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-[#FF6B5F]/60 text-slate-500 hover:text-[#FF6B5F] dark:text-slate-400 dark:hover:text-[#ff9a90] text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.99] mt-3 cursor-pointer bg-white/40 dark:bg-slate-900/30"
+                    >
+                      <span className="text-sm font-black">+</span>
+                      <span>Aggiungi a questa giornata</span>
+                    </button>
+                  )}
                 </div>
               )}
 
               {/* TIMELINE CRONOLOGICA DEGLI EVENTI DI GIORNATA */}
               {visibleCards.length > 0 && (
                 <div className="space-y-2.5">
-                  <div className="flex items-center gap-2 px-1 pt-1">
-                    <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
-                    <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-                      Itinerario &amp; Tappe di Giornata
-                    </span>
+                  {canEdit && showAddCardHint && (
+                    <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-2xl bg-[#FFF5F3] dark:bg-[#FF6B5F]/15 border border-[#FFD9D3] dark:border-[#FF6B5F]/30 text-[#A6382D] dark:text-[#ffaba3] text-xs animate-fade-in shadow-2xs">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-base shrink-0">💡</span>
+                        <span className="truncate">Per organizzare la giornata, tocca <strong>+ Aggiungi</strong>.</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={dismissAddCardHint}
+                        className="text-[#A6382D] dark:text-[#ffaba3] hover:opacity-75 font-bold p-1 text-xs shrink-0 cursor-pointer"
+                        aria-label="Chiudi suggerimento"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-2 px-1 pt-1 pb-1">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
+                      <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                        {selectedDate === todayStr ? 'Itinerario & Tappe di Giornata' : 'Itinerario del Giorno'}
+                      </span>
+                    </div>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => setIsCategoryPickerOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 text-[#FF6B5F] dark:text-[#ff9a90] text-xs font-bold hover:bg-[#ffe2dc] active:scale-95 transition-all shadow-2xs border border-[#FF6B5F]/30 cursor-pointer"
+                        title="Aggiungi una tappa, attività, alloggio o trasporto a questa giornata"
+                      >
+                        <span className="text-sm font-extrabold leading-none">+</span>
+                        <span>Aggiungi</span>
+                      </button>
+                    )}
                   </div>
 
                   {visibleCards.map((item, idx) => {
@@ -2476,6 +2551,51 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           onSave={handleSaveShopping}
           onCancel={() => { setEditingShoppingItem(null); closeCreateForm(); }}
         />
+      </Modal>
+
+      {/* Modale Selezione Categoria per Aggiunta Card */}
+      <Modal
+        isOpen={isCategoryPickerOpen}
+        onClose={() => setIsCategoryPickerOpen(false)}
+        title={`Aggiungi al giorno ${formatDateIT(selectedDate)}`}
+        accentVariant="rose"
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Scegli cosa desideri inserire nel programma di questa giornata:
+          </p>
+          <div className="grid grid-cols-2 gap-2.5">
+            {INSERT_CATEGORIES.map(category => (
+              <button
+                key={category.type}
+                type="button"
+                onClick={() => {
+                  setIsCategoryPickerOpen(false);
+                  setInsertDraftTime('');
+                  setCreatingCategory(category.type);
+                }}
+                className="flex items-center gap-3 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 hover:bg-[#FFF0ED] hover:border-[#FF6B5F]/40 dark:hover:bg-[#FF6B5F]/10 text-left transition-all active:scale-95 group cursor-pointer"
+              >
+                <span className="text-2xl group-hover:scale-110 transition-transform">
+                  {category.icon}
+                </span>
+                <div>
+                  <div className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-[#FF6B5F] dark:group-hover:text-[#ff9a90]">
+                    {category.label}
+                  </div>
+                  <div className="text-[10px] text-slate-400 dark:text-slate-500 line-clamp-1">
+                    {category.type === 'tappa' ? 'Soste & mete'
+                      : category.type === 'attivita' ? 'Visite & tour'
+                      : category.type === 'alloggio' ? 'Hotel & check-in'
+                      : category.type === 'trasporto' ? 'Voli, treni & auto'
+                      : category.type === 'ristorante' ? 'Pranzi & cene'
+                      : 'Negozi & acquisti'}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
       </Modal>
 
       {/* Modale Rilevamento Sovrapposizione Oraria */}
