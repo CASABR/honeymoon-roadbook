@@ -270,21 +270,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [editingRistoranteItem, setEditingRistoranteItem] = useState<Ristorante | null>(null);
   const [editingShoppingItem, setEditingShoppingItem] = useState<Shopping | null>(null);
   const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
-  const [showAddCardHint, setShowAddCardHint] = useState(() => {
-    try {
-      return localStorage.getItem('hounigo_add_card_hint_seen_v1') !== 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const dismissAddCardHint = () => {
-    setShowAddCardHint(false);
-    try {
-      localStorage.setItem('hounigo_add_card_hint_seen_v1', 'true');
-    } catch {}
-  };
-
   const [creatingCategory, setCreatingCategory] = useState<InsertCategory | null>(null);
   const [insertMenuAfterId, setInsertMenuAfterId] = useState<string | null>(null);
   const [insertDraftTime, setInsertDraftTime] = useState('');
@@ -1907,7 +1892,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                       className="hounigo-button-primary inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold active:scale-95 shadow-md shadow-[#FF6B5F]/20 cursor-pointer"
                     >
                       <span className="text-base leading-none font-black">+</span>
-                      <span>Aggiungi la prima tappa</span>
+                      <span>Aggiungi</span>
                     </button>
                   </div>
                 )}
@@ -1962,39 +1947,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                       </div>
                     );
                   })}
-                  {canEdit && (
-                    <button
-                      type="button"
-                      onClick={() => setIsCategoryPickerOpen(true)}
-                      className="w-full py-3 px-4 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-[#FF6B5F]/60 text-slate-500 hover:text-[#FF6B5F] dark:text-slate-400 dark:hover:text-[#ff9a90] text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.99] mt-3 cursor-pointer bg-white/40 dark:bg-slate-900/30"
-                    >
-                      <span className="text-sm font-black">+</span>
-                      <span>Aggiungi a questa giornata</span>
-                    </button>
-                  )}
-                </div>
+</div>
               )}
 
               {/* TIMELINE CRONOLOGICA DEGLI EVENTI DI GIORNATA */}
               {visibleCards.length > 0 && (
                 <div className="space-y-2.5">
-                  {canEdit && showAddCardHint && (
-                    <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-2xl bg-[#FFF5F3] dark:bg-[#FF6B5F]/15 border border-[#FFD9D3] dark:border-[#FF6B5F]/30 text-[#A6382D] dark:text-[#ffaba3] text-xs animate-fade-in shadow-2xs">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-base shrink-0">💡</span>
-                        <span className="truncate">Per organizzare la giornata, tocca <strong>+ Aggiungi</strong>.</span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={dismissAddCardHint}
-                        className="text-[#A6382D] dark:text-[#ffaba3] hover:opacity-75 font-bold p-1 text-xs shrink-0 cursor-pointer"
-                        aria-label="Chiudi suggerimento"
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  )}
-
                   <div className="flex items-center justify-between gap-2 px-1 pt-1 pb-1">
                     <div className="flex items-center gap-2">
                       <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />

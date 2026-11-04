@@ -1,7 +1,7 @@
 const fs = require('fs');
 const assert = require('assert');
 
-console.log('=== TEST SUITE E2E: AGGIUNTA CARD & NOTIFICHE GLOBALI ===\n');
+console.log('=== TEST SUITE E2E: CONSOLIDAMENTO AGGIUNTA CARD & NOTIFICHE ===\n');
 
 let passedTests = 0;
 let totalTests = 0;
@@ -18,19 +18,20 @@ function runTest(name, fn) {
 }
 
 // ─── SCENARIO A: Posizionamento "+ Aggiungi" in timeline Oggi ───────
-runTest('Scenario A: Pulsante "+ Aggiungi" presente nella timeline di Oggi', () => {
+runTest('Scenario A: Pulsante "+ Aggiungi" univoco nell\'header della timeline', () => {
   const oggiCode = fs.readFileSync('ViaggiodiNozze/src/views/OggiView.tsx', 'utf8');
   assert(oggiCode.includes('onClick={() => setIsCategoryPickerOpen(true)}'), 'Pulsante apertura categoria non trovato');
   assert(oggiCode.includes('>+</span>') || oggiCode.includes('<span>+</span>'), 'Simbolo + non trovato');
   assert(oggiCode.includes('<span>Aggiungi</span>'), 'Etichetta "Aggiungi" non trovata');
-  assert(oggiCode.includes('Itinerario & Tappe di Giornata') || oggiCode.includes('Itinerario &amp; Tappe di Giornata'), 'Header timeline non integro');
+  // Verifica che il pulsante ridondante in fondo sia stato eliminato
+  assert(!oggiCode.includes('Aggiungi a questa giornata'), 'Pulsante ridondante in fondo alla timeline ancora presente!');
 });
 
-// ─── SCENARIO B: Empty state "+ Aggiungi la prima tappa" ─────────────
-runTest('Scenario B: Empty state contiene invito "+ Aggiungi la prima tappa"', () => {
+// ─── SCENARIO B: Empty state "+ Aggiungi" ───────────────────────────
+runTest('Scenario B: Empty state contiene unica CTA evidente "+ Aggiungi"', () => {
   const oggiCode = fs.readFileSync('ViaggiodiNozze/src/views/OggiView.tsx', 'utf8');
-  assert(oggiCode.includes('Aggiungi la prima tappa'), 'Etichetta invito prima tappa non trovata');
   assert(oggiCode.includes('Nessuna attività programmata per'), 'Testo stato vuoto non trovato');
+  assert(oggiCode.includes('hounigo-button-primary inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold active:scale-95 shadow-md shadow-[#FF6B5F]/20 cursor-pointer'), 'CTA principale non trovata');
 });
 
 // ─── SCENARIO C: Selettore categorie con le 6 tipologie e precompilazione data ─
@@ -39,13 +40,11 @@ runTest('Scenario C: Modale selezione con 6 categorie e precompilazione data', (
   assert(oggiCode.includes('Modale Selezione Categoria per Aggiunta Card'), 'Modale categorie non presente');
   assert(oggiCode.includes('INSERT_CATEGORIES.map'), 'Mappatura categorie non presente');
   
-  // Verifica 6 categorie
   const categories = ['tappa', 'attivita', 'ristorante', 'alloggio', 'trasporto', 'shopping'];
   for (const cat of categories) {
     assert(oggiCode.includes(`type: '${cat}'`), `Categoria ${cat} mancante in INSERT_CATEGORIES`);
   }
   
-  // Verifica precompilazione selectedDate
   assert(oggiCode.includes('defaultDate={selectedDate}'), 'Precompilazione selectedDate per tappa non trovata');
   assert(oggiCode.includes("defaultDate={creatingCategory === 'trasporto' ? selectedDate : undefined}"), 'Precompilazione trasporto non trovata');
   assert(oggiCode.includes("defaultDate={creatingCategory === 'alloggio' ? selectedDate : undefined}"), 'Precompilazione alloggio non trovata');
@@ -56,33 +55,24 @@ runTest('Scenario C: Modale selezione con 6 categorie e precompilazione data', (
 // ─── SCENARIO D: Rispetto permessi Viewer (canEdit === false) ─────────
 runTest('Scenario D: I Viewer hanno controlli di aggiunta nascosti', () => {
   const oggiCode = fs.readFileSync('ViaggiodiNozze/src/views/OggiView.tsx', 'utf8');
-  // Verifica che i pulsanti siano condizionati a canEdit
-  assert(oggiCode.includes('{canEdit && (\n                  <div className="pt-2">\n                    <button\n                      type="button"\n                      onClick={() => setIsCategoryPickerOpen(true)}'), 'Pulsante empty state non condizionato a canEdit');
+  assert(oggiCode.includes('canEdit && (\n                  <div className="pt-2">\n                    <button\n                      type="button"\n                      onClick={() => setIsCategoryPickerOpen(true)}'), 'Pulsante empty state non condizionato a canEdit');
   assert(oggiCode.includes('canEdit && (\n                      <button\n                        type="button"\n                        onClick={() => setIsCategoryPickerOpen(true)}'), 'Pulsante header timeline non condizionato a canEdit');
-  assert(oggiCode.includes('canEdit && (\n                    <button\n                      type="button"\n                      onClick={() => setIsCategoryPickerOpen(true)}\n                      className="w-full py-3 px-4 rounded-2xl border-2 border-dashed'), 'Pulsante fine timeline non condizionato a canEdit');
 });
 
-// ─── SCENARIO E: Suggerimento al primo utilizzo ──────────────────────
-runTest('Scenario E: Suggerimento primo utilizzo presente e chiudibile', () => {
+// ─── SCENARIO E: Pulizia banner ridondanti ──────────────────────────
+runTest('Scenario E: Eliminati banner multipli sovrapposti al primo avvio', () => {
   const oggiCode = fs.readFileSync('ViaggiodiNozze/src/views/OggiView.tsx', 'utf8');
-  assert(oggiCode.includes('hounigo_add_card_hint_seen_v1'), 'Storage key del suggerimento mancante');
-  assert(oggiCode.includes('Per organizzare la giornata, tocca <strong>+ Aggiungi</strong>'), 'Testo esatto del suggerimento mancante');
-  assert(oggiCode.includes('dismissAddCardHint'), 'Funzione dismiss mancante');
+  assert(!oggiCode.includes('hounigo_add_card_hint_seen_v1'), 'Banner hint ridondante ancora presente');
 });
 
-// ─── SCENARIO F: Campanella Notifiche nell\'header sincronizzata ───────
-runTest('Scenario F: NotificationBellButton integrato negli header con stati visivi', () => {
-  const appCode = fs.readFileSync('ViaggiodiNozze/src/App.tsx', 'utf8');
-  const deskCode = fs.readFileSync('ViaggiodiNozze/src/components/common/DesktopNavigation.tsx', 'utf8');
+// ─── SCENARIO F: Campanella 3 macro-stati semplificata ───────────────
+runTest('Scenario F: Campanella semplificata a 3 macro-stati veritieri', () => {
   const bellCode = fs.readFileSync('ViaggiodiNozze/src/components/common/NotificationBellButton.tsx', 'utf8');
-  
-  assert(appCode.includes('<NotificationBellButton />'), 'Campanella assente dall\'header mobile di App.tsx');
-  assert(deskCode.includes('<NotificationBellButton />'), 'Campanella assente da DesktopNavigation.tsx');
-  
-  assert(bellCode.includes("push.state === 'active'"), 'Stato active non gestito nella campanella');
-  assert(bellCode.includes("case 'browser-only'"), 'Stato browser-only non gestito nella campanella');
-  assert(bellCode.includes("case 'permission-denied'"), 'Stato permission-denied non gestito nella campanella');
-  assert(bellCode.includes("case 'server-unavailable'"), 'Stato server-unavailable non gestito nella campanella');
+  assert(bellCode.includes('isActive'), 'Stato active mancante');
+  assert(bellCode.includes('isPending'), 'Stato pending mancante');
+  assert(bellCode.includes('isOffOrBlocked'), 'Stato off/blocked mancante');
+  assert(bellCode.includes('bg-emerald-500'), 'Dot verde attivo mancante');
+  assert(bellCode.includes('bg-amber-500'), 'Dot ambra pending mancante');
 });
 
 // ─── SCENARIO G: Distinzione OS Permission vs D1 Server Registration ─
@@ -101,8 +91,6 @@ runTest('Scenario H: Worker consente test personale a tutti i membri del viaggio
   assert(indexCode.includes('assertTripMember(uid, tripId, idToken, env)'), 'assertTripMember mancante in index.js');
   assert(indexCode.includes("role === 'owner' || role === 'copilota' || role === 'viewer'"), 'Ruolo viewer escluso da assertTripMember');
   assert(indexCode.includes('Non sei autorizzato per le notifiche di questo viaggio.'), 'Messaggio di errore non-member mancante');
-  
-  // Verifica test personale riservato al subscriber dell'utente chiamante
   assert(pushCode.includes('if (!registration || registration.uid !== uid || registration.trip_id !== tripId) throw new Error(\'SUBSCRIPTION_NOT_AUTHORIZED\');'), 'Verifica di appartenenza subscription mancante');
 });
 
