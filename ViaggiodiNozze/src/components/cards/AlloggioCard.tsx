@@ -81,12 +81,24 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
     if (!accommodation.bookingCode) return;
     try {
       await navigator.clipboard.writeText(accommodation.bookingCode);
-      setCopiedCode(true);
-      setTimeout(() => setCopiedCode(false), 2000);
-    } catch {}
+    } catch {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = accommodation.bookingCode;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch {}
+    }
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
   };
 
   const mapTarget = accommodation.address || accommodation.location || accommodation.name;
+  const displayAddress = accommodation.address || accommodation.location;
   const hasAttachments = Boolean(
     accommodation.attachments?.some((attachment) => Boolean(attachment.dataUrl?.trim()))
   );
@@ -96,124 +108,144 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
     ? copilotNotes
     : copilotNotes.replace(/\b(PIN|codice|keybox|cassaforte|digita)\s*[:=-]?\s*([A-Z0-9#*]{3,12})/gi, '$1: [Riservato]');
 
+  const headerTimeSummary = accommodation.checkInTime && accommodation.checkOutTime
+    ? `Check-in ${accommodation.checkInTime} · Out ${accommodation.checkOutTime}`
+    : accommodation.checkInTime
+    ? `Check-in dalle ${accommodation.checkInTime}`
+    : accommodation.checkOutTime
+    ? `Check-out entro ${accommodation.checkOutTime}`
+    : '';
+
+  const hasOperationalDetails = Boolean(
+    accommodation.arrivalTime ||
+    (canSeePrivateInfo && (accommodation as any).pinCode) ||
+    (canSeePrivateInfo && accommodation.bookingCode) ||
+    accommodation.cancellazioneGratuitaEntro
+  );
+
   return (
     <div
       onClick={onDetail || onEdit}
-      className="hounigo-panel cursor-pointer rounded-2xl p-4 sm:p-5 hover:shadow-md transition-all duration-200 flex flex-col gap-2.5 relative active:scale-[0.99] dark:bg-slate-800 dark:border-slate-700"
+      className="hounigo-ds-card hounigo-panel cursor-pointer"
     >
-      {/* TOP: BADGE CATEGORIA, ORARI CHECK-IN/OUT E PULSANTE ISTRUZIONI D'INGRESSO */}
-      <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 dark:border-slate-700 gap-2 flex-wrap">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200/80 dark:bg-indigo-500/15 dark:text-indigo-300 dark:border-indigo-500/30 text-xs font-bold uppercase tracking-wider">
-            <span>🛏️</span> Alloggio
-          </span>
-          {accommodation.sottocategoria && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700/80 dark:text-slate-200 dark:border-slate-600 text-xs font-bold">
-              <span>{accommodation.sottocategoria.toLowerCase().includes('camp') || accommodation.sottocategoria.toLowerCase().includes('piazz') ? '⛺' : accommodation.sottocategoria.toLowerCase().includes('b&b') ? '🏡' : accommodation.sottocategoria.toLowerCase().includes('appart') ? '🏢' : '🏨'}</span>
-              <span>{accommodation.sottocategoria}</span>
+      {/* 1. HEADER: CATEGORIA VIOLA/LILLA, ORARI CHECK-IN/OUT E AVVISO ISTRUZIONI SOLO SE PRESENTE */}
+      <div className="hounigo-ds-card-header hounigo-ds-header-alloggio">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider min-w-0">
+            <span aria-hidden="true">🛏️</span>
+            <span>Alloggio</span>
+            {accommodation.sottocategoria && (
+              <span className="font-bold normal-case tracking-normal opacity-90">
+                · {accommodation.sottocategoria}
+              </span>
+            )}
+          </div>
+
+          {headerTimeSummary && (
+            <span className="font-mono text-xs font-extrabold tabular-nums shrink-0">
+              {headerTimeSummary}
             </span>
-          )}
-          {(accommodation.checkInTime || accommodation.checkOutTime) && (
-            <div className="flex items-center gap-1.5 flex-wrap text-xs font-mono font-bold">
-              {accommodation.checkInTime && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800">
-                  🔑 Check-in dalle {accommodation.checkInTime}
-                </span>
-              )}
-              {accommodation.checkOutTime && (
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:border-slate-600">
-                  🏁 Check-out entro {accommodation.checkOutTime}
-                </span>
-              )}
-            </div>
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-            hasCopilotNotes
-              ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-500/30'
-              : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'
-          }`}
-          title="Istruzioni d'ingresso e note operative"
-        >
-          <span>🧭</span>
-          <span>Istruzioni</span>
-        </button>
+        {hasCopilotNotes && (
+          <div className="flex items-center justify-between gap-2 pt-0.5 text-xs font-bold">
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
+              className="inline-flex items-center gap-1.5 hover:underline cursor-pointer text-left"
+              title="Apri istruzioni d'ingresso"
+            >
+              <span>🧭</span>
+              <span>Istruzioni d&apos;ingresso disponibili</span>
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* BODY: STRUTTURA, DATE, INDIRIZZO, ORARIO DI ARRIVO E CODICI RISERVATI */}
-      <div className="space-y-1.5">
-        <h3 className={`font-extrabold text-base sm:text-lg leading-snug tracking-tight text-slate-900 dark:text-white ${isPaid ? 'opacity-95' : ''}`}>
+      {/* 2. BODY: NOME STRUTTURA, DATE DEL SOGGIORNO, INDIRIZZO E DETTAGLI OPERATIVI ESSENZIALI */}
+      <div className="hounigo-ds-card-body">
+        <h3 className="font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
           {accommodation.name}
         </h3>
 
         {(accommodation.checkIn || accommodation.checkOut) && (
-          <div className="flex items-center gap-1.5 text-xs text-indigo-700 dark:text-indigo-300 font-bold">
-            <span>📅</span>
+          <p className="text-xs sm:text-[13px] font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5">
+            <span className="shrink-0" aria-hidden="true">📅</span>
             <span>
               {accommodation.checkIn ? formatDateIT(accommodation.checkIn) : ''}
               {accommodation.checkOut ? ` → ${formatDateIT(accommodation.checkOut)}` : ''}
               {(accommodation as any).totalNights ? ` (${(accommodation as any).totalNights} ${(accommodation as any).totalNights === 1 ? 'notte' : 'notti'})` : ''}
             </span>
-          </div>
+          </p>
         )}
 
-        <p className="text-xs sm:text-[13px] font-medium leading-relaxed text-slate-700 dark:text-slate-200 flex items-start gap-1.5">
-          <span className="shrink-0 mt-0.5">📍</span>
-          <span className="break-words">{accommodation.address || accommodation.location || 'Indirizzo registrato'}</span>
-        </p>
+        {displayAddress && (
+          <p className="text-xs sm:text-[13px] font-semibold leading-snug text-slate-700 dark:text-slate-200 flex items-start gap-1.5">
+            <span className="shrink-0 mt-0.5" aria-hidden="true">📍</span>
+            <span className="break-words">{displayAddress}</span>
+          </p>
+        )}
 
-        {/* PILLS OPERATIVE: ARRIVO PREVISTO, PIN (SOLO AUTORIZZATI), CANCELLAZIONE */}
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          {accommodation.arrivalTime && (
-            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-800 dark:text-indigo-200 bg-indigo-50/90 dark:bg-indigo-950/50 border border-indigo-200/80 dark:border-indigo-800/60 px-2.5 py-1 rounded-xl">
-              <span>🕒</span>
-              <span>Arrivo previsto: <strong className="font-mono font-extrabold text-indigo-950 dark:text-white">ore {accommodation.arrivalTime}</strong></span>
-            </div>
-          )}
+        {hasOperationalDetails && (
+          <div className="pt-1 flex flex-col gap-1 text-xs sm:text-[13px] text-slate-800 dark:text-slate-200">
+            {(accommodation.arrivalTime || (canSeePrivateInfo && ((accommodation as any).pinCode || accommodation.bookingCode))) && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-semibold">
+                {accommodation.arrivalTime && (
+                  <span>
+                    🕒 Arrivo previsto: <strong className="font-mono font-extrabold text-slate-950 dark:text-white">ore {accommodation.arrivalTime}</strong>
+                  </span>
+                )}
+                {canSeePrivateInfo && (accommodation as any).pinCode && (
+                  <button
+                    type="button"
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        await navigator.clipboard.writeText((accommodation as any).pinCode);
+                        setCopiedPin(true);
+                        setTimeout(() => setCopiedPin(false), 2000);
+                      } catch {}
+                    }}
+                    className="inline-flex items-center gap-1 font-mono font-extrabold text-amber-900 dark:text-amber-300 hover:underline cursor-pointer"
+                    title="Copia PIN ingresso"
+                  >
+                    <span>🔑 PIN: {(accommodation as any).pinCode}</span>
+                    <span className="font-sans text-[11px] font-bold">({copiedPin ? '✓ Copiato' : 'Copia'})</span>
+                  </button>
+                )}
+                {canSeePrivateInfo && accommodation.bookingCode && (
+                  <button
+                    type="button"
+                    onClick={handleCopyCode}
+                    className="inline-flex items-center gap-1 font-mono font-bold text-slate-700 dark:text-slate-200 hover:underline cursor-pointer"
+                    title="Copia codice prenotazione"
+                  >
+                    <span>🎟️ Rif: {accommodation.bookingCode}</span>
+                    <span className="font-sans text-[11px]">({copiedCode ? '✓' : 'Copia'})</span>
+                  </button>
+                )}
+              </div>
+            )}
 
-          {canSeePrivateInfo && (accommodation as any).pinCode && (
-            <div className="inline-flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200/90 dark:border-amber-800/60 px-2.5 py-1 rounded-xl text-xs font-mono font-bold text-amber-950 dark:text-amber-200">
-              <span>🔑 PIN:</span>
-              <span>{(accommodation as any).pinCode}</span>
-              <button
-                type="button"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  try {
-                    await navigator.clipboard.writeText((accommodation as any).pinCode);
-                    setCopiedPin(true);
-                    setTimeout(() => setCopiedPin(false), 2000);
-                  } catch {}
-                }}
-                className="ml-1 text-[11px] text-amber-800 dark:text-amber-300 font-sans font-bold hover:underline cursor-pointer"
-              >
-                {copiedPin ? '✓ Copiato' : 'Copia'}
-              </button>
-            </div>
-          )}
-
-          {accommodation.cancellazioneGratuitaEntro && (
-            <div className="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-800 dark:text-emerald-300 bg-emerald-50/90 dark:bg-emerald-950/40 border border-emerald-200/90 dark:border-emerald-800/60 px-2.5 py-1 rounded-xl">
-              <span>🛡️</span>
-              <span>Cancellazione gratuita fino al {formatDateIT(accommodation.cancellazioneGratuitaEntro)}</span>
-            </div>
-          )}
-        </div>
+            {accommodation.cancellazioneGratuitaEntro && (
+              <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">
+                🛡️ Cancellazione gratuita fino al {formatDateIT(accommodation.cancellazioneGratuitaEntro)}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* FOOTER: PREZZO / STATO PAGAMENTO A SINISTRA, AZIONI CHIARE A DESTRA */}
-      <div className="mt-1 pt-2.5 border-t border-slate-100 dark:border-slate-700/50 flex items-center justify-between gap-2 flex-wrap">
-        <div className="flex items-center gap-2">
+      {/* 3. FOOTER: PREZZO / STATO PAGAMENTO A SINISTRA, AZIONI OPERATIVE A DESTRA */}
+      <div className="hounigo-ds-card-footer">
+        <div className="flex items-center gap-2 flex-wrap">
           {isFree ? (
-            <span className="text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 dark:bg-slate-700 px-2.5 py-1 rounded-lg">
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
               Gratuito
             </span>
           ) : costNum > 0 ? (
-            <span className="text-xs sm:text-sm font-extrabold text-slate-900 bg-slate-100 dark:bg-slate-700 dark:text-slate-100 px-2.5 py-1 rounded-lg tabular-nums">
+            <span className="text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
               {displayText}
             </span>
           ) : null}
@@ -222,10 +254,10 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             <button
               type="button"
               onClick={handleTogglePayment}
-              className={`inline-flex items-center text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-lg border transition-all cursor-pointer shadow-2xs ${
+              className={`inline-flex items-center text-[11px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-lg border transition-colors cursor-pointer ${
                 isPaid
-                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-800'
-                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-700'
+                  ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-300 dark:bg-emerald-500/15 dark:text-emerald-300 dark:border-emerald-800'
+                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-500/15 dark:text-amber-300 dark:border-amber-700'
               }`}
               title="Clicca per invertire stato: Saldato / Da saldare"
             >
@@ -234,29 +266,29 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap ml-auto">
+        <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+          {hasCopilotNotes && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
+              className="hounigo-ds-action-btn"
+              title="Istruzioni d'ingresso e note operative"
+            >
+              <span>🧭</span>
+              <span>Istruzioni</span>
+            </button>
+          )}
+
           {accommodation.phone && (
             <a
               href={`tel:${accommodation.phone}`}
               onClick={(e) => e.stopPropagation()}
-              className="min-h-[34px] inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600 dark:text-slate-200 text-xs font-bold transition-colors"
+              className="hounigo-ds-action-btn"
               title="Chiama la struttura"
             >
               <span>📞</span>
-              <span className="hidden sm:inline">Chiama</span>
+              <span>Chiama</span>
             </a>
-          )}
-
-          {canSeePrivateInfo && accommodation.bookingCode && (
-            <button
-              type="button"
-              onClick={handleCopyCode}
-              title="Copia codice prenotazione"
-              className="min-h-[34px] inline-flex items-center gap-1.5 font-mono text-xs font-bold bg-indigo-50/80 hover:bg-indigo-100 px-2.5 py-1.5 rounded-xl border border-indigo-200 dark:bg-indigo-950/50 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 transition-colors cursor-pointer"
-            >
-              <span>{copiedCode ? '✓' : '#️⃣'}</span>
-              <span>{copiedCode ? 'Copiato' : accommodation.bookingCode}</span>
-            </button>
           )}
 
           <button
@@ -265,12 +297,8 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               e.stopPropagation();
               setIsAttachmentOpen(true);
             }}
-            className={`min-h-[34px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-colors shadow-2xs cursor-pointer border ${
-              hasAttachments
-                ? 'bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:hover:bg-emerald-900/60 dark:text-emerald-300 dark:border-emerald-800'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-200 dark:border-slate-600'
-            }`}
-            title="Biglietti e QR / Voucher alloggio"
+            className={`hounigo-ds-action-btn ${hasAttachments ? 'hounigo-ds-action-btn-highlight' : ''}`}
+            title="Voucher e allegati dell'alloggio"
           >
             <span>🎫</span>
             <span>Voucher</span>
@@ -282,7 +310,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="min-h-[34px] inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 dark:border-slate-600 dark:text-slate-200 text-xs font-bold transition-colors"
+              className="hounigo-ds-action-btn"
               title="Apri su Google Maps"
             >
               <span>📍</span>
