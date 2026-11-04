@@ -1,3 +1,4 @@
+import PushOnboardingBanner from '../components/common/PushOnboardingBanner';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante, Shopping, Scadenza } from '../types';
@@ -994,6 +995,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   return (
     <div className="space-y-4 pt-1 animate-fade-in pb-6 sm:pb-8">
+      {/* Banner di Onboarding Notifiche al primo accesso */}
+      <PushOnboardingBanner />
       {/* Toast Feedback Operazioni */}
       {feedbackBanner && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-bounce-subtle pointer-events-none">

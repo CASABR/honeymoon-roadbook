@@ -1,3 +1,6 @@
+import { sendPushTestOnServer, readStoredPushRegistration } from '../../services/pushNotificationService';
+import { usePushNotifications } from '../../hooks/usePushNotifications';
+import { createPortal } from 'react-dom';
 import { useState } from 'react';
 import type { TripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
@@ -39,7 +42,11 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
   const [isDryRun, setIsDryRun] = useState(true);
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [feedbackMessage, setFeedbackMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<{ text: string; type: 'success' | 'error'; isGlobalAdminError?: boolean } | null>(null);
+  const pushLocal = usePushNotifications();
+  const [isSendingLocalTest, setIsSendingLocalTest] = useState(false);
+  const [localTestFeedback, setLocalTestFeedback] = useState<string | null>(null);
+  const [copiedUid, setCopiedUid] = useState(false);
 
   // Storico invii locale sicuro (zero PII)
   const [history, setHistory] = useState<NotificationHistoryItem[]>(() => {
@@ -98,7 +105,38 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
   // Stima destinatari per il viaggio corrente
   const estimatedRecipients = manualTarget === 'all_subscribers' ? 2 : 1;
 
-  // Invio manuale protetto con chiamata al Worker Cloudflare
+
+  const handleSendLocalDeviceTest = async () => {
+    setIsSendingLocalTest(true);
+    setLocalTestFeedback(null);
+    try {
+      if (pushLocal.permission !== 'granted' || pushLocal.state !== 'active') {
+        await pushLocal.subscribeToPush();
+      }
+      const reg = readStoredPushRegistration();
+      if (!reg?.subscriberId) {
+        throw new Error('Dispositivo non ancora registrato sul server D1. Riprova ad abilitare le notifiche.');
+      }
+      await sendPushTestOnServer(reg.subscriberId);
+      setLocalTestFeedback('✓ Richiesta accettata dal server. La notifica apparirà sul dispositivo se abilitata a livello OS.');
+    } catch (err: any) {
+      setLocalTestFeedback('⚠️ ' + (err?.message || 'Errore durante l\'invio del test locale.'));
+    } finally {
+      setIsSendingLocalTest(false);
+    }
+  };
+
+  const handleCopyCurrentUid = async () => {
+    if (auth.currentUser?.uid) {
+      try {
+        await navigator.clipboard.writeText(auth.currentUser.uid);
+        setCopiedUid(true);
+        setTimeout(() => setCopiedUid(false), 2500);
+      } catch {}
+    }
+  };
+
+    // Invio manuale protetto con chiamata al Worker Cloudflare
   const handleExecuteSend = async () => {
     setIsSending(true);
     setFeedbackMessage(null);
@@ -216,6 +254,80 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
           </p>
         </div>
       </div>
+
+      
+      {/* ─── SEZIONE DEDICATA: TEST NOTIFICA SUL TUO DISPOSITIVO (Zero Privilegi Globali Richiesti) ─── */}
+      <div className="rounded-2xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/40 dark:bg-indigo-950/20 p-4 sm:p-5 shadow-xs space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">📲</span>
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-wider text-indigo-950 dark:text-indigo-200">
+                Prova Ricezione Push su questo Dispositivo
+              </h3>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                Verifica se il tuo browser o smartphone riceve realmente le notifiche di viaggio (Owner e Copilota autorizzati).
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className={`text-[10px] font-black px-2.5 py-1 rounded-full border ${
+              pushLocal.state === 'active'
+                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800'
+                : 'bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+            }`}>
+              {pushLocal.state === 'active' ? '✓ Subscription Attiva' : '⚠️ Non registrato'}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3 flex-wrap pt-1">
+          <button
+            type="button"
+            disabled={isSendingLocalTest}
+            onClick={handleSendLocalDeviceTest}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50 min-h-[36px]"
+          >
+            {isSendingLocalTest ? 'Invio test in corso…' : 'Invia Notifica di Prova a questo Dispositivo ➔'}
+          </button>
+          {localTestFeedback && (
+            <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 animate-fade-in">
+              {localTestFeedback}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {feedbackMessage?.isGlobalAdminError && (
+        <div className="bg-amber-50/90 dark:bg-amber-950/50 border border-amber-300 dark:border-amber-800 rounded-2xl p-4 text-xs space-y-2.5 animate-fade-in text-amber-950 dark:text-amber-200">
+          <div className="flex items-center gap-2 font-black text-amber-900 dark:text-amber-100">
+            <span className="text-base">🔒</span>
+            <span>Distinzione di Sicurezza: Owner di Viaggio vs Amministratore Globale</span>
+          </div>
+          <p className="leading-relaxed opacity-95">
+            L'invio broadcast manuale a tutti i partecipanti è un'operazione di sistema protetta da <code>assertGlobalAdmin</code>. 
+            L'account attualmente connesso è proprietario del viaggio locale, ma non è ancora inserito nella lista degli amministratori globali dell'infrastruttura.
+          </p>
+          <div className="bg-white/80 dark:bg-slate-900/60 p-3 rounded-xl border border-amber-200 dark:border-amber-900 space-y-1 font-mono text-[11px]">
+            <p className="font-sans font-bold text-slate-800 dark:text-slate-200">Per abilitare questo account come Amministratore Globale:</p>
+            <p>1. Apri Firebase Console ➔ Firestore Database ➔ Collezione <code>system_admins</code></p>
+            <p>2. Crea documento con ID: <code>{auth.currentUser?.uid || 'Tuo UID Utente'}</code></p>
+            <p>3. Aggiungi i campi: <code>role: "admin"</code> (stringa) e <code>email: "{auth.currentUser?.email || 'admin@hounigo.com'}"</code></p>
+          </div>
+          <div className="flex items-center justify-between gap-2 pt-1 flex-wrap">
+            <span className="text-[11px] text-slate-600 dark:text-slate-300 font-mono">
+              UID: <strong>{auth.currentUser?.uid || 'Non disponibile'}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={handleCopyCurrentUid}
+              className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-[11px] transition-colors cursor-pointer"
+            >
+              {copiedUid ? '✓ UID Copiato' : 'Copia UID'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {feedbackMessage && (
         <div className={`p-3.5 rounded-2xl text-xs font-bold border flex items-center gap-2 animate-fade-in ${
@@ -481,7 +593,7 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
       </div>
 
       {/* ─── MODALE CONFERMA ESPLICITA INVIO MULTIPLO ───────────────────────────── */}
-      {isConfirmModalOpen && (
+      {isConfirmModalOpen && typeof document !== 'undefined' && document.body && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
           <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 shadow-2xl space-y-4">
             <h3 className="text-base font-extrabold text-slate-900 dark:text-white flex items-center gap-2">
@@ -527,7 +639,7 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </div>
   );
 }

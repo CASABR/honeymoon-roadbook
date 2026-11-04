@@ -390,8 +390,12 @@ service cloud.firestore {
     // =========================================================================
     // Nessun client può leggere o scrivere /system_admins.
     // La gestione avviene esclusivamente in ambiente fidato (Admin SDK / Console).
+    // L'utente autenticato può verificare esclusivamente se il PROPRIO UID è presente (self-check sicuro).
+    // Nessun client può leggere l'elenco degli altri amministratori né scrivere o alterare record.
+    // La gestione avviene esclusivamente in ambiente fidato (Firebase Console / Admin SDK).
     match /system_admins/{adminId} {
-      allow read, write: if false;
+      allow read: if isSignedIn() && request.auth.uid == adminId;
+      allow write: if false;
     }
 
     // =========================================================================

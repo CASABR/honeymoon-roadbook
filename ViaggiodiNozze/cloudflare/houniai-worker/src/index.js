@@ -57,8 +57,26 @@ async function getFirestoreDocument(path, idToken, env) {
 
 async function assertGlobalAdmin(uid, idToken, env) {
   try {
+    // 1. Verifica Secret server-side SYSTEM_ADMIN_UIDS (se configurato su Cloudflare)
+    if (env.SYSTEM_ADMIN_UIDS) {
+      const allowedUids = String(env.SYSTEM_ADMIN_UIDS).split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+      if (allowedUids.includes(uid)) return true;
+    }
+
+    // 2. Verifica documento Firestore system_admins/{uid}
     const adminDoc = await getFirestoreDocument(`system_admins/${encodeURIComponent(uid)}`, idToken, env).catch(() => null);
-    return Boolean(adminDoc && adminDoc.fields);
+    if (adminDoc && adminDoc.fields) return true;
+
+    // 3. Verifica eventuale custom claim admin nel token JWT
+    if (idToken && idToken.includes('.')) {
+      try {
+        const parts = idToken.split('.');
+        const payload = JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0))));
+        if (payload?.admin === true || payload?.role === 'admin') return true;
+      } catch {}
+    }
+
+    return false;
   } catch {
     return false;
   }
