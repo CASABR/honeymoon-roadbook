@@ -2542,8 +2542,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     {category.label}
                   </div>
                   <div className="text-[10px] text-slate-400 dark:text-slate-500 line-clamp-1">
-                    {category.type === 'tappa' ? 'Soste & mete'
-                      : category.type === 'attivita' ? 'Visite & tour'
+                    {category.type === 'tappa' ? 'Luogo da visitare o sosta'
+                      : category.type === 'attivita' ? 'Esperienza, tour o attività organizzata'
                       : category.type === 'alloggio' ? 'Hotel & check-in'
                       : category.type === 'trasporto' ? 'Voli, treni & auto'
                       : category.type === 'ristorante' ? 'Pranzi & cene'

@@ -107,6 +107,34 @@ export function getGoogleMapsUrl(query: string): string {
 /**
  * Apre in sicurezza un link a Google Maps in una nuova scheda.
  */
+
+/**
+ * Determina se un elemento dispone di una destinazione geografica affidabile
+ * (coordinate, URL Maps dedicato, o indirizzo fisico esplicito)
+ * rispetto a una semplice ricerca testuale per nome.
+ */
+export function hasReliableGeoDestination(item?: {
+  coordinate?: { lat?: number; lng?: number };
+  mapsUrl?: string;
+  indirizzo?: string;
+  address?: string;
+  googleMapsUrl?: string;
+}): boolean {
+  if (!item) return false;
+  if (item.coordinate && typeof item.coordinate.lat === 'number' && typeof item.coordinate.lng === 'number' && (item.coordinate.lat !== 0 || item.coordinate.lng !== 0)) {
+    return true;
+  }
+  if (item.mapsUrl && item.mapsUrl.trim().length > 0) return true;
+  if (item.googleMapsUrl && item.googleMapsUrl.trim().length > 0) return true;
+  if (item.indirizzo && item.indirizzo.trim().length > 0) return true;
+  if (item.address && item.address.trim().length > 0) return true;
+  return false;
+}
+
+export function getMapsActionLabel(hasGeo: boolean): string {
+  return hasGeo ? 'Indicazioni' : 'Cerca su Maps';
+}
+
 export function openMapLink(url?: string): void {
   if (!url) return;
   const resolved = resolveMapUrl(url);

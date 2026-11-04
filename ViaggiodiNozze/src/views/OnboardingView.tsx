@@ -653,10 +653,10 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           <div className="flex flex-col items-center gap-2 pt-1">
             <HounigoLogo variant="onLight" size="md" className="mx-auto" />
             <h1 className="font-brand-title font-extrabold text-lg sm:text-xl text-[#172033] tracking-tight leading-snug mt-1">
-              Il Roadbook digitale di nozze & avventura
+              Il Roadbook per organizzare e condividere il tuo viaggio
             </h1>
             <p className="font-brand-body text-xs text-slate-500 font-medium leading-relaxed max-w-xs mx-auto">
-              Itinerario condiviso, tappe offline e sincronizzazione in tempo reale per viaggiatori e copiloti.
+              Itinerario giorno per giorno, tappe offline, documenti e sincronizzazione in tempo reale tra viaggiatori.
             </p>
           </div>
         </div>

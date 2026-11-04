@@ -1,6 +1,6 @@
 import type { TimelineItem, Attivita, Trasporto, Alloggio } from '../../types';
 import Modal from '../common/Modal';
-import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
+import { resolveMapUrl, openMapLink, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { openAttachmentInNewTab } from '../../utils/fileAttachment';
 import { formatDateIT } from '../../utils/tripDates';
@@ -538,8 +538,9 @@ export default function TimelineItemDetailModal({
                         type="button"
                         onClick={() => openMapLink(resolveMapUrl(tp.mapsUrl || tp.indirizzo || tp.titolo))}
                         className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
+                        title={hasReliableGeoDestination(tp) ? 'Avvia navigazione verso la destinazione' : 'Cerca il luogo per nome su Google Maps'}
                       >
-                        Apri Maps ↗
+                        {getMapsActionLabel(hasReliableGeoDestination(tp))} ↗
                       </button>
                     )}
                   </div>

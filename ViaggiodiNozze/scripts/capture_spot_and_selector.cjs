@@ -3,8 +3,8 @@ const fs = require('fs');
 const path = require('path');
 
 const CHROME_PATH = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
-const PORT = 9239;
-const PREVIEW_PORT = 4189;
+const PORT = 9241;
+const PREVIEW_PORT = 4191;
 const BASE_URL = `http://localhost:${PREVIEW_PORT}/honeymoon-roadbook/`;
 const ARTIFACT_DIR = 'C:\\Users\\CUSI\\.gemini\\antigravity\\brain\\d1e39d97-0426-46d3-8997-c8e3fadd549e';
 const LOCAL_SCREENSHOT_DIR = path.join(__dirname, '..', 'screenshots');
@@ -88,9 +88,8 @@ async function setViewport(cdp, width, height, isMobile = true) {
 }
 
 async function run() {
-  console.log('=== AVVIO PREVIEW VITE E CATTURA SCREENSHOT IPHONE 15 ===\n');
+  console.log('=== AVVIO PREVIEW VITE E CATTURA SCREENSHOT IPHONE 15 (USABILITA FINALE) ===\n');
 
-  // Avvio Vite Preview
   const previewProc = spawn('npx.cmd', ['vite', 'preview', '--port', String(PREVIEW_PORT), '--host', '127.0.0.1'], {
     cwd: path.join(__dirname, '..'),
     shell: true,
@@ -104,7 +103,7 @@ async function run() {
     '--headless=new',
     '--disable-gpu',
     '--no-sandbox',
-    '--user-data-dir=C:\\Users\\CUSI\\AppData\\Local\\Temp\\chrome-debug-iphone-spot'
+    '--user-data-dir=C:\\Users\\CUSI\\AppData\\Local\\Temp\\chrome-debug-iphone-final-qa'
   ]);
 
   let wsUrl = null;
@@ -138,6 +137,9 @@ async function run() {
     await cdp.send('Page.navigate', { url: BASE_URL });
     await sleep(2000);
 
+    // 1. Schermata Primo Accesso pulito (Onboarding con testo naturale)
+    await captureScreenshot(cdp, 'real_iphone15_primo_accesso.png');
+
     // Iniezione sessione
     await cdp.eval(`(() => {
       localStorage.setItem('houni_trip_id', '0000');
@@ -149,51 +151,25 @@ async function run() {
     await cdp.send('Page.navigate', { url: BASE_URL });
     await sleep(2000);
 
-    // Clicca sul pulsante "+ Aggiungi"
+    // 2. Schermata Giornata Oggi con timeline e card
+    await captureScreenshot(cdp, 'real_iphone15_oggi_timeline.png');
+
+    // 3. Clicca sul pulsante "+ Aggiungi" per mostrare il selettore categorie aggiornato
     await cdp.eval(`(() => {
       const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent && b.textContent.includes('Aggiungi'));
       if (btn) btn.click();
     })()`);
     await sleep(800);
 
-    // Clicca sulla card "Attività"
-    await cdp.eval(`(() => {
-      const card = Array.from(document.querySelectorAll('button')).find(b => b.textContent && b.textContent.includes('Attività'));
-      if (card) card.click();
-    })()`);
-    await sleep(1000);
+    await captureScreenshot(cdp, 'real_iphone15_categorie_modal.png');
 
-    // Seleziona Spot fotografico
-    await cdp.eval(`(() => {
-      const spotBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent && b.textContent.includes('Spot foto'));
-      if (spotBtn) spotBtn.click();
-    })()`);
-    await sleep(500);
-
-    await captureScreenshot(cdp, 'real_iphone15_attivita_selector.png');
-
-    // Chiudi modale attività e apri Tappa
-    await cdp.eval(`(() => {
-      const cancelBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent && (b.textContent.includes('Annulla') || b.textContent.includes('✕')));
-      if (cancelBtn) cancelBtn.click();
-    })()`);
-    await sleep(500);
-
-    // Riapri selettore card
-    await cdp.eval(`(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent && b.textContent.includes('Aggiungi'));
-      if (btn) btn.click();
-    })()`);
-    await sleep(800);
-
-    // Clicca su "Tappa"
+    // 4. Clicca su "Tappa" e seleziona "Spot fotografico" per mostrare la form con DropZone e lightWindow
     await cdp.eval(`(() => {
       const card = Array.from(document.querySelectorAll('button')).find(b => b.textContent && b.textContent.includes('Tappa'));
       if (card) card.click();
     })()`);
     await sleep(1000);
 
-    // Seleziona categoria "Spot fotografico" nella select
     await cdp.eval(`(() => {
       const select = document.querySelector('select');
       if (select) {
@@ -205,7 +181,7 @@ async function run() {
 
     await captureScreenshot(cdp, 'real_iphone15_tappa_spot_form.png');
 
-    console.log('\n[SUCCESSO] Catture completate con successo!');
+    console.log('\n[SUCCESSO] Tutte le 4 catture reali iPhone 15 completate!');
   } finally {
     cdp.close();
     chromeProc.kill();

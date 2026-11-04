@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
 import type { Attivita, Tappa } from '../../types';
-import { resolveMapUrl } from '../../utils/mapsHelper';
+import { resolveMapUrl, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
 import AttivitaTicketsModal from '../modals/AttivitaTicketsModal';
 import QRCodeModal from '../modals/QRCodeModal';
@@ -467,9 +467,9 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 className="hounigo-ds-action-btn"
-                title="Apri su Google Maps"
+                title={hasReliableGeoDestination(activity) ? 'Avvia navigazione verso la destinazione' : 'Cerca il luogo per nome su Google Maps'}
               >
-                <span>Maps ↗</span>
+                <span>{getMapsActionLabel(hasReliableGeoDestination(activity))} ↗</span>
               </a>
             )}
           </div>

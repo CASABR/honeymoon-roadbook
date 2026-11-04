@@ -2,7 +2,7 @@ import type { Tappa } from '../../types';
 import { useState, useEffect } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
-import { resolveMapUrl } from '../../utils/mapsHelper';
+import { resolveMapUrl, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import OpeningHoursBadge from '../common/OpeningHoursBadge';
 import { PHOTO_LIGHT_LABELS } from '../../utils/activityType';
@@ -172,9 +172,9 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="hounigo-ds-action-btn"
-              title="Apri su Google Maps"
+              title={hasReliableGeoDestination(tappa) ? "Avvia navigazione verso la destinazione" : "Cerca il luogo per nome su Google Maps"}
             >
-              <span>Maps ↗</span>
+              <span>{getMapsActionLabel(hasReliableGeoDestination(tappa))} ↗</span>
             </a>
           )}
         </div>
