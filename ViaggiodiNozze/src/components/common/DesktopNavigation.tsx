@@ -6,6 +6,7 @@ import DarkModeToggle from '../common/DarkModeToggle';
 import SettingsMenu from '../common/SettingsMenu';
 import HounigoLogo from '../common/HounigoLogo';
 import { AppInfoButton } from '../common/AppInfo';
+import NotificationBellButton from '../common/NotificationBellButton';
 
 export type DesktopNavSection =
   | 'prenotazioni'
@@ -154,6 +155,7 @@ export default function DesktopNavigation({
           </div>
           <div className="flex items-center gap-1.5 shrink-0">
             <AppInfoButton />
+            <NotificationBellButton />
             <DarkModeToggle />
             <SettingsMenu />
           </div>

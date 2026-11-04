@@ -256,7 +256,8 @@ export async function handlePushRequest(path, uid, tripId, payload, env) {
     }
 
     // Deduplicazione: stesso titolo e testo inviati entro 60 secondi
-    const dispatchHash = (await sha256(`admin|${tripId}|${title}|${body}`)).slice(0, 48);
+    const dispatchTargetKey = target === 'all_trips_broadcast' ? 'all_trips' : tripId;
+    const dispatchHash = (await sha256(`admin|${dispatchTargetKey}|${title}|${body}`)).slice(0, 48);
     const recent = await env.RATE_LIMITS.prepare(
       'SELECT created_at FROM push_dispatches WHERE dispatch_key = ?1'
     ).bind(dispatchHash).first();
@@ -265,11 +266,17 @@ export async function handlePushRequest(path, uid, tripId, payload, env) {
     }
 
     // Selezione destinatari autorizzati con consenso esplicito (enabled = 1)
-    let queryStr = 'SELECT subscriber_id, subscription_json FROM push_subscriptions WHERE trip_id = ?1 AND enabled = 1';
-    let params = [tripId];
-    if (target === 'custom_uid' && payload.customUid) {
-      queryStr += ' AND uid = ?2';
-      params.push(String(payload.customUid).trim());
+    let queryStr;
+    let params = [];
+    if (target === 'all_trips_broadcast') {
+      // Broadcast globale multi-viaggio con deduplicazione su endpoint_hash
+      queryStr = 'SELECT subscriber_id, subscription_json, trip_id FROM push_subscriptions WHERE enabled = 1 GROUP BY endpoint_hash';
+    } else if (target === 'custom_uid' && payload.customUid) {
+      queryStr = 'SELECT subscriber_id, subscription_json FROM push_subscriptions WHERE trip_id = ?1 AND enabled = 1 AND uid = ?2';
+      params = [tripId, String(payload.customUid).trim()];
+    } else {
+      queryStr = 'SELECT subscriber_id, subscription_json FROM push_subscriptions WHERE trip_id = ?1 AND enabled = 1';
+      params = [tripId];
     }
     const subscribers = await env.RATE_LIMITS.prepare(queryStr).bind(...params).all();
     const recipientCount = subscribers.results ? subscribers.results.length : 0;

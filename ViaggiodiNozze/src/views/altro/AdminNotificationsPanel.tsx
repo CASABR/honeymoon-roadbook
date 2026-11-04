@@ -35,7 +35,7 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
   // Stato Notifiche Manuali
   const [manualTitle, setManualTitle] = useState('');
   const [manualBody, setManualBody] = useState('');
-  const [manualTarget, setManualTarget] = useState<'all_subscribers' | 'copilots_only' | 'custom_uid'>('all_subscribers');
+  const [manualTarget, setManualTarget] = useState<'all_subscribers' | 'copilots_only' | 'custom_uid' | 'all_trips_broadcast'>('all_subscribers');
   const [customUid, setCustomUid] = useState('');
   const [scheduleMode, setScheduleMode] = useState<'now' | 'scheduled'>('now');
   const [scheduleTime, setScheduleTime] = useState('12:00');
@@ -103,7 +103,7 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
   };
 
   // Stima destinatari per il viaggio corrente
-  const estimatedRecipients = manualTarget === 'all_subscribers' ? 2 : 1;
+  const estimatedRecipients = manualTarget === 'all_trips_broadcast' ? 4 : manualTarget === 'all_subscribers' ? 2 : 1;
 
 
   const handleSendLocalDeviceTest = async () => {
@@ -177,7 +177,7 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
         timestamp: new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
         title: manualTitle.trim() || 'Avviso di viaggio',
         body: manualBody.trim() || 'Nessun dettaglio aggiuntivo.',
-        target: manualTarget === 'all_subscribers' ? 'Tutti gli iscritti' : manualTarget === 'copilots_only' ? 'Solo Copilota' : `Utente ${customUid}`,
+        target: manualTarget === 'all_trips_broadcast' ? 'Tutti i viaggi (Broadcast Globale)' : manualTarget === 'all_subscribers' ? 'Tutti gli iscritti' : manualTarget === 'copilots_only' ? 'Solo Copilota' : `Utente ${customUid}`,
         status: serverStatus,
         recipientCount: recipientsSent
       };
@@ -390,7 +390,8 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
                 onChange={e => setManualTarget(e.target.value as any)}
                 className="w-full px-3 py-2 text-xs font-bold rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white outline-none"
               >
-                <option value="all_subscribers">Tutti gli utenti con notifiche attive (Stima: {estimatedRecipients})</option>
+                <option value="all_subscribers">Tutti gli utenti con notifiche attive nel viaggio (Stima: {estimatedRecipients})</option>
+                <option value="all_trips_broadcast">🌍 Tutti i viaggi (Broadcast Globale Multi-Viaggio)</option>
                 <option value="copilots_only">Solo Copilota / Organizzatore (Stima: 1)</option>
                 <option value="custom_uid">Destinatario autorizzato specifico (UID)</option>
               </select>
@@ -609,7 +610,8 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
             ) : (
               <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 space-y-1">
                 <p className="font-bold">Attenzione prima di procedere:</p>
-                <p>Stai per inviare una notifica push a <strong>{estimatedRecipients} dispositivo/i</strong> collegati al viaggio <em>{tripTitle}</em>.</p>
+                <p>Stai per inviare una notifica push a <strong>{estimatedRecipients} dispositivo/i</strong> {manualTarget === 'all_trips_broadcast' ? 'iscritti su tutti i viaggi registrati (Broadcast Globale).' : <>collegati al viaggio <em>{tripTitle}</em>.</>}</p>
+                <p className="text-[11px] text-amber-700 dark:text-amber-300">Quota limite di sicurezza Cloudflare Free: max 100 invii al giorno.</p>
                 <p className="text-[11px] opacity-80">La notifica apparirà sulla schermata blocco dei telefoni autorizzati.</p>
               </div>
             )}

@@ -8,6 +8,7 @@ import {
   decodeBase64Image,
   hashIdentity,
   isAuthorizedEditor,
+  readFirestoreFields,
   normalizeAiResponse,
   validateTripId,
 } from './core.js';
@@ -77,6 +78,24 @@ async function assertGlobalAdmin(uid, idToken, env) {
     }
 
     return false;
+  } catch {
+    return false;
+  }
+}
+
+async function assertTripMember(uid, tripId, idToken, env) {
+  try {
+    const encodedTripId = encodeURIComponent(tripId);
+    const [trip, member] = await Promise.all([
+      getFirestoreDocument(`trips/${encodedTripId}`, idToken, env).catch(() => null),
+      getFirestoreDocument(`trips/${encodedTripId}/members/${encodeURIComponent(uid)}`, idToken, env).catch(() => null),
+    ]);
+    if (!trip) return false;
+    const tripFields = readFirestoreFields(trip.fields || {});
+    if (tripFields.ownerUid === uid || tripFields.ownerId === uid) return true;
+    const memberFields = readFirestoreFields(member?.fields || {});
+    const role = memberFields.role || '';
+    return role === 'owner' || role === 'copilota' || role === 'viewer';
   } catch {
     return false;
   }
@@ -178,8 +197,13 @@ export async function handleRequest(request, env) {
     if (!isAdmin) {
       return json(origin, env, 403, { error: 'Operazione riservata esclusivamente agli amministratori globali (system_admins).' });
     }
+  } else if (isPushRequest) {
+    const isMember = await assertTripMember(uid, tripId, idToken, env);
+    if (!isMember) {
+      return json(origin, env, 403, { error: 'Non sei autorizzato per le notifiche di questo viaggio.' });
+    }
   } else if (!(await assertEditor(uid, tripId, idToken, env))) {
-    return json(origin, env, 403, { error: 'HouniAI e le notifiche del viaggio sono riservate a Owner e Copilota autorizzati.' });
+    return json(origin, env, 403, { error: 'HouniAI e le modifiche al viaggio sono riservate a Owner e Copilota autorizzati.' });
   }
 
   if (isPushRequest) {

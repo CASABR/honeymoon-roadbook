@@ -17,6 +17,7 @@ import RouteErrorBoundary from './components/common/RouteErrorBoundary';
 const MappaView = lazyWithRetry(() => import('./views/MappaView'), 'MappaView');
 const SpeseBudgetView = lazyWithRetry(() => import('./views/altro/SpeseBudgetView'), 'SpeseBudgetView');
 import DarkModeToggle from './components/common/DarkModeToggle';
+import NotificationBellButton from './components/common/NotificationBellButton';
 import HounigoLogo from './components/common/HounigoLogo';
 import UpdateToast from './components/common/UpdateToast';
 import { SyncService } from './storage/syncService';
@@ -772,6 +773,7 @@ export default function App() {
               <span className="text-sm font-bold">?</span>
             </button>
             <AppInfoButton />
+            <NotificationBellButton />
             <DarkModeToggle />
             <SettingsMenu />
           </div>
