@@ -20,14 +20,24 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
   useEffect(() => {
     if (!isOpen) return;
 
+    // Blocca lo scroll sia sul body che su container interni con preservazione esatta della coordinata
     const previousOverflow = document.body.style.overflow;
+    const previousPosition = document.body.style.position;
+    const previousTop = document.body.style.top;
+    const previousWidth = document.body.style.width;
+    const scrollY = window.scrollY || window.pageYOffset || 0;
+
+    // Se esiste un container scrollabile principale interno ad App.tsx
+    const mainScrollEl = document.querySelector<HTMLElement>('.h-screen.overflow-y-auto, [data-main-scroll-container]');
+    const mainScrollTop = mainScrollEl ? mainScrollEl.scrollTop : 0;
+
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = 'hidden';
 
-    // Only focus the modal container if no element inside already has focus
+    // Focus solo sul container modale e solo con preventScroll: true
     const focusTimer = window.setTimeout(() => {
       if (modalRef.current && !modalRef.current.contains(document.activeElement)) {
-        modalRef.current.focus();
+        modalRef.current.focus({ preventScroll: true });
       }
     }, 0);
 
@@ -43,26 +53,32 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
       )).filter((element) => element.offsetParent !== null);
       if (focusable.length === 0) {
         event.preventDefault();
-        modalRef.current.focus();
+        modalRef.current.focus({ preventScroll: true });
         return;
       }
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
-        last.focus();
+        last.focus({ preventScroll: true });
       } else if (!event.shiftKey && document.activeElement === last) {
         event.preventDefault();
-        first.focus();
+        first.focus({ preventScroll: true });
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.clearTimeout(focusTimer);
       document.body.style.overflow = previousOverflow;
+      document.body.style.position = previousPosition;
+      document.body.style.top = previousTop;
+      document.body.style.width = previousWidth;
+      if (scrollY > 0) window.scrollTo(0, scrollY);
+      if (mainScrollEl && mainScrollTop > 0) mainScrollEl.scrollTop = mainScrollTop;
+
       window.removeEventListener('keydown', handleKeyDown);
       if (previousFocusRef.current && document.contains(previousFocusRef.current)) {
-        previousFocusRef.current.focus();
+        previousFocusRef.current.focus({ preventScroll: true });
       }
     };
   }, [isOpen]);
@@ -96,7 +112,7 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
-        className={`modal-sheet-container relative z-[100000] max-w-lg flex flex-col overflow-hidden ${centered ? 'w-full border rounded-2xl' : 'w-full border-t sm:border rounded-t-3xl sm:rounded-2xl'} ${accentBorder} text-[#172033] dark:text-slate-100 dark:bg-[#1E293B] dark:border-slate-700 max-h-[90dvh] sm:my-auto`}
+        className={`modal-sheet-container relative z-[100000] max-w-lg flex flex-col overflow-hidden ${centered ? 'w-full border rounded-2xl' : 'w-full border-t sm:border rounded-t-3xl sm:rounded-2xl'} ${accentBorder} text-[#172033] dark:text-slate-100 dark:bg-[#1E293B] dark:border-slate-700 max-h-[88dvh] sm:my-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* iOS Drag Handle Pill on Mobile */}

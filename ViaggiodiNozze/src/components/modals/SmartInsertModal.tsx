@@ -1,3 +1,5 @@
+import { verifySingleTappa, parseTappaSequence, parseRawMultiLineTappe, parseMixedTappaAndActivity } from '../../services/tappaVerificationService';
+import { createPortal } from 'react-dom';
 import { useState, useEffect, useRef } from 'react';
 import { extractFromText, extractFromAttachment, type ExtractedEntity, type ExtractedTappa } from '../../services/aiExtractor';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
@@ -431,6 +433,93 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
     if (!text.trim() && !attachedFile) return;
 
     const currentUserText = text.trim();
+
+    // Riconoscimento intelligente deterministico tappe prima dell'AI (garantisce categoria 'tappa' e non 'attivita')
+    if (currentUserText && !attachedFile) {
+      // Caso Mix: Tappa + Attività ("Arrivo a Kyoto e visita al tempio Fushimi Inari")
+      const mixed = parseMixedTappaAndActivity(currentUserText);
+      if (mixed && mixed.tappa && mixed.attivita) {
+        const vTappa = await verifySingleTappa(mixed.tappa.titolo, { data: mixed.tappa.data });
+        const items: ExtractedEntity[] = [
+          {
+            ...mixed.tappa,
+            titolo: vTappa.titolo,
+            indirizzo: vTappa.indirizzo || mixed.tappa.indirizzo,
+            mapsUrl: vTappa.mapsUrl
+          },
+          mixed.attivita
+        ];
+        setImportQueue(items.map((entity, idx) => ({
+          id: `queue_${Date.now()}_${idx}`,
+          entity,
+          status: 'pending',
+          attachment: null,
+          verificationStatus: idx === 0 ? vTappa.verificationStatus : 'verified',
+          verificationDetails: idx === 0 ? vTappa.verificationDetails : undefined
+        })));
+        setActiveQueueId(null);
+        setStep('queue');
+        return;
+      }
+
+      // Caso Sequenza tappe con freccia (Tokyo -> Hakone -> Kyoto)
+      const seqTappe = parseTappaSequence(currentUserText);
+      if (seqTappe && seqTappe.length >= 2) {
+        const verifiedItems = await Promise.all(seqTappe.map(async (t) => {
+          const v = await verifySingleTappa(t.titolo, { data: t.data, orario: t.orario });
+          return {
+            entity: {
+              ...t,
+              titolo: v.titolo,
+              indirizzo: v.indirizzo || t.indirizzo,
+              mapsUrl: v.mapsUrl
+            } as ExtractedEntity,
+            verificationStatus: v.verificationStatus,
+            verificationDetails: v.verificationDetails
+          };
+        }));
+        setImportQueue(verifiedItems.map((vi, idx) => ({
+          id: `queue_${Date.now()}_${idx}`,
+          entity: vi.entity,
+          status: 'pending',
+          attachment: null,
+          verificationStatus: vi.verificationStatus,
+          verificationDetails: vi.verificationDetails
+        })));
+        setActiveQueueId(null);
+        setStep('queue');
+        return;
+      }
+
+      // Caso Elenco grezzo multi-riga o numerato
+      const rawLines = parseRawMultiLineTappe(currentUserText);
+      if (rawLines && rawLines.length >= 2) {
+        const verifiedItems = await Promise.all(rawLines.map(async (t) => {
+          const v = await verifySingleTappa(t.titolo, { data: t.data, orario: t.orario });
+          return {
+            entity: {
+              ...t,
+              titolo: v.titolo,
+              indirizzo: v.indirizzo || t.indirizzo,
+              mapsUrl: v.mapsUrl
+            } as ExtractedEntity,
+            verificationStatus: v.verificationStatus,
+            verificationDetails: v.verificationDetails
+          };
+        }));
+        setImportQueue(verifiedItems.map((vi, idx) => ({
+          id: `queue_${Date.now()}_${idx}`,
+          entity: vi.entity,
+          status: 'pending',
+          attachment: null,
+          verificationStatus: vi.verificationStatus,
+          verificationDetails: vi.verificationDetails
+        })));
+        setActiveQueueId(null);
+        setStep('queue');
+        return;
+      }
+    }
     if (inputMode === 'chat') {
       setChatMessages(prev => [...prev, { role: 'user', text: currentUserText || `[Allegato inviato: ${attachedFile?.name}]` }]);
       setText('');
@@ -921,7 +1010,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
     sconosciuto: '❓ Sconosciuto',
   };
 
-  return (
+  const modalContent = (
     <>
       {/* Hidden file input per 'Allega prenotazione' */}
       <input
@@ -1756,4 +1845,9 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       )}
     </>
   );
+
+  if (typeof document !== 'undefined' && document.body) {
+    return createPortal(modalContent, document.body);
+  }
+  return modalContent;
 }

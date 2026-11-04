@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import React, { useState } from 'react';
 import type { Trasporto, TipoTrasporto, TransportSegmentContext } from '../../types';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
@@ -617,9 +618,9 @@ export default function TrasportoCard({
         }}
       />
 
-      {isPNROpen && transport.bookingCode && canSeePrivateInfo && (
+      {isPNROpen && transport.bookingCode && canSeePrivateInfo && typeof document !== 'undefined' && document.body && createPortal(
         <div
-          className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
           onClick={(e) => { e.stopPropagation(); setIsPNROpen(false); }}
         >
           <div
@@ -643,8 +644,7 @@ export default function TrasportoCard({
               Chiudi
             </button>
           </div>
-        </div>
-      )}
+        </div>, document.body)}
 
       <TrasportoBagagliModal
         isOpen={isBagagliOpen}

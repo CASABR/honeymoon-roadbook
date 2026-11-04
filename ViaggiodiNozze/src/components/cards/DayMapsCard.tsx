@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { useState } from 'react';
 import type { DayMapsRoutes, DayMapRouteEntry } from '../../types';
 import { openMapLink } from '../../utils/mapsHelper';
@@ -180,9 +181,9 @@ export default function DayMapsCard({
       </div>
 
       {/* Modale Compatto Unificato con entrambi i campi Auto e A piedi */}
-      {isModalOpen && (
+      {isModalOpen && typeof document !== 'undefined' && document.body && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/60 backdrop-blur-xs animate-fade-in"
+          className="fixed inset-0 z-[100000] flex items-center justify-center p-3 bg-slate-950/60 backdrop-blur-xs animate-fade-in"
           onClick={() => setIsModalOpen(false)}
         >
           <div 
@@ -314,8 +315,7 @@ export default function DayMapsCard({
             </div>
           </div>
         </div>
-      )}
+        , document.body)}
     </div>
   );
 }
-
