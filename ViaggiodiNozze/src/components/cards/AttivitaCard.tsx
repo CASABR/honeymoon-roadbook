@@ -17,6 +17,7 @@ interface AttivitaCardProps {
   onEdit: () => void;
   onDelete?: () => void;
   onDetail?: () => void;
+  onDuplicate?: () => void;
   onUpdate?: (updated: Attivita) => void;
   variant?: 'compact' | 'full';
 }

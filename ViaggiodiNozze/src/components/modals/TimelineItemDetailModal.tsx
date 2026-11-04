@@ -10,13 +10,15 @@ interface TimelineItemDetailModalProps {
   onClose: () => void;
   item: TimelineItem | null;
   onEdit: (item: TimelineItem) => void;
+  onDuplicate?: (item: TimelineItem) => void;
 }
 
 export default function TimelineItemDetailModal({
   isOpen,
   onClose,
   item,
-  onEdit
+  onEdit,
+  onDuplicate
 }: TimelineItemDetailModalProps) {
   const { role, canEdit } = useDeviceRole();
   const isExternalLiveView = typeof window !== 'undefined' && (
@@ -850,6 +852,16 @@ export default function TimelineItemDetailModal({
                 title="Condividi in Live"
               >
                 <span>📡 Condividi in Live</span>
+              </button>
+            )}
+            {canEdit && onDuplicate && (
+              <button
+                type="button"
+                onClick={() => onDuplicate(item)}
+                className="min-h-[44px] px-4 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Crea una copia modificabile di questa card"
+              >
+                <span>📄 Duplica</span>
               </button>
             )}
             {canEdit && (

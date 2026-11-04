@@ -90,7 +90,7 @@ export default function AttivitaForm(props: AttivitaFormProps) {
 function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave, onCancel, onDelete }: AttivitaFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
-  const SOTTOCATEGORIE: Attivita['sottocategoria'][] = ['Passeggiata', 'Trekking', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'];
+  const SOTTOCATEGORIE: Attivita['sottocategoria'][] = ['Passeggiata', 'Trekking', 'Spot fotografico', 'Tour Guidato', 'Museo', 'Adrenalina', 'Altro'];
 
   const [sottocategoria, setSottocategoria] = useState<Attivita['sottocategoria'] | ''>('');
   const [title, setTitle] = useState('');

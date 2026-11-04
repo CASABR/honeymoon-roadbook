@@ -18,6 +18,7 @@ export interface TrasportoCardProps {
   onEdit: () => void;
   onDelete?: () => void;
   onDetail?: () => void;
+  onDuplicate?: () => void;
   onUpdate?: (updated: Trasporto) => void;
 }
 

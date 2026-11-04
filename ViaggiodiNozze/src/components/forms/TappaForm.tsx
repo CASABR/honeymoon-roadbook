@@ -205,6 +205,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
           >
             <option value="Tappa">📍 Tappa</option>
             <option value="Sosta panoramica">⛰️ Sosta panoramica</option>
+            <option value="Spot fotografico">📸 Spot fotografico</option>
             <option value="Sosta fotografica">📸 Sosta fotografica</option>
             <option value="Sosta">📍 Sosta generica</option>
           </select>

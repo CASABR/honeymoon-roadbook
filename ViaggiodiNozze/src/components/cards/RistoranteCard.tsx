@@ -12,11 +12,12 @@ interface RistoranteCardProps {
   onEdit: () => void;
   onDelete?: () => void;
   onDetail?: () => void;
+  onDuplicate?: () => void;
   onUpdate?: (updated: Ristorante) => void;
   variant?: 'compact' | 'full';
 }
 
-export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate, variant = 'full' }: RistoranteCardProps) {
+export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplicate, onUpdate, variant = 'full' }: RistoranteCardProps) {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isAttachmentOpen, setIsAttachmentOpen] = useState(false);
   const copilotData = (ristorante as any).noteCopilota || (ristorante as any).nota || (ristorante as any).notes || '';
@@ -181,6 +182,16 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onUpdate,
             </button>
           )}
 
+          {onDuplicate && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+              className="hounigo-ds-action-btn"
+              title="Duplica questo ristorante"
+            >
+              <span>📄 Duplica</span>
+            </button>
+          )}
           {mapTarget && (
             <a
               href={resolveMapUrl(mapTarget)}

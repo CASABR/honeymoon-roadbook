@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante, Shopping, Scadenza } from '../types';
 import { storageService } from '../storage/storageService';
 import TimelineItemDetailModal from '../components/modals/TimelineItemDetailModal';
+import { prepareDuplicateItem } from '../utils/cardDuplication';
 import Modal from '../components/common/Modal';
 import AttivitaForm from '../components/forms/AttivitaForm';
 import TrasportoForm from '../components/forms/TrasportoForm';
@@ -639,6 +640,28 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       window.removeEventListener('activity_updated', handleActivityUpdated);
     };
   }, [fetchTimeline, loadData]);
+
+  const handleDuplicateItem = (item: TimelineItem) => {
+    setDetailItem(null);
+    try {
+      const prepared = prepareDuplicateItem(item);
+      if (prepared.type === 'tappa') {
+        setEditingTappaItem(prepared.data as Tappa);
+      } else if (prepared.type === 'attivita') {
+        setEditingActivityItem(prepared.data as Attivita);
+      } else if (prepared.type === 'alloggio') {
+        setEditingAlloggioItem(prepared.data as Alloggio);
+      } else if (prepared.type === 'trasporto') {
+        setEditingTransportItem(prepared.data as Trasporto);
+      } else if (prepared.type === 'ristorante') {
+        setEditingRistoranteItem(prepared.data as Ristorante);
+      } else if (prepared.type === 'shopping') {
+        setEditingShoppingItem(prepared.data as Shopping);
+      }
+    } catch (e) {
+      console.error('Errore duplicazione item:', e);
+    }
+  };
 
   const handleOpenEditFromDetail = (item: TimelineItem) => {
     setDetailItem(null);
@@ -1982,6 +2005,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                 await fetchTimeline();
                               }}
                               onUpdate={() => fetchTimeline()}
+                              onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                             />
                           )
                         ) : isAttivita ? (
@@ -1997,6 +2021,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               await fetchTimeline();
                             }}
                             onUpdate={() => fetchTimeline()}
+                            onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                           />
                         ) : isRistorante ? (
                           <RistoranteCard
@@ -2010,6 +2035,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               await storageService.deleteRistorante(item.originalData?.id || '');
                               await fetchTimeline();
                             }}
+                            onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                           />
                         ) : isShopping ? (
                           <ShoppingCard
@@ -2022,6 +2048,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               await storageService.deleteShopping(item.originalData?.id || '');
                               await fetchTimeline();
                             }}
+                            onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                           />
                         ) : isTappa ? (
                           <TappaCard
@@ -2035,6 +2062,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               await storageService.deleteTappa(item.originalData?.id || '');
                               await fetchTimeline();
                             }}
+                            onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                           />
                         ) : (
                           <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm text-center text-slate-500 text-sm">
@@ -2188,6 +2216,18 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         await storageService.deleteAccommodation(tonightsAccommodation.id);
                         await fetchTimeline();
                       }}
+                      onDuplicate={() => {
+                        const acc = tonightsAccommodation;
+                        handleDuplicateItem({
+                          id: acc.id,
+                          type: 'alloggio',
+                          time: acc.checkIn || '15:00',
+                          title: acc.name,
+                          location: acc.address || '',
+                          categoryOrType: 'alloggio',
+                          originalData: acc
+                        });
+                      }}
                     />
                   </div>
                 ) : (
@@ -2334,6 +2374,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         onClose={() => setDetailItem(null)}
         item={detailItem}
         onEdit={handleOpenEditFromDetail}
+        onDuplicate={handleDuplicateItem}
       />
 
       {/* Modale Form Attività */}

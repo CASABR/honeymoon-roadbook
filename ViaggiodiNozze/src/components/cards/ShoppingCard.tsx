@@ -12,10 +12,11 @@ interface ShoppingCardProps {
   onEdit: () => void;
   onDelete?: () => void;
   onDetail?: () => void;
+  onDuplicate?: () => void;
   onUpdate?: (updated: Shopping) => void;
 }
 
-export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: ShoppingCardProps) {
+export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, onUpdate }: ShoppingCardProps) {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isAttachmentOpen, setIsAttachmentOpen] = useState(false);
   const copilotData = (shopping as any).noteCopilota || (shopping as any).nota || (shopping as any).notes || '';
@@ -189,6 +190,16 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onUpdate }: S
             </button>
           )}
 
+          {onDuplicate && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+              className="hounigo-ds-action-btn"
+              title="Duplica questo shopping"
+            >
+              <span>📄 Duplica</span>
+            </button>
+          )}
           {mapTarget && (
             <a
               href={resolveMapUrl(mapTarget)}

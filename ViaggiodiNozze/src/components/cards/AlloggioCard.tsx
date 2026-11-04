@@ -14,6 +14,7 @@ interface AlloggioCardProps {
   onEdit: () => void;
   onDelete?: () => void;
   onDetail?: () => void;
+  onDuplicate?: () => void;
 }
 
 export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail }: AlloggioCardProps) {

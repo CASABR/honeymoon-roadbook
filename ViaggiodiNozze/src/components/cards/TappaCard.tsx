@@ -11,11 +11,12 @@ interface TappaCardProps {
   onEdit: () => void;
   onDelete?: () => void;
   onDetail?: () => void;
+  onDuplicate?: () => void;
   onUpdate?: (updated: Tappa) => void;
   variant?: 'compact' | 'full';
 }
 
-export default function TappaCard({ tappa, onEdit, onDetail, onUpdate, variant = 'full' }: TappaCardProps) {
+export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpdate, variant = 'full' }: TappaCardProps) {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const initialCopilot = (tappa as any).noteCopilota || (tappa as any).nota || (tappa as any).notes || '';
   const [copilotNotes, setCopilotNotes] = useState<string>(initialCopilot);
@@ -128,6 +129,16 @@ export default function TappaCard({ tappa, onEdit, onDetail, onUpdate, variant =
             </button>
           )}
 
+          {onDuplicate && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+              className="hounigo-ds-action-btn"
+              title="Duplica questa tappa"
+            >
+              <span>📄 Duplica</span>
+            </button>
+          )}
           {mapTarget && (
             <a
               href={resolveMapUrl(mapTarget)}
