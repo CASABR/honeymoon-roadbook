@@ -1,0 +1,4 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/pdf-BfNxxmnY.js","assets/preload-helper-BieB08Nl.js"])))=>i.map(i=>d[i]);
+import{t as e}from"./preload-helper-BieB08Nl.js";var t=`/honeymoon-roadbook/assets/pdf.worker.min-Dkey6ZUl.mjs`,n=30,r=3e4;function i(e){let t=e.includes(`,`)?e.slice(e.indexOf(`,`)+1):e,n=atob(t),r=new Uint8Array(n.length);for(let e=0;e<n.length;e+=1)r[e]=n.charCodeAt(e);return r}async function a(a){let o=await e(()=>import(`./pdf-BfNxxmnY.js`),__vite__mapDeps([0,1]));o.GlobalWorkerOptions.workerSrc=t;let s=o.getDocument({data:i(a),isEvalSupported:!1,useWorkerFetch:!1,verbosity:0}),c=await s.promise,l=Math.min(c.numPages,n),u=[];for(let e=1;e<=l;e+=1){let t=(await(await c.getPage(e)).getTextContent()).items.map(e=>`str`in e?e.str:``).filter(Boolean).join(` `).replace(/\s+/g,` `).trim();if(t&&u.push(t),u.join(`
+`).length>=r)break}return await s.destroy(),u.join(`
+`).slice(0,r)}export{a as extractTextFromPdfDataUrl};
