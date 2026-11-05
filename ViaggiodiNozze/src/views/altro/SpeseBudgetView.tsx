@@ -104,7 +104,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
 
   // Filtri e Modali
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<CategoriaSpesa | "tutte" | "shopping">("tutte");
+  const [selectedCategory, setSelectedCategory] = useState<CategoriaSpesa | "tutte" | "shopping" | "da_saldare" | "saldato">("tutte");
   const [drillDownCategory, setDrillDownCategory] = useState<CategoriaSpesa | "shopping" | null>(null);
 
   // Target Budget
@@ -383,7 +383,18 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
     return unifiedExpenses.filter((e) => {
       const safeTitle = (e.title || '').toLowerCase();
       const matchesSearch = safeTitle.includes(searchTerm.toLowerCase());
-      const matchesCat = selectedCategory === "tutte" || e.category === selectedCategory;
+      const matchesCat = (() => {
+        if (selectedCategory === "tutte") return true;
+        if (selectedCategory === "da_saldare") {
+          const paid = e.paidAmount || (e.paid ? e.cost : 0);
+          return paid < e.cost;
+        }
+        if (selectedCategory === "saldato") {
+          const paid = e.paidAmount || (e.paid ? e.cost : 0);
+          return paid >= e.cost && e.cost > 0;
+        }
+        return e.category === selectedCategory;
+      })();
       return matchesSearch && matchesCat;
     });
   }, [unifiedExpenses, searchTerm, selectedCategory]);
@@ -926,6 +937,20 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
               className={`snap-start shrink-0 px-4 py-2 rounded-xl text-xs font-bold transition-all ${selectedCategory === "tutte" ? "bg-slate-800 text-white shadow-md" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"}`}
             >
               Tutte
+            </button>
+            <button
+              onClick={() => setSelectedCategory("da_saldare")}
+              className={`snap-start shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${selectedCategory === "da_saldare" ? "bg-amber-500 text-white shadow-md" : "bg-white text-amber-700 border border-amber-200 hover:bg-amber-50"}`}
+            >
+              <span>⏳</span>
+              <span>Da saldare</span>
+            </button>
+            <button
+              onClick={() => setSelectedCategory("saldato")}
+              className={`snap-start shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${selectedCategory === "saldato" ? "bg-emerald-600 text-white shadow-md" : "bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50"}`}
+            >
+              <span>✓</span>
+              <span>Saldato</span>
             </button>
             {(Object.entries(CATEGORY_CONFIG) as [CategoriaSpesa | "shopping", any][]).map(([catKey, config]) => (
               <button

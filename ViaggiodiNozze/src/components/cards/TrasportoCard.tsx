@@ -413,6 +413,11 @@ export default function TrasportoCard({
                     <span className="font-bold text-slate-900 dark:text-white break-words">
                       {transport.departureLocation || 'Deposito di ritiro'}
                     </span>
+                    {isRental && transport.terminalGate && (
+                      <span className="block text-xs font-medium text-slate-600 dark:text-slate-300 mt-0.5 break-words">
+                        📍 {transport.terminalGate}
+                      </span>
+                    )}
                   </div>
                   {(transport.dropoffDate || transport.dropoffLocation || transport.arrivalLocation) && (
                     <div className="hounigo-ds-route-stop hounigo-ds-route-stop-end">
@@ -468,7 +473,7 @@ export default function TrasportoCard({
           {/* Casellario Tecnico Operativo (Zero emoji decorative) */}
           {hasSpecCells && (
             <div className="hounigo-ds-spec-grid">
-              {transport.terminalGate && (
+              {transport.terminalGate && !isRental && (
                 <div className="hounigo-ds-spec-cell">
                   <span className="hounigo-ds-spec-label">{terminalGateLabel}</span>
                   <span className="hounigo-ds-spec-value font-mono">{transport.terminalGate}</span>
@@ -491,21 +496,7 @@ export default function TrasportoCard({
                 </div>
               )}
 
-              {hasPnr && (
-                <button
-                  type="button"
-                  onClick={handleCopyPnr}
-                  className="hounigo-ds-spec-cell text-left hover:border-slate-400 transition-colors cursor-pointer"
-                  title="Copia codice prenotazione"
-                >
-                  <span className="hounigo-ds-spec-label">
-                    PNR · {pnrCopied ? '✓ Copiato' : 'Copia'}
-                  </span>
-                  <span className="hounigo-ds-spec-value font-mono tracking-wide text-indigo-900 dark:text-indigo-300">
-                    {transport.bookingCode}
-                  </span>
-                </button>
-              )}
+              {/* PNR spostato nel footer con pulsante dedicato */}
             </div>
           )}
 
@@ -559,6 +550,19 @@ export default function TrasportoCard({
               <span className="hounigo-ds-btn-text">Bagagli</span>
             </button>
 
+            {hasPnr && (
+              <button
+                type="button"
+                onClick={handleCopyPnr}
+                className="hounigo-ds-action-btn font-mono"
+                title={pnrCopied ? `PNR: ${transport.bookingCode} (Copiato!)` : `Copia PNR: ${transport.bookingCode}`}
+                aria-label="Codice PNR"
+              >
+                <span aria-hidden="true">🎫</span>
+                <span className="hounigo-ds-btn-text font-bold">PNR</span>
+              </button>
+            )}
+
             {hasCopilotNotes && (
               <button
                 type="button"
@@ -568,7 +572,7 @@ export default function TrasportoCard({
                 aria-label="Note per il Copilota"
               >
                 <span aria-hidden="true">🧭</span>
-                <span className="hounigo-ds-btn-text">Note</span>
+                <span className="hounigo-ds-btn-text">Copilota</span>
               </button>
             )}
 

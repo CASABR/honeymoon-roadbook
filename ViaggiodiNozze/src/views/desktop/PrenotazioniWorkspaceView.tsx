@@ -423,53 +423,83 @@ export default function PrenotazioniWorkspaceView({
       </div>
 
       {workspaceSection === 'prenotazioni' ? <>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-        <div className="bg-white dark:bg-slate-900 p-4.5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
-            Totale Prenotazioni
-          </span>
-          <div className="text-2xl font-black text-[#172033] dark:text-white">
-            {stats.total}
-          </div>
-          <span className="text-[11px] text-slate-500 font-medium">
-            Tutte le categorie unificate
-          </span>
-        </div>
+      <div className="space-y-3.5">
+        {/* Card Spese e Budget Stile Editoriale HOUNIGO Desktop */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200/80 dark:border-slate-800 shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/60 dark:bg-indigo-950/20 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+          
+          <div className="relative flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-5">
+            {/* Blocco 1: Spesa Totale */}
+            <div className="min-w-0 flex-1 space-y-1">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
+                Riepilogo Economico Prenotazioni &amp; Voucher
+              </span>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl sm:text-4xl font-black font-mono tracking-tight text-[#172033] dark:text-white">
+                  € {stats.totalCost.toFixed(2)}
+                </span>
+                <span className="text-xs font-bold text-slate-400">
+                  totale impegnato
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                Include voli, hotel, traghetti, noleggi auto, ristoranti ed escursioni con costo registrato.
+              </p>
+            </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4.5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <span className="text-[10px] font-extrabold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block mb-1">
-            Voucher &amp; File Allegati
-          </span>
-          <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-            {stats.withVoucher} <span className="text-sm font-semibold text-slate-400">/ {stats.total}</span>
-          </div>
-          <span className="text-[11px] text-slate-500 font-medium">
-            {stats.withoutVoucher > 0 ? `⚠️ ${stats.withoutVoucher} senza documento` : '✓ Tutti documentati'}
-          </span>
-        </div>
+            {/* Blocco 2: Già Saldato e Da Saldare affiancati */}
+            <div className="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
+              <div className="bg-emerald-50/70 dark:bg-emerald-950/40 rounded-2xl p-3.5 border border-emerald-100/70 dark:border-emerald-800/40 min-w-[130px]">
+                <div className="text-[10px] font-extrabold text-emerald-700 dark:text-emerald-300 uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                  <span>✓</span> Già Saldato
+                </div>
+                <div className="text-lg font-black text-emerald-800 dark:text-emerald-200 font-mono">
+                  € {stats.paidCost.toFixed(2)}
+                </div>
+              </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4.5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block mb-1">
-            Spesa Impegnata
-          </span>
-          <div className="text-2xl font-black font-mono text-[#172033] dark:text-white">
-            € {stats.totalCost.toFixed(2)}
-          </div>
-          <span className="text-[11px] text-slate-500 font-medium">
-            Somma costi registrati
-          </span>
-        </div>
+              <div className="bg-amber-50/70 dark:bg-amber-950/40 rounded-2xl p-3.5 border border-amber-100/70 dark:border-amber-800/40 min-w-[130px]">
+                <div className="text-[10px] font-extrabold text-amber-700 dark:text-amber-300 uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                  <span>⏳</span> Da Saldare
+                </div>
+                <div className="text-lg font-black text-amber-800 dark:text-amber-200 font-mono">
+                  € {stats.toPayCost.toFixed(2)}
+                </div>
+              </div>
 
-        <div className="bg-white dark:bg-slate-900 p-4.5 rounded-3xl border border-slate-200/80 dark:border-slate-800 shadow-2xs">
-          <span className="text-[10px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wider block mb-1">
-            Da Saldare / Rimanente
-          </span>
-          <div className="text-2xl font-black font-mono text-amber-600 dark:text-amber-400">
-            € {stats.toPayCost.toFixed(2)}
+              {/* Blocco 3: Copertura Documenti */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-3.5 border border-slate-200/80 dark:border-slate-700 min-w-[130px]">
+                <div className="text-[10px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-0.5 flex items-center gap-1">
+                  <span>🎟️</span> Documenti
+                </div>
+                <div className="text-lg font-black text-[#172033] dark:text-white">
+                  {stats.withVoucher} <span className="text-xs text-slate-400 font-bold">/ {stats.total}</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <span className="text-[11px] text-emerald-600 font-bold">
-            € {stats.paidCost.toFixed(2)} già saldati
-          </span>
+
+          {/* Progress bar di avanzamento pagamenti */}
+          {stats.totalCost > 0 && (
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center gap-3">
+              <div className="flex-1 h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                <div
+                  className="h-full bg-emerald-500 transition-all duration-500"
+                  style={{ width: `${Math.min(100, (stats.paidCost / stats.totalCost) * 100)}%` }}
+                  title={`Saldato: ${((stats.paidCost / stats.totalCost) * 100).toFixed(0)}%`}
+                />
+                <div
+                  className="h-full bg-amber-400 transition-all duration-500"
+                  style={{ width: `${Math.min(100, (stats.toPayCost / stats.totalCost) * 100)}%` }}
+                  title={`Da saldare: ${((stats.toPayCost / stats.totalCost) * 100).toFixed(0)}%`}
+                />
+              </div>
+              <span className="text-[11px] font-extrabold font-mono text-emerald-700 dark:text-emerald-300 shrink-0">
+                {((stats.paidCost / stats.totalCost) * 100).toFixed(0)}% saldato
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

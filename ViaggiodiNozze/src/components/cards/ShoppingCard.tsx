@@ -169,10 +169,10 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
               className={`hounigo-ds-action-btn ${hasCopilotNotes ? 'hounigo-ds-action-btn-active-green' : ''}`}
               title="Note per il Copilota"
-              aria-label="Note per il Copilota"
+              aria-label="Note Copilota"
             >
               <span aria-hidden="true">🧭</span>
-              <span className="hounigo-ds-btn-text">Note</span>
+              <span className="hounigo-ds-btn-text">Copilota</span>
             </button>
           )}
 

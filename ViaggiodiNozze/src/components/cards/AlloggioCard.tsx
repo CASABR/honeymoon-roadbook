@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import UniversalAttachmentModal from '../modals/UniversalAttachmentModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
@@ -117,6 +117,15 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
     ? `Check-out ${accommodation.checkOutTime}`
     : '';
 
+  const numNights = useMemo(() => {
+    if ((accommodation as any).totalNights) return Number((accommodation as any).totalNights);
+    if (!accommodation.checkIn || !accommodation.checkOut) return 1;
+    const dIn = new Date(accommodation.checkIn).getTime();
+    const dOut = new Date(accommodation.checkOut).getTime();
+    const diffDays = Math.round((dOut - dIn) / (1000 * 60 * 60 * 24));
+    return isNaN(diffDays) ? 1 : diffDays;
+  }, [accommodation.checkIn, accommodation.checkOut, (accommodation as any).totalNights]);
+
   const hasOperationalDetails = Boolean(
     accommodation.arrivalTime ||
     (canSeePrivateInfo && (accommodation as any).pinCode) ||
@@ -160,13 +169,11 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
         </h3>
 
         <div className="hounigo-ds-route-track">
-          {(accommodation.checkIn || accommodation.checkOut) && (
+          {numNights > 1 && accommodation.checkIn && accommodation.checkOut && (
             <div className="hounigo-ds-route-stop">
               <span className="hounigo-ds-route-kicker">Date</span>
               <span className="font-mono text-xs sm:text-[13px] font-extrabold text-slate-900 dark:text-white">
-                {accommodation.checkIn ? formatDateIT(accommodation.checkIn) : ''}
-                {accommodation.checkOut ? ` → ${formatDateIT(accommodation.checkOut)}` : ''}
-                {(accommodation as any).totalNights ? ` (${(accommodation as any).totalNights} ${(accommodation as any).totalNights === 1 ? 'notte' : 'notti'})` : ''}
+                {formatDateIT(accommodation.checkIn)} → {formatDateIT(accommodation.checkOut)} ({numNights} notti)
               </span>
             </div>
           )}
@@ -293,10 +300,10 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
               className={`hounigo-ds-action-btn ${hasCopilotNotes ? 'hounigo-ds-action-btn-active-green' : ''}`}
               title={hasCopilotNotes ? 'Note copilota e istruzioni registrate' : 'Note per il copilota'}
-              aria-label="Note per il copilota"
+              aria-label="Note Copilota"
             >
               <span aria-hidden="true">🧭</span>
-              <span className="hounigo-ds-btn-text">Note</span>
+              <span className="hounigo-ds-btn-text">Copilota</span>
             </button>
           )}
 
