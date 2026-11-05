@@ -1,78 +1,46 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, getDocFromServer } from 'firebase/firestore';
+import {
+  doc,
+  getDocFromServer,
+  getDocsFromServer,
+  collection,
+  query,
+  limit,
+  setDoc,
+  deleteDoc
+} from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { idbGetForTrip, STORES } from '../../storage/indexedDB';
 import { getPersistedSession } from '../../utils/deviceSession';
 import { getTripConfig } from '../../utils/tripConfig';
 
-type OwnerSource =
-  | 'Verifica locale in corso'
-  | 'roadbook_trip_config (localStorage)'
-  | 'trip_config_backup (IndexedDB)'
-  | 'Nessun ownerUid nei backup locali'
-  | 'Backup IndexedDB non leggibile';
+type RoleVerdict = 'owner' | 'copilota' | 'viewer' | 'non_membro' | 'checking';
 
-type RemoteTrip0000Status =
-  | 'Verifica remota in corso…'
-  | 'Doc 0000 accessibile'
-  | 'Doc 0000 protetto (Permission Denied / Non autorizzato)'
-  | 'Doc 0000 non trovato su Firestore'
-  | 'Database non disponibile';
-
-type OwnershipVerdict =
-  | 'checking'
-  | 'owner_confirmed'
-  | 'not_owner'
-  | 'unauthorized'
-  | 'not_found';
-
-declare const __BUILD_TIME__: string;
-declare const __COMMIT_HASH__: string;
+interface ResourceCheckResult {
+  name: string;
+  path: string;
+  status: 'CONSENTITO' | 'NEGATO' | 'ERRORE_RETE' | 'IN_CORSO';
+  code?: string;
+  latencyMs?: number;
+}
 
 export default function LocalIdentityDiagnostics() {
   const [currentUser, setCurrentUser] = useState<User | null>(auth?.currentUser || null);
   const [ownerUid, setOwnerUid] = useState<string | null>(null);
-  const [ownerSource, setOwnerSource] = useState<OwnerSource>('Verifica locale in corso');
 
-  // Verifica remota 0000 in sola lettura: 3 stati ben distinti
-  const [remote0000Status, setRemote0000Status] = useState<RemoteTrip0000Status>('Verifica remota in corso…');
-  const [remote0000OwnerUid, setRemote0000OwnerUid] = useState<string | null>(null);
-  const [verdict, setVerdict] = useState<OwnershipVerdict>('checking');
+  // Ruolo effettivo verificato su Firestore per viaggio 0000
+  const [verifiedRole, setVerifiedRole] = useState<RoleVerdict>('checking');
+  const [roleDetails, setRoleDetails] = useState<string>('Verifica ruolo su Firestore in corso…');
+
+  // Gestione membro Viewer di prova (solo Owner)
+  const [targetViewerUid, setTargetViewerUid] = useState<string>('');
+  const [viewerActionStatus, setViewerActionStatus] = useState<string | null>(null);
+
+  // Risultati controlli collezioni operative
+  const [resourceResults, setResourceResults] = useState<ResourceCheckResult[]>([]);
+  const [runningChecks, setRunningChecks] = useState<boolean>(false);
   const [copiedUid, setCopiedUid] = useState(false);
-
-  // Stato Service Worker & Build
-  const [swStatus, setSwStatus] = useState<string>(() => {
-    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return 'Non supportato';
-    return navigator.serviceWorker.controller ? 'Attivo & Controllante (PWA attiva)' : 'In attesa o non registrato';
-  });
-  const [checkingSw, setCheckingSw] = useState(false);
-
-  const handleCheckSwUpdate = async () => {
-    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
-      setSwStatus('Service Worker non supportato dal browser.');
-      return;
-    }
-    setCheckingSw(true);
-    setSwStatus('Controllo aggiornamenti sul server...');
-    try {
-      const reg = await navigator.serviceWorker.ready;
-      await reg.update();
-      if (reg.waiting) {
-        setSwStatus('Nuova versione pronta! Ricarica per applicare.');
-        if (confirm('Una nuova versione di Hounigo è disponibile. Ricaricare ora l\'applicazione senza cancellare i dati?')) {
-          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-          window.location.reload();
-        }
-      } else {
-        setSwStatus('Applicazione aggiornata: sei all\'ultima versione disponibile.');
-      }
-    } catch (err: any) {
-      setSwStatus(`Errore verifica SW: ${err?.message || 'timeout'}`);
-    } finally {
-      setCheckingSw(false);
-    }
-  };
 
   const config = getTripConfig();
   const session = getPersistedSession();
@@ -82,84 +50,195 @@ export default function LocalIdentityDiagnostics() {
     return onAuthStateChanged(auth, (user) => setCurrentUser(user));
   }, []);
 
-  // Controllo locale (IndexedDB / localStorage)
+  // 1. Controllo configurazione locale
   useEffect(() => {
     let active = true;
     if (config?.ownerUid) {
       setOwnerUid(config.ownerUid);
-      setOwnerSource('roadbook_trip_config (localStorage)');
-      return () => {
-        active = false;
-      };
-    }
-
-    const tripId = config?.id || session.tripId;
-    if (!tripId) {
-      setOwnerSource('Nessun ownerUid nei backup locali');
       return;
     }
+    const tripId = config?.id || session.tripId;
+    if (!tripId) return;
 
     idbGetForTrip<{ value?: { ownerUid?: string } }>(tripId, STORES.SETTINGS, 'trip_config_backup')
       .then((backup) => {
-        if (!active) return;
-        if (backup?.value?.ownerUid) {
+        if (active && backup?.value?.ownerUid) {
           setOwnerUid(backup.value.ownerUid);
-          setOwnerSource('trip_config_backup (IndexedDB)');
-        } else {
-          setOwnerSource('Nessun ownerUid nei backup locali');
         }
       })
-      .catch(() => {
-        if (active) setOwnerSource('Backup IndexedDB non leggibile');
-      });
+      .catch(() => {});
 
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [config, session.tripId]);
 
-  // Controllo remoto autorizzato in SOLA LETTURA su /trips/0000
+  // 2. Controllo Ruolo Effettivo da Server Firebase
   useEffect(() => {
     let active = true;
-    if (!db) {
-      setRemote0000Status('Database non disponibile');
-      setVerdict('unauthorized');
+    if (!db || !currentUser?.uid) {
+      setVerifiedRole('checking');
       return;
     }
 
-    async function checkRemote0000() {
+    async function checkRole() {
       try {
-        // Lettura forzata dal SERVER Firebase (bypassa cache)
-        const snap = await getDocFromServer(doc(db, 'trips', '0000'));
-        if (!active) return;
-        if (snap.exists()) {
-          const data = snap.data();
-          const rOwner = data?.ownerUid || null;
-          setRemote0000OwnerUid(rOwner);
-          setRemote0000Status('Doc 0000 accessibile');
-          if (currentUser?.uid && rOwner && currentUser.uid === rOwner) {
-            setVerdict('owner_confirmed');
-          } else {
-            setVerdict('not_owner');
+        // Controllo se l'utente è registrato come membro del viaggio 0000
+        const memberRef = doc(db, 'trips', '0000', 'members', currentUser!.uid);
+        const memberSnap = await getDocFromServer(memberRef);
+
+        if (memberSnap.exists()) {
+          const r = memberSnap.data()?.role;
+          if (r === 'owner' || r === 'copilota' || r === 'viewer') {
+            if (active) {
+              setVerifiedRole(r);
+              setRoleDetails(`Membro registrato in /trips/0000/members con ruolo: ${r.toUpperCase()}`);
+              return;
+            }
           }
-        } else {
-          setRemote0000Status('Doc 0000 non trovato su Firestore');
-          setVerdict('not_found');
+        }
+
+        // Controllo se l'utente coincide con ownerUid sul documento trips/0000
+        try {
+          const tripSnap = await getDocFromServer(doc(db, 'trips', '0000'));
+          if (tripSnap.exists()) {
+            const data = tripSnap.data();
+            const rOwner = data?.ownerUid || data?.ownerId;
+            if (rOwner && currentUser!.uid === rOwner) {
+              if (active) {
+                setVerifiedRole('owner');
+                setRoleDetails('Owner confermato dal campo ownerUid del viaggio 0000');
+                return;
+              }
+            }
+          }
+        } catch {}
+
+        if (active) {
+          setVerifiedRole('non_membro');
+          setRoleDetails('Utente autenticato ma NON registrato come membro del viaggio 0000 (Estraneo)');
         }
       } catch (err: any) {
         if (!active) return;
-        setRemote0000Status('Doc 0000 protetto (Permission Denied / Non autorizzato)');
-        setRemote0000OwnerUid(null);
-        setVerdict('unauthorized');
+        if (err.code === 'permission-denied') {
+          setVerifiedRole('non_membro');
+          setRoleDetails('Accesso alle membership di 0000 negato (Non sei membro)');
+        } else if (err.code === 'unavailable' || err.message?.includes('network')) {
+          setRoleDetails('Errore di connessione a Firestore (Rete non disponibile)');
+        } else {
+          setRoleDetails(`Errore verifica ruolo: ${err.message}`);
+        }
       }
     }
 
-    checkRemote0000();
-
-    return () => {
-      active = false;
-    };
+    checkRole();
+    return () => { active = false; };
   }, [currentUser?.uid]);
+
+  // 3. Esecuzione Test Permessi su Collezioni Operative
+  const runOperationalChecks = async () => {
+    if (!db) return;
+    setRunningChecks(true);
+
+    const targets = [
+      { name: 'Documento Radice Viaggio', path: 'trips/0000', type: 'doc' as const },
+      { name: 'Collezione Alloggi', path: 'trips/0000/alloggi', type: 'collection' as const },
+      { name: 'Collezione Trasporti', path: 'trips/0000/trasporti', type: 'collection' as const },
+      { name: 'Collezione Tappe', path: 'trips/0000/tappe', type: 'collection' as const },
+      { name: 'Collezione Attività', path: 'trips/0000/attivita', type: 'collection' as const },
+      { name: 'Collezione Spese', path: 'trips/0000/spese', type: 'collection' as const },
+      { name: 'Cassaforte private_credentials', path: 'trips/0000/private_credentials', type: 'collection' as const },
+      { name: 'Altro Viaggio (Verifica Isolamento)', path: 'trips/trip_isolation_probe', type: 'doc' as const }
+    ];
+
+    const results: ResourceCheckResult[] = [];
+
+    for (const t of targets) {
+      const startTime = performance.now();
+      try {
+        if (t.type === 'doc') {
+          await getDocFromServer(doc(db, t.path));
+        } else {
+          await getDocsFromServer(query(collection(db, t.path), limit(1)));
+        }
+        const latencyMs = Math.round(performance.now() - startTime);
+        results.push({
+          name: t.name,
+          path: t.path,
+          status: 'CONSENTITO',
+          latencyMs
+        });
+      } catch (err: any) {
+        const latencyMs = Math.round(performance.now() - startTime);
+        const code = err.code || 'unknown';
+        if (code === 'permission-denied') {
+          results.push({
+            name: t.name,
+            path: t.path,
+            status: 'NEGATO',
+            code,
+            latencyMs
+          });
+        } else if (code === 'unavailable' || err.message?.toLowerCase().includes('network') || err.message?.toLowerCase().includes('offline')) {
+          results.push({
+            name: t.name,
+            path: t.path,
+            status: 'ERRORE_RETE',
+            code,
+            latencyMs
+          });
+        } else {
+          results.push({
+            name: t.name,
+            path: t.path,
+            status: 'NEGATO',
+            code,
+            latencyMs
+          });
+        }
+      }
+    }
+
+    setResourceResults(results);
+    setRunningChecks(false);
+  };
+
+  // Esegui i controlli automaticamente al primo caricamento quando l'utente è pronto
+  useEffect(() => {
+    if (currentUser?.uid && db) {
+      runOperationalChecks();
+    }
+  }, [currentUser?.uid]);
+
+  // 4. Aggiunta/Rimozione Viewer di prova (solo Owner)
+  const handleAddTestViewer = async () => {
+    if (!db || !targetViewerUid.trim()) return;
+    setViewerActionStatus('Registrazione Viewer di prova in corso…');
+    try {
+      const uidClean = targetViewerUid.trim();
+      await setDoc(doc(db, 'trips', '0000', 'members', uidClean), {
+        uid: uidClean,
+        role: 'viewer',
+        label: 'Test Viewer Pre-Lockdown',
+        createdAt: Date.now()
+      });
+      setViewerActionStatus(`✅ UID ${uidClean} registrato con successo come VIEWER di 0000.`);
+      setTargetViewerUid('');
+    } catch (err: any) {
+      setViewerActionStatus(`❌ Errore autorizzazione Viewer: ${err.message}`);
+    }
+  };
+
+  const handleRemoveTestViewer = async () => {
+    if (!db || !targetViewerUid.trim()) return;
+    setViewerActionStatus('Revoca Viewer di prova in corso…');
+    try {
+      const uidClean = targetViewerUid.trim();
+      await deleteDoc(doc(db, 'trips', '0000', 'members', uidClean));
+      setViewerActionStatus(`✅ UID ${uidClean} revocato con successo da 0000.`);
+      setTargetViewerUid('');
+    } catch (err: any) {
+      setViewerActionStatus(`❌ Errore revoca Viewer: ${err.message}`);
+    }
+  };
 
   const copyUid = async () => {
     if (!currentUser?.uid) return;
@@ -175,159 +254,155 @@ export default function LocalIdentityDiagnostics() {
 
   return (
     <main className="min-h-screen bg-[#F8F7F3] p-5 text-[#172033] dark:bg-slate-950 dark:text-slate-100">
-      <section className="mx-auto max-w-xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-6">
+      <section className="mx-auto max-w-2xl rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-[#FF6B5F]">
-            Verifica Diagnostica Multi-Dispositivo
+            HOUNIGO — Diagnostica Sicurezza Pre-Lockdown
           </p>
-          <h1 className="mt-1 text-2xl font-extrabold">Identità Dispositivo & Viaggio 0000</h1>
+          <h1 className="mt-1 text-2xl font-extrabold">Verifica Identità e Permessi Server</h1>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Controllo in sola lettura: nessuna modifica a credenziali, sessioni o documenti remoti.
+            Tutte le verifiche interrogano direttamente il server Firebase con <code>getDocFromServer</code>, escludendo al 100% la cache locale. Zero dati privati o credenziali esposti.
           </p>
         </div>
 
-        {/* Verdetto su 0000 con 3 stati distinti */}
-        <div
-          className={`p-4 rounded-2xl border ${
-            verdict === 'owner_confirmed'
-              ? 'bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200'
-              : verdict === 'not_owner'
-              ? 'bg-blue-500/10 border-blue-500/30 text-blue-900 dark:text-blue-200'
-              : verdict === 'unauthorized'
-              ? 'bg-rose-500/10 border-rose-500/30 text-rose-900 dark:text-rose-200'
-              : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-700'
-          }`}
-        >
+        {/* 1. Box Identità Utente Corrente */}
+        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/40 space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-bold uppercase tracking-wider">Verdetto Viaggio 0000</span>
-            <span
-              className={`text-xs font-extrabold px-2.5 py-1 rounded-full ${
-                verdict === 'owner_confirmed'
-                  ? 'bg-amber-500 text-white'
-                  : verdict === 'not_owner'
-                  ? 'bg-blue-600 text-white'
-                  : verdict === 'unauthorized'
-                  ? 'bg-rose-600 text-white'
-                  : 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200'
-              }`}
-            >
-              {verdict === 'owner_confirmed'
-                ? '👑 QUESTA È LA SESSIONE OWNER'
-                : verdict === 'not_owner'
-                ? '🤝 PARTECIPANTE / NON OWNER DI 0000'
-                : verdict === 'unauthorized'
-                ? '⛔ ACCESSO A 0000 NON AUTORIZZATO'
-                : verdict === 'not_found'
-                ? '⚠️ VIAGGIO 0000 NON TROVATO'
-                : '⏳ Verifica in corso…'}
-            </span>
-          </div>
-
-          <p className="text-xs mt-2.5 leading-relaxed">
-            {verdict === 'owner_confirmed' && (
-              <strong>
-                ✓ SUCCESSO: Questo dispositivo detiene l'identità autenticata dell'Organizzatore di 0000.
-                È QUESTO il browser su cui eseguire il primo collegamento a Google o Email per non perdere i privilegi.
-              </strong>
-            )}
-            {verdict === 'not_owner' && (
-              <span>
-                Questo dispositivo ha accesso in lettura a 0000 (es. copilota o partecipante), ma l'ownerUid remoto ({remote0000OwnerUid}) non coincide con il tuo UID. Non collegare questo dispositivo come Organizzatore principale.
-              </span>
-            )}
-            {verdict === 'unauthorized' && (
-              <span>
-                Lettura di 0000 non autorizzata dalle Firestore Rules (Permission Denied). Questa sessione è estranea al viaggio 0000: l'ownerUid remoto rimane protetto e inaccessibile.
-              </span>
-            )}
-            {verdict === 'not_found' && (
-              <span>Il documento /trips/0000 non risulta presente nel database Firestore remoto.</span>
-            )}
-            {verdict === 'checking' && (
-              <span>Interrogazione di sicurezza Firestore in corso…</span>
-            )}
-          </p>
-        </div>
-
-        {/* Dati di Confronto */}
-        <div className="space-y-3 text-sm">
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-xs">UID Firebase di questo dispositivo:</span>
-              {currentUser?.uid && (
-                <button
-                  type="button"
-                  onClick={copyUid}
-                  className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
-                >
-                  {copiedUid ? '✓ Copiato!' : 'Copia UID'}
-                </button>
-              )}
-            </div>
-            <div className="mt-1 break-all font-mono text-xs text-slate-800 dark:text-slate-200 font-bold select-all">
-              {currentUser?.uid || 'Nessuna sessione Firebase attiva'}
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-            <span className="font-bold text-xs block">ownerUid remoto di 0000 su Firestore:</span>
-            <div className="mt-1 break-all font-mono text-xs text-slate-800 dark:text-slate-200 font-bold select-all">
-              {remote0000OwnerUid || `(${remote0000Status})`}
-            </div>
-          </div>
-
-          <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-            <span className="font-bold text-xs block">ownerUid memorizzato nei backup locali:</span>
-            <div className="mt-1 break-all font-mono text-xs text-slate-600 dark:text-slate-300">
-              {ownerUid || 'Non presente nei backup'}
-            </div>
-            <span className="block text-[10px] text-slate-400 mt-1">Provenienza: {ownerSource}</span>
-          </div>
-
-          {/* Dati Tecnici Build & Aggiornamento PWA */}
-          <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 space-y-2 text-left">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-extrabold uppercase tracking-wider text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
-                <span>📦</span>
-                <span>Versione PWA &amp; Build Eseguita</span>
-              </span>
-              <span className="text-[10px] font-mono font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-200 px-2 py-0.5 rounded-md">
-                Commit: {typeof __COMMIT_HASH__ !== 'undefined' ? __COMMIT_HASH__ : 'git'}
-              </span>
-            </div>
-            <div className="text-[11px] text-slate-600 dark:text-slate-300 space-y-1">
-              <p>Data &amp; Ora Build: <strong className="text-slate-800 dark:text-slate-100">{typeof __BUILD_TIME__ !== 'undefined' ? __BUILD_TIME__ : 'dev'}</strong></p>
-              <p>Service Worker: <span className="font-mono text-slate-700 dark:text-slate-300">{swStatus}</span></p>
-            </div>
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Sessione Attiva (Firebase Auth)</span>
             <button
-              type="button"
-              disabled={checkingSw}
-              onClick={handleCheckSwUpdate}
-              className="w-full mt-1 py-2 px-3 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white transition-all cursor-pointer shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5"
+              onClick={copyUid}
+              className="text-xs font-bold text-blue-600 hover:underline dark:text-blue-400"
             >
-              <span>{checkingSw ? '⏳' : '🔄'}</span>
-              <span>{checkingSw ? 'Controllo in corso…' : 'Verifica Nuova Versione PWA'}</span>
+              {copiedUid ? '✓ UID Copiato!' : 'Copia UID'}
             </button>
           </div>
+          <div className="font-mono text-xs font-semibold break-all text-slate-800 dark:text-slate-200">
+            UID: {currentUser?.uid || 'Non autenticato'}
+          </div>
+          <div className="text-[11px] text-slate-500 font-mono">
+            Owner UID locale: {ownerUid || 'Non configurato'}
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <span className="text-xs font-bold text-slate-600 dark:text-slate-400">Ruolo in Viaggio 0000:</span>
+            <span
+              className={`text-xs font-extrabold px-2.5 py-0.5 rounded-full ${
+                verifiedRole === 'owner'
+                  ? 'bg-amber-500 text-white'
+                  : verifiedRole === 'copilota'
+                  ? 'bg-blue-600 text-white'
+                  : verifiedRole === 'viewer'
+                  ? 'bg-emerald-600 text-white'
+                  : verifiedRole === 'non_membro'
+                  ? 'bg-rose-600 text-white'
+                  : 'bg-slate-300 text-slate-700'
+              }`}
+            >
+              {verifiedRole === 'owner'
+                ? '👑 OWNER'
+                : verifiedRole === 'copilota'
+                ? '🧭 COPILOTA'
+                : verifiedRole === 'viewer'
+                ? '👁️ VIEWER MEMBRO'
+                : verifiedRole === 'non_membro'
+                ? '🚫 NON MEMBRO (ESTRANEO)'
+                : '⏳ VERIFICA IN CORSO'}
+            </span>
+          </div>
+          <p className="text-xs text-slate-500 italic pt-1">{roleDetails}</p>
         </div>
 
-        <div className="p-4 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-xs text-indigo-900 dark:text-indigo-200 space-y-2 leading-relaxed">
-          <span className="font-bold block">📋 Istruzioni per il test multi-dispositivo di 0000:</span>
-          <ol className="list-decimal pl-4 space-y-1">
-            <li>Apri questa pagina sul <strong>PC principale</strong> (dove hai creato il viaggio).</li>
-            <li>Apri la stessa pagina su <strong>Safari iPhone</strong> e sulla <strong>PWA iPhone</strong>.</li>
-            <li>Confronta gli UID: solo uno dei tre coinciderà con l'ownerUid remoto.</li>
-            <li>Collega l'account Google o Email <strong>soltanto dal browser che riporta "QUESTA È LA SESSIONE OWNER"</strong>.</li>
-          </ol>
-        </div>
+        {/* 2. Gestione Viewer di Prova (Disponibile SOLO per l'Owner) */}
+        {verifiedRole === 'owner' && (
+          <div className="rounded-2xl border border-amber-300 bg-amber-50/70 p-4 dark:border-amber-700/50 dark:bg-amber-950/20 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-extrabold uppercase tracking-wider text-amber-900 dark:text-amber-200">
+                🔧 Configura Sessione Viewer di Prova (Solo Owner)
+              </span>
+            </div>
+            <p className="text-xs text-amber-800 dark:text-amber-300">
+              Per testare il blocco Viewer prima del lockdown: apri l'app in una finestra anonima, copia l'UID visualizzato e incollalo qui per autorizzarlo come <strong>Viewer</strong> di 0000 (senza toccare card o prenotazioni).
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Incolla l'UID della finestra anonima"
+                value={targetViewerUid}
+                onChange={(e) => setTargetViewerUid(e.target.value)}
+                className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono dark:border-slate-700 dark:bg-slate-900"
+              />
+              <button
+                onClick={handleAddTestViewer}
+                className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition"
+              >
+                Autorizza Viewer
+              </button>
+              <button
+                onClick={handleRemoveTestViewer}
+                className="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 transition"
+              >
+                Revoca
+              </button>
+            </div>
+            {viewerActionStatus && (
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{viewerActionStatus}</p>
+            )}
+          </div>
+        )}
 
-        <div className="text-center">
-          <a
-            href="."
-            className="inline-block py-2.5 px-6 rounded-xl font-bold text-xs bg-slate-900 text-white dark:bg-white dark:text-slate-900 hover:opacity-90 transition-opacity"
-          >
-            Torna all'Applicazione
-          </a>
+        {/* 3. Tabella Esiti Operativi da Server Firebase */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Esiti Chiamate Server (Zero Cache)
+            </span>
+            <button
+              onClick={runOperationalChecks}
+              disabled={runningChecks}
+              className="rounded-xl bg-[#172033] px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-800 transition disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900"
+            >
+              {runningChecks ? '⏳ Interrogazione Server…' : '🔄 Riesegui Controllo Server'}
+            </button>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-100 text-slate-600 dark:bg-slate-800/80 dark:text-slate-300 font-bold">
+                <tr>
+                  <th className="p-3">Risorsa / Collezione</th>
+                  <th className="p-3">Stato Server</th>
+                  <th className="p-3 text-right">Latenza</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {resourceResults.map((r) => (
+                  <tr key={r.path} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                    <td className="p-3">
+                      <div className="font-bold text-slate-800 dark:text-slate-200">{r.name}</div>
+                      <div className="font-mono text-[10px] text-slate-400">{r.path}</div>
+                    </td>
+                    <td className="p-3">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-extrabold ${
+                          r.status === 'CONSENTITO'
+                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                            : r.status === 'NEGATO'
+                            ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300'
+                            : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                        }`}
+                      >
+                        {r.status === 'CONSENTITO' && '✓ ACCESSO CONSENTITO'}
+                        {r.status === 'NEGATO' && `🔒 ACCESSO NEGATO (${r.code || 'permission-denied'})`}
+                        {r.status === 'ERRORE_RETE' && `⚠️ ERRORE DI RETE (${r.code || 'offline'})`}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right font-mono text-slate-400">
+                      {r.latencyMs ? `${r.latencyMs} ms` : '—'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </section>
     </main>
