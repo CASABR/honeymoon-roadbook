@@ -162,7 +162,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       const mappedSub = initialData.sottocategoria === 'Escursione' ? 'Trekking' : (initialData.sottocategoria || '');
       setSottocategoria(mappedSub);
       setTitle(initialData.title);
-      const dateVal = initialData.date || (initialData.dayId.startsWith('day_') ? initialData.dayId.replace('day_', '') : '');
+      const dateVal = initialData.date || (initialData as any).data || (initialData.dayId.startsWith('day_') ? initialData.dayId.replace('day_', '') : '');
       setCustomDate(dateVal);
       setOrarioRitrovo(initialData.orarioRitrovo || '');
       setOrarioInizio(initialData.orarioInizio || initialData.time || '');

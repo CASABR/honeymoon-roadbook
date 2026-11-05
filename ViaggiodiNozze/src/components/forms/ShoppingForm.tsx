@@ -49,11 +49,11 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       setSottocategoria(initialData.sottocategoria || '');
       setNome(initialData.nome || '');
       setScopo(initialData.scopo || '');
-      setData(initialData.data || '');
-      setOrario(initialData.orario || '');
+      setData(initialData.data || (initialData as any).date || '');
+      setOrario(initialData.orario || (initialData as any).time || '');
       setTimeStatus(initialData.timeStatus || 'confermato');
       setIndirizzo(initialData.indirizzo || '');
-      setBudget(initialData.budget || '');
+      setBudget(initialData.budget || (initialData as any).cost || '');
       setLink(initialData.link || '');
       const existingNotes = [initialData.noteCopilota, initialData.nota, (initialData as any).notes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n\n');
       setNoteCopilota(existingNotes);
@@ -118,10 +118,13 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       nome: nome.trim(),
       scopo: scopo.trim() || undefined,
       data: data || undefined,
+      date: data || undefined,
       orario: orario || undefined,
+      time: orario || undefined,
       timeStatus: orario ? timeStatus : undefined,
       indirizzo: indirizzo.trim() || undefined,
       budget: budget.trim() || undefined,
+      cost: budget.trim() || undefined,
       link: link.trim() || undefined,
       coordinate: initialData?.coordinate,
       noteCopilota: noteCopilota.trim() || undefined,

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import Modal from '../common/Modal';
-import { Compass, Check } from 'lucide-react';
+import { Handshake, Check } from 'lucide-react';
 
 interface UniversalCopilotaModalProps {
   isOpen: boolean;
@@ -59,7 +59,7 @@ export default function UniversalCopilotaModal({
         {/* Intestazione */}
         <div className="flex items-center gap-3 bg-[#F0FAF9] dark:bg-slate-800 p-4 rounded-2xl border border-[#DDF4F5] dark:border-slate-700">
           <div className="w-10 h-10 bg-white dark:bg-slate-900 rounded-full flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700 shadow-sm">
-            <Compass className="w-5 h-5 text-[#FF6B5F]" />
+            <Handshake className="w-5 h-5 text-[#FF6B5F]" />
           </div>
           <div>
             <h3 className="font-bold text-[#172033] dark:text-white text-sm">Note per {title}</h3>
@@ -96,7 +96,7 @@ export default function UniversalCopilotaModal({
                 Mostra note copilota a vista sulla card
               </span>
               <span className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
-                Se non spuntato, sulla card comparirà solo l&apos;icona verde 🧭 se ci sono informazioni inserite.
+                Se non spuntato, sulla card comparirà solo l&apos;icona verde del Copilota se ci sono informazioni inserite.
               </span>
             </div>
           </label>

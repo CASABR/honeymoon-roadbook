@@ -177,6 +177,7 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
         completed: paymentStatus === 'saldato',
         status: (paymentStatus === 'saldato' ? 'completato' : 'prenotato') as any,
       acconto: acconto.trim() || undefined,
+      depositPaid: acconto.trim() || undefined,
       paymentStatus,
       cancellazioneGratuitaEntro: cancellazioneGratuitaEntro.trim() || undefined,
       noteCopilota: noteCopilota.trim() || undefined,

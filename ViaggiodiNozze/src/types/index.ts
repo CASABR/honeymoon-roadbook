@@ -6,6 +6,7 @@ export type FasciaLuceFotografica = 'alba' | 'golden_hour' | 'tramonto' | 'notte
 export interface Giorno {
   id: string;
   date: string; // YYYY-MM-DD
+  data?: string; // Alias di date YYYY-MM-DD
   title: string; // es. "Giorno 1 - Arrivo"
   location: string;
   notes?: string;
@@ -151,6 +152,7 @@ export interface Ristorante {
   date?: string; // Alias di data YYYY-MM-DD
   dayId?: string;
   orario?: string; // HH:mm
+  time?: string; // Alias di orario HH:mm
   timeStatus?: TimeStatus;
   budget?: string; // es. 45 €
   coordinate?: Coordinate;
@@ -244,6 +246,7 @@ export interface Trasporto {
   id: string;
   type: TipoTrasporto;
   date: string; // YYYY-MM-DD
+  data?: string; // Alias di date YYYY-MM-DD
   departureTime?: string; // HH:mm
   timeStatus?: TimeStatus;
   departureTimeZone?: string; // IANA, es. Pacific/Auckland
@@ -322,6 +325,7 @@ export interface Shopping {
   date?: string; // Alias di data YYYY-MM-DD
   dayId?: string;
   orario?: string; // HH:mm
+  time?: string; // Alias di orario HH:mm
   timeStatus?: TimeStatus;
   budget?: string; // es. 50 €
   cost?: string; // Alias di budget

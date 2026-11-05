@@ -1,3 +1,4 @@
+import { Handshake } from 'lucide-react';
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import type { Shopping } from '../../types';
 import { useState } from 'react';
@@ -172,7 +173,7 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
               title="Note per il Copilota"
               aria-label="Note Copilota"
             >
-              <span aria-hidden="true">🧭</span>
+              <Handshake className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span className="hounigo-ds-btn-text">Copilota</span>
             </button>
           )}

@@ -1,3 +1,4 @@
+import { Handshake } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
@@ -534,7 +535,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 title="Note per il Copilota"
                 aria-label="Note Copilota"
               >
-                <span aria-hidden="true">🧭</span>
+                <Handshake className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                 <span className="hounigo-ds-btn-text">Copilota</span>
               </button>
             )}

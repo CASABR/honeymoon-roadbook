@@ -1,6 +1,7 @@
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { createPortal } from 'react-dom';
 import React, { useState } from 'react';
+import { Handshake } from 'lucide-react';
 import type { Trasporto, TipoTrasporto, TransportSegmentContext } from '../../types';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
@@ -556,7 +557,7 @@ export default function TrasportoCard({
                 type="button"
                 onClick={handleCopyPnr}
                 className="hounigo-ds-action-btn font-mono"
-                title={pnrCopied ? `PNR: ${transport.bookingCode} (Copiato!)` : `Copia PNR: ${transport.bookingCode}`}
+                title={pnrCopied ? `PNR: ${transport.bookingCode} (Copiato!)` : 'Copia codice prenotazione (PNR)'}
                 aria-label="Codice PNR"
               >
                 <span aria-hidden="true">🎫</span>
@@ -572,8 +573,8 @@ export default function TrasportoCard({
                 title="Note per il Copilota"
                 aria-label="Note per il Copilota"
               >
-                <span aria-hidden="true">🧭</span>
-                <span className="hounigo-ds-btn-text">Copilota</span>
+                <Handshake className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span className="hounigo-ds-btn-text">Copilota</span>
               </button>
             )}
 

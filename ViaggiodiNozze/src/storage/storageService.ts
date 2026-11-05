@@ -481,6 +481,7 @@ class StorageService {
       ...activity,
       dayId: finalDayId,
       date: finalDate,
+      data: finalDate,
       time: effectiveTime,
       orarioInizio: finalInizio,
       orarioRitrovo: finalRitrovo,
@@ -554,8 +555,11 @@ class StorageService {
     assertCanMutate('alloggi');
     const now = Date.now();
     const unifiedNotes = unifyCopilotNotes(acc.noteCopilota, acc.notes, (acc as any).nota);
+    const cleanAcconto = acc.acconto || acc.depositPaid || undefined;
     const item: Alloggio = {
       ...acc,
+      acconto: cleanAcconto,
+      depositPaid: cleanAcconto,
       noteCopilota: unifiedNotes,
       notes: unifiedNotes,
       copilota: Boolean(unifiedNotes) || acc.copilota || undefined,
@@ -630,8 +634,13 @@ class StorageService {
     assertCanMutate('trasporti');
     const now = Date.now();
     const unifiedNotes = unifyCopilotNotes(transport.noteCopilota, (transport as any).notes, (transport as any).nota);
+    const cleanAcconto = (transport as any).acconto || transport.depositPaid || (transport as any).amountPaid || undefined;
     const item: Trasporto = {
       ...transport,
+      data: transport.date,
+      acconto: cleanAcconto,
+      depositPaid: cleanAcconto,
+      amountPaid: cleanAcconto,
       noteCopilota: unifiedNotes,
       notes: unifiedNotes,
       copilota: Boolean(unifiedNotes) || transport.copilota || undefined,
@@ -1222,8 +1231,15 @@ class StorageService {
     const rawTime = (s.orario || (s as any).time || '').trim();
     const effectiveTime = rawTime || undefined;
     const unifiedNotes = unifyCopilotNotes(s.noteCopilota, (s as any).notes, s.nota);
+    const cleanAcconto = (s as any).acconto || (s as any).depositPaid || (s as any).amountPaid || undefined;
+    const cleanBudget = s.budget || (s as any).cost || undefined;
     const item: Shopping = {
       ...s,
+      acconto: cleanAcconto,
+      depositPaid: cleanAcconto,
+      amountPaid: cleanAcconto,
+      budget: cleanBudget,
+      cost: cleanBudget,
       orario: effectiveTime,
       time: effectiveTime,
       data: cleanDate,

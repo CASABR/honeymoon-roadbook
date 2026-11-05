@@ -1,5 +1,6 @@
 import type { TimelineItem, Attivita, Trasporto, Alloggio } from '../../types';
 import Modal from '../common/Modal';
+import { Handshake } from 'lucide-react';
 import { resolveMapUrl, openMapLink, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { useDeviceRole } from '../../utils/useDeviceRole';
@@ -81,8 +82,8 @@ export default function TimelineItemDetailModal({
                 {item.title}
               </h2>
               {Boolean(safeCopilotNotes || item.copilota) && (
-                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  🧭 Co-pilota
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <Handshake className="w-3 h-3 text-emerald-700" /> Co-pilota
                 </span>
               )}
             </div>
@@ -737,7 +738,7 @@ export default function TimelineItemDetailModal({
         {safeCopilotNotes && (
           <div className="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 shadow-2xs">
             <span className="text-[10px] uppercase font-extrabold text-emerald-800 dark:text-emerald-300 tracking-wider block mb-1 flex items-center gap-1.5">
-              <span>🧭</span>
+              <Handshake className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
               <span>Note per il Copilota</span>
             </span>
             <p className="text-xs text-emerald-950 dark:text-emerald-100 font-medium whitespace-pre-wrap leading-relaxed">

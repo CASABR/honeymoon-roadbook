@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { Handshake } from 'lucide-react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import UniversalAttachmentModal from '../modals/UniversalAttachmentModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
@@ -303,7 +304,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               title={hasCopilotNotes ? 'Note copilota e istruzioni registrate' : 'Note per il copilota'}
               aria-label="Note Copilota"
             >
-              <span aria-hidden="true">🧭</span>
+              <Handshake className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span className="hounigo-ds-btn-text">Copilota</span>
             </button>
           )}

@@ -1,7 +1,7 @@
 import PushOnboardingBanner from '../components/common/PushOnboardingBanner';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { MapPinPlus } from 'lucide-react';
+import { MapPinPlus, Handshake } from 'lucide-react';
 import GoogleMapsIcon from '../components/icons/GoogleMapsIcon';
 import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante, Shopping, Scadenza } from '../types';
 import { storageService } from '../storage/storageService';
@@ -2778,7 +2778,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             <div className="flex items-center justify-between pb-2 border-b border-[#FFF0ED] dark:border-slate-800">
               <div className="flex items-center gap-2">
                 <span className="w-8 h-8 rounded-xl bg-[#FFF0ED] dark:bg-rose-950/40 text-[#172033] dark:text-rose-300 flex items-center justify-center text-sm font-bold">
-                  🧭
+                  <Handshake className="w-4 h-4 text-[#FF6B5F]" />
                 </span>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white leading-tight">

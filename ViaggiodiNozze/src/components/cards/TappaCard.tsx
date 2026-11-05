@@ -1,3 +1,4 @@
+import { Handshake } from 'lucide-react';
 import type { Tappa } from '../../types';
 import { useState, useEffect, useRef } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
@@ -241,7 +242,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
               title="Note per il Copilota"
               aria-label="Note Copilota"
             >
-              <span aria-hidden="true">🧭</span>
+              <Handshake className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span className="hounigo-ds-btn-text">Copilota</span>
             </button>
           )}

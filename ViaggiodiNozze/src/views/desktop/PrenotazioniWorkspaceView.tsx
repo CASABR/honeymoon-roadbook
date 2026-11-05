@@ -467,16 +467,6 @@ export default function PrenotazioniWorkspaceView({
                   € {stats.toPayCost.toFixed(2)}
                 </div>
               </div>
-
-              {/* Blocco 3: Copertura Documenti */}
-              <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-3.5 border border-slate-200/80 dark:border-slate-700 min-w-[130px]">
-                <div className="text-[10px] font-extrabold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-0.5 flex items-center gap-1">
-                  <span>🎟️</span> Documenti
-                </div>
-                <div className="text-lg font-black text-[#172033] dark:text-white">
-                  {stats.withVoucher} <span className="text-xs text-slate-400 font-bold">/ {stats.total}</span>
-                </div>
-              </div>
             </div>
           </div>
 
