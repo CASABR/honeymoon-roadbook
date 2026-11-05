@@ -60,4 +60,19 @@ assert(spese.includes('setSelectedCategory("da_saldare")'), 'Pulsante filtro da 
 assert(spese.includes('setSelectedCategory("saldato")'), 'Pulsante filtro saldato mancante');
 console.log('✅ 6. Spese e Budget: categorie di filtro "Da saldare" e "Saldato" perfettamente operative.');
 
-console.log('\n🎉 TUTTI I TEST DELLA SUITE SONO STATI SUPERATI CON SUCCESSO!');
+// 7. Verifica rimozione "Blocca Schermo" da SettingsMenu
+console.log('7. Verifica assenza di "Blocca Schermo" da impostazioni...');
+const settings = fs.readFileSync(path.join(__dirname, '../src/components/common/SettingsMenu.tsx'), 'utf8');
+assert(!settings.includes('Blocca Schermo'), 'Blocca Schermo ancora presente in SettingsMenu');
+console.log('✅ 7. Impostazioni: voce "Blocca Schermo" rimossa con successo.');
+
+// 8. Verifica rimozione banner OAuth / Gmail allarmistico da Hounigo
+console.log('8. Verifica rimozione banner OAuth / Gmail da SmartInsertModal e DocumentiView...');
+const smart = fs.readFileSync(path.join(__dirname, '../src/components/modals/SmartInsertModal.tsx'), 'utf8');
+assert(!smart.includes('<GmailConnectionRow'), 'Banner GmailConnectionRow ancora presente in SmartInsertModal');
+assert(!smart.includes('gmailNotice'), 'Stato gmailNotice ancora presente in SmartInsertModal');
+const docs = fs.readFileSync(path.join(__dirname, '../src/views/altro/DocumentiView.tsx'), 'utf8');
+assert(!docs.includes('<GmailConnectionRow'), 'Banner GmailConnectionRow ancora presente in DocumentiView');
+console.log('✅ 8. Interfaccia ripulita: zero banner allarmistici o gergo OAuth incomprensibile per utenti non esperti.');
+
+console.log('\n🎉 TUTTI GLI 8 CONTROLLI DELLA SUITE SONO STATI SUPERATI CON SUCCESSO!');

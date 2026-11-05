@@ -7,7 +7,6 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import SwipeToDelete from '../../components/common/SwipeToDelete';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { formatDateIT } from '../../utils/tripDates';
-import GmailConnectionRow from '../../components/common/GmailConnectionRow';
 
 interface DocumentiViewProps {
   onBack: () => void;
@@ -271,7 +270,7 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
       </header>
 
       {/* Collegamento Gmail Compatto (1 riga) */}
-      <GmailConnectionRow className="shadow-xs" />
+      
 
       {/* FILTRI A PILLOLE PER CATEGORIA */}
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 px-0.5 -mx-0.5">

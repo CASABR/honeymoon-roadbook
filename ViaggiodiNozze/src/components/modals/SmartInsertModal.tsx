@@ -9,7 +9,6 @@ import type { TransportAttachment } from '../../types';
 import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
 import { GoogleAuthProvider } from 'firebase/auth';
-import GmailConnectionRow from '../common/GmailConnectionRow';
 import { TrailAi } from '../icons/TrailIcons';
 import { GMAIL_READONLY_SCOPE, getFriendlyGmailMessage } from '../../services/gmailOAuth';
 import {
@@ -90,8 +89,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   const [step, setStep] = useState<Step>('input');
   const [text, setText] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
-  const [gmailNotice, setGmailNotice] = useState('');
-  const textAreaRef = useRef<HTMLTextAreaElement>(null);
+    const textAreaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [inputMode, setInputMode] = useState<'import' | 'chat'>('import');
@@ -148,8 +146,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   const handleGmailImport = async () => {
     if (!EXTERNAL_AI_ENABLED) {
       setStep('input');
-      setGmailNotice(PRIVATE_AI_DISABLED_MESSAGE);
-      return;
+            return;
     }
     try {
       const provider = new GoogleAuthProvider();
@@ -263,11 +260,9 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       }
 
       setText(combinedText);
-      setGmailNotice('Email importate. Verifica il testo e avvia l’estrazione AI.');
-      setStep('input');
+            setStep('input');
     } catch (err: any) {
-      setErrorMsg('');
-      setGmailNotice(getFriendlyGmailMessage(err));
+      setErrorMsg(getFriendlyGmailMessage(err));
       setStep('input');
       setTimeout(() => textAreaRef.current?.focus(), 100);
     }
@@ -279,8 +274,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
         setStep('gmailLoading');
         setText('');
         setErrorMsg('');
-        setGmailNotice('');
-        setEditData({});
+                setEditData({});
         setAttachedFile(null);
         setImportQueue([]);
         setActiveQueueId(null);
@@ -289,8 +283,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
         setStep('input');
         setText('');
         setErrorMsg('');
-        setGmailNotice(mode === 'gmail' ? PRIVATE_AI_DISABLED_MESSAGE : '');
-        setEditData({});
+                setEditData({});
         setAttachedFile(null);
         setImportQueue([]);
         setActiveQueueId(null);
@@ -1237,24 +1230,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                 )}
               </div>
 
-              {inputMode === 'import' && gmailNotice && (
-                <div className="shrink-0 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-amber-950">
-                  <p className="text-[11px] leading-relaxed">{gmailNotice}</p>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <button type="button" onClick={() => fileInputRef.current?.click()} className="min-h-9 rounded-xl bg-white px-3 text-[11px] font-bold text-[#172033] border border-amber-200 shadow-2xs">📎 Carica PDF/foto</button>
-                    <button type="button" onClick={() => textAreaRef.current?.focus()} className="min-h-9 rounded-xl bg-white px-3 text-[11px] font-bold text-[#172033] border border-amber-200 shadow-2xs">Incolla testo email</button>
-                  </div>
-                </div>
-              )}
-
-              {/* Collegamento Gmail Compatto (1 riga) */}
-              {inputMode === 'import' && EXTERNAL_AI_ENABLED && (
-                <GmailConnectionRow
-                  compactDark={false}
-                  onSearchEmails={handleGmailImport}
-                  className="shrink-0"
-                />
-              )}
+              
 
               {/* Area Input Testo */}
               <div className="shrink-0 relative">

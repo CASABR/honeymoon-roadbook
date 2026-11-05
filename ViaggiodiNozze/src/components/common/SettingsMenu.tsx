@@ -222,28 +222,6 @@ export default function SettingsMenu() {
                 <span className="text-slate-400 text-xs">›</span>
               </button>
 
-              {/* 3. Blocca Schermo */}
-              <button
-                type="button"
-                onClick={async () => {
-                  if (confirm('Vuoi bloccare l\'app e richiedere nuovamente il PIN di accesso?')) {
-                    await clearDeviceSession();
-                    clearTripConfig();
-                    window.location.reload();
-                  }
-                }}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-xs font-semibold text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors border-t border-slate-100 dark:border-slate-800 cursor-pointer"
-              >
-                <div className="flex items-center gap-2.5">
-                  <span>🔒</span>
-                  <div className="text-left">
-                    <span className="block text-xs font-bold">Blocca Schermo</span>
-                    <span className="block text-[10px] text-amber-500/80 font-normal">Richiede PIN alla riapertura</span>
-                  </div>
-                </div>
-                <span className="text-slate-400 text-xs">›</span>
-              </button>
-
               {/* 4. Esci dal viaggio */}
               <button
                 type="button"
