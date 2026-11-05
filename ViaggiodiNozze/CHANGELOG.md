@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.6 — 2026-11-05
+
+- Navigazione footer: voce 'Itinerario' sostituita con 'Aggiungi' e icona bicolore MapPin + Plus corallo.
+- Voce 'Oggi' nel footer rinominata in 'La giornata'.
+
 ## 1.5.5 — 2026-11-05
 
 - Icona ufficiale vettoriale Google Maps per tutti i collegamenti e percorsi.
@@ -60,9 +65,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 - Timeline cronologica corretta, card più leggibili, orari evidenziati, soste fotografiche e Taxi.
 - Migliorati desktop e popup, note riordinabili, allegati, Biglietti e QR.
 - Smart Import con approvazione individuale e nuova area informazioni con versione e cronologia.
-
-## 1.0.0 — 2026-10-29
-
-- Migliorata l’esperienza desktop e la coerenza delle schede.
-- Ridotte le letture Firestore ripetute durante l’apertura del viaggio.
-- Rimossi dal pacchetto pubblico i contenuti precompilati non necessari.

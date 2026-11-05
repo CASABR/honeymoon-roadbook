@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.6",
+      "publishedAt": "2026-11-05",
+      "sourceCommit": "c250eb6",
+      "changes": [
+        "Navigazione footer: voce 'Itinerario' sostituita con 'Aggiungi' e icona bicolore MapPin + Plus corallo.",
+        "Voce 'Oggi' nel footer rinominata in 'La giornata'."
+      ]
+    },
+    {
       "version": "1.5.5",
       "publishedAt": "2026-11-05",
       "sourceCommit": "1beb24d",
@@ -88,16 +97,6 @@
         "Nuova sezione Scadenze accessibile da Oggi e Altro, con stati, link e date da verificare.",
         "Promemoria visibili nell'app anche offline, sincronizzati tra Owner e Copilota con tombstone preservati.",
         "Preparazione push documentata; le notifiche server restano disattivate fino alla configurazione Firebase autorizzata."
-      ]
-    },
-    {
-      "version": "1.1.0",
-      "publishedAt": "2026-10-30",
-      "sourceCommit": "95f9ca1",
-      "changes": [
-        "Timeline cronologica corretta, card più leggibili, orari evidenziati, soste fotografiche e Taxi.",
-        "Migliorati desktop e popup, note riordinabili, allegati, Biglietti e QR.",
-        "Smart Import con approvazione individuale e nuova area informazioni con versione e cronologia."
       ]
     }
   ]
