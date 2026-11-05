@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.7",
+      "publishedAt": "2026-11-05",
+      "sourceCommit": "d823342",
+      "changes": [
+        "Voce iniziale del footer rinominata in 'Viaggio'.",
+        "Stabilizzazione footer PWA mobile: ancoraggio viewport fisso e reset scroll al cambio pagina."
+      ]
+    },
+    {
       "version": "1.5.6",
       "publishedAt": "2026-11-05",
       "sourceCommit": "c250eb6",
@@ -87,16 +96,6 @@
         "HouniAI gratuita disponibile per chat e importazione da testo, PDF e immagini.",
         "Accesso HouniAI riservato a Owner e Copilota, con quote gratuite e fallback manuale.",
         "Smart Import mantiene revisione e approvazione individuale prima di ogni salvataggio."
-      ]
-    },
-    {
-      "version": "1.2.0",
-      "publishedAt": "2026-10-30",
-      "sourceCommit": "9c52b8c",
-      "changes": [
-        "Nuova sezione Scadenze accessibile da Oggi e Altro, con stati, link e date da verificare.",
-        "Promemoria visibili nell'app anche offline, sincronizzati tra Owner e Copilota con tombstone preservati.",
-        "Preparazione push documentata; le notifiche server restano disattivate fino alla configurazione Firebase autorizzata."
       ]
     }
   ]

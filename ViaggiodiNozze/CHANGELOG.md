@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.7 — 2026-11-05
+
+- Voce iniziale del footer rinominata in 'Viaggio'.
+- Stabilizzazione footer PWA mobile: ancoraggio viewport fisso e reset scroll al cambio pagina.
+
 ## 1.5.6 — 2026-11-05
 
 - Navigazione footer: voce 'Itinerario' sostituita con 'Aggiungi' e icona bicolore MapPin + Plus corallo.
@@ -59,9 +64,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 - Nuova sezione Scadenze accessibile da Oggi e Altro, con stati, link e date da verificare.
 - Promemoria visibili nell'app anche offline, sincronizzati tra Owner e Copilota con tombstone preservati.
 - Preparazione push documentata; le notifiche server restano disattivate fino alla configurazione Firebase autorizzata.
-
-## 1.1.0 — 2026-10-30
-
-- Timeline cronologica corretta, card più leggibili, orari evidenziati, soste fotografiche e Taxi.
-- Migliorati desktop e popup, note riordinabili, allegati, Biglietti e QR.
-- Smart Import con approvazione individuale e nuova area informazioni con versione e cronologia.
