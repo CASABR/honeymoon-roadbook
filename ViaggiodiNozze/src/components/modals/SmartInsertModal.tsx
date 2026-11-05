@@ -1575,14 +1575,14 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   <div>
                     <label className="text-xs font-semibold text-slate-600 mb-1 block">Categoria Sosta</label>
                     <select
-                      value={editData.sottocategoria || 'Tappa'}
+                      value={editData.sottocategoria === 'Sosta fotografica' ? 'Spot fotografico' : (editData.sottocategoria || 'Tappa')}
                       onChange={(e) => setEditData({...editData, sottocategoria: e.target.value})}
                       className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
                     >
                       <option value="Tappa">📍 Tappa</option>
                       <option value="Sosta panoramica">⛰️ Sosta panoramica</option>
-                      <option value="Sosta fotografica">📸 Sosta fotografica</option>
-                      <option value="Sosta">📍 Sosta generica</option>
+                      <option value="Spot fotografico">📸 Spot fotografico</option>
+                      <option value="Sosta tecnica">☕ Sosta tecnica / Pausa</option>
                     </select>
                   </div>
                 )}
@@ -1687,11 +1687,11 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-600 mb-1 block">Condizioni, Note & Istruzioni</label>
+                    <label className="text-xs font-semibold text-slate-600 mb-1 block">🧭 Note per il Copilota</label>
                     <textarea 
-                      value={editData.notes || ''} 
-                      onChange={(e) => setEditData({...editData, notes: e.target.value})}
-                      placeholder="Note, nominativi passeggeri, istruzioni accesso, bagagli..."
+                      value={editData.noteCopilota || editData.notes || ''} 
+                      onChange={(e) => setEditData({...editData, notes: e.target.value, noteCopilota: e.target.value})}
+                      placeholder="Istruzioni check-in, accesso, indicazioni o promemoria per il copilota..."
                       className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm min-h-[70px] resize-none focus:outline-none focus:border-[#FF6B5F]"
                     />
                   </div>

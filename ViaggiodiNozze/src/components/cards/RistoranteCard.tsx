@@ -144,14 +144,29 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
         </div>
 
         <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+          {hasCopilotNotes && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
+              className="hounigo-ds-action-btn"
+              title="Note per il Copilota"
+              aria-label="Note per il Copilota"
+            >
+              <span aria-hidden="true">🧭</span>
+              <span className="hidden sm:inline">Note</span>
+            </button>
+          )}
+
           {ristorante.telefono && (
             <a
               href={`tel:${ristorante.telefono}`}
               onClick={(e) => e.stopPropagation()}
               className="hounigo-ds-action-btn"
-              title="Chiama il ristorante"
+              title={`Chiama il ristorante: ${ristorante.telefono}`}
+              aria-label="Chiama il ristorante"
             >
-              <span>Chiama</span>
+              <span aria-hidden="true">📞</span>
+              <span className="hidden sm:inline">Chiama</span>
             </a>
           )}
 
@@ -162,9 +177,12 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="hounigo-ds-action-btn"
-              title="Apri prenotazione"
+              title="Apri prenotazione tavolo"
+              aria-label="Apri prenotazione"
             >
-              <span>Prenota ↗</span>
+              <span aria-hidden="true">🍽️</span>
+              <span className="hidden sm:inline">Prenota</span>
+              <span className="text-[10px] opacity-70">↗</span>
             </a>
           )}
 
@@ -177,8 +195,10 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
               }}
               className="hounigo-ds-action-btn hounigo-ds-action-btn-highlight"
               title="Voucher / Ricevuta prenotazione"
+              aria-label="Voucher / Ricevuta prenotazione"
             >
-              <span>Voucher</span>
+              <span aria-hidden="true">🎟️</span>
+              <span className="hidden sm:inline">Voucher</span>
             </button>
           )}
 
@@ -188,8 +208,10 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
               onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
               className="hounigo-ds-action-btn"
               title="Duplica questo ristorante"
+              aria-label="Duplica ristorante"
             >
-              <span>📄 Duplica</span>
+              <span aria-hidden="true">📄</span>
+              <span className="hidden sm:inline">Duplica</span>
             </button>
           )}
           {mapTarget && (
@@ -200,8 +222,11 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
               onClick={(e) => e.stopPropagation()}
               className="hounigo-ds-action-btn"
               title="Apri su Google Maps"
+              aria-label="Apri su Google Maps"
             >
-              <span>Maps ↗</span>
+              <span aria-hidden="true">🗺️</span>
+              <span className="hidden sm:inline">Maps</span>
+              <span className="text-[10px] opacity-70">↗</span>
             </a>
           )}
         </div>

@@ -90,10 +90,12 @@ export interface Attivita {
   updatedAt: number;
 }
 
+export type SottocategoriaTappa = 'Tappa' | 'Sosta panoramica' | 'Spot fotografico' | 'Sosta tecnica';
+
 export interface Tappa {
   id: string;
   titolo: string;
-  sottocategoria?: string;
+  sottocategoria?: SottocategoriaTappa | string;
   passeggiataId?: string; // Collegamento facoltativo alla Passeggiata contenitore
   data?: string; // YYYY-MM-DD
   date?: string; // Alias di data YYYY-MM-DD
@@ -115,7 +117,8 @@ export interface Tappa {
   lightWindow?: FasciaLuceFotografica;
   photoSubject?: string;
   openingHours?: OpeningHoursInfo;
-  nota?: string; // Note generali
+  nota?: string;
+  notes?: string;
   noteCopilota?: string; // Note specifiche per il copilota
   copilota?: boolean;
   completed?: boolean;
@@ -153,6 +156,7 @@ export interface Ristorante {
   telefono?: string;
   linkPrenotazione?: string;
   _enriched?: boolean;
+  notes?: string;
   nota?: string;
   noteCopilota?: string;
   status?: 'saldato' | 'da_saldare';
@@ -275,6 +279,7 @@ export interface Trasporto {
   };
   attachments?: TransportAttachment[];
   noteCopilota?: string;
+  notes?: string;
   copilota?: boolean;
   completed?: boolean;
   coordinate?: Coordinate;
@@ -322,6 +327,7 @@ export interface Shopping {
   coordinate?: Coordinate;
   indirizzo?: string;
   link?: string;
+  notes?: string;
   nota?: string;
   noteCopilota?: string;
   copilota?: boolean;

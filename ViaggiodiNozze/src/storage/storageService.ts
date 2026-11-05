@@ -29,6 +29,20 @@ export function notifyDataChanged(entityType: string, action: 'save' | 'delete',
 }
 
 /**
+ * Unifica le note legacy ('notes', 'nota', 'noteCopilota') nel campo ufficiale 'noteCopilota'.
+ * Preserva ogni contenuto senza cancellare nulla: se sono presenti più testi distinti,
+ * li combina preservando ogni dettaglio.
+ */
+export function unifyCopilotNotes(...candidates: (string | undefined | null)[]): string | undefined {
+  const clean = candidates
+    .filter((c): c is string => typeof c === 'string' && Boolean(c.trim()))
+    .map(c => c.trim());
+  if (clean.length === 0) return undefined;
+  const unique = Array.from(new Set(clean));
+  return unique.join('\n\n');
+}
+
+/**
  * Servizio di persistenza locale astratto.
  * La UI interagisce esclusivamente con questa interfaccia asincrona,
  * garantendo che l'implementazione del database locale possa essere sostituita
@@ -325,7 +339,56 @@ class StorageService {
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem(SEED_FLAG_KEY, 'true');
     }
+    await this.migrateNotesToCopilotNotes();
     return;
+  }
+
+  /**
+   * Migrazione sicura: copia e unifica tutte le note legacy nel campo 'noteCopilota'
+   * per tutte le categorie in IndexedDB, garantendo l'assoluta preservazione di ogni dato.
+   */
+  async migrateNotesToCopilotNotes(): Promise<void> {
+    try {
+      const stores = [
+        STORES.ATTIVITA,
+        STORES.ALLOGGI,
+        STORES.TRASPORTI,
+        STORES.TAPPE,
+        STORES.RISTORANTI,
+        STORES.SHOPPING
+      ];
+      for (const store of stores) {
+        const items = await idbGetAll<any>(store);
+        let hasChanges = false;
+        for (const item of items) {
+          const unified = unifyCopilotNotes(item.noteCopilota, item.notes, item.nota);
+          let itemChanged = false;
+          if (unified && unified !== item.noteCopilota) {
+            item.noteCopilota = unified;
+            item.copilota = true;
+            itemChanged = true;
+          }
+          if (store === STORES.TAPPE) {
+            if (item.sottocategoria === 'Sosta fotografica') {
+              item.sottocategoria = 'Spot fotografico';
+              itemChanged = true;
+            } else if (item.sottocategoria === 'Sosta' || item.sottocategoria === 'Sosta generica') {
+              item.sottocategoria = 'Sosta tecnica';
+              itemChanged = true;
+            }
+          }
+          if (itemChanged) {
+            await idbPut(store, item);
+            hasChanges = true;
+          }
+        }
+        if (hasChanges) {
+          this.memoryCache.delete(store);
+        }
+      }
+    } catch (err) {
+      console.warn('[StorageService] Errore migrazione note -> noteCopilota:', err);
+    }
   }
 
   async ensureMasterTripSeedData(): Promise<void> {
@@ -373,7 +436,15 @@ class StorageService {
         this.memoryCache.set(STORES.ATTIVITA, items);
       }
       const filtered = dayId ? items.filter(a => a.dayId === dayId) : items;
-      return [...filtered].sort((a, b) => {
+      return [...filtered].map(a => {
+        const unified = unifyCopilotNotes(a.noteCopilota, a.notes, (a as any).nota);
+        return {
+          ...a,
+          noteCopilota: unified,
+          notes: unified,
+          copilota: Boolean(unified) || a.copilota || undefined
+        };
+      }).sort((a, b) => {
         if (a.time && b.time) return a.time.localeCompare(b.time);
         if (a.time) return -1;
         if (b.time) return 1;
@@ -404,6 +475,8 @@ class StorageService {
     const finalRitrovo = (activity.orarioRitrovo || rawTime || '').trim() || undefined;
     const finalInizio = (activity.orarioInizio || rawTime || '').trim() || undefined;
 
+    const unifiedNotes = unifyCopilotNotes(activity.noteCopilota, activity.notes, (activity as any).nota);
+
     const item: Attivita = {
       ...activity,
       dayId: finalDayId,
@@ -412,6 +485,9 @@ class StorageService {
       orarioInizio: finalInizio,
       orarioRitrovo: finalRitrovo,
       orario: effectiveTime, // Mantenuto allineato per compatibilità totale
+      noteCopilota: unifiedNotes,
+      notes: unifiedNotes,
+      copilota: Boolean(unifiedNotes) || activity.copilota || undefined,
       createdAt: activity.createdAt || now,
       updatedAt: now
     } as any;
@@ -452,7 +528,16 @@ class StorageService {
         return [...this.memoryCache.get(STORES.ALLOGGI)!];
       }
       const items = await idbGetAll<Alloggio>(STORES.ALLOGGI);
-      const sorted = items.sort((a, b) => ((a.checkIn || '').split('-').length === 3 && (a.checkIn || '').split('-')[0].length === 2 ? (a.checkIn || '').split('-').reverse().join('-') : (a.checkIn || '')).localeCompare(((b.checkIn || '').split('-').length === 3 && (b.checkIn || '').split('-')[0].length === 2 ? (b.checkIn || '').split('-').reverse().join('-') : (b.checkIn || ''))));
+      const normalized = items.map(acc => {
+        const unified = unifyCopilotNotes(acc.noteCopilota, acc.notes, (acc as any).nota);
+        return {
+          ...acc,
+          noteCopilota: unified,
+          notes: unified,
+          copilota: Boolean(unified) || acc.copilota || undefined
+        };
+      });
+      const sorted = normalized.sort((a, b) => ((a.checkIn || '').split('-').length === 3 && (a.checkIn || '').split('-')[0].length === 2 ? (a.checkIn || '').split('-').reverse().join('-') : (a.checkIn || '')).localeCompare(((b.checkIn || '').split('-').length === 3 && (b.checkIn || '').split('-')[0].length === 2 ? (b.checkIn || '').split('-').reverse().join('-') : (b.checkIn || ''))));
       this.memoryCache.set(STORES.ALLOGGI, sorted);
       return [...sorted];
     } catch (err) {
@@ -468,8 +553,12 @@ class StorageService {
   async saveAccommodation(acc: Alloggio): Promise<void> {
     assertCanMutate('alloggi');
     const now = Date.now();
+    const unifiedNotes = unifyCopilotNotes(acc.noteCopilota, acc.notes, (acc as any).nota);
     const item: Alloggio = {
       ...acc,
+      noteCopilota: unifiedNotes,
+      notes: unifiedNotes,
+      copilota: Boolean(unifiedNotes) || acc.copilota || undefined,
       createdAt: acc.createdAt || now,
       updatedAt: now
     };
@@ -513,8 +602,17 @@ class StorageService {
         return [...this.memoryCache.get(STORES.TRASPORTI)!];
       }
       const items = await idbGetAll<Trasporto>(STORES.TRASPORTI);
+      const normalized = items.map(tr => {
+        const unified = unifyCopilotNotes(tr.noteCopilota, (tr as any).notes, (tr as any).nota);
+        return {
+          ...tr,
+          noteCopilota: unified,
+          notes: unified,
+          copilota: Boolean(unified) || tr.copilota || undefined
+        };
+      });
       
-      const sorted = items.sort((a, b) => {
+      const sorted = normalized.sort((a, b) => {
         const dateCompare = ((a.date || '').split('-').length === 3 && (a.date || '').split('-')[0].length === 2 ? (a.date || '').split('-').reverse().join('-') : (a.date || '')).localeCompare(((b.date || '').split('-').length === 3 && (b.date || '').split('-')[0].length === 2 ? (b.date || '').split('-').reverse().join('-') : (b.date || '')));
         if (dateCompare !== 0) return dateCompare;
         if (a.departureTime && b.departureTime) return a.departureTime.localeCompare(b.departureTime);
@@ -531,8 +629,12 @@ class StorageService {
   async saveTransport(transport: Trasporto): Promise<void> {
     assertCanMutate('trasporti');
     const now = Date.now();
+    const unifiedNotes = unifyCopilotNotes(transport.noteCopilota, (transport as any).notes, (transport as any).nota);
     const item: Trasporto = {
       ...transport,
+      noteCopilota: unifiedNotes,
+      notes: unifiedNotes,
+      copilota: Boolean(unifiedNotes) || transport.copilota || undefined,
       createdAt: transport.createdAt || now,
       updatedAt: now
     };
@@ -673,7 +775,20 @@ class StorageService {
         return [...this.memoryCache.get(STORES.TAPPE)!];
       }
       const items = await idbGetAll<Tappa>(STORES.TAPPE);
-      const sorted = items.sort((a, b) => {
+      const normalized = items.map(t => {
+        const unified = unifyCopilotNotes(t.noteCopilota, (t as any).notes, t.nota);
+        const rawSub = t.sottocategoria;
+        const cleanSub = rawSub === 'Sosta fotografica' ? 'Spot fotografico' : (rawSub === 'Sosta' || rawSub === 'Sosta generica' ? 'Sosta tecnica' : (rawSub || 'Tappa'));
+        return {
+          ...t,
+          sottocategoria: cleanSub,
+          noteCopilota: unified,
+          nota: unified,
+          notes: unified,
+          copilota: Boolean(unified) || t.copilota || undefined
+        };
+      });
+      const sorted = normalized.sort((a, b) => {
         const dateA = a.data || a.date || '';
         const dateB = b.data || b.date || '';
         if (dateA !== dateB) return dateA.localeCompare(dateB);
@@ -714,14 +829,22 @@ class StorageService {
     }
     const rawTime = (tappa.orario || (tappa as any).time || '').trim();
     const effectiveTime = rawTime || undefined;
+    const unifiedNotes = unifyCopilotNotes(tappa.noteCopilota, (tappa as any).notes, tappa.nota);
+    const rawSub = tappa.sottocategoria;
+    const cleanSub = rawSub === 'Sosta fotografica' ? 'Spot fotografico' : (rawSub === 'Sosta' || rawSub === 'Sosta generica' ? 'Sosta tecnica' : (rawSub || 'Tappa'));
     const newTappa: Tappa = {
       ...tappa,
+      sottocategoria: cleanSub,
       orario: effectiveTime,
       time: effectiveTime,
       data: cleanDate,
       date: cleanDate,
       dayId,
       id: targetId,
+      noteCopilota: unifiedNotes,
+      nota: unifiedNotes,
+      notes: unifiedNotes,
+      copilota: Boolean(unifiedNotes) || tappa.copilota || undefined,
       createdAt: now,
       updatedAt: now
     };
@@ -742,15 +865,27 @@ class StorageService {
         ? partial.orario 
         : (partial.time !== undefined ? partial.time : (existing.orario || (existing as any).time || ''));
       const effectiveTime = (typeof rawTime === 'string' ? rawTime.trim() : rawTime) || undefined;
+      const unifiedNotes = unifyCopilotNotes(
+        partial.noteCopilota !== undefined ? partial.noteCopilota : existing.noteCopilota,
+        (partial as any).notes !== undefined ? (partial as any).notes : (existing as any).notes,
+        partial.nota !== undefined ? partial.nota : existing.nota
+      );
+      const rawSub = partial.sottocategoria !== undefined ? partial.sottocategoria : existing.sottocategoria;
+      const cleanSub = rawSub === 'Sosta fotografica' ? 'Spot fotografico' : (rawSub === 'Sosta' || rawSub === 'Sosta generica' ? 'Sosta tecnica' : (rawSub || 'Tappa'));
       const updated: Tappa = {
         ...existing,
         ...partial,
+        sottocategoria: cleanSub,
         orario: effectiveTime,
         time: effectiveTime,
         data: cleanDate,
         date: cleanDate,
         dayId,
         id, // Garantisce che l'ID primario non venga alterato
+        noteCopilota: unifiedNotes,
+        nota: unifiedNotes,
+        notes: unifiedNotes,
+        copilota: Boolean(unifiedNotes) || partial.copilota || existing.copilota || undefined,
         updatedAt: Date.now()
       };
       this.memoryCache.delete(STORES.TAPPE);
@@ -769,13 +904,21 @@ class StorageService {
     const dayId = tappa.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
     const rawTime = (tappa.orario || (tappa as any).time || '').trim();
     const effectiveTime = rawTime || undefined;
+    const unifiedNotes = unifyCopilotNotes(tappa.noteCopilota, (tappa as any).notes, tappa.nota);
+    const rawSub = tappa.sottocategoria;
+    const cleanSub = rawSub === 'Sosta fotografica' ? 'Spot fotografico' : (rawSub === 'Sosta' || rawSub === 'Sosta generica' ? 'Sosta tecnica' : (rawSub || 'Tappa'));
     const item: Tappa = {
       ...tappa,
+      sottocategoria: cleanSub,
       orario: effectiveTime,
       time: effectiveTime,
       data: cleanDate,
       date: cleanDate,
       dayId,
+      noteCopilota: unifiedNotes,
+      nota: unifiedNotes,
+      notes: unifiedNotes,
+      copilota: Boolean(unifiedNotes) || tappa.copilota || undefined,
       createdAt: tappa.createdAt || now,
       updatedAt: now
     };
@@ -807,7 +950,17 @@ class StorageService {
         return [...this.memoryCache.get(STORES.RISTORANTI)!];
       }
       const items = await idbGetAll<Ristorante>(STORES.RISTORANTI);
-      const sorted = items.sort((a, b) => {
+      const normalized = items.map(r => {
+        const unified = unifyCopilotNotes(r.noteCopilota, (r as any).notes, r.nota);
+        return {
+          ...r,
+          noteCopilota: unified,
+          nota: unified,
+          notes: unified,
+          copilota: Boolean(unified) || r.copilota || undefined
+        };
+      });
+      const sorted = normalized.sort((a, b) => {
         if (a.data && b.data) return ((a.data || '').split('-').length === 3 && (a.data || '').split('-')[0].length === 2 ? (a.data || '').split('-').reverse().join('-') : (a.data || '')).localeCompare(((b.data || '').split('-').length === 3 && (b.data || '').split('-')[0].length === 2 ? (b.data || '').split('-').reverse().join('-') : (b.data || '')));
         if (a.data) return -1;
         if (b.data) return 1;
@@ -842,6 +995,7 @@ class StorageService {
     }
     const rawTime = (ristorante.orario || (ristorante as any).time || '').trim();
     const effectiveTime = rawTime || undefined;
+    const unifiedNotes = unifyCopilotNotes(ristorante.noteCopilota, (ristorante as any).notes, ristorante.nota);
     const newRistorante: Ristorante = {
       ...ristorante,
       orario: effectiveTime,
@@ -850,6 +1004,10 @@ class StorageService {
       date: cleanDate,
       dayId,
       id: targetId,
+      noteCopilota: unifiedNotes,
+      nota: unifiedNotes,
+      notes: unifiedNotes,
+      copilota: Boolean(unifiedNotes) || ristorante.copilota || undefined,
       createdAt: now,
       updatedAt: now
     } as any;
@@ -870,6 +1028,11 @@ class StorageService {
         ? partial.orario
         : ((partial as any).time !== undefined ? (partial as any).time : (existing.orario || (existing as any).time || ''));
       const effectiveTime = (typeof rawTime === 'string' ? rawTime.trim() : rawTime) || undefined;
+      const unifiedNotes = unifyCopilotNotes(
+        partial.noteCopilota !== undefined ? partial.noteCopilota : existing.noteCopilota,
+        (partial as any).notes !== undefined ? (partial as any).notes : (existing as any).notes,
+        partial.nota !== undefined ? partial.nota : existing.nota
+      );
       const updated: Ristorante = {
         ...existing,
         ...partial,
@@ -879,6 +1042,10 @@ class StorageService {
         date: cleanDate,
         dayId,
         id, // ID primario preservato
+        noteCopilota: unifiedNotes,
+        nota: unifiedNotes,
+        notes: unifiedNotes,
+        copilota: Boolean(unifiedNotes) || partial.copilota || existing.copilota || undefined,
         updatedAt: Date.now()
       } as any;
       this.memoryCache.delete(STORES.RISTORANTI);
@@ -897,6 +1064,7 @@ class StorageService {
     const dayId = r.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
     const rawTime = (r.orario || (r as any).time || '').trim();
     const effectiveTime = rawTime || undefined;
+    const unifiedNotes = unifyCopilotNotes(r.noteCopilota, (r as any).notes, r.nota);
     const item: Ristorante = {
       ...r,
       orario: effectiveTime,
@@ -904,6 +1072,10 @@ class StorageService {
       data: cleanDate,
       date: cleanDate,
       dayId,
+      noteCopilota: unifiedNotes,
+      nota: unifiedNotes,
+      notes: unifiedNotes,
+      copilota: Boolean(unifiedNotes) || r.copilota || undefined,
       createdAt: r.createdAt || now,
       updatedAt: now
     } as any;
@@ -935,7 +1107,17 @@ class StorageService {
         return [...this.memoryCache.get(STORES.SHOPPING)!];
       }
       const items = await idbGetAll<Shopping>(STORES.SHOPPING);
-      const sorted = items.sort((a, b) => {
+      const normalized = items.map(s => {
+        const unified = unifyCopilotNotes(s.noteCopilota, (s as any).notes, s.nota);
+        return {
+          ...s,
+          noteCopilota: unified,
+          nota: unified,
+          notes: unified,
+          copilota: Boolean(unified) || s.copilota || undefined
+        };
+      });
+      const sorted = normalized.sort((a, b) => {
         if (a.data && b.data) return ((a.data || '').split('-').length === 3 && (a.data || '').split('-')[0].length === 2 ? (a.data || '').split('-').reverse().join('-') : (a.data || '')).localeCompare(((b.data || '').split('-').length === 3 && (b.data || '').split('-')[0].length === 2 ? (b.data || '').split('-').reverse().join('-') : (b.data || '')));
         if (a.data) return -1;
         if (b.data) return 1;
@@ -970,6 +1152,7 @@ class StorageService {
     }
     const rawTime = (shopping.orario || (shopping as any).time || '').trim();
     const effectiveTime = rawTime || undefined;
+    const unifiedNotes = unifyCopilotNotes(shopping.noteCopilota, (shopping as any).notes, shopping.nota);
     const newShopping: Shopping = {
       ...shopping,
       orario: effectiveTime,
@@ -978,6 +1161,10 @@ class StorageService {
       date: cleanDate,
       dayId,
       id: targetId,
+      noteCopilota: unifiedNotes,
+      nota: unifiedNotes,
+      notes: unifiedNotes,
+      copilota: Boolean(unifiedNotes) || shopping.copilota || undefined,
       createdAt: now,
       updatedAt: now
     } as any;
@@ -998,6 +1185,11 @@ class StorageService {
         ? partial.orario
         : ((partial as any).time !== undefined ? (partial as any).time : (existing.orario || (existing as any).time || ''));
       const effectiveTime = (typeof rawTime === 'string' ? rawTime.trim() : rawTime) || undefined;
+      const unifiedNotes = unifyCopilotNotes(
+        partial.noteCopilota !== undefined ? partial.noteCopilota : existing.noteCopilota,
+        (partial as any).notes !== undefined ? (partial as any).notes : (existing as any).notes,
+        partial.nota !== undefined ? partial.nota : existing.nota
+      );
       const updated: Shopping = {
         ...existing,
         ...partial,
@@ -1007,6 +1199,10 @@ class StorageService {
         date: cleanDate,
         dayId,
         id, // ID primario preservato
+        noteCopilota: unifiedNotes,
+        nota: unifiedNotes,
+        notes: unifiedNotes,
+        copilota: Boolean(unifiedNotes) || partial.copilota || existing.copilota || undefined,
         updatedAt: Date.now()
       } as any;
       this.memoryCache.delete(STORES.SHOPPING);
@@ -1025,6 +1221,7 @@ class StorageService {
     const dayId = s.dayId || (cleanDate ? `day_${cleanDate}` : undefined);
     const rawTime = (s.orario || (s as any).time || '').trim();
     const effectiveTime = rawTime || undefined;
+    const unifiedNotes = unifyCopilotNotes(s.noteCopilota, (s as any).notes, s.nota);
     const item: Shopping = {
       ...s,
       orario: effectiveTime,
@@ -1032,6 +1229,10 @@ class StorageService {
       data: cleanDate,
       date: cleanDate,
       dayId,
+      noteCopilota: unifiedNotes,
+      nota: unifiedNotes,
+      notes: unifiedNotes,
+      copilota: Boolean(unifiedNotes) || s.copilota || undefined,
       createdAt: s.createdAt || now,
       updatedAt: now
     } as any;
@@ -1485,6 +1686,7 @@ class StorageService {
               categoryOrType: t.type,
               copilota: t.copilota,
               completed: t.completed,
+              noteCopilota: t.noteCopilota,
               coordinate: pickupCoord,
               originalData: t,
               displayMode: 'full',
@@ -1505,6 +1707,7 @@ class StorageService {
               categoryOrType: t.type,
               copilota: t.copilota,
               completed: t.completed,
+              noteCopilota: t.noteCopilota,
               coordinate: dropoffCoord,
               originalData: t,
               displayMode: 'full',
@@ -1549,6 +1752,7 @@ class StorageService {
             categoryOrType: t.type,
             copilota: t.copilota,
             completed: t.completed,
+            noteCopilota: t.noteCopilota,
             coordinate: t.coordinate,
             originalData: t,
             displayMode: isShortTransfer ? 'compact' : 'full',
@@ -1590,6 +1794,8 @@ class StorageService {
                location: `Da ${t.departureLocation}`,
                categoryOrType: t.type,
                completed: t.completed,
+               copilota: t.copilota,
+               noteCopilota: t.noteCopilota,
                coordinate: t.coordinate,
                originalData: t,
                displayMode: 'compact',
@@ -1667,6 +1873,7 @@ class StorageService {
           categoryOrType: 'tappa',
           copilota: t.copilota,
           completed: t.completed,
+          noteCopilota: t.noteCopilota,
           coordinate: t.coordinate,
           originalData: t,
           effectiveDate: dateStr,
@@ -1705,7 +1912,7 @@ class StorageService {
         timeline.push({
           id: r.id,
           type: 'ristorante',
-          time,
+          time: r.orario || '',
           timeStatus,
           timeIsDefault: timeStatus === 'indicativo' || !time,
           title: r.nome,
@@ -1713,6 +1920,7 @@ class StorageService {
           categoryOrType: 'ristorante',
           copilota: r.copilota,
           completed: r.completed,
+          noteCopilota: r.noteCopilota,
           coordinate: r.coordinate,
           originalData: r,
           effectiveDate: r.data || r.date || dateStr,
@@ -1735,6 +1943,7 @@ class StorageService {
           categoryOrType: 'shopping',
           copilota: s.copilota,
           completed: s.completed,
+          noteCopilota: s.noteCopilota,
           coordinate: s.coordinate,
           originalData: s,
           effectiveDate: s.data || s.date || dateStr,
@@ -1759,6 +1968,8 @@ class StorageService {
             location: acc.address || acc.location,
             categoryOrType: 'alloggio',
             completed: acc.completed,
+            copilota: acc.copilota,
+            noteCopilota: acc.noteCopilota,
             coordinate: undefined,
             originalData: acc,
             effectiveDate: dateStr,

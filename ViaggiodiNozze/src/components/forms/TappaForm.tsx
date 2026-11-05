@@ -23,6 +23,13 @@ interface TappaFormProps {
   onDelete?: () => void;
 }
 
+export const SOTTOCATEGORIE_TAPPA: { value: string; label: string; icon: string }[] = [
+  { value: 'Tappa', label: '📍 Tappa', icon: '📍' },
+  { value: 'Sosta panoramica', label: '⛰️ Sosta panoramica', icon: '⛰️' },
+  { value: 'Spot fotografico', label: '📸 Spot fotografico', icon: '📸' },
+  { value: 'Sosta tecnica', label: '☕ Sosta tecnica / Pausa', icon: '☕' }
+];
+
 export default function TappaForm({ initialData, defaultDate, defaultTime, onSave, onCancel, onDelete }: TappaFormProps) {
   const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
 
@@ -41,7 +48,6 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
   const [mapsUrl, setMapsUrl] = useState('');
   const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
   const [noteCopilota, setNoteCopilota] = useState('');
-  const [nota, setNota] = useState('');
   const [openingHours, setOpeningHours] = useState<OpeningHoursInfo | undefined>(() => initialData?.openingHours);
   const [error, setError] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
@@ -75,8 +81,8 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       setTimeStatus(initialData.timeStatus || 'confermato');
       setIndirizzo(initialData.indirizzo || '');
       setMapsUrl(initialData.mapsUrl || '');
-      setNoteCopilota(initialData.noteCopilota || '');
-      setNota(initialData.nota || '');
+      const existingNotes = [initialData.noteCopilota, initialData.nota, (initialData as any).notes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n\n');
+      setNoteCopilota(existingNotes);
       setOpeningHours(initialData.openingHours);
       setAttachments(initialData.attachments || []);
       setLightWindow((initialData as any).lightWindow || 'qualsiasi');
@@ -91,7 +97,6 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       setIndirizzo('');
       setMapsUrl('');
       setNoteCopilota('');
-      setNota('');
       setOpeningHours(undefined);
     }
   }, [defaultDate, defaultTime, initialData]);
@@ -106,8 +111,8 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
     }
     if (place.rawLocalItem) {
       const raw = place.rawLocalItem;
-      if (raw.noteCopilota && !noteCopilota) setNoteCopilota(raw.noteCopilota);
-      if (raw.nota && !nota) setNota(raw.nota);
+      const rawNotes = raw.noteCopilota || raw.nota || raw.notes;
+      if (rawNotes && !noteCopilota) setNoteCopilota(rawNotes);
     }
   };
 
@@ -171,7 +176,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
     onSave({
       id: initialData?.id,
       titolo: titolo.trim(),
-      sottocategoria: sottocategoria.trim() || undefined,
+      sottocategoria: (sottocategoria === 'Sosta fotografica' ? 'Spot fotografico' : (sottocategoria.trim() || 'Tappa')),
       passeggiataId: passeggiataId || undefined,
       orario: orario.trim() || undefined,
       time: orario.trim() || undefined,
@@ -180,7 +185,8 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       mapsUrl: mapsUrl.trim() || undefined,
       coordinate: finalCoord,
       noteCopilota: noteCopilota.trim() || undefined,
-      nota: nota.trim() || undefined,
+      nota: noteCopilota.trim() || undefined,
+      notes: noteCopilota.trim() || undefined,
       copilota: hasCopilotaNotes || initialData?.copilota || undefined,
       data: dateClean,
       date: dateClean,
@@ -238,15 +244,14 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
             Categoria Sosta
           </label>
           <select
-            value={sottocategoria || 'Tappa'}
+            value={sottocategoria === 'Sosta fotografica' ? 'Spot fotografico' : (sottocategoria || 'Tappa')}
             onChange={(e) => setSottocategoria(e.target.value)}
             className="w-full h-11 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F]"
           >
             <option value="Tappa">📍 Tappa</option>
             <option value="Sosta panoramica">⛰️ Sosta panoramica</option>
             <option value="Spot fotografico">📸 Spot fotografico</option>
-            <option value="Sosta fotografica">📸 Sosta fotografica</option>
-            <option value="Sosta">📍 Sosta generica</option>
+            <option value="Sosta tecnica">☕ Sosta tecnica / Pausa</option>
           </select>
         </div>
 
@@ -454,7 +459,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       {/* 4. Note Copilota */}
       <div className="p-3 bg-[#F0FAF9] dark:bg-slate-800/80 border border-[#DDF4F5] dark:border-slate-700 rounded-2xl">
         <label className="flex items-center gap-1.5 text-xs font-extrabold text-[#172033] dark:text-slate-200 uppercase tracking-wider mb-1.5">
-          <span>🧭</span> Note per il Copilota (Guida)
+          <span>🧭</span> Note per il Copilota (Guida & Dettagli)
         </label>
         <textarea
           rows={3}
@@ -462,20 +467,6 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
           value={noteCopilota}
           onChange={(e) => setNoteCopilota(e.target.value)}
           className="w-full p-3 bg-white dark:bg-slate-900 border border-[#DDF4F5] dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
-        />
-      </div>
-
-      {/* 5. Note Generali */}
-      <div>
-        <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
-          Note Generali
-        </label>
-        <textarea
-          rows={2}
-          placeholder="Dettagli aggiuntivi..."
-          value={nota}
-          onChange={(e) => setNota(e.target.value)}
-          className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:bg-slate-100 dark:focus:bg-slate-750 focus:border-[#FF6B5F] resize-none"
         />
       </div>
 

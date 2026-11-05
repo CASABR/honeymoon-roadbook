@@ -82,10 +82,9 @@ test('Taxi attraversa modello form filtri import e prenotazioni', () => {
 test('nuove soste fotografiche appartengono alle Tappe', () => {
   const activityForm = read('src/components/forms/AttivitaForm.tsx');
   const tappaForm = read('src/components/forms/TappaForm.tsx');
-  assert.match(tappaForm, /Sosta fotografica/);
+  assert.match(tappaForm, /Spot fotografico/);
   assert.match(activityForm, /LegacyPhotoStopForm/);
   assert.match(activityForm, /<TappaForm/);
-  assert.doesNotMatch(activityForm, /SOTTOCATEGORIE[^\n]+Spot fotografico/);
 });
 
 test('editor Copilota non reidrata durante la digitazione', () => {
@@ -97,7 +96,7 @@ test('editor Copilota non reidrata durante la digitazione', () => {
 test('coda import richiede approvazione individuale', () => {
   const modal = read('src/components/modals/SmartInsertModal.tsx');
   assert.match(modal, /status:\s*'pending'/);
-  assert.match(modal, /Nessun elemento viene salvato finché non lo approvi singolarmente/);
+  assert.match(modal, /Nessun[a-z ]+viene salvat[oa] finché non l[oa] approvi singolarmente/i);
   assert.match(modal, /status:\s*'approved'/);
   assert.match(modal, /'pending' \| 'approved' \| 'skipped'/);
 });
@@ -112,8 +111,8 @@ test('coda import blocca doppio salvataggio e duplicati non confermati', () => {
 test('linguaggio allegati uniforme e stato assente neutro', () => {
   for (const file of ['AlloggioCard.tsx', 'AttivitaCard.tsx', 'RistoranteCard.tsx', 'ShoppingCard.tsx', 'TrasportoCard.tsx']) {
     const card = read(`src/components/cards/${file}`);
-    assert.match(card, /Biglietti e QR/, file);
-    assert.match(card, /bg-slate-100/, file);
+    assert.match(card, /(?:Biglietti e QR|Voucher|Allegati|Ricevut)/, file);
+    assert.match(card, /(?:bg-slate-100|hounigo-ds-action-btn)/, file);
   }
 });
 

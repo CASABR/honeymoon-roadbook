@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.2 — 2026-11-05
+
+- Unificazione note copilota in tutte le categorie con salvaguardia e migrazione automatica dei dati.
+- Riorganizzazione sottocategorie tappe e consolidamento dello Spot fotografico unico.
+- Footer card compatti con icone responsive ottimizzate per la consultazione mobile.
+
 ## 1.5.1 — 2026-11-03
 
 - Hotfix stabilizzazione focus: eliminata perdita del cursore durante la digitazione continua nei campi e nelle modali.

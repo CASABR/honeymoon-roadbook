@@ -19,7 +19,11 @@ export function isTrekkingActivity(activity: Pick<Attivita, 'title' | 'sottocate
 }
 
 export function isPhotoSpotActivity(activity: Pick<Attivita, 'sottocategoria'>): boolean {
-  return activity.sottocategoria === 'Spot fotografico';
+  return (activity.sottocategoria as string) === 'Spot fotografico' || (activity.sottocategoria as string) === 'Sosta fotografica';
+}
+
+export function isPhotoSpotTappa(tappa: { sottocategoria?: string }): boolean {
+  return tappa.sottocategoria === 'Spot fotografico' || tappa.sottocategoria === 'Sosta fotografica';
 }
 
 export function isPasseggiataActivity(activity: Pick<Attivita, 'title' | 'sottocategoria'>): boolean {
@@ -27,11 +31,14 @@ export function isPasseggiataActivity(activity: Pick<Attivita, 'title' | 'sottoc
 }
 
 /**
- * Mappa la visualizzazione retrocompatibile: 'Escursione' viene mostrata come 'Trekking'.
+ * Mappa la visualizzazione retrocompatibile: 'Escursione' viene mostrata come 'Trekking',
+ * 'Sosta fotografica' unificata in 'Spot fotografico'.
  */
 export function getDisplaySubcategory(sottocategoria?: string): string {
   if (!sottocategoria) return '';
   if (sottocategoria === 'Escursione') return 'Trekking';
+  if (sottocategoria === 'Sosta fotografica') return 'Spot fotografico';
+  if (sottocategoria === 'Sosta' || sottocategoria === 'Sosta generica') return 'Sosta tecnica';
   return sottocategoria;
 }
 

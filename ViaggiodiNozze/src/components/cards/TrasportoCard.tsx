@@ -559,13 +559,28 @@ export default function TrasportoCard({
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+            {hasCopilotNotes && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
+                className="hounigo-ds-action-btn"
+                title="Note per il Copilota"
+                aria-label="Note per il Copilota"
+              >
+                <span aria-hidden="true">🧭</span>
+                <span className="hidden sm:inline">Note</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsTicketsOpen(true); }}
               className={`hounigo-ds-action-btn ${hasTicket ? 'hounigo-ds-action-btn-highlight' : ''}`}
               title={`Biglietti e QR · ${currentType.ticketLabel}`}
+              aria-label={currentType.ticketLabel}
             >
-              <span>{currentType.ticketLabel}</span>
+              <span aria-hidden="true">🎟️</span>
+              <span className="hidden sm:inline">{currentType.ticketLabel}</span>
             </button>
 
             {activeMapUrl && (
@@ -576,9 +591,11 @@ export default function TrasportoCard({
                 onClick={(e) => e.stopPropagation()}
                 className="hounigo-ds-action-btn"
                 title="Apri navigazione su Google Maps"
-                aria-label="Apri su Google Maps"
+                aria-label="Apri navigazione su Google Maps"
               >
-                <span>Maps ↗</span>
+                <span aria-hidden="true">🗺️</span>
+                <span className="hidden sm:inline">Maps</span>
+                <span className="text-[10px] opacity-70">↗</span>
               </a>
             )}
           </div>

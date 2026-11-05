@@ -265,8 +265,8 @@ export default function UnifiedBookingModal({
       }
     }
 
-    if (s.notes && !notes) {
-      setNotes(s.notes);
+    if (s.notes && !noteCopilota) {
+      setNoteCopilota(s.notes);
     }
 
     if (s.categoryOrSubcategory) {
@@ -382,6 +382,8 @@ export default function UnifiedBookingModal({
           packageIncluded: packageIncluded || undefined,
           posti: posti.trim() || undefined,
           noteCopilota: noteCopilota.trim() || undefined,
+          notes: noteCopilota.trim() || undefined,
+          copilota: Boolean(noteCopilota.trim()) || undefined,
           status: packageIncluded ? 'completato' : 'prenotato',
           attachments,
           createdAt: now,
@@ -412,8 +414,9 @@ export default function UnifiedBookingModal({
           checkOutTime: checkOutTime || undefined,
           cost: formattedCost,
           bookingCode: bookingCode.trim() || undefined,
-          notes: notes.trim() || undefined,
           noteCopilota: noteCopilota.trim() || undefined,
+          notes: noteCopilota.trim() || undefined,
+          copilota: Boolean(noteCopilota.trim()) || undefined,
           status: 'prenotato',
           attachments,
           createdAt: now,
@@ -445,8 +448,9 @@ export default function UnifiedBookingModal({
           platform: attivitaProvider.trim() || undefined,
           cost: formattedCost,
           qrCode: bookingCode.trim() || undefined,
-          notes: notes.trim() || undefined,
           noteCopilota: noteCopilota.trim() || undefined,
+          notes: noteCopilota.trim() || undefined,
+          copilota: Boolean(noteCopilota.trim()) || undefined,
           status: 'prenotato',
           attachments,
           createdAt: now,
@@ -473,8 +477,10 @@ export default function UnifiedBookingModal({
           orario: time || undefined,
           budget: formattedCost,
           indirizzo: ristoranteIndirizzo.trim() || undefined,
-          nota: notes.trim() || undefined,
           noteCopilota: noteCopilota.trim() || undefined,
+          nota: noteCopilota.trim() || undefined,
+          notes: noteCopilota.trim() || undefined,
+          copilota: Boolean(noteCopilota.trim()) || undefined,
           status: 'prenotato',
           attachments,
           createdAt: now,

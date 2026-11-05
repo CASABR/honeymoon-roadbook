@@ -38,7 +38,7 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
   const [acconto, setAcconto] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'saldato' | 'da_saldare'>('saldato');
   const [cancellazioneGratuitaEntro, setCancellazioneGratuitaEntro] = useState('');
-  const [notes, setNotes] = useState('');
+  const [noteCopilota, setNoteCopilota] = useState('');
   
   const [error, setError] = useState('');
   const [isGeocoding, setIsGeocoding] = useState(false);
@@ -78,7 +78,8 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
       });
       setPaymentStatus(pInfo.isPaid ? 'saldato' : 'da_saldare');
       setCancellazioneGratuitaEntro(initialData.cancellazioneGratuitaEntro || '');
-      setNotes(initialData.notes || '');
+      const existingNotes = [initialData.noteCopilota, initialData.notes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n\n');
+      setNoteCopilota(existingNotes);
     } else {
       const today = defaultDate ? new Date(`${defaultDate}T12:00:00`) : new Date();
       const yyyy = today.getFullYear();
@@ -105,7 +106,7 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
       setAcconto('');
       setPaymentStatus('da_saldare');
       setCancellazioneGratuitaEntro('');
-      setNotes('');
+      setNoteCopilota('');
     }
   }, [defaultDate, defaultTime, initialData]);
 
@@ -125,7 +126,8 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
     }
     if (place.rawLocalItem) {
       const raw = place.rawLocalItem;
-      if (raw.notes && !notes) setNotes(raw.notes);
+      const rawNotes = raw.noteCopilota || raw.notes;
+      if (rawNotes && !noteCopilota) setNoteCopilota(rawNotes);
       if (raw.sottocategoria && !sottocategoria) setSottocategoria(raw.sottocategoria);
       if (raw.cost && !cost) setCost(raw.cost);
       if (raw.phone && !phone) setPhone(raw.phone);
@@ -177,7 +179,9 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
       acconto: acconto.trim() || undefined,
       paymentStatus,
       cancellazioneGratuitaEntro: cancellazioneGratuitaEntro.trim() || undefined,
-      notes: notes.trim() || undefined,
+      noteCopilota: noteCopilota.trim() || undefined,
+      notes: noteCopilota.trim() || undefined,
+      copilota: Boolean(noteCopilota.trim()) || initialData?.copilota || undefined,
       coordinate: finalCoord
     });
   };
@@ -421,14 +425,14 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
       </div>
 
       <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Note / Parcheggio
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+          <span>🧭</span> Note per il Copilota (Istruzioni, Accesso, Parcheggio)
         </label>
         <textarea
           rows={3}
-          placeholder="es. Colazione inclusa, parcheggio nel cortile sul retro..."
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          placeholder="es. Colazione inclusa, codice keybox, parcheggio nel cortile sul retro..."
+          value={noteCopilota}
+          onChange={(e) => setNoteCopilota(e.target.value)}
           className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] placeholder:text-slate-400 resize-none"
         />
       </div>

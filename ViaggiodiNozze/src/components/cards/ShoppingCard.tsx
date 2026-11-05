@@ -163,6 +163,19 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
         </div>
 
         <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+          {hasCopilotNotes && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
+              className="hounigo-ds-action-btn"
+              title="Note per il Copilota"
+              aria-label="Note per il Copilota"
+            >
+              <span aria-hidden="true">🧭</span>
+              <span className="hidden sm:inline">Note</span>
+            </button>
+          )}
+
           {shopping.link && (
             <a
               href={shopping.link}
@@ -171,8 +184,11 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
               onClick={(e) => e.stopPropagation()}
               className="hounigo-ds-action-btn"
               title="Apri sito web"
+              aria-label="Sito web"
             >
-              <span>Sito ↗</span>
+              <span aria-hidden="true">🌐</span>
+              <span className="hidden sm:inline">Sito</span>
+              <span className="text-[10px] opacity-70">↗</span>
             </a>
           )}
 
@@ -185,8 +201,10 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
               }}
               className="hounigo-ds-action-btn hounigo-ds-action-btn-highlight"
               title="Ricevute e QR"
+              aria-label="Ricevute e QR"
             >
-              <span>Ricevuta / QR</span>
+              <span aria-hidden="true">🎟️</span>
+              <span className="hidden sm:inline">Ricevuta</span>
             </button>
           )}
 
@@ -196,8 +214,10 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
               onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
               className="hounigo-ds-action-btn"
               title="Duplica questo shopping"
+              aria-label="Duplica shopping"
             >
-              <span>📄 Duplica</span>
+              <span aria-hidden="true">📄</span>
+              <span className="hidden sm:inline">Duplica</span>
             </button>
           )}
           {mapTarget && (
@@ -208,8 +228,11 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
               onClick={(e) => e.stopPropagation()}
               className="hounigo-ds-action-btn"
               title="Apri su Google Maps"
+              aria-label="Apri su Google Maps"
             >
-              <span>Maps ↗</span>
+              <span aria-hidden="true">🗺️</span>
+              <span className="hidden sm:inline">Maps</span>
+              <span className="text-[10px] opacity-70">↗</span>
             </a>
           )}
         </div>

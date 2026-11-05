@@ -121,8 +121,9 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       setTicketUrl(initialData.ticketUrl || '');
       setTerminalGate(initialData.terminalGate || '');
       setCheckinCutoff(initialData.checkinCutoff || '');
-      setNoteCopilota(initialData.noteCopilota || '');
-      setCopilota(initialData.copilota || false);
+      const existingNotes = [initialData.noteCopilota, (initialData as any).notes, (initialData as any).nota].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n\n');
+      setNoteCopilota(existingNotes);
+      setCopilota(Boolean(existingNotes.trim()) || initialData.copilota || false);
     } else {
       setType('volo');
       setCarrier('');
@@ -202,10 +203,11 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       
       ticketUrl: ticketUrl.trim() || undefined,
       noteCopilota: noteCopilota.trim() || undefined,
+      notes: noteCopilota.trim() || undefined,
       terminalGate: terminalGate.trim() || undefined,
       checkinCutoff: checkinCutoff.trim() || undefined,
       bagagli: bagagli.trim() || undefined,
-      copilota: copilota || undefined,
+      copilota: Boolean(noteCopilota.trim()) || copilota || undefined,
       paymentStatus: (packageIncluded ? undefined : (isSaldato ? 'saldato' : 'da_saldare')) as any,
       status: (packageIncluded || isSaldato) ? 'completato' : (initialData?.status || 'prenotato') as StatoTrasporto,
     };

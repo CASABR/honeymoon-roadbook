@@ -433,6 +433,19 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
           </div>
 
           <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+            {hasCopilotNotes && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
+                className="hounigo-ds-action-btn"
+                title="Note per il Copilota"
+                aria-label="Note per il Copilota"
+              >
+                <span aria-hidden="true">🧭</span>
+                <span className="hidden sm:inline">Note</span>
+              </button>
+            )}
+
             {!isPhotoSpot && (
               <button
                 type="button"
@@ -442,8 +455,10 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 }}
                 className={`hounigo-ds-action-btn ${hasQrOrAttachment ? 'hounigo-ds-action-btn-highlight' : ''}`}
                 title="Biglietti e QR / Voucher"
+                aria-label="Biglietti e QR"
               >
-                <span>Biglietti / QR</span>
+                <span aria-hidden="true">🎟️</span>
+                <span className="hidden sm:inline">Biglietti</span>
               </button>
             )}
 
@@ -454,9 +469,12 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 className="hounigo-ds-action-btn"
-                title="Sito ufficiale / Prenotazione"
+                title={isTrekking ? 'Apri traccia GPS' : 'Sito ufficiale / Prenotazione'}
+                aria-label={isTrekking ? 'Traccia GPS' : 'Sito ufficiale'}
               >
-                <span>{isTrekking ? 'Traccia ↗' : 'Sito ↗'}</span>
+                <span aria-hidden="true">🌐</span>
+                <span className="hidden sm:inline">{isTrekking ? 'Traccia' : 'Sito'}</span>
+                <span className="text-[10px] opacity-70">↗</span>
               </a>
             )}
 
@@ -468,8 +486,11 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 onClick={(e) => e.stopPropagation()}
                 className="hounigo-ds-action-btn"
                 title={hasReliableGeoDestination(activity) ? 'Avvia navigazione verso la destinazione' : 'Cerca il luogo per nome su Google Maps'}
+                aria-label="Apri su Google Maps"
               >
-                <span>{getMapsActionLabel(hasReliableGeoDestination(activity))} ↗</span>
+                <span aria-hidden="true">🗺️</span>
+                <span className="hidden sm:inline">{getMapsActionLabel(hasReliableGeoDestination(activity))}</span>
+                <span className="text-[10px] opacity-70">↗</span>
               </a>
             )}
           </div>

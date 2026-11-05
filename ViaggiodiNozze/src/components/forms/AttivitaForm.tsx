@@ -28,7 +28,7 @@ function LegacyPhotoStopForm({ initialData, defaultTime, onSave, onCancel, onDel
   const legacyTappa: Tappa = {
     id: activity.id,
     titolo: activity.title,
-    sottocategoria: 'Sosta fotografica',
+    sottocategoria: 'Spot fotografico',
     data: activity.date,
     date: activity.date,
     dayId: activity.dayId,
@@ -48,7 +48,7 @@ function LegacyPhotoStopForm({ initialData, defaultTime, onSave, onCancel, onDel
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-        Sosta fotografica legacy: viene modificata con il formato Tappa senza duplicare o migrare il record.
+        Spot fotografico: viene modificato con il formato Tappa/Spot senza duplicare o alterare il record.
       </div>
       <TappaForm
         initialData={legacyTappa}
@@ -126,7 +126,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
   const [paymentStatus, setPaymentStatus] = useState<'saldato' | 'da_saldare'>('saldato');
   const [link, setLink] = useState(''); 
   const [qrCode, setQrCode] = useState('');
-  const [notes, setNotes] = useState('');
+  const [noteCopilota, setNoteCopilota] = useState('');
   const [status, setStatus] = useState<Attivita['status']>('prenotato');
   const [openingHours, setOpeningHours] = useState<OpeningHoursInfo | undefined>(() => initialData?.openingHours);
 
@@ -193,7 +193,8 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setPaymentStatus(initialData.paymentStatus || 'saldato');
       setLink(initialData.link || '');
       setQrCode(initialData.qrCode || '');
-      setNotes(initialData.notes || '');
+      const existingNotes = [initialData.noteCopilota, initialData.notes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n\n');
+      setNoteCopilota(existingNotes);
       setStatus(initialData.status || 'prenotato');
       setOpeningHours(initialData.openingHours);
       setAttachments(initialData.attachments || []);
@@ -248,7 +249,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setPaymentStatus('da_saldare');
       setLink('');
       setQrCode('');
-      setNotes('');
+      setNoteCopilota('');
       setStatus('prenotato');
       setOpeningHours(undefined);
       setAttachments([]);
@@ -311,7 +312,8 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
     }
     if (place.rawLocalItem) {
       const raw = place.rawLocalItem;
-      if (raw.notes && !notes) setNotes(raw.notes);
+      const rawNotes = raw.noteCopilota || raw.notes;
+      if (rawNotes && !noteCopilota) setNoteCopilota(rawNotes);
       if (raw.sottocategoria && !sottocategoria) setSottocategoria(raw.sottocategoria);
       if (raw.time && !orarioInizio) setOrarioInizio(raw.time);
       if (raw.cost && !cost) setCost(raw.cost);
@@ -402,11 +404,11 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       paymentStatus,
       link: link.trim() || undefined,
       qrCode: qrCode.trim() || undefined,
-      notes: notes.trim() || undefined,
+      noteCopilota: noteCopilota.trim() || undefined,
+      notes: noteCopilota.trim() || undefined,
+      copilota: Boolean(noteCopilota.trim()) || initialData?.copilota || undefined,
       status: paymentStatus === 'saldato' ? 'prenotato' : status,
       attachments: attachments.length > 0 ? attachments : undefined,
-      copilota: initialData?.copilota,
-      noteCopilota: initialData?.noteCopilota,
       platform: initialData?.platform,
       openingHours
     });
@@ -598,7 +600,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
             <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Link percorso o traccia</span><input type="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
             <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Difficoltà</span><input type="text" value={difficulty} onChange={(e) => setDifficulty(e.target.value)} placeholder="Facile, media, impegnativa…" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
           </div>
-          <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Note</span><textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Indicazioni utili, attrezzatura, meteo…" className="w-full p-3 hounigo-card-subtle rounded-xl text-sm resize-none" /></label>
+          <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="flex items-center gap-1.5 mb-1"><span>🧭</span> Note per il Copilota</span><textarea rows={3} value={noteCopilota} onChange={(e) => setNoteCopilota(e.target.value)} placeholder="Indicazioni utili per la guida, sentiero, attrezzatura o meteo..." className="w-full p-3 hounigo-card-subtle rounded-xl text-sm resize-none" /></label>
           {renderPhotoField('Foto facoltativa', 'Resta negli allegati e non sostituisce una traccia GPS del percorso.')}
         </div>
       )}
@@ -634,7 +636,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
               <input type="text" inputMode="decimal" value={longitude} onChange={(e) => { setLongitude(e.target.value); setCoordinate(undefined); }} placeholder="Longitudine" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" aria-label="Longitudine" />
             </div>
           </div>
-          <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Note</span><textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Accesso, composizione, attrezzatura o meteo…" className="w-full p-3 hounigo-card-subtle rounded-xl text-sm resize-none" /></label>
+          <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="flex items-center gap-1.5 mb-1"><span>🧭</span> Note per il Copilota</span><textarea rows={3} value={noteCopilota} onChange={(e) => setNoteCopilota(e.target.value)} placeholder="Accesso, punto esatto, composizione, attrezzatura o meteo..." className="w-full p-3 hounigo-card-subtle rounded-xl text-sm resize-none" /></label>
           {renderPhotoField('Aggiungi foto dello spot', 'La prima foto diventa la copertina della card.')}
         </div>
       )}
@@ -1095,14 +1097,14 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       <TimeZoneInput value={timeZone} onChange={setTimeZone} label="Fuso orario dell'attività" />
 
       {!isTrekking && !isPhotoSpot && <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Note Libere / Cosa portare
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+          <span>🧭</span> Note per il Copilota (Istruzioni, Cosa portare, Promemoria)
         </label>
         <textarea
           rows={3}
-          placeholder="es. Abbigliamento termico, snack, protezione solare..."
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
+          placeholder="es. Abbigliamento termico, ritrovo con la guida, snack, protezione solare..."
+          value={noteCopilota}
+          onChange={(e) => setNoteCopilota(e.target.value)}
           className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F] placeholder:text-slate-400 resize-none"
         />
       </div>}

@@ -38,6 +38,18 @@ export default function TimelineItemDetailModal({
   const isAlloggio = item.type === 'alloggio';
   const data = item.originalData;
 
+  const rawCopilotNotes = (
+    item.noteCopilota ||
+    (data as any)?.noteCopilota ||
+    (data as any)?.notes ||
+    (data as any)?.nota ||
+    ''
+  ).trim();
+
+  const safeCopilotNotes = canSeePrivateInfo
+    ? rawCopilotNotes
+    : rawCopilotNotes.replace(/\b(PIN|codice|keybox|cassaforte|digita)\s*[:=-]?\s*([A-Z0-9#*]{3,12})/gi, '$1: [Riservato]');
+
   const modalTitle = isAttivita
     ? 'Dettagli Attività'
     : isTrasporto
@@ -67,7 +79,7 @@ export default function TimelineItemDetailModal({
               <h2 className="text-lg font-bold text-slate-900 leading-snug">
                 {item.title}
               </h2>
-              {item.copilota && (
+              {Boolean(safeCopilotNotes || item.copilota) && (
                 <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   🧭 Co-pilota
                 </span>
@@ -409,10 +421,6 @@ export default function TimelineItemDetailModal({
           /* Informazioni specifiche per Alloggio */
           (() => {
             const acc = data as Alloggio;
-            const rawNotes = (acc as any).noteCopilota || acc.notes || '';
-            const safeNotes = canSeePrivateInfo
-              ? rawNotes
-              : rawNotes.replace(/\b(PIN|codice|keybox|cassaforte|digita)\s*[:=-]?\s*([A-Z0-9#*]{3,12})/gi, '$1: [Riservato]');
             return (
               <div className="space-y-3 text-xs">
                 <div>
@@ -476,16 +484,7 @@ export default function TimelineItemDetailModal({
                   )}
                 </div>
 
-                {safeNotes && (
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
-                    <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block mb-1">
-                      🧭 Istruzioni d'ingresso &amp; Note
-                    </span>
-                    <p className="text-xs text-emerald-950 font-medium whitespace-pre-wrap">
-                      {safeNotes}
-                    </p>
-                  </div>
-                )}
+
 
                 {acc.attachments && acc.attachments.length > 0 && (
                   <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex flex-col gap-2">
@@ -565,27 +564,7 @@ export default function TimelineItemDetailModal({
                   )}
                 </div>
 
-                {tp.nota && (
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-                      Note &amp; Suggerimenti
-                    </span>
-                    <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
-                      {tp.nota}
-                    </p>
-                  </div>
-                )}
 
-                {tp.noteCopilota && (
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
-                    <span className="text-[10px] uppercase font-bold text-emerald-800 tracking-wider block mb-1">
-                      🧭 Note per il Copilota
-                    </span>
-                    <p className="text-xs text-emerald-950 font-medium whitespace-pre-wrap">
-                      {tp.noteCopilota}
-                    </p>
-                  </div>
-                )}
               </div>
             );
           })()
@@ -657,16 +636,6 @@ export default function TimelineItemDetailModal({
                   </div>
                 )}
 
-                {sh.nota && (
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-                      Cosa Comprare / Note
-                    </span>
-                    <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
-                      {sh.nota}
-                    </p>
-                  </div>
-                )}
               </div>
             );
           })()
@@ -762,19 +731,22 @@ export default function TimelineItemDetailModal({
                   </div>
                 )}
 
-                {rt.nota && (
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-                      Note Ristorante
-                    </span>
-                    <p className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-slate-700 whitespace-pre-wrap">
-                      {rt.nota}
-                    </p>
-                  </div>
-                )}
               </div>
             );
           })()
+        )}
+
+        {/* Note per il Copilota Unificate per tutte le categorie */}
+        {safeCopilotNotes && (
+          <div className="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 shadow-2xs">
+            <span className="text-[10px] uppercase font-extrabold text-emerald-800 dark:text-emerald-300 tracking-wider block mb-1 flex items-center gap-1.5">
+              <span>🧭</span>
+              <span>Note per il Copilota</span>
+            </span>
+            <p className="text-xs text-emerald-950 dark:text-emerald-100 font-medium whitespace-pre-wrap leading-relaxed">
+              {safeCopilotNotes}
+            </p>
+          </div>
         )}
 
         {/* Azioni del Modale */}

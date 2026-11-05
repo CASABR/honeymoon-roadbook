@@ -264,6 +264,12 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             )}
           </div>
         )}
+
+        {hasCopilotNotes && (
+          <p className="hounigo-ds-note line-clamp-2">
+            {displayedCopilotNotes.trim()}
+          </p>
+        )}
       </div>
 
       {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO & AZIONI OPERATIVE */}
@@ -299,9 +305,11 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
               className="hounigo-ds-action-btn"
-              title="Istruzioni d'ingresso e note operative"
+              title="Istruzioni d'ingresso e note per il copilota"
+              aria-label="Istruzioni d'ingresso e note per il copilota"
             >
-              <span>Istruzioni</span>
+              <span aria-hidden="true">🧭</span>
+              <span className="hidden sm:inline">Note</span>
             </button>
           )}
 
@@ -310,9 +318,11 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               href={`tel:${accommodation.phone}`}
               onClick={(e) => e.stopPropagation()}
               className="hounigo-ds-action-btn"
-              title="Chiama la struttura"
+              title={`Chiama la struttura: ${accommodation.phone}`}
+              aria-label="Chiama la struttura"
             >
-              <span>Chiama</span>
+              <span aria-hidden="true">📞</span>
+              <span className="hidden sm:inline">Chiama</span>
             </a>
           )}
 
@@ -324,8 +334,10 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             }}
             className={`hounigo-ds-action-btn ${hasAttachments ? 'hounigo-ds-action-btn-highlight' : ''}`}
             title="Voucher e allegati dell'alloggio"
+            aria-label="Voucher e allegati dell'alloggio"
           >
-            <span>Voucher</span>
+            <span aria-hidden="true">🎟️</span>
+            <span className="hidden sm:inline">Voucher</span>
           </button>
 
           {mapTarget && (
@@ -336,8 +348,11 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               onClick={(e) => e.stopPropagation()}
               className="hounigo-ds-action-btn"
               title="Apri su Google Maps"
+              aria-label="Apri su Google Maps"
             >
-              <span>Maps ↗</span>
+              <span aria-hidden="true">🗺️</span>
+              <span className="hidden sm:inline">Maps</span>
+              <span className="text-[10px] opacity-70">↗</span>
             </a>
           )}
         </div>

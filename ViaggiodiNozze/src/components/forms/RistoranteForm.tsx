@@ -27,7 +27,7 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
   const [telefono, setTelefono] = useState('');
   const [linkPrenotazione, setLinkPrenotazione] = useState('');
   const [budget, setBudget] = useState('');
-  const [nota, setNota] = useState('');
+  const [noteCopilota, setNoteCopilota] = useState('');
   const [status, setStatus] = useState<'da_saldare' | 'saldato'>('da_saldare');
   const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
   
@@ -58,7 +58,8 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
       setTelefono(initialData.telefono || '');
       setLinkPrenotazione(initialData.linkPrenotazione || '');
       setBudget(initialData.budget || '');
-      setNota(initialData.nota || '');
+      const existingNotes = [initialData.noteCopilota, initialData.nota, (initialData as any).notes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n\n');
+      setNoteCopilota(existingNotes);
       setStatus(initialData.status === 'saldato' || (initialData as any).completed ? 'saldato' : 'da_saldare');
       setCoordinate(initialData.coordinate);
     } else {
@@ -71,7 +72,7 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
       setTelefono('');
       setLinkPrenotazione('');
       setBudget('');
-      setNota('');
+      setNoteCopilota('');
       setCoordinate(undefined);
       setStatus('da_saldare');
     }
@@ -149,7 +150,10 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
       budget: budget.trim() || undefined,
       status: status,
       completed: status === 'saldato',
-      nota: nota.trim() || undefined,
+      noteCopilota: noteCopilota.trim() || undefined,
+      nota: noteCopilota.trim() || undefined,
+      notes: noteCopilota.trim() || undefined,
+      copilota: Boolean(noteCopilota.trim()) || initialData?.copilota || undefined,
       coordinate: finalCoord,
     });
   };
@@ -164,7 +168,8 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
     }
     if (place.rawLocalItem) {
       const raw = place.rawLocalItem;
-      if (raw.nota && !nota) setNota(raw.nota);
+      const rawNotes = raw.noteCopilota || raw.nota || raw.notes;
+      if (rawNotes && !noteCopilota) setNoteCopilota(rawNotes);
       if (raw.sottocategoria && !sottocategoria) setSottocategoria(raw.sottocategoria);
       if (raw.budget && !budget) setBudget(raw.budget);
       if (raw.telefono && !telefono) setTelefono(raw.telefono);
@@ -377,14 +382,14 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
       </div>
 
       <div>
-        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-          Note Aggiuntive / Piatti consigliati
+        <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+          <span>🧭</span> Note per il Copilota (Piatti consigliati & Istruzioni)
         </label>
         <textarea
           rows={3}
-          placeholder="Da assaggiare assolutamente..."
-          value={nota}
-          onChange={(e) => setNota(e.target.value)}
+          placeholder="es. Da assaggiare assolutamente, prenotazione a nome nostro, orario limite tavolo..."
+          value={noteCopilota}
+          onChange={(e) => setNoteCopilota(e.target.value)}
           className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] placeholder:text-slate-400 resize-none transition-colors"
         />
       </div>

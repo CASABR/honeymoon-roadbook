@@ -32,7 +32,6 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
   const isCompact = variant === 'compact';
 
   const mapTarget = tappa.mapsUrl || tappa.indirizzo || tappa.titolo;
-  const usefulNote = (tappa.nota || (tappa as any).notes || '').trim();
   const hasSubcategory = Boolean(tappa.sottocategoria && tappa.sottocategoria.trim() && tappa.sottocategoria !== 'Tappa');
 
   const headerTimeSummary = orario
@@ -123,9 +122,9 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
           </div>
         )}
 
-        {usefulNote && (
+        {hasCopilotNotes && (
           <p className="hounigo-ds-note line-clamp-2">
-            {usefulNote}
+            {copilotNotes.trim()}
           </p>
         )}
       </div>
@@ -139,19 +138,23 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
               onClick={(e) => { e.stopPropagation(); onEdit(); }}
               className="hounigo-ds-action-btn"
               title="Inserisci orario per questa tappa"
+              aria-label="Inserisci orario"
             >
-              <span>{tappa.sottocategoria === 'Sosta fotografica' ? 'Orario libero' : '+ Orario'}</span>
+              <span aria-hidden="true">+ ⏰</span>
+              <span className="hidden sm:inline">Orario</span>
             </button>
           )}
 
-          {hasCopilotNotes && copilotNotes.trim() !== usefulNote && (
+          {hasCopilotNotes && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
               className="hounigo-ds-action-btn"
-              title="Note operative"
+              title="Note per il Copilota"
+              aria-label="Note per il Copilota"
             >
-              <span>Note</span>
+              <span aria-hidden="true">🧭</span>
+              <span className="hidden sm:inline">Note</span>
             </button>
           )}
 
@@ -161,8 +164,10 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
               onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
               className="hounigo-ds-action-btn"
               title="Duplica questa tappa"
+              aria-label="Duplica questa tappa"
             >
-              <span>📄 Duplica</span>
+              <span aria-hidden="true">📄</span>
+              <span className="hidden sm:inline">Duplica</span>
             </button>
           )}
           {mapTarget && (
@@ -173,8 +178,11 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
               onClick={(e) => e.stopPropagation()}
               className="hounigo-ds-action-btn"
               title={hasReliableGeoDestination(tappa) ? "Avvia navigazione verso la destinazione" : "Cerca il luogo per nome su Google Maps"}
+              aria-label="Apri su Google Maps"
             >
-              <span>{getMapsActionLabel(hasReliableGeoDestination(tappa))} ↗</span>
+              <span aria-hidden="true">🗺️</span>
+              <span className="hidden sm:inline">{getMapsActionLabel(hasReliableGeoDestination(tappa))}</span>
+              <span className="text-[10px] opacity-70">↗</span>
             </a>
           )}
         </div>

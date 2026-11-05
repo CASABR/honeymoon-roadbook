@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.2",
+      "publishedAt": "2026-11-05",
+      "sourceCommit": "b417e09",
+      "changes": [
+        "Unificazione note copilota in tutte le categorie con salvaguardia e migrazione automatica dei dati.",
+        "Riorganizzazione sottocategorie tappe e consolidamento dello Spot fotografico unico.",
+        "Footer card compatti con icone responsive ottimizzate per la consultazione mobile."
+      ]
+    },
+    {
       "version": "1.5.1",
       "publishedAt": "2026-11-03",
       "sourceCommit": "f9daae4",

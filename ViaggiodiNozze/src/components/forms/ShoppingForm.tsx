@@ -24,7 +24,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
   const [indirizzo, setIndirizzo] = useState('');
   const [budget, setBudget] = useState('');
   const [link, setLink] = useState('');
-  const [nota, setNota] = useState('');
+  const [noteCopilota, setNoteCopilota] = useState('');
   const [copilota, setCopilota] = useState(false);
   
   const [error, setError] = useState('');
@@ -55,8 +55,9 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       setIndirizzo(initialData.indirizzo || '');
       setBudget(initialData.budget || '');
       setLink(initialData.link || '');
-      setNota(initialData.nota || '');
-      setCopilota(initialData.copilota || false);
+      const existingNotes = [initialData.noteCopilota, initialData.nota, (initialData as any).notes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n\n');
+      setNoteCopilota(existingNotes);
+      setCopilota(Boolean(existingNotes.trim()) || initialData.copilota || false);
     } else {
       setSottocategoria('');
       setNome('');
@@ -67,7 +68,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       setIndirizzo('');
       setBudget('');
       setLink('');
-      setNota('');
+      setNoteCopilota('');
       setCopilota(false);
     }
   }, [defaultDate, defaultTime, initialData]);
@@ -86,7 +87,8 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
         if (d.data) setData(d.data);
         if (d.orario) setOrario(d.orario);
         if (d.budget) setBudget(d.budget);
-        if (d.nota) setNota(d.nota);
+        const extNote = (d as any).noteCopilota || d.nota || (d as any).notes;
+        if (extNote) setNoteCopilota(extNote);
         if (d.sottocategoria && SOTTOCATEGORIE.includes(d.sottocategoria)) {
           setSottocategoria(d.sottocategoria);
         }
@@ -122,8 +124,10 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       budget: budget.trim() || undefined,
       link: link.trim() || undefined,
       coordinate: initialData?.coordinate,
-      nota: nota.trim() || undefined,
-      copilota: copilota || undefined
+      noteCopilota: noteCopilota.trim() || undefined,
+      nota: noteCopilota.trim() || undefined,
+      notes: noteCopilota.trim() || undefined,
+      copilota: Boolean(noteCopilota.trim()) || copilota || undefined
     });
   };
 
@@ -329,32 +333,21 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
           </div>
         </div>
 
-        {/* Note / Dettagli shopping */}
+        {/* Note Copilota / Dettagli shopping */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-            Lista Completa / Note Dettagliate
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+            <span>🧭</span> Note per il Copilota (Lista acquisti & Consigli)
           </label>
           <textarea
             rows={3}
             placeholder="es. Miele di Manuka, maglione in lana merino, artigianato locale Maori, souvenir per famiglia..."
-            value={nota}
-            onChange={(e) => setNota(e.target.value)}
+            value={noteCopilota}
+            onChange={(e) => {
+              const val = e.target.value;
+              setNoteCopilota(val);
+              if (val.trim()) setCopilota(true);
+            }}
             className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-slate-100 focus:border-rose-500 placeholder:text-slate-400 resize-none"
-          />
-        </div>
-
-        {/* Opzione Co-pilota */}
-        <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-          <label htmlFor="copilota-shopping-toggle" className="text-xs font-bold text-slate-700 cursor-pointer flex items-center gap-1.5">
-            <span>🧭</span>
-            <span>Mostra al co-pilota come sosta consigliata</span>
-          </label>
-          <input
-            id="copilota-shopping-toggle"
-            type="checkbox"
-            checked={copilota}
-            onChange={(e) => setCopilota(e.target.checked)}
-            className="w-4 h-4 rounded text-rose-600 bg-white border-slate-300 focus:ring-rose-500 cursor-pointer"
           />
         </div>
 
