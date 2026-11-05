@@ -43,6 +43,10 @@ export default function TimelineItemDetailModal({
   const rawCopilotNotes = (
     item.noteCopilota ||
     (data as any)?.noteCopilota ||
+    ''
+  ).trim();
+
+  const rawGeneralNotes = (
     (data as any)?.notes ||
     (data as any)?.nota ||
     ''
