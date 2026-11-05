@@ -151,19 +151,6 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             </span>
           )}
         </div>
-
-        {hasCopilotNotes && (
-          <div className="hounigo-ds-header-subrow">
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-              className="inline-flex items-center gap-1.5 hover:underline cursor-pointer text-left uppercase tracking-wide"
-              title="Apri istruzioni d'ingresso"
-            >
-              <span>Istruzioni d&apos;ingresso disponibili →</span>
-            </button>
-          </div>
-        )}
       </div>
 
       {/* 2. BODY: NOME STRUTTURA, PERIODO SOGGIORNO, INDIRIZZO E CASELLARIO OPERATIVO */}
@@ -265,7 +252,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
           </div>
         )}
 
-        {hasCopilotNotes && (
+        {hasCopilotNotes && accommodation.mostraNoteInCard && (
           <p className="hounigo-ds-note line-clamp-2">
             {displayedCopilotNotes.trim()}
           </p>
@@ -299,17 +286,17 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap ml-auto">
-          {hasCopilotNotes && (
+        <div className="hounigo-ds-actions-group">
+          {canSeePrivateInfo && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-              className="hounigo-ds-action-btn"
-              title="Istruzioni d'ingresso e note per il copilota"
-              aria-label="Istruzioni d'ingresso e note per il copilota"
+              className={`hounigo-ds-action-btn ${hasCopilotNotes ? 'hounigo-ds-action-btn-active-green' : ''}`}
+              title={hasCopilotNotes ? 'Note copilota e istruzioni registrate' : 'Note per il copilota'}
+              aria-label="Note per il copilota"
             >
               <span aria-hidden="true">🧭</span>
-              <span className="hidden sm:inline">Note</span>
+              <span className="hounigo-ds-btn-text">Note</span>
             </button>
           )}
 
@@ -322,7 +309,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               aria-label="Chiama la struttura"
             >
               <span aria-hidden="true">📞</span>
-              <span className="hidden sm:inline">Chiama</span>
+              <span className="hounigo-ds-btn-text">Chiama</span>
             </a>
           )}
 
@@ -337,7 +324,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             aria-label="Voucher e allegati dell'alloggio"
           >
             <span aria-hidden="true">🎟️</span>
-            <span className="hidden sm:inline">Voucher</span>
+            <span className="hounigo-ds-btn-text">Voucher</span>
           </button>
 
           {mapTarget && (
@@ -351,8 +338,8 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               aria-label="Apri su Google Maps"
             >
               <span aria-hidden="true">🗺️</span>
-              <span className="hidden sm:inline">Maps</span>
-              <span className="text-[10px] opacity-70">↗</span>
+              <span className="hounigo-ds-btn-text">Maps</span>
+              <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
             </a>
           )}
         </div>
@@ -363,13 +350,19 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
         onClose={() => setIsCopilotOpen(false)}
         title={`Istruzioni & Note · ${accommodation.name || 'Alloggio'}`}
         noteCopilota={displayedCopilotNotes}
+        mostraNoteInCard={accommodation.mostraNoteInCard}
         canEdit={canSeePrivateInfo}
-        onSave={async (notes) => {
+        onSave={async (notes, showOnCard) => {
           if (!canSeePrivateInfo) return;
           try {
             const clean = notes.trim();
             setCopilotNotes(clean);
-            const updated = { ...accommodation, noteCopilota: clean, updatedAt: Date.now() } as any;
+            const updated = {
+              ...accommodation,
+              noteCopilota: clean,
+              mostraNoteInCard: Boolean(showOnCard),
+              updatedAt: Date.now()
+            } as any;
             await storageService.saveAccommodation(updated);
             if (typeof onUpdate === 'function') onUpdate(updated);
             window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'alloggi', data: updated } }));

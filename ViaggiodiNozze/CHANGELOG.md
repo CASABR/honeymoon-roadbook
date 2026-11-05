@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.3 — 2026-11-05
+
+- Card mobile ultra-compatte: footer a riga singola con icone, orari compatti per le attività.
+- Note copilota discrete con icona verde e toggle per visualizzazione a vista sulla card.
+- Pulsante bagagli dedicato nei trasporti e supporto drag-and-drop foto per Spot fotografico.
+
 ## 1.5.2 — 2026-11-05
 
 - Unificazione note copilota in tutte le categorie con salvaguardia e migrazione automatica dei dati.

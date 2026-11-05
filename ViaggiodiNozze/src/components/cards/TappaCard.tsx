@@ -1,11 +1,12 @@
 import type { Tappa } from '../../types';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
 import { resolveMapUrl, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import OpeningHoursBadge from '../common/OpeningHoursBadge';
 import { PHOTO_LIGHT_LABELS } from '../../utils/activityType';
+import { processFileForAttachment } from '../../utils/fileAttachment';
 
 interface TappaCardProps {
   tappa: Tappa;
@@ -21,6 +22,51 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const initialCopilot = (tappa as any).noteCopilota || (tappa as any).nota || (tappa as any).notes || '';
   const [copilotNotes, setCopilotNotes] = useState<string>(initialCopilot);
+  const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingPhoto(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    try {
+      const processed = await processFileForAttachment(file);
+      const photoAtt: any = { ...processed, purpose: 'photo' };
+      const currentAtts = (tappa.attachments || []).filter(a => a.type !== 'image');
+      const updated = {
+        ...tappa,
+        attachments: [...currentAtts, photoAtt],
+        updatedAt: Date.now()
+      };
+      await storageService.saveTappa(updated);
+      if (typeof onUpdate === 'function') onUpdate(updated);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'tappe', data: updated } }));
+    } catch (err) {
+      console.error('Errore caricamento foto tappa drag-and-drop:', err);
+    }
+  };
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const processed = await processFileForAttachment(file);
+      const photoAtt: any = { ...processed, purpose: 'photo' };
+      const currentAtts = (tappa.attachments || []).filter(a => a.type !== 'image');
+      const updated = {
+        ...tappa,
+        attachments: [...currentAtts, photoAtt],
+        updatedAt: Date.now()
+      };
+      await storageService.saveTappa(updated);
+      if (typeof onUpdate === 'function') onUpdate(updated);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'tappe', data: updated } }));
+    } catch (err) {
+      console.error('Errore selezione foto tappa:', err);
+    }
+  };
 
   useEffect(() => {
     const nextNotes = (tappa as any).noteCopilota || (tappa as any).nota || (tappa as any).notes || '';
@@ -97,18 +143,59 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
           </div>
         )}
 
-                {/* Spot fotografico: anteprima foto e finestra di luce */}
+        {/* Spot fotografico: anteprima foto e finestra di luce con supporto drag-and-drop */}
         {(tappa.sottocategoria === 'Spot fotografico' || tappa.sottocategoria === 'Sosta fotografica') && (
           <div className="space-y-2 mt-2.5">
-            {tappa.attachments && tappa.attachments.find(a => a.type === 'image') && (
-              <div className="relative aspect-[16/9] w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900">
-                <img
-                  src={tappa.attachments.find(a => a.type === 'image')?.dataUrl}
-                  alt={tappa.titolo}
-                  className="h-full w-full object-cover"
-                />
-              </div>
-            )}
+            {(() => {
+              const photoImage = tappa.attachments?.find(a => a.type === 'image');
+              return (
+                <div
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingPhoto(true); }}
+                  onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingPhoto(false); }}
+                  onDrop={handlePhotoDrop}
+                  onClick={(e) => { e.stopPropagation(); photoInputRef.current?.click(); }}
+                  className={`relative rounded-xl overflow-hidden cursor-pointer transition ${
+                    photoImage
+                      ? 'h-32 sm:h-36 border border-slate-200 dark:border-slate-800'
+                      : `p-3 border border-dashed text-center flex items-center justify-center gap-2 ${
+                          isDraggingPhoto
+                            ? 'border-[#FF6B5F] bg-rose-50/60 dark:bg-rose-950/40 text-[#FF6B5F]'
+                            : 'border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 hover:bg-slate-100 text-slate-500 dark:text-slate-400'
+                        }`
+                  }`}
+                  title="Trascina una foto o tocca per caricarla"
+                >
+                  {photoImage ? (
+                    <>
+                      <img
+                        src={photoImage.dataUrl}
+                        alt={tappa.titolo}
+                        className="h-full w-full object-cover"
+                      />
+                      {isDraggingPhoto && (
+                        <div className="absolute inset-0 bg-[#172033]/70 flex items-center justify-center text-white text-xs font-bold">
+                          Rilascia per sostituire la foto
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-base">📸</span>
+                      <span className="text-xs font-semibold">
+                        {isDraggingPhoto ? 'Rilascia la foto qui' : 'Trascina una foto o tocca per caricare'}
+                      </span>
+                    </>
+                  )}
+                  <input
+                    ref={photoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handlePhotoSelect}
+                  />
+                </div>
+              );
+            })()}
             {tappa.lightWindow && tappa.lightWindow !== 'qualsiasi' && (
               <div className="hounigo-ds-spec-grid">
                 <div className="hounigo-ds-spec-cell">
@@ -122,7 +209,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
           </div>
         )}
 
-        {hasCopilotNotes && (
+        {hasCopilotNotes && tappa.mostraNoteInCard && (
           <p className="hounigo-ds-note line-clamp-2">
             {copilotNotes.trim()}
           </p>
@@ -131,7 +218,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
 
       {/* 3. FOOTER: TAGLIANDO AZIONI EFFETTIVAMENTE DISPONIBILI */}
       <div className="hounigo-ds-card-footer">
-        <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+        <div className="hounigo-ds-actions-group">
           {!orario && (
             <button
               type="button"
@@ -141,7 +228,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
               aria-label="Inserisci orario"
             >
               <span aria-hidden="true">+ ⏰</span>
-              <span className="hidden sm:inline">Orario</span>
+              <span className="hounigo-ds-btn-text">Orario</span>
             </button>
           )}
 
@@ -149,12 +236,12 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-              className="hounigo-ds-action-btn"
+              className={`hounigo-ds-action-btn ${hasCopilotNotes ? 'hounigo-ds-action-btn-active-green' : ''}`}
               title="Note per il Copilota"
               aria-label="Note per il Copilota"
             >
               <span aria-hidden="true">🧭</span>
-              <span className="hidden sm:inline">Note</span>
+              <span className="hounigo-ds-btn-text">Note</span>
             </button>
           )}
 
@@ -167,7 +254,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
               aria-label="Duplica questa tappa"
             >
               <span aria-hidden="true">📄</span>
-              <span className="hidden sm:inline">Duplica</span>
+              <span className="hounigo-ds-btn-text">Duplica</span>
             </button>
           )}
           {mapTarget && (
@@ -181,8 +268,8 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
               aria-label="Apri su Google Maps"
             >
               <span aria-hidden="true">🗺️</span>
-              <span className="hidden sm:inline">{getMapsActionLabel(hasReliableGeoDestination(tappa))}</span>
-              <span className="text-[10px] opacity-70">↗</span>
+              <span className="hounigo-ds-btn-text">{getMapsActionLabel(hasReliableGeoDestination(tappa))}</span>
+              <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
             </a>
           )}
         </div>
@@ -193,15 +280,21 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
         onClose={() => setIsCopilotOpen(false)}
         title={tappa.titolo || 'Dettaglio'}
         noteCopilota={copilotNotes}
+        mostraNoteInCard={tappa.mostraNoteInCard}
         canEdit={true}
-        onSave={async (notes) => {
+        onSave={async (notes, showOnCard) => {
           try {
             const clean = notes.trim();
             setCopilotNotes(clean);
-            const updated = { ...tappa, noteCopilota: clean, updatedAt: Date.now() } as any;
+            const updated = {
+              ...tappa,
+              noteCopilota: clean,
+              mostraNoteInCard: Boolean(showOnCard),
+              updatedAt: Date.now()
+            } as any;
             await storageService.saveTappa(updated);
             if (typeof onUpdate === 'function') onUpdate(updated);
-            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update' } }));
+            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'tappe', data: updated } }));
             setIsCopilotOpen(false);
           } catch (e) { console.error(e); }
         }}

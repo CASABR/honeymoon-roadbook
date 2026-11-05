@@ -125,7 +125,7 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
           </div>
         )}
 
-        {hasCopilotNotes && (
+        {hasCopilotNotes && shopping.mostraNoteInCard && (
           <p className="hounigo-ds-note line-clamp-2">
             {copilotData.trim()}
           </p>
@@ -162,17 +162,17 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
           ) : null}
         </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+        <div className="hounigo-ds-actions-group">
           {hasCopilotNotes && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-              className="hounigo-ds-action-btn"
+              className={`hounigo-ds-action-btn ${hasCopilotNotes ? 'hounigo-ds-action-btn-active-green' : ''}`}
               title="Note per il Copilota"
               aria-label="Note per il Copilota"
             >
               <span aria-hidden="true">🧭</span>
-              <span className="hidden sm:inline">Note</span>
+              <span className="hounigo-ds-btn-text">Note</span>
             </button>
           )}
 
@@ -187,8 +187,8 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
               aria-label="Sito web"
             >
               <span aria-hidden="true">🌐</span>
-              <span className="hidden sm:inline">Sito</span>
-              <span className="text-[10px] opacity-70">↗</span>
+              <span className="hounigo-ds-btn-text">Sito</span>
+              <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
             </a>
           )}
 
@@ -204,7 +204,7 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
               aria-label="Ricevute e QR"
             >
               <span aria-hidden="true">🎟️</span>
-              <span className="hidden sm:inline">Ricevuta</span>
+              <span className="hounigo-ds-btn-text">Ricevuta</span>
             </button>
           )}
 
@@ -217,7 +217,7 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
               aria-label="Duplica shopping"
             >
               <span aria-hidden="true">📄</span>
-              <span className="hidden sm:inline">Duplica</span>
+              <span className="hounigo-ds-btn-text">Duplica</span>
             </button>
           )}
           {mapTarget && (
@@ -231,8 +231,8 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
               aria-label="Apri su Google Maps"
             >
               <span aria-hidden="true">🗺️</span>
-              <span className="hidden sm:inline">Maps</span>
-              <span className="text-[10px] opacity-70">↗</span>
+              <span className="hounigo-ds-btn-text">Maps</span>
+              <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
             </a>
           )}
         </div>
@@ -243,10 +243,16 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
         onClose={() => setIsCopilotOpen(false)}
         title={shopping.nome || 'Dettaglio'}
         noteCopilota={copilotData}
+        mostraNoteInCard={shopping.mostraNoteInCard}
         canEdit={true}
-        onSave={async (notes) => {
+        onSave={async (notes, showOnCard) => {
           try {
-            const updated = { ...shopping, noteCopilota: notes.trim(), updatedAt: Date.now() } as any;
+            const updated = {
+              ...shopping,
+              noteCopilota: notes.trim(),
+              mostraNoteInCard: Boolean(showOnCard),
+              updatedAt: Date.now()
+            } as any;
             await storageService.updateShopping(shopping.id, updated);
             if (typeof onUpdate === 'function') onUpdate(updated);
             notifyDataChanged('shopping', 'save', updated);

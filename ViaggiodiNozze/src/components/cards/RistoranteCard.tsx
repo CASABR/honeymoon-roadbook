@@ -110,7 +110,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
           </div>
         )}
 
-        {hasCopilotNotes && (
+        {hasCopilotNotes && ristorante.mostraNoteInCard && (
           <p className="hounigo-ds-note line-clamp-2">
             {copilotData.trim()}
           </p>
@@ -143,17 +143,17 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
           ) : null}
         </div>
 
-        <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+        <div className="hounigo-ds-actions-group">
           {hasCopilotNotes && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-              className="hounigo-ds-action-btn"
+              className={`hounigo-ds-action-btn ${hasCopilotNotes ? 'hounigo-ds-action-btn-active-green' : ''}`}
               title="Note per il Copilota"
               aria-label="Note per il Copilota"
             >
               <span aria-hidden="true">🧭</span>
-              <span className="hidden sm:inline">Note</span>
+              <span className="hounigo-ds-btn-text">Note</span>
             </button>
           )}
 
@@ -166,7 +166,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
               aria-label="Chiama il ristorante"
             >
               <span aria-hidden="true">📞</span>
-              <span className="hidden sm:inline">Chiama</span>
+              <span className="hounigo-ds-btn-text">Chiama</span>
             </a>
           )}
 
@@ -181,8 +181,8 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
               aria-label="Apri prenotazione"
             >
               <span aria-hidden="true">🍽️</span>
-              <span className="hidden sm:inline">Prenota</span>
-              <span className="text-[10px] opacity-70">↗</span>
+              <span className="hounigo-ds-btn-text">Prenota</span>
+              <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
             </a>
           )}
 
@@ -198,7 +198,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
               aria-label="Voucher / Ricevuta prenotazione"
             >
               <span aria-hidden="true">🎟️</span>
-              <span className="hidden sm:inline">Voucher</span>
+              <span className="hounigo-ds-btn-text">Voucher</span>
             </button>
           )}
 
@@ -211,7 +211,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
               aria-label="Duplica ristorante"
             >
               <span aria-hidden="true">📄</span>
-              <span className="hidden sm:inline">Duplica</span>
+              <span className="hounigo-ds-btn-text">Duplica</span>
             </button>
           )}
           {mapTarget && (
@@ -225,8 +225,8 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
               aria-label="Apri su Google Maps"
             >
               <span aria-hidden="true">🗺️</span>
-              <span className="hidden sm:inline">Maps</span>
-              <span className="text-[10px] opacity-70">↗</span>
+              <span className="hounigo-ds-btn-text">Maps</span>
+              <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
             </a>
           )}
         </div>
@@ -237,13 +237,19 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
         onClose={() => setIsCopilotOpen(false)}
         title={ristorante.nome || 'Dettaglio'}
         noteCopilota={copilotData}
+        mostraNoteInCard={ristorante.mostraNoteInCard}
         canEdit={true}
-        onSave={async (notes) => {
+        onSave={async (notes, showOnCard) => {
           try {
-            const updated = { ...ristorante, noteCopilota: notes.trim(), updatedAt: Date.now() } as any;
+            const updated = {
+              ...ristorante,
+              noteCopilota: notes.trim(),
+              mostraNoteInCard: Boolean(showOnCard),
+              updatedAt: Date.now()
+            } as any;
             await storageService.saveRistorante(updated);
             if (typeof onUpdate === 'function') onUpdate(updated);
-            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update' } }));
+            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'ristoranti', data: updated } }));
             setIsCopilotOpen(false);
           } catch (e) { console.error(e); }
         }}

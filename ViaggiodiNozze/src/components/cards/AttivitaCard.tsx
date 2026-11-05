@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
 import type { Attivita, Tappa } from '../../types';
@@ -68,6 +68,51 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
   const [copilotNotes, setCopilotNotes] = useState<string>(initialCopilot);
   const [isExpanded, setIsExpanded] = useState(false);
   const [childTappe, setChildTappe] = useState<Tappa[]>(activity.childTappe || []);
+  const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+
+  const handlePhotoDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingPhoto(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file || !file.type.startsWith('image/')) return;
+    try {
+      const processed = await processFileForAttachment(file);
+      const photoAtt: any = { ...processed, purpose: 'photo' };
+      const currentAtts = (activity.attachments || []).filter(a => a.purpose !== 'photo');
+      const updated = {
+        ...activity,
+        attachments: [...currentAtts, photoAtt],
+        updatedAt: Date.now()
+      };
+      await storageService.saveActivity(updated);
+      if (typeof onUpdate === 'function') onUpdate(updated);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'attivita', data: updated } }));
+    } catch (err) {
+      console.error('Errore caricamento foto drag-and-drop:', err);
+    }
+  };
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const processed = await processFileForAttachment(file);
+      const photoAtt: any = { ...processed, purpose: 'photo' };
+      const currentAtts = (activity.attachments || []).filter(a => a.purpose !== 'photo');
+      const updated = {
+        ...activity,
+        attachments: [...currentAtts, photoAtt],
+        updatedAt: Date.now()
+      };
+      await storageService.saveActivity(updated);
+      if (typeof onUpdate === 'function') onUpdate(updated);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'attivita', data: updated } }));
+    } catch (err) {
+      console.error('Errore selezione foto:', err);
+    }
+  };
 
   useEffect(() => {
     const nextNotes = (activity as any).noteCopilota || (activity as any).notes || '';
@@ -287,18 +332,57 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
           )}
 
           {isPhotoSpot && (
-            <>
-              {heroImage && (
-                <div className="relative h-36 overflow-hidden rounded-lg bg-slate-900 mt-0.5">
-                  <img src={heroImage.dataUrl} alt="" className="h-full w-full object-cover" />
-                </div>
-              )}
+            <div className="space-y-2 mt-1">
+              <div
+                onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingPhoto(true); }}
+                onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDraggingPhoto(false); }}
+                onDrop={handlePhotoDrop}
+                onClick={(e) => { e.stopPropagation(); photoInputRef.current?.click(); }}
+                className={`relative rounded-xl overflow-hidden cursor-pointer transition ${
+                  heroImage
+                    ? 'h-32 sm:h-36 border border-slate-200 dark:border-slate-800'
+                    : `p-3 border border-dashed text-center flex items-center justify-center gap-2 ${
+                        isDraggingPhoto
+                          ? 'border-[#FF6B5F] bg-rose-50/60 dark:bg-rose-950/40 text-[#FF6B5F]'
+                          : 'border-slate-300 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 hover:bg-slate-100 text-slate-500 dark:text-slate-400'
+                      }`
+                }`}
+                title="Trascina una foto o tocca per caricarla"
+              >
+                {heroImage ? (
+                  <>
+                    <img src={heroImage.dataUrl} alt={activity.title} className="h-full w-full object-cover" />
+                    {isDraggingPhoto && (
+                      <div className="absolute inset-0 bg-[#172033]/70 flex items-center justify-center text-white text-xs font-bold">
+                        Rilascia per sostituire la foto
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span className="text-base">📸</span>
+                    <span className="text-xs font-semibold">
+                      {isDraggingPhoto ? 'Rilascia la foto qui' : 'Trascina una foto o tocca per caricare'}
+                    </span>
+                  </>
+                )}
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handlePhotoSelect}
+                />
+              </div>
+
               {(activity.lightWindow || activity.photoSubject) && (
                 <div className="hounigo-ds-spec-grid">
                   {activity.lightWindow && (
                     <div className="hounigo-ds-spec-cell">
                       <span className="hounigo-ds-spec-label">Finestra luce</span>
-                      <span className="hounigo-ds-spec-value">{PHOTO_LIGHT_LABELS[activity.lightWindow]}</span>
+                      <span className="hounigo-ds-spec-value font-bold text-[#FF6B5F]">
+                        {PHOTO_LIGHT_LABELS[activity.lightWindow] || activity.lightWindow}
+                      </span>
                     </div>
                   )}
                   {activity.photoSubject && (
@@ -309,34 +393,42 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                   )}
                 </div>
               )}
-            </>
+            </div>
           )}
 
           {!isTrekking && !isPhotoSpot && (hasDistinctMeetingTime || activity.duration || activity.endDate) && (
-            <div className="hounigo-ds-spec-grid">
+            <div className="flex items-center gap-2 flex-wrap text-xs text-slate-700 dark:text-slate-300 py-1.5 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 font-mono">
               {hasDistinctMeetingTime && (
-                <div className="hounigo-ds-spec-cell">
-                  <span className="hounigo-ds-spec-label">Orario ritrovo</span>
-                  <span className="hounigo-ds-spec-value font-mono">{meetingTime}</span>
-                </div>
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Ritrovo</span>
+                  <strong className="text-slate-900 dark:text-white">{meetingTime}</strong>
+                </span>
               )}
               {hasDistinctMeetingTime && startTime && (
-                <div className="hounigo-ds-spec-cell">
-                  <span className="hounigo-ds-spec-label">Inizio attività</span>
-                  <span className="hounigo-ds-spec-value font-mono">{startTime}</span>
-                </div>
+                <>
+                  <span className="text-slate-300 dark:text-slate-600">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Inizio</span>
+                    <strong className="text-slate-900 dark:text-white">{startTime}</strong>
+                  </span>
+                </>
               )}
               {activity.duration && (
-                <div className="hounigo-ds-spec-cell">
-                  <span className="hounigo-ds-spec-label">Durata prevista</span>
-                  <span className="hounigo-ds-spec-value font-mono">{activity.duration}</span>
-                </div>
+                <>
+                  <span className="text-slate-300 dark:text-slate-600">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Durata</span>
+                    <strong className="text-slate-900 dark:text-white">{activity.duration}</strong>
+                  </span>
+                </>
               )}
               {activity.endDate && (
-                <div className="hounigo-ds-spec-cell">
-                  <span className="hounigo-ds-spec-label">Validità</span>
-                  <span className="hounigo-ds-spec-value font-mono">Fino al {formatDateIT(activity.endDate)}</span>
-                </div>
+                <>
+                  <span className="text-slate-300 dark:text-slate-600">·</span>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-sans text-slate-600 dark:text-slate-400">
+                    Fino al {formatDateIT(activity.endDate)}
+                  </span>
+                </>
               )}
             </div>
           )}
@@ -345,7 +437,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
             <OpeningHoursBadge info={activity.openingHours} date={activity.date} time={displayTime} />
           )}
 
-          {hasCopilotNotes && (
+          {hasCopilotNotes && activity.mostraNoteInCard && (
             <p className="hounigo-ds-note line-clamp-2">
               {copilotNotes.trim()}
             </p>
@@ -432,17 +524,17 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
             ) : null}
           </div>
 
-          <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+          <div className="hounigo-ds-actions-group">
             {hasCopilotNotes && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-                className="hounigo-ds-action-btn"
+                className={`hounigo-ds-action-btn ${hasCopilotNotes ? 'hounigo-ds-action-btn-active-green' : ''}`}
                 title="Note per il Copilota"
                 aria-label="Note per il Copilota"
               >
                 <span aria-hidden="true">🧭</span>
-                <span className="hidden sm:inline">Note</span>
+                <span className="hounigo-ds-btn-text">Note</span>
               </button>
             )}
 
@@ -458,7 +550,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 aria-label="Biglietti e QR"
               >
                 <span aria-hidden="true">🎟️</span>
-                <span className="hidden sm:inline">Biglietti</span>
+                <span className="hounigo-ds-btn-text">Biglietti</span>
               </button>
             )}
 
@@ -473,8 +565,8 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 aria-label={isTrekking ? 'Traccia GPS' : 'Sito ufficiale'}
               >
                 <span aria-hidden="true">🌐</span>
-                <span className="hidden sm:inline">{isTrekking ? 'Traccia' : 'Sito'}</span>
-                <span className="text-[10px] opacity-70">↗</span>
+                <span className="hounigo-ds-btn-text">{isTrekking ? 'Traccia' : 'Sito'}</span>
+                <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
               </a>
             )}
 
@@ -489,8 +581,8 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 aria-label="Apri su Google Maps"
               >
                 <span aria-hidden="true">🗺️</span>
-                <span className="hidden sm:inline">{getMapsActionLabel(hasReliableGeoDestination(activity))}</span>
-                <span className="text-[10px] opacity-70">↗</span>
+                <span className="hounigo-ds-btn-text">{getMapsActionLabel(hasReliableGeoDestination(activity))}</span>
+                <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
               </a>
             )}
           </div>
@@ -502,12 +594,18 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
         onClose={() => setIsCopilotOpen(false)}
         title={activity.title || 'Dettaglio'}
         noteCopilota={copilotNotes}
+        mostraNoteInCard={activity.mostraNoteInCard}
         canEdit={true}
-        onSave={async (notes) => {
+        onSave={async (notes, showOnCard) => {
           try {
             const clean = notes.trim();
             setCopilotNotes(clean);
-            const updated = { ...activity, noteCopilota: clean, updatedAt: Date.now() } as any;
+            const updated = {
+              ...activity,
+              noteCopilota: clean,
+              mostraNoteInCard: Boolean(showOnCard),
+              updatedAt: Date.now()
+            } as any;
             await storageService.saveActivity(updated);
             if (typeof onUpdate === 'function') onUpdate(updated);
             window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'attivita', data: updated } }));

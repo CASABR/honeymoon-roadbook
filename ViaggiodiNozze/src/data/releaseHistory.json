@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.3",
+      "publishedAt": "2026-11-05",
+      "sourceCommit": "c3f5455",
+      "changes": [
+        "Card mobile ultra-compatte: footer a riga singola con icone, orari compatti per le attività.",
+        "Note copilota discrete con icona verde e toggle per visualizzazione a vista sulla card.",
+        "Pulsante bagagli dedicato nei trasporti e supporto drag-and-drop foto per Spot fotografico."
+      ]
+    },
+    {
       "version": "1.5.2",
       "publishedAt": "2026-11-05",
       "sourceCommit": "b417e09",

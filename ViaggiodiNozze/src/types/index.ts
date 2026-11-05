@@ -82,6 +82,7 @@ export interface Attivita {
   copilota?: boolean;
   completed?: boolean;
   noteCopilota?: string; // Note e promemoria riservati del co-pilota
+  mostraNoteInCard?: boolean; // Toggle per mostrare a vista le info importanti del copilota sulla card
   coordinate?: Coordinate;
   qrCode?: string; // Codice testuale, numero biglietto o URL per QR code
   attachments?: TransportAttachment[]; // File, biglietti, immagini o QR code salvati offline
@@ -120,6 +121,7 @@ export interface Tappa {
   nota?: string;
   notes?: string;
   noteCopilota?: string; // Note specifiche per il copilota
+  mostraNoteInCard?: boolean; // Toggle per mostrare a vista le info importanti del copilota sulla card
   copilota?: boolean;
   completed?: boolean;
   createdAt: number;
@@ -159,6 +161,7 @@ export interface Ristorante {
   notes?: string;
   nota?: string;
   noteCopilota?: string;
+  mostraNoteInCard?: boolean; // Toggle per mostrare a vista le info importanti del copilota sulla card
   status?: 'saldato' | 'da_saldare';
   copilota?: boolean;
   completed?: boolean;
@@ -194,6 +197,7 @@ export interface Alloggio {
   notes?: string;
   status: StatoAlloggio;
   noteCopilota?: string;
+  mostraNoteInCard?: boolean; // Toggle per mostrare a vista le info importanti del copilota sulla card
   copilota?: boolean;
   completed?: boolean;
   coordinate?: Coordinate;
@@ -279,6 +283,7 @@ export interface Trasporto {
   };
   attachments?: TransportAttachment[];
   noteCopilota?: string;
+  mostraNoteInCard?: boolean; // Toggle per mostrare a vista le info importanti del copilota sulla card
   notes?: string;
   copilota?: boolean;
   completed?: boolean;
@@ -330,6 +335,7 @@ export interface Shopping {
   notes?: string;
   nota?: string;
   noteCopilota?: string;
+  mostraNoteInCard?: boolean; // Toggle per mostrare a vista le info importanti del copilota sulla card
   copilota?: boolean;
   completed?: boolean;
   attachments?: TransportAttachment[];
@@ -353,6 +359,7 @@ export interface TimelineItem {
   copilota?: boolean;
   completed?: boolean;
   noteCopilota?: string;
+  mostraNoteInCard?: boolean;
   coordinate?: Coordinate;
   originalData: any;
   displayMode?: TransportDisplayMode;

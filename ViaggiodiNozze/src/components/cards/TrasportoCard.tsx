@@ -482,18 +482,6 @@ export default function TrasportoCard({
                 </div>
               )}
 
-              {!isRental && transport.bagagli && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); setIsBagagliOpen(true); }}
-                  className="hounigo-ds-spec-cell text-left hover:border-slate-400 transition-colors cursor-pointer"
-                  title="Dettagli bagagli"
-                >
-                  <span className="hounigo-ds-spec-label">Bagagli</span>
-                  <span className="hounigo-ds-spec-value">{transport.bagagli}</span>
-                </button>
-              )}
-
               {isRental && !isPickupDay && !isDropoffDay && transport.dropoffDate && (
                 <div className="hounigo-ds-spec-cell">
                   <span className="hounigo-ds-spec-label">Riconsegna prevista</span>
@@ -521,7 +509,7 @@ export default function TrasportoCard({
             </div>
           )}
 
-          {hasCopilotNotes && (
+          {hasCopilotNotes && transport.mostraNoteInCard && (
             <p className="hounigo-ds-note line-clamp-2">
               {copilotNotes.trim()}
             </p>
@@ -558,17 +546,29 @@ export default function TrasportoCard({
             ) : null}
           </div>
 
-          <div className="flex items-center gap-1.5 flex-wrap ml-auto">
+          <div className="hounigo-ds-actions-group">
+            {/* Pulsante dedicato Bagagli nel footer (Verde se sono presenti informazioni) */}
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIsBagagliOpen(true); }}
+              className={`hounigo-ds-action-btn ${transport.bagagli?.trim() ? 'hounigo-ds-action-btn-active-green' : ''}`}
+              title={transport.bagagli?.trim() ? `Bagagli registrati: ${transport.bagagli}` : 'Gestisci informazioni bagagli'}
+              aria-label="Informazioni bagagli"
+            >
+              <span aria-hidden="true">🧳</span>
+              <span className="hounigo-ds-btn-text">Bagagli</span>
+            </button>
+
             {hasCopilotNotes && (
               <button
                 type="button"
                 onClick={(e) => { e.stopPropagation(); setIsCopilotOpen(true); }}
-                className="hounigo-ds-action-btn"
+                className={`hounigo-ds-action-btn ${hasCopilotNotes ? 'hounigo-ds-action-btn-active-green' : ''}`}
                 title="Note per il Copilota"
                 aria-label="Note per il Copilota"
               >
                 <span aria-hidden="true">🧭</span>
-                <span className="hidden sm:inline">Note</span>
+                <span className="hounigo-ds-btn-text">Note</span>
               </button>
             )}
 
@@ -580,7 +580,7 @@ export default function TrasportoCard({
               aria-label={currentType.ticketLabel}
             >
               <span aria-hidden="true">🎟️</span>
-              <span className="hidden sm:inline">{currentType.ticketLabel}</span>
+              <span className="hounigo-ds-btn-text">{currentType.ticketLabel}</span>
             </button>
 
             {activeMapUrl && (
@@ -594,8 +594,8 @@ export default function TrasportoCard({
                 aria-label="Apri navigazione su Google Maps"
               >
                 <span aria-hidden="true">🗺️</span>
-                <span className="hidden sm:inline">Maps</span>
-                <span className="text-[10px] opacity-70">↗</span>
+                <span className="hounigo-ds-btn-text">Maps</span>
+                <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
               </a>
             )}
           </div>
@@ -610,19 +610,28 @@ export default function TrasportoCard({
         onUpdateTransport={(updated) => { if (onUpdate) onUpdate(updated); }}
       />
 
+      <TrasportoBagagliModal
+        isOpen={isBagagliOpen}
+        onClose={() => setIsBagagliOpen(false)}
+        transport={transport}
+        onUpdateTransport={(updated) => { if (onUpdate) onUpdate(updated); }}
+      />
+
       <UniversalCopilotaModal
         isOpen={isCopilotOpen}
         onClose={() => setIsCopilotOpen(false)}
         title={transport.carrier || currentType.label}
         noteCopilota={copilotNotes}
+        mostraNoteInCard={transport.mostraNoteInCard}
         canEdit={true}
-        onSave={async (notes) => {
+        onSave={async (notes, showOnCard) => {
           try {
             const clean = notes.trim();
             setCopilotNotes(clean);
             const updated: Trasporto = {
               ...transport,
               noteCopilota: clean,
+              mostraNoteInCard: Boolean(showOnCard),
               copilota: Boolean(clean) || transport.copilota,
               updatedAt: Date.now()
             };

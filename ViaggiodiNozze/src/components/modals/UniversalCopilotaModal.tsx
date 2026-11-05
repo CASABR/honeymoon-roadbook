@@ -7,7 +7,8 @@ interface UniversalCopilotaModalProps {
   onClose: () => void;
   title: string;
   noteCopilota: string;
-  onSave: (notes: string) => Promise<void>;
+  mostraNoteInCard?: boolean;
+  onSave: (notes: string, mostraNoteInCard?: boolean) => Promise<void>;
   canEdit?: boolean;
 }
 
@@ -16,10 +17,12 @@ export default function UniversalCopilotaModal({
   onClose,
   title,
   noteCopilota,
+  mostraNoteInCard = false,
   onSave,
   canEdit = true
 }: UniversalCopilotaModalProps) {
   const [notes, setNotes] = useState(noteCopilota || '');
+  const [showOnCard, setShowOnCard] = useState(mostraNoteInCard);
   const [isSaving, setIsSaving] = useState(false);
   const [showSavedFeedback, setShowSavedFeedback] = useState(false);
   const wasOpenRef = useRef(false);
@@ -27,15 +30,16 @@ export default function UniversalCopilotaModal({
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
       setNotes(noteCopilota || '');
+      setShowOnCard(mostraNoteInCard);
       setShowSavedFeedback(false);
     }
     wasOpenRef.current = isOpen;
-  }, [isOpen, noteCopilota]);
+  }, [isOpen, noteCopilota, mostraNoteInCard]);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await onSave(notes);
+      await onSave(notes, showOnCard);
       setShowSavedFeedback(true);
       setTimeout(() => {
         setShowSavedFeedback(false);
@@ -77,11 +81,32 @@ export default function UniversalCopilotaModal({
           />
         </div>
 
+        {/* Toggle per mostrare a vista sulla card */}
+        {canEdit && (
+          <label className="flex items-start gap-3 p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 cursor-pointer select-none transition-colors hover:bg-slate-100/70 dark:hover:bg-slate-800">
+            <input
+              type="checkbox"
+              checked={showOnCard}
+              onChange={(e) => setShowOnCard(e.target.checked)}
+              disabled={isSaving}
+              className="mt-0.5 w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+            />
+            <div className="flex flex-col">
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                Mostra note copilota a vista sulla card
+              </span>
+              <span className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight mt-0.5">
+                Se non spuntato, sulla card comparirà solo l&apos;icona verde 🧭 se ci sono informazioni inserite.
+              </span>
+            </div>
+          </label>
+        )}
+
         {/* Azioni */}
         {canEdit && (
           <button
             onClick={handleSave}
-            disabled={isSaving || (notes === noteCopilota && !showSavedFeedback)}
+            disabled={isSaving || (notes === noteCopilota && showOnCard === mostraNoteInCard && !showSavedFeedback)}
             className={`w-full py-3.5 rounded-xl font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
               showSavedFeedback
                 ? 'bg-[#E6F4EA] text-[#39734A] border border-[#39734A]/20'
