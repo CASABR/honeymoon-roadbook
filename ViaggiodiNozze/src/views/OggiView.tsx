@@ -1,6 +1,7 @@
 import PushOnboardingBanner from '../components/common/PushOnboardingBanner';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { MapPinPlus } from 'lucide-react';
 import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante, Shopping, Scadenza } from '../types';
 import { storageService } from '../storage/storageService';
 import TimelineItemDetailModal from '../components/modals/TimelineItemDetailModal';
@@ -1083,20 +1084,29 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             <div className="absolute inset-0 bg-black/55 backdrop-blur-[0.5px]" />
           )}
 
-          <div className="relative z-10 px-4 py-3 sm:px-5 sm:py-3.5 space-y-2">
-            {/* Riga 1: Kicker Taccuino, Status e Badge Scadenze Compatto */}
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-[10px] font-black uppercase tracking-wider ${heroBgImage ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}`}>
+          <div className="relative z-10 px-3.5 py-2.5 sm:px-5 sm:py-3 space-y-1.5">
+            {/* Riga 1: Kicker Giorno/Data e Countdown/Stato */}
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className={`text-[10px] font-black uppercase tracking-wider truncate ${heroBgImage ? 'text-white/85' : 'text-slate-500 dark:text-slate-400'}`}>
                   {currentDayMeta && currentDayMeta.dayNum > 0
                     ? `GIORNO ${currentDayMeta.dayNum} DI ${tripDays.length} • ${formatDateHuman(selectedDate).toUpperCase()}`
                     : `PRE-VIAGGIO • ${formatDateHuman(selectedDate).toUpperCase()}`}
                 </span>
 
-                {/* Indicatore Stato */}
+                {!isOnline && (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                    OFFLINE
+                  </span>
+                )}
+              </div>
+
+              {/* Indicatore Stato o Countdown */}
+              <div className="shrink-0">
                 {(() => {
                   const todayStr = new Date().toISOString().split('T')[0];
-                  const startDateStr = tripDays[0]?.dateStr || '2026-11-28';
+                  const startDateStr = tripConfig?.startDate || tripDays[0]?.dateStr || '2026-11-28';
                   const isFuture = todayStr < startDateStr;
                   const isToday = selectedDate === todayStr;
 
@@ -1119,8 +1129,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   }
                   return null;
                 })()}
+              </div>
+            </div>
 
-                {/* Badge Scadenze Compatto Integrato */}
+            {/* Riga 2: Scadenze e Modifica affiancati per compattare l'altezza */}
+            {(deadlineSummary.active > 0 || canEdit) && (
+              <div className="flex items-center gap-1.5 flex-wrap">
                 {deadlineSummary.active > 0 && (
                   <button
                     type="button"
@@ -1139,30 +1153,23 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   </button>
                 )}
 
-                {!isOnline && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                    OFFLINE
-                  </span>
+                {canEdit && (
+                  <button
+                    type="button"
+                    onClick={handleOpenHeroEdit}
+                    className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-0.5 rounded-full transition-colors cursor-pointer ${
+                      heroBgImage
+                        ? 'bg-white/20 hover:bg-white/30 text-white'
+                        : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
+                    }`}
+                    title="Personalizza copertina o titolo"
+                  >
+                    <span>✏️</span>
+                    <span>Modifica</span>
+                  </button>
                 )}
               </div>
-
-              {/* Azioni Header: Personalizza */}
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={handleOpenHeroEdit}
-                  className={`text-[10px] font-bold px-2 py-0.5 rounded-lg transition-colors cursor-pointer ${
-                    heroBgImage
-                      ? 'bg-white/20 hover:bg-white/30 text-white'
-                      : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 border border-slate-200/80 dark:border-slate-700'
-                  }`}
-                  title="Personalizza copertina o titolo"
-                >
-                  ✏️ Modifica
-                </button>
-              )}
-            </div>
+            )}
 
             {/* Riga 2: Titolo Taccuino & Posizione Chiave */}
             <div className="flex items-baseline justify-between gap-3 pt-0.5">
@@ -1209,115 +1216,111 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           const isPostTrip = !isViewingOtherDate && todayStr > endDateStr;
 
           if (isViewingOtherDate) {
+            if (!nextEventItem) return null;
+
             return (
-              <div className="bg-[#172033] text-white rounded-xl border border-slate-800 border-l-4 border-l-[#FF6B5F] p-3.5 sm:p-4 shadow-sm space-y-2.5">
-                <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
-                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF6B5F] flex items-center gap-1.5">
+              <div className="bg-white dark:bg-[#172033] text-slate-900 dark:text-white rounded-xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-3 sm:p-3.5 shadow-sm space-y-2">
+                <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-white/10 pb-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF6B5F] dark:text-[#ff9a90] flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F]" />
-                    Prossimo impegno · {formatDateHuman(selectedDate)}
+                    Focus della giornata · {formatDateHuman(selectedDate)}
                   </span>
-                  {nextEventItem?.time ? (
-                    <span className="font-mono text-xs font-extrabold text-white bg-white/12 px-2 py-0.5 rounded border border-white/15 shrink-0 tabular-nums">
+                  {nextEventItem.time ? (
+                    <span className="font-mono text-xs font-extrabold text-slate-800 dark:text-white bg-slate-100 dark:bg-white/12 px-2 py-0.5 rounded border border-slate-200/80 dark:border-white/15 shrink-0 tabular-nums">
                       ORE {nextEventItem.time}{nextEventItem.timeStatus === 'indicativo' ? ' · IND.' : ''}
                     </span>
-                  ) : nextEventItem ? (
-                    <span className="text-[10px] font-bold text-slate-300 bg-white/10 px-2 py-0.5 rounded shrink-0">
+                  ) : (
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300 bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded shrink-0">
                       Orario libero
                     </span>
-                  ) : null}
+                  )}
                 </div>
 
-                {nextEventItem ? (
-                  <div className="space-y-2.5">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <h2 className="text-sm sm:text-base font-extrabold text-white leading-snug tracking-tight">
-                          {nextEventItem.title}
-                        </h2>
-                        <p className="text-xs text-slate-300 font-semibold mt-0.5 truncate">
-                          {(() => {
-                            if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
-                              const tr = nextEventItem.originalData as Trasporto;
-                              const dep = tr.departureLocation || nextEventItem.location;
-                              const arr = tr.dropoffLocation || tr.arrivalLocation;
-                              if (dep && arr && dep !== arr) return `${dep} → ${arr}`;
-                            }
-                            return nextEventItem.location || 'Posizione programmata';
-                          })()}
-                        </p>
-                      </div>
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white leading-snug tracking-tight">
+                        {nextEventItem.title}
+                      </h2>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold mt-0.5 truncate">
+                        {(() => {
+                          if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
+                            const tr = nextEventItem.originalData as Trasporto;
+                            const dep = tr.departureLocation || nextEventItem.location;
+                            const arr = tr.dropoffLocation || tr.arrivalLocation;
+                            if (dep && arr && dep !== arr) return `${dep} → ${arr}`;
+                          }
+                          return nextEventItem.location || 'Posizione programmata';
+                        })()}
+                      </p>
+                    </div>
 
+                    <button
+                      type="button"
+                      onClick={() => setDetailItem(nextEventItem)}
+                      className="shrink-0 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-[#FF6B5F] hover:text-white dark:bg-white/12 dark:hover:bg-[#FF6B5F] text-slate-700 dark:text-white text-xs font-extrabold transition-all cursor-pointer border border-slate-200 dark:border-white/15"
+                    >
+                      Dettagli →
+                    </button>
+                  </div>
+
+                  {/* Casellario Tecnico + Azioni Rapide */}
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    {nextEventItem.type === 'trasporto' && nextEventItem.originalData && (nextEventItem.originalData as Trasporto).terminalGate && (
+                      <div className="inline-flex flex-col px-2 py-1 rounded bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/12">
+                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-none">
+                          {(nextEventItem.originalData as Trasporto).type === 'treno' ? 'Binario' : 'Terminal / Gate'}
+                        </span>
+                        <span className="font-mono text-xs font-extrabold text-slate-800 dark:text-white mt-0.5 leading-none">
+                          {(nextEventItem.originalData as Trasporto).terminalGate}
+                        </span>
+                      </div>
+                    )}
+                    {nextEventItem.type === 'trasporto' && nextEventItem.originalData && (nextEventItem.originalData as Trasporto).posti && (
+                      <div className="inline-flex flex-col px-2 py-1 rounded bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/12">
+                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-none">
+                          {(nextEventItem.originalData as Trasporto).type === 'treno' ? 'Carrozza / Posti' : 'Posto'}
+                        </span>
+                        <span className="text-xs font-extrabold text-slate-800 dark:text-white mt-0.5 leading-none">
+                          {(nextEventItem.originalData as Trasporto).posti}
+                        </span>
+                      </div>
+                    )}
+                    {nextEventBookingCode && (
                       <button
                         type="button"
-                        onClick={() => setDetailItem(nextEventItem)}
-                        className="shrink-0 px-2.5 py-1.5 rounded-md bg-white/12 hover:bg-[#FF6B5F] text-white text-xs font-extrabold transition-all cursor-pointer border border-white/15"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            await navigator.clipboard.writeText(nextEventBookingCode);
+                          } catch {}
+                          setBookingCodeCopied(true);
+                          setTimeout(() => setBookingCodeCopied(false), 2000);
+                        }}
+                        className="inline-flex flex-col px-2 py-1 rounded bg-slate-50 dark:bg-white/8 hover:bg-slate-100 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 text-left transition-colors cursor-pointer"
+                        title="Copia codice di prenotazione / PNR"
                       >
-                        Dettagli →
+                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-none">
+                          PNR · {bookingCodeCopied ? '✓ Copiato' : 'Copia'}
+                        </span>
+                        <span className="font-mono text-xs font-extrabold text-[#FF6B5F] dark:text-[#FF9B92] mt-0.5 leading-none">
+                          {nextEventBookingCode}
+                        </span>
                       </button>
-                    </div>
-
-                    {/* Casellario Tecnico + Azioni Rapide */}
-                    <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                      {nextEventItem.type === 'trasporto' && nextEventItem.originalData && (nextEventItem.originalData as Trasporto).terminalGate && (
-                        <div className="inline-flex flex-col px-2 py-1 rounded bg-white/8 border border-white/12">
-                          <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 leading-none">
-                            {(nextEventItem.originalData as Trasporto).type === 'treno' ? 'Binario' : 'Terminal / Gate'}
-                          </span>
-                          <span className="font-mono text-xs font-extrabold text-white mt-0.5 leading-none">
-                            {(nextEventItem.originalData as Trasporto).terminalGate}
-                          </span>
-                        </div>
-                      )}
-                      {nextEventItem.type === 'trasporto' && nextEventItem.originalData && (nextEventItem.originalData as Trasporto).posti && (
-                        <div className="inline-flex flex-col px-2 py-1 rounded bg-white/8 border border-white/12">
-                          <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 leading-none">
-                            {(nextEventItem.originalData as Trasporto).type === 'treno' ? 'Carrozza / Posti' : 'Posto'}
-                          </span>
-                          <span className="text-xs font-extrabold text-white mt-0.5 leading-none">
-                            {(nextEventItem.originalData as Trasporto).posti}
-                          </span>
-                        </div>
-                      )}
-                      {nextEventBookingCode && (
-                        <button
-                          type="button"
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            try {
-                              await navigator.clipboard.writeText(nextEventBookingCode);
-                            } catch {}
-                            setBookingCodeCopied(true);
-                            setTimeout(() => setBookingCodeCopied(false), 2000);
-                          }}
-                          className="inline-flex flex-col px-2 py-1 rounded bg-white/8 hover:bg-white/15 border border-white/15 text-left transition-colors cursor-pointer"
-                          title="Copia codice di prenotazione / PNR"
-                        >
-                          <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 leading-none">
-                            PNR · {bookingCodeCopied ? '✓ Copiato' : 'Copia'}
-                          </span>
-                          <span className="font-mono text-xs font-extrabold text-[#FF9B92] mt-0.5 leading-none">
-                            {nextEventBookingCode}
-                          </span>
-                        </button>
-                      )}
-                      {nextEventMapUrl && (
-                        <a
-                          href={nextEventMapUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="ml-auto inline-flex items-center gap-1 px-2.5 py-1.5 rounded bg-[#FF6B5F] hover:bg-[#fa5547] text-white text-xs font-extrabold transition-colors cursor-pointer"
-                        >
-                          <span>Maps ↗</span>
-                        </a>
-                      )}
-                    </div>
+                    )}
+                    {nextEventMapUrl && (
+                      <a
+                        href={nextEventMapUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="ml-auto inline-flex items-center gap-1 px-2.5 py-1.5 rounded bg-[#FF6B5F] hover:bg-[#fa5547] text-white text-xs font-extrabold transition-colors cursor-pointer"
+                      >
+                        <span>Maps ↗</span>
+                      </a>
+                    )}
                   </div>
-                ) : (
-                  <p className="text-xs text-slate-300 py-0.5">
-                    Nessun impegno a orario fisso registrato in questa giornata.
-                  </p>
-                )}
+                </div>
               </div>
             );
           }
@@ -1875,25 +1878,26 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           if (visibleCards.length === 0 && !tonightsAccommodation && activeRentalItems.length === 0) {
             return (
               <div className="bg-slate-50 dark:bg-slate-900/60 rounded-3xl border border-slate-200/80 dark:border-slate-800 border-dashed p-6 text-center space-y-3">
-                <span className="text-3xl mb-1 block">🧭</span>
-                <div>
-                  <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                    Nessuna attività programmata per {selectedDate === todayStr ? 'oggi' : 'questa giornata'}
-                  </p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-0.5">
-                    Giornata libera per relax, esplorazione spontanea o spostamento.
-                  </p>
-                </div>
-                {canEdit && (
-                  <div className="pt-2">
+                {canEdit ? (
+                  <div className="py-2 flex flex-col items-center justify-center space-y-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      Nessuna attività programmata per {selectedDate === todayStr ? 'oggi' : 'questa giornata'}
+                    </p>
                     <button
                       type="button"
                       onClick={() => setIsCategoryPickerOpen(true)}
-                      className="hounigo-button-primary inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl text-xs font-bold active:scale-95 shadow-md shadow-[#FF6B5F]/20 cursor-pointer"
+                      className="hounigo-button-primary inline-flex items-center gap-2 px-6 py-3 rounded-2xl text-sm font-black active:scale-95 shadow-md shadow-[#FF6B5F]/20 cursor-pointer"
                     >
-                      <span className="text-base leading-none font-black">+</span>
-                      <span>Aggiungi</span>
+                      <MapPinPlus className="w-5 h-5 shrink-0" />
+                      <span>+ Aggiungi al viaggio</span>
                     </button>
+                  </div>
+                ) : (
+                  <div className="py-2">
+                    <span className="text-2xl mb-1 block">🧭</span>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                      Nessuna attività programmata per {selectedDate === todayStr ? 'oggi' : 'questa giornata'}
+                    </p>
                   </div>
                 )}
               </div>
@@ -2183,7 +2187,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                       }}
                                       className="rounded-xl border border-slate-200 px-2 py-2 text-left text-[11px] font-bold text-slate-700 transition hover:border-[#FF6B5F] hover:text-[#FF6B5F] disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:text-slate-200"
                                     >
-                                      <span className="mr-1" aria-hidden="true">{category.icon}</span>
+                                      <span className="mr-1 inline-flex items-center align-middle" aria-hidden="true">
+                                        {category.type === 'tappa' ? <MapPinPlus className="w-3.5 h-3.5 text-[#FF6B5F] inline" /> : category.icon}
+                                      </span>
                                       {category.label}
                                     </button>
                                   ))}
@@ -2534,15 +2540,19 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 }}
                 className="flex items-center gap-3 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 hover:bg-[#FFF0ED] hover:border-[#FF6B5F]/40 dark:hover:bg-[#FF6B5F]/10 text-left transition-all active:scale-95 group cursor-pointer"
               >
-                <span className="text-2xl group-hover:scale-110 transition-transform">
-                  {category.icon}
+                <span className="text-2xl group-hover:scale-110 transition-transform flex items-center justify-center">
+                  {category.type === 'tappa' ? (
+                    <MapPinPlus className="w-7 h-7 text-[#FF6B5F]" />
+                  ) : (
+                    category.icon
+                  )}
                 </span>
                 <div>
                   <div className="text-xs font-bold text-slate-800 dark:text-slate-100 group-hover:text-[#FF6B5F] dark:group-hover:text-[#ff9a90]">
                     {category.label}
                   </div>
                   <div className="text-[10px] text-slate-400 dark:text-slate-500 line-clamp-1">
-                    {category.type === 'tappa' ? 'Luogo da visitare o sosta'
+                    {category.type === 'tappa' ? 'Aggiungi un luogo o una sosta al percorso'
                       : category.type === 'attivita' ? 'Esperienza, tour o attività organizzata'
                       : category.type === 'alloggio' ? 'Hotel & check-in'
                       : category.type === 'trasporto' ? 'Voli, treni & auto'

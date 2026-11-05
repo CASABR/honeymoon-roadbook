@@ -71,3 +71,4 @@ assert.match(attivitaCard, /onDrop=\{handlePhotoDrop\}/);
 console.log('✅ 6. Spot fotografico: drag-and-drop da desktop e tap-to-upload mobile integrati');
 
 console.log('\nTUTTE LE VERIFICHE DEI REQUISITI UX SONO STATE SUPERATE CON SUCCESSO!');
+
