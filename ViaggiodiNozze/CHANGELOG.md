@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.4 — 2026-11-05
+
+- Footer card compatti con sole icone su mobile, pulsante PNR e desk ritiro trasporti.
+- Header compatto con dark mode, periodo alloggi solo su piu notti e filtri spese saldato.
+- Interfaccia semplificata per utenti non esperti e rimozione schermata blocco pin.
+
 ## 1.5.3 — 2026-11-05
 
 - Card mobile ultra-compatte: footer a riga singola con icone, orari compatti per le attività.

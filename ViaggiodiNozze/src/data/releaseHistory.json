@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.4",
+      "publishedAt": "2026-11-05",
+      "sourceCommit": "67dbac8",
+      "changes": [
+        "Footer card compatti con sole icone su mobile, pulsante PNR e desk ritiro trasporti.",
+        "Header compatto con dark mode, periodo alloggi solo su piu notti e filtri spese saldato.",
+        "Interfaccia semplificata per utenti non esperti e rimozione schermata blocco pin."
+      ]
+    },
+    {
       "version": "1.5.3",
       "publishedAt": "2026-11-05",
       "sourceCommit": "c3f5455",
