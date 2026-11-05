@@ -97,14 +97,14 @@ assert(oggi.includes('GoogleMapsIcon'), 'GoogleMapsIcon presente in OggiView');
 assert(oggi.includes('px-3 py-2 sm:px-3.5 sm:py-2.5 shadow-xs space-y-1.5'), 'Layout compatto del focus della giornata attivo');
 console.log('✅ 10. Focus della giornata snello e compatto, pulsanti Maps e Dettagli affiancati.');
 
-// 11. Verifica Footer NavBar: "Aggiungi" con icona bicolore MapPin + Plus e "La giornata"
-console.log('11. Verifica Footer NavBar: "Aggiungi" e "La giornata"...');
+// 11. Verifica Footer NavBar: "Aggiungi" con icona bicolore MapPin + Plus e "Viaggio"
+console.log('11. Verifica Footer NavBar: "Aggiungi" e "Viaggio"...');
 const navBarSource = fs.readFileSync(path.join(__dirname, '../src/components/NavBar.tsx'), 'utf8');
-assert(navBarSource.includes("label: 'La giornata'"), 'Label La giornata mancante nel footer');
+assert(navBarSource.includes("label: 'Viaggio'"), 'Label Viaggio mancante nel footer');
 assert(navBarSource.includes("label: 'Aggiungi'"), 'Label Aggiungi mancante nel footer');
 assert(!navBarSource.includes("label: 'Itinerario'"), 'Vecchia label Itinerario ancora presente nel footer');
 assert(navBarSource.includes('BicolorMapPinPlusIcon'), 'Componente BicolorMapPinPlusIcon mancante');
 assert(navBarSource.includes('#FF6B5F'), 'Colore rosso corallo #FF6B5F mancante per il simbolo plus');
-console.log('✅ 11. Footer NavBar: "Itinerario" sostituito con "Aggiungi" (icona bicolore MapPin + Plus #FF6B5F) e "Oggi" sostituito con "La giornata".');
+console.log('✅ 11. Footer NavBar: "Itinerario" sostituito con "Aggiungi" e prima voce denominata "Viaggio".');
 
 console.log('\n🎉 TUTTI GLI 11 CONTROLLI DELLA SUITE SONO STATI SUPERATI CON SUCCESSO!');

@@ -516,6 +516,10 @@ export default function App() {
   const handleTabChange = (tab: SectionTab, categoria?: CategoriaTab, subView?: any) => {
     setActiveTab(tab);
     setIsCategorieOpen(false);
+    if (mainScrollContainerRef.current) {
+      mainScrollContainerRef.current.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    window.scrollTo({ top: 0, behavior: 'instant' });
     if (tab === 'oggi') {
       setActiveCategoria(null);
       setDesktopSection('itinerario');
@@ -547,12 +551,17 @@ export default function App() {
     setActiveCategoria(cat);
     setActiveTab('categorie');
     setIsCategorieOpen(false);
+    if (mainScrollContainerRef.current) {
+      mainScrollContainerRef.current.scrollTo({ top: 0, behavior: 'instant' });
+    }
+    window.scrollTo({ top: 0, behavior: 'instant' });
   };
 
   const handleCloseCategorie = () => {
     setIsCategorieOpen(false);
   };
 
+  const mainScrollContainerRef = useRef<HTMLDivElement>(null);
   const mainSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const handleMainSwipeStart = (event: ReactTouchEvent<HTMLElement>) => {
@@ -781,7 +790,7 @@ export default function App() {
       )}
 
       {/* ─── MAIN CONTENT CONTAINER (Responsive: mobile centered shell, desktop full workspace) ─ */}
-      <div className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative pb-20' : 'h-screen overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}>
+      <div ref={mainScrollContainerRef} className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative pb-20' : 'h-[100vh] h-[100dvh] overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}>
         
         {/* Top Header Mobile / Tablet Header (o sempre in modalità mobile forzata) */}
         <header className={`w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3]/90 dark:bg-[#172033]/90 backdrop-blur-md sticky top-0 z-30`}>
@@ -874,7 +883,8 @@ export default function App() {
       </div>
 
       {/* ─── MOBILE BOTTOM BAR (Visibile su schermi < md oppure quando forzata la modalità mobile) ─ */}
-      <div className={`block ${isForcedMobileView ? 'fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md z-40' : 'md:hidden'}`}>
+      <div className={`block fixed bottom-0 left-0 right-0 z-40 pointer-events-none ${isForcedMobileView ? 'left-1/2 -translate-x-1/2 max-w-md w-full' : 'md:hidden'}`} style={{ WebkitTransform: 'translate3d(0,0,0)', transform: 'translate3d(0,0,0)' }}>
+        <div className="pointer-events-auto w-full">
         <NavBar
           activeTab={activeTab}
           onTabChange={handleTabChange}
@@ -886,13 +896,16 @@ export default function App() {
           isCategorieActive={activeTab === 'categorie' || isCategorieOpen}
         />
 
+        </div>
         {/* Dock orizzontale Categorie su Mobile */}
         {isCategorieOpen && (
-          <CategorieBar
-            activeCategoria={activeCategoria}
-            onSelectCategoria={handleSelectCategoria}
-            onClose={handleCloseCategorie}
-          />
+          <div className="pointer-events-auto w-full">
+            <CategorieBar
+              activeCategoria={activeCategoria}
+              onSelectCategoria={handleSelectCategoria}
+              onClose={handleCloseCategorie}
+            />
+          </div>
         )}
       </div>
 
