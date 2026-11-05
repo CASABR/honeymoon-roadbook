@@ -6,9 +6,7 @@ import {
   getDocsFromServer,
   collection,
   query,
-  limit,
-  setDoc,
-  deleteDoc
+  limit
 } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { idbGetForTrip, STORES } from '../../storage/indexedDB';
@@ -33,11 +31,7 @@ export default function LocalIdentityDiagnostics() {
   const [verifiedRole, setVerifiedRole] = useState<RoleVerdict>('checking');
   const [roleDetails, setRoleDetails] = useState<string>('Verifica ruolo su Firestore in corso…');
 
-  // Gestione membro Viewer di prova (solo Owner)
-  const [targetViewerUid, setTargetViewerUid] = useState<string>('');
-  const [viewerActionStatus, setViewerActionStatus] = useState<string | null>(null);
-
-  // Risultati controlli collezioni operative
+  // Risultati controlli collezioni operative (100% sola lettura)
   const [resourceResults, setResourceResults] = useState<ResourceCheckResult[]>([]);
   const [runningChecks, setRunningChecks] = useState<boolean>(false);
   const [copiedUid, setCopiedUid] = useState(false);
@@ -208,38 +202,6 @@ export default function LocalIdentityDiagnostics() {
     }
   }, [currentUser?.uid]);
 
-  // 4. Aggiunta/Rimozione Viewer di prova (solo Owner)
-  const handleAddTestViewer = async () => {
-    if (!db || !targetViewerUid.trim()) return;
-    setViewerActionStatus('Registrazione Viewer di prova in corso…');
-    try {
-      const uidClean = targetViewerUid.trim();
-      await setDoc(doc(db, 'trips', '0000', 'members', uidClean), {
-        uid: uidClean,
-        role: 'viewer',
-        label: 'Test Viewer Pre-Lockdown',
-        createdAt: Date.now()
-      });
-      setViewerActionStatus(`✅ UID ${uidClean} registrato con successo come VIEWER di 0000.`);
-      setTargetViewerUid('');
-    } catch (err: any) {
-      setViewerActionStatus(`❌ Errore autorizzazione Viewer: ${err.message}`);
-    }
-  };
-
-  const handleRemoveTestViewer = async () => {
-    if (!db || !targetViewerUid.trim()) return;
-    setViewerActionStatus('Revoca Viewer di prova in corso…');
-    try {
-      const uidClean = targetViewerUid.trim();
-      await deleteDoc(doc(db, 'trips', '0000', 'members', uidClean));
-      setViewerActionStatus(`✅ UID ${uidClean} revocato con successo da 0000.`);
-      setTargetViewerUid('');
-    } catch (err: any) {
-      setViewerActionStatus(`❌ Errore revoca Viewer: ${err.message}`);
-    }
-  };
-
   const copyUid = async () => {
     if (!currentUser?.uid) return;
     try {
@@ -311,45 +273,7 @@ export default function LocalIdentityDiagnostics() {
           <p className="text-xs text-slate-500 italic pt-1">{roleDetails}</p>
         </div>
 
-        {/* 2. Gestione Viewer di Prova (Disponibile SOLO per l'Owner) */}
-        {verifiedRole === 'owner' && (
-          <div className="rounded-2xl border border-amber-300 bg-amber-50/70 p-4 dark:border-amber-700/50 dark:bg-amber-950/20 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-amber-900 dark:text-amber-200">
-                🔧 Configura Sessione Viewer di Prova (Solo Owner)
-              </span>
-            </div>
-            <p className="text-xs text-amber-800 dark:text-amber-300">
-              Per testare il blocco Viewer prima del lockdown: apri l'app in una finestra anonima, copia l'UID visualizzato e incollalo qui per autorizzarlo come <strong>Viewer</strong> di 0000 (senza toccare card o prenotazioni).
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Incolla l'UID della finestra anonima"
-                value={targetViewerUid}
-                onChange={(e) => setTargetViewerUid(e.target.value)}
-                className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-1.5 text-xs font-mono dark:border-slate-700 dark:bg-slate-900"
-              />
-              <button
-                onClick={handleAddTestViewer}
-                className="rounded-xl bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-700 transition"
-              >
-                Autorizza Viewer
-              </button>
-              <button
-                onClick={handleRemoveTestViewer}
-                className="rounded-xl bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700 transition"
-              >
-                Revoca
-              </button>
-            </div>
-            {viewerActionStatus && (
-              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">{viewerActionStatus}</p>
-            )}
-          </div>
-        )}
-
-        {/* 3. Tabella Esiti Operativi da Server Firebase */}
+        {/* 2. Tabella Esiti Operativi da Server Firebase (100% Sola Lettura) */}
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
