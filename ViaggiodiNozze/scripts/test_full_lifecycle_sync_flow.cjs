@@ -160,3 +160,4 @@ console.log('[PASS 8] Bonifica cache locale: ex-copilota declassato ha perso tut
 console.log('\n========================================================================');
 console.log('TUTTI GLI 8/8 CONTROLLI DEL CICLO DI VITA COMPLETO SUPERATI CON SUCCESSO!');
 console.log('========================================================================');
+
