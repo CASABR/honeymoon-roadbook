@@ -12,7 +12,7 @@ import type {
 import { parseEuro, resolvePaymentInfo } from '../utils/priceHelper';
 import { formatHikingDuration, isTrekkingActivity } from '../utils/activityType';
 
-export type BookingCategory = 'volo' | 'treno' | 'alloggio' | 'auto_camper' | 'traghetto' | 'taxi' | 'attivita' | 'ristorante' | 'shopping';
+export type BookingCategory = 'volo' | 'treno' | 'metro' | 'alloggio' | 'auto_camper' | 'traghetto' | 'taxi' | 'attivita' | 'ristorante' | 'shopping';
 
 export interface UnifiedBookingItem {
   id: string;
@@ -56,6 +56,13 @@ export const BOOKING_CATEGORY_META: Record<BookingCategory, {
     badgeBg: 'bg-sky-50 dark:bg-sky-950/40',
     badgeText: 'text-sky-700 dark:text-sky-300',
     badgeBorder: 'border-sky-200 dark:border-sky-800/40'
+  },
+  metro: {
+    label: 'Metro & Urbana',
+    icon: '🚇',
+    badgeBg: 'bg-teal-50 dark:bg-teal-950/40',
+    badgeText: 'text-teal-700 dark:text-teal-300',
+    badgeBorder: 'border-teal-200 dark:border-teal-800/40'
   },
   treno: {
     label: 'Treni',
@@ -158,6 +165,7 @@ export async function getAllUnifiedBookings(): Promise<UnifiedBookingItem[]> {
   transports.forEach((t) => {
     let category: BookingCategory = 'volo';
     if (t.type === 'treno') category = 'treno';
+    else if (t.type === 'metro') category = 'metro';
     else if (t.type === 'traghetto') category = 'traghetto';
     else if (t.type === 'auto' || t.type === 'camper') category = 'auto_camper';
     else if (t.type === 'taxi') category = 'taxi';

@@ -92,7 +92,7 @@ export interface Attivita {
   updatedAt: number;
 }
 
-export type SottocategoriaTappa = 'Tappa' | 'Sosta panoramica' | 'Spot fotografico' | 'Sosta tecnica';
+export type SottocategoriaTappa = 'Tappa' | 'Sosta panoramica' | 'Spot fotografico' | 'Sosta tecnica' | 'Passeggiata';
 
 export interface Tappa {
   id: string;
@@ -154,7 +154,8 @@ export interface Ristorante {
   orario?: string; // HH:mm
   time?: string; // Alias di orario HH:mm
   timeStatus?: TimeStatus;
-  budget?: string; // es. 45 €
+  budget?: string; // Budget stimato
+  costo?: string | number; // Spesa effettiva (distinta da stima budget) // es. 45 €
   coordinate?: Coordinate;
   indirizzo?: string;
   telefono?: string;
@@ -191,6 +192,8 @@ export interface Alloggio {
   address: string;
   cost?: string; // Costo totale in €
   depositPaid?: string; // Somma versata / saldo pagato
+  deposit?: string; // Cauzione struttura (distinta da acconto/somma versata)
+  cauzione?: string;
   cancellazioneGratuitaEntro?: string; // es. '11 Dicembre 2026' o data ISO
   paymentStatus?: 'saldato' | 'da_saldare'; // Stato pagamento
   bookingUrl?: string;
@@ -208,7 +211,7 @@ export interface Alloggio {
   updatedAt: number;
 }
 
-export type TipoTrasporto = 'volo' | 'traghetto' | 'auto' | 'camper' | 'transfer' | 'taxi' | 'treno';
+export type TipoTrasporto = 'volo' | 'traghetto' | 'auto' | 'camper' | 'transfer' | 'taxi' | 'treno' | 'metro';
 export type StatoTrasporto = 'pianificato' | 'prenotato' | 'da_prenotare' | 'completato' | 'annullato';
 
 export interface TransportAttachment {

@@ -1,3 +1,4 @@
+import { computePasseggiataSequences } from '../utils/passeggiataHelper';
 import PushOnboardingBanner from '../components/common/PushOnboardingBanner';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -1881,6 +1882,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           const activeRentalItems = dayItems.filter(item => item.id.endsWith('_state') || (item as any).displayMode === 'state');
           const visibleCards = dayItems.filter(item => !item.id.endsWith('_state') && (item as any).displayMode !== 'state');
+          const passeggiataSequences = computePasseggiataSequences(visibleCards);
 
           if (visibleCards.length === 0 && !tonightsAccommodation && activeRentalItems.length === 0) {
             return (
@@ -2095,19 +2097,32 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                             onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                           />
                         ) : isTappa ? (
-                          <TappaCard
-                            tappa={item.originalData}
-                            variant="compact"
-                            onEdit={() => {
-                              const found = timeline.find(t => t.id === item.id);
-                              if (found) setDetailItem(found);
-                            }}
-                            onDelete={async () => {
-                              await storageService.deleteTappa(item.originalData?.id || '');
-                              await fetchTimeline();
-                            }}
-                            onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
-                          />
+                          <>
+                            <TappaCard
+                              tappa={item.originalData}
+                              variant="compact"
+                              onEdit={() => {
+                                const found = timeline.find(t => t.id === item.id);
+                                if (found) setDetailItem(found);
+                              }}
+                              onDelete={async () => {
+                                await storageService.deleteTappa(item.originalData?.id || '');
+                                await fetchTimeline();
+                              }}
+                              onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
+                            />
+                            {(() => {
+                              const seq = passeggiataSequences.get(item.id);
+                              return seq?.inSequence && !seq.isLast ? (
+                                <div className="flex items-center gap-2 pl-6 py-1 -my-1 text-xs">
+                                  <div className="w-0.5 h-3 bg-emerald-400 dark:bg-emerald-500 border-l border-dashed ml-3" />
+                                  <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-full border border-emerald-200/60 dark:border-emerald-800/40 flex items-center gap-1">
+                                    <span>🚶</span> Percorso a tappe collegato ➔
+                                  </span>
+                                </div>
+                              ) : null;
+                            })()}
+                          </>
                         ) : (
                           <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-sm text-center text-slate-500 text-sm">
                             {item.title}

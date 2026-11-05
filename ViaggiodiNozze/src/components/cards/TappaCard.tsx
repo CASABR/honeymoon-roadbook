@@ -18,9 +18,10 @@ interface TappaCardProps {
   onDuplicate?: () => void;
   onUpdate?: (updated: Tappa) => void;
   variant?: 'compact' | 'full';
+  sequenceInfo?: { inSequence: boolean; sequenceIndex: number; sequenceTotal: number };
 }
 
-export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpdate, variant = 'full' }: TappaCardProps) {
+export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpdate, variant = 'full', sequenceInfo }: TappaCardProps) {
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const initialCopilot = (tappa as any).noteCopilota || (tappa as any).nota || (tappa as any).notes || '';
   const [copilotNotes, setCopilotNotes] = useState<string>(initialCopilot);
@@ -81,6 +82,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
 
   const mapTarget = tappa.mapsUrl || tappa.indirizzo || tappa.titolo;
   const hasSubcategory = Boolean(tappa.sottocategoria && tappa.sottocategoria.trim() && tappa.sottocategoria !== 'Tappa');
+  const isConfirmed = tappa.timeStatus === 'confermato';
 
   const headerTimeSummary = orario
     ? `Ore ${orario}${tappa.timeStatus === 'indicativo' ? ' · indicativo' : ''}`
@@ -103,12 +105,21 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
                 <span className="font-bold tracking-wide truncate">
                   {tappa.sottocategoria}
                 </span>
+            {sequenceInfo?.inSequence && (
+              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shrink-0 ml-1.5">
+                Tappa {sequenceInfo.sequenceIndex}/{sequenceInfo.sequenceTotal}
+              </span>
+            )}
               </>
             )}
           </div>
 
           {headerTimeSummary && (
-            <span className="hounigo-ds-time-stamp">
+            <span
+              className={`hounigo-ds-time-stamp ${isConfirmed ? 'text-[#FF6B5F] font-black border-[#FF6B5F]/40 bg-rose-50/60 dark:bg-rose-950/40' : ''}`}
+              title={isConfirmed ? 'Orario confermato' : 'Orario indicativo'}
+            >
+              {isConfirmed && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#FF6B5F] mr-1" aria-hidden="true" />}
               {headerTimeSummary}
             </span>
           )}

@@ -1,11 +1,14 @@
-import type { TimelineItem, Attivita, Trasporto, Alloggio } from '../../types';
+import { useState } from 'react';
+import type { TimelineItem, TransportAttachment } from '../../types';
 import Modal from '../common/Modal';
-import { Handshake } from 'lucide-react';
-import { resolveMapUrl, openMapLink, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
+import { Handshake, Copy, Check, ExternalLink } from 'lucide-react';
+import { resolveMapUrl, openMapLink, hasReliableGeoDestination } from '../../utils/mapsHelper';
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { openAttachmentInNewTab } from '../../utils/fileAttachment';
 import { formatDateIT } from '../../utils/tripDates';
+import { PHOTO_LIGHT_LABELS, formatHikingDuration } from '../../utils/activityType';
+import { resolvePaymentInfo } from '../../utils/priceHelper';
 
 interface TimelineItemDetailModalProps {
   isOpen: boolean;
@@ -23,6 +26,9 @@ export default function TimelineItemDetailModal({
   onDuplicate
 }: TimelineItemDetailModalProps) {
   const { role, canEdit } = useDeviceRole();
+  const [pnrCopied, setPnrCopied] = useState(false);
+  const [pinCopied, setPinCopied] = useState(false);
+
   const isExternalLiveView = typeof window !== 'undefined' && (
     new URLSearchParams(window.location.search).get('live') === '1' ||
     new URLSearchParams(window.location.search).get('live') === 'true' ||
@@ -38,17 +44,19 @@ export default function TimelineItemDetailModal({
   const isTappa = item.type === 'tappa';
   const isShopping = item.type === 'shopping';
   const isAlloggio = item.type === 'alloggio';
-  const data = item.originalData;
+  const isRistorante = item.type === 'ristorante';
+  const data = item.originalData as any;
 
+  // 1. Note: separazione semantica rigorosa
   const rawCopilotNotes = (
     item.noteCopilota ||
-    (data as any)?.noteCopilota ||
+    data?.noteCopilota ||
     ''
   ).trim();
 
   const rawGeneralNotes = (
-    (data as any)?.notes ||
-    (data as any)?.nota ||
+    data?.notes ||
+    data?.nota ||
     ''
   ).trim();
 
@@ -56,6 +64,7 @@ export default function TimelineItemDetailModal({
     ? rawCopilotNotes
     : rawCopilotNotes.replace(/\b(PIN|codice|keybox|cassaforte|digita)\s*[:=-]?\s*([A-Z0-9#*]{3,12})/gi, '$1: [Riservato]');
 
+  // Header meta & accent
   const modalTitle = isAttivita
     ? 'Dettagli Attività'
     : isTrasporto
@@ -70,6 +79,79 @@ export default function TimelineItemDetailModal({
 
   const modalAccent = isAttivita ? 'amber' : isTrasporto ? 'sky' : isTappa ? 'rose' : isShopping ? 'rose' : isAlloggio ? 'purple' : 'emerald';
 
+  const categoryBadgeLabel = isAttivita
+    ? (data.sottocategoria || data.category || 'Attività')
+    : isTrasporto
+    ? (data.type ? data.type.toUpperCase() : 'TRASPORTO')
+    : isTappa
+    ? (data.sottocategoria || 'TAPPA')
+    : isShopping
+    ? (data.sottocategoria || 'SHOPPING')
+    : isAlloggio
+    ? (data.sottocategoria ? `ALLOGGIO · ${data.sottocategoria.toUpperCase()}` : 'ALLOGGIO')
+    : (data.sottocategoria ? `RISTORANTE · ${data.sottocategoria.toUpperCase()}` : 'RISTORANTE');
+
+  // Mappa
+  const mapTarget = isTrasporto
+    ? (data.arrivalLocation || data.dropoffLocation || data.departureLocation || item.location)
+    : isAlloggio
+    ? (data.address || data.location || data.name || item.location)
+    : (data.indirizzo || data.location || data.address || item.location);
+
+  const mapCoordinates = data?.coordinate || item.coordinate;
+  const reliableMapDestination = hasReliableGeoDestination({ coordinate: mapCoordinates, mapsUrl: data?.mapsUrl || (data as any)?.googleMapsUrl, indirizzo: mapTarget });
+
+  // Orario principale
+  const isTimeConfirmed = item.timeStatus === 'confermato';
+  const primaryTimeDisplay = item.time ? (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold ${
+      isTimeConfirmed && !isTrasporto
+        ? 'text-[#FF6B5F] bg-rose-50 dark:bg-rose-950/40 border border-[#FF6B5F]/30 font-black'
+        : 'text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800'
+    }`}>
+      {isTimeConfirmed && !isTrasporto && <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F]" />}
+      <span>⏰ {item.time}</span>
+      {!isTrasporto && (
+        <span className="text-[10px] uppercase font-semibold opacity-80">
+          · {isTimeConfirmed ? 'Confermato' : 'indicativo'}
+        </span>
+      )}
+    </span>
+  ) : null;
+
+  // Informazioni Economiche
+  const paymentInfo = resolvePaymentInfo({
+    cost: data?.cost || data?.costo || (isShopping ? data?.budget : undefined),
+    depositPaid: data?.depositPaid || data?.acconto || data?.amountPaid,
+    paymentStatus: data?.paymentStatus || data?.status,
+    status: data?.status,
+    completed: data?.completed,
+    packageIncluded: Boolean(data?.packageIncluded)
+  });
+
+  const hasCostInfo = paymentInfo.costNum > 0 || paymentInfo.isPackageIncluded || Boolean(data?.budget) || paymentInfo.paidNum > 0;
+
+  // Allegati unificati
+  const attachments: TransportAttachment[] = [
+    ...(data?.attachments || []),
+    ...(data?.ticketUrl ? [{ id: 'ticket_url', name: 'Biglietto / Voucher', url: data.ticketUrl, type: 'pdf' as const, purpose: 'ticket' as const, size: 0, mimeType: 'application/pdf', uploadedAt: 0 }] : []),
+    ...(data?.voucherUrl ? [{ id: 'voucher_url', name: 'Voucher Prenotazione', url: data.voucherUrl, type: 'pdf' as const, purpose: 'ticket' as const, size: 0, mimeType: 'application/pdf', uploadedAt: 0 }] : []),
+    ...(data?.bookingUrl ? [{ id: 'booking_url', name: 'Pagina Prenotazione', url: data.bookingUrl, type: 'other' as const, size: 0, mimeType: 'text/html', uploadedAt: 0 }] : [])
+  ];
+
+  const handleCopy = (text: string, type: 'pnr' | 'pin') => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      if (type === 'pnr') {
+        setPnrCopied(true);
+        setTimeout(() => setPnrCopied(false), 2000);
+      } else {
+        setPinCopied(true);
+        setTimeout(() => setPinCopied(false), 2000);
+      }
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -77,668 +159,393 @@ export default function TimelineItemDetailModal({
       title={modalTitle}
       accentVariant={modalAccent as any}
     >
-      <div className="space-y-4 text-slate-800">
-        {/* Intestazione con Titolo e Badge */}
-        <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100">
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <h2 className="text-lg font-bold text-slate-900 leading-snug">
-                {item.title}
-              </h2>
+      <div className="space-y-4 text-slate-800 dark:text-slate-100">
+
+        {/* ─── 1. INTESTAZIONE: CATEGORIA, TITOLO E ORARIO ─── */}
+        <div className="flex items-start justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-800">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2 flex-wrap mb-1">
+              <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                {categoryBadgeLabel}
+              </span>
               {Boolean(safeCopilotNotes || item.copilota) && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  <Handshake className="w-3 h-3 text-emerald-700" /> Co-pilota
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60">
+                  <Handshake className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> Copilota
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500 font-medium mt-1">
-              {isAttivita
-                ? `Categoria: ${data.category?.toUpperCase() || 'ATTIVITÀ'}`
-                : isTrasporto
-                ? `Tipo: ${data.type?.toUpperCase() || 'TRASPORTO'}`
-                : isTappa
-                ? 'TAPPA PROGRAMMATA'
-                : isShopping
-                ? 'SHOPPING & ACQUISTI'
-                : isAlloggio
-                ? `ALLOGGIO · ${(data as Alloggio).sottocategoria?.toUpperCase() || 'STRUTTURA'}`
-                : 'PRENOTAZIONE RISTORANTE'}
-            </p>
+            <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white leading-snug break-words">
+              {item.title}
+            </h2>
+            {((data as any)?.date || (data as any)?.data || (data as any)?.checkIn) && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+                📅 {formatDateIT((data as any)?.date || (data as any)?.data || (data as any)?.checkIn)}
+              </p>
+            )}
           </div>
-          <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-xl shrink-0">
-            ⏰ {item.time || 'Orario non specificato'} {item.timeStatus === 'indicativo' ? '· indicativo' : ''}
-          </span>
+          {primaryTimeDisplay}
         </div>
 
-        {/* Informazioni specifici per Attività */}
-        {isAttivita ? (
-          (() => {
-            const att = data as Attivita;
-            return (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                    Località / Indirizzo
+        {/* ─── 2. INFORMAZIONI ESSENZIALI: LUOGO & PERCORSO ─── */}
+        <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+          {isTrasporto ? (
+            <div className="space-y-2 text-xs">
+              <div className="flex items-start gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Partenza</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {data.departureLocation || 'Non specificata'}
                   </span>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-semibold text-slate-800">📍 {att.location}</p>
-                    {att.location && (
-                      <button
-                        type="button"
-                        onClick={() => openMapLink(resolveMapUrl(att.location))}
-                        className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
-                      ><GoogleMapsIcon className="w-3.5 h-3.5 inline mr-1 shrink-0" />Apri Maps ↗
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {(att.orarioRitrovo || att.orarioInizio) && (
-                  <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                    {att.orarioRitrovo && (
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                          Orario Ritrovo
-                        </span>
-                        <span className="font-mono font-bold text-rose-700">🚩 {att.orarioRitrovo}</span>
-                      </div>
-                    )}
-                    {att.orarioInizio && (
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                          Orario Inizio
-                        </span>
-                        <span className="font-mono font-bold text-slate-800">⏱️ {att.orarioInizio}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                      Stato
-                    </span>
-                    <span className="font-semibold capitalize text-slate-700">
-                      {att.status === 'prenotato' ? '🟢 Prenotato' :
-                       att.status === 'da_valutare' ? '🟡 Da Valutare' :
-                       att.status === 'non_bloccato' ? '🟠 Non Bloccato' : '⚪ Libero'}
-                    </span>
-                  </div>
-                  {att.duration && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                        Durata Stimata
-                      </span>
-                      <span className="font-semibold text-slate-700">
-                        ⏱️ {att.duration}
-                      </span>
-                    </div>
+                  {data.departureIata && (
+                    <span className="ml-1.5 font-mono text-[10px] font-bold text-slate-500">({data.departureIata})</span>
                   )}
-                  {att.cost && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                        Prezzo &amp; Pagamento
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-900 text-sm">
-                          {!isNaN(parseFloat(att.cost)) ? parseFloat(att.cost).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' }) : att.cost}
-                        </span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${att.status === 'prenotato' ? 'bg-emerald-100 text-emerald-800' : 'bg-orange-100 text-orange-800'}`}>
-                          {att.status === 'prenotato' ? 'Saldato' : 'Da Saldare'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                  {att.platform && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                        Piattaforma
-                      </span>
-                      <span className="inline-block px-2 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg border border-indigo-100">
-                        {att.platform}
-                      </span>
-                    </div>
+                  {data.departureTime && (
+                    <span className="ml-2 font-mono text-slate-500 dark:text-slate-400">ore {data.departureTime}</span>
                   )}
                 </div>
-
-                {/* Sezione Biglietto / QR Code per Attività (riservato agli autorizzati) */}
-                {att.qrCode && canSeePrivateInfo && (
-                  <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <div className="min-w-0">
-                        <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">
-                          Codice Prenotazione / Voucher
-                        </span>
-                        <p className="text-sm font-mono font-bold text-slate-900 truncate">
-                          {att.qrCode}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          navigator.clipboard.writeText(att.qrCode || '');
-                          const btn = e.currentTarget;
-                          const oldText = btn.innerHTML;
-                          btn.innerHTML = 'Copiato ✓';
-                          setTimeout(() => { btn.innerHTML = oldText; }, 2000);
-                        }}
-                        className="px-2.5 py-1.5 bg-white border border-amber-200 hover:bg-amber-100 text-amber-900 font-bold text-[11px] rounded-xl shrink-0 transition-colors cursor-pointer"
-                      >
-                        Copia codice 📋
-                      </button>
-                    </div>
-                    <div className="flex items-center gap-2.5 min-w-0 pt-2 border-t border-amber-200/50">
-                      <div className="w-12 h-12 bg-white rounded-xl border border-amber-200 p-1 flex items-center justify-center shrink-0">
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${encodeURIComponent(att.qrCode)}`}
-                          alt="QR Code"
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                      <a
-                        href={`https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(att.qrCode)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-[11px] rounded-xl shrink-0 transition-colors"
-                      >
-                        Apri QR Code 🔍
-                      </a>
-                    </div>
-                  </div>
-                )}
-
-                {att.attachments && att.attachments.length > 0 && (
-                  <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex flex-col gap-2">
-                    <div className="flex items-center justify-between text-xs text-purple-900">
-                      <span className="font-semibold flex items-center gap-1.5">
-                        <span>🎟️</span>
-                        <span>{att.attachments.length} biglietti/allegati caricati</span>
-                      </span>
-                      <span className="text-[10px] text-purple-600 font-bold">Disponibili offline</span>
-                    </div>
-                    <div className="grid gap-2">
-                      {att.attachments.map((attach, idx) => (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            const content = attach.dataUrl;
-                            if (content) {
-                              openAttachmentInNewTab(content, attach.name);
-                            } else {
-                              alert('Allegato non disponibile');
-                            }
-                          }}
-                          className="w-full text-left px-3 py-2 bg-white rounded-lg border border-purple-100 hover:border-purple-300 transition-colors flex items-center justify-between text-xs cursor-pointer"
-                        >
-                          <span className="truncate font-medium">{attach.name}</span>
-                          <span className="shrink-0 text-purple-600">Apri ↗</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
-            );
-          })()
-        ) : isTrasporto ? (
-          /* Informazioni specifici per Trasporto */
-          (() => {
-            const tr = data as Trasporto;
-            return (
-              <div className="space-y-3 text-xs">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                      Partenza / Ritiro
+
+              <div className="flex items-start gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                <span className="w-2 h-2 rounded-full bg-rose-500 mt-1 shrink-0" />
+                <div className="min-w-0">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                    {data.type === 'auto' || data.type === 'camper' ? 'Riconsegna' : 'Arrivo'}
+                  </span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {data.arrivalLocation || data.dropoffLocation || 'Non specificato'}
+                  </span>
+                  {data.arrivalIata && (
+                    <span className="ml-1.5 font-mono text-[10px] font-bold text-slate-500">({data.arrivalIata})</span>
+                  )}
+                  {(data.arrivalTime || data.dropoffTime) && (
+                    <span className="ml-2 font-mono text-slate-500 dark:text-slate-400">
+                      ore {data.arrivalTime || data.dropoffTime}
                     </span>
-                    <p className="font-semibold text-slate-800">🛫 {tr.departureLocation}</p>
-                    {tr.departureTime && <p className="text-[11px] text-slate-500">Ora: {tr.departureTime}</p>}
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                      Arrivo / Riconsegna
-                    </span>
-                    <p className="font-semibold text-slate-800">🛬 {tr.dropoffLocation || tr.arrivalLocation}</p>
-                    {(tr.arrivalTime || tr.dropoffTime) && <p className="text-[11px] text-slate-500">Ora: {tr.arrivalTime || tr.dropoffTime}</p>}
-                  </div>
+                  )}
                 </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start justify-between gap-3 text-xs">
+              <div className="min-w-0">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  {isAlloggio ? 'Indirizzo Struttura' : 'Indirizzo / Luogo'}
+                </span>
+                <span className="font-semibold text-slate-800 dark:text-slate-200 leading-relaxed break-words">
+                  {mapTarget || 'Luogo non specificato'}
+                </span>
+              </div>
+            </div>
+          )}
 
-                {(tr.carrier || (tr.bookingCode && canSeePrivateInfo) || tr.terminalGate || tr.posti) && (
-                  <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                    {tr.carrier && (
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                          Vettore / Compagnia
-                        </span>
-                        <span className="font-bold text-slate-800">{tr.carrier}</span>
-                      </div>
-                    )}
-                    {Boolean(tr.bookingCode?.trim()) && canSeePrivateInfo && (
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                          Codice PNR / Prenotazione
-                        </span>
-                        <span className="font-mono font-bold text-indigo-600">{tr.bookingCode?.trim()}</span>
-                      </div>
-                    )}
-                    {tr.terminalGate && (
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                          {tr.type === 'treno' ? 'Binario' : tr.type === 'volo' ? 'Terminal / Gate' : 'Riferimento'}
-                        </span>
-                        <span className="font-bold text-slate-800">{tr.terminalGate}</span>
-                      </div>
-                    )}
-                    {tr.posti && (
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                          {tr.type === 'treno' ? 'Carrozza / Posto' : 'Posto / Veicolo'}
-                        </span>
-                        <span className="font-bold text-slate-800">{tr.posti}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+          {reliableMapDestination && (
+            <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+              <button
+                type="button"
+                onClick={() => openMapLink(resolveMapUrl(data?.mapsUrl || mapTarget))}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 transition-colors cursor-pointer shadow-2xs"
+              >
+                <GoogleMapsIcon className="w-3.5 h-3.5" />
+                <span>Apri in Google Maps</span>
+              </button>
+            </div>
+          )}
+        </div>
 
-                {(tr.cost || tr.depositPaid || tr.acconto) && (
-                  <div className="grid grid-cols-2 gap-3">
-                    {tr.cost && (
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                          Costo Totale / Saldo
-                        </span>
-                        <span className="font-semibold text-slate-800">{tr.cost}</span>
-                      </div>
-                    )}
-                    {(tr.depositPaid || tr.acconto) && (
-                      <div>
-                        <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                          Acconto Versato
-                        </span>
-                        <span className="font-semibold text-emerald-600">💰 {tr.depositPaid || tr.acconto}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+        {/* ─── 3. DETTAGLI OPERATIVI SPECIFICI PER SOTTOCATEGORIA ─── */}
+        <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3">
+          <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">
+            Dettagli Operativi
+          </span>
 
-                {tr.layover && (
-                  <div className="bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/60">
-                    <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block mb-0.5">
-                      Scalo Previsto
-                    </span>
-                    <p className="font-bold text-amber-950">{tr.layover.airport}</p>
-                    {tr.layover.duration && <p className="text-[11px] text-amber-800">Durata: {tr.layover.duration}</p>}
-                  </div>
-                )}
-
-                {tr.ticketUrl && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+            {/* TRASPORTO: Volo / Treno / Metro / Noleggio */}
+            {isTrasporto && (
+              <>
+                {data.carrier && (
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                      Biglietto / Ticket URL
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">
+                      {data.type === 'metro' ? 'Linea / Gestore' : 'Compagnia / Vettore'}
                     </span>
-                    <a
-                      href={tr.ticketUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sky-600 font-semibold underline truncate block hover:text-sky-700"
-                    >
-                      {tr.ticketUrl}
-                    </a>
+                    <span className="font-bold text-slate-800 dark:text-slate-200">{data.carrier}</span>
                   </div>
                 )}
-
-                {tr.attachments && tr.attachments.length > 0 && (
-                  <div className="p-3 rounded-xl bg-sky-50 border border-sky-200 flex flex-col gap-2">
-                    <div className="flex items-center justify-between text-xs text-sky-900">
-                      <span className="font-semibold flex items-center gap-1.5">
-                        <span>🎟️</span>
-                        <span>{tr.attachments.length} biglietti/allegati caricati</span>
-                      </span>
-                      <span className="text-[10px] text-sky-600 font-bold">Disponibili offline</span>
+                {data.bookingCode && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Codice Prenotazione (PNR)</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{data.bookingCode}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopy(data.bookingCode, 'pnr')}
+                        className="text-slate-400 hover:text-slate-600 p-0.5"
+                        title="Copia PNR"
+                      >
+                        {pnrCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      </button>
                     </div>
-                    <div className="grid gap-2">
-                      {tr.attachments.map((attach, idx) => (
+                  </div>
+                )}
+                {data.terminalGate && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">
+                      {data.type === 'treno' || data.type === 'metro' ? 'Binario / Carrozza' : 'Terminal / Gate'}
+                    </span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{data.terminalGate}</span>
+                  </div>
+                )}
+                {data.posti && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Posti Assegnati</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{data.posti}</span>
+                  </div>
+                )}
+                {/* SCALO AEREO: VISIBILE RIGOROSAMENTE SOLO SE VOLO */}
+                {data.type === 'volo' && data.layover && data.layover.airport && (
+                  <div className="sm:col-span-2 p-2 rounded-xl bg-sky-50/70 dark:bg-sky-950/30 border border-sky-100 dark:border-sky-900/40">
+                    <span className="text-sky-800 dark:text-sky-300 font-bold block text-[11px]">
+                      ✈️ Scalo Aereo Intermedio: {data.layover.airport}
+                      {data.layover.duration ? ` · Durata: ${data.layover.duration}` : ''}
+                    </span>
+                  </div>
+                )}
+                {data.checkinCutoff && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Chiusura Check-in</span>
+                    <span className="font-semibold text-amber-700 dark:text-amber-300">entro le ore {data.checkinCutoff}</span>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ALLOGGIO: Check-in, Check-out, PIN e Contatti */}
+            {isAlloggio && (
+              <>
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Orario Check-in</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    dalle ore {data.checkIn || '14:00'}{data.checkInDeadline ? ` alle ${data.checkInDeadline}` : ''}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Orario Check-out</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    entro le ore {data.checkOut || '10:00'}
+                  </span>
+                </div>
+                {data.pinCode && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Codice Keybox / PIN</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
+                        {canSeePrivateInfo ? data.pinCode : '•••••• [Riservato]'}
+                      </span>
+                      {canSeePrivateInfo && (
                         <button
-                          key={idx}
                           type="button"
-                          onClick={() => {
-                            const content = attach.dataUrl;
-                            if (content) {
-                              openAttachmentInNewTab(content, attach.name);
-                            } else {
-                              alert('Allegato non disponibile');
-                            }
-                          }}
-                          className="w-full text-left px-3 py-2 bg-white rounded-lg border border-sky-100 hover:border-sky-300 transition-colors flex items-center justify-between text-xs cursor-pointer"
+                          onClick={() => handleCopy(data.pinCode, 'pin')}
+                          className="text-slate-400 hover:text-slate-600 p-0.5"
+                          title="Copia PIN"
                         >
-                          <span className="truncate font-medium">{attach.name}</span>
-                          <span className="shrink-0 text-sky-600">Apri ↗</span>
+                          {pinCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
                         </button>
-                      ))}
+                      )}
                     </div>
                   </div>
                 )}
-              </div>
-            );
-          })()
-        ) : isAlloggio ? (
-          /* Informazioni specifiche per Alloggio */
-          (() => {
-            const acc = data as Alloggio;
-            return (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                    Indirizzo / Posizione
-                  </span>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-bold text-slate-800 text-sm">📍 {acc.address || acc.location || acc.name}</p>
-                    {(acc.address || acc.location || acc.name) && (
-                      <button
-                        type="button"
-                        onClick={() => openMapLink(resolveMapUrl(acc.address || acc.location || acc.name))}
-                        className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
-                      ><GoogleMapsIcon className="w-3.5 h-3.5 inline mr-1 shrink-0" />Apri Maps ↗
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                {data.phone && (
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                      Check-in
-                    </span>
-                    <span className="font-bold text-slate-800">
-                      📅 {acc.checkIn ? formatDateIT(acc.checkIn) : '—'} {acc.checkInTime ? `· dalle ${acc.checkInTime}` : ''}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                      Check-out
-                    </span>
-                    <span className="font-bold text-slate-800">
-                      📅 {acc.checkOut ? formatDateIT(acc.checkOut) : '—'} {acc.checkOutTime ? `· entro ${acc.checkOutTime}` : ''}
-                    </span>
-                  </div>
-                  {acc.arrivalTime && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                        Arrivo previsto
-                      </span>
-                      <span className="font-mono font-bold text-indigo-700">🕒 {acc.arrivalTime}</span>
-                    </div>
-                  )}
-                  {canSeePrivateInfo && acc.bookingCode && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
-                        Codice Prenotazione
-                      </span>
-                      <span className="font-mono font-bold text-indigo-700">{acc.bookingCode}</span>
-                    </div>
-                  )}
-                  {canSeePrivateInfo && (acc as any).pinCode && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-amber-800 tracking-wider block">
-                        PIN d'ingresso
-                      </span>
-                      <span className="font-mono font-bold text-amber-900">🔑 {(acc as any).pinCode}</span>
-                    </div>
-                  )}
-                </div>
-
-
-
-                {acc.attachments && acc.attachments.length > 0 && (
-                  <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 flex flex-col gap-2">
-                    <div className="flex items-center justify-between text-xs text-purple-900">
-                      <span className="font-semibold flex items-center gap-1.5">
-                        <span>🎟️</span>
-                        <span>{acc.attachments.length} voucher/documenti caricati</span>
-                      </span>
-                      <span className="text-[10px] text-purple-600 font-bold">Disponibili offline</span>
-                    </div>
-                    <div className="grid gap-2">
-                      {acc.attachments.map((attach, idx) => (
-                        <button
-                          key={idx}
-                          type="button"
-                          onClick={() => {
-                            const content = attach.dataUrl;
-                            if (content) {
-                              openAttachmentInNewTab(content, attach.name);
-                            } else {
-                              alert('Allegato non disponibile');
-                            }
-                          }}
-                          className="w-full text-left px-3 py-2 bg-white rounded-lg border border-purple-100 hover:border-purple-300 transition-colors flex items-center justify-between text-xs cursor-pointer"
-                        >
-                          <span className="truncate font-medium">{attach.name}</span>
-                          <span className="shrink-0 text-purple-600">Apri ↗</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })()
-        ) : isTappa ? (
-          /* Informazioni specifiche per Tappa */
-          (() => {
-            const tp = data as import('../../types').Tappa;
-            return (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                    Nome / Destinazione Tappa
-                  </span>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-bold text-slate-800 text-sm">📍 {tp.indirizzo || tp.titolo}</p>
-                    {(tp.mapsUrl || tp.indirizzo || tp.titolo) && (
-                      <button
-                        type="button"
-                        onClick={() => openMapLink(resolveMapUrl(tp.mapsUrl || tp.indirizzo || tp.titolo))}
-                        className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
-                        title={hasReliableGeoDestination(tp) ? 'Avvia navigazione verso la destinazione' : 'Cerca il luogo per nome su Google Maps'}
-                      >
-                        {getMapsActionLabel(hasReliableGeoDestination(tp))} ↗
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  {tp.data && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                        Data Programmata
-                      </span>
-                      <p className="font-semibold text-slate-700">📅 {formatDateIT(tp.data)}</p>
-                    </div>
-                  )}
-                  {(tp.orario || (tp as any).time) && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                        Orario Sosta / Passaggio
-                      </span>
-                      <p className="font-semibold text-slate-700">⏰ {tp.orario || (tp as any).time} {tp.timeStatus === 'indicativo' ? '· indicativo' : ''}</p>
-                    </div>
-                  )}
-                </div>
-
-
-              </div>
-            );
-          })()
-        ) : isShopping ? (
-          /* Informazioni specifiche per Shopping */
-          (() => {
-            const sh = data as import('../../types').Shopping;
-            return (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                    Negozio / Mercato / Destinazione Shopping
-                  </span>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-bold text-slate-800 text-sm">🛍️ {sh.nome}</p>
-                    {(sh.indirizzo || sh.nome) && (
-                      <button
-                        type="button"
-                        onClick={() => openMapLink(resolveMapUrl(sh.indirizzo || sh.nome))}
-                        className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
-                      ><GoogleMapsIcon className="w-3.5 h-3.5 inline mr-1 shrink-0" />Apri Maps ↗
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {sh.indirizzo && (
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                      Indirizzo / Località
-                    </span>
-                    <p className="font-semibold text-slate-700">{sh.indirizzo}</p>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
-                  {sh.orario && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                        Orario Previsto
-                      </span>
-                      <span className="font-semibold text-slate-700">⏰ {sh.orario} {sh.timeStatus === 'indicativo' ? '· indicativo' : ''}</span>
-                    </div>
-                  )}
-                  {sh.budget && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                        Budget Indicativo
-                      </span>
-                      <span className="font-semibold text-rose-600">💶 {sh.budget}</span>
-                    </div>
-                  )}
-                </div>
-
-                {sh.link && (
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                      Link Web / Info
-                    </span>
-                    <a
-                      href={sh.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-rose-600 font-semibold underline truncate block hover:text-rose-700"
-                    >
-                      {sh.link}
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Telefono Struttura</span>
+                    <a href={`tel:${data.phone}`} className="font-semibold text-[#FF6B5F] hover:underline">
+                      📞 {data.phone}
                     </a>
                   </div>
                 )}
+              </>
+            )}
 
-              </div>
-            );
-          })()
-        ) : (
-          /* Informazioni specifiche per Ristorante */
-          (() => {
-            const rt = data as import('../../types').Ristorante;
-            return (
-              <div className="space-y-3 text-xs">
-                <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                    Ristorante / Cucina
-                  </span>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-bold text-slate-800 text-sm">🍽️ {rt.nome}</p>
-                    {(rt.indirizzo || rt.nome) && (
-                      <button
-                        type="button"
-                        onClick={() => openMapLink(resolveMapUrl(rt.indirizzo || rt.nome))}
-                        className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
-                      ><GoogleMapsIcon className="w-3.5 h-3.5 inline mr-1 shrink-0" />Apri Maps ↗
-                      </button>
+            {/* ATTIVITÀ & SPOT FOTOGRAFICO */}
+            {isAttivita && (
+              <>
+                {data.orarioRitrovo && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Orario Ritrovo</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">ore {data.orarioRitrovo}</span>
+                  </div>
+                )}
+                {data.duration && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Durata Prevista</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{data.duration}</span>
+                  </div>
+                )}
+                {/* Trekking Specs */}
+                {(data.distanceKm || data.elevationGainM || data.hikingDurationMinutes) && (
+                  <div className="sm:col-span-2 p-2.5 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/60 dark:border-amber-800/40 text-amber-950 dark:text-amber-200 space-y-1">
+                    <span className="font-bold block text-[11px]">🥾 Dati Percorso Trekking</span>
+                    <div className="flex items-center gap-3 flex-wrap text-xs">
+                      {data.distanceKm && <span>Distanza: <strong>{data.distanceKm} km</strong></span>}
+                      {data.elevationGainM && <span>Dislivello: <strong>+{data.elevationGainM} m</strong></span>}
+                      {data.hikingDurationMinutes && <span>Tempo: <strong>{formatHikingDuration(data.hikingDurationMinutes)}</strong></span>}
+                      {data.difficulty && <span>Difficoltà: <strong>{data.difficulty}</strong></span>}
+                    </div>
+                  </div>
+                )}
+                {/* Spot Fotografico Specs */}
+                {(data.lightWindow || data.photoSubject) && (
+                  <div className="sm:col-span-2 p-2.5 rounded-xl bg-rose-50/60 dark:bg-rose-950/30 border border-rose-200/50 dark:border-rose-800/40 text-xs space-y-1">
+                    <span className="font-bold text-rose-800 dark:text-rose-300 block">📸 Scheda Spot Fotografico</span>
+                    {data.lightWindow && data.lightWindow !== 'qualsiasi' && (
+                      <p>Fascia di luce: <strong>{PHOTO_LIGHT_LABELS[data.lightWindow as keyof typeof PHOTO_LIGHT_LABELS] || data.lightWindow}</strong></p>
                     )}
-                  </div>
-                </div>
-
-                {rt.indirizzo && (
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                      Indirizzo
-                    </span>
-                    <p className="font-semibold text-slate-700">{rt.indirizzo}</p>
+                    {data.photoSubject && <p>Soggetto: <strong>{data.photoSubject}</strong></p>}
                   </div>
                 )}
+                {data.openingHours?.note && (
+                  <div className="sm:col-span-2">
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Orari di Apertura</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{data.openingHours.note}</span>
+                  </div>
+                )}
+              </>
+            )}
 
-                <div className="grid grid-cols-2 gap-3">
-                  {rt.orario && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                        Orario Prenotazione
-                      </span>
-                      <span className="font-semibold text-slate-700">⏰ {rt.orario} {rt.timeStatus === 'indicativo' ? '· indicativo' : ''}</span>
-                    </div>
-                  )}
-                  {rt.budget && (
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                        Budget Stimato
-                      </span>
-                      <span className="font-semibold text-emerald-600">💶 {rt.budget}</span>
-                    </div>
-                  )}
-                </div>
+            {/* TAPPA: Dettagli e sottotipo */}
+            {isTappa && (
+              <>
+                {data.sottocategoria && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Tipologia Sosta</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{data.sottocategoria}</span>
+                  </div>
+                )}
+                {data.bookingCode && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Codice Ingresso</span>
+                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{data.bookingCode}</span>
+                  </div>
+                )}
+                {data.openingHours?.note && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Orari Apertura</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{data.openingHours.note}</span>
+                  </div>
+                )}
+              </>
+            )}
 
+            {/* RISTORANTE: Tavolo, Telefono, Dress code */}
+            {isRistorante && (
+              <>
                 <div>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-1">
-                    Stato Pagamento
-                  </span>
-                  <span className={`inline-flex items-center text-[11px] font-bold px-2.5 py-1 rounded-full border ${
-                    (rt.status === 'saldato' || (rt as any).completed)
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                      : 'bg-amber-50 text-amber-700 border-amber-200'
-                  }`}>
-                    {(rt.status === 'saldato' || (rt as any).completed) ? '✓ Saldato' : '⏳ Da saldare'}
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Prenotazione</span>
+                  <span className={`font-semibold ${data.status === 'saldato' || data.completed ? 'text-emerald-600' : 'text-slate-700 dark:text-slate-300'}`}>
+                    {data.status === 'saldato' || data.completed ? '✓ Confermata' : 'Da verificare'}
                   </span>
                 </div>
-
-                {rt.telefono && (
+                {data.telefono && (
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                      Telefono
-                    </span>
-                    <a href={`tel:${rt.telefono}`} className="font-semibold text-indigo-600 hover:underline">
-                      📞 {rt.telefono}
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Telefono</span>
+                    <a href={`tel:${data.telefono}`} className="font-semibold text-[#FF6B5F] hover:underline">
+                      📞 {data.telefono}
                     </a>
                   </div>
                 )}
-
-                {rt.linkPrenotazione && (
+                {data.linkPrenotazione && (
                   <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block mb-0.5">
-                      Link Prenotazione
-                    </span>
-                    <a
-                      href={rt.linkPrenotazione}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-emerald-600 font-semibold underline truncate block hover:text-emerald-700"
-                    >
-                      {rt.linkPrenotazione}
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Sito Web / Menu</span>
+                    <a href={data.linkPrenotazione} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#FF6B5F] hover:underline inline-flex items-center gap-1">
+                      <span>Apri Link</span>
+                      <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
                 )}
+              </>
+            )}
 
+            {/* SHOPPING: Oggetti e scopo */}
+            {isShopping && (
+              <>
+                {data.scopo && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Scopo / Categoria</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{data.scopo}</span>
+                  </div>
+                )}
+                {data.link && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Sito Negozio</span>
+                    <a href={data.link} target="_blank" rel="noopener noreferrer" className="font-semibold text-[#FF6B5F] hover:underline inline-flex items-center gap-1">
+                      <span>Apri Link</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* ─── 4. COSTI E PAGAMENTI (SOLO SE PRESENTI) ─── */}
+        {hasCostInfo && (
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">
+              Riepilogo Costi & Pagamenti
+            </span>
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg sm:text-xl font-black font-mono text-slate-900 dark:text-white">
+                  {paymentInfo.displayText}
+                </span>
+                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                  paymentInfo.isPackageIncluded
+                    ? 'bg-purple-100 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300'
+                    : paymentInfo.isPaid
+                    ? 'bg-emerald-100 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300'
+                    : 'bg-amber-100 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300'
+                }`}>
+                  {paymentInfo.isPackageIncluded ? 'Incluso nel Pacchetto' : paymentInfo.isPaid ? '✓ Saldato' : '⏳ Da Saldare'}
+                </span>
               </div>
-            );
-          })()
+
+              {/* Acconto o cauzione */}
+              {paymentInfo.paidNum > 0 && !paymentInfo.isPaid && (
+                <div className="text-right text-xs">
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Acconto già versato</span>
+                  <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                    € {paymentInfo.paidNum.toFixed(2)}
+                  </span>
+                </div>
+              )}
+
+              {/* Cauzione alloggio separata */}
+              {isAlloggio && data.deposit && (
+                <div className="text-right text-xs">
+                  <span className="text-slate-400 text-[10px] uppercase font-bold block">Cauzione richiesta</span>
+                  <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                    € {data.deposit}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
-        {/* Note per il Copilota Unificate per tutte le categorie */}
+        {/* ─── 5. NOTE E COPILOTA: NOTE GENERICHE + COPILOTA DISTINTE ─── */}
+        {/* A. Note Generiche della Prenotazione */}
+        {rawGeneralNotes && (
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs space-y-1">
+            <span className="text-[10px] uppercase font-extrabold text-slate-500 dark:text-slate-400 tracking-wider block">
+              Note di Viaggio & Prenotazione
+            </span>
+            <p className="text-slate-800 dark:text-slate-200 font-medium whitespace-pre-wrap leading-relaxed">
+              {rawGeneralNotes}
+            </p>
+          </div>
+        )}
+
+        {/* B. Note per il Copilota con Icona Handshake */}
         {safeCopilotNotes && (
           <div className="p-3.5 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 shadow-2xs">
             <span className="text-[10px] uppercase font-extrabold text-emerald-800 dark:text-emerald-300 tracking-wider block mb-1 flex items-center gap-1.5">
@@ -751,8 +558,30 @@ export default function TimelineItemDetailModal({
           </div>
         )}
 
-        {/* Azioni del Modale */}
-        <div className="flex items-center justify-between pt-4 border-t border-slate-100 gap-3">
+        {/* ─── 6. FOTO E DOCUMENTI ALLEGATI (SOLO SE PRESENTI) ─── */}
+        {attachments.length > 0 && (
+          <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+            <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block">
+              Documenti, Voucher & Foto
+            </span>
+            <div className="flex flex-wrap gap-2">
+              {attachments.map(att => (
+                <button
+                  key={att.id}
+                  type="button"
+                  onClick={() => openAttachmentInNewTab(att.dataUrl, att.name)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-xs font-bold text-slate-800 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors cursor-pointer shadow-2xs"
+                >
+                  <span>{att.type === 'image' ? '📸' : '🎟️'}</span>
+                  <span className="truncate max-w-[150px]">{att.name || 'Documento'}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ─── 7. AZIONI DISPONIBILI ─── */}
+        <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800 gap-2 flex-wrap">
           <div className="flex items-center gap-2">
             {canEdit && (
               <button
@@ -764,14 +593,14 @@ export default function TimelineItemDetailModal({
                     else if (isTrasporto) await storageService.deleteTransport(item.id);
                     else if (isTappa) await storageService.deleteTappa(item.id);
                     else if (isShopping) await storageService.deleteShopping(item.id);
-                    else if (isAlloggio) await storageService.deleteAccommodation((data as Alloggio)?.id || item.id);
+                    else if (isAlloggio) await storageService.deleteAccommodation(data?.id || item.id);
                     else await storageService.deleteRistorante(item.id);
 
                     window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'delete' } }));
                     onClose();
                   }
                 }}
-                className="min-h-[44px] px-4 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100 transition-colors cursor-pointer"
+                className="min-h-[44px] px-3.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 border border-rose-100 dark:border-rose-900/40 transition-colors cursor-pointer"
                 title="Elimina"
               >
                 🗑️ Elimina
@@ -780,11 +609,12 @@ export default function TimelineItemDetailModal({
             <button
               type="button"
               onClick={onClose}
-              className="min-h-[44px] px-4 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="min-h-[44px] px-4 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             >
               Chiudi
             </button>
           </div>
+
           <div className="flex items-center gap-2">
             {canEdit && (
               <button
@@ -806,50 +636,46 @@ export default function TimelineItemDetailModal({
                                   isAlloggio ? `Check-in: ${item.title}` :
                                   `A tavola: ${item.title}`;
 
-                    const locationName = isAttivita ? (data as import('../../types').Attivita).location :
-                                         isTrasporto ? (data as import('../../types').Trasporto).arrivalLocation :
-                                         isTappa ? (data as import('../../types').Tappa).titolo :
-                                         isShopping ? (data as import('../../types').Shopping).nome :
-                                         isAlloggio ? ((data as Alloggio).address || (data as Alloggio).location || (data as Alloggio).name) :
-                                         (data as import('../../types').Ristorante).nome;
-
                     await liveService.publishToLive(tripId, {
                       title,
                       text: 'Aggiornamento dal diario di viaggio',
-                      locationName
+                      locationName: mapTarget
                     });
                     alert('Pubblicato con successo in Live! 📡');
                   } catch (err) {
                     alert('Errore durante la pubblicazione: ' + (err as Error).message);
                   }
                 }}
-                className="min-h-[44px] px-4 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:opacity-90 shadow-md shadow-rose-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                className="min-h-[44px] px-3.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-rose-500 to-amber-500 hover:opacity-90 shadow-md shadow-rose-500/20 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
                 title="Condividi in Live"
               >
                 <span>📡 Condividi in Live</span>
               </button>
             )}
+
             {canEdit && onDuplicate && (
               <button
                 type="button"
                 onClick={() => onDuplicate(item)}
-                className="min-h-[44px] px-4 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
-                title="Crea una copia modificabile di questa card"
+                className="min-h-[44px] px-3.5 rounded-xl text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Crea una copia di questa card"
               >
                 <span>📄 Duplica</span>
               </button>
             )}
+
             {canEdit && (
               <button
                 type="button"
                 onClick={() => onEdit(item)}
-                className="min-h-[44px] px-5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-md shadow-amber-500/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
+                className="min-h-[44px] px-5 rounded-xl text-xs font-bold bg-[#FF6B5F] hover:bg-[#e85c50] text-white shadow-md shadow-[#FF6B5F]/20 active:scale-95 transition-all cursor-pointer flex items-center gap-1.5"
               >
                 <span>✏️ Modifica</span>
               </button>
             )}
           </div>
         </div>
+
       </div>
     </Modal>
   );

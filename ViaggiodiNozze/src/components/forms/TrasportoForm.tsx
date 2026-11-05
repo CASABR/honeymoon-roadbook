@@ -61,7 +61,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   const [error, setError] = useState('');
   
   const isRental = type === 'auto' || type === 'camper';
-    const isFlightOrTrain = type === 'volo' || type === 'treno';
+    const isFlight = type === 'volo';
+  const isFlightOrTrain = isFlight || type === 'treno' || type === 'metro';
 
   // Utils per manipolare date/ore
   const formatForInput = (d?: string, t?: string) => {
@@ -231,7 +232,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
         posti: posti.trim() || undefined,
         bagagli: bagagli.trim() || undefined,
 
-        layover: (isFlightOrTrain && hasLayover && layoverAirport.trim()) ? {
+        layover: (isFlight && hasLayover && layoverAirport.trim()) ? {
           airport: layoverAirport.trim(),
           duration: layoverDuration.trim() || undefined,
         } : undefined
@@ -270,6 +271,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
             {[
               { id: 'volo', label: '✈️ Aereo' },
               { id: 'treno', label: '🚆 Treno' },
+              { id: 'metro', label: '🚇 Metro' },
               { id: 'auto', label: '🚗 Noleggio Auto' },
               { id: 'camper', label: '🚐 Camper' },
               { id: 'traghetto', label: '⛴️ Traghetto' },

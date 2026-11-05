@@ -202,10 +202,11 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
 
   const headerIcon = isTrekking ? '△' : isPhotoSpot ? '📸' : '📌';
 
+  const isConfirmed = activity.timeStatus === 'confermato';
   const headerTimeSummary = hasDistinctMeetingTime
     ? `${meetingTime} → ${startTime}`
     : displayTime
-    ? `Ore ${displayTime}${activity.timeStatus === 'indicativo' ? ' · ind.' : ''}`
+    ? `Ore ${displayTime}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
     : '';
 
   return (
@@ -232,7 +233,11 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
             </div>
 
             {headerTimeSummary && (
-              <span className="hounigo-ds-time-stamp">
+              <span
+                className={`hounigo-ds-time-stamp ${isConfirmed ? 'text-[#FF6B5F] font-black border-[#FF6B5F]/40 bg-rose-50/60 dark:bg-rose-950/40' : ''}`}
+                title={isConfirmed ? 'Orario confermato' : 'Orario indicativo'}
+              >
+                {isConfirmed && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#FF6B5F] mr-1" aria-hidden="true" />}
                 {headerTimeSummary}
               </span>
             )}

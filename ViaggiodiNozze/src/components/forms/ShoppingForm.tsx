@@ -51,7 +51,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       setScopo(initialData.scopo || '');
       setData(initialData.data || (initialData as any).date || '');
       setOrario(initialData.orario || (initialData as any).time || '');
-      setTimeStatus(initialData.timeStatus || 'confermato');
+      setTimeStatus(initialData.timeStatus || 'indicativo');
       setIndirizzo(initialData.indirizzo || '');
       setBudget(initialData.budget || (initialData as any).cost || '');
       setLink(initialData.link || '');
@@ -64,7 +64,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       setScopo('');
       setData(defaultDate || '');
       setOrario(defaultTime || '');
-      setTimeStatus('confermato');
+      setTimeStatus('indicativo');
       setIndirizzo('');
       setBudget('');
       setLink('');

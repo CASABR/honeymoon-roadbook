@@ -97,7 +97,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
   const [endDate, setEndDate] = useState('');
   const [orarioRitrovo, setOrarioRitrovo] = useState('');
   const [orarioInizio, setOrarioInizio] = useState('');
-  const [timeStatus, setTimeStatus] = useState<TimeStatus>(initialData?.timeStatus || 'confermato');
+  const [timeStatus, setTimeStatus] = useState<TimeStatus>(initialData?.timeStatus || 'indicativo');
   const [timeZone, setTimeZone] = useState('');
   const [duration, setDuration] = useState('');
   const [distanceKm, setDistanceKm] = useState('');
@@ -166,7 +166,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setCustomDate(dateVal);
       setOrarioRitrovo(initialData.orarioRitrovo || '');
       setOrarioInizio(initialData.orarioInizio || initialData.time || '');
-      setTimeStatus(initialData.timeStatus || 'confermato');
+      setTimeStatus(initialData.timeStatus || 'indicativo');
       setTimeZone(initialData.timeZone || '');
       setDuration(initialData.duration || '');
       setDistanceKm(initialData.distanceKm?.toString() || '');
@@ -222,7 +222,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setTitle('');
       setOrarioRitrovo('');
       setOrarioInizio(defaultTime || '');
-      setTimeStatus('confermato');
+      setTimeStatus('indicativo');
       setTimeZone('');
       setDuration('');
       setDistanceKm('');
@@ -507,7 +507,6 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
           {[
             { id: 'Trekking', label: 'Trekking', icon: '🥾', desc: 'Sentieri & dislivelli' },
             { id: 'Spot fotografico', label: 'Spot foto', icon: '📸', desc: 'Scorci & golden hour' },
-            { id: 'Passeggiata', label: 'Passeggiata', icon: '🚶', desc: 'Esplorazione urbana o a piedi' },
             { id: 'Tour Guidato', label: 'Tour Guidato', icon: '🧭', desc: 'Visite organizzate' },
             { id: 'Museo', label: 'Museo', icon: '🏛️', desc: 'Arte & mostre' },
             { id: 'Adrenalina', label: 'Adrenalina', icon: '⚡', desc: 'Avventura & sport' },

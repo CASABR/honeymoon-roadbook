@@ -294,7 +294,8 @@ export default function TrasportoCard({
     auto: { label: 'Auto a Noleggio', icon: '🚗', ticketLabel: 'Voucher' },
     transfer: { label: 'Transfer / Bus', icon: '🚐', ticketLabel: 'Voucher' },
     taxi: { label: 'Taxi', icon: '🚕', ticketLabel: 'Ricevuta' },
-    treno: { label: 'Treno', icon: '🚆', ticketLabel: 'Biglietto / QR' }
+    treno: { label: 'Treno', icon: '🚆', ticketLabel: 'Biglietto / QR' },
+    metro: { label: 'Metro', icon: '🚇', ticketLabel: 'Biglietto / QR' }
   };
   const currentType = typeConfig[transport.type] || typeConfig.transfer;
 
@@ -329,7 +330,7 @@ export default function TrasportoCard({
     ? `Ore ${transport.departureTime}`
     : formatDateIT(displayDateStr);
 
-  const hasHeaderNotice = Boolean(checkinInfo.cutoffTime || transport.layover);
+  const hasHeaderNotice = Boolean(checkinInfo.cutoffTime || (transport.type === 'volo' && transport.layover));
   const hasSpecCells = Boolean(
     transport.terminalGate ||
     transport.posti ||
@@ -389,7 +390,7 @@ export default function TrasportoCard({
                   {checkinInfo.airportArrivalTime ? ` · In ${transport.type === 'traghetto' ? 'porto' : 'aeroporto'} ore ${checkinInfo.airportArrivalTime}` : ''}
                 </span>
               )}
-              {transport.layover && (
+              {transport.type === 'volo' && transport.layover && (
                 <span>
                   SCALO: <strong>{transport.layover.airport}</strong>
                   {transport.layover.duration ? ` (${transport.layover.duration})` : ''}

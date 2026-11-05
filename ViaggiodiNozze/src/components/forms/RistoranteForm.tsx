@@ -53,7 +53,7 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
       setSottocategoria(initialData.sottocategoria || '');
       setData(initialData.data || (initialData as any).date || '');
       setOrario(initialData.orario || (initialData as any).time || '');
-      setTimeStatus(initialData.timeStatus || 'confermato');
+      setTimeStatus(initialData.timeStatus || 'indicativo');
       setIndirizzo(initialData.indirizzo || '');
       setTelefono(initialData.telefono || '');
       setLinkPrenotazione(initialData.linkPrenotazione || '');
@@ -67,7 +67,7 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
       setSottocategoria('');
       setData(defaultDate || new Date().toISOString().split('T')[0]);
       setOrario(defaultTime || '');
-      setTimeStatus('confermato');
+      setTimeStatus('indicativo');
       setIndirizzo('');
       setTelefono('');
       setLinkPrenotazione('');

@@ -43,7 +43,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
   const [availablePasseggiate, setAvailablePasseggiate] = useState<Attivita[]>([]);
   const [titolo, setTitolo] = useState('');
   const [orario, setOrario] = useState('');
-  const [timeStatus, setTimeStatus] = useState<TimeStatus>(initialData?.timeStatus || 'confermato');
+  const [timeStatus, setTimeStatus] = useState<TimeStatus>(initialData?.timeStatus || 'indicativo');
   const [indirizzo, setIndirizzo] = useState('');
   const [mapsUrl, setMapsUrl] = useState('');
   const [coordinate, setCoordinate] = useState<Coordinate | undefined>(() => initialData?.coordinate);
@@ -78,7 +78,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       setPasseggiataId(initialData.passeggiataId);
       setTitolo(initialData.titolo || '');
       setOrario(initialData.orario || (initialData as any).time || '');
-      setTimeStatus(initialData.timeStatus || 'confermato');
+      setTimeStatus(initialData.timeStatus || 'indicativo');
       setIndirizzo(initialData.indirizzo || '');
       setMapsUrl(initialData.mapsUrl || '');
       const existingNotes = [initialData.noteCopilota, initialData.nota, (initialData as any).notes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n\n');
@@ -93,7 +93,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       setPasseggiataId(undefined);
       setTitolo('');
       setOrario(defaultTime || '');
-      setTimeStatus('confermato');
+      setTimeStatus('indicativo');
       setIndirizzo('');
       setMapsUrl('');
       setNoteCopilota('');
@@ -249,6 +249,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
             className="w-full h-11 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F]"
           >
             <option value="Tappa">📍 Tappa</option>
+            <option value="Passeggiata">🚶 Passeggiata</option>
             <option value="Sosta panoramica">⛰️ Sosta panoramica</option>
             <option value="Spot fotografico">📸 Spot fotografico</option>
             <option value="Sosta tecnica">☕ Sosta tecnica / Pausa</option>
