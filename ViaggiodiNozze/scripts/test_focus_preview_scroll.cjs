@@ -43,3 +43,4 @@ assert(oggiContent.includes('<AttivitaCard'), 'FAIL: Card originale Attivita man
 console.log('✓ 6. Focus ultra-compatto; Maps e Dettagli rimangono intatti nelle card originali.');
 
 console.log('TUTTI I 6 CONTROLLI SUL FOCUS DELLA GIORNATA SUPERATI CON SUCCESSO!');
+

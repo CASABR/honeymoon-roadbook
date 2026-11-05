@@ -469,3 +469,41 @@ export interface SyncResultDetail {
   failedCount: number;
   timestamp: number;
 }
+
+
+export interface PrivateCredentials {
+  id: string;
+  tripId: string;
+  entityType: 'alloggio' | 'trasporto' | 'attivita' | 'tappa' | 'ristorante' | 'shopping' | 'documento';
+  pinCode?: string;
+  codiceAccesso?: string;
+  keyboxCode?: string;
+  bookingCode?: string;
+  pnr?: string;
+  codicePrenotazione?: string;
+  conferma?: string;
+  bookingReference?: string;
+  qrCode?: string;
+  ticketUrl?: string;
+  voucherUrl?: string;
+  bookingUrl?: string;
+  linkPrenotazione?: string;
+  tavolo?: string;
+  posti?: string;
+  terminalGate?: string;
+  cost?: string;
+  costo?: number;
+  budget?: string;
+  deposit?: string;
+  depositPaid?: string;
+  acconto?: string;
+  cauzione?: string;
+  amountPaid?: string;
+  paymentStatus?: 'saldato' | 'da_saldare';
+  noteCopilota?: string;
+  copilota?: boolean;
+  cancellazioneGratuitaEntro?: string;
+  attachments?: TransportAttachment[];
+  updatedAt: number;
+  createdAt?: number;
+}
