@@ -414,37 +414,39 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               </div>
             </div>
 
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-              <div className="flex items-center justify-between mb-2">
-                <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Volo con Scalo?
-                </label>
-                <input
-                  type="checkbox"
-                  checked={hasLayover}
-                  onChange={(e) => setHasLayover(e.target.checked)}
-                  className="w-4 h-4 rounded text-[#FF6B5F] bg-white border-slate-300 focus:ring-[#FF6B5F]"
-                />
-              </div>
-              {hasLayover && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            {isFlight && (
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Volo con Scalo?
+                  </label>
                   <input
-                    type="text"
-                    placeholder="Aeroporto Scalo (es. PEK)"
-                    value={layoverAirport}
-                    onChange={(e) => setLayoverAirport(e.target.value)}
-                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Durata scalo (es. 2h 15m)"
-                    value={layoverDuration}
-                    onChange={(e) => setLayoverDuration(e.target.value)}
-                    className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                    type="checkbox"
+                    checked={hasLayover}
+                    onChange={(e) => setHasLayover(e.target.checked)}
+                    className="w-4 h-4 rounded text-[#FF6B5F] bg-white border-slate-300 focus:ring-[#FF6B5F]"
                   />
                 </div>
-              )}
-            </div>
+                {hasLayover && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                    <input
+                      type="text"
+                      placeholder="Aeroporto Scalo (es. PEK)"
+                      value={layoverAirport}
+                      onChange={(e) => setLayoverAirport(e.target.value)}
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Durata scalo (es. 2h 15m)"
+                      value={layoverDuration}
+                      onChange={(e) => setLayoverDuration(e.target.value)}
+                      className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

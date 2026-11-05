@@ -338,7 +338,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-              ⏰ Orario (HH:mm)
+              {sottocategoria === 'Passeggiata' ? '⏰ Ora inizio' : '⏰ Orario (HH:mm)'}
             </label>
             {orario && (
               <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">

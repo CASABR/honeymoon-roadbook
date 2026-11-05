@@ -62,8 +62,9 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
     ristorante.attachments?.some((attachment) => Boolean(attachment.dataUrl?.trim()))
   );
 
+  const isConfirmed = ristorante.timeStatus === 'confermato';
   const headerTimeSummary = time
-    ? `Ore ${time}${ristorante.timeStatus === 'indicativo' ? ' · indicativo' : ''}`
+    ? `Ore ${time}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
     : (!isCompact && (ristorante.data || ristorante.date) ? formatDateIT((ristorante.data || ristorante.date)!) : '');
 
   return (
@@ -88,7 +89,11 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
           </div>
 
           {headerTimeSummary && (
-            <span className="hounigo-ds-time-stamp">
+            <span
+              className={`hounigo-ds-time-stamp ${isConfirmed ? 'text-[#FF6B5F] font-black border-[#FF6B5F]/40 bg-rose-50/60 dark:bg-rose-950/40' : ''}`}
+              title={isConfirmed ? 'Orario confermato' : 'Orario indicativo'}
+            >
+              {isConfirmed && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#FF6B5F] mr-1" aria-hidden="true" />}
               {headerTimeSummary}
             </span>
           )}

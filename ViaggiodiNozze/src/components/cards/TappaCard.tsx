@@ -85,7 +85,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
   const isConfirmed = tappa.timeStatus === 'confermato';
 
   const headerTimeSummary = orario
-    ? `Ore ${orario}${tappa.timeStatus === 'indicativo' ? ' · indicativo' : ''}`
+    ? `Ore ${orario}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
     : (!isCompact && tappa.data ? formatDateIT(tappa.data) : '');
 
   return (

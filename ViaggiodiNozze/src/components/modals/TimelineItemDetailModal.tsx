@@ -131,6 +131,20 @@ export default function TimelineItemDetailModal({
 
   const hasCostInfo = paymentInfo.costNum > 0 || paymentInfo.isPackageIncluded || Boolean(data?.budget) || paymentInfo.paidNum > 0;
 
+  const hasOperationalDetails = isTrasporto
+    ? Boolean(data?.carrier || data?.bookingCode || data?.terminalGate || data?.posti || (data?.type === 'volo' && data?.layover?.airport) || data?.bagagli || data?.provider)
+    : isAlloggio
+    ? Boolean(data?.checkIn || data?.checkOut || data?.checkInTime || data?.checkOutTime || data?.arrivalTime || (canEdit && data?.pinCode) || data?.bookingCode || data?.cancellazioneGratuitaEntro || data?.phone)
+    : isAttivita
+    ? Boolean(data?.bookingCode || data?.ritrovo || data?.orarioRitrovo || data?.guida || data?.durata || data?.dislivello || data?.lightWindow || data?.photoSubject || (data?.openingHours?.weekly && Object.keys(data.openingHours.weekly).length > 0))
+    : isTappa
+    ? Boolean(data?.bookingCode || data?.qrCode || data?.lightWindow || data?.photoSubject || (data?.openingHours?.weekly && Object.keys(data.openingHours.weekly).length > 0))
+    : isRistorante
+    ? Boolean(data?.bookingCode || data?.tavolo || data?.persone || data?.telefono || data?.linkPrenotazione)
+    : isShopping
+    ? Boolean(data?.scopo || data?.link)
+    : false;
+
   // Allegati unificati
   const attachments: TransportAttachment[] = [
     ...(data?.attachments || []),
@@ -254,7 +268,8 @@ export default function TimelineItemDetailModal({
         </div>
 
         {/* ─── 3. DETTAGLI OPERATIVI SPECIFICI PER SOTTOCATEGORIA ─── */}
-        <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3">
+        {hasOperationalDetails && (
+          <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3">
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">
             Dettagli Operativi
           </span>
@@ -325,13 +340,13 @@ export default function TimelineItemDetailModal({
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Orario Check-in</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    dalle ore {data.checkIn || '14:00'}{data.checkInDeadline ? ` alle ${data.checkInDeadline}` : ''}
+                    dalle ore {data.checkInTime || '14:00'}{data.checkInDeadline ? ` alle ${data.checkInDeadline}` : ''}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-400 text-[10px] uppercase font-bold block">Orario Check-out</span>
                   <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    entro le ore {data.checkOut || '10:00'}
+                    entro le ore {data.checkOutTime || '10:00'}
                   </span>
                 </div>
                 {data.pinCode && (
@@ -486,6 +501,7 @@ export default function TimelineItemDetailModal({
             )}
           </div>
         </div>
+        )}
 
         {/* ─── 4. COSTI E PAGAMENTI (SOLO SE PRESENTI) ─── */}
         {hasCostInfo && (

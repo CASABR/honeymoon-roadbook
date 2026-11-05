@@ -1879,7 +1879,7 @@ class StorageService {
       // Tappe autonome di primo livello
       standaloneTappe.forEach(t => {
         const time = t.orario || (t as any).time || '';
-        const timeStatus = t.timeStatus || (time ? 'confermato' : 'non_specificato');
+        const timeStatus = t.timeStatus || (time ? 'indicativo' : 'non_specificato');
         timeline.push({
           id: t.id,
           type: 'tappa',
@@ -1903,7 +1903,7 @@ class StorageService {
       // Attività
       activities.forEach(a => {
         const time = a.time || a.orarioInizio || a.orarioRitrovo || '';
-        const timeStatus = a.timeStatus || (time ? (a.status === 'prenotato' || !a.timeStatus ? 'confermato' : 'indicativo') : 'non_specificato');
+        const timeStatus = a.timeStatus || (time ? (a.status === 'prenotato' ? 'confermato' : 'indicativo') : 'non_specificato');
         timeline.push({
           id: a.id,
           type: 'attivita',
@@ -1926,7 +1926,7 @@ class StorageService {
       // Prenotazioni Ristoranti
       dayRistoranti.forEach(r => {
         const time = r.orario || '';
-        const timeStatus = r.timeStatus || (time ? 'confermato' : 'non_specificato');
+        const timeStatus = r.timeStatus || (time ? 'indicativo' : 'non_specificato');
         timeline.push({
           id: r.id,
           type: 'ristorante',
@@ -1949,7 +1949,7 @@ class StorageService {
       // Shopping & Acquisti
       dayShopping.forEach(s => {
         const time = s.orario || '';
-        const timeStatus = s.timeStatus || (time ? 'confermato' : 'non_specificato');
+        const timeStatus = s.timeStatus || (time ? 'indicativo' : 'non_specificato');
         timeline.push({
           id: s.id,
           type: 'shopping',
@@ -1975,7 +1975,7 @@ class StorageService {
         if (!seenAccIds.has(acc.id)) {
           seenAccIds.add(acc.id);
           const time = acc.arrivalTime || acc.checkInTime || '';
-          const timeStatus = acc.timeStatus || (time ? 'confermato' : 'non_specificato');
+          const timeStatus = acc.timeStatus || (time ? 'indicativo' : 'non_specificato');
           timeline.push({
             id: acc.id,
             type: 'alloggio',

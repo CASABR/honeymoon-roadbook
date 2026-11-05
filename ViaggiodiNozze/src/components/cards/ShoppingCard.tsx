@@ -68,8 +68,9 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
     shopping.attachments?.some((attachment) => Boolean(attachment.dataUrl?.trim()))
   );
 
+  const isConfirmed = shopping.timeStatus === 'confermato';
   const headerTimeSummary = shopping.orario
-    ? `Ore ${shopping.orario}${shopping.timeStatus === 'indicativo' ? ' · indicativo' : ''}`
+    ? `Ore ${shopping.orario}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
     : ((shopping.data || shopping.date) ? formatDateIT((shopping.data || shopping.date)!) : '');
 
   return (
@@ -94,7 +95,11 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
           </div>
 
           {headerTimeSummary && (
-            <span className="hounigo-ds-time-stamp">
+            <span
+              className={`hounigo-ds-time-stamp ${isConfirmed ? 'text-[#FF6B5F] font-black border-[#FF6B5F]/40 bg-rose-50/60 dark:bg-rose-950/40' : ''}`}
+              title={isConfirmed ? 'Orario confermato' : 'Orario indicativo'}
+            >
+              {isConfirmed && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#FF6B5F] mr-1" aria-hidden="true" />}
               {headerTimeSummary}
             </span>
           )}
