@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDocFromServer } from 'firebase/firestore';
 import { auth, db } from '../../firebase';
 import { idbGetForTrip, STORES } from '../../storage/indexedDB';
 import { getPersistedSession } from '../../utils/deviceSession';
@@ -129,7 +129,8 @@ export default function LocalIdentityDiagnostics() {
 
     async function checkRemote0000() {
       try {
-        const snap = await getDoc(doc(db, 'trips', '0000'));
+        // Lettura forzata dal SERVER Firebase (bypassa cache)
+        const snap = await getDocFromServer(doc(db, 'trips', '0000'));
         if (!active) return;
         if (snap.exists()) {
           const data = snap.data();
