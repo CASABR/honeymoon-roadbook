@@ -161,7 +161,7 @@ async function runTestSuite() {
   ], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8', env: process.env });
 
   assert.strictEqual(backupDryRun.status, 0, `Dry run backup fallito: ${backupDryRun.stderr}`);
-  assert(backupDryRun.stdout.includes('DRY-RUN COMPLETATO'), 'Output dry run non corretto');
+  assert(backupDryRun.stdout.includes('DRY-RUN COMPLETATO CON SUCCESSO'), 'Output dry run non corretto');
   const filesAfterDryRun = fs.readdirSync(BACKUP_TEST_DIR);
   assert.strictEqual(filesAfterDryRun.length, 0, 'Il dry run non deve creare file su disco!');
   console.log('   ✅ 2.a: Backup in modalità DRY-RUN verificato (0 scritture su disco)');
