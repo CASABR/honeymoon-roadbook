@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
 import { resolveMapUrl, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
+import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { formatDateIT } from '../../utils/tripDates';
 import OpeningHoursBadge from '../common/OpeningHoursBadge';
 import { PHOTO_LIGHT_LABELS } from '../../utils/activityType';
@@ -267,7 +268,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
               title={hasReliableGeoDestination(tappa) ? "Avvia navigazione verso la destinazione" : "Cerca il luogo per nome su Google Maps"}
               aria-label="Apri su Google Maps"
             >
-              <span aria-hidden="true">🗺️</span>
+              <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" />
               <span className="hounigo-ds-btn-text">{getMapsActionLabel(hasReliableGeoDestination(tappa))}</span>
               <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
             </a>

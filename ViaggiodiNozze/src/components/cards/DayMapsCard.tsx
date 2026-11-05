@@ -1,3 +1,4 @@
+import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { createPortal } from 'react-dom';
 import { useState } from 'react';
 import type { DayMapsRoutes, DayMapRouteEntry } from '../../types';
@@ -98,20 +99,7 @@ export default function DayMapsCard({
     <div className={`mx-1 px-2.5 py-1.5 rounded-xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs flex items-center justify-between gap-1.5 overflow-hidden ${className}`}>
       {/* Icona Ufficiale Google Maps + Titolo compatto */}
       <div className="flex items-center gap-1.5 shrink-0 min-w-0">
-        <svg
-          className="w-5 h-5 shrink-0"
-          viewBox="0 0 24 24"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-label="Google Maps"
-        >
-          <path
-            d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
-            fill="#EA4335"
-          />
-          <circle cx="12" cy="9" r="2.8" fill="#FFFFFF" />
-          <circle cx="12" cy="9" r="1.5" fill="#4285F4" />
-        </svg>
+        <GoogleMapsIcon className="w-4 h-4 shrink-0" />
         <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 hidden min-[360px]:inline truncate">
           Maps
         </span>

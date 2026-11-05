@@ -1,3 +1,4 @@
+import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { createPortal } from 'react-dom';
 import React, { useState } from 'react';
 import type { Trasporto, TipoTrasporto, TransportSegmentContext } from '../../types';
@@ -597,7 +598,7 @@ export default function TrasportoCard({
                 title="Apri navigazione su Google Maps"
                 aria-label="Apri navigazione su Google Maps"
               >
-                <span aria-hidden="true">🗺️</span>
+                <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" />
                 <span className="hounigo-ds-btn-text">Maps</span>
                 <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
               </a>

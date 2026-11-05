@@ -2,6 +2,7 @@ import PushOnboardingBanner from '../components/common/PushOnboardingBanner';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { MapPinPlus } from 'lucide-react';
+import GoogleMapsIcon from '../components/icons/GoogleMapsIcon';
 import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante, Shopping, Scadenza } from '../types';
 import { storageService } from '../storage/storageService';
 import TimelineItemDetailModal from '../components/modals/TimelineItemDetailModal';
@@ -1218,9 +1219,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           if (isViewingOtherDate) {
             if (!nextEventItem) return null;
 
+            const hasTerminal = nextEventItem.type === 'trasporto' && nextEventItem.originalData && (nextEventItem.originalData as Trasporto).terminalGate;
+            const hasPosti = nextEventItem.type === 'trasporto' && nextEventItem.originalData && (nextEventItem.originalData as Trasporto).posti;
+            const hasChips = Boolean(hasTerminal || hasPosti || nextEventBookingCode);
+
             return (
-              <div className="bg-white dark:bg-[#172033] text-slate-900 dark:text-white rounded-xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-3 sm:p-3.5 shadow-sm space-y-2">
-                <div className="flex items-center justify-between gap-2 border-b border-slate-100 dark:border-white/10 pb-1.5">
+              <div className="bg-white dark:bg-[#172033] text-slate-900 dark:text-white rounded-xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] px-3 py-2 sm:px-3.5 sm:py-2.5 shadow-xs space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF6B5F] dark:text-[#ff9a90] flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F]" />
                     Focus della giornata · {formatDateHuman(selectedDate)}
@@ -1236,52 +1241,65 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-sm sm:text-base font-extrabold text-slate-900 dark:text-white leading-snug tracking-tight">
-                        {nextEventItem.title}
-                      </h2>
-                      <p className="text-xs text-slate-600 dark:text-slate-300 font-semibold mt-0.5 truncate">
-                        {(() => {
-                          if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
-                            const tr = nextEventItem.originalData as Trasporto;
-                            const dep = tr.departureLocation || nextEventItem.location;
-                            const arr = tr.dropoffLocation || tr.arrivalLocation;
-                            if (dep && arr && dep !== arr) return `${dep} → ${arr}`;
-                          }
-                          return nextEventItem.location || 'Posizione programmata';
-                        })()}
-                      </p>
-                    </div>
+                <div className="flex items-center justify-between gap-2.5">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-tight truncate">
+                      {nextEventItem.title}
+                    </h2>
+                    <p className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300 font-medium mt-0.5 truncate">
+                      {(() => {
+                        if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
+                          const tr = nextEventItem.originalData as Trasporto;
+                          const dep = tr.departureLocation || nextEventItem.location;
+                          const arr = tr.dropoffLocation || tr.arrivalLocation;
+                          if (dep && arr && dep !== arr) return `${dep} → ${arr}`;
+                        }
+                        return nextEventItem.location || 'Posizione programmata';
+                      })()}
+                    </p>
+                  </div>
 
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {nextEventMapUrl && (
+                      <a
+                        href={nextEventMapUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#FF6B5F] hover:bg-[#fa5547] text-white text-xs font-extrabold transition-colors cursor-pointer shadow-2xs"
+                        title="Apri su Google Maps"
+                      >
+                        <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" />
+                        <span>Maps</span>
+                        <span className="text-[10px] opacity-80">↗</span>
+                      </a>
+                    )}
                     <button
                       type="button"
                       onClick={() => setDetailItem(nextEventItem)}
-                      className="shrink-0 px-2.5 py-1 rounded-md bg-slate-100 hover:bg-[#FF6B5F] hover:text-white dark:bg-white/12 dark:hover:bg-[#FF6B5F] text-slate-700 dark:text-white text-xs font-extrabold transition-all cursor-pointer border border-slate-200 dark:border-white/15"
+                      className="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-white/12 dark:hover:bg-white/20 text-slate-700 dark:text-white text-xs font-extrabold transition-all cursor-pointer border border-slate-200 dark:border-white/15"
                     >
                       Dettagli →
                     </button>
                   </div>
+                </div>
 
-                  {/* Casellario Tecnico + Azioni Rapide */}
-                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
-                    {nextEventItem.type === 'trasporto' && nextEventItem.originalData && (nextEventItem.originalData as Trasporto).terminalGate && (
-                      <div className="inline-flex flex-col px-2 py-1 rounded bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/12">
-                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-none">
-                          {(nextEventItem.originalData as Trasporto).type === 'treno' ? 'Binario' : 'Terminal / Gate'}
+                {hasChips && (
+                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5 text-[10px]">
+                    {hasTerminal && (
+                      <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/12">
+                        <span className="font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                          {(nextEventItem.originalData as Trasporto).type === 'treno' ? 'Bin.' : 'Gate'}
                         </span>
-                        <span className="font-mono text-xs font-extrabold text-slate-800 dark:text-white mt-0.5 leading-none">
+                        <span className="font-mono font-extrabold text-slate-800 dark:text-white">
                           {(nextEventItem.originalData as Trasporto).terminalGate}
                         </span>
                       </div>
                     )}
-                    {nextEventItem.type === 'trasporto' && nextEventItem.originalData && (nextEventItem.originalData as Trasporto).posti && (
-                      <div className="inline-flex flex-col px-2 py-1 rounded bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/12">
-                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-none">
-                          {(nextEventItem.originalData as Trasporto).type === 'treno' ? 'Carrozza / Posti' : 'Posto'}
-                        </span>
-                        <span className="text-xs font-extrabold text-slate-800 dark:text-white mt-0.5 leading-none">
+                    {hasPosti && (
+                      <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/12">
+                        <span className="font-extrabold uppercase text-slate-500 dark:text-slate-400">Posti</span>
+                        <span className="font-extrabold text-slate-800 dark:text-white">
                           {(nextEventItem.originalData as Trasporto).posti}
                         </span>
                       </div>
@@ -1297,30 +1315,19 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                           setBookingCodeCopied(true);
                           setTimeout(() => setBookingCodeCopied(false), 2000);
                         }}
-                        className="inline-flex flex-col px-2 py-1 rounded bg-slate-50 dark:bg-white/8 hover:bg-slate-100 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 text-left transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 dark:bg-white/8 hover:bg-slate-100 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 text-left transition-colors cursor-pointer"
                         title="Copia codice di prenotazione / PNR"
                       >
-                        <span className="text-[9px] font-extrabold uppercase tracking-wider text-slate-500 dark:text-slate-400 leading-none">
-                          PNR · {bookingCodeCopied ? '✓ Copiato' : 'Copia'}
+                        <span className="font-extrabold uppercase text-slate-500 dark:text-slate-400">
+                          PNR {bookingCodeCopied ? '✓' : ''}
                         </span>
-                        <span className="font-mono text-xs font-extrabold text-[#FF6B5F] dark:text-[#FF9B92] mt-0.5 leading-none">
+                        <span className="font-mono font-extrabold text-[#FF6B5F] dark:text-[#FF9B92]">
                           {nextEventBookingCode}
                         </span>
                       </button>
                     )}
-                    {nextEventMapUrl && (
-                      <a
-                        href={nextEventMapUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="ml-auto inline-flex items-center gap-1 px-2.5 py-1.5 rounded bg-[#FF6B5F] hover:bg-[#fa5547] text-white text-xs font-extrabold transition-colors cursor-pointer"
-                      >
-                        <span>Maps ↗</span>
-                      </a>
-                    )}
                   </div>
-                </div>
+                )}
               </div>
             );
           }
@@ -1475,7 +1482,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         onClick={(e) => e.stopPropagation()}
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold border border-sky-200/60 dark:border-sky-800/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors cursor-pointer"
                       >
-                        <span>📍</span>
+                        <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" />
                         <span>Naviga su Maps ↗</span>
                       </a>
                     )}

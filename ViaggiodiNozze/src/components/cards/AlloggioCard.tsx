@@ -4,6 +4,7 @@ import UniversalAttachmentModal from '../modals/UniversalAttachmentModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
 import type { Alloggio } from '../../types';
 import { resolveMapUrl } from '../../utils/mapsHelper';
+import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
@@ -344,7 +345,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               title="Apri su Google Maps"
               aria-label="Apri su Google Maps"
             >
-              <span aria-hidden="true">🗺️</span>
+              <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" />
               <span className="hounigo-ds-btn-text">Maps</span>
               <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
             </a>

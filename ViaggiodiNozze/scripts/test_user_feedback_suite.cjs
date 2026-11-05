@@ -4,13 +4,14 @@ const assert = require('assert');
 
 console.log('--- TEST SUITE: VERIFICA TUTTI I REQUISITI FEEDBACK UTENTE ---');
 
-// 1. Verifica CSS Footer Icon-Only e no-wrap
-console.log('1. Verifica index.css: Icon-only su mobile e footer compatto...');
+// 1. Verifica CSS Footer Icon-Only selettivo quando forzati ad andare a capo
+console.log('1. Verifica index.css: Collasso a sole icone selettivo e footer compatto...');
 const css = fs.readFileSync(path.join(__dirname, '../src/index.css'), 'utf8');
-assert(css.includes('.hounigo-ds-action-btn .hounigo-ds-btn-text,\n.hounigo-ds-action-btn .hounigo-ds-btn-arrow {\n  display: none !important;'), 'Icon-only di default mancante in index.css');
+assert(css.includes('.hounigo-ds-action-btn .hounigo-ds-btn-text,\n.hounigo-ds-action-btn .hounigo-ds-btn-arrow {\n  display: inline;\n}'), 'Pulsanti con testo di default');
+assert(css.includes('.hounigo-ds-actions-group:has(> :nth-child(4)) .hounigo-ds-btn-text'), 'Collasso automatico per 4 pulsanti');
 assert(css.includes('container-type: inline-size;'), 'container-type mancante su .hounigo-ds-card');
 assert(css.includes('flex-wrap: nowrap;'), 'flex-wrap: nowrap mancante su .hounigo-ds-card-footer');
-console.log('✅ 1. CSS verificato: pulsanti rigorosamente solo icona su mobile, footer su singola riga.');
+console.log('✅ 1. CSS verificato: testo visibile di default, solo icona quando forzati ad andare a capo per mancanza di spazio.');
 
 // 2. Verifica AlloggioCard (periodo solo se più notti, Note -> Copilota)
 console.log('2. Verifica AlloggioCard.tsx: periodo date solo > 1 notte e label Copilota...');
@@ -75,4 +76,25 @@ const docs = fs.readFileSync(path.join(__dirname, '../src/views/altro/DocumentiV
 assert(!docs.includes('<GmailConnectionRow'), 'Banner GmailConnectionRow ancora presente in DocumentiView');
 console.log('✅ 8. Interfaccia ripulita: zero banner allarmistici o gergo OAuth incomprensibile per utenti non esperti.');
 
-console.log('\n🎉 TUTTI GLI 8 CONTROLLI DELLA SUITE SONO STATI SUPERATI CON SUCCESSO!');
+// 9. Verifica icona precisa ufficiale Google Maps in tutte le card e modali
+console.log('9. Verifica icona precisa Google Maps...');
+assert(alloggio.includes('<GoogleMapsIcon'), 'GoogleMapsIcon mancante in AlloggioCard');
+const attCard = fs.readFileSync(path.join(__dirname, '../src/components/cards/AttivitaCard.tsx'), 'utf8');
+assert(attCard.includes('<GoogleMapsIcon'), 'GoogleMapsIcon mancante in AttivitaCard');
+const tappaCard = fs.readFileSync(path.join(__dirname, '../src/components/cards/TappaCard.tsx'), 'utf8');
+assert(tappaCard.includes('<GoogleMapsIcon'), 'GoogleMapsIcon mancante in TappaCard');
+const traspCard = fs.readFileSync(path.join(__dirname, '../src/components/cards/TrasportoCard.tsx'), 'utf8');
+assert(traspCard.includes('<GoogleMapsIcon'), 'GoogleMapsIcon mancante in TrasportoCard');
+const dmCard = fs.readFileSync(path.join(__dirname, '../src/components/cards/DayMapsCard.tsx'), 'utf8');
+assert(dmCard.includes('<GoogleMapsIcon'), 'GoogleMapsIcon mancante in DayMapsCard');
+console.log('✅ 9. Icona ufficiale Google Maps presente su tutte le card e i link di navigazione.');
+
+// 10. Verifica Focus della giornata compatto in OggiView
+console.log('10. Verifica Focus della giornata compatto in OggiView...');
+const oggi = fs.readFileSync(path.join(__dirname, '../src/views/OggiView.tsx'), 'utf8');
+assert(oggi.includes('Focus della giornata'), 'Titolo Focus della giornata presente');
+assert(oggi.includes('GoogleMapsIcon'), 'GoogleMapsIcon presente in OggiView');
+assert(oggi.includes('px-3 py-2 sm:px-3.5 sm:py-2.5 shadow-xs space-y-1.5'), 'Layout compatto del focus della giornata attivo');
+console.log('✅ 10. Focus della giornata snello e compatto, pulsanti Maps e Dettagli affiancati.');
+
+console.log('\n🎉 TUTTI I 10 CONTROLLI DELLA SUITE SONO STATI SUPERATI CON SUCCESSO!');

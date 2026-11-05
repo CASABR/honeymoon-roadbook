@@ -1,3 +1,4 @@
+import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import React, { useState, useEffect } from 'react';
 import type { RouteInfo, RouteProfile, Coordinate } from '../../types';
 import { getRoute, saveManualRoute } from '../../services/routingService';
@@ -215,7 +216,7 @@ export default function RouteBadge({
           title="Verifica destinazione su Google Maps"
           className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-slate-700 text-amber-800 dark:text-amber-200 border border-amber-300 dark:border-amber-700 text-[10px] font-semibold transition-all cursor-pointer active:scale-95"
         >
-          <span>Verifica Maps ↗</span>
+          <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" /><span>Verifica Maps ↗</span>
         </button>
       </div>
     );
@@ -236,7 +237,7 @@ export default function RouteBadge({
           title="Apri indicazioni Google Maps"
           className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-sky-100 dark:hover:bg-slate-700 text-sky-800 dark:text-sky-200 border border-sky-300 dark:border-sky-700 text-[10px] font-semibold transition-all cursor-pointer active:scale-95"
         >
-          <span>Apri Maps ↗</span>
+          <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" /><span>Apri Maps ↗</span>
         </button>
       </div>
     );

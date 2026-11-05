@@ -1,6 +1,7 @@
 import type { TimelineItem, Attivita, Trasporto, Alloggio } from '../../types';
 import Modal from '../common/Modal';
 import { resolveMapUrl, openMapLink, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
+import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { openAttachmentInNewTab } from '../../utils/fileAttachment';
 import { formatDateIT } from '../../utils/tripDates';
@@ -121,8 +122,7 @@ export default function TimelineItemDetailModal({
                         type="button"
                         onClick={() => openMapLink(resolveMapUrl(att.location))}
                         className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
-                      >
-                        Apri Maps ↗
+                      ><GoogleMapsIcon className="w-3.5 h-3.5 inline mr-1 shrink-0" />Apri Maps ↗
                       </button>
                     )}
                   </div>
@@ -434,8 +434,7 @@ export default function TimelineItemDetailModal({
                         type="button"
                         onClick={() => openMapLink(resolveMapUrl(acc.address || acc.location || acc.name))}
                         className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
-                      >
-                        Apri Maps ↗
+                      ><GoogleMapsIcon className="w-3.5 h-3.5 inline mr-1 shrink-0" />Apri Maps ↗
                       </button>
                     )}
                   </div>
@@ -585,8 +584,7 @@ export default function TimelineItemDetailModal({
                         type="button"
                         onClick={() => openMapLink(resolveMapUrl(sh.indirizzo || sh.nome))}
                         className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
-                      >
-                        Apri Maps ↗
+                      ><GoogleMapsIcon className="w-3.5 h-3.5 inline mr-1 shrink-0" />Apri Maps ↗
                       </button>
                     )}
                   </div>
@@ -656,8 +654,7 @@ export default function TimelineItemDetailModal({
                         type="button"
                         onClick={() => openMapLink(resolveMapUrl(rt.indirizzo || rt.nome))}
                         className="text-[11px] font-bold text-sky-600 bg-sky-50 hover:bg-sky-100 px-2.5 py-1 rounded-lg transition-colors cursor-pointer shrink-0"
-                      >
-                        Apri Maps ↗
+                      ><GoogleMapsIcon className="w-3.5 h-3.5 inline mr-1 shrink-0" />Apri Maps ↗
                       </button>
                     )}
                   </div>

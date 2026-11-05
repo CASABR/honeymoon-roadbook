@@ -3,6 +3,7 @@ import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import { storageService } from '../../storage/storageService';
 import type { Attivita, Tappa } from '../../types';
 import { resolveMapUrl, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
+import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
 import AttivitaTicketsModal from '../modals/AttivitaTicketsModal';
 import QRCodeModal from '../modals/QRCodeModal';
@@ -580,7 +581,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 title={hasReliableGeoDestination(activity) ? 'Avvia navigazione verso la destinazione' : 'Cerca il luogo per nome su Google Maps'}
                 aria-label="Apri su Google Maps"
               >
-                <span aria-hidden="true">🗺️</span>
+                <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" />
                 <span className="hounigo-ds-btn-text">{getMapsActionLabel(hasReliableGeoDestination(activity))}</span>
                 <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
               </a>

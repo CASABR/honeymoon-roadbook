@@ -1,3 +1,4 @@
+import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import type { Shopping } from '../../types';
 import { useState } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
@@ -230,7 +231,7 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
               title="Apri su Google Maps"
               aria-label="Apri su Google Maps"
             >
-              <span aria-hidden="true">🗺️</span>
+              <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" />
               <span className="hounigo-ds-btn-text">Maps</span>
               <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
             </a>
