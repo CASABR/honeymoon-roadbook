@@ -3,14 +3,18 @@
  *
  * Logica sicura e riutilizzabile per la duplicazione delle card HOUNIGO.
  * Regole non negoziabili:
- * 1. Genera un identificativo univoco (nuovo ID).
- * 2. Pre-compila il titolo con prefisso "Copia di ...".
- * 3. Conserva informazioni utili e riutilizzabili (luogo, orari, indirizzo, coordinate, note, sottocategoria).
- * 4. ESCLUDE categoricamente ID tecnici, stati di sync e dati sensibili di prenotazione:
- *    - bookingCode / PNR azzerati
- *    - qrCode / ticketUrl azzerati
- *    - allegati / carte d'imbarco rimosse
- * 5. La copia viene aperta in modalità modifica e salvata solo dopo conferma esplicita dell'utente.
+ * 1. Genera un identificativo univoco (nuovo ID primario).
+ * 2. Non altera mai il record originale né i suoi allegati.
+ * 3. Pre-compila il titolo con prefisso "Copia di ...".
+ * 4. Conserva informazioni utili e riutilizzabili (luogo, orari, indirizzo, coordinate, note, sottocategoria, stima budget).
+ * 5. ESCLUDE categoricamente e azzera:
+ *    - PNR e codici prenotazione (bookingCode, pnr)
+ *    - PIN e credenziali di accesso (pinCode keybox)
+ *    - Biglietti, carte d'imbarco, voucher e QR (ticketUrl, voucherUrl, qrCode, attachments)
+ *    - Relazioni persistenti univoche (linkedBookingId, linkedDocumentId, passeggiataId)
+ *    - Stato di pagamento (mai ereditare 'saldato', acconto o spesa già effettuata costo)
+ *    - Assegnazioni specifiche (posti a sedere, terminal/gate, tavolo riservato)
+ * 6. La copia viene aperta in modalità bozza/modifica e salvata solo dopo conferma esplicita dell'utente.
  */
 
 import type { TimelineItem, Tappa, Attivita, Alloggio, Trasporto, Ristorante, Shopping } from '../types';
@@ -30,6 +34,11 @@ export interface PreparedDuplicate {
 
 export function prepareDuplicateItem(item: TimelineItem): PreparedDuplicate {
   const original = item.originalData;
+  if (!original) {
+    throw new Error('Impossibile duplicare: dati originali non disponibili.');
+  }
+
+  const now = Date.now();
 
   switch (item.type) {
     case 'tappa': {
@@ -41,9 +50,10 @@ export function prepareDuplicateItem(item: TimelineItem): PreparedDuplicate {
         titolo: copyTitle,
         data: orig.data,
         date: orig.date || orig.data,
+        dayId: orig.dayId,
         orario: orig.orario,
         time: orig.time || orig.orario,
-        timeStatus: orig.timeStatus,
+        timeStatus: orig.timeStatus || 'indicativo',
         indirizzo: orig.indirizzo,
         coordinate: orig.coordinate ? { ...orig.coordinate } : undefined,
         mapsUrl: orig.mapsUrl,
@@ -51,16 +61,23 @@ export function prepareDuplicateItem(item: TimelineItem): PreparedDuplicate {
         lightWindow: orig.lightWindow,
         photoSubject: orig.photoSubject,
         nota: orig.nota,
+        notes: orig.notes,
         noteCopilota: orig.noteCopilota,
-        openingHours: orig.openingHours,
-        // ESCLUSIONE PRENOTAZIONE / BIGLIETTI / ALLEGATI
+        copilota: orig.copilota,
+        openingHours: orig.openingHours ? JSON.parse(JSON.stringify(orig.openingHours)) : undefined,
+        createdAt: now,
+        updatedAt: now,
+
+        // --- AZZERAMENTO RIGOROSO PRENOTAZIONI, RELAZIONI E ALLEGATI ---
         bookingCode: undefined,
         qrCode: undefined,
         ticketUrl: undefined,
         linkedBookingId: undefined,
         linkedDocumentId: undefined,
         linkedDocumentIds: undefined,
-        attachments: undefined
+        passeggiataId: undefined, // Non aggancia la copia al contenitore originale
+        completed: undefined,
+        attachments: undefined // Gli allegati dell'originale rimangono intatti e NON condivisi per riferimento
       };
       return {
         type: 'tappa',
@@ -76,17 +93,41 @@ export function prepareDuplicateItem(item: TimelineItem): PreparedDuplicate {
         ...orig,
         id: generateUniqueId('act'),
         title: copyTitle,
+        dayId: orig.dayId,
         location: orig.location,
         address: orig.address,
         date: orig.date,
         time: orig.time,
-        timeStatus: orig.timeStatus,
+        timeStatus: orig.timeStatus || 'indicativo',
         duration: orig.duration,
-        sottocategoria: orig.sottocategoria || 'Trekking',
-        lightWindow: orig.lightWindow, // Preservato per Spot fotografico
+        category: orig.category || 'visita',
+        sottocategoria: orig.sottocategoria,
+        lightWindow: orig.lightWindow,
+        photoSubject: orig.photoSubject,
         coordinate: orig.coordinate ? { ...orig.coordinate } : undefined,
-        notes: orig.notes
+        notes: orig.notes,
+        noteCopilota: orig.noteCopilota,
+        copilota: orig.copilota,
+        cost: orig.cost, // Stima prezzo utile come riferimento
+        createdAt: now,
+        updatedAt: now,
+
+        // --- AZZERAMENTO STATO DI PRENOTAZIONE, CREDENZIALI E PAGAMENTO ---
+        status: 'da_valutare', // Mai ereditare 'prenotato' o 'completato'
+        completed: undefined,
+        paymentStatus: 'da_saldare',
+        acconto: undefined,
+        qrCode: undefined,
+        attachments: undefined,
+        childTappe: undefined
       };
+      delete (duplicatedAttivita as any).bookingCode;
+      delete (duplicatedAttivita as any).ticketUrl;
+      delete (duplicatedAttivita as any).voucherUrl;
+      delete (duplicatedAttivita as any).depositPaid;
+      delete (duplicatedAttivita as any).pnr;
+      delete (duplicatedAttivita as any).linkedDocumentId;
+      delete (duplicatedAttivita as any).linkedBookingId;
       return {
         type: 'attivita',
         modalTitle: 'Nuova Attività (Copia)',
@@ -107,12 +148,30 @@ export function prepareDuplicateItem(item: TimelineItem): PreparedDuplicate {
         checkOut: orig.checkOut,
         checkInTime: orig.checkInTime,
         checkOutTime: orig.checkOutTime,
+        arrivalTime: orig.arrivalTime,
+        timeStatus: orig.timeStatus || 'indicativo',
         coordinate: orig.coordinate ? { ...orig.coordinate } : undefined,
         sottocategoria: orig.sottocategoria,
+        phone: orig.phone,
         notes: orig.notes,
-        // ESCLUSIONE PRENOTAZIONI E ALLEGATI
+        noteCopilota: orig.noteCopilota,
+        copilota: orig.copilota,
+        cost: orig.cost, // Tariffa camera utile come stima
+        deposit: orig.deposit, // Cauzione prevista della struttura mantenuta come info
+        cauzione: orig.cauzione,
+        createdAt: now,
+        updatedAt: now,
+
+        // --- AZZERAMENTO RIGOROSO CREDENZIALI ACCESSO, PIN E PAGAMENTO ---
+        pinCode: undefined, // MAI ereditare codici cassaforte o chiavi
         bookingCode: undefined,
         bookingUrl: undefined,
+        status: 'da_prenotare',
+        completed: undefined,
+        paymentStatus: 'da_saldare',
+        depositPaid: undefined,
+        acconto: undefined,
+        cancellazioneGratuitaEntro: undefined, // Termini della specifica prenotazione azzerati
         attachments: undefined
       };
       return {
@@ -137,13 +196,30 @@ export function prepareDuplicateItem(item: TimelineItem): PreparedDuplicate {
         arrivalDate: orig.arrivalDate,
         arrivalTime: orig.arrivalTime,
         coordinate: orig.coordinate ? { ...orig.coordinate } : undefined,
-        // ESCLUSIONE PNR, CODICI PRENOTAZIONE, POSTI E ALLEGATI
+        cost: orig.cost, // Costo base utile come preventivo
+        bagagli: orig.bagagli, // Franchigia bagaglio utile come riferimento
+        layover: orig.type === 'volo' && orig.layover ? { ...orig.layover } : undefined,
+        notes: orig.notes,
+        noteCopilota: orig.noteCopilota,
+        copilota: orig.copilota,
+        createdAt: now,
+        updatedAt: now,
+
+        // --- AZZERAMENTO RIGOROSO PNR, POSTI ASSEGNATI E STATO PAGAMENTO ---
         bookingCode: undefined,
-        posti: undefined,
+        posti: undefined, // Posti a sedere della prenotazione azzerati
+        terminalGate: undefined, // Gate e binario giornalieri azzerati
         ticketUrl: undefined,
+        status: 'pianificato',
+        completed: undefined,
+        paymentStatus: 'da_saldare' as any,
+        depositPaid: undefined,
+        acconto: undefined,
         attachments: undefined
       };
       delete (duplicatedTrasporto as any).pnr;
+      delete (duplicatedTrasporto as any).checkinOnlineUrl;
+      delete (duplicatedTrasporto as any).checkinCutoff;
       return {
         type: 'trasporto',
         modalTitle: 'Nuovo Trasporto (Copia)',
@@ -160,12 +236,31 @@ export function prepareDuplicateItem(item: TimelineItem): PreparedDuplicate {
         nome: copyNome,
         data: orig.data,
         date: orig.date || orig.data,
+        dayId: orig.dayId,
         orario: orig.orario,
+        time: orig.time || orig.orario,
+        timeStatus: orig.timeStatus || 'indicativo',
         indirizzo: orig.indirizzo,
         coordinate: orig.coordinate ? { ...orig.coordinate } : undefined,
         sottocategoria: orig.sottocategoria,
-        nota: orig.nota
+        budget: orig.budget,
+        telefono: orig.telefono,
+        linkPrenotazione: orig.linkPrenotazione,
+        nota: orig.nota,
+        notes: orig.notes,
+        noteCopilota: orig.noteCopilota,
+        copilota: orig.copilota,
+        createdAt: now,
+        updatedAt: now,
+
+        // --- AZZERAMENTO TAVOLO, CODICE PRENOTAZIONE E STATO SALDATO ---
+        status: 'da_saldare',
+        completed: undefined,
+        attachments: undefined
       };
+      delete (duplicatedRistorante as any).bookingCode;
+      delete (duplicatedRistorante as any).tavolo;
+      delete (duplicatedRistorante as any).qrCode;
       return {
         type: 'ristorante',
         modalTitle: 'Nuovo Ristorante (Copia)',
@@ -182,13 +277,33 @@ export function prepareDuplicateItem(item: TimelineItem): PreparedDuplicate {
         nome: copyNome,
         data: orig.data,
         date: orig.date || orig.data,
+        dayId: orig.dayId,
         orario: orig.orario,
+        time: orig.time || orig.orario,
+        timeStatus: orig.timeStatus || 'indicativo',
         indirizzo: orig.indirizzo,
         coordinate: orig.coordinate ? { ...orig.coordinate } : undefined,
         sottocategoria: orig.sottocategoria,
-        budget: orig.budget,
-        nota: orig.nota
+        scopo: orig.scopo,
+        budget: orig.budget, // Budget stimato PRESERVATO
+        link: orig.link,
+        nota: orig.nota,
+        notes: orig.notes,
+        noteCopilota: orig.noteCopilota,
+        copilota: orig.copilota,
+        createdAt: now,
+        updatedAt: now,
+
+        // --- AZZERAMENTO SPESA EFFETTIVAMENTE EFFETTUATA E STATO ---
+        cost: undefined, // La spesa NON è stata ancora effettuata!
+        depositPaid: undefined,
+        acconto: undefined,
+        paymentStatus: 'da_saldare',
+        completed: undefined,
+        attachments: undefined
       };
+      delete (duplicatedShopping as any).costo;
+      delete (duplicatedShopping as any).qrCode;
       return {
         type: 'shopping',
         modalTitle: 'Nuovo Shopping (Copia)',
