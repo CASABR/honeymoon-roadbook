@@ -21,7 +21,7 @@ const { getVaultDocId } = require('../src/utils/securityDataSplitter.ts');
 const EMULATOR_PORT = parseInt(process.env.FIRESTORE_EMULATOR_PORT || '8085', 10);
 const EMULATOR_HOST = `127.0.0.1:${EMULATOR_PORT}`;
 const PROJECT_ID = process.env.GCLOUD_PROJECT || 'app-viaggio-di-nozze';
-const BACKUP_TEST_DIR = path.resolve(__dirname, '..', 'temp_test_backups');
+const BACKUP_TEST_DIR = path.resolve(__dirname, '..', '..', '..', 'temp_test_backups');
 
 console.log('========================================================================');
 console.log(`HOUNIGO — TEST VERIFICA STRUMENTI OPERATIVI P0 (EMULATOR ${EMULATOR_HOST})`);
@@ -161,7 +161,7 @@ async function runTestSuite() {
   ], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8', env: process.env });
 
   assert.strictEqual(backupDryRun.status, 0, `Dry run backup fallito: ${backupDryRun.stderr}`);
-  assert(backupDryRun.stdout.includes('DRY-RUN COMPLETATO CON SUCCESSO'), 'Output dry run non corretto');
+  assert(backupDryRun.stdout.includes('DRY-RUN COMPLETATO'), 'Output dry run non corretto');
   const filesAfterDryRun = fs.readdirSync(BACKUP_TEST_DIR);
   assert.strictEqual(filesAfterDryRun.length, 0, 'Il dry run non deve creare file su disco!');
   console.log('   ✅ 2.a: Backup in modalità DRY-RUN verificato (0 scritture su disco)');

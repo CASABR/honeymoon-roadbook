@@ -3,49 +3,21 @@
  * 
  * Esegue il backup completo di un viaggio e di tutte le relative sottocollezioni
  * da Firestore, calcola l'hash SHA-256 e lo salva in una directory sicura.
- * 
- * CARATTERISTICHE DI SICUREZZA:
- * - Default DRY-RUN (nessuna scrittura su disco senza flag --execute)
- * - Compatibile 100% con Firebase Spark (letture documentali standard senza Cloud Functions)
- * - Nessuna credenziale hardcoded (usa GOOGLE_APPLICATION_CREDENTIALS, --key <path> o serviceAccountKey.json locale)
- * - Output predefinito in cartella ESTERNA al repository git
- * - Calcolo e verifica automatica SHA-256
- * 
- * USO:
- *   node scripts/ops_backup_trip.cjs --tripId 0000                      (DRY-RUN)
- *   node scripts/ops_backup_trip.cjs --tripId 0000 --execute            (SALVATAGGIO REALE)
- *   node scripts/ops_backup_trip.cjs --tripId 0000 --out-dir C:/backups --execute
  */
 
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { execSync } = require('child_process');
 const { initializeApp, getApps, cert } = require('firebase-admin/app');
 const { getFirestore } = require('firebase-admin/firestore');
 
-// Sottocollezioni censite per un viaggio HOUNIGO
 const ALL_SUBCOLLECTIONS = [
-  'alloggi',
-  'trasporti',
-  'attivita',
-  'tappe',
-  'ristoranti',
-  'shopping',
-  'bagagli',
-  'giorni',
-  'settings',
-  'locks',
-  'devices',
-  'members',
-  'documenti',
-  'spese',
-  'note',
-  'private_credentials',
-  'invites',
-  'inviteTokens'
+  'alloggi', 'trasporti', 'attivita', 'tappe', 'ristoranti', 'shopping',
+  'bagagli', 'giorni', 'settings', 'locks', 'devices', 'members',
+  'documenti', 'spese', 'note', 'private_credentials', 'invites', 'inviteTokens'
 ];
 
-// Parsing argomenti CLI
 const args = process.argv.slice(2);
 function getArg(flag, defaultValue = null) {
   const index = args.indexOf(flag);
@@ -59,18 +31,35 @@ const isExecute = hasFlag('--execute') || hasFlag('--apply');
 const isDryRun = !isExecute;
 const keyPathArg = getArg('--key', null);
 
-// Cartella di output predefinita FUORI dal repository git
-const defaultExternalDir = path.resolve(process.cwd(), '..', 'hounigo_backups');
+// Risoluzione radice git reale per garantire che il backup sia FUORI dal repo
+function getRepoRoot() {
+  try {
+    return execSync('git rev-parse --show-toplevel', { encoding: 'utf8' }).trim();
+  } catch {
+    return path.resolve(process.cwd(), '..');
+  }
+}
+const repoRoot = getRepoRoot();
+const defaultExternalDir = path.resolve(repoRoot, '..', 'hounigo_backups');
 const outDir = path.resolve(getArg('--out-dir', defaultExternalDir));
+
+// Controllo di sicurezza: outDir NON deve trovarsi all'interno di repoRoot
+const relPath = path.relative(repoRoot, outDir);
+if (!relPath.startsWith('..') && !path.isAbsolute(relPath) && relPath !== '') {
+  console.error(`❌ ERRORE CRITICO DI SICUREZZA: La cartella di backup (${outDir})`);
+  console.error(`risulta all'interno del repository Git (${repoRoot})!`);
+  console.error(`I backup devono essere salvati rigorosamente FUORI dal repository.`);
+  process.exit(1);
+}
 
 console.log('========================================================================');
 console.log(`HOUNIGO — BACKUP OPERATIVO VIAGGIO [${tripId}]`);
 console.log('========================================================================');
-console.log(`Modalità: ${isDryRun ? '🔍 DRY-RUN (simulazione sola lettura)' : '💾 EXECUTE (salvataggio effettivo)'}`);
-console.log(`Destinazione backup: ${outDir}`);
+console.log(`Git Top-Level:       ${repoRoot}`);
+console.log(`Destinazione backup: ${outDir} (ESTERNA AL REPO)`);
+console.log(`Modalità:            ${isDryRun ? '🔍 DRY-RUN' : '💾 EXECUTE'}`);
 console.log('------------------------------------------------------------------------');
 
-// Inizializzazione Firebase Admin
 function initFirebase() {
   if (getApps().length > 0) return getFirestore();
 
@@ -85,7 +74,8 @@ function initFirebase() {
     keyPathArg,
     process.env.GOOGLE_APPLICATION_CREDENTIALS,
     path.resolve(process.cwd(), 'serviceAccountKey.json'),
-    path.resolve(process.cwd(), '..', 'serviceAccountKey.json')
+    path.resolve(process.cwd(), '..', 'serviceAccountKey.json'),
+    path.resolve(repoRoot, 'serviceAccountKey.json')
   ].filter(Boolean);
 
   for (const p of potentialPaths) {
@@ -109,9 +99,6 @@ function initFirebase() {
       console.log('[Firebase] Inizializzato con Application Default Credentials');
     } catch (e) {
       console.error('❌ ERRORE: Nessuna credenziale Firebase trovata.');
-      console.error('Fornisci una credenziale con:');
-      console.error('  --key /percorso/a/serviceAccountKey.json');
-      console.error('  oppure imposta la variabile GOOGLE_APPLICATION_CREDENTIALS');
       process.exit(1);
     }
   }
@@ -123,7 +110,6 @@ async function runBackup() {
   const db = initFirebase();
   const tripRef = db.collection('trips').doc(tripId);
 
-  console.log(`\n1. Verifica esistenza viaggio ${tripId}...`);
   const tripSnap = await tripRef.get();
   if (!tripSnap.exists) {
     console.error(`❌ ERRORE: Il viaggio '${tripId}' non esiste in Firestore!`);
@@ -131,71 +117,45 @@ async function runBackup() {
   }
 
   const tripData = tripSnap.data();
-  console.log(`   Viaggio trovato: "${tripData.name || tripData.title || tripId}" (Owner: ${tripData.ownerUid || tripData.ownerId})`);
+  console.log(`Viaggio trovato: "${tripData.name || tripData.title || tripId}"`);
 
-  console.log(`\n2. Scansione di tutte le sottocollezioni (${ALL_SUBCOLLECTIONS.length})...`);
   const subcollectionsData = {};
-  const stats = {
-    tripId,
-    totalSubcollections: 0,
-    totalDocuments: 0,
-    countsBySubcollection: {}
-  };
+  const stats = { tripId, totalSubcollections: 0, totalDocuments: 0, countsBySubcollection: {} };
 
   for (const subcol of ALL_SUBCOLLECTIONS) {
-    const colRef = tripRef.collection(subcol);
-    const snap = await colRef.get();
+    const snap = await tripRef.collection(subcol).get();
     const docs = {};
-    snap.forEach(doc => {
-      docs[doc.id] = doc.data();
-    });
-
+    snap.forEach(doc => { docs[doc.id] = doc.data(); });
     const count = snap.size;
     stats.countsBySubcollection[subcol] = count;
     if (count > 0) {
       subcollectionsData[subcol] = docs;
       stats.totalSubcollections++;
       stats.totalDocuments += count;
-      console.log(`   - ${subcol.padEnd(20)}: ${count} documenti`);
-    } else {
-      console.log(`   - ${subcol.padEnd(20)}: (vuota)`);
+      console.log(` - ${subcol.padEnd(20)}: ${count} documenti`);
     }
   }
 
-  console.log(`\nTotale documenti censiti: ${stats.totalDocuments}`);
+  console.log(`Totale documenti censiti: ${stats.totalDocuments}`);
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const backupPayload = {
-    metadata: {
-      version: '1.0.0',
-      system: 'HOUNIGO_P0_BACKUP',
-      tripId,
-      exportedAt: new Date().toISOString(),
-      stats
-    },
+    metadata: { version: '1.0.0', system: 'HOUNIGO_P0_BACKUP', tripId, exportedAt: new Date().toISOString(), stats },
     tripDoc: tripData,
     subcollections: subcollectionsData
   };
 
   const jsonString = JSON.stringify(backupPayload, null, 2);
   const sha256Hash = crypto.createHash('sha256').update(jsonString, 'utf8').digest('hex');
-
-  console.log(`\nChecksum SHA-256 calcolato: ${sha256Hash}`);
+  console.log(`Checksum SHA-256: ${sha256Hash}`);
 
   if (isDryRun) {
-    console.log('\n========================================================================');
-    console.log('✅ DRY-RUN COMPLETATO CON SUCCESSO');
-    console.log('Nessun file è stato salvato su disco.');
-    console.log('Per eseguire il salvataggio effettivo del backup, esegui:');
-    console.log(`  node scripts/ops_backup_trip.cjs --tripId ${tripId} --execute`);
-    console.log('========================================================================\n');
+    console.log('\n✅ DRY-RUN COMPLETATO. Nessun file salvato.');
     return;
   }
 
-  // Creazione cartella se non esiste
   if (!fs.existsSync(outDir)) {
     fs.mkdirSync(outDir, { recursive: true });
-    console.log(`\nCreata directory di backup: ${outDir}`);
   }
 
   const filenameBase = `backup_${tripId}_${timestamp}`;
@@ -205,25 +165,19 @@ async function runBackup() {
   fs.writeFileSync(jsonPath, jsonString, 'utf8');
   fs.writeFileSync(shaPath, `${sha256Hash}  ${path.basename(jsonPath)}\n`, 'utf8');
 
-  // Verifica immediata del file scritto
   const writtenData = fs.readFileSync(jsonPath, 'utf8');
   const verifyHash = crypto.createHash('sha256').update(writtenData, 'utf8').digest('hex');
-
   if (verifyHash !== sha256Hash) {
-    console.error('❌ ERRORE CRITICO: Il file scritto su disco non corrisponde al checksum calcolato!');
+    console.error('❌ ERRORE: Checksum post-scrittura non valido!');
     process.exit(1);
   }
 
-  console.log('\n========================================================================');
-  console.log('🎉 BACKUP COMPLETATO E VERIFICATO');
-  console.log(`File JSON:    ${jsonPath}`);
-  console.log(`File SHA-256: ${shaPath}`);
-  console.log(`Dimensione:   ${(Buffer.byteLength(jsonString, 'utf8') / 1024).toFixed(2)} KB`);
-  console.log(`SHA-256:      ${sha256Hash}`);
-  console.log('========================================================================\n');
+  console.log('\n🎉 BACKUP COMPLETATO E VERIFICATO');
+  console.log(`Percorso: ${jsonPath}`);
+  console.log(`SHA-256:  ${sha256Hash}`);
 }
 
 runBackup().catch(err => {
-  console.error('❌ ERRORE DURANTE IL BACKUP:', err);
+  console.error('❌ ERRORE FATALE BACKUP:', err);
   process.exit(1);
 });

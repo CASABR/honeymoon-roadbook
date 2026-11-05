@@ -4,14 +4,13 @@ service cloud.firestore {
   match /databases/{database}/documents {
     
     // =========================================================================
-    // HOUNIGO — SECURITY RULES IN MODALITÀ LOCKDOWN TEMPORANEO (P0 MIGRAZIONE)
+    // HOUNIGO — SECURITY RULES IN LOCKDOWN TEMPORANEO (P0 MIGRAZIONE 0000)
     // =========================================================================
-    // Obiettivo:
-    // 1. Zero Exposure Window: Viewer bloccati in lettura su collezioni condivise.
-    // 2. Anti-Concurrency Freeze: blocco totale delle scritture client su trip '0000'
-    //    per prevenire modifiche concorrenti durante la migrazione.
-    // 3. Schema Guard: blocco rigido su chiavi sensibili anche per altri viaggi.
-    // 4. Lo script di migrazione opera via Firebase Admin SDK (bypassando le rules).
+    // Garanzie:
+    // 1. Viaggio 0000: Viewer bloccati in lettura (zero exposure window) e
+    //    scritture client congelate per evitare modifiche concorrenti.
+    // 2. Altri viaggi: Funzionamento regolare garantito per membri e privileged,
+    //    con protezione Schema Guard attiva.
     // =========================================================================
 
     function isSignedIn() {
@@ -32,6 +31,18 @@ service cloud.firestore {
         ||
         (exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)) &&
          get(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.get('role', '') == 'owner')
+      );
+    }
+
+    function isTripMember(tripId) {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid))
+        ||
+        (exists(/databases/$(database)/documents/trips/$(tripId)) && (
+          request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.get('members', [])
+          || get(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerUid', null) == request.auth.uid
+          || get(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerId', null) == request.auth.uid
+        ))
       );
     }
 
@@ -67,28 +78,23 @@ service cloud.firestore {
     }
 
     match /trips/{tripId} {
-      // In Lockdown: Solo Owner o Privileged Member può leggere
-      allow get: if isTripPrivilegedMember(tripId) || isGlobalAdmin();
+      allow get: if (tripId == '0000' ? isTripPrivilegedMember(tripId) : isTripMember(tripId)) || isGlobalAdmin();
       allow list: if isGlobalAdmin();
       allow create: if isSignedIn()
                       && (request.resource.data.get('ownerUid', null) == request.auth.uid || request.resource.data.get('ownerId', null) == request.auth.uid);
-      // Blocco scritture client su viaggio 0000 durante lockdown
       allow update: if isTripOwner(tripId) && tripId != '0000';
       allow delete: if false;
 
-      // Gestione membri durante lockdown
       match /members/{uid} {
-        allow read: if isTripPrivilegedMember(tripId) || isGlobalAdmin();
+        allow read: if isTripMember(tripId) || isGlobalAdmin();
         allow write: if isTripOwner(tripId) && tripId != '0000';
       }
 
-      // Cassaforte credenziali (solo Privileged, freeze su 0000 per client)
       match /private_credentials/{docId} {
         allow read: if isTripPrivilegedMember(tripId);
         allow write: if isTripPrivilegedMember(tripId) && tripId != '0000';
       }
 
-      // Sottocollezioni documentali e contabili (solo Privileged, freeze su 0000 per client)
       match /documenti/{docId} {
         allow read: if isTripPrivilegedMember(tripId);
         allow write: if isTripPrivilegedMember(tripId) && tripId != '0000';
@@ -102,17 +108,13 @@ service cloud.firestore {
         allow write: if isTripPrivilegedMember(tripId) && tripId != '0000';
       }
 
-      // Sottocollezioni operative in LOCKDOWN:
-      // - Lettura: RISERVATA A PRIVILEGED (Viewer bloccato durante migrazione!)
-      // - Scrittura: congelata per tutti i client su viaggio 0000 (anti-concorrenza),
-      //   protetta da Schema Guard per altri viaggi
       match /{subcol}/{docId} {
         allow read: if subcol in [
                          'tappe', 'attivita', 'alloggi', 'trasporti',
                          'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
                          'locks', 'devices'
                        ]
-                       && isTripPrivilegedMember(tripId);
+                       && (tripId == '0000' ? isTripPrivilegedMember(tripId) : isTripMember(tripId));
 
         allow create, update: if subcol in [
                                    'tappe', 'attivita', 'alloggi', 'trasporti',
