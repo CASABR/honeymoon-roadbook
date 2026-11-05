@@ -19,7 +19,7 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerId', null) == request.auth.uid
         ))
         ||
-        (request.resource != null && existsAfter(/databases/$(database)/documents/trips/$(tripId)) && (
+        (existsAfter(/databases/$(database)/documents/trips/$(tripId)) && (
           getAfter(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerUid', null) == request.auth.uid
           || getAfter(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerId', null) == request.auth.uid
         ))
@@ -29,7 +29,7 @@ service cloud.firestore {
       );
     }
 
-    // Verifica se l'utente autenticato è membro effettivo (owner, copilota o viewer) del viaggio
+    // Verifica se l'utente autenticato è membro effettivo (owner o member) del viaggio
     function isTripMember(tripId) {
       return isSignedIn() && (
         exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid))
@@ -42,7 +42,15 @@ service cloud.firestore {
       );
     }
 
-    // Verifica se l'utente autenticato è membro privilegiato (SOLO Owner o Copilota autorizzato)
+    // Verifica se l'utente autenticato ha privilegi di Amministratore Globale
+    function isGlobalAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/system_admins/$(request.auth.uid))
+        || request.auth.token.get('admin', false) == true
+      );
+    }
+
+    // Verifica se l'utente e membro privilegiato (owner o copilota)
     function isTripPrivilegedMember(tripId) {
       return isSignedIn() && (
         isTripOwner(tripId)
@@ -55,15 +63,7 @@ service cloud.firestore {
       );
     }
 
-    // Verifica se l'utente autenticato ha privilegi di Amministratore Globale
-    function isGlobalAdmin() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/system_admins/$(request.auth.uid))
-        || request.auth.token.get('admin', false) == true
-      );
-    }
-
-    // Schema guard: impedisce a qualsiasi client di scrivere chiavi sensibili nei documenti condivisi
+    // Schema guard: blocca qualsiasi scrittura contenente chiavi sensibili
     function hasNoSensitiveKeys(data) {
       return !data.keys().hasAny([
         'pinCode', 'codiceAccesso', 'keyboxCode',
@@ -75,34 +75,39 @@ service cloud.firestore {
       ]);
     }
 
+
     // =========================================================================
-    // 1. VIAGGI (TRIPS) E SOTTOCOLLEZIONI
+    // 1. VIAGGI (TRIPS) E SOTTOCOLLEZIONI PRIVATE
     // =========================================================================
 
     match /trips/{tripId} {
       
-      // Lettura di un singolo viaggio per ID: consentita ai membri effettivi (inclusi Viewer) o all'Admin
+      // Lettura di un singolo viaggio per ID: consentita SOLO ai membri effettivi o all'Admin globale verificato
+      // (Gli estranei con solo tripId NON possono leggere né il viaggio né i suoi dati privati)
       allow get: if isSignedIn() && (
         isTripMember(tripId)
         || isGlobalAdmin()
       );
 
-      // Scansione e interrogazione dell'intera collezione viaggi: riservata all'Admin globale
+      // Scansione e interrogazione dell'intera collezione viaggi (riservata all'Admin globale verificato):
       allow list: if isGlobalAdmin();
 
-      // Creazione di un nuovo viaggio: solo utente autenticato come owner
+      // Creazione di un nuovo viaggio:
+      // L'utente autenticato deve dichiararsi come ownerUid/ownerId e includersi nei members.
       allow create: if isSignedIn()
                       && (request.resource.data.get('ownerUid', null) == request.auth.uid || request.resource.data.get('ownerId', null) == request.auth.uid)
                       && (!('members' in request.resource.data) || request.auth.uid in request.resource.data.members);
 
-      // Modifica del viaggio: solo Owner (i Viewer non possono mai aggiornare il documento trip)
+      // Modifica del viaggio:
+      // Riservata all'owner; i membri ordinari possono aggiornare solo senza toccare members o primaryDeviceUid.
+      // Auto-join copilota: consentito SOLO con prova crittografica verificata (batch con membro autorizzato) e mai per il viaggio 0000
       allow update: if isSignedIn()
                     && request.resource.data.get('ownerUid', null) == resource.data.get('ownerUid', null)
                     && (
                       isTripOwner(tripId)
                       ||
                       (
-                        isTripPrivilegedMember(tripId)
+                        isTripMember(tripId)
                         && request.resource.data.get('primaryDeviceUid', null) == resource.data.get('primaryDeviceUid', null)
                         && request.resource.data.get('members', []) == resource.data.get('members', [])
                       )
@@ -114,18 +119,20 @@ service cloud.firestore {
                         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members', 'updatedAt'])
                         && request.auth.uid in request.resource.data.members
                         && request.resource.data.members.size() == resource.data.get('members', []).size() + 1
-                        && getAfter(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.get('role', '') in ['copilota', 'viewer']
+                        && getAfter(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.get('role', '') == 'copilota'
                         && getAfter(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.get('uid', request.auth.uid) == request.auth.uid
                       )
                     );
 
-      // Eliminazione: solo l'owner (blocco per 0000)
+      // Eliminazione: solo l'owner (blocco assoluto per il viaggio reale protetto 0000)
       allow delete: if isTripOwner(tripId) && tripId != '0000';
 
       // -----------------------------------------------------------------------
-      // 1.0 SOTTOCOLLEZIONE INVITI: /trips/{tripId}/invites/{inviteToken}
+      // 1.0 SOTTOCOLLEZIONE INVITI: /trips/{tripId}/invites/{inviteToken} (P0-B)
       // -----------------------------------------------------------------------
       match /invites/{inviteToken} {
+        // Lettura del singolo invito consentita con token esatto per verifica prima del join
+        // (List/scansione vietata ai non-owner: nessuno può enumerare o cercare token altrui)
         allow get: if isSignedIn()
                    && (
                      isTripOwner(tripId)
@@ -133,16 +140,18 @@ service cloud.firestore {
                    );
         allow list: if isTripOwner(tripId) || isGlobalAdmin();
 
+        // Creazione dell'invito: solo l'owner del viaggio, token ad alta entropia, mai per il viaggio 0000
         allow create: if tripId != '0000'
                       && isTripOwner(tripId)
                       && request.resource.data.keys().hasOnly(['inviteToken', 'tripId', 'tripTitle', 'ownerName', 'role', 'createdBy', 'createdAt', 'expiresAt', 'status', 'usedBy', 'usedAt'])
                       && request.resource.data.inviteToken == inviteToken
                       && request.resource.data.tripId == tripId
-                      && request.resource.data.role in ['copilota', 'viewer']
+                      && request.resource.data.role == 'copilota'
                       && request.resource.data.createdBy == request.auth.uid
                       && request.resource.data.status == 'active'
                       && request.resource.data.expiresAt > request.time;
 
+        // Riscatto (da parte dell'invitato nel batch atomico) o Revoca (da parte dell'owner)
         allow update: if tripId != '0000'
                       && (
                         isTripOwner(tripId)
@@ -161,37 +170,46 @@ service cloud.firestore {
       // 1.1 SOTTOCOLLEZIONE MEMBERS: /trips/{tripId}/members/{uid}
       // -----------------------------------------------------------------------
       match /members/{uid} {
+        // Lettura: consentita ai membri effettivi del viaggio o all'Admin globale autorizzato per la dashboard
         allow read: if isTripMember(tripId) || isGlobalAdmin();
 
+        // Creazione:
+        // L'owner può registrare membri. Un utente invitato può auto-registrarsi SOLO presentando
+        // prova crittografica (inviteToken attivo e valido riscattato atomicamente nello stesso batch).
         allow create: if isSignedIn()
                         && request.resource.data.get('uid', uid) == uid
-                        && request.resource.data.get('role', '') in ['owner', 'copilota', 'viewer']
+                        && request.resource.data.get('role', '') in ['owner', 'copilota']
                         && (
-                          ((exists(/databases/$(database)/documents/trips/$(tripId)) && (
-                              uid == get(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerUid', null)
-                              || uid == get(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerId', null)
-                            ))
-                            && request.resource.data.get('role', '') == 'owner'
-                            && (isTripOwner(tripId) || uid == request.auth.uid))
+                          // 1. Owner all'atto di creazione del viaggio
+                          ((uid == getAfter(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerUid', null)
+                            || uid == getAfter(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerId', null))
+                           && request.resource.data.get('role', '') == 'owner'
+                           && (isTripOwner(tripId) || uid == request.auth.uid))
                           ||
-                          (isTripOwner(tripId) && request.resource.data.get('role', '') in ['copilota', 'viewer'])
+                          // 2. Assegnazione diretta da parte dell'Owner del viaggio
+                          (isTripOwner(tripId) && request.resource.data.get('role', '') == 'copilota')
                           ||
+                          // 3. Riscatto crittografico con token valido in batch atomico (P0-B)
                           (
                             tripId != '0000'
                             && uid == request.auth.uid
                             && resource == null
-                            && request.resource.data.get('role', '') in ['copilota', 'viewer']
+                            && request.resource.data.get('role', '') == 'copilota'
                             && request.resource.data.get('inviteToken', '') != ''
                             && exists(/databases/$(database)/documents/trips/$(tripId)/invites/$(request.resource.data.get('inviteToken', 'none')))
                             && get(/databases/$(database)/documents/trips/$(tripId)/invites/$(request.resource.data.get('inviteToken', 'none'))).data.status == 'active'
+                            && getAfter(/databases/$(database)/documents/trips/$(tripId)/invites/$(request.resource.data.get('inviteToken', 'none'))).data.status == 'used'
+                            && getAfter(/databases/$(database)/documents/trips/$(tripId)/invites/$(request.resource.data.get('inviteToken', 'none'))).data.usedBy == request.auth.uid
                           )
                         );
 
+        // Modifica: consentita unicamente all'owner (role e uid immutabili)
         allow update: if isSignedIn()
                         && isTripOwner(tripId)
-                        && resource.data.get('role', '') != 'owner'
-                        && request.resource.data.get('role', '') in ['copilota', 'viewer'];
+                        && request.resource.data.get('uid', resource.data.get('uid', uid)) == resource.data.get('uid', uid)
+                        && request.resource.data.role == resource.data.role;
 
+        // Eliminazione: consentita all'owner effettivo (l'owner del viaggio non può mai essere eliminato)
         allow delete: if isSignedIn()
                         && resource.data.role != 'owner'
                         && isTripOwner(tripId);
@@ -201,36 +219,28 @@ service cloud.firestore {
       // 1.2 SOTTOCOLLEZIONE INVITE TOKENS: /trips/{tripId}/inviteTokens/{tokenId}
       // -----------------------------------------------------------------------
       match /inviteTokens/{tokenId} {
+        // Solo l'owner del viaggio può visualizzare o creare/revocare token di invito per il suo viaggio.
         allow read, write: if isTripOwner(tripId) && tripId != '0000';
       }
 
       // -----------------------------------------------------------------------
-      // 1.3.1 CASSAFORTE CREDENZIALI & DATI PRIVATI (SOLO Owner e Copilota)
-      // I Viewer NON possono leggere né scrivere in questa sottocollezione
+      // 1.3 SOTTOCOLLEZIONI DATI PRIVATI DEL VIAGGIO
       // -----------------------------------------------------------------------
+      // 1.2.B CASSAFORTE CREDENZIALI PRIVATE E COLLEZIONI RISERVATE (DEFINITIVO)
       match /private_credentials/{docId} {
         allow read, write: if isTripPrivilegedMember(tripId);
       }
-
-      // Sottocollezioni documentali e contabili riservate agli sposi
       match /documenti/{docId} {
         allow read, write: if isTripPrivilegedMember(tripId);
       }
-
       match /spese/{docId} {
         allow read, write: if isTripPrivilegedMember(tripId);
       }
-
       match /note/{docId} {
         allow read, write: if isTripPrivilegedMember(tripId);
       }
 
-      // -----------------------------------------------------------------------
-      // 1.3.2 SOTTOCOLLEZIONI CONDIVISE (Itinerario, Alloggi, Trasporti, Tappe)
-      // - Lettura: consentita a tutti i membri del viaggio (Owner, Copilota, Viewer)
-      // - Scrittura: consentita SOLO a Owner e Copilota (Viewer bloccato)
-      // - Schema Guard: nessun campo sensibile può essere scritto qui
-      // -----------------------------------------------------------------------
+      // 1.3 SOTTOCOLLEZIONI CONDIVISE (DATI SANIFICATI: LETTURA MEMBRI APERTA, SCHEMA GUARD ATTIVO)
       match /{subcol}/{docId} {
         allow read: if subcol in [
                          'tappe', 'attivita', 'alloggi', 'trasporti',
@@ -257,7 +267,23 @@ service cloud.firestore {
     }
 
     // =========================================================================
-    // 2. LIVE FEEDS (PUBBLICO E PROTETTO)
+    // 2. TOKEN INVITO GLOBALI (per lookup O(1) lato Cloud Function)
+    // =========================================================================
+    match /invite_tokens/{tokenHash} {
+      // Accessibile SOLO via backend / Cloud Functions con Firebase Admin SDK.
+      // Nessun client può leggere o manipolare i token hashati direttamente.
+      allow read, write: if false;
+    }
+
+    // Inviti legacy:
+    match /invites/{inviteId} {
+      // Lettura permessa per eventuale transizione se autenticati, ma nessuna scrittura client
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // =========================================================================
+    // 3. LIVE FEEDS (PUBBLICO)
     // =========================================================================
     function validFeedHeader(data) {
       return data.keys().hasOnly(['title', 'coverPhotoUrl', 'status', 'currentCity', 'lastUpdateAt'])
@@ -277,19 +303,180 @@ service cloud.firestore {
              && (!('deletedBy' in data) || (data.deletedBy is string && data.deletedBy.size() <= 128));
     }
 
+    function isGpsGuideEligible(tripId, uid) {
+      return exists(/databases/$(database)/documents/trips/$(tripId))
+             && (
+               get(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerUid', null) == uid
+               || get(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerId', null) == uid
+               || (exists(/databases/$(database)/documents/trips/$(tripId)/members/$(uid))
+                   && get(/databases/$(database)/documents/trips/$(tripId)/members/$(uid)).data.get('role', '') in ['owner', 'copilota'])
+             );
+    }
+
+    function validGpsLease(data, tripId) {
+      return data.keys().hasOnly(['holderUid', 'holderDeviceId', 'status', 'updatedAt', 'expiresAt'])
+             && isGpsGuideEligible(tripId, data.holderUid)
+             && data.holderDeviceId is string
+             && data.holderDeviceId.size() >= 16
+             && data.holderDeviceId.size() <= 128
+             && data.status in ['active', 'paused', 'stopped']
+             && data.updatedAt == request.time
+             && data.expiresAt is timestamp
+             && data.expiresAt > request.time
+             && data.expiresAt <= request.time + duration.value(36, 'h');
+    }
+
+    function gpsLeaseDoc(tripId) {
+      return exists(/databases/$(database)/documents/live_feeds/$(tripId)/gps_control/current)
+        ? get(/databases/$(database)/documents/live_feeds/$(tripId)/gps_control/current).data
+        : getAfter(/databases/$(database)/documents/live_feeds/$(tripId)/gps_control/current).data;
+    }
+
+    function gpsLease(tripId) {
+      return gpsLeaseDoc(tripId);
+    }
+
+    function validGpsLocation(data) {
+      return data.keys().hasOnly(['lat', 'lng', 'accuracy', 'city', 'country', 'updatedAt', 'publisherDeviceId', 'status'])
+             && data.lat is number && data.lat >= -90 && data.lat <= 90
+             && data.lng is number && data.lng >= -180 && data.lng <= 180
+             && data.accuracy is number && data.accuracy >= 0 && data.accuracy <= 100000
+             && data.city is string && data.city.size() <= 120
+             && data.country is string && data.country.size() <= 120
+             && data.publisherDeviceId is string
+             && data.publisherDeviceId.size() >= 16
+             && data.publisherDeviceId.size() <= 128
+             && data.status in ['active', 'paused', 'stopped']
+             && data.updatedAt == request.time;
+    }
+
     match /live_feeds/{tripId} {
+      // Chiunque può leggere il feed pubblico
       allow read: if true;
-      allow create: if isTripPrivilegedMember(tripId) && validFeedHeader(request.resource.data);
-      allow update: if isTripPrivilegedMember(tripId) && validFeedHeader(request.resource.data);
+      allow create, update: if isTripMember(tripId) && validFeedHeader(request.resource.data);
       allow delete: if isTripOwner(tripId) && tripId != '0000';
 
       match /updates/{updateId} {
         allow read: if true;
-        allow create: if isTripPrivilegedMember(tripId) && validLiveUpdate(request.resource.data);
-        allow update: if isTripPrivilegedMember(tripId) && validLiveUpdate(request.resource.data);
-        allow delete: if isTripPrivilegedMember(tripId);
+        allow create, update: if isTripMember(tripId) && validLiveUpdate(request.resource.data);
+        allow delete: if isTripMember(tripId) && tripId != '0000';
+        
+        match /reactions/{reactionId} {
+          allow read: if isTripMember(tripId);
+          allow create, update: if request.resource.data.type in ['❤️', '😍', '😂', '👋']
+                        && request.resource.data.visitorId == reactionId
+                        && request.resource.data.keys().hasOnly(['type', 'visitorId', 'timestamp']);
+          allow delete: if false;
+        }
+      }
+      match /gps_control/{controlId} {
+        allow read: if controlId == 'current'
+                    && isSignedIn()
+                    && isGpsGuideEligible(tripId, request.auth.uid);
+        allow create: if controlId == 'current'
+                      && isTripOwner(tripId)
+                      && validGpsLease(request.resource.data, tripId);
+        allow update: if controlId == 'current'
+                      && validGpsLease(request.resource.data, tripId)
+                      && (
+                        isTripOwner(tripId)
+                        || (request.auth.uid == resource.data.holderUid
+                            && request.resource.data.holderUid == resource.data.holderUid
+                            && request.resource.data.holderDeviceId == resource.data.holderDeviceId
+                            && request.resource.data.expiresAt == resource.data.expiresAt
+                            && resource.data.status == 'active'
+                            && request.resource.data.status in ['paused', 'stopped'])
+                      );
+        allow delete: if false;
+      }
+
+      match /locations/{locationId} {
+        allow read: if locationId == 'current'
+                    && (
+                      (resource.data.status == 'active'
+                       && resource.data.updatedAt > request.time - duration.value(2, 'm')
+                       && gpsLease(tripId).status == 'active'
+                       && gpsLease(tripId).expiresAt > request.time
+                       && gpsLease(tripId).holderDeviceId == resource.data.publisherDeviceId)
+                      || (isSignedIn() && isGpsGuideEligible(tripId, request.auth.uid))
+                    );
+        allow create: if locationId == 'current'
+                      && isSignedIn()
+                      && validGpsLocation(request.resource.data)
+                      && request.resource.data.status == 'active'
+                      && gpsLeaseDoc(tripId).holderUid == request.auth.uid
+                      && gpsLeaseDoc(tripId).holderDeviceId == request.resource.data.publisherDeviceId
+                      && gpsLeaseDoc(tripId).status == 'active'
+                      && gpsLeaseDoc(tripId).expiresAt > request.time;
+        allow update: if locationId == 'current'
+                      && isSignedIn()
+                      && validGpsLocation(request.resource.data)
+                      && gpsLeaseDoc(tripId).holderDeviceId == request.resource.data.publisherDeviceId
+                      && gpsLeaseDoc(tripId).expiresAt > request.time
+                      && (
+                        (request.resource.data.status == 'active'
+                         && gpsLeaseDoc(tripId).holderUid == request.auth.uid
+                         && gpsLeaseDoc(tripId).status == 'active'
+                         && (resource.data.publisherDeviceId != request.resource.data.publisherDeviceId || resource.data.updatedAt <= request.time - duration.value(15, 's')))
+                        || (request.resource.data.status in ['paused', 'stopped']
+                            && gpsLeaseDoc(tripId).status == request.resource.data.status
+                            && (gpsLeaseDoc(tripId).holderUid == request.auth.uid || isTripOwner(tripId))
+                            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt']))
+                      );
+        allow delete: if false;
       }
     }
+    // =========================================================================
+    // 4. PUSH SUBSCRIBERS
+    // =========================================================================
+    match /push_subscribers/{docId} {
+      allow read, write: if false;
+    }
+
+    match /push_jobs/{docId} {
+      allow read, write: if false;
+    }
+
+    match /push_dispatches/{docId} {
+      allow read, write: if false;
+    }
+
+    // =========================================================================
+    // 5. SYSTEM ADMINS (ALLOWLIST SERVER-SIDE IMMUTABILE DAI CLIENT)
+    // =========================================================================
+    // Nessun client può leggere o scrivere /system_admins.
+    // La gestione avviene esclusivamente in ambiente fidato (Admin SDK / Console).
+    // L'utente autenticato può verificare esclusivamente se il PROPRIO UID è presente (self-check sicuro).
+    // Nessun client può leggere l'elenco degli altri amministratori né scrivere o alterare record.
+    // La gestione avviene esclusivamente in ambiente fidato (Firebase Console / Admin SDK).
+    match /system_admins/{adminId} {
+      allow read: if isSignedIn() && request.auth.uid == adminId;
+      allow write: if false;
+    }
+
+    // =========================================================================
+    // 6. USERS (PROFILI ED ACCESSO RECENTE UTENTE - FIREBASE SPARK)
+    // =========================================================================
+    // Ogni utente può aggiornare unicamente il proprio record.
+    // L'Admin globale può leggere ed interrogare l'elenco utenti per la dashboard accessi.
+    // L'utente ordinario può leggere unicamente il proprio profilo.
+    // Nessun client può falsificare l'UID né impostare date alterate (richiesto request.time quando presente).
+    match /users/{userId} {
+      allow read: if isSignedIn() && (request.auth.uid == userId || isGlobalAdmin());
+      allow create, update: if isSignedIn()
+                            && request.auth.uid == userId
+                            && request.resource.data.uid == userId
+                            && request.resource.data.keys().hasOnly(['uid', 'displayName', 'isAnonymous', 'lastAccessAt', 'lastSeenAt', 'updatedAt', 'lastTripId', 'associatedTripIds'])
+                            && (
+                              !('lastAccessAt' in request.resource.data)
+                              || request.resource.data.lastAccessAt == request.time
+                            )
+                            && (
+                              !('lastSeenAt' in request.resource.data)
+                              || request.resource.data.lastSeenAt == request.time
+                            );
+      allow delete: if false;
+    }
+
   }
 }
-

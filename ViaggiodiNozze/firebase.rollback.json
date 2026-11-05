@@ -1,0 +1,8 @@
+{
+  "firestore": {
+    "rules": "firestore.rules.rollback"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}
