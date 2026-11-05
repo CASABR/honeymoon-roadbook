@@ -229,3 +229,4 @@ console.log('✓ Rollback sicuro verificato: dati ripristinabili dal dump JSON s
 console.log('\n========================================================================');
 console.log('TUTTE LE 7 FASI DELLA SIMULAZIONE PRE-DEPLOY SUPERATE CON SUCCESSO!');
 console.log('========================================================================');
+

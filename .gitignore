@@ -29,12 +29,13 @@ honeymoon-roadbookzip/
 node_modules/
 dist/
 .git_BACKUP_OLD/
-honeymoon-roadbookzip/
-node_modules/
-dist/
-.git_BACKUP_OLD/
 
 # Credenziali segrete (NON caricare su Git)
 serviceAccountKey.json
 *.pem
 
+# Directory e file di backup locali (P0 Sicurezza)
+backups/
+hounigo_backups/
+*.backup.json
+*.backup.json.sha256

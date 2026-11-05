@@ -29,12 +29,16 @@ dist-ssr
 # Backup & Archivi locali
 honeymoon-roadbookzip/
 .git_BACKUP_OLD/
+backups/
+hounigo_backups/
+*.backup.json
+*.backup.json.sha256
 
 # Credenziali segrete (NON caricare su Git)
 serviceAccountKey.json
 *.pem
 
-# Diagnostica locale che puÃ² contenere token OAuth o interrogare risorse remote.
+# Diagnostica locale che può contenere token OAuth o interrogare risorse remote.
 scripts/diag_phase_*.cjs
 scripts/check_deployed_functions.cjs
 scripts/create_valid_invite_token.cjs

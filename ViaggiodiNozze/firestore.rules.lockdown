@@ -1,0 +1,138 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // =========================================================================
+    // HOUNIGO — SECURITY RULES IN MODALITÀ LOCKDOWN TEMPORANEO (P0 MIGRAZIONE)
+    // =========================================================================
+    // Obiettivo:
+    // 1. Zero Exposure Window: Viewer e non-autenticati non possono leggere
+    //    le collezioni condivise durante la migrazione.
+    // 2. Anti-Injection: anche i client Owner/Copilota con vecchio codice
+    //    NON possono riscrivere campi sensibili nelle collezioni condivise.
+    // 3. Cassaforte e sottocollezioni riservate accessibili solo a Privileged.
+    // =========================================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isTripOwner(tripId) {
+      return isSignedIn() && (
+        (exists(/databases/$(database)/documents/trips/$(tripId)) && (
+          get(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerUid', null) == request.auth.uid
+          || get(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerId', null) == request.auth.uid
+        ))
+        ||
+        (request.resource != null && existsAfter(/databases/$(database)/documents/trips/$(tripId)) && (
+          getAfter(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerUid', null) == request.auth.uid
+          || getAfter(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerId', null) == request.auth.uid
+        ))
+        ||
+        (exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.get('role', '') == 'owner')
+      );
+    }
+
+    function isTripPrivilegedMember(tripId) {
+      return isSignedIn() && (
+        isTripOwner(tripId)
+        ||
+        (exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid))
+         && get(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.get('role', '') in ['owner', 'copilota'])
+        ||
+        (request.resource != null && existsAfter(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid))
+         && getAfter(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.get('role', '') in ['owner', 'copilota'])
+      );
+    }
+
+    function isGlobalAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/system_admins/$(request.auth.uid))
+        || request.auth.token.get('admin', false) == true
+      );
+    }
+
+    // Schema guard: blocca qualsiasi scrittura contenente chiavi sensibili
+    function hasNoSensitiveKeys(data) {
+      return !data.keys().hasAny([
+        'pinCode', 'codiceAccesso', 'keyboxCode',
+        'bookingCode', 'pnr', 'codicePrenotazione', 'conferma', 'bookingReference',
+        'ticketUrl', 'voucherUrl', 'bookingUrl', 'linkPrenotazione',
+        'qrCode', 'qr', 'tavolo', 'posti', 'terminalGate',
+        'cost', 'costo', 'budget', 'deposit', 'depositPaid', 'acconto', 'cauzione', 'amountPaid', 'paymentStatus',
+        'noteCopilota', 'cancellazioneGratuitaEntro', 'attachments'
+      ]);
+    }
+
+    match /trips/{tripId} {
+      // In Lockdown: Solo Owner o Privileged Member può leggere o aggiornare
+      allow get: if isTripPrivilegedMember(tripId) || isGlobalAdmin();
+      allow list: if isGlobalAdmin();
+      allow create: if isSignedIn()
+                      && (request.resource.data.get('ownerUid', null) == request.auth.uid || request.resource.data.get('ownerId', null) == request.auth.uid);
+      allow update: if isTripOwner(tripId);
+      allow delete: if false; // Blocco assoluto eliminazione viaggio durante migrazione
+
+      // Gestione membri durante lockdown
+      match /members/{uid} {
+        allow read: if isTripPrivilegedMember(tripId) || isGlobalAdmin();
+        allow write: if isTripOwner(tripId);
+      }
+
+      // Cassaforte credenziali (solo Privileged)
+      match /private_credentials/{docId} {
+        allow read, write: if isTripPrivilegedMember(tripId);
+      }
+
+      // Sottocollezioni documentali e contabili (solo Privileged)
+      match /documenti/{docId} {
+        allow read, write: if isTripPrivilegedMember(tripId);
+      }
+      match /spese/{docId} {
+        allow read, write: if isTripPrivilegedMember(tripId);
+      }
+      match /note/{docId} {
+        allow read, write: if isTripPrivilegedMember(tripId);
+      }
+
+      // Sottocollezioni operative in LOCKDOWN:
+      // - Lettura: RISERVATA A PRIVILEGED (Viewer bloccato durante migrazione!)
+      // - Scrittura: solo Privileged E Schema Guard obbligatorio (blocca vecchi client)
+      match /{subcol}/{docId} {
+        allow read: if subcol in [
+                         'tappe', 'attivita', 'alloggi', 'trasporti',
+                         'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
+                         'locks', 'devices'
+                       ]
+                       && isTripPrivilegedMember(tripId);
+
+        allow create, update: if subcol in [
+                                   'tappe', 'attivita', 'alloggi', 'trasporti',
+                                   'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
+                                   'locks', 'devices'
+                                 ]
+                                 && isTripPrivilegedMember(tripId)
+                                 && hasNoSensitiveKeys(request.resource.data);
+
+        allow delete: if subcol in [
+                           'tappe', 'attivita', 'alloggi', 'trasporti',
+                           'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
+                           'locks', 'devices'
+                         ]
+                         && isTripPrivilegedMember(tripId);
+      }
+    }
+
+    match /live_feeds/{tripId} {
+      allow read: if true;
+      allow write: if isTripPrivilegedMember(tripId);
+      match /updates/{updateId} {
+        allow read: if true;
+        allow write: if isTripPrivilegedMember(tripId);
+      }
+    }
+  }
+}
+
