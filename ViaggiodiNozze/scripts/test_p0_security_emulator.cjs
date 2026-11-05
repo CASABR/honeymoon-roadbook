@@ -118,15 +118,17 @@ async function runSecuritySuite() {
   });
   await firestoreRequest('PATCH', `trips/${TRIP_ID}/alloggi/acc_1`, publicAlloggio, OWNER_UID);
 
-  // Setup 4: Creazione cassaforte Private Credentials (contenente il PIN)
+  // Setup 4: Creazione cassaforte Private Credentials con prefisso anti-collisione
   const privateCreds = toFirestoreFields({
-    id: 'acc_1',
+    id: 'alloggio_acc_1',
+    entityId: 'acc_1',
     tripId: TRIP_ID,
+    entityType: 'alloggio',
     pinCode: '7492#',
     bookingCode: 'BOOK-CONFIRM-99',
     noteCopilota: 'Chiave di riserva al concierge'
   });
-  await firestoreRequest('PATCH', `trips/${TRIP_ID}/private_credentials/acc_1`, privateCreds, OWNER_UID);
+  await firestoreRequest('PATCH', `trips/${TRIP_ID}/private_credentials/alloggio_acc_1`, privateCreds, OWNER_UID);
 
   // Setup 5: Creazione documento e spesa riservata
   await firestoreRequest('PATCH', `trips/${TRIP_ID}/documenti/att_chunk_1`, toFirestoreFields({ attachmentId: 'att_1', dataPiece: 'base64pdf' }), OWNER_UID);
@@ -143,7 +145,7 @@ async function runSecuritySuite() {
 
   // TEST 1: Owner legge sia alloggio pubblico che credenziali private
   const t1_pub = await firestoreRequest('GET', `trips/${TRIP_ID}/alloggi/acc_1`, null, OWNER_UID);
-  const t1_priv = await firestoreRequest('GET', `trips/${TRIP_ID}/private_credentials/acc_1`, null, OWNER_UID);
+  const t1_priv = await firestoreRequest('GET', `trips/${TRIP_ID}/private_credentials/alloggio_acc_1`, null, OWNER_UID);
   assert(t1_pub.status === 200, 'FAIL: Owner non riesce a leggere alloggio pubblico');
   assert(t1_priv.status === 200, 'FAIL: Owner non riesce a leggere private_credentials');
   passed++;
@@ -151,7 +153,7 @@ async function runSecuritySuite() {
 
   // TEST 2: Copilota legge sia alloggio pubblico che credenziali private
   const t2_pub = await firestoreRequest('GET', `trips/${TRIP_ID}/alloggi/acc_1`, null, COPILOTA_UID);
-  const t2_priv = await firestoreRequest('GET', `trips/${TRIP_ID}/private_credentials/acc_1`, null, COPILOTA_UID);
+  const t2_priv = await firestoreRequest('GET', `trips/${TRIP_ID}/private_credentials/alloggio_acc_1`, null, COPILOTA_UID);
   assert(t2_pub.status === 200, 'FAIL: Copilota non riesce a leggere alloggio pubblico');
   assert(t2_priv.status === 200, 'FAIL: Copilota non riesce a leggere private_credentials');
   passed++;
@@ -165,7 +167,7 @@ async function runSecuritySuite() {
   console.log(`[PASS 03] Viewer legge correttamente l'itinerario pubblico (Alloggio)`);
 
   // TEST 4: Viewer BLOCCATO da Firestore su Private Credentials
-  const t4 = await firestoreRequest('GET', `trips/${TRIP_ID}/private_credentials/acc_1`, null, VIEWER_UID);
+  const t4 = await firestoreRequest('GET', `trips/${TRIP_ID}/private_credentials/alloggio_acc_1`, null, VIEWER_UID);
   assert(t4.status === 403, `FAIL: Viewer è riuscito ad accedere a private_credentials! Status: ${t4.status}`);
   passed++;
   console.log(`[PASS 04] VULNERABILITÀ PIN RISOLTA: Viewer riceve 403 FORBIDDEN su private_credentials`);
@@ -202,7 +204,7 @@ async function runSecuritySuite() {
   // TEST 9: Ospite Esterno non autenticato ha accesso al LIVE pubblico ma è bloccato sul viaggio
   const t9_live = await firestoreRequest('GET', `live_feeds/${TRIP_ID}/updates/up_1`, null, GUEST_UID);
   const t9_trip = await firestoreRequest('GET', `trips/${TRIP_ID}/alloggi/acc_1`, null, GUEST_UID);
-  const t9_priv = await firestoreRequest('GET', `trips/${TRIP_ID}/private_credentials/acc_1`, null, GUEST_UID);
+  const t9_priv = await firestoreRequest('GET', `trips/${TRIP_ID}/private_credentials/alloggio_acc_1`, null, GUEST_UID);
   assert(t9_live.status === 200, `FAIL: Ospite non riesce a leggere il LIVE pubblico: ${t9_live.status}`);
   assert(t9_trip.status === 403, `FAIL: Ospite riesce a leggere documenti del viaggio: ${t9_trip.status}`);
   assert(t9_priv.status === 403, `FAIL: Ospite riesce a leggere credenziali private: ${t9_priv.status}`);
@@ -210,16 +212,38 @@ async function runSecuritySuite() {
   console.log(`[PASS 09] LIVE Pubblico isolato: Ospiti esterni leggono solo il Feed, zero accesso al viaggio`);
 
   // TEST 10: Modifica autorizzata di credenziali da parte del Copilota
-  const t10 = await firestoreRequest('PATCH', `trips/${TRIP_ID}/private_credentials/acc_1`, toFirestoreFields({
-    id: 'acc_1',
+  const t10 = await firestoreRequest('PATCH', `trips/${TRIP_ID}/private_credentials/alloggio_acc_1`, toFirestoreFields({
+    id: 'alloggio_acc_1',
+    entityId: 'acc_1',
     pinCode: '1122#'
   }), COPILOTA_UID);
   assert(t10.status === 200, `FAIL: Copilota non riesce ad aggiornare private_credentials: ${t10.status}`);
   passed++;
   console.log(`[PASS 10] Copilota collabora regolarmente e aggiorna le credenziali nella cassaforte`);
 
+  // TEST 11: Revoca ruolo Copilota -> Accesso immediato a private_credentials negato (403)
+  await firestoreRequest('PATCH', `trips/${TRIP_ID}/members/${COPILOTA_UID}`, toFirestoreFields({ uid: COPILOTA_UID, role: 'viewer' }), OWNER_UID);
+  const t11 = await firestoreRequest('GET', `trips/${TRIP_ID}/private_credentials/alloggio_acc_1`, null, COPILOTA_UID);
+  assert(t11.status === 403, `FAIL: Ex-copilota declassato riesce ancora ad accedere a private_credentials! Status: ${t11.status}`);
+  passed++;
+  console.log(`[PASS 11] Declassamento Copilota a Viewer: accesso a private_credentials revocato istantaneamente (403)`);
+
+  // TEST 12: Rimozione membro dal viaggio -> Zero accesso a qualsiasi documento del viaggio
+  await firestoreRequest('DELETE', `trips/${TRIP_ID}/members/${COPILOTA_UID}`, null, OWNER_UID);
+  // Rimuovi anche dall'array members del documento principale
+  await firestoreRequest('PATCH', `trips/${TRIP_ID}`, toFirestoreFields({
+    ownerUid: OWNER_UID,
+    members: [OWNER_UID, VIEWER_UID]
+  }), OWNER_UID);
+  const t12_pub = await firestoreRequest('GET', `trips/${TRIP_ID}/alloggi/acc_1`, null, COPILOTA_UID);
+  const t12_priv = await firestoreRequest('GET', `trips/${TRIP_ID}/private_credentials/alloggio_acc_1`, null, COPILOTA_UID);
+  assert(t12_pub.status === 403, `FAIL: Utente rimosso legge ancora documenti pubblici: ${t12_pub.status}`);
+  assert(t12_priv.status === 403, `FAIL: Utente rimosso legge ancora credenziali private: ${t12_priv.status}`);
+  passed++;
+  console.log(`[PASS 12] Rimozione membro: utente espulso perde ogni accesso sia all'itinerario che alla cassaforte (403)`);
+
   console.log('\n========================================================================');
-  console.log(`ESITO TEST SICUREZZA: TUTTI I ${passed}/10 CONTROLLI SUPERATI CON SUCCESSO!`);
+  console.log(`ESITO TEST SICUREZZA: TUTTI I ${passed}/12 CONTROLLI SUPERATI CON SUCCESSO!`);
   console.log('========================================================================');
 }
 

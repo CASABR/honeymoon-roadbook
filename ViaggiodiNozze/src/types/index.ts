@@ -472,7 +472,8 @@ export interface SyncResultDetail {
 
 
 export interface PrivateCredentials {
-  id: string;
+  id: string; // ID cassaforte univoco con prefisso anti-collisione: `${entityType}_${entityId}`
+  entityId?: string; // ID originale dell'entità
   tripId: string;
   entityType: 'alloggio' | 'trasporto' | 'attivita' | 'tappa' | 'ristorante' | 'shopping' | 'documento';
   pinCode?: string;

@@ -4,6 +4,8 @@ const assert = require('assert');
 const {
   SENSITIVE_KEYS,
   isSensitiveKey,
+  getVaultDocId,
+  normalizeEntityType,
   splitEntitySecurityData,
   mergeEntitySecurityData,
   sanitizePublicDocument
@@ -53,15 +55,16 @@ assert.strictEqual(splitAcc.publicDoc.noteCopilota, undefined, 'FAIL: noteCopilo
 assert.strictEqual(splitAcc.publicDoc.attachments, undefined, 'FAIL: attachments presente nel documento pubblico');
 console.log('✓ 1. Documento pubblico Alloggio: 100% privo di credenziali e dati sensibili.');
 
-// Verifiche sulla cassaforte privata (private_credentials)
-assert.equal(splitAcc.privateCredentialsDoc.id, 'acc_tokyo_shinjuku');
+// Verifiche sulla cassaforte privata (private_credentials) con prefisso anti-collisione
+assert.equal(splitAcc.privateCredentialsDoc.id, 'alloggio_acc_tokyo_shinjuku');
+assert.equal(splitAcc.privateCredentialsDoc.entityId, 'acc_tokyo_shinjuku');
 assert.equal(splitAcc.privateCredentialsDoc.tripId, 'trip_001');
 assert.equal(splitAcc.privateCredentialsDoc.pinCode, '7492#');
 assert.equal(splitAcc.privateCredentialsDoc.bookingCode, 'H-GRACERY-9988');
 assert.equal(splitAcc.privateCredentialsDoc.cost, '640.00 €');
 assert.equal(splitAcc.privateCredentialsDoc.noteCopilota, 'Chiave alternativa con concierge dopo le 23:00');
 assert.equal(splitAcc.privateCredentialsDoc.attachments.length, 1);
-console.log('✓ 2. Record PrivateCredentials: tutti i campi privati conservati fedelmente.');
+console.log('✓ 2. Record PrivateCredentials: ID con prefisso anti-collisione e tutti i campi privati conservati.');
 
 // Verifica merge per Owner / Copilota
 const reconstructed = mergeEntitySecurityData(splitAcc.publicDoc, splitAcc.privateCredentialsDoc);
@@ -95,23 +98,45 @@ assert.strictEqual(splitTr.publicDoc.terminalGate, undefined);
 assert.strictEqual(splitTr.publicDoc.cost, undefined);
 assert.strictEqual(splitTr.publicDoc.attachments, undefined);
 assert.equal(splitTr.publicDoc.carrier, 'ANA Airlines');
+assert.equal(splitTr.privateCredentialsDoc.id, 'trasporto_tr_volo_ana_nh216');
 assert.equal(splitTr.privateCredentialsDoc.bookingCode, 'PNR776');
 assert.equal(splitTr.privateCredentialsDoc.posti, '14A, 14B');
 console.log('✓ 4. Trasporto: PNR, posti e carte imbarco segregati con successo.');
 
-// 3. Sanitizzazione documento condiviso (anti-injection da client vecchi)
-const rogueDoc = {
-  id: 'tappa_99',
-  titolo: 'Tempio',
-  pinCode: 'MALICIOUS_PIN',
-  pnr: 'MALICIOUS_PNR',
-  noteCopilota: 'SECRET'
-};
-const clean = sanitizePublicDocument(rogueDoc);
-assert.strictEqual(clean.pinCode, undefined);
-assert.strictEqual(clean.pnr, undefined);
-assert.strictEqual(clean.noteCopilota, undefined);
-assert.equal(clean.titolo, 'Tempio');
-console.log('✓ 5. Sanitizzazione anti-injection: nessun campo sensibile può transitare nel doc pubblico.');
+// 3. Verifica anti-collisione tra categorie distinte con lo stesso ID identico
+const accSameId = splitEntitySecurityData('alloggio', 'trip_001', { id: 'item_1', pinCode: '1111' });
+const actSameId = splitEntitySecurityData('attivita', 'trip_001', { id: 'item_1', bookingCode: 'VOUCHER_2222' });
+assert.notEqual(accSameId.privateCredentialsDoc.id, actSameId.privateCredentialsDoc.id);
+assert.equal(accSameId.privateCredentialsDoc.id, 'alloggio_item_1');
+assert.equal(actSameId.privateCredentialsDoc.id, 'attivita_item_1');
+console.log('✓ 5. Anti-collisione verificata: ID univoci distinti per categorie differenti con medesimo identificativo.');
 
-console.log('TUTTI I 5 TEST DI SEGREGAZIONE DATI SUPERATI CON SUCCESSO!');
+// 4. Verifica sanitizzazione ricorsiva su oggetti annidati e alias storici
+const rogueNested = {
+  id: 'rogue_1',
+  name: 'Tentativo Injection',
+  pin: 'LEAK_PIN',
+  keybox: 'KEY_BOX',
+  seat: '12C',
+  gate: 'G2',
+  dettagli: {
+    pinCode: 'NESTED_PIN',
+    meta: {
+      codiceAccesso: 'DEEP_PIN',
+      noteCopilota: 'DEEP_SECRET',
+      luogo: 'Shinjuku'
+    }
+  }
+};
+const sanitizedRogue = sanitizePublicDocument(rogueNested);
+assert.strictEqual(sanitizedRogue.pin, undefined);
+assert.strictEqual(sanitizedRogue.keybox, undefined);
+assert.strictEqual(sanitizedRogue.seat, undefined);
+assert.strictEqual(sanitizedRogue.gate, undefined);
+assert.strictEqual(sanitizedRogue.dettagli.pinCode, undefined);
+assert.strictEqual(sanitizedRogue.dettagli.meta.codiceAccesso, undefined);
+assert.strictEqual(sanitizedRogue.dettagli.meta.noteCopilota, undefined);
+assert.equal(sanitizedRogue.dettagli.meta.luogo, 'Shinjuku');
+console.log('✓ 6. Sanitizzazione ricorsiva annidata e alias storici: 100% dati sensibili epurati.');
+
+console.log('\nTUTTI I 6 TEST DI SEGREGAZIONE DATI SUPERATI CON SUCCESSO!');

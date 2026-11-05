@@ -19,7 +19,7 @@ service cloud.firestore {
           || get(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerId', null) == request.auth.uid
         ))
         ||
-        (existsAfter(/databases/$(database)/documents/trips/$(tripId)) && (
+        (request.resource != null && existsAfter(/databases/$(database)/documents/trips/$(tripId)) && (
           getAfter(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerUid', null) == request.auth.uid
           || getAfter(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerId', null) == request.auth.uid
         ))
@@ -50,7 +50,7 @@ service cloud.firestore {
         (exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid))
          && get(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.get('role', '') in ['owner', 'copilota'])
         ||
-        (existsAfter(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid))
+        (request.resource != null && existsAfter(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid))
          && getAfter(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.get('role', '') in ['owner', 'copilota'])
       );
     }
@@ -167,10 +167,12 @@ service cloud.firestore {
                         && request.resource.data.get('uid', uid) == uid
                         && request.resource.data.get('role', '') in ['owner', 'copilota', 'viewer']
                         && (
-                          ((uid == getAfter(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerUid', null)
-                            || uid == getAfter(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerId', null))
-                           && request.resource.data.get('role', '') == 'owner'
-                           && (isTripOwner(tripId) || uid == request.auth.uid))
+                          ((exists(/databases/$(database)/documents/trips/$(tripId)) && (
+                              uid == get(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerUid', null)
+                              || uid == get(/databases/$(database)/documents/trips/$(tripId)).data.get('ownerId', null)
+                            ))
+                            && request.resource.data.get('role', '') == 'owner'
+                            && (isTripOwner(tripId) || uid == request.auth.uid))
                           ||
                           (isTripOwner(tripId) && request.resource.data.get('role', '') in ['copilota', 'viewer'])
                           ||
@@ -182,15 +184,13 @@ service cloud.firestore {
                             && request.resource.data.get('inviteToken', '') != ''
                             && exists(/databases/$(database)/documents/trips/$(tripId)/invites/$(request.resource.data.get('inviteToken', 'none')))
                             && get(/databases/$(database)/documents/trips/$(tripId)/invites/$(request.resource.data.get('inviteToken', 'none'))).data.status == 'active'
-                            && getAfter(/databases/$(database)/documents/trips/$(tripId)/invites/$(request.resource.data.get('inviteToken', 'none'))).data.status == 'used'
-                            && getAfter(/databases/$(database)/documents/trips/$(tripId)/invites/$(request.resource.data.get('inviteToken', 'none'))).data.usedBy == request.auth.uid
                           )
                         );
 
         allow update: if isSignedIn()
                         && isTripOwner(tripId)
-                        && request.resource.data.get('uid', resource.data.get('uid', uid)) == resource.data.get('uid', uid)
-                        && request.resource.data.role == resource.data.role;
+                        && resource.data.get('role', '') != 'owner'
+                        && request.resource.data.get('role', '') in ['copilota', 'viewer'];
 
         allow delete: if isSignedIn()
                         && resource.data.role != 'owner'
@@ -292,3 +292,4 @@ service cloud.firestore {
     }
   }
 }
+

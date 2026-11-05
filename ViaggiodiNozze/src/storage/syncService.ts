@@ -5,6 +5,13 @@ import { notifyDataChanged } from './storageService';
 import { normalizeTimestamp } from '../utils/tripDates';
 import { isCloudAuthorized } from '../utils/useAuthIdentity';
 import { recordPushMutation } from '../services/pushNotificationService';
+import {
+  splitEntitySecurityData,
+  mergeEntitySecurityData,
+  getVaultDocId,
+  normalizeEntityType,
+  sanitizePublicDocument
+} from '../utils/securityDataSplitter';
 
 export class SyncService {
   private unsubscribes: (() => void)[] = [];
@@ -238,6 +245,21 @@ export class SyncService {
   private async syncOperationalEntities(): Promise<{ pulledCount: number; pushedCount: number; deletedCount: number; failedCount: number }> {
     const { getDocs } = await import('firebase/firestore');
     const operationalCollections = this.getOperationalCollections();
+    const credentialsMap = new Map<string, any>();
+    if (isCloudAuthorized()) {
+      try {
+        const privSnap = await getDocs(collection(db, 'trips', this.tripId, 'private_credentials'));
+        for (const pDoc of privSnap.docs) {
+          const pData = pDoc.data();
+          credentialsMap.set(pDoc.id, pData);
+          if (pData.entityId) {
+            credentialsMap.set(pData.entityId, pData);
+          }
+        }
+      } catch (err) {
+        console.warn('[SyncService] Lettura private_credentials non autorizzata o non disponibile:', err);
+      }
+    }
     let pulledCount = 0;
     let pushedCount = 0;
     let deletedCount = 0;
@@ -307,6 +329,12 @@ export class SyncService {
           } else {
             // Cloud is newer or local item missing: store locally, reconstructing chunks if needed
             let itemToStore: any = { ...serverData, id: docId };
+            const normType = normalizeEntityType(fb);
+            const vaultId = getVaultDocId(normType, docId);
+            const privData = credentialsMap.get(vaultId) || credentialsMap.get(docId);
+            if (privData) {
+              itemToStore = mergeEntitySecurityData(itemToStore, privData);
+            }
             if (Array.isArray(itemToStore.attachments) && itemToStore.attachments.length > 0) {
               const resolved = [];
               for (const att of itemToStore.attachments) {
@@ -499,6 +527,9 @@ export class SyncService {
         console.log(`[SyncService] Rilevato ruolo autorizzato (${role}): trigger sincronizzazione automatica.`);
         this.flushPendingPushes().catch(() => {});
         this.requestInitialSync('cloud_role_authorized');
+      } else if (role === 'viewer' || role === 'unverified') {
+        console.log(`[SyncService] Rilevato ruolo non privilegiato (${role}): avvio bonifica cache locale.`);
+        this.purgeSensitiveLocalCache().catch(() => {});
       }
     }) as EventListener);
 
@@ -593,6 +624,12 @@ export class SyncService {
         }
       }
       await deleteDoc(docRef);
+      const normType = normalizeEntityType(collectionName);
+      const vaultId = getVaultDocId(normType, data.id);
+      await deleteDoc(doc(db, 'trips', this.tripId, 'private_credentials', vaultId)).catch(() => {});
+      if (vaultId !== data.id) {
+        await deleteDoc(doc(db, 'trips', this.tripId, 'private_credentials', data.id)).catch(() => {});
+      }
       console.log(`[Cloud Sync] Eliminato ${entityType} ${data.id}`);
     } else {
       // Protezione tombstone: evita di inviare al Cloud record con tombstone attivo non ricreati lecitamente
@@ -661,8 +698,34 @@ export class SyncService {
         }
       }
 
-      const cleanPayload = this.cleanUndefinedValues(payloadToSync);
-      await setDoc(docRef, cleanPayload, { merge: true });
+      const normType = normalizeEntityType(collectionName);
+      const isOperationalWithCreds = ['alloggio', 'trasporto', 'attivita', 'tappa', 'ristorante', 'shopping', 'documento'].includes(normType);
+
+      if (isOperationalWithCreds) {
+        const { publicDoc, privateCredentialsDoc } = splitEntitySecurityData(
+          normType as any,
+          this.tripId,
+          payloadToSync
+        );
+
+        const cleanPublic = this.cleanUndefinedValues(publicDoc);
+        await setDoc(docRef, cleanPublic, { merge: true });
+
+        if (privateCredentialsDoc && isCloudAuthorized()) {
+          const vaultId = getVaultDocId(normType, data.id);
+          const privDocRef = doc(db, 'trips', this.tripId, 'private_credentials', vaultId);
+          await setDoc(privDocRef, this.cleanUndefinedValues(privateCredentialsDoc), { merge: true });
+        } else if (!privateCredentialsDoc && isCloudAuthorized()) {
+          const vaultId = getVaultDocId(normType, data.id);
+          await deleteDoc(doc(db, 'trips', this.tripId, 'private_credentials', vaultId)).catch(() => {});
+          if (vaultId !== data.id) {
+            await deleteDoc(doc(db, 'trips', this.tripId, 'private_credentials', data.id)).catch(() => {});
+          }
+        }
+      } else {
+        const cleanPayload = this.cleanUndefinedValues(payloadToSync);
+        await setDoc(docRef, cleanPayload, { merge: true });
+      }
       if (entityType === 'settings' && typeof data?.id === 'string' && data.id.startsWith('tombstone_')) {
         await idbPut(STORES.SETTINGS, { ...data, value: { ...(data.value || {}), pending: false } }).catch(() => {});
       }
@@ -766,7 +829,18 @@ export class SyncService {
                   }
                 } catch (e) {}
                 
-                let itemToStore: any = { ...data };
+                let itemToStore: any = { ...data, id: docId };
+                if (isCloudAuthorized()) {
+                  const normType = normalizeEntityType(fb);
+                  const vaultId = getVaultDocId(normType, docId);
+                  try {
+                    const { getDoc } = await import('firebase/firestore');
+                    const privDocSnap = await getDoc(doc(db, 'trips', this.tripId, 'private_credentials', vaultId)).catch(() => null);
+                    if (privDocSnap && privDocSnap.exists()) {
+                      itemToStore = mergeEntitySecurityData(itemToStore, privDocSnap.data() as any);
+                    }
+                  } catch (e) {}
+                }
 
                 // Se l'item dal cloud ha allegati salvati in chunk, ricomponiamo i dataUrl
                 // preservando sempre i dataUrl locali se già presenti
@@ -843,6 +917,36 @@ export class SyncService {
       target.removeEventListener(type, listener);
     });
     this.domListeners = [];
+  }
+
+  public async purgeSensitiveLocalCache(): Promise<void> {
+    const storesToPurge = [
+      STORES.ALLOGGI,
+      STORES.TRASPORTI,
+      STORES.ATTIVITA,
+      STORES.TAPPE,
+      STORES.RISTORANTI,
+      STORES.SHOPPING,
+      STORES.SPESE
+    ];
+
+    for (const store of storesToPurge) {
+      try {
+        const records = await idbGetAll<any>(store);
+        for (const rec of records) {
+          if (!rec || !rec.id) continue;
+          if (store === STORES.SPESE) {
+            await idbDelete(store, rec.id);
+          } else {
+            const sanitized = sanitizePublicDocument(rec);
+            await idbPut(store, sanitized);
+          }
+        }
+      } catch (err) {
+        console.warn(`[SyncService] Errore bonifica cache locale per store ${store}:`, err);
+      }
+    }
+    console.log('[SyncService] Bonifica cache locale completata: rimosse credenziali sensibili da IndexedDB.');
   }
 
   private mapEntityToCollection(entity: string): string | null {
