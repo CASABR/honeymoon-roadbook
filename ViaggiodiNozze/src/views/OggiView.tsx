@@ -2,8 +2,9 @@ import { computePasseggiataSequences } from '../utils/passeggiataHelper';
 import PushOnboardingBanner from '../components/common/PushOnboardingBanner';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { MapPinPlus, Handshake } from 'lucide-react';
-import GoogleMapsIcon from '../components/icons/GoogleMapsIcon';
+import { MapPinPlus } from 'lucide-react';
+import { Handshake, ArrowRight } from 'lucide-react';
+// GoogleMapsIcon non è nel Focus: Maps e Dettagli rimangono sulla card originale
 import type { SectionTab, CategoriaTab, Alloggio, Giorno, TimelineItem, Attivita, Trasporto, Tappa, Ristorante, Shopping, Scadenza } from '../types';
 import { storageService } from '../storage/storageService';
 import TimelineItemDetailModal from '../components/modals/TimelineItemDetailModal';
@@ -35,7 +36,6 @@ import { computeDayFocalEvent } from '../utils/dayFocusPriority';
 import { getEffectiveDeadlineStatus, isDeadlineReminderActive } from '../utils/deadlines';
 import TimePickerInput from '../components/common/TimePickerInput';
 import { lookupKnownCoordinate } from '../utils/geoCoordinatesHelper';
-import { resolveMapUrl, getTransportMapTargets } from '../utils/mapsHelper';
 
 
 interface OggiViewProps {
@@ -86,10 +86,8 @@ function getDefaultSelectedDate(startDate?: string, endDate?: string, tripId?: s
 }
 
 export default function OggiView({ onNavigateTab }: OggiViewProps) {
-  const { canEdit, role } = useDeviceRole();
-  const isExternalLiveView = typeof window !== 'undefined' && (new URLSearchParams(window.location.search).get('live') === '1' || (window.location.hash || '').toLowerCase().includes('live'));
-  const canSeePrivateInfo = !isExternalLiveView && (role === 'guida' || role === 'copilota');
-  const tripConfig = getTripConfig();
+  const { canEdit } = useDeviceRole();
+      const tripConfig = getTripConfig();
   const isMasterTrip = !tripConfig || tripConfig.id === '0000';
   const tripId = tripConfig?.id || '0000';
 
@@ -109,8 +107,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [daysData, setDaysData] = useState<Giorno[]>([]);
   const [, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState<boolean>(() => (typeof navigator !== 'undefined' ? navigator.onLine : true));
-  const [bookingCodeCopied, setBookingCodeCopied] = useState(false);
-  useEffect(() => {
+    useEffect(() => {
     const loadDeadlines = async () => setDeadlines(await storageService.getScadenze());
     loadDeadlines();
     const handleMutation = (event: Event) => {
@@ -263,6 +260,32 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const selectedDayBtnRef = useRef<HTMLButtonElement>(null);
   const insertMenuInputRef = useRef<HTMLInputElement>(null);
   const timelineItemRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
+  // Evidenziazione e scorrimento automatico diretto alla card originale nella timeline
+  const [highlightedCardId, setHighlightedCardId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scrollToTimelineCard = useCallback((itemId: string) => {
+    if (!itemId) return;
+    const targetEl = timelineItemRefs.current[itemId] ||
+                     timelineItemRefs.current[`lodging_${itemId}`] ||
+                     document.getElementById(`timeline-card-${itemId}`) ||
+                     document.getElementById(`timeline-card-lodging_${itemId}`);
+    if (targetEl) {
+      targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedCardId(itemId);
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+      highlightTimerRef.current = setTimeout(() => {
+        setHighlightedCardId(null);
+      }, 2200);
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    };
+  }, []);
 
   // Modali Dettaglio e Modifica
   const [detailItem, setDetailItem] = useState<TimelineItem | null>(null);
@@ -993,27 +1016,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
   const nextEventItem = focalResult.focalItem;
 
-  const nextEventBookingCode = useMemo(() => {
-    if (!canSeePrivateInfo || !nextEventItem?.originalData) return null;
-    const orig = nextEventItem.originalData as any;
-    return orig.bookingCode || orig.codicePrenotazione || orig.pnr || orig.conferma || orig.bookingReference || null;
-  }, [nextEventItem, canSeePrivateInfo]);
-
-  const nextEventMapUrl = useMemo(() => {
-    if (!nextEventItem) return '';
-    if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
-      const targets = getTransportMapTargets(nextEventItem.originalData as Trasporto);
-      return targets.departureUrl || targets.pickupUrl || targets.primaryUrl || targets.arrivalUrl || '';
-    }
-    if (nextEventItem.coordinate) {
-      return `https://www.google.com/maps/search/?api=1&query=${nextEventItem.coordinate.lat},${nextEventItem.coordinate.lng}`;
-    }
-    if (nextEventItem.location) {
-      return resolveMapUrl(nextEventItem.location);
-    }
-    return '';
-  }, [nextEventItem]);
-
+  
+  
   const deadlineSummary = useMemo(() => {
     const active = deadlines.filter(item => getEffectiveDeadlineStatus(item) !== 'completata');
     const reminders = active.filter(item => isDeadlineReminderActive(item));
@@ -1220,12 +1224,20 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           if (isViewingOtherDate) {
             if (!nextEventItem) return null;
 
-            const hasTerminal = nextEventItem.type === 'trasporto' && nextEventItem.originalData && (nextEventItem.originalData as Trasporto).terminalGate;
-            const hasPosti = nextEventItem.type === 'trasporto' && nextEventItem.originalData && (nextEventItem.originalData as Trasporto).posti;
-            const hasChips = Boolean(hasTerminal || hasPosti || nextEventBookingCode);
-
             return (
-              <div className="bg-white dark:bg-[#172033] text-slate-900 dark:text-white rounded-xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] px-3 py-2 sm:px-3.5 sm:py-2.5 shadow-xs space-y-1.5">
+              <div
+                onClick={() => scrollToTimelineCard(nextEventItem.id)}
+                className="bg-white dark:bg-[#172033] text-slate-900 dark:text-white rounded-xl border border-slate-200 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] px-3 py-2 sm:px-3.5 sm:py-2.5 shadow-xs space-y-1.5 cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors group"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    scrollToTimelineCard(nextEventItem.id);
+                  }
+                }}
+                title="Tocca per andare alla card nella timeline"
+              >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF6B5F] dark:text-[#ff9a90] flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F]" />
@@ -1260,75 +1272,19 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {nextEventMapUrl && (
-                      <a
-                        href={nextEventMapUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-[#FF6B5F] hover:bg-[#fa5547] text-white text-xs font-extrabold transition-colors cursor-pointer shadow-2xs"
-                        title="Apri su Google Maps"
-                      >
-                        <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" />
-                        <span>Maps</span>
-                        <span className="text-[10px] opacity-80">↗</span>
-                      </a>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setDetailItem(nextEventItem)}
-                      className="px-2.5 py-1 rounded-md bg-slate-100 hover:bg-slate-200 dark:bg-white/12 dark:hover:bg-white/20 text-slate-700 dark:text-white text-xs font-extrabold transition-all cursor-pointer border border-slate-200 dark:border-white/15"
-                    >
-                      Dettagli →
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      scrollToTimelineCard(nextEventItem.id);
+                    }}
+                    className="p-1 rounded-md text-slate-400 group-hover:text-[#FF6B5F] dark:text-slate-400 dark:group-hover:text-[#ff9a90] group-hover:translate-x-0.5 transition-all shrink-0 cursor-pointer"
+                    aria-label="Raggiungi card nella timeline"
+                    title="Raggiungi card nella timeline"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
                 </div>
-
-                {hasChips && (
-                  <div className="flex items-center gap-1.5 flex-wrap pt-0.5 text-[10px]">
-                    {hasTerminal && (
-                      <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/12">
-                        <span className="font-extrabold uppercase text-slate-500 dark:text-slate-400">
-                          {(nextEventItem.originalData as Trasporto).type === 'treno' ? 'Bin.' : 'Gate'}
-                        </span>
-                        <span className="font-mono font-extrabold text-slate-800 dark:text-white">
-                          {(nextEventItem.originalData as Trasporto).terminalGate}
-                        </span>
-                      </div>
-                    )}
-                    {hasPosti && (
-                      <div className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 dark:bg-white/8 border border-slate-200 dark:border-white/12">
-                        <span className="font-extrabold uppercase text-slate-500 dark:text-slate-400">Posti</span>
-                        <span className="font-extrabold text-slate-800 dark:text-white">
-                          {(nextEventItem.originalData as Trasporto).posti}
-                        </span>
-                      </div>
-                    )}
-                    {nextEventBookingCode && (
-                      <button
-                        type="button"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          try {
-                            await navigator.clipboard.writeText(nextEventBookingCode);
-                          } catch {}
-                          setBookingCodeCopied(true);
-                          setTimeout(() => setBookingCodeCopied(false), 2000);
-                        }}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-50 dark:bg-white/8 hover:bg-slate-100 dark:hover:bg-white/15 border border-slate-200 dark:border-white/15 text-left transition-colors cursor-pointer"
-                        title="Copia codice di prenotazione / PNR"
-                      >
-                        <span className="font-extrabold uppercase text-slate-500 dark:text-slate-400">
-                          PNR {bookingCodeCopied ? '✓' : ''}
-                        </span>
-                        <span className="font-mono font-extrabold text-[#FF6B5F] dark:text-[#FF9B92]">
-                          {nextEventBookingCode}
-                        </span>
-                      </button>
-                    )}
-                  </div>
-                )}
               </div>
             );
           }
@@ -1404,7 +1360,19 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
           // Durante il viaggio nella data odierna: prossimo passo attivo
           return (
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] p-3.5 sm:p-4 shadow-xs space-y-2.5">
+            <div
+              onClick={() => nextEventItem && scrollToTimelineCard(nextEventItem.id)}
+              className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200/90 dark:border-slate-800 border-l-4 border-l-[#FF6B5F] px-3 py-2 sm:px-3.5 sm:py-2.5 shadow-xs space-y-1.5 cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors group"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && nextEventItem) {
+                  e.preventDefault();
+                  scrollToTimelineCard(nextEventItem.id);
+                }
+              }}
+              title="Tocca per andare alla card nella timeline"
+            >
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#FF6B5F] flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-[#FF6B5F] animate-pulse" />
@@ -1412,82 +1380,47 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 </span>
 
                 {nextEventItem?.time ? (
-                  <span className="font-mono text-xs font-black text-[#172033] dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200/60 dark:border-slate-700">
-                    ⏰ {nextEventItem.time} {nextEventItem.timeStatus === 'indicativo' ? '· indicativo' : ''}
+                  <span className="font-mono text-xs font-black text-[#172033] dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200/60 dark:border-slate-700">
+                    ORE {nextEventItem.time}{nextEventItem.timeStatus === 'indicativo' ? ' · IND.' : ''}
                   </span>
                 ) : nextEventItem ? (
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md">
-                    Orario non specificato
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                    Orario libero
                   </span>
                 ) : null}
               </div>
 
               {nextEventItem ? (
-                <div className="space-y-2">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-sm sm:text-base font-extrabold text-[#172033] dark:text-white leading-snug">
-                        {nextEventItem.title}
-                      </h2>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 flex items-center gap-1 truncate">
-                        <span>📍</span>
-                        <span className="truncate">
-                          {(() => {
-                            if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
-                              const tr = nextEventItem.originalData as Trasporto;
-                              const dep = tr.departureLocation || nextEventItem.location;
-                              const arr = tr.dropoffLocation || tr.arrivalLocation;
-                              if (dep && arr && dep !== arr) return `${dep} ➔ ${arr}`;
-                            }
-                            return nextEventItem.location || 'Posizione da itinerario';
-                          })()}
-                        </span>
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setDetailItem(nextEventItem)}
-                      className="shrink-0 px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-[#172033] hover:text-white dark:hover:bg-white dark:hover:text-[#172033] text-slate-700 dark:text-slate-200 text-xs font-bold transition-all cursor-pointer border border-slate-200 dark:border-slate-700"
-                    >
-                      Dettagli ➔
-                    </button>
+                <div className="flex items-center justify-between gap-2.5">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight truncate">
+                      {nextEventItem.title}
+                    </h2>
+                    <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5 truncate">
+                      {(() => {
+                        if (nextEventItem.type === 'trasporto' && nextEventItem.originalData) {
+                          const tr = nextEventItem.originalData as Trasporto;
+                          const dep = tr.departureLocation || nextEventItem.location;
+                          const arr = tr.dropoffLocation || tr.arrivalLocation;
+                          if (dep && arr && dep !== arr) return `${dep} → ${arr}`;
+                        }
+                        return nextEventItem.location || 'Posizione da itinerario';
+                      })()}
+                    </p>
                   </div>
 
-                  {/* Azioni Rapide: PNR, Mappa, Voucher */}
-                  <div className="flex items-center gap-2 flex-wrap pt-0.5 text-[11px]">
-                    {nextEventBookingCode && (
-                      <button
-                        type="button"
-                        onClick={async (e) => {
-                          e.stopPropagation();
-                          try {
-                            await navigator.clipboard.writeText(nextEventBookingCode);
-                            setBookingCodeCopied(true);
-                            setTimeout(() => setBookingCodeCopied(false), 2000);
-                          } catch {}
-                        }}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 font-bold border border-indigo-200/60 dark:border-indigo-800/60 transition-colors cursor-pointer text-[11px]"
-                        title="Clicca per copiare il codice di prenotazione / PNR"
-                      >
-                        <span>🎫</span>
-                        <span className="font-mono">PNR: {nextEventBookingCode}</span>
-                        <span className="text-[9px] opacity-70 ml-0.5 font-sans">{bookingCodeCopied ? '✓ Copiato' : 'Copia'}</span>
-                      </button>
-                    )}
-                    {nextEventMapUrl && (
-                      <a
-                        href={nextEventMapUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-50 dark:bg-sky-950/40 text-sky-700 dark:text-sky-300 font-bold border border-sky-200/60 dark:border-sky-800/60 hover:bg-sky-100 dark:hover:bg-sky-900/60 transition-colors cursor-pointer"
-                      >
-                        <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" />
-                        <span>Naviga su Maps ↗</span>
-                      </a>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      scrollToTimelineCard(nextEventItem.id);
+                    }}
+                    className="p-1 rounded-md text-slate-400 group-hover:text-[#FF6B5F] dark:text-slate-400 dark:group-hover:text-[#ff9a90] group-hover:translate-x-0.5 transition-all shrink-0 cursor-pointer"
+                    aria-label="Raggiungi card nella timeline"
+                    title="Raggiungi card nella timeline"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
                 </div>
               ) : (
                 <div className="py-1">
@@ -2004,8 +1937,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     return (
                       <div
                         key={item.id}
+                        id={`timeline-card-${item.id}`}
                         ref={(el) => { timelineItemRefs.current[item.id] = el; }}
-                        className="hounigo-timeline-item"
+                        className={`hounigo-timeline-item transition-all duration-300 ${highlightedCardId === item.id ? 'hounigo-card-highlighted' : ''}`}
                         style={{ animationDelay: `${Math.min(idx * 28, 168)}ms` }}
                       >
                         {isCheckinCallout ? (
@@ -2262,9 +2196,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
                 {tonightsAccommodation ? (
                   <div
+                    id={`timeline-card-lodging_${tonightsAccommodation.id}`}
                     ref={(el) => {
                       timelineItemRefs.current[`lodging_${tonightsAccommodation.id}`] = el;
+                      timelineItemRefs.current[tonightsAccommodation.id] = el;
                     }}
+                    className={`transition-all duration-300 ${(highlightedCardId === tonightsAccommodation.id || highlightedCardId === `lodging_${tonightsAccommodation.id}`) ? 'hounigo-card-highlighted' : ''}`}
                   >
                     <AlloggioCard
                       accommodation={tonightsAccommodation}
