@@ -7,11 +7,11 @@ service cloud.firestore {
     // HOUNIGO — SECURITY RULES IN MODALITÀ LOCKDOWN TEMPORANEO (P0 MIGRAZIONE)
     // =========================================================================
     // Obiettivo:
-    // 1. Zero Exposure Window: Viewer e non-autenticati non possono leggere
-    //    le collezioni condivise durante la migrazione.
-    // 2. Anti-Injection: anche i client Owner/Copilota con vecchio codice
-    //    NON possono riscrivere campi sensibili nelle collezioni condivise.
-    // 3. Cassaforte e sottocollezioni riservate accessibili solo a Privileged.
+    // 1. Zero Exposure Window: Viewer bloccati in lettura su collezioni condivise.
+    // 2. Anti-Concurrency Freeze: blocco totale delle scritture client su trip '0000'
+    //    per prevenire modifiche concorrenti durante la migrazione.
+    // 3. Schema Guard: blocco rigido su chiavi sensibili anche per altri viaggi.
+    // 4. Lo script di migrazione opera via Firebase Admin SDK (bypassando le rules).
     // =========================================================================
 
     function isSignedIn() {
@@ -67,39 +67,45 @@ service cloud.firestore {
     }
 
     match /trips/{tripId} {
-      // In Lockdown: Solo Owner o Privileged Member può leggere o aggiornare
+      // In Lockdown: Solo Owner o Privileged Member può leggere
       allow get: if isTripPrivilegedMember(tripId) || isGlobalAdmin();
       allow list: if isGlobalAdmin();
       allow create: if isSignedIn()
                       && (request.resource.data.get('ownerUid', null) == request.auth.uid || request.resource.data.get('ownerId', null) == request.auth.uid);
-      allow update: if isTripOwner(tripId);
-      allow delete: if false; // Blocco assoluto eliminazione viaggio durante migrazione
+      // Blocco scritture client su viaggio 0000 durante lockdown
+      allow update: if isTripOwner(tripId) && tripId != '0000';
+      allow delete: if false;
 
       // Gestione membri durante lockdown
       match /members/{uid} {
         allow read: if isTripPrivilegedMember(tripId) || isGlobalAdmin();
-        allow write: if isTripOwner(tripId);
+        allow write: if isTripOwner(tripId) && tripId != '0000';
       }
 
-      // Cassaforte credenziali (solo Privileged)
+      // Cassaforte credenziali (solo Privileged, freeze su 0000 per client)
       match /private_credentials/{docId} {
-        allow read, write: if isTripPrivilegedMember(tripId);
+        allow read: if isTripPrivilegedMember(tripId);
+        allow write: if isTripPrivilegedMember(tripId) && tripId != '0000';
       }
 
-      // Sottocollezioni documentali e contabili (solo Privileged)
+      // Sottocollezioni documentali e contabili (solo Privileged, freeze su 0000 per client)
       match /documenti/{docId} {
-        allow read, write: if isTripPrivilegedMember(tripId);
+        allow read: if isTripPrivilegedMember(tripId);
+        allow write: if isTripPrivilegedMember(tripId) && tripId != '0000';
       }
       match /spese/{docId} {
-        allow read, write: if isTripPrivilegedMember(tripId);
+        allow read: if isTripPrivilegedMember(tripId);
+        allow write: if isTripPrivilegedMember(tripId) && tripId != '0000';
       }
       match /note/{docId} {
-        allow read, write: if isTripPrivilegedMember(tripId);
+        allow read: if isTripPrivilegedMember(tripId);
+        allow write: if isTripPrivilegedMember(tripId) && tripId != '0000';
       }
 
       // Sottocollezioni operative in LOCKDOWN:
       // - Lettura: RISERVATA A PRIVILEGED (Viewer bloccato durante migrazione!)
-      // - Scrittura: solo Privileged E Schema Guard obbligatorio (blocca vecchi client)
+      // - Scrittura: congelata per tutti i client su viaggio 0000 (anti-concorrenza),
+      //   protetta da Schema Guard per altri viaggi
       match /{subcol}/{docId} {
         allow read: if subcol in [
                          'tappe', 'attivita', 'alloggi', 'trasporti',
@@ -113,6 +119,7 @@ service cloud.firestore {
                                    'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
                                    'locks', 'devices'
                                  ]
+                                 && tripId != '0000'
                                  && isTripPrivilegedMember(tripId)
                                  && hasNoSensitiveKeys(request.resource.data);
 
@@ -121,18 +128,18 @@ service cloud.firestore {
                            'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
                            'locks', 'devices'
                          ]
+                         && tripId != '0000'
                          && isTripPrivilegedMember(tripId);
       }
     }
 
     match /live_feeds/{tripId} {
       allow read: if true;
-      allow write: if isTripPrivilegedMember(tripId);
+      allow write: if isTripPrivilegedMember(tripId) && tripId != '0000';
       match /updates/{updateId} {
         allow read: if true;
-        allow write: if isTripPrivilegedMember(tripId);
+        allow write: if isTripPrivilegedMember(tripId) && tripId != '0000';
       }
     }
   }
 }
-

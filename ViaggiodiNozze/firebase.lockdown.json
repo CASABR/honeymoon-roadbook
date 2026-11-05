@@ -1,0 +1,9 @@
+{
+  "firestore": {
+    "rules": "firestore.rules.lockdown"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}
+
