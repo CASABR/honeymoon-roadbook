@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.5 — 2026-11-05
+
+- Icona ufficiale vettoriale Google Maps per tutti i collegamenti e percorsi.
+- Focus della giornata compatto con pulsanti Maps e Dettagli allineati.
+- Footer card responsive: etichette visibili e collasso a sola icona se forzati ad andare a capo.
+
 ## 1.5.4 — 2026-11-05
 
 - Footer card compatti con sole icone su mobile, pulsante PNR e desk ritiro trasporti.

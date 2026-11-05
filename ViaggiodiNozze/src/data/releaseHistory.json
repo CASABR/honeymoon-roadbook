@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.5",
+      "publishedAt": "2026-11-05",
+      "sourceCommit": "1beb24d",
+      "changes": [
+        "Icona ufficiale vettoriale Google Maps per tutti i collegamenti e percorsi.",
+        "Focus della giornata compatto con pulsanti Maps e Dettagli allineati.",
+        "Footer card responsive: etichette visibili e collasso a sola icona se forzati ad andare a capo."
+      ]
+    },
+    {
       "version": "1.5.4",
       "publishedAt": "2026-11-05",
       "sourceCommit": "67dbac8",
@@ -88,16 +98,6 @@
         "Timeline cronologica corretta, card più leggibili, orari evidenziati, soste fotografiche e Taxi.",
         "Migliorati desktop e popup, note riordinabili, allegati, Biglietti e QR.",
         "Smart Import con approvazione individuale e nuova area informazioni con versione e cronologia."
-      ]
-    },
-    {
-      "version": "1.0.0",
-      "publishedAt": "2026-10-29",
-      "sourceCommit": "573477f",
-      "changes": [
-        "Migliorata l’esperienza desktop e la coerenza delle schede.",
-        "Ridotte le letture Firestore ripetute durante l’apertura del viaggio.",
-        "Rimossi dal pacchetto pubblico i contenuti precompilati non necessari."
       ]
     }
   ]
