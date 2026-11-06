@@ -116,7 +116,7 @@ export default function UniversalCopilotaModal({
             {showSavedFeedback ? (
               <>
                 <Check className="w-5 h-5" />
-                Salvato!
+                Salvato sul dispositivo
               </>
             ) : isSaving ? (
               'Salvataggio...'

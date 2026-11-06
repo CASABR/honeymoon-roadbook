@@ -14,13 +14,13 @@ export default function NotificationBellButton() {
   const isPending = push.state === 'browser-only' || push.state === 'server-unavailable' || push.state === 'error';
   const isOffOrBlocked = !isActive && !isPending;
 
-  let tooltip = 'Notifiche non attive. Tocca per attivare.';
+  let tooltip = 'Notifiche: Disattivate. Tocca per attivare.';
   if (isActive) {
-    tooltip = 'Notifiche attive per questo viaggio.';
+    tooltip = 'Notifiche: Attive (confermate dal server).';
   } else if (isPending) {
-    tooltip = 'Attivazione notifiche da completare. Tocca per sincronizzare.';
+    tooltip = 'Notifiche: Da verificare. Tocca per verificare con il server.';
   } else if (push.permission === 'denied') {
-    tooltip = 'Notifiche bloccate nelle impostazioni del dispositivo.';
+    tooltip = 'Notifiche: Bloccate nelle impostazioni del dispositivo.';
   }
 
   return (
@@ -30,7 +30,7 @@ export default function NotificationBellButton() {
         onClick={() => setIsModalOpen(true)}
         className="relative flex items-center justify-center w-8 h-8 rounded-full bg-slate-200/60 dark:bg-slate-800 hover:bg-slate-300/60 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer focus-visible:ring-2 focus-visible:ring-[#FF6B5F] outline-hidden"
         title={tooltip}
-        aria-label={isActive ? 'Notifiche attive' : isPending ? 'Attivazione notifiche da completare' : 'Notifiche non attive'}
+        aria-label={isActive ? 'Notifiche: Attive' : isPending ? 'Notifiche: Da verificare' : 'Notifiche: Disattivate'}
       >
         {/* Icona Campanella SVG */}
         <svg

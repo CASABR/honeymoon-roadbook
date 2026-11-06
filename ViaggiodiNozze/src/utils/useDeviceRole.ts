@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import type { DeviceRole } from '../types';
 import { storageService } from '../storage/storageService';
-import { getSimulatedRole, type SimulatedRole, useAuthIdentity, type CloudRole } from './useAuthIdentity';
+import { getSimulatedRole, type SimulatedRole, useAuthIdentity, type CloudRole, isTripAuthRevoked } from './useAuthIdentity';
+import { getTripConfig } from './tripConfig';
 
 export function useDeviceRole(): {
   role: DeviceRole;
@@ -37,8 +38,12 @@ export function useDeviceRole(): {
       storageService.setDeviceRole('copilota');
       setRole('copilota');
     } else if (cloudRole === 'viewer' && role !== 'viewer') {
-      storageService.setDeviceRole('viewer');
-      setRole('viewer');
+      const tripConfig = getTripConfig();
+      const currentTripId = tripConfig?.id || '0000';
+      if (isTripAuthRevoked(currentTripId)) {
+        storageService.setDeviceRole('viewer');
+        setRole('viewer');
+      }
     }
   }, [cloudRole, role]);
 

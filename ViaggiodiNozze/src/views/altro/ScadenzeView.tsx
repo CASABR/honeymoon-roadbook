@@ -74,6 +74,7 @@ export default function ScadenzeView({ onBack }: ScadenzeViewProps) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [filter, setFilter] = useState<'attive' | 'tutte'>('attive');
+  const [savedToast, setSavedToast] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     const [items, activities, accommodations, transports, stops] = await Promise.all([
@@ -173,6 +174,8 @@ export default function ScadenzeView({ onBack }: ScadenzeViewProps) {
       });
       setIsModalOpen(false);
       await loadData();
+      setSavedToast('Salvato sul dispositivo');
+      setTimeout(() => setSavedToast(null), 3000);
     } finally {
       setSaving(false);
     }
@@ -208,6 +211,12 @@ export default function ScadenzeView({ onBack }: ScadenzeViewProps) {
         <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${reminderCount ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800'}`}>{reminderCount} attivi</span>
       </div>
 
+      {savedToast && (
+        <div className="mb-3 px-3.5 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-bold flex items-center gap-2 animate-fade-in shadow-xs" role="status">
+          <Check size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+          <span>{savedToast}</span>
+        </div>
+      )}
       <div className="flex gap-2 mb-4" role="group" aria-label="Filtra scadenze">
         {(['attive', 'tutte'] as const).map(value => <button key={value} type="button" onClick={() => setFilter(value)} className={`px-3 py-2 rounded-xl text-xs font-bold ${filter === value ? 'bg-[#172033] text-white dark:bg-white dark:text-[#172033]' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>{value === 'attive' ? 'Attive' : 'Tutte'}</button>)}
       </div>

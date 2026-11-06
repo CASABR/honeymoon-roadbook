@@ -89,6 +89,8 @@ export function revokeTripAuth(tripId: string): void {
     localStorage.setItem(`houni_revoked_trip_${tripId}`, 'true');
     localStorage.setItem('houni_device_role', 'viewer');
     localStorage.setItem('app_device_role', 'viewer');
+    setAuthoritativeCloudRole('viewer');
+    window.dispatchEvent(new CustomEvent('houni_trip_auth_revoked', { detail: { tripId } }));
   } catch {}
 }
 
@@ -107,8 +109,20 @@ export function isCloudAuthorized(targetTripId?: string): boolean {
     if (sim === 'owner' || sim === 'copilota') return true;
     if (sim === 'viewer') return false;
   }
-  // 1. Un ruolo Viewer confermato revoca categoricamente qualsiasi autorizzazione di modifica
+  // 1. Se il ruolo è viewer, verifica se il dispositivo ha credenziali verificate offline (e non revocato)
   if (authoritativeCloudRole === 'viewer') {
+    const config = getTripConfig();
+    const currentTripId = targetTripId || config?.id || '0000';
+    if (!isTripAuthRevoked(currentTripId)) {
+      const verified = getVerifiedTripAuth(currentTripId);
+      if (verified && (verified.role === 'owner' || verified.role === 'copilota')) {
+        return true;
+      }
+      const localRole = getLocalDeviceRole();
+      if (localRole === 'guida' || localRole === 'copilota') {
+        return true;
+      }
+    }
     return false;
   }
 
@@ -290,8 +304,27 @@ export function useAuthIdentity(): AuthIdentityState {
         return;
       }
 
-      // 2. Utente non autenticato -> Viewer / Ospite confermato
-      if (!currentUser) {
+      // Attendi che Firebase Auth sia pronto prima di prendere decisioni definitive
+      if (auth && typeof (auth as any).authStateReady === 'function') {
+        try {
+          await (auth as any).authStateReady();
+        } catch {}
+      }
+      const activeUser = auth?.currentUser || currentUser;
+      // 2. Utente non autenticato -> verifica credenziali offline persistite prima di declassare a viewer
+      if (!activeUser) {
+        if (!isTripAuthRevoked(tripId)) {
+          const verified = getVerifiedTripAuth(tripId);
+          if (verified && (verified.role === 'owner' || verified.role === 'copilota')) {
+            updateRole(verified.role);
+            return;
+          }
+          const localRole = getLocalDeviceRole();
+          if (localRole === 'guida' || localRole === 'copilota') {
+            updateRole(localRole === 'guida' ? 'owner' : 'copilota');
+            return;
+          }
+        }
         updateRole('viewer');
         return;
       }
@@ -328,21 +361,21 @@ export function useAuthIdentity(): AuthIdentityState {
         }
 
         // 1. Owner effettivo del viaggio verificato da Firestore
-        if (remoteOwnerUid && currentUser.uid === remoteOwnerUid) {
-          recordVerifiedTripAuth(tripId, currentUser.uid, 'owner');
+        if (remoteOwnerUid && activeUser.uid === remoteOwnerUid) {
+          recordVerifiedTripAuth(tripId, activeUser.uid, 'owner');
           updateRole('owner');
           return;
         }
 
         // 2. Copilota presente nell'array members del documento radice
-        if (remoteMembers.includes(currentUser.uid)) {
-          recordVerifiedTripAuth(tripId, currentUser.uid, 'copilota');
+        if (remoteMembers.includes(activeUser.uid)) {
+          recordVerifiedTripAuth(tripId, activeUser.uid, 'copilota');
           updateRole('copilota');
           return;
         }
 
         // 3. Verifica opzionale nella sottocollezione /trips/{tripId}/members/{uid}
-        const memRef = doc(db, 'trips', tripId, 'members', currentUser.uid);
+        const memRef = doc(db, 'trips', tripId, 'members', activeUser.uid);
         const memSnap = await getDoc(memRef).catch(() => null);
         if (memSnap?.exists()) {
           const memRole = memSnap.data()?.role;

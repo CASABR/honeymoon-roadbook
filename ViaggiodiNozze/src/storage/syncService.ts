@@ -12,6 +12,7 @@ import {
   normalizeEntityType,
   sanitizePublicDocument
 } from '../utils/securityDataSplitter';
+import { savePendingMutation, removePendingMutation, getPendingMutations, hasPendingMutation, clearPendingMutations, type PendingMutation } from './localMutationQueue';
 
 export class SyncService {
   private unsubscribes: (() => void)[] = [];
@@ -19,14 +20,14 @@ export class SyncService {
   private tripId: string;
   private isSyncing = false;
   private pendingSyncRequest = false;
-  private pendingPushQueue: { entityType: string; action: 'save' | 'delete'; data: any; notifyCollaborators: boolean; mutationId?: string }[] = [];
-  private autoSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+    private autoSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
   private isDestroyed = false;
   private pendingSyncTimeout: ReturnType<typeof setTimeout> | null = null;
   private initialSyncRequested = false;
 
   constructor(tripId: string) {
     this.tripId = tripId;
+    this.cleanupLegacySettingsQueue().catch(() => {});
     this.setupLocalListeners();
     this.setupCloudListeners();
     // Avvia sincronizzazione iniziale solo se già autorizzati, altrimenti il listener houni_cloud_role_changed la avvierà non appena confermato
@@ -309,6 +310,34 @@ export class SyncService {
           const localUpdated = normalizeTimestamp(localData?.updatedAt);
           const serverUpdated = normalizeTimestamp(serverData?.updatedAt);
 
+          const normType = normalizeEntityType(fb);
+          const vaultId = getVaultDocId(normType, docId);
+          const privData = credentialsMap.get(vaultId) || credentialsMap.get(docId);
+
+          // VERIFICA RECUPERO PREZZI P0: Se l'utente è Owner/Copilota e la copia locale ha perso i prezzi
+          // (cache precedentemente sanitizzata), ricostruisci automaticamente dalla cassaforte ANCHE a timestamp uguali!
+          const needsPrivateReconstruction = Boolean(privData && localData && (
+            (privData.cost !== undefined && localData.cost === undefined && localData.costo === undefined) ||
+            (privData.costo !== undefined && localData.cost === undefined && localData.costo === undefined) ||
+            (privData.acconto !== undefined && localData.acconto === undefined) ||
+            (privData.depositPaid !== undefined && localData.depositPaid === undefined) ||
+            (privData.deposit !== undefined && localData.deposit === undefined) ||
+            (privData.budget !== undefined && localData.budget === undefined) ||
+            (privData.paymentStatus !== undefined && localData.paymentStatus === undefined) ||
+            (privData.bookingCode !== undefined && localData.bookingCode === undefined && localData.pnr === undefined && localData.codicePrenotazione === undefined) ||
+            (privData.pnr !== undefined && localData.pnr === undefined && localData.bookingCode === undefined) ||
+            (privData.pinCode !== undefined && localData.pinCode === undefined && localData.pin === undefined) ||
+            (Array.isArray(privData.attachments) && (!Array.isArray(localData.attachments) || localData.attachments.length < privData.attachments.length))
+          ));
+
+          if (needsPrivateReconstruction) {
+            console.log(`[SyncService] Recupero automatico prezzi da cassaforte per ${fb}/${docId} (timestamp uguale)`);
+            let reconstructed = mergeEntitySecurityData(localData, privData);
+            await idbPut(store, reconstructed);
+            pulledCount++;
+            continue;
+          }
+
           if (localData && localUpdated > 0 && localUpdated > serverUpdated) {
             // Local is newer: push to cloud solo se autorizzati
             if (!isCloudAuthorized()) {
@@ -323,8 +352,7 @@ export class SyncService {
             }
             pushedCount++;
           } else if (localData && localUpdated > 0 && localUpdated === serverUpdated) {
-            // Local e Cloud hanno esattamente lo stesso timestamp: il dato locale è già allineato,
-            // NON sovrascrivere la copia locale per evitare regressioni di orario o campi legacy.
+            // Local e Cloud hanno esattamente lo stesso timestamp: il dato locale è già allineato
             continue;
           } else {
             // Cloud is newer or local item missing: store locally, reconstructing chunks if needed
@@ -334,6 +362,10 @@ export class SyncService {
             const privData = credentialsMap.get(vaultId) || credentialsMap.get(docId);
             if (privData) {
               itemToStore = mergeEntitySecurityData(itemToStore, privData);
+            } else if (localData) {
+              // PRESERVAZIONE DATI PRIVATI: Se la cassaforte remota non è accessibile (lockdown o offline),
+              // non azzerare mai i dati economici e sensibili già presenti nella copia locale!
+              itemToStore = mergeEntitySecurityData(itemToStore, localData);
             }
             if (Array.isArray(itemToStore.attachments) && itemToStore.attachments.length > 0) {
               const resolved = [];
@@ -510,6 +542,13 @@ export class SyncService {
       }
     }) as EventListener);
 
+        this.addDomListener(window, 'houni_trip_auth_revoked', (async (e: Event) => {
+      const revokedTripId = (e as CustomEvent)?.detail?.tripId;
+      console.log(`[SyncService] Ricevuta revoca autorizzazioni per viaggio ${revokedTripId}: bonifica cache e svuotamento code.`);
+      await this.purgeSensitiveLocalCache();
+      await clearPendingMutations(this.tripId);
+    }) as EventListener);
+
     this.addDomListener(window, 'force_cloud_sync_requested', (async () => {
       console.log('[SyncService] Avvio sincronizzazione forzata verso il cloud...');
       try {
@@ -528,12 +567,7 @@ export class SyncService {
         this.flushPendingPushes().catch(() => {});
         this.requestInitialSync('cloud_role_authorized');
       } else if (role === 'viewer') {
-        // Bonifica solo se esplicitamente viewer e se il ruolo locale non è già guida o copilota
-        const localRole = typeof localStorage !== 'undefined' ? (localStorage.getItem('houni_device_role') || localStorage.getItem('app_device_role')) : 'viewer';
-        if (localRole !== 'guida' && localRole !== 'copilota') {
-          console.log(`[SyncService] Rilevato ruolo viewer: avvio bonifica cache locale.`);
-          this.purgeSensitiveLocalCache().catch(() => {});
-        }
+        // La cache locale NON viene bonificata automaticamente per evitare perdite di dati off-line
       }
     }) as EventListener);
 
@@ -564,11 +598,57 @@ export class SyncService {
     return result;
   }
 
+
+  private async getPendingPushesFromStore(): Promise<PendingMutation[]> {
+    return getPendingMutations(this.tripId);
+  }
+
+  private async persistPendingPush(item: { entityType: string; action: 'save' | 'delete'; data: any; notifyCollaborators?: boolean; mutationId?: string }): Promise<void> {
+    await savePendingMutation({
+      tripId: this.tripId,
+      entityType: item.entityType,
+      action: item.action,
+      data: item.data,
+      notifyCollaborators: item.notifyCollaborators,
+      mutationId: item.mutationId
+    });
+    this.emitSyncStatus();
+  }
+
+  private async removePendingPushFromStore(entityType: string, dataId: string): Promise<void> {
+    await removePendingMutation(entityType, dataId);
+    this.emitSyncStatus();
+  }
+
+  private async cleanupLegacySettingsQueue(): Promise<void> {
+    try {
+      const allSettings = await idbGetAll<any>(STORES.SETTINGS);
+      for (const s of allSettings) {
+        if (s && typeof s.id === 'string' && s.id.startsWith('pending_push_')) {
+          await idbDelete(STORES.SETTINGS, s.id);
+        }
+      }
+    } catch {}
+  }
+
+  private emitSyncStatus(): void {
+    if (typeof window === 'undefined') return;
+    this.getPendingPushesFromStore().then(queue => {
+      window.dispatchEvent(new CustomEvent('roadbook_sync_status_changed', {
+        detail: {
+          hasPending: queue.length > 0,
+          pendingCount: queue.length,
+          status: queue.length > 0 ? 'local_only' : 'synced'
+        }
+      }));
+    }).catch(() => {});
+  }
+
   private async flushPendingPushes(): Promise<void> {
-    if (!isCloudAuthorized() || this.pendingPushQueue.length === 0) return;
-    const queue = [...this.pendingPushQueue];
-    this.pendingPushQueue = [];
-    console.log(`[SyncService] Svuotamento coda push in sospeso (${queue.length} elementi)...`);
+    if (!isCloudAuthorized()) return;
+    const queue = await this.getPendingPushesFromStore();
+    if (queue.length === 0) return;
+    console.log(`[SyncService] Svuotamento coda push persistente (${queue.length} elementi in attesa)...`);
     for (const item of queue) {
       try {
         await this.pushToCloud(item.entityType, item.action, item.data, {
@@ -576,7 +656,7 @@ export class SyncService {
           mutationId: item.mutationId,
         });
       } catch (err) {
-        console.warn(`[SyncService] Errore svuotamento push in sospeso per ${item.entityType}:`, err);
+        console.warn(`[SyncService] Errore riprova push persistente per ${item.entityType}/${item.data?.id}:`, err);
       }
     }
   }
@@ -589,25 +669,14 @@ export class SyncService {
   ) {
     if (!data || !data.id) return;
     if (!isCloudAuthorized()) {
-      console.warn(`[SyncService] Push to cloud differito (in coda): sessione non ancora autorizzata dal Cloud per ${entityType}/${data.id}`);
-      const existsIndex = this.pendingPushQueue.findIndex(p => p.entityType === entityType && p.data?.id === data.id);
-      if (existsIndex >= 0) {
-        this.pendingPushQueue[existsIndex] = {
-          entityType,
-          action,
-          data,
-          notifyCollaborators: options.notifyCollaborators === true,
-          mutationId: options.mutationId,
-        };
-      } else {
-        this.pendingPushQueue.push({
-          entityType,
-          action,
-          data,
-          notifyCollaborators: options.notifyCollaborators === true,
-          mutationId: options.mutationId,
-        });
-      }
+      console.warn(`[SyncService] Push to cloud differito (in coda persistente IndexedDB): sessione non ancora autorizzata per ${entityType}/${data.id}`);
+      await this.persistPendingPush({
+        entityType,
+        action,
+        data,
+        notifyCollaborators: options.notifyCollaborators === true,
+        mutationId: options.mutationId,
+      });
       return;
     }
     
@@ -615,6 +684,8 @@ export class SyncService {
     if (!collectionName) return;
 
     const docRef = doc(db, 'trips', this.tripId, collectionName, data.id);
+
+    try {
 
     if (action === 'delete') {
       // Se l'elemento eliminato conteneva allegati chunked, ripuliamo i chunk da Firestore
@@ -735,6 +806,18 @@ export class SyncService {
       }
       console.log(`[Cloud Sync] Salvato ${entityType} ${data.id}`);
     }
+      await this.removePendingPushFromStore(collectionName, data.id);
+    } catch (pushErr: any) {
+      console.warn(`[SyncService] pushToCloud non riuscito per ${entityType}/${data.id} (lockdown o offline): memorizzo in coda persistente.`, pushErr?.message || pushErr);
+      await this.persistPendingPush({
+        entityType,
+        action,
+        data,
+        notifyCollaborators: options.notifyCollaborators === true,
+        mutationId: options.mutationId
+      });
+      throw pushErr;
+    }
 
     if (options.notifyCollaborators && options.mutationId) {
       void recordPushMutation({
@@ -834,6 +917,7 @@ export class SyncService {
                 } catch (e) {}
                 
                 let itemToStore: any = { ...data, id: docId };
+                let mergedPrivate = false;
                 if (isCloudAuthorized()) {
                   const normType = normalizeEntityType(fb);
                   const vaultId = getVaultDocId(normType, docId);
@@ -842,8 +926,13 @@ export class SyncService {
                     const privDocSnap = await getDoc(doc(db, 'trips', this.tripId, 'private_credentials', vaultId)).catch(() => null);
                     if (privDocSnap && privDocSnap.exists()) {
                       itemToStore = mergeEntitySecurityData(itemToStore, privDocSnap.data() as any);
+                      mergedPrivate = true;
                     }
                   } catch (e) {}
+                }
+                if (!mergedPrivate && localData) {
+                  // Preserva sempre i dati economici e sensibili locali già presenti in IndexedDB
+                  itemToStore = mergeEntitySecurityData(itemToStore, localData);
                 }
 
                 // Se l'item dal cloud ha allegati salvati in chunk, ricomponiamo i dataUrl
@@ -885,13 +974,34 @@ export class SyncService {
             );
           } else if (change.type === 'removed') {
             promises.push(
-              idbDelete(store, docId)
-                .then(() => {
-                  const entityType = this.mapCollectionToEntity(fb) || fb;
-                  scheduleRefresh(entityType, 'delete', { id: docId });
-                  console.log(`[Cloud Sync] Rimosso ${fb}/${docId}`);
-                })
-                .catch(err => console.error(`[Cloud Sync] Errore idbDelete ${fb}:`, err))
+              (async () => {
+                const localItem = await idbGet<any>(store, docId);
+                if (!localItem) return;
+
+                // Controlla se c'è una mutazione pendente in coda per questo item
+                const pendingPush = await hasPendingMutation(fb, docId);
+                if (pendingPush) {
+                  console.log(`[Cloud Sync] Preservato record locale per ${fb}/${docId}: mutazione pendente presente.`);
+                  return;
+                }
+
+                // Controlla se è un tombstone esplicito intenzionale
+                const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${fb}_${docId}`);
+                const isExplicitTombstone = Boolean(tombstoneSetting?.value);
+
+                // Se l'elemento esiste localmente e non ha tombstone esplicito, la rimozione remota
+                // è solo un rollback dell'ottimistic write di Firestore (es. 403 durante lockdown).
+                // NON eliminare la scadenza o la card creata localmente!
+                if (!isExplicitTombstone) {
+                  console.log(`[Cloud Sync] Preservato record locale ${fb}/${docId}: respinta cancellazione remota priva di tombstone.`);
+                  return;
+                }
+
+                await idbDelete(store, docId);
+                const entityType = this.mapCollectionToEntity(fb) || fb;
+                scheduleRefresh(entityType, 'delete', { id: docId });
+                console.log(`[Cloud Sync] Rimosso confermato ${fb}/${docId}`);
+              })().catch(err => console.error(`[Cloud Sync] Errore idbDelete ${fb}:`, err))
             );
           }
         });
