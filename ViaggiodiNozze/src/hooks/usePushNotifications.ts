@@ -10,6 +10,7 @@ import {
   type PushPreferences,
 } from '../services/pushNotificationService';
 import { PUSH_VAPID_PUBLIC_KEY } from '../config/freeArchitecture';
+import { getTripConfig } from '../utils/tripConfig';
 
 const PUBLIC_VAPID_KEY = PUSH_VAPID_PUBLIC_KEY;
 
@@ -91,6 +92,12 @@ export function usePushNotifications() {
       if (!previous) {
         setState('browser-only');
         setDiagnostic('Subscription browser presente, ma non confermata dal server.');
+        return;
+      }
+      const activeTripId = getTripConfig()?.id?.trim() || '0000';
+      if (previous.tripId && previous.tripId !== activeTripId) {
+        setState('browser-only');
+        setDiagnostic(`Subscription associata al viaggio ${previous.tripId}. Riattivala per il viaggio ${activeTripId}.`);
         return;
       }
       const status = await checkPushOnServer(subscription);

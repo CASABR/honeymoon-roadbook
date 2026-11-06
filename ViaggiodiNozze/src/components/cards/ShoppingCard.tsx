@@ -6,7 +6,7 @@ import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import UniversalAttachmentModal from '../modals/UniversalAttachmentModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
 import { resolveMapUrl } from '../../utils/mapsHelper';
-import { resolvePaymentInfo } from '../../utils/priceHelper';
+import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 
 interface ShoppingCardProps {
@@ -39,18 +39,15 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
     if (paymentInfo.isFree || paymentInfo.isPackageIncluded || paymentInfo.costNum <= 0) return;
     try {
       const newStatus = isSaldato ? 'da_saldare' : 'saldato';
-      const costStr = shopping.budget || (shopping as any).cost || `${paymentInfo.costNum.toFixed(2)} €`;
-      const paidVal = newStatus === 'saldato' ? costStr : '0.00 €';
-
+      const origAcconto = (shopping as any).acconto || (paymentInfo.paidNum > 0 && paymentInfo.paidNum < paymentInfo.costNum ? formatCompactEuro(paymentInfo.paidNum) : undefined);
       const updated: Shopping = {
         ...shopping,
         paymentStatus: newStatus,
         completed: newStatus === 'saldato',
-        depositPaid: paidVal,
-        acconto: paidVal,
-        amountPaid: paidVal,
+        acconto: origAcconto,
+        depositPaid: newStatus === 'saldato' ? formatCompactEuro(paymentInfo.costNum) : (origAcconto || ''),
         updatedAt: Date.now()
-      };
+      } as any;
 
       await storageService.saveShopping(updated);
       notifyDataChanged('shopping', 'save', updated);
@@ -148,24 +145,24 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
             </span>
           ) : paymentInfo.isPackageIncluded ? (
             <span className="text-xs font-extrabold uppercase tracking-wide text-sky-800 dark:text-sky-300">
-              Incluso nel pacchetto
+              Incluso
             </span>
           ) : paymentInfo.costNum > 0 ? (
-            <>
-              <span className="font-mono text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
-                {paymentInfo.costNum.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
-              </span>
-              <button
-                type="button"
-                onClick={handleTogglePayment}
-                className={`hounigo-ds-pay-badge ${
-                  isSaldato ? 'hounigo-ds-pay-saldato' : 'hounigo-ds-pay-dasaldare'
-                }`}
-                title="Clicca per invertire stato: Saldato / Da saldare"
-              >
-                {isSaldato ? '✓ Saldato' : 'Da saldare'}
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={handleTogglePayment}
+              className={`hounigo-ds-pay-badge font-mono ${
+                isSaldato
+                  ? 'hounigo-ds-pay-saldato'
+                  : (paymentInfo.paidNum > 0 && paymentInfo.remainingNum > 0)
+                  ? 'hounigo-ds-pay-acconto'
+                  : 'hounigo-ds-pay-dasaldare'
+              }`}
+              title="Tocca per invertire stato: Saldato / Da saldare"
+              aria-label="Stato pagamento shopping"
+            >
+              {paymentInfo.compactPaymentText}
+            </button>
           ) : null}
         </div>
 

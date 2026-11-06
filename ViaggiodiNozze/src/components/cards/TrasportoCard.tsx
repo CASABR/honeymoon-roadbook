@@ -1,14 +1,14 @@
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { createPortal } from 'react-dom';
 import React, { useState } from 'react';
-import { Handshake } from 'lucide-react';
+import { Handshake, Check } from 'lucide-react';
 import type { Trasporto, TipoTrasporto, TransportSegmentContext } from '../../types';
 import TrasportoTicketsModal from '../modals/TrasportoTicketsModal';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import TrasportoBagagliModal from '../modals/TrasportoBagagliModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
 import { getTransportMapTargets } from '../../utils/mapsHelper';
-import { resolvePaymentInfo } from '../../utils/priceHelper';
+import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 
@@ -169,14 +169,14 @@ export default function TrasportoCard({
   onDetail,
   onUpdate
 }: TrasportoCardProps) {
-  const { role } = useDeviceRole();
+  const { canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
   const isExternalLiveView = typeof window !== 'undefined' && (
     new URLSearchParams(window.location.search).get('live') === '1' ||
     new URLSearchParams(window.location.search).get('live') === 'true' ||
     new URLSearchParams(window.location.search).get('view') === 'live' ||
     (window.location.hash || '').toLowerCase().includes('live')
   );
-  const canSeePrivateInfo = !isExternalLiveView && (role === 'guida' || role === 'copilota');
+  const canSeePrivateInfo = !isExternalLiveView && deviceCanSeePrivate;
 
   const [isTicketsOpen, setIsTicketsOpen] = useState(false);
   const [isPNROpen, setIsPNROpen] = useState(false);
@@ -219,21 +219,19 @@ export default function TrasportoCard({
     packageIncluded: transport.packageIncluded
   });
 
-  const { isFree, isPackageIncluded, isPaid, costNum, displayText } = paymentInfo;
+  const { isFree, isPackageIncluded, isPaid, costNum, paidNum, remainingNum, compactPaymentText } = paymentInfo;
 
   const handleTogglePayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isFree || isPackageIncluded) return;
+    if (isFree || isPackageIncluded || costNum <= 0) return;
     try {
       const newStatus = isPaid ? 'da_saldare' : 'saldato';
-      const costStr = transport.cost || `${costNum.toFixed(2)} €`;
-      const paidVal = newStatus === 'saldato' ? costStr : '0.00 €';
+      const origAcconto = transport.acconto || (paidNum > 0 && paidNum < costNum ? formatCompactEuro(paidNum) : undefined);
       const updated: Trasporto = {
         ...transport,
         paymentStatus: newStatus,
-        depositPaid: paidVal,
-        acconto: paidVal,
-        amountPaid: paidVal,
+        acconto: origAcconto,
+        depositPaid: newStatus === 'saldato' ? formatCompactEuro(costNum) : (origAcconto || ''),
         updatedAt: Date.now()
       };
       await storageService.saveTransport(updated);
@@ -382,7 +380,7 @@ export default function TrasportoCard({
           </div>
 
           {hasHeaderNotice && (
-            <div className="hounigo-ds-header-subrow">
+            <div className="hounigo-ds-header-subrow flex items-center justify-between gap-3">
               {checkinInfo.cutoffTime && (
                 <span>
                   {transport.type === 'traghetto' ? 'IMBARCO ENTRO' : 'CHIUSURA CHECK-IN'}{' '}
@@ -391,7 +389,7 @@ export default function TrasportoCard({
                 </span>
               )}
               {transport.type === 'volo' && transport.layover && (
-                <span>
+                <span className="font-mono">
                   SCALO: <strong>{transport.layover.airport}</strong>
                   {transport.layover.duration ? ` (${transport.layover.duration})` : ''}
                 </span>
@@ -515,28 +513,28 @@ export default function TrasportoCard({
           <div className="flex items-center gap-2 flex-wrap">
             {isPackageIncluded ? (
               <span className="text-xs font-extrabold uppercase tracking-wide text-sky-800 dark:text-sky-300">
-                Incluso nel pacchetto
+                Incluso
               </span>
             ) : isFree ? (
               <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600 dark:text-slate-300">
                 Gratuito
               </span>
             ) : transport.cost && costNum > 0 ? (
-              <>
-                <span className="font-mono text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
-                  {displayText}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleTogglePayment}
-                  className={`hounigo-ds-pay-badge ${
-                    isPaid ? 'hounigo-ds-pay-saldato' : 'hounigo-ds-pay-dasaldare'
-                  }`}
-                  title="Inverti stato pagamento"
-                >
-                  {isPaid ? '✓ Saldato' : 'Da saldare'}
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={handleTogglePayment}
+                className={`hounigo-ds-pay-badge font-mono ${
+                  isPaid
+                    ? 'hounigo-ds-pay-saldato'
+                    : (paidNum > 0 && remainingNum > 0)
+                    ? 'hounigo-ds-pay-acconto'
+                    : 'hounigo-ds-pay-dasaldare'
+                }`}
+                title="Tocca per invertire stato: Saldato / Da saldare"
+                aria-label="Stato pagamento trasporto"
+              >
+                {compactPaymentText}
+              </button>
             ) : null}
           </div>
 
@@ -557,12 +555,25 @@ export default function TrasportoCard({
               <button
                 type="button"
                 onClick={handleCopyPnr}
-                className="hounigo-ds-action-btn font-mono"
+                className={`hounigo-ds-action-btn font-mono transition-all ${
+                  pnrCopied
+                    ? 'hounigo-ds-action-btn-active-green scale-105'
+                    : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                }`}
                 title={pnrCopied ? `PNR: ${transport.bookingCode} (Copiato!)` : 'Copia codice prenotazione (PNR)'}
                 aria-label="Codice PNR"
               >
-                <span aria-hidden="true">🎫</span>
-                <span className="hounigo-ds-btn-text font-bold">PNR</span>
+                {pnrCopied ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                    <span className="hounigo-ds-btn-text font-bold text-emerald-700 dark:text-emerald-300">Copiato!</span>
+                  </>
+                ) : (
+                  <>
+                    <span aria-hidden="true">🎫</span>
+                    <span className="hounigo-ds-btn-text font-bold">PNR</span>
+                  </>
+                )}
               </button>
             )}
 

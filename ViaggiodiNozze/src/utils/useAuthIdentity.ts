@@ -48,20 +48,103 @@ export function setAuthoritativeCloudRole(role: CloudRole): void {
  * In modalità offline (o rete disconnessa) ammette mutazioni locali purché il dispositivo
  * sia accreditato con ruolo locale guida o copilota (verificato precedentemente).
  */
-export function isCloudAuthorized(): boolean {
+
+export interface VerifiedTripAuth {
+  tripId: string;
+  uid: string;
+  role: 'owner' | 'copilota';
+  verifiedAt: number;
+}
+
+export function getVerifiedTripAuth(tripId?: string): VerifiedTripAuth | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('houni_verified_trip_auth');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as VerifiedTripAuth;
+    if (tripId && parsed.tripId !== tripId) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function recordVerifiedTripAuth(tripId: string, uid: string, role: 'owner' | 'copilota'): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('houni_verified_trip_auth', JSON.stringify({
+      tripId,
+      uid,
+      role,
+      verifiedAt: Date.now()
+    }));
+    localStorage.removeItem(`houni_revoked_trip_${tripId}`);
+  } catch {}
+}
+
+export function revokeTripAuth(tripId: string): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem('houni_verified_trip_auth');
+    localStorage.setItem(`houni_revoked_trip_${tripId}`, 'true');
+    localStorage.setItem('houni_device_role', 'viewer');
+    localStorage.setItem('app_device_role', 'viewer');
+  } catch {}
+}
+
+export function isTripAuthRevoked(tripId: string): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    return localStorage.getItem(`houni_revoked_trip_${tripId}`) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+export function isCloudAuthorized(targetTripId?: string): boolean {
   if (import.meta.env.DEV) {
     const sim = getSimulatedRole();
     if (sim === 'owner' || sim === 'copilota') return true;
     if (sim === 'viewer') return false;
   }
+  // 1. Un ruolo Viewer confermato revoca categoricamente qualsiasi autorizzazione di modifica
+  if (authoritativeCloudRole === 'viewer') {
+    return false;
+  }
+
+  // 2. Ruolo cloud autorevole confermato dal backend per questo viaggio
   if (authoritativeCloudRole === 'owner' || authoritativeCloudRole === 'copilota') {
     return true;
   }
-  // Se siamo in fase di verifica iniziale ('checking'), offline, o su rete instabile,
-  // verifichiamo se il dispositivo è accreditato con ruolo locale guida o copilota.
-  // Questo garantisce che le modifiche dell'utente vengano salvate immediatamente in locale
-  // senza blocchi durante l'avvio o la sincronizzazione in background.
-  if (authoritativeCloudRole === 'checking' || authoritativeCloudRole === 'offline' || (typeof navigator !== 'undefined' && !navigator.onLine)) {
+
+  // 3. Fallback per stati non confermati (checking, offline, unverified):
+  // Consenti il salvataggio locale SOLO a identità già verificate precedentemente PER LO STESSO VIAGGIO.
+  // Se l'utente è stato revocato per questo viaggio o non dispone di verifica pregressa, nega l'accesso.
+  if (
+    authoritativeCloudRole === 'checking' ||
+    authoritativeCloudRole === 'offline' ||
+    authoritativeCloudRole === 'unverified' ||
+    (typeof navigator !== 'undefined' && !navigator.onLine)
+  ) {
+    const config = getTripConfig();
+    const currentTripId = targetTripId || config?.id || '0000';
+
+    // Se l'utente è contrassegnato come revocato per questo viaggio, respingi sempre
+    if (isTripAuthRevoked(currentTripId)) {
+      return false;
+    }
+
+    // Verifica se esiste un'autorizzazione pregressa confermata per questo specifico viaggio
+    const verified = getVerifiedTripAuth(currentTripId);
+    if (verified && (verified.role === 'owner' || verified.role === 'copilota')) {
+      const currentUid = auth?.currentUser?.uid;
+      // Se c'è un utente autenticato, deve corrispondere all'UID verificato
+      if (!currentUid || !verified.uid || currentUid === verified.uid) {
+        return true;
+      }
+    }
+
+    // In alternativa, controlla il ruolo locale solo se non revocato per questo viaggio
     const role = getLocalDeviceRole();
     if (role === 'guida' || role === 'copilota') {
       return true;
@@ -114,7 +197,7 @@ export interface AuthIdentityState {
   setSimulatedRole: (role: SimulatedRole) => void;
 }
 
-function getLocalDeviceRole(): DeviceRole {
+export function getLocalDeviceRole(): DeviceRole {
   if (typeof window === 'undefined') return 'viewer';
   try {
     const role = (localStorage.getItem('houni_device_role') || localStorage.getItem('app_device_role')) as DeviceRole | null;
@@ -246,12 +329,14 @@ export function useAuthIdentity(): AuthIdentityState {
 
         // 1. Owner effettivo del viaggio verificato da Firestore
         if (remoteOwnerUid && currentUser.uid === remoteOwnerUid) {
+          recordVerifiedTripAuth(tripId, currentUser.uid, 'owner');
           updateRole('owner');
           return;
         }
 
         // 2. Copilota presente nell'array members del documento radice
         if (remoteMembers.includes(currentUser.uid)) {
+          recordVerifiedTripAuth(tripId, currentUser.uid, 'copilota');
           updateRole('copilota');
           return;
         }
@@ -271,7 +356,8 @@ export function useAuthIdentity(): AuthIdentityState {
           return;
         }
 
-        // 5. Se l'UID non è owner e non è presente in members -> Viewer Confermato dal backend
+        // 5. Se l'UID non è owner e non è presente in members -> Viewer Confermato dal backend (revoca accesso)
+        revokeTripAuth(tripId);
         updateRole('viewer');
       } catch (err) {
         console.warn('[useAuthIdentity] Errore lettura remota autorizzazioni:', err);

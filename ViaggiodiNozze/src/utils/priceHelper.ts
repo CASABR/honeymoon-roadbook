@@ -11,6 +11,7 @@ export interface PricePaymentInfo {
   paidNum: number;
   remainingNum: number;
   displayText: string;
+  compactPaymentText: string;
 }
 
 /**
@@ -54,6 +55,16 @@ export function parseCostToNumber(costRaw?: string | number | null): number {
 }
 
 /**
+ * Formatta un importo in euro in modo compatto: es. "€180" se intero o "€180,50" con decimali.
+ */
+export function formatCompactEuro(val: number): string {
+  if (Math.round(val) === val) {
+    return `€${val.toLocaleString('it-IT')}`;
+  }
+  return `€${val.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
  * Risolve lo stato contabile unificato di un elemento.
  */
 export function resolvePaymentInfo(item: {
@@ -74,16 +85,23 @@ export function resolvePaymentInfo(item: {
 
   const costNum = (isFree || isPkg) ? 0 : parseCostToNumber(costVal);
   const paidVal = item.depositPaid ?? item.acconto ?? item.amountPaid;
-  const paidNum = (isFree || isPkg) ? 0 : parseCostToNumber(paidVal);
-  const remainingNum = Math.max(0, costNum - paidNum);
+  const parsedPaidNum = (isFree || isPkg) ? 0 : parseCostToNumber(paidVal);
+  const paidNum = parsedPaidNum;
 
-  const isExplicitPaid = item.paymentStatus === 'saldato' || 
-    item.status === 'saldato' || 
-    item.status === 'completato' || 
-    Boolean(item.completed) ||
+  // Un elemento è saldato se il paymentStatus è 'saldato' (e non vi è un acconto parziale ancora inferiore al costo non saldato),
+  // oppure se la somma effettivamente versata copre l'intero costo.
+  // NON considerare saldato un elemento solo per 'completed=true' o 'status=completato' se vi è ancora un residuo dovuto!
+  const isExplicitPaid =
+    (item.paymentStatus === 'saldato' && (paidNum === 0 || paidNum >= costNum)) ||
+    (item.status === 'saldato' && (paidNum === 0 || paidNum >= costNum)) ||
     (costNum > 0 && paidNum >= costNum);
 
-  const isPaid = !isFree && !isPkg && isExplicitPaid;
+  // Se esplicitamente 'da_saldare', non è saldato a meno che la somma versata non copra l'intero costo
+  const isPaid = !isFree && !isPkg && isExplicitPaid && (item.paymentStatus !== 'da_saldare' || (costNum > 0 && paidNum >= costNum));
+
+  // Quando saldato, il residuo dovuto è zero; se non saldato, remainingNum riflette esattamente l'importo ancora dovuto
+  const effectivePaidNum = isPaid ? costNum : paidNum;
+  const remainingNum = isPaid ? 0 : Math.max(0, costNum - paidNum);
 
   let displayText = '';
   if (isPkg) {
@@ -96,14 +114,36 @@ export function resolvePaymentInfo(item: {
     displayText = 'Costo da definire';
   }
 
+  // Calcolo della riga compatta unificata conforme ai requisiti PWA:
+  // 1. «€180 · Saldato»
+  // 2. «€180 · Da saldare»
+  // 3. «€120 da saldare · Cap. €60» (quando c'è caparra/acconto e saldo residuo)
+  let compactPaymentText = '';
+  if (isPkg) {
+    compactPaymentText = 'Incluso';
+  } else if (isFree) {
+    compactPaymentText = 'Gratuito';
+  } else if (costNum > 0) {
+    if (isPaid) {
+      compactPaymentText = `${formatCompactEuro(costNum)} · Saldato`;
+    } else if (parsedPaidNum > 0 && remainingNum > 0) {
+      compactPaymentText = `${formatCompactEuro(remainingNum)} da saldare · Cap. ${formatCompactEuro(parsedPaidNum)}`;
+    } else {
+      compactPaymentText = `${formatCompactEuro(costNum)} · Da saldare`;
+    }
+  } else {
+    compactPaymentText = displayText;
+  }
+
   return {
     isFree,
     isPackageIncluded: isPkg,
     isPaid,
     costNum,
-    paidNum,
+    paidNum: effectivePaidNum,
     remainingNum,
-    displayText
+    displayText,
+    compactPaymentText
   };
 }
 
@@ -133,4 +173,3 @@ export const parseEuro = (val: any): number => {
   const parsed = parseFloat(str);
   return isNaN(parsed) ? 0 : parsed;
 };
-

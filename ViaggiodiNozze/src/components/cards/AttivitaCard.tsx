@@ -5,7 +5,7 @@ import { storageService } from '../../storage/storageService';
 import type { Attivita, Tappa } from '../../types';
 import { resolveMapUrl, hasReliableGeoDestination, getMapsActionLabel } from '../../utils/mapsHelper';
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
-import { resolvePaymentInfo } from '../../utils/priceHelper';
+import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import AttivitaTicketsModal from '../modals/AttivitaTicketsModal';
 import QRCodeModal from '../modals/QRCodeModal';
 import { formatDateIT } from '../../utils/tripDates';
@@ -56,14 +56,14 @@ function getTrekkingDistanceKm(activity: Attivita): number | null {
 }
 
 export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: AttivitaCardProps) {
-  const { role } = useDeviceRole();
+  const { canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
   const isExternalLiveView = typeof window !== 'undefined' && (
     new URLSearchParams(window.location.search).get('live') === '1' ||
     new URLSearchParams(window.location.search).get('live') === 'true' ||
     new URLSearchParams(window.location.search).get('view') === 'live' ||
     (window.location.hash || '').toLowerCase().includes('live')
   );
-  const canSeePrivateInfo = !isExternalLiveView && (role === 'guida' || role === 'copilota');
+  const canSeePrivateInfo = !isExternalLiveView && deviceCanSeePrivate;
 
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const initialCopilot = (activity as any).noteCopilota || (activity as any).notes || '';
@@ -142,18 +142,21 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
     completed: (activity as any).completed
   });
 
-  const { isFree, isPaid, costNum, displayText } = paymentInfo;
+  const { isFree, isPaid, costNum, paidNum, remainingNum, displayText, compactPaymentText } = paymentInfo;
 
   const handleTogglePayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isFree) return;
+    if (isFree || costNum <= 0) return;
     try {
       const newStatus = isPaid ? 'da_saldare' : 'saldato';
+      const origAcconto = (activity as any).acconto || (paidNum > 0 && paidNum < costNum ? formatCompactEuro(paidNum) : undefined);
       const updated = {
         ...activity,
         paymentStatus: newStatus,
         status: newStatus === 'saldato' ? 'prenotato' : 'da_valutare',
-        amountPaid: newStatus === 'saldato' ? (activity.cost || `${costNum.toFixed(2)} €`) : '0',
+        acconto: origAcconto,
+        depositPaid: newStatus === 'saldato' ? formatCompactEuro(costNum) : (origAcconto || ''),
+        amountPaid: newStatus === 'saldato' ? formatCompactEuro(costNum) : (origAcconto || ''),
         updatedAt: Date.now()
       } as any;
       await storageService.saveActivity(updated);
@@ -511,23 +514,27 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 Gratuito
               </span>
             ) : costNum > 0 ? (
-              <>
+              !isTrekking ? (
+                <button
+                  type="button"
+                  onClick={handleTogglePayment}
+                  className={`hounigo-ds-pay-badge font-mono ${
+                    isPaid
+                      ? 'hounigo-ds-pay-saldato'
+                      : (paidNum > 0 && remainingNum > 0)
+                      ? 'hounigo-ds-pay-acconto'
+                      : 'hounigo-ds-pay-dasaldare'
+                  }`}
+                  title="Tocca per invertire stato: Saldato / Da saldare"
+                  aria-label="Stato pagamento attività"
+                >
+                  {compactPaymentText}
+                </button>
+              ) : (
                 <span className="font-mono text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
                   {displayText}
                 </span>
-                {!isTrekking && (
-                  <button
-                    type="button"
-                    onClick={handleTogglePayment}
-                    className={`hounigo-ds-pay-badge ${
-                      isPaid ? 'hounigo-ds-pay-saldato' : 'hounigo-ds-pay-dasaldare'
-                    }`}
-                    title="Clicca per invertire stato: Saldato / Da saldare"
-                  >
-                    {isPaid ? '✓ Saldato' : 'Da saldare'}
-                  </button>
-                )}
-              </>
+              )
             ) : null}
           </div>
 

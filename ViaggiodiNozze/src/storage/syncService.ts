@@ -527,9 +527,13 @@ export class SyncService {
         console.log(`[SyncService] Rilevato ruolo autorizzato (${role}): trigger sincronizzazione automatica.`);
         this.flushPendingPushes().catch(() => {});
         this.requestInitialSync('cloud_role_authorized');
-      } else if (role === 'viewer' || role === 'unverified') {
-        console.log(`[SyncService] Rilevato ruolo non privilegiato (${role}): avvio bonifica cache locale.`);
-        this.purgeSensitiveLocalCache().catch(() => {});
+      } else if (role === 'viewer') {
+        // Bonifica solo se esplicitamente viewer e se il ruolo locale non è già guida o copilota
+        const localRole = typeof localStorage !== 'undefined' ? (localStorage.getItem('houni_device_role') || localStorage.getItem('app_device_role')) : 'viewer';
+        if (localRole !== 'guida' && localRole !== 'copilota') {
+          console.log(`[SyncService] Rilevato ruolo viewer: avvio bonifica cache locale.`);
+          this.purgeSensitiveLocalCache().catch(() => {});
+        }
       }
     }) as EventListener);
 

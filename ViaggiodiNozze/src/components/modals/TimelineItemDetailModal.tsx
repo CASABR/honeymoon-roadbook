@@ -25,7 +25,7 @@ export default function TimelineItemDetailModal({
   onEdit,
   onDuplicate
 }: TimelineItemDetailModalProps) {
-  const { role, canEdit } = useDeviceRole();
+  const { canEdit, canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
   const [pnrCopied, setPnrCopied] = useState(false);
   const [pinCopied, setPinCopied] = useState(false);
 
@@ -35,7 +35,7 @@ export default function TimelineItemDetailModal({
     new URLSearchParams(window.location.search).get('view') === 'live' ||
     (window.location.hash || '').toLowerCase().includes('live')
   );
-  const canSeePrivateInfo = !isExternalLiveView && (role === 'guida' || role === 'copilota');
+  const canSeePrivateInfo = !isExternalLiveView && deviceCanSeePrivate;
 
   if (!item) return null;
 

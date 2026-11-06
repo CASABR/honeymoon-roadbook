@@ -6,7 +6,7 @@ import { storageService, notifyDataChanged } from '../../storage/storageService'
 import type { Alloggio } from '../../types';
 import { resolveMapUrl } from '../../utils/mapsHelper';
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
-import { resolvePaymentInfo } from '../../utils/priceHelper';
+import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 
@@ -20,14 +20,14 @@ interface AlloggioCardProps {
 }
 
 export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail }: AlloggioCardProps) {
-  const { role } = useDeviceRole();
+  const { canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
   const isExternalLiveView = typeof window !== 'undefined' && (
     new URLSearchParams(window.location.search).get('live') === '1' ||
     new URLSearchParams(window.location.search).get('live') === 'true' ||
     new URLSearchParams(window.location.search).get('view') === 'live' ||
     (window.location.hash || '').toLowerCase().includes('live')
   );
-  const canSeePrivateInfo = !isExternalLiveView && (role === 'guida' || role === 'copilota');
+  const canSeePrivateInfo = !isExternalLiveView && deviceCanSeePrivate;
 
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isAttachmentOpen, setIsAttachmentOpen] = useState(false);
@@ -49,22 +49,21 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
     completed: accommodation.completed
   });
 
-  const { isFree, isPaid, costNum, displayText } = paymentInfo;
+  const { isFree, isPaid, costNum, paidNum, remainingNum, compactPaymentText } = paymentInfo;
 
   const handleTogglePayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isFree) return;
+    if (isFree || costNum <= 0) return;
     try {
       const newStatus = isPaid ? 'da_saldare' : 'saldato';
-      const updatedCost = accommodation.cost || (costNum > 0 ? `${costNum.toFixed(2)} €` : '0.00');
-      const depositVal = newStatus === 'saldato' ? updatedCost : '0.00';
+      const origAcconto = accommodation.acconto || (paidNum > 0 && paidNum < costNum ? formatCompactEuro(paidNum) : undefined);
       const updated: Alloggio = {
         ...accommodation,
         status: (newStatus === 'saldato' ? 'completato' : 'da_prenotare') as any,
         paymentStatus: newStatus as any,
+        acconto: origAcconto,
+        depositPaid: newStatus === 'saldato' ? formatCompactEuro(costNum) : (origAcconto || ''),
         completed: newStatus === 'saldato',
-        depositPaid: depositVal,
-        acconto: depositVal,
         updatedAt: Date.now()
       };
       await storageService.saveAlloggio(updated);
@@ -276,23 +275,22 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               Gratuito
             </span>
           ) : costNum > 0 ? (
-            <span className="font-mono text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
-              {displayText}
-            </span>
-          ) : null}
-
-          {!isFree && costNum > 0 && (
             <button
               type="button"
               onClick={handleTogglePayment}
-              className={`hounigo-ds-pay-badge ${
-                isPaid ? 'hounigo-ds-pay-saldato' : 'hounigo-ds-pay-dasaldare'
+              className={`hounigo-ds-pay-badge font-mono ${
+                isPaid
+                  ? 'hounigo-ds-pay-saldato'
+                  : (paidNum > 0 && remainingNum > 0)
+                  ? 'hounigo-ds-pay-acconto'
+                  : 'hounigo-ds-pay-dasaldare'
               }`}
-              title="Clicca per invertire stato: Saldato / Da saldare"
+              title="Tocca per invertire stato: Saldato / Da saldare"
+              aria-label="Stato pagamento alloggio"
             >
-              {isPaid ? '✓ Saldato' : 'Da saldare'}
+              {compactPaymentText}
             </button>
-          )}
+          ) : null}
         </div>
 
         <div className="hounigo-ds-actions-group">

@@ -6,6 +6,7 @@ import { getSimulatedRole, type SimulatedRole, useAuthIdentity, type CloudRole }
 export function useDeviceRole(): {
   role: DeviceRole;
   canEdit: boolean;
+  canSeePrivateInfo: boolean;
   isGuida: boolean;
   isCopilota: boolean;
   isViewer: boolean;
@@ -25,6 +26,21 @@ export function useDeviceRole(): {
     return storageService.getDeviceRole();
   });
   const [simulatedRole, setSimulatedRole] = useState<SimulatedRole>(() => getSimulatedRole());
+
+  // Sincronizzazione automatica del ruolo da cloud verificato verso storage locale:
+  // Se viewer confermato, revoca immediatamente qualsiasi ruolo privilegiato locale
+  useEffect(() => {
+    if (cloudRole === 'owner' && role !== 'guida') {
+      storageService.setDeviceRole('guida');
+      setRole('guida');
+    } else if (cloudRole === 'copilota' && role !== 'copilota') {
+      storageService.setDeviceRole('copilota');
+      setRole('copilota');
+    } else if (cloudRole === 'viewer' && role !== 'viewer') {
+      storageService.setDeviceRole('viewer');
+      setRole('viewer');
+    }
+  }, [cloudRole, role]);
 
   useEffect(() => {
     const handleRoleChanged = (e: Event) => {
@@ -60,11 +76,27 @@ export function useDeviceRole(): {
   // sia verificata e autorizzata dal backend Cloud (owner o copilota).
   // Se il Cloud non autorizza (viewer, admin globale, checking, offline, unverified),
   // le modifiche sono disabilitate a prescindere dal ruolo locale o dalla simulazione DEV.
-  const canEdit = isCloudAuthorized && (role === 'guida' || role === 'copilota');
-  const isGuida = isCloudAuthorized && role === 'guida';
-  const isCopilota = isCloudAuthorized && role === 'copilota';
-  const isViewer = !isCloudAuthorized || role === 'viewer';
+  // Ruolo effettivo calcolato combinando cloud verificato e persistenza locale
+  const effectiveRole: DeviceRole = (() => {
+    if (import.meta.env.DEV) {
+      const sim = getSimulatedRole();
+      if (sim === 'owner') return 'guida';
+      if (sim === 'copilota') return 'copilota';
+      if (sim === 'viewer') return 'viewer';
+    }
+    if (cloudRole === 'owner') return 'guida';
+    if (cloudRole === 'copilota') return 'copilota';
+    if (cloudRole === 'viewer') return 'viewer';
+    return role;
+  })();
+
+  const canEdit = isCloudAuthorized && (effectiveRole === 'guida' || effectiveRole === 'copilota');
+  // Visibilità credenziali e PNR separata: concessa a Guida e Copilota (mai a viewer o revocati)
+  const canSeePrivateInfo = isCloudAuthorized && (effectiveRole === 'guida' || effectiveRole === 'copilota');
+  const isGuida = isCloudAuthorized && effectiveRole === 'guida';
+  const isCopilota = isCloudAuthorized && effectiveRole === 'copilota';
+  const isViewer = !isCloudAuthorized || effectiveRole === 'viewer';
   const isSimulated = !!simulatedRole;
 
-  return { role, canEdit, isGuida, isCopilota, isViewer, isSimulated, simulatedRole, cloudRole, isCloudAuthorized };
+  return { role: effectiveRole, canEdit, canSeePrivateInfo, isGuida, isCopilota, isViewer, isSimulated, simulatedRole, cloudRole, isCloudAuthorized };
 }

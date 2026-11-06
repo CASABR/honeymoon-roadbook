@@ -626,12 +626,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   // Centratura automatica del selettore orizzontale dei giorni su selectedDate
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (selectedDayBtnRef.current && calendarContainerRef.current) {
-        const container = calendarContainerRef.current;
-        const btn = selectedDayBtnRef.current;
-        const scrollPosition = btn.offsetLeft - (container.offsetWidth / 2) + (btn.offsetWidth / 2);
-        container.scrollTo({
-          left: Math.max(0, scrollPosition),
+      if (selectedDayBtnRef.current) {
+        selectedDayBtnRef.current.scrollIntoView({
+          inline: 'center',
+          block: 'nearest',
           behavior: 'smooth'
         });
       }
@@ -1028,6 +1026,29 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     <div className="space-y-4 pt-1 animate-fade-in pb-6 sm:pb-8">
       {/* Banner di Onboarding Notifiche al primo accesso */}
       <PushOnboardingBanner />
+
+      {/* Avviso Persistente Scadenze Urgenti In-App: attivo solo in caso di promemoria attivo per non appesantire l'altezza su mobile */}
+      {deadlineSummary.reminders > 0 && deadlineSummary.next && (
+        <div className="mx-auto max-w-full rounded-xl border border-amber-300 dark:border-amber-700/80 bg-amber-50/95 dark:bg-amber-950/40 px-3 py-2 text-slate-900 dark:text-slate-100 animate-fade-in flex items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-base shrink-0" aria-hidden="true">⏰</span>
+            <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+              <span className="font-extrabold uppercase text-[10px] tracking-wider text-amber-800 dark:text-amber-300 mr-1.5">
+                Promemoria
+              </span>
+              {deadlineSummary.next.title}
+              {deadlineSummary.next.dueDate ? ` · Entro ${deadlineSummary.next.dueTime ? `${deadlineSummary.next.dueTime} del ` : ''}${deadlineSummary.next.dueDate}` : ''}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigateTab?.('altro', undefined, 'scadenze')}
+            className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-[11px] shadow-2xs transition-colors cursor-pointer"
+          >
+            Gestisci ➔
+          </button>
+        </div>
+      )}
       {/* Toast Feedback Operazioni */}
       {feedbackBanner && (
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-bounce-subtle pointer-events-none">
@@ -2015,6 +2036,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               await storageService.deleteRistorante(item.originalData?.id || '');
                               await fetchTimeline();
                             }}
+                            onUpdate={() => fetchTimeline()}
                             onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                           />
                         ) : isShopping ? (
@@ -2028,6 +2050,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               await storageService.deleteShopping(item.originalData?.id || '');
                               await fetchTimeline();
                             }}
+                            onUpdate={() => fetchTimeline()}
                             onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                           />
                         ) : isTappa ? (
@@ -2043,6 +2066,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                 await storageService.deleteTappa(item.originalData?.id || '');
                                 await fetchTimeline();
                               }}
+                              onUpdate={() => fetchTimeline()}
                               onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                             />
                             {(() => {
@@ -2213,6 +2237,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                       onDelete={async () => {
                         await storageService.deleteAccommodation(tonightsAccommodation.id);
                         await fetchTimeline();
+                      }}
+                      onUpdate={() => {
+                        fetchTimeline();
+                        loadData(false);
                       }}
                       onDuplicate={() => {
                         const acc = tonightsAccommodation;

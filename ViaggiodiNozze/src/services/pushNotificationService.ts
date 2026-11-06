@@ -3,6 +3,7 @@ import { getOrCreateDeviceId } from '../utils/deviceSession';
 import { getTripConfig } from '../utils/tripConfig';
 import { BACKGROUND_PUSH_ENABLED, PUSH_WORKER_URL } from '../config/freeArchitecture';
 import { buildClientPushReminders } from '../utils/pushReminders';
+import { isCloudAuthorized } from '../utils/useAuthIdentity';
 
 export interface PushPreferences {
   transports: boolean;
@@ -37,10 +38,55 @@ const COLLABORATION_ENTITIES = new Set([
   'tappa', 'tappe', 'ristorante', 'ristoranti', 'shopping', 'note', 'nota', 'documenti'
 ]);
 
+/**
+ * Garantisce la presenza di un utente Firebase per le notifiche push.
+ * Attende sempre il ripristino della sessione persistente (Google, email, anonima)
+ * e NON sostituisce mai un'identità esistente.
+ */
+async function ensurePushAuthUser() {
+  if (auth.currentUser) return auth.currentUser;
+
+  // 1. Attendi il completamento del ripristino auth locale se disponibile
+  if (typeof (auth as any)?.authStateReady === 'function') {
+    try {
+      await (auth as any).authStateReady();
+    } catch {}
+  } else {
+    await new Promise<void>((resolve) => {
+      let resolved = false;
+      const unsub = auth.onAuthStateChanged(() => {
+        if (!resolved) {
+          resolved = true;
+          unsub();
+          resolve();
+        }
+      });
+      setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          unsub();
+          resolve();
+        }
+      }, 2000);
+    });
+  }
+
+  // 2. Se una sessione utente è già presente / ripristinata, non creare mai una nuova identità
+  if (auth.currentUser) return auth.currentUser;
+
+  // 3. Solo se non esiste alcuna sessione locale attiva, crea un accesso anonimo per consentire la ricezione push
+  try {
+    const { signInAnonymously } = await import('firebase/auth');
+    const cred = await signInAnonymously(auth);
+    return cred.user;
+  } catch {
+    throw new Error('Connessione o accesso richiesto per completare la registrazione notifiche.');
+  }
+}
+
 async function callPush<T>(action: string, payload: Record<string, unknown>): Promise<T> {
   if (!BACKGROUND_PUSH_ENABLED || !PUSH_WORKER_URL) throw new Error('Servizio push gratuito non ancora attivo.');
-  const user = auth.currentUser;
-  if (!user) throw new Error('Accedi al tuo account prima di usare le notifiche.');
+  const user = await ensurePushAuthUser();
   const token = await user.getIdToken();
   const response = await fetch(`${PUSH_WORKER_URL}/${action}`, {
     method: 'POST',
@@ -59,11 +105,11 @@ async function sha256(value: string): Promise<string> {
 }
 
 export async function getPushIdentity(endpoint?: string) {
-  const uid = auth.currentUser?.uid;
-  const tripId = getTripConfig()?.id?.trim();
+  const user = await ensurePushAuthUser();
+  const uid = user.uid;
+  const tripConfig = getTripConfig();
+  const tripId = tripConfig?.id?.trim() || '0000';
   const deviceId = getOrCreateDeviceId();
-  if (!uid) throw new Error('Accedi al tuo account prima di attivare le notifiche.');
-  if (!tripId) throw new Error('Seleziona un viaggio prima di attivare le notifiche.');
   const subscriberId = (await sha256(`${uid}\n${tripId}\n${deviceId}`)).slice(0, 48);
   return {
     uid,
@@ -137,6 +183,11 @@ export async function recordPushMutation(input: {
   data?: Record<string, unknown>;
 }): Promise<void> {
   if (!BACKGROUND_PUSH_ENABLED || !auth.currentUser || !COLLABORATION_ENTITIES.has(input.entityType)) return;
+  // Non consentire broadcast di notifiche di mutazione a viewer, ospiti sola lettura o non autorizzati
+  if (!isCloudAuthorized(input.tripId)) {
+    console.warn(`[PushService] Mutazione push ignorata per ${input.entityType}: permessi di scrittura assenti per viaggio ${input.tripId}.`);
+    return;
+  }
   const reminders = input.action === 'save' && input.data
     ? buildClientPushReminders(input.entityType, input.data)
     : [];

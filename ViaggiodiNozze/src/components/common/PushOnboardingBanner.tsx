@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
-import { auth } from '../../firebase';
 import { getTripConfig } from '../../utils/tripConfig';
 
 const PROMPT_STORAGE_KEY = 'hounigo_push_prompt_dismissed_v1';
@@ -16,8 +15,8 @@ export default function PushOnboardingBanner() {
     // 1. Controllo supporto browser di base
     if (!isSupported) return;
 
-    // 2. Se il permesso è già concesso, non ripetere mai la richiesta
-    if (permission === 'granted' || state === 'active') return;
+    // 2. Se la registrazione push è già attiva e confermata dal server, nascondi il banner
+    if (state === 'active') return;
 
     // 3. Se l'utente ha già scelto "Non ora" in precedenza, rispetta la scelta
     const dismissed = localStorage.getItem(PROMPT_STORAGE_KEY);
@@ -58,9 +57,10 @@ export default function PushOnboardingBanner() {
     }
 
     try {
-      // Verifica autenticazione e viaggio
-      if (!auth.currentUser || !getTripConfig()?.id) {
-        setFeedback('Accedi a un viaggio prima di abilitare le notifiche.');
+      // Verifica viaggio attivo
+      const activeTrip = getTripConfig()?.id?.trim();
+      if (!activeTrip) {
+        setFeedback('Seleziona un viaggio prima di abilitare le notifiche.');
         return;
       }
 
@@ -108,10 +108,14 @@ export default function PushOnboardingBanner() {
             </div>
 
             <h4 className="text-sm font-extrabold text-[#172033] dark:text-white mt-1">
-              Vuoi ricevere aggiornamenti importanti sul tuo viaggio?
+              {permission === 'granted'
+                ? 'Completa la registrazione delle notifiche per questo viaggio'
+                : 'Vuoi ricevere aggiornamenti importanti sul tuo viaggio?'}
             </h4>
             <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 leading-relaxed">
-              Ricevi promemoria discreti per voli, treni, check-in e note operative, anche ad app chiusa. Nessun messaggio pubblicitario o spam.
+              {permission === 'granted'
+                ? 'Il tuo dispositivo ha consentito le notifiche. Tocca il pulsante in basso per registrare il dispositivo e ricevere i promemoria del viaggio.'
+                : 'Ricevi promemoria discreti per voli, treni, check-in e note operative, anche ad app chiusa. Nessun messaggio pubblicitario o spam.'}
             </p>
 
             {/* Guida iPhone PWA se non installata */}
@@ -146,7 +150,7 @@ export default function PushOnboardingBanner() {
                 onClick={handleActivate}
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-[#FF6B5F] hover:bg-[#e85c50] text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50 min-h-[36px]"
               >
-                {isSubscribing ? 'Attivazione in corso…' : isIosNonStandalone && !showIosGuide ? 'Come attivare su iPhone' : 'Attiva notifiche'}
+                {isSubscribing ? 'Attivazione in corso…' : isIosNonStandalone && !showIosGuide ? 'Come attivare su iPhone' : permission === 'granted' ? 'Completa registrazione' : 'Attiva notifiche'}
               </button>
               <button
                 type="button"
