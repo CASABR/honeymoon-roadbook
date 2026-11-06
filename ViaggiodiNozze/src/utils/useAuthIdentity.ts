@@ -389,8 +389,16 @@ export function useAuthIdentity(): AuthIdentityState {
           return;
         }
 
-        // 5. Se l'UID non è owner e non è presente in members -> Viewer Confermato dal backend (revoca accesso)
-        revokeTripAuth(tripId);
+        // 5. Se l'UID non è owner e non è presente in members:
+        // Controlla se questo specifico utente era precedentemente verificato come Owner o Copilota.
+        // Se un utente anonimo o un utente secondario accede, NON revoca le credenziali verificate del dispositivo!
+        const verified = getVerifiedTripAuth(tripId);
+        if (verified && verified.uid === activeUser.uid && !(activeUser as any).isAnonymous) {
+          // L'utente era formalmente abilitato per questo viaggio, ma il backend Firestore
+          // conferma che non è più né owner né membro: revoca confermata!
+          console.warn(`[useAuthIdentity] Revoca confermata dal backend per utente ${activeUser.uid} su viaggio ${tripId}`);
+          revokeTripAuth(tripId);
+        }
         updateRole('viewer');
       } catch (err) {
         console.warn('[useAuthIdentity] Errore lettura remota autorizzazioni:', err);

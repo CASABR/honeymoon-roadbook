@@ -625,6 +625,27 @@ export class SyncService {
       const allSettings = await idbGetAll<any>(STORES.SETTINGS);
       for (const s of allSettings) {
         if (s && typeof s.id === 'string' && s.id.startsWith('pending_push_')) {
+          // Se contiene dati validi, migra e verifica nella nuova coda isolata prima di eliminare da settings
+          if (s.data && s.data.id && s.action) {
+            const rawEntity = s.entityType || s.collectionName || 'notes';
+            const collectionName = this.mapEntityToCollection(rawEntity) || rawEntity;
+            const alreadyInQueue = await hasPendingMutation(collectionName, s.data.id);
+            if (!alreadyInQueue) {
+              await savePendingMutation({
+                tripId: this.tripId,
+                entityType: collectionName,
+                action: s.action,
+                data: s.data,
+                notifyCollaborators: Boolean(s.notifyCollaborators),
+                mutationId: s.mutationId
+              });
+              const verified = await hasPendingMutation(collectionName, s.data.id);
+              if (!verified) {
+                console.warn(`[SyncService] Fallita verifica migrazione mutazione legacy ${s.id}, conservo in settings.`);
+                continue;
+              }
+            }
+          }
           await idbDelete(STORES.SETTINGS, s.id);
         }
       }
