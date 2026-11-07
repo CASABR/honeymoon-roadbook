@@ -82,7 +82,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
 
   const mapTarget = tappa.mapsUrl || tappa.indirizzo || tappa.titolo;
   const hasSubcategory = Boolean(tappa.sottocategoria && tappa.sottocategoria.trim() && tappa.sottocategoria !== 'Tappa');
-  const isConfirmed = tappa.timeStatus === 'confermato';
+  const isConfirmed = Boolean(orario) && tappa.timeStatus === 'confermato';
 
   const headerTimeSummary = orario
     ? `Ore ${orario}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
@@ -116,10 +116,11 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
 
           {headerTimeSummary && (
             <span
-              className={`hounigo-ds-time-stamp ${isConfirmed ? 'text-[#FF6B5F] font-black border-[#FF6B5F]/40 bg-rose-50/60 dark:bg-rose-950/40' : ''}`}
-              title={isConfirmed ? 'Orario confermato' : 'Orario indicativo'}
+              data-time-status={orario ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
+              className={`hounigo-ds-time-stamp ${isConfirmed ? 'hounigo-ds-time-stamp-confirmed text-[#E11D48] dark:text-[#FF6B5F] font-black border-[#E11D48]/40 bg-rose-50 dark:bg-rose-950/40' : ''}`}
+              title={orario ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
             >
-              {isConfirmed && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#FF6B5F] mr-1" aria-hidden="true" />}
+              {isConfirmed && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#E11D48] dark:bg-[#FF6B5F] mr-1" aria-hidden="true" />}
               {headerTimeSummary}
             </span>
           )}

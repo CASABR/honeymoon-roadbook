@@ -1032,6 +1032,20 @@ html.dark .hounigo-ds-time-stamp {
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
+.hounigo-ds-time-stamp.hounigo-ds-time-stamp-confirmed {
+  background-color: #FFF1F2;
+  color: #E11D48;
+  border: 1px solid rgba(225, 29, 72, 0.38);
+  font-weight: 900;
+}
+
+html.dark .hounigo-ds-time-stamp.hounigo-ds-time-stamp-confirmed {
+  background-color: rgba(159, 18, 57, 0.38);
+  color: #FF6B5F;
+  border: 1px solid rgba(255, 107, 95, 0.48);
+  font-weight: 900;
+}
+
 /* Fascia avviso operativo nell'header (Check-in cutoff, Scalo, Istruzioni) */
 .hounigo-ds-header-subrow {
   padding-top: 0.28rem;

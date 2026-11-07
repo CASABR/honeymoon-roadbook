@@ -102,14 +102,14 @@ export default function TimelineItemDetailModal({
   const reliableMapDestination = hasReliableGeoDestination({ coordinate: mapCoordinates, mapsUrl: data?.mapsUrl || (data as any)?.googleMapsUrl, indirizzo: mapTarget });
 
   // Orario principale
-  const isTimeConfirmed = item.timeStatus === 'confermato';
+  const isTimeConfirmed = (data?.timeStatus || item.timeStatus) === 'confermato';
   const primaryTimeDisplay = item.time ? (
     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold ${
       isTimeConfirmed && !isTrasporto
-        ? 'text-[#FF6B5F] bg-rose-50 dark:bg-rose-950/40 border border-[#FF6B5F]/30 font-black'
+        ? 'text-[#E11D48] dark:text-[#FF6B5F] bg-rose-50 dark:bg-rose-950/40 border border-[#E11D48]/35 font-black'
         : 'text-slate-800 dark:text-slate-200 bg-slate-100 dark:bg-slate-800'
     }`}>
-      {isTimeConfirmed && !isTrasporto && <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B5F]" />}
+      {isTimeConfirmed && !isTrasporto && <span className="w-1.5 h-1.5 rounded-full bg-[#E11D48] dark:bg-[#FF6B5F]" />}
       <span>⏰ {item.time}</span>
       {!isTrasporto && (
         <span className="text-[10px] uppercase font-semibold opacity-80">

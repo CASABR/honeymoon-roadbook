@@ -1266,8 +1266,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     Focus della giornata · {formatDateHuman(selectedDate)}
                   </span>
                   {nextEventItem.time ? (
-                    <span className="font-mono text-xs font-extrabold text-slate-800 dark:text-white bg-slate-100 dark:bg-white/12 px-2 py-0.5 rounded border border-slate-200/80 dark:border-white/15 shrink-0 tabular-nums">
-                      ORE {nextEventItem.time}{nextEventItem.timeStatus === 'indicativo' ? ' · IND.' : ''}
+                    <span className={`font-mono text-xs font-extrabold px-2 py-0.5 rounded border shrink-0 tabular-nums ${
+                      nextEventItem.timeStatus === 'confermato' && nextEventItem.type !== 'trasporto'
+                        ? 'text-[#E11D48] dark:text-[#FF6B5F] bg-rose-50 dark:bg-rose-950/40 border-[#E11D48]/35 font-black'
+                        : 'text-slate-800 dark:text-white bg-slate-100 dark:bg-white/12 border-slate-200/80 dark:border-white/15'
+                    }`}>
+                      ORE {nextEventItem.time}{nextEventItem.type !== 'trasporto' ? (nextEventItem.timeStatus === 'confermato' ? ' · CONF.' : ' · IND.') : ''}
                     </span>
                   ) : (
                     <span className="text-[10px] font-bold text-slate-500 dark:text-slate-300 bg-slate-100 dark:bg-white/10 px-2 py-0.5 rounded shrink-0">
@@ -1402,8 +1406,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 </span>
 
                 {nextEventItem?.time ? (
-                  <span className="font-mono text-xs font-black text-[#172033] dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200/60 dark:border-slate-700">
-                    ORE {nextEventItem.time}{nextEventItem.timeStatus === 'indicativo' ? ' · IND.' : ''}
+                  <span className={`font-mono text-xs font-black px-2 py-0.5 rounded border tabular-nums ${
+                    nextEventItem.timeStatus === 'confermato' && nextEventItem.type !== 'trasporto'
+                      ? 'text-[#E11D48] dark:text-[#FF6B5F] bg-rose-50 dark:bg-rose-950/40 border-[#E11D48]/35'
+                      : 'text-[#172033] dark:text-white bg-slate-100 dark:bg-slate-800 border-slate-200/60 dark:border-slate-700'
+                  }`}>
+                    ORE {nextEventItem.time}{nextEventItem.type !== 'trasporto' ? (nextEventItem.timeStatus === 'confermato' ? ' · CONF.' : ' · IND.') : ''}
                   </span>
                 ) : nextEventItem ? (
                   <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">

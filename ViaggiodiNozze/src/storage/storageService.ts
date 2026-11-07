@@ -1903,8 +1903,8 @@ class StorageService {
 
       // Attività
       activities.forEach(a => {
-        const time = a.time || a.orarioInizio || a.orarioRitrovo || '';
-        const timeStatus = a.timeStatus || (time ? (a.status === 'prenotato' ? 'confermato' : 'indicativo') : 'non_specificato');
+        const time = a.time || a.orarioInizio || a.orarioRitrovo || (a as any).orario || '';
+        const timeStatus = a.timeStatus || (time ? 'indicativo' : 'non_specificato');
         timeline.push({
           id: a.id,
           type: 'attivita',
@@ -1926,7 +1926,7 @@ class StorageService {
 
       // Prenotazioni Ristoranti
       dayRistoranti.forEach(r => {
-        const time = r.orario || '';
+        const time = r.orario || (r as any).time || '';
         const timeStatus = r.timeStatus || (time ? 'indicativo' : 'non_specificato');
         timeline.push({
           id: r.id,
@@ -1949,7 +1949,7 @@ class StorageService {
 
       // Shopping & Acquisti
       dayShopping.forEach(s => {
-        const time = s.orario || '';
+        const time = s.orario || (s as any).time || '';
         const timeStatus = s.timeStatus || (time ? 'indicativo' : 'non_specificato');
         timeline.push({
           id: s.id,

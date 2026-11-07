@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { doc, setDoc, collection, getDocs, getDoc, arrayRemove, arrayUnion, writeBatch } from 'firebase/firestore';
 import { db, auth } from '../../firebase';
 import { getTripConfig, saveTripConfig } from '../../utils/tripConfig';
@@ -813,8 +814,8 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
       </div>
 
       {/* Modal di Conferma Espulsione */}
-      {memberToKick && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+      {memberToKick && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-2xl">
               ⚠️
@@ -868,7 +869,8 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

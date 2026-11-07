@@ -250,32 +250,30 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
               Ora Prenotazione
             </label>
-            {orario && (
-              <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
-                <button
-                  type="button"
-                  onClick={() => setTimeStatus('confermato')}
-                  className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
-                    timeStatus === 'confermato'
-                      ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  ✓ Confermato
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTimeStatus('indicativo')}
-                  className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
-                    timeStatus === 'indicativo'
-                      ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs'
-                      : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  ~ Indicativo
-                </button>
-              </div>
-            )}
+            <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
+              <button
+                type="button"
+                onClick={() => setTimeStatus('confermato')}
+                className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                  timeStatus === 'confermato'
+                    ? 'bg-white dark:bg-slate-900 text-[#E11D48] dark:text-[#FF6B5F] shadow-xs font-extrabold'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                ✓ Confermato
+              </button>
+              <button
+                type="button"
+                onClick={() => setTimeStatus('indicativo')}
+                className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
+                  timeStatus === 'indicativo'
+                    ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                ~ Indicativo
+              </button>
+            </div>
           </div>
           <TimePickerInput value={orario} onChange={setOrario} ariaLabel="Ora prenotazione ristorante" />
         </div>

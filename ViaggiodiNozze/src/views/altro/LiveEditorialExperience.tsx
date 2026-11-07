@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { LiveUpdate } from '../../services/liveService';
 import type { LiveGpsDevice, LiveGpsLease, LiveGpsLocation } from '../../services/liveGpsService';
 import type { LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
@@ -263,15 +264,25 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   }, [sortedUpdates, diaryPage]);
 
   useEffect(() => {
-    if (activeLightboxIndex === null) return;
+    if (activeLightboxIndex === null && pendingUploadItems.length === 0) return;
+    const prevOverflow = typeof document !== 'undefined' ? document.body.style.overflow : '';
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'hidden';
+    }
     const handleKeyDown = (event: KeyboardEvent) => {
+      if (activeLightboxIndex === null) return;
       if (event.key === 'Escape') setActiveLightboxIndex(null);
       if (event.key === 'ArrowLeft') setActiveLightboxIndex(index => index !== null && index > 0 ? index - 1 : index);
       if (event.key === 'ArrowRight') setActiveLightboxIndex(index => index !== null && index < displayPhotos.length - 1 ? index + 1 : index);
     };
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeLightboxIndex, displayPhotos.length]);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      if (typeof document !== 'undefined') {
+        document.body.style.overflow = prevOverflow;
+      }
+    };
+  }, [activeLightboxIndex, displayPhotos.length, pendingUploadItems.length]);
 
   useEffect(() => {
     if (props.messageSuccess) setIsComposerOpen(false);
@@ -687,9 +698,9 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         <details className="mt-4 text-xs"><summary className="min-h-10 cursor-pointer py-2 font-bold">Cosa vedono gli ospiti</summary><p className="max-w-xl leading-5 text-slate-500">Posizione condivisa, ricordi pubblici e reazioni. Itinerario privato, documenti, prenotazioni, spese e contatti restano nascosti.</p></details>
       </section>
 
-      {pendingUploadItems.length > 0 && (
-        <div className="fixed inset-0 z-[110] flex items-end justify-center bg-black/70 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label="Aggiungi fotografie">
-          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-white p-5 dark:bg-[#172033]">
+      {pendingUploadItems.length > 0 && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9998] flex items-end justify-center bg-black/70 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label="Aggiungi fotografie">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[1.75rem] bg-white p-5 text-[#172033] dark:bg-[#172033] dark:text-white">
             <div className="flex items-center justify-between"><h3 className="text-lg font-black">Aggiungi {pendingUploadItems.length === 1 ? 'foto' : `${pendingUploadItems.length} foto`}</h3><button type="button" onClick={clearPendingPhotos} className="h-11 w-11 rounded-full text-xl" aria-label="Chiudi">×</button></div>
             <div className="mt-3 grid grid-cols-3 gap-2">
               {pendingUploadItems.map(item => <div key={item.id} className="relative aspect-square overflow-hidden rounded-xl bg-slate-100"><img src={item.preview} alt={item.name} className="h-full w-full object-cover" /><button type="button" onClick={() => { URL.revokeObjectURL(item.preview); setPendingUploadItems(items => items.filter(current => current.id !== item.id)); }} className="absolute right-1 top-1 h-8 w-8 rounded-full bg-black/70 text-white" aria-label={`Rimuovi ${item.name}`}>×</button></div>)}
@@ -699,15 +710,99 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             {uploadError && <p className="mt-2 text-xs font-semibold text-rose-600">{uploadError}</p>}
             <div className="mt-4 flex gap-2"><button type="button" onClick={clearPendingPhotos} className="min-h-11 flex-1 rounded-full border border-slate-300 text-xs font-bold dark:border-slate-700">Annulla</button><button type="button" onClick={handleConfirmPhotoUpload} disabled={isUploadingPhoto || !pendingUploadItems.length} className="min-h-11 flex-1 rounded-full bg-[#FF6B5F] text-xs font-bold text-white disabled:opacity-40">{isUploadingPhoto ? 'Salvataggio…' : 'Salva nel diario'}</button></div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {activeLightboxIndex !== null && displayPhotos[activeLightboxIndex] && (
-        <div className="fixed inset-0 z-[120] flex flex-col bg-black/95 p-3 text-white" role="dialog" aria-modal="true" aria-label="Foto a schermo intero" data-swipe-navigation="ignore" onTouchStart={event => setTouchStartX(event.touches[0].clientX)} onTouchEnd={event => { if (touchStartX === null) return; const distance = event.changedTouches[0].clientX - touchStartX; if (distance > 45 && activeLightboxIndex > 0) setActiveLightboxIndex(activeLightboxIndex - 1); if (distance < -45 && activeLightboxIndex < displayPhotos.length - 1) setActiveLightboxIndex(activeLightboxIndex + 1); setTouchStartX(null); }}>
-          <div className="flex items-center justify-between"><span className="text-xs font-bold">{activeLightboxIndex + 1} / {displayPhotos.length}</span><div className="flex items-center gap-2">{props.canPublish && !props.isExternal && props.onDeletePhoto && <button type="button" onClick={() => { const photo = displayPhotos[activeLightboxIndex]; if (window.confirm('Eliminare questa foto dal dispositivo?')) { props.onDeletePhoto?.(photo.id); setActiveLightboxIndex(displayPhotos.length <= 1 ? null : Math.max(0, activeLightboxIndex - 1)); } }} className="min-h-11 px-3 text-xs font-bold text-rose-300">Elimina</button>}<button type="button" onClick={() => setActiveLightboxIndex(null)} className="h-11 w-11 rounded-full bg-white/15 text-xl" aria-label="Chiudi">×</button></div></div>
-          <div className="flex min-h-0 flex-1 items-center gap-2"><button type="button" disabled={activeLightboxIndex === 0} onClick={() => setActiveLightboxIndex(index => index === null ? index : Math.max(0, index - 1))} className="h-11 w-11 shrink-0 rounded-full bg-white/10 disabled:opacity-20" aria-label="Foto precedente">‹</button><img src={displayPhotos[activeLightboxIndex].url} alt={displayPhotos[activeLightboxIndex].caption || 'Foto del viaggio'} className="min-h-0 min-w-0 flex-1 object-contain" /><button type="button" disabled={activeLightboxIndex === displayPhotos.length - 1} onClick={() => setActiveLightboxIndex(index => index === null ? index : Math.min(displayPhotos.length - 1, index + 1))} className="h-11 w-11 shrink-0 rounded-full bg-white/10 disabled:opacity-20" aria-label="Foto successiva">›</button></div>
-          <div className="pb-[env(safe-area-inset-bottom)] text-center"><p className="text-sm font-bold">{displayPhotos[activeLightboxIndex].caption || 'Momento dal viaggio'}</p>{displayPhotos[activeLightboxIndex].location && <p className="mt-1 text-xs text-white/65">{displayPhotos[activeLightboxIndex].location}</p>}</div>
-        </div>
+      {activeLightboxIndex !== null && displayPhotos[activeLightboxIndex] && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col justify-between bg-black/95 backdrop-blur-md p-3 sm:p-6 pt-[max(0.75rem,env(safe-area-inset-top,0.75rem))] pb-[max(0.75rem,env(safe-area-inset-bottom,0.75rem))] text-white select-none"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Foto a schermo intero"
+          data-swipe-navigation="ignore"
+          onClick={() => setActiveLightboxIndex(null)}
+          onTouchStart={event => setTouchStartX(event.touches[0].clientX)}
+          onTouchEnd={event => {
+            if (touchStartX === null) return;
+            const distance = event.changedTouches[0].clientX - touchStartX;
+            if (distance > 45 && activeLightboxIndex > 0) setActiveLightboxIndex(activeLightboxIndex - 1);
+            if (distance < -45 && activeLightboxIndex < displayPhotos.length - 1) setActiveLightboxIndex(activeLightboxIndex + 1);
+            setTouchStartX(null);
+          }}
+        >
+          <div className="relative z-10 flex shrink-0 items-center justify-between" onClick={event => event.stopPropagation()}>
+            <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-bold tabular-nums">{activeLightboxIndex + 1} / {displayPhotos.length}</span>
+            <div className="flex items-center gap-2">
+              {props.canPublish && !props.isExternal && props.onDeletePhoto && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const photo = displayPhotos[activeLightboxIndex];
+                    if (window.confirm('Eliminare questa foto dal dispositivo?')) {
+                      props.onDeletePhoto?.(photo.id);
+                      setActiveLightboxIndex(displayPhotos.length <= 1 ? null : Math.max(0, activeLightboxIndex - 1));
+                    }
+                  }}
+                  className="min-h-11 rounded-full bg-rose-500/20 px-3.5 text-xs font-bold text-rose-300 hover:bg-rose-500/30"
+                >
+                  Elimina
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setActiveLightboxIndex(null)}
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-white/15 text-xl hover:bg-white/25"
+                aria-label="Chiudi"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+
+          <div className="relative my-2 flex min-h-0 flex-1 w-full items-center justify-center overflow-hidden">
+            <button
+              type="button"
+              disabled={activeLightboxIndex === 0}
+              onClick={event => {
+                event.stopPropagation();
+                setActiveLightboxIndex(index => index === null ? index : Math.max(0, index - 1));
+              }}
+              className="absolute left-1 sm:left-4 top-1/2 -translate-y-1/2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 border border-white/15 text-xl text-white backdrop-blur-sm hover:bg-black/75 disabled:opacity-20"
+              aria-label="Foto precedente"
+            >
+              ‹
+            </button>
+
+            <img
+              src={displayPhotos[activeLightboxIndex].url}
+              alt={displayPhotos[activeLightboxIndex].caption || 'Foto del viaggio'}
+              onClick={event => event.stopPropagation()}
+              className="block h-auto w-auto max-h-[calc(100dvh-9.5rem)] max-w-[calc(100vw-1.5rem)] sm:max-w-[calc(100vw-8rem)] mx-auto my-auto object-contain rounded-xl shadow-2xl"
+            />
+
+            <button
+              type="button"
+              disabled={activeLightboxIndex === displayPhotos.length - 1}
+              onClick={event => {
+                event.stopPropagation();
+                setActiveLightboxIndex(index => index === null ? index : Math.min(displayPhotos.length - 1, index + 1));
+              }}
+              className="absolute right-1 sm:right-4 top-1/2 -translate-y-1/2 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 border border-white/15 text-xl text-white backdrop-blur-sm hover:bg-black/75 disabled:opacity-20"
+              aria-label="Foto successiva"
+            >
+              ›
+            </button>
+          </div>
+
+          <div className="relative z-10 shrink-0 text-center px-4" onClick={event => event.stopPropagation()}>
+            <p className="text-sm font-bold">{displayPhotos[activeLightboxIndex].caption || 'Momento dal viaggio'}</p>
+            {displayPhotos[activeLightboxIndex].location && (
+              <p className="mt-1 text-xs text-white/65">{displayPhotos[activeLightboxIndex].location}</p>
+            )}
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

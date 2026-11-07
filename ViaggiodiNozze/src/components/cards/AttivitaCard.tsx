@@ -205,11 +205,12 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
 
   const headerIcon = isTrekking ? '△' : isPhotoSpot ? '📸' : '📌';
 
-  const isConfirmed = activity.timeStatus === 'confermato';
+  const isConfirmed = Boolean(displayTime) && activity.timeStatus === 'confermato';
+  const timeStatusSuffix = isConfirmed ? ' · Confermato' : ' · indicativo';
   const headerTimeSummary = hasDistinctMeetingTime
-    ? `${meetingTime} → ${startTime}`
+    ? `${meetingTime} → ${startTime}${timeStatusSuffix}`
     : displayTime
-    ? `Ore ${displayTime}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
+    ? `Ore ${displayTime}${timeStatusSuffix}`
     : '';
 
   return (
@@ -237,10 +238,11 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
 
             {headerTimeSummary && (
               <span
-                className={`hounigo-ds-time-stamp ${isConfirmed ? 'text-[#FF6B5F] font-black border-[#FF6B5F]/40 bg-rose-50/60 dark:bg-rose-950/40' : ''}`}
+                data-time-status={isConfirmed ? 'confermato' : 'indicativo'}
+                className={`hounigo-ds-time-stamp ${isConfirmed ? 'hounigo-ds-time-stamp-confirmed text-[#E11D48] dark:text-[#FF6B5F] font-black border-[#E11D48]/40 bg-rose-50 dark:bg-rose-950/40' : ''}`}
                 title={isConfirmed ? 'Orario confermato' : 'Orario indicativo'}
               >
-                {isConfirmed && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#FF6B5F] mr-1" aria-hidden="true" />}
+                {isConfirmed && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#E11D48] dark:bg-[#FF6B5F] mr-1" aria-hidden="true" />}
                 {headerTimeSummary}
               </span>
             )}
@@ -411,7 +413,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
               {hasDistinctMeetingTime && (
                 <span className="inline-flex items-center gap-1">
                   <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Ritrovo</span>
-                  <strong className="text-slate-900 dark:text-white">{meetingTime}</strong>
+                  <strong className={isConfirmed ? 'text-[#E11D48] dark:text-[#FF6B5F] font-black' : 'text-slate-900 dark:text-white'}>{meetingTime}</strong>
                 </span>
               )}
               {hasDistinctMeetingTime && startTime && (
@@ -419,7 +421,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                   <span className="text-slate-300 dark:text-slate-600">·</span>
                   <span className="inline-flex items-center gap-1">
                     <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Inizio</span>
-                    <strong className="text-slate-900 dark:text-white">{startTime}</strong>
+                    <strong className={isConfirmed ? 'text-[#E11D48] dark:text-[#FF6B5F] font-black' : 'text-slate-900 dark:text-white'}>{startTime}</strong>
                   </span>
                 </>
               )}

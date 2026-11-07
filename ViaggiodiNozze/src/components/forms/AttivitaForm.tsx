@@ -32,8 +32,9 @@ function LegacyPhotoStopForm({ initialData, defaultTime, onSave, onCancel, onDel
     data: activity.date,
     date: activity.date,
     dayId: activity.dayId,
-    orario: activity.time || activity.orarioInizio || activity.orarioRitrovo,
-    time: activity.time || activity.orarioInizio || activity.orarioRitrovo,
+    orario: activity.time || activity.orarioInizio || activity.orarioRitrovo || (activity as any).orario,
+    time: activity.time || activity.orarioInizio || activity.orarioRitrovo || (activity as any).orario,
+    timeStatus: activity.timeStatus,
     coordinate: activity.coordinate,
     indirizzo: activity.address || activity.location,
     mapsUrl: activity.link || activity.address || activity.location,
@@ -41,6 +42,10 @@ function LegacyPhotoStopForm({ initialData, defaultTime, onSave, onCancel, onDel
     noteCopilota: activity.noteCopilota,
     copilota: activity.copilota,
     completed: activity.completed,
+    openingHours: activity.openingHours,
+    attachments: activity.attachments,
+    lightWindow: activity.lightWindow,
+    photoSubject: activity.photoSubject,
     createdAt: activity.createdAt,
     updatedAt: activity.updatedAt
   };
@@ -64,6 +69,7 @@ function LegacyPhotoStopForm({ initialData, defaultTime, onSave, onCancel, onDel
           time: tappa.orario || tappa.time,
           orarioInizio: tappa.orario || tappa.time,
           orarioRitrovo: tappa.orario || tappa.time,
+          timeStatus: (tappa.orario || tappa.time) ? (tappa.timeStatus || activity.timeStatus || 'indicativo') : undefined,
           location: tappa.indirizzo || tappa.mapsUrl || tappa.titolo,
           address: tappa.indirizzo,
           coordinate: tappa.coordinate,
@@ -71,6 +77,10 @@ function LegacyPhotoStopForm({ initialData, defaultTime, onSave, onCancel, onDel
           noteCopilota: tappa.noteCopilota,
           copilota: tappa.copilota,
           completed: tappa.completed,
+          openingHours: tappa.openingHours ?? activity.openingHours,
+          attachments: tappa.attachments ?? activity.attachments,
+          lightWindow: (tappa as any).lightWindow ?? activity.lightWindow,
+          photoSubject: (tappa as any).photoSubject ?? activity.photoSubject,
           sottocategoria: 'Spot fotografico',
           category: activity.category || 'natura',
           status: activity.status || 'da_valutare'
@@ -165,7 +175,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       const dateVal = initialData.date || (initialData as any).data || (initialData.dayId.startsWith('day_') ? initialData.dayId.replace('day_', '') : '');
       setCustomDate(dateVal);
       setOrarioRitrovo(initialData.orarioRitrovo || '');
-      setOrarioInizio(initialData.orarioInizio || initialData.time || '');
+      setOrarioInizio(initialData.orarioInizio || initialData.time || (initialData as any).orario || initialData.orarioRitrovo || '');
       setTimeStatus(initialData.timeStatus || 'indicativo');
       setTimeZone(initialData.timeZone || '');
       setDuration(initialData.duration || '');
@@ -558,20 +568,18 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <span className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">Ora di partenza</span>
-                {orarioInizio && (
-                  <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
-                    <button
-                      type="button"
-                      onClick={() => setTimeStatus('confermato')}
-                      className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'confermato' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
-                    >✓ Confermato</button>
-                    <button
-                      type="button"
-                      onClick={() => setTimeStatus('indicativo')}
-                      className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'indicativo' ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
-                    >~ Indicativo</button>
-                  </div>
-                )}
+                <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setTimeStatus('confermato')}
+                    className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'confermato' ? 'bg-white dark:bg-slate-900 text-[#E11D48] dark:text-[#FF6B5F] shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+                  >✓ Confermato</button>
+                  <button
+                    type="button"
+                    onClick={() => setTimeStatus('indicativo')}
+                    className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'indicativo' ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+                  >~ Indicativo</button>
+                </div>
               </div>
               <TimePickerInput value={orarioInizio} onChange={setOrarioInizio} ariaLabel="Ora di partenza trekking" />
             </div>
@@ -606,11 +614,29 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
 
       {isPhotoSpot && (
         <div className="hounigo-panel rounded-2xl p-4 space-y-4 dark:bg-slate-800 dark:border-slate-700">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
               <span className="block uppercase tracking-wider mb-1.5">Data *</span>
               <input type="date" value={customDate} onChange={(e) => setCustomDate(e.target.value)} required className="w-full h-11 px-3 hounigo-card-subtle rounded-xl text-sm" />
             </label>
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">Orario</span>
+                <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setTimeStatus('confermato')}
+                    className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'confermato' ? 'bg-white dark:bg-slate-900 text-[#E11D48] dark:text-[#FF6B5F] shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+                  >✓ Confermato</button>
+                  <button
+                    type="button"
+                    onClick={() => setTimeStatus('indicativo')}
+                    className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'indicativo' ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+                  >~ Indicativo</button>
+                </div>
+              </div>
+              <TimePickerInput value={orarioInizio} onChange={setOrarioInizio} ariaLabel="Orario spot fotografico" />
+            </div>
             <label className="text-xs font-bold text-slate-700 dark:text-slate-200">
               <span className="block uppercase tracking-wider mb-1.5">Luogo *</span>
               <input type="text" value={address} onChange={(e) => setAddress(e.target.value)} required placeholder="Belvedere, spiaggia o indirizzo" className="w-full h-11 px-3 hounigo-card-subtle rounded-xl text-sm" />
@@ -671,20 +697,18 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Orari Evento</span>
-          {(orarioRitrovo || orarioInizio) && (
-            <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
-              <button
-                type="button"
-                onClick={() => setTimeStatus('confermato')}
-                className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'confermato' ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
-              >✓ Confermato</button>
-              <button
-                type="button"
-                onClick={() => setTimeStatus('indicativo')}
-                className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'indicativo' ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
-              >~ Indicativo</button>
-            </div>
-          )}
+          <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
+            <button
+              type="button"
+              onClick={() => setTimeStatus('confermato')}
+              className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'confermato' ? 'bg-white dark:bg-slate-900 text-[#E11D48] dark:text-[#FF6B5F] shadow-xs font-extrabold' : 'text-slate-500 hover:text-slate-700'}`}
+            >✓ Confermato</button>
+            <button
+              type="button"
+              onClick={() => setTimeStatus('indicativo')}
+              className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${timeStatus === 'indicativo' ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs' : 'text-slate-500 hover:text-slate-700'}`}
+            >~ Indicativo</button>
+          </div>
         </div>
       </div>
 

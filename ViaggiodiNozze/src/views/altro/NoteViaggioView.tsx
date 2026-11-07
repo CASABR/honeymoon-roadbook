@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import type { NotaViaggio, ColorNota } from '../../types';
 import { storageService } from '../../storage/storageService';
 
@@ -347,8 +348,8 @@ export default function NoteViaggioView({ onBack }: NoteViaggioViewProps) {
       )}
 
       {/* Modale Creazione / Modifica Post-it */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}>
+      {isModalOpen && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}>
           <div
             className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4 text-slate-900 dark:text-white"
             onClick={(e) => e.stopPropagation()}
@@ -433,12 +434,13 @@ export default function NoteViaggioView({ onBack }: NoteViaggioViewProps) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Modale Eliminazione Post-it */}
-      {deletingNota && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeletingNota(null)}>
+      {deletingNota && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setDeletingNota(null)}>
           <div
             className="w-full max-w-xs bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-2xl border border-rose-200 dark:border-rose-900 space-y-4"
             onClick={(e) => e.stopPropagation()}
@@ -467,7 +469,8 @@ export default function NoteViaggioView({ onBack }: NoteViaggioViewProps) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
