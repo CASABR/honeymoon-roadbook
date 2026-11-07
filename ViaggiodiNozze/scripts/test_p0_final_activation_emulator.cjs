@@ -276,6 +276,7 @@ function load(file, dependencies, globals = {}) {
     console.log('✓ Scenario 4: Conflitto versione remota più recente rilevato e bloccato prima dello sblocco.');
 
     // --- TEST SCENARIO 5: Rilevamento preventivo timestamp inaffidabile blocca lo sblocco e conserva entrambe le versioni ---
+    conflictArchive.length = 0;
     pendingQueue.length = 0;
     pendingQueue.push({
       id: 'q_att_unreliable',
@@ -295,6 +296,7 @@ function load(file, dependencies, globals = {}) {
     console.log('✓ Scenario 5: Incertezza timestamp bloccata preventivamente con conservazione di entrambe le versioni.');
 
     // --- TEST SCENARIO 6: Replay con coda pulita e revert immediato del flag se riconciliazione fallisce ---
+    conflictArchive.length = 0;
     pendingQueue.length = 0;
     pendingQueue.push({
       id: 'q_clean',

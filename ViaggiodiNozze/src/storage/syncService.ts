@@ -394,10 +394,23 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
     throw new Error('Operazione bloccata: dispositivo offline, impossibile verificare le versioni remote.');
   }
 
-  // 4. Controllo preliminare della coda locale
+  // 4. Controllo conflitti attivi pendenti nell'archivio
+  const conflictBackups = await getConflictBackups(tripId);
+  const activeConflicts = conflictBackups.filter(c => c.status === 'pending_review');
+  if (activeConflicts.length > 0) {
+    throw new Error(`Operazione bloccata: presenti ${activeConflicts.length} conflitti da risolvere prima di attivare le scritture.`);
+  }
+
+  // 5. Controllo preliminare della coda locale
   const beforeQueue = await getPendingMutations(tripId);
   const beforeCount = beforeQueue.length;
   if (beforeCount === 0) {
+    // Caso 0 modifiche pendenti: tutti i controlli di sicurezza (Owner verificato, online, zero conflitti attivi)
+    // sono superati. L'Owner verificato abilita esplicitamente le scritture cloud per il viaggio!
+    allowCloudWriteForTrip0000(true);
+    if (activeSyncService && activeSyncService.getTripId() === tripId) {
+      activeSyncService.triggerAutomaticSync('owner_activation_unlocked');
+    }
     return { success: true, pushedCount: 0, remainingCount: 0, conflictsCount: 0, errors: [] };
   }
 
@@ -476,6 +489,22 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
     }
   }
 
+  // Se tutte le mutazioni in coda erano già equivalenti e sono state rimosse:
+  const remainingBeforeFlush = await getPendingMutations(tripId);
+  if (remainingBeforeFlush.length === 0) {
+    allowCloudWriteForTrip0000(true);
+    if (activeSyncService && activeSyncService.getTripId() === tripId) {
+      activeSyncService.triggerAutomaticSync('owner_activation_unlocked');
+    }
+    return {
+      success: true,
+      pushedCount: beforeCount,
+      remainingCount: 0,
+      conflictsCount: 0,
+      errors: []
+    };
+  }
+
   // 6. TUTTI i controlli preliminari sono superati: abilita temporaneamente le scritture ed esegui il flush
   allowCloudWriteForTrip0000(true);
 
@@ -500,7 +529,7 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
   const afterQueue = await getPendingMutations(tripId);
   const remainingCount = afterQueue.length;
   const pushedCount = Math.max(0, beforeCount - remainingCount);
-  const conflictBackups = await getConflictBackups(tripId);
+  const remainingConflicts = (await getConflictBackups(tripId)).filter(c => c.status === 'pending_review');
 
   const isSuccess = errors.length === 0 && remainingCount === 0;
 
@@ -508,13 +537,15 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
   if (!isSuccess) {
     allowCloudWriteForTrip0000(false);
     console.warn(`[SyncService] Riconciliazione incompleta o fallita (${remainingCount} pendenti, ${errors.length} errori): flag cloud-write reimpostato su BLOCCATO.`);
+  } else if (activeSyncService && activeSyncService.getTripId() === tripId) {
+    activeSyncService.triggerAutomaticSync('owner_activation_reconciled');
   }
 
   return {
     success: isSuccess,
     pushedCount,
     remainingCount,
-    conflictsCount: conflictBackups.length,
+    conflictsCount: remainingConflicts.length,
     errors
   };
 }
@@ -646,10 +677,11 @@ export async function enableCopilotBidirectionalSync(tripId: string): Promise<{
     throw new Error('Operazione bloccata: dispositivo offline.');
   }
 
-  // Verifica conflitti esistenti
+  // Verifica conflitti esistenti attivi (status: pending_review)
   const conflictBackups = await getConflictBackups(tripId);
-  if (conflictBackups.length > 0) {
-    throw new Error('Operazione bloccata: presenti conflitti in archivio da verificare prima di attivare le scritture.');
+  const pendingConflicts = conflictBackups.filter(c => c.status === 'pending_review');
+  if (pendingConflicts.length > 0) {
+    throw new Error(`Operazione bloccata: presenti ${pendingConflicts.length} conflitti in archivio da verificare prima di attivare le scritture.`);
   }
 
   // Verifica mutazioni locali pendenti (se presenti sul dispositivo del Copilota)
@@ -665,6 +697,11 @@ export async function enableCopilotBidirectionalSync(tripId: string): Promise<{
         const sData = snap.data();
         const sUp = normalizeTimestamp(sData?.updatedAt);
         const lUp = normalizeTimestamp(q.data?.updatedAt);
+        const { isEquivalent } = compareCandidateWithRemote(normType, tripId, q.data, sData);
+        if (isEquivalent) {
+          await removePendingMutation(tripId, normType, dataId);
+          continue;
+        }
         if (sUp <= 0 || lUp <= 0 || sUp > lUp) {
           throw new Error(`Conflitto rilevato su ${normType}/${dataId}: sincronizzazione bidirezionale Copilota non abilitata.`);
         }
@@ -676,6 +713,7 @@ export async function enableCopilotBidirectionalSync(tripId: string): Promise<{
   allowCloudWriteForTrip0000(true);
 
   if (activeSyncService && activeSyncService.getTripId() === tripId) {
+    activeSyncService.triggerAutomaticSync('copilot_activation_unlocked');
     if (queue.length > 0) {
       activeSyncService.flushPendingQueue().catch((err) => {
         console.warn('[SyncService] Flush iniziale Copilota differito:', err);

@@ -14,6 +14,7 @@ import TripSelectorModal from '../components/modals/TripSelectorModal';
 import DeviceRoleModal from '../components/common/DeviceRoleModal';
 import AccountSyncModal from '../components/modals/AccountSyncModal';
 import PreActivationDiagnosticModal from '../components/modals/PreActivationDiagnosticModal';
+import { isTrip0000CloudWriteAllowed } from '../storage/syncService';
 import { useAuthIdentity } from '../utils/useAuthIdentity';
 import {
   TrailLive,
@@ -503,7 +504,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
-          {/* Diagnostica Pre-Attivazione (Sola Lettura) */}
+          {/* Diagnostica Pre-Attivazione e Sincronizzazione */}
           <button
             type="button"
             data-preactivation-diagnostic-card
@@ -517,14 +518,20 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
-                    Diagnostica Pre-Attivazione
+                    Diagnostica & Sincronizzazione
                   </h4>
-                  <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300">
-                    Sola Lettura
+                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                    isTrip0000CloudWriteAllowed()
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
+                      : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300'
+                  }`}>
+                    {isTrip0000CloudWriteAllowed() ? 'Sincronizzazione Attiva' : 'Pre-Attivazione'}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Verifica stato coda, conflitti e blocco scritture
+                  {isTrip0000CloudWriteAllowed()
+                    ? 'Stato sincronizzazione live, coda e archivio conflitti'
+                    : 'Risoluzione conflitti e attivazione sincronizzazione'}
                 </p>
               </div>
             </div>

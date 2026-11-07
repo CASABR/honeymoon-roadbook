@@ -125,10 +125,17 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
       setReport(rep);
 
       if (res.success) {
-        setActionFeedback({
-          type: 'success',
-          message: `✓ Riconciliazione completata con successo! ${res.pushedCount} mutazioni confermate da Firestore.`
-        });
+        if (res.pushedCount > 0) {
+          setActionFeedback({
+            type: 'success',
+            message: `✓ Riconciliazione completata ed attivazione riuscita! ${res.pushedCount} mutazioni confermate da Firestore. Sincronizzazione cloud ora ATTIVA.`
+          });
+        } else {
+          setActionFeedback({
+            type: 'success',
+            message: `✓ Sincronizzazione Cloud abilitata con successo! Coda verificata e allineata. Sincronizzazione in tempo reale ora ATTIVA.`
+          });
+        }
       } else if (res.errors.length > 0) {
         setActionFeedback({
           type: 'error',
@@ -208,7 +215,7 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
             </span>
             <div>
               <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                Diagnostica Pre-Attivazione
+                Diagnostica & Attivazione Sincronizzazione
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Viaggio {tripId} • {isOwner ? 'Modalità Gestione Owner' : isCopilota ? 'Modalità Copilota (Giusy)' : 'Accesso Sola Lettura / Ospite'}
@@ -347,20 +354,28 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
               </p>
             </div>
 
-            {/* Sezione 3: Archivio Conflitti Isolato e Risoluzione Guidata */}
+            {/* Sezione 3: FASE 1 - Risoluzione Conflitti Guidata (Se presenti) */}
             <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/70 space-y-2.5">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-                  Archivio Conflitti Isolato
-                </span>
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">
+                    FASE 1
+                  </span>
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
+                    Risoluzione Conflitti
+                  </span>
+                </div>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                   (report?.conflictsCount ?? 0) > 0
                     ? 'bg-rose-100 dark:bg-rose-900/60 text-rose-700 dark:text-rose-300'
                     : 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300'
                 }`}>
-                  {report?.conflictsCount ?? 0} rilevati
+                  {(report?.conflictsCount ?? 0) > 0 ? `${report?.conflictsCount} da verificare` : '✓ 0 conflitti attivi'}
                 </span>
               </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                Allinea i singoli elementi discordanti o contrassegnali come già sincronizzati. Questa operazione locale <strong>NON</strong> invia scritture a Firestore.
+              </p>
 
               {report && Object.keys(report.conflictsByType).length > 0 ? (
                 <div className="space-y-1.5 pt-0.5">
@@ -378,9 +393,9 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                   ))}
                 </div>
               ) : (
-                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold pt-0.5">
-                  ✓ Nessun conflitto riscontrato nell'archivio.
-                </p>
+                <div className="p-2.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200/70 dark:border-emerald-800/50 text-[11px] text-emerald-800 dark:text-emerald-300 font-medium">
+                  ✓ Fase 1 completata: nessun conflitto attivo nell'archivio. Puoi procedere alla Fase 2 sottostante.
+                </div>
               )}
 
               {/* Schede Dettaglio e Risoluzione Conflitti */}
@@ -468,27 +483,59 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
               </p>
             </div>
 
-            {/* Sezione 4: Azione Riconciliazione (Riservata Owner / Copilota) */}
-            <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-extrabold text-indigo-950 dark:text-indigo-200">
-                  {isOwner
-                    ? 'Comando Riconciliazione Controllata (Owner)'
-                    : isCopilota
-                    ? 'Sincronizzazione Bidirezionale Protetta (Copilota)'
-                    : 'Informazioni Sola Lettura'}
+            {/* Sezione 4: FASE 2 - Attivazione Sincronizzazione Cloud (Owner / Copilota) */}
+            <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border-2 border-indigo-200/80 dark:border-indigo-800/60 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 block">
+                    FASE 2
+                  </span>
+                  <span className="text-xs font-extrabold text-indigo-950 dark:text-indigo-200">
+                    {isOwner
+                      ? 'Attivazione Sincronizzazione (Owner)'
+                      : isCopilota
+                      ? 'Attivazione Sincronizzazione (Copilota Giusy)'
+                      : 'Informazioni Sola Lettura'}
+                  </span>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  report?.isCloudWriteAllowed
+                    ? 'bg-emerald-100 dark:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300'
+                }`}>
+                  {report?.isCloudWriteAllowed ? '🟢 Attiva' : '🔒 Bloccata'}
                 </span>
               </div>
 
               {isOwner ? (
-                <div className="space-y-2 pt-1">
-                  <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                    {!report?.isCloudWriteAllowed
-                      ? 'In qualità di Owner verificato, puoi avviare la riconciliazione controllata delle modifiche pendenti verso Firestore. Le versioni remote vengono confrontate prima della scrittura e la coda locale viene liberata solo dopo conferma del server.'
-                      : 'La sincronizzazione cloud è già attiva sul dispositivo.'}
-                  </p>
+                <div className="space-y-2.5 pt-1">
+                  {hasConflicts ? (
+                    <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-[11px] text-rose-800 dark:text-rose-200 leading-relaxed font-medium">
+                      ⚠️ <strong>Attivazione Bloccata:</strong> Prima di procedere all'attivazione, devi completare la <strong>Fase 1</strong> sopra risolvendo i conflitti aperti.
+                    </div>
+                  ) : null}
 
-                  {!report?.isCloudWriteAllowed && (
+                  {report?.isCloudWriteAllowed ? (
+                    <div className="p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200 space-y-1">
+                      <div className="flex items-center gap-1.5 font-extrabold text-xs">
+                        <span>✓</span>
+                        <span>Sincronizzazione Cloud ATTIVA ed Operativa</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed opacity-90">
+                        Il tuo iPhone Owner sta sincronizzando in tempo reale bidirezionale con Firestore.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/60 text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                      {report?.pendingCount === 0 ? (
+                        <>✓ <strong>Coda pulita (0 mutazioni) e zero conflitti:</strong> I controlli di sicurezza (Owner verificato, connessione di rete, integrità dati) sono superati. Clicca il pulsante sotto per attivare la sincronizzazione continua bidirezionale.</>
+                      ) : (
+                        <>Sono presenti <strong>{report?.pendingCount} modifiche locali</strong> in attesa. Clicca per verificare le versioni remote, riconciliarle con Firestore e attivare la sincronizzazione continua.</>
+                      )}
+                    </div>
+                  )}
+
+                  {!report?.isCloudWriteAllowed ? (
                     <button
                       type="button"
                       disabled={reconciling || hasConflicts}
@@ -502,30 +549,58 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                       {reconciling ? (
                         <>
                           <span className="animate-spin text-sm">⏳</span>
-                          <span>Riconciliazione e Push in corso…</span>
+                          <span>Attivazione e verifica in corso…</span>
+                        </>
+                      ) : hasConflicts ? (
+                        <>
+                          <span>⚠️</span>
+                          <span>Attivazione Bloccata (Risolvi Conflitti in Fase 1)</span>
+                        </>
+                      ) : report?.pendingCount === 0 ? (
+                        <>
+                          <span>🚀</span>
+                          <span>Attiva Sincronizzazione Cloud Bidirezionale (Owner)</span>
                         </>
                       ) : (
                         <>
                           <span>🚀</span>
-                          <span>Sblocca ed Esegui Riconciliazione (Owner)</span>
+                          <span>Sincronizza Coda e Attiva Sincronizzazione ({report?.pendingCount} in attesa)</span>
                         </>
                       )}
                     </button>
-                  )}
-
-                  {hasConflicts && (
-                    <p className="text-[10px] text-rose-600 dark:text-rose-400 font-semibold">
-                      ⚠️ Riconciliazione disabilitata per presenza di conflitti non risolti.
-                    </p>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleRelock}
+                      className="w-full py-2 px-3 rounded-xl font-bold text-[11px] bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200 transition-colors cursor-pointer"
+                    >
+                      🔒 Ripristina Blocco Scritture Cloud (Pre-Attivazione)
+                    </button>
                   )}
                 </div>
               ) : isCopilota ? (
-                <div className="space-y-2 pt-1">
-                  <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                    {!report?.isCloudWriteAllowed
-                      ? 'In qualità di Copilota verificato (Giusy), puoi abilitare la sincronizzazione bidirezionale protetta separata dal replay Owner. Nessuna elevazione di privilegi: le modifiche restano conformi al ruolo di Copilota.'
-                      : 'La sincronizzazione bidirezionale è attiva sul tuo dispositivo con permessi di Copilota.'}
-                  </p>
+                <div className="space-y-2.5 pt-1">
+                  {hasConflicts ? (
+                    <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-[11px] text-rose-800 dark:text-rose-200 leading-relaxed font-medium">
+                      ⚠️ <strong>Attivazione Bloccata:</strong> Conflitti presenti da verificare prima di attivare la sincronizzazione.
+                    </div>
+                  ) : null}
+
+                  {report?.isCloudWriteAllowed ? (
+                    <div className="p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200 space-y-1">
+                      <div className="flex items-center gap-1.5 font-extrabold text-xs">
+                        <span>✓</span>
+                        <span>Sincronizzazione Copilota ATTIVA ed Operativa</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed opacity-90">
+                        Il dispositivo invia e riceve aggiornamenti in tempo reale con i soli permessi del ruolo Copilota (cassaforte privata protetta).
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                      In qualità di Copilota verificato (Giusy), puoi abilitare la sincronizzazione bidirezionale protetta separata dall'Owner. Nessuna elevazione di privilegi: le modifiche restano rigorosamente conformi al ruolo Copilota (zero accesso né sovrascrittura di credenziali private).
+                    </p>
+                  )}
 
                   {!report?.isCloudWriteAllowed ? (
                     <button
@@ -543,10 +618,15 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                           <span className="animate-spin text-sm">⏳</span>
                           <span>Verifica e attivazione in corso…</span>
                         </>
+                      ) : hasConflicts ? (
+                        <>
+                          <span>⚠️</span>
+                          <span>Attivazione Bloccata (Conflitti attivi)</span>
+                        </>
                       ) : (
                         <>
                           <span>🟢</span>
-                          <span>Abilita Sincronizzazione Bidirezionale (Copilota)</span>
+                          <span>Attiva Sincronizzazione Copilota (Giusy)</span>
                         </>
                       )}
                     </button>
@@ -560,7 +640,7 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                     </button>
                   )}
                   <div className="p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/60 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                    ℹ️ <strong>Ricezione Automatica Copilota:</strong> Il dispositivo riceve automaticamente tutti gli aggiornamenti dal server in background tramite listener Firestore live. Non è richiesta alcuna azione tecnica da parte del Copilota.
+                    ℹ️ <strong>Ricezione Automatica Sempre Attiva:</strong> Il dispositivo del Copilota riceve comunque tutti gli aggiornamenti dal server in background tramite listener Firestore live, senza bisogno di procedure tecniche.
                   </div>
                 </div>
               ) : (
