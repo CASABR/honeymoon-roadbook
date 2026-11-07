@@ -363,6 +363,22 @@ async function asyncCheck(name, fn) {
     }, /PERMISSION_DENIED|permission-denied/);
   });
 
+  await asyncCheck('4.4: Falsificazione publisherDeviceId: attaccante con UID non autorizzato ma deviceId copiato viene respinto', async () => {
+    // Attaccante tenta di spacciare il devOwner autorizzato ma con le sue credenziali auth UID_STRANGER
+    await assert.rejects(async () => {
+      await updateDoc(doc(dbStranger, 'live_feeds/0000/locations/current'), {
+        lat: -36.8500,
+        lng: 174.7650,
+        accuracy: 15,
+        city: 'Auckland',
+        country: 'New Zealand',
+        publisherDeviceId: devOwner, // Spoofed device ID
+        status: 'active',
+        updatedAt: serverTimestamp()
+      });
+    }, /PERMISSION_DENIED|permission-denied/);
+  });
+
   // Test 5: Guestbook / Messaggi Ospiti
   await asyncCheck('5.1: Chiunque (anche non autenticato) può leggere i messaggi del guestbook', async () => {
     const res = await request('GET', 'live_feeds/0000/guest_messages/msg_test_01', null);
@@ -401,6 +417,14 @@ async function asyncCheck(name, fn) {
       hidden: true
     });
     assert.strictEqual(modRes.status, 200, 'Copilota deve poter moderare (nascondere) un messaggio');
+
+    // 5.4: Verifica inaccessibilità messaggio nascosto per visitatori non autenticati
+    const visitorReadRes = await request('GET', `live_feeds/0000/guest_messages/${msgId}`, null);
+    assert.strictEqual(visitorReadRes.status, 403, 'Messaggio nascosto (hidden: true) deve essere categoricamente inaccessibile al pubblico (403)');
+
+    // Ma accessibile agli sposi
+    const ownerReadRes = await request('GET', `live_feeds/0000/guest_messages/${msgId}`, UID_OWNER);
+    assert.strictEqual(ownerReadRes.status, 200, 'Messaggio nascosto deve essere consultabile dagli organizzatori (200)');
   });
 
   // Test 6: Users profile & Members display name

@@ -382,7 +382,11 @@ service cloud.firestore {
       }
 
       match /guest_messages/{msgId} {
-        allow read: if true;
+        // Lettura pubblica consentita ESCLUSIVAMENTE per messaggi non nascosti e non eliminati.
+        // I messaggi nascosti o eliminati sono leggibili unicamente dagli sposi (Owner/Copilota) o dall'Admin.
+        allow read: if (
+                      (resource == null || (resource.data.get('hidden', false) == false && resource.data.get('deleted', false) == false))
+                    ) || isTripPrivilegedMember(tripId) || isGlobalAdmin();
         // Scrittura diretta non autenticata disabilitata per prevenire abusi e flood su Firebase Spark.
         // Riservata a Owner e Copilota del viaggio (es. saluti/benvenuto) fino all'integrazione di un rate-limiter autoritativo.
         allow create: if isSignedIn() && isTripPrivilegedMember(tripId) && validGuestMessage(request.resource.data);
