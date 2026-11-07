@@ -20,7 +20,7 @@ interface AlloggioCardProps {
 }
 
 export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail }: AlloggioCardProps) {
-  const { canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
+  const { canEdit, canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
   const isExternalLiveView = typeof window !== 'undefined' && (
     new URLSearchParams(window.location.search).get('live') === '1' ||
     new URLSearchParams(window.location.search).get('live') === 'true' ||
@@ -72,6 +72,52 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
       window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'alloggi', data: updated } }));
     } catch (err) {
       console.error('Errore durante il cambio stato pagamento alloggio:', err);
+    }
+  };
+
+  const handleToggleCheckIn = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!canEdit) return;
+    try {
+      const now = Date.now();
+      const nextCheckIn = !accommodation.checkInDone;
+      const updated: Alloggio = {
+        ...accommodation,
+        checkInDone: nextCheckIn,
+        checkInAt: nextCheckIn ? now : undefined,
+        // Se si annulla il check-in, azzera anche il check-out
+        ...(nextCheckIn ? {} : { checkOutDone: false, checkOutAt: undefined }),
+        updatedAt: now
+      };
+      await storageService.saveAlloggio(updated);
+      notifyDataChanged('alloggi', 'save', updated);
+      if (typeof onUpdate === 'function') onUpdate(updated);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'alloggi', data: updated } }));
+    } catch (err) {
+      console.error('Errore toggle check-in alloggio:', err);
+    }
+  };
+
+  const handleToggleCheckOut = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!canEdit) return;
+    try {
+      const now = Date.now();
+      const nextCheckOut = !accommodation.checkOutDone;
+      const updated: Alloggio = {
+        ...accommodation,
+        checkInDone: nextCheckOut ? true : accommodation.checkInDone,
+        checkInAt: nextCheckOut ? (accommodation.checkInAt || now) : accommodation.checkInAt,
+        checkOutDone: nextCheckOut,
+        checkOutAt: nextCheckOut ? now : undefined,
+        updatedAt: now
+      };
+      await storageService.saveAlloggio(updated);
+      notifyDataChanged('alloggi', 'save', updated);
+      if (typeof onUpdate === 'function') onUpdate(updated);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'alloggi', data: updated } }));
+    } catch (err) {
+      console.error('Errore toggle check-out alloggio:', err);
     }
   };
 
@@ -267,9 +313,9 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
         )}
       </div>
 
-      {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO & AZIONI OPERATIVE */}
+      {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO, CHECK-IN/OUT & AZIONI OPERATIVE */}
       <div className="hounigo-ds-card-footer">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {isFree ? (
             <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Gratuito
@@ -291,6 +337,39 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               {compactPaymentText}
             </button>
           ) : null}
+
+          <button
+            type="button"
+            onClick={handleToggleCheckIn}
+            disabled={!canEdit}
+            data-testid={`accommodation-checkin-toggle-${accommodation.id}`}
+            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-extrabold border transition-all ${
+              accommodation.checkInDone
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700'
+                : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+            } ${canEdit ? 'cursor-pointer active:scale-95' : 'cursor-default opacity-80'}`}
+            title={canEdit ? 'Tocca per aggiornare lo stato di check-in' : 'Stato check-in alloggio'}
+            aria-label={accommodation.checkInDone ? 'Check-in effettuato' : 'Check-in da fare'}
+          >
+            <span>{accommodation.checkInDone ? '✓ Check-in fatto' : 'Check-in da fare'}</span>
+          </button>
+
+          {(accommodation.checkInDone || accommodation.checkOutDone) && (
+            <button
+              type="button"
+              onClick={handleToggleCheckOut}
+              disabled={!canEdit}
+              data-testid={`accommodation-checkout-toggle-${accommodation.id}`}
+              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-extrabold border transition-all ${
+                accommodation.checkOutDone
+                  ? 'bg-indigo-50 text-indigo-800 border-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-200 dark:border-indigo-700'
+                  : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+              } ${canEdit ? 'cursor-pointer active:scale-95' : 'cursor-default opacity-80'}`}
+              title={canEdit ? 'Tocca per aggiornare lo stato di check-out' : 'Stato check-out alloggio'}
+            >
+              <span>{accommodation.checkOutDone ? '✓ Check-out fatto' : 'Check-out'}</span>
+            </button>
+          )}
         </div>
 
         <div className="hounigo-ds-actions-group">

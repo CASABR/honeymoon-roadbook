@@ -273,8 +273,12 @@ export async function checkStorageAvailability(requiredBytes: number = 0): Promi
 
 /**
  * Elabora un file (immagine o PDF) con limite di almeno 5 MB e controllo reale dello spazio.
+ * Se options.stripExif è true, forza la ricodifica via Canvas per rimuovere metadati EXIF sensibili (GPS, dispositivo).
  */
-export async function processFileForAttachment(file: File): Promise<TransportAttachment> {
+export async function processFileForAttachment(
+  file: File,
+  options?: { stripExif?: boolean }
+): Promise<TransportAttachment> {
   const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   const isImage = isSupportedImageFile(file);
 
@@ -321,8 +325,8 @@ export async function processFileForAttachment(file: File): Promise<TransportAtt
     }
   }
 
-  // Per immagini: se pesano meno di 600 KB, conserviamo l'originale senza ricodifica
-  if (file.size < 600 * 1024) {
+  // Per immagini: se pesano meno di 600 KB e non è richiesta rimozione EXIF, conserviamo l'originale senza ricodifica
+  if (file.size < 600 * 1024 && !options?.stripExif) {
     try {
       const dataUrl = await readFileAsDataUrl(file);
       return {

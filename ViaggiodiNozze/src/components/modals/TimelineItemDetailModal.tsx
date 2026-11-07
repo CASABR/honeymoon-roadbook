@@ -132,9 +132,9 @@ export default function TimelineItemDetailModal({
   const hasCostInfo = paymentInfo.costNum > 0 || paymentInfo.isPackageIncluded || Boolean(data?.budget) || paymentInfo.paidNum > 0;
 
   const hasOperationalDetails = isTrasporto
-    ? Boolean(data?.carrier || data?.bookingCode || data?.terminalGate || data?.posti || (data?.type === 'volo' && data?.layover?.airport) || data?.bagagli || data?.provider)
+    ? Boolean(data?.carrier || data?.bookingCode || data?.terminalGate || data?.posti || (data?.type === 'volo' && data?.layover?.airport) || data?.bagagli || data?.provider || ['volo', 'traghetto', 'treno', 'auto', 'camper', 'transfer'].includes(data?.type))
     : isAlloggio
-    ? Boolean(data?.checkIn || data?.checkOut || data?.checkInTime || data?.checkOutTime || data?.arrivalTime || (canEdit && data?.pinCode) || data?.bookingCode || data?.cancellazioneGratuitaEntro || data?.phone)
+    ? true
     : isAttivita
     ? Boolean(data?.bookingCode || data?.ritrovo || data?.orarioRitrovo || data?.guida || data?.durata || data?.dislivello || data?.lightWindow || data?.photoSubject || (data?.openingHours?.weekly && Object.keys(data.openingHours.weekly).length > 0))
     : isTappa
@@ -331,6 +331,48 @@ export default function TimelineItemDetailModal({
                     <span className="font-semibold text-amber-700 dark:text-amber-300">entro le ore {data.checkinCutoff}</span>
                   </div>
                 )}
+                {['volo', 'traghetto', 'treno', 'auto', 'camper', 'transfer'].includes(data.type) && (
+                  <div className="sm:col-span-2 pt-1 flex items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800">
+                    <div>
+                      <span className="text-slate-400 text-[10px] uppercase font-bold block">
+                        {data.type === 'auto' || data.type === 'camper' ? 'Stato Ritiro / Riconsegna' : 'Stato Check-in Operativo'}
+                      </span>
+                      <span className={`font-bold ${data.checkInDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}`}>
+                        {data.type === 'auto' || data.type === 'camper'
+                          ? (data.checkInDone ? '✓ Mezzo ritirato' : 'Da ritirare')
+                          : (data.checkInDone ? '✓ Check-in effettuato' : 'Check-in da effettuare')}
+                      </span>
+                    </div>
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const { storageService, notifyDataChanged } = await import('../../storage/storageService');
+                          const now = Date.now();
+                          const nextCheckIn = !data.checkInDone;
+                          const updated = {
+                            ...data,
+                            checkInDone: nextCheckIn,
+                            checkInAt: nextCheckIn ? now : undefined,
+                            updatedAt: now
+                          };
+                          data.checkInDone = nextCheckIn;
+                          data.checkInAt = updated.checkInAt;
+                          await storageService.saveTransport(updated);
+                          notifyDataChanged('trasporti', 'save', updated);
+                          window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'trasporti', data: updated } }));
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
+                          data.checkInDone
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700'
+                            : 'bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        {data.checkInDone ? '✓ Fatto (Annulla)' : 'Segna come fatto'}
+                      </button>
+                    )}
+                  </div>
+                )}
               </>
             )}
 
@@ -348,6 +390,83 @@ export default function TimelineItemDetailModal({
                   <span className="font-semibold text-slate-800 dark:text-slate-200">
                     entro le ore {data.checkOutTime || '10:00'}
                   </span>
+                </div>
+                <div className="sm:col-span-2 pt-1 flex items-center justify-between gap-2 flex-wrap border-t border-slate-100 dark:border-slate-800">
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Stato Check-in / Check-out</span>
+                    <span className={`font-bold ${data.checkOutDone ? 'text-indigo-600 dark:text-indigo-400' : data.checkInDone ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}`}>
+                      {data.checkOutDone
+                        ? '✓ Check-in e Check-out completati'
+                        : data.checkInDone
+                        ? '✓ Check-in effettuato'
+                        : 'Check-in da effettuare'}
+                    </span>
+                  </div>
+                  {canEdit && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const { storageService, notifyDataChanged } = await import('../../storage/storageService');
+                          const now = Date.now();
+                          const nextCheckIn = !data.checkInDone;
+                          const updated = {
+                            ...data,
+                            checkInDone: nextCheckIn,
+                            checkInAt: nextCheckIn ? now : undefined,
+                            ...(nextCheckIn ? {} : { checkOutDone: false, checkOutAt: undefined }),
+                            updatedAt: now
+                          };
+                          data.checkInDone = nextCheckIn;
+                          data.checkInAt = updated.checkInAt;
+                          if (!nextCheckIn) {
+                            data.checkOutDone = false;
+                            data.checkOutAt = undefined;
+                          }
+                          await storageService.saveAlloggio(updated);
+                          notifyDataChanged('alloggi', 'save', updated);
+                          window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'alloggi', data: updated } }));
+                        }}
+                        className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
+                          data.checkInDone
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700'
+                            : 'bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700'
+                        }`}
+                      >
+                        {data.checkInDone ? '✓ Check-in fatto' : 'Segna Check-in'}
+                      </button>
+                      {(data.checkInDone || data.checkOutDone) && (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const { storageService, notifyDataChanged } = await import('../../storage/storageService');
+                            const now = Date.now();
+                            const nextCheckOut = !data.checkOutDone;
+                            const updated = {
+                              ...data,
+                              checkInDone: nextCheckOut ? true : data.checkInDone,
+                              checkInAt: nextCheckOut ? (data.checkInAt || now) : data.checkInAt,
+                              checkOutDone: nextCheckOut,
+                              checkOutAt: nextCheckOut ? now : undefined,
+                              updatedAt: now
+                            };
+                            data.checkInDone = updated.checkInDone;
+                            data.checkOutDone = nextCheckOut;
+                            await storageService.saveAlloggio(updated);
+                            notifyDataChanged('alloggi', 'save', updated);
+                            window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'alloggi', data: updated } }));
+                          }}
+                          className={`px-2.5 py-1.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
+                            data.checkOutDone
+                              ? 'bg-indigo-50 text-indigo-800 border-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-200 dark:border-indigo-700'
+                              : 'bg-slate-100 text-slate-800 border-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700'
+                          }`}
+                        >
+                          {data.checkOutDone ? '✓ Check-out fatto' : 'Segna Check-out'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
                 {data.pinCode && (
                   <div>

@@ -42,6 +42,19 @@ export function getCheckinDisplayInfo(transport: Trasporto): CheckinDisplayInfo 
   const isFlight = transport.type === 'volo';
   const isFerry = transport.type === 'traghetto';
 
+  if (transport.checkInDone) {
+    return {
+      cutoffTime: transport.checkinCutoff?.trim() || undefined,
+      status: 'open',
+      notice: 'Check-in completato',
+      statusBadge: {
+        label: 'Check-in fatto',
+        tone: 'text-emerald-800 dark:text-emerald-200 bg-emerald-500/15 border-emerald-500/30',
+        icon: '✓'
+      }
+    };
+  }
+
   if (transport.checkinCutoff && transport.checkinCutoff.trim()) {
     const raw = transport.checkinCutoff.trim();
     let recommendedAirport: string | undefined;
@@ -169,7 +182,7 @@ export default function TrasportoCard({
   onDetail,
   onUpdate
 }: TrasportoCardProps) {
-  const { canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
+  const { canEdit, canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
   const isExternalLiveView = typeof window !== 'undefined' && (
     new URLSearchParams(window.location.search).get('live') === '1' ||
     new URLSearchParams(window.location.search).get('live') === 'true' ||
@@ -240,6 +253,41 @@ export default function TrasportoCard({
       window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'trasporti', data: updated } }));
     } catch (err) {
       console.error('Errore toggle pagamento trasporto:', err);
+    }
+  };
+
+  const supportsCheckIn = ['volo', 'traghetto', 'treno', 'auto', 'camper', 'transfer'].includes(transport.type);
+  const isCheckedIn = isRental && isDropoffDay ? Boolean(transport.dropoffDone) : Boolean(transport.checkInDone);
+  const checkInBadgeLabel = isRental
+    ? isDropoffDay
+      ? (isCheckedIn ? '✓ Riconsegnato' : 'Da riconsegnare')
+      : (isCheckedIn ? '✓ Ritirato' : 'Da ritirare')
+    : (isCheckedIn ? '✓ Check-in fatto' : 'Check-in da fare');
+
+  const handleToggleCheckIn = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!canEdit || !supportsCheckIn) return;
+    try {
+      const now = Date.now();
+      const updated: Trasporto = isRental && isDropoffDay
+        ? {
+            ...transport,
+            dropoffDone: !transport.dropoffDone,
+            dropoffAt: !transport.dropoffDone ? now : undefined,
+            updatedAt: now
+          }
+        : {
+            ...transport,
+            checkInDone: !transport.checkInDone,
+            checkInAt: !transport.checkInDone ? now : undefined,
+            updatedAt: now
+          };
+      await storageService.saveTransport(updated);
+      notifyDataChanged('trasporti', 'save', updated);
+      if (typeof onUpdate === 'function') onUpdate(updated);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'trasporti', data: updated } }));
+    } catch (err) {
+      console.error('Errore toggle check-in trasporto:', err);
     }
   };
 
@@ -508,9 +556,9 @@ export default function TrasportoCard({
           )}
         </div>
 
-        {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO & AZIONI OPERATIVE */}
+        {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO, CHECK-IN & AZIONI OPERATIVE */}
         <div className="hounigo-ds-card-footer">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {isPackageIncluded ? (
               <span className="text-xs font-extrabold uppercase tracking-wide text-sky-800 dark:text-sky-300">
                 Incluso
@@ -536,6 +584,24 @@ export default function TrasportoCard({
                 {compactPaymentText}
               </button>
             ) : null}
+
+            {supportsCheckIn && (
+              <button
+                type="button"
+                onClick={handleToggleCheckIn}
+                disabled={!canEdit}
+                data-testid={`transport-checkin-toggle-${transport.id}`}
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-extrabold border transition-all ${
+                  isCheckedIn
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700'
+                    : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                } ${canEdit ? 'cursor-pointer active:scale-95' : 'cursor-default opacity-80'}`}
+                title={canEdit ? 'Tocca per aggiornare lo stato di check-in / ritiro' : 'Stato check-in'}
+                aria-label={`Stato check-in: ${checkInBadgeLabel}`}
+              >
+                <span>{checkInBadgeLabel}</span>
+              </button>
+            )}
           </div>
 
           <div className="hounigo-ds-actions-group">

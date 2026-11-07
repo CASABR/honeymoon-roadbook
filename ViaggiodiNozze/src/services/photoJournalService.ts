@@ -1,5 +1,6 @@
 import { auth } from '../firebase';
 import { getOrCreateDeviceId } from '../utils/deviceSession';
+import { storageService } from '../storage/storageService';
 
 const GALLERY_KEY = 'hounigo_live_gallery';
 const LAST_PHOTO_KEY = 'live_last_photo';
@@ -16,6 +17,7 @@ export interface JournalPhotoRecord {
   userId: string;
   kind?: 'predeparture' | 'journal';
   liveUpdateId?: string;
+  exifStripped?: boolean;
 }
 
 function readGallery(): JournalPhotoRecord[] {
@@ -29,8 +31,14 @@ function readGallery(): JournalPhotoRecord[] {
 }
 
 function writeGallery(photos: JournalPhotoRecord[]): void {
-  localStorage.setItem(GALLERY_KEY, JSON.stringify(photos.slice(0, 30)));
-  window.dispatchEvent(new CustomEvent('hounigo_journal_photos_changed'));
+  const sliced = photos.slice(0, 30);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(GALLERY_KEY, JSON.stringify(sliced));
+  }
+  storageService.saveSetting(GALLERY_KEY, sliced).catch(() => {});
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('hounigo_journal_photos_changed'));
+  }
 }
 
 export function getJournalUserId(): string {
@@ -52,15 +60,18 @@ export function savePredeparturePhoto(tripId: string, dataUrl: string, userId = 
     tripId,
     userId,
     kind: 'predeparture',
-    liveUpdateId: existing?.liveUpdateId
+    liveUpdateId: existing?.liveUpdateId,
+    exifStripped: true
   };
   const updated = [photo, ...readGallery().filter((item) => item.id !== photo.id)];
   writeGallery(updated);
-  localStorage.setItem(LAST_PHOTO_KEY, JSON.stringify({
-    dataUrl,
-    caption: photo.caption,
-    timestamp: new Date(photo.timestamp).toISOString()
-  }));
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(LAST_PHOTO_KEY, JSON.stringify({
+      dataUrl,
+      caption: photo.caption,
+      timestamp: new Date(photo.timestamp).toISOString()
+    }));
+  }
   return photo;
 }
 
@@ -79,9 +90,32 @@ function dismissKey(tripId: string, userId: string): string {
 }
 
 export function isPredeparturePromptDismissed(tripId: string, userId = getJournalUserId()): boolean {
-  return typeof localStorage !== 'undefined' && localStorage.getItem(dismissKey(tripId, userId)) === 'true';
+  return typeof localStorage !== 'undefined' && (
+    localStorage.getItem(dismissKey(tripId, userId)) === 'true' ||
+    localStorage.getItem(`${DISMISS_PREFIX}:${tripId}`) === 'true'
+  );
+}
+
+export async function isPredeparturePromptDismissedAsync(tripId: string, userId = getJournalUserId()): Promise<boolean> {
+  if (isPredeparturePromptDismissed(tripId, userId)) return true;
+  try {
+    const idbDismissed = await storageService.getSetting<boolean>(dismissKey(tripId, userId));
+    if (idbDismissed) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(dismissKey(tripId, userId), 'true');
+      }
+      return true;
+    }
+  } catch {
+    // ignore
+  }
+  return false;
 }
 
 export function dismissPredeparturePrompt(tripId: string, userId = getJournalUserId()): void {
-  localStorage.setItem(dismissKey(tripId, userId), 'true');
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(dismissKey(tripId, userId), 'true');
+    localStorage.setItem(`${DISMISS_PREFIX}:${tripId}`, 'true');
+  }
+  storageService.saveSetting(dismissKey(tripId, userId), true).catch(() => {});
 }

@@ -205,6 +205,10 @@ export interface Alloggio {
   mostraNoteInCard?: boolean; // Toggle per mostrare a vista le info importanti del copilota sulla card
   copilota?: boolean;
   completed?: boolean;
+  checkInDone?: boolean;
+  checkInAt?: number;
+  checkOutDone?: boolean;
+  checkOutAt?: number;
   coordinate?: Coordinate;
   attachments?: TransportAttachment[];
   createdAt: number;
@@ -293,6 +297,10 @@ export interface Trasporto {
   notes?: string;
   copilota?: boolean;
   completed?: boolean;
+  checkInDone?: boolean;
+  checkInAt?: number;
+  dropoffDone?: boolean;
+  dropoffAt?: number;
   coordinate?: Coordinate;
   status: StatoTrasporto;
   createdAt: number;

@@ -1472,6 +1472,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         <PreDeparturePhotoCard
           tripId={tripId}
           startDate={tripConfig?.startDate || tripDays[0]?.dateStr || (isMasterTrip ? TRIP_START_DATE : '')}
+          selectedDate={selectedDate}
           canEdit={canEdit}
           onOpenLive={() => onNavigateTab?.('altro', undefined, 'live')}
         />
