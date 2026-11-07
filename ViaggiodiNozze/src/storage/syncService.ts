@@ -84,6 +84,76 @@ export function allowQueueFlushForTrip0000(allow: boolean = true): void {
   allowCloudWriteForTrip0000(allow);
 }
 
+export interface NormalizedCoordinates {
+  lat: number;
+  lng: number;
+}
+
+export function extractNormalizedCoordinates(val: any): NormalizedCoordinates | null {
+  if (!val || typeof val !== 'object') return null;
+  const rawLat = val.lat ?? val.latitude;
+  const rawLng = val.lng ?? val.longitude ?? val.lon;
+
+  if (rawLat === undefined || rawLat === null || rawLng === undefined || rawLng === null) {
+    return null;
+  }
+
+  const lat = typeof rawLat === 'number' ? rawLat : parseFloat(String(rawLat));
+  const lng = typeof rawLng === 'number' ? rawLng : parseFloat(String(rawLng));
+
+  if (isNaN(lat) || isNaN(lng)) return null;
+
+  return { lat, lng };
+}
+
+export function areCoordinatesEquivalent(coordA: any, coordB: any, epsilon = 0.00001): boolean {
+  const normA = extractNormalizedCoordinates(coordA);
+  const normB = extractNormalizedCoordinates(coordB);
+
+  // Se entrambi non hanno coordinate valide, sono considerati equivalenti (nessuna discrepanza)
+  if (!normA && !normB) return true;
+  // Se uno ce l'ha e l'altro no, non sono equivalenti
+  if (!normA || !normB) return false;
+
+  return Math.abs(normA.lat - normB.lat) < epsilon && Math.abs(normA.lng - normB.lng) < epsilon;
+}
+
+export function formatCoordinateForDisplay(coord: any): string {
+  const norm = extractNormalizedCoordinates(coord);
+  if (!norm) return typeof coord === 'object' && coord !== null ? JSON.stringify(coord) : String(coord ?? '(non impostate)');
+  return `Lat ${norm.lat.toFixed(5)}, Lng ${norm.lng.toFixed(5)}`;
+}
+
+export function deepEqualIgnoreKeyOrder(a: any, b: any): boolean {
+  if (a === b) return true;
+  if (!a || !b || typeof a !== 'object' || typeof b !== 'object') return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (!deepEqualIgnoreKeyOrder(a[i], b[i])) return false;
+    }
+    return true;
+  }
+
+  // Se l'oggetto rappresenta una coordinata geografica, confronta strutturalmente con tolleranza
+  const normA = extractNormalizedCoordinates(a);
+  const normB = extractNormalizedCoordinates(b);
+  if (normA && normB) {
+    return areCoordinatesEquivalent(a, b);
+  }
+
+  const keysA = Object.keys(a).filter(k => a[k] !== undefined);
+  const keysB = Object.keys(b).filter(k => b[k] !== undefined);
+  if (keysA.length !== keysB.length) return false;
+
+  for (const k of keysA) {
+    if (!deepEqualIgnoreKeyOrder(a[k], b[k])) return false;
+  }
+  return true;
+}
+
 export function compareCandidateWithRemote(
   normType: string,
   tripId: string,
@@ -109,13 +179,37 @@ export function compareCandidateWithRemote(
     const rv = remoteData[k];
     if (rv === undefined) {
       if (v === '' || (Array.isArray(v) && v.length === 0) || v === false) continue;
-      differences.push({ field: k, localVal: v, remoteVal: rv });
+      differences.push({
+        field: k,
+        localVal: typeof v === 'object' && v !== null ? JSON.stringify(v) : v,
+        remoteVal: '(non impostato)'
+      });
+      continue;
+    }
+
+    // Gestione specifica campi coordinate geografiche
+    const isCoordKey = k === 'coordinate' || k === 'coordinates' || k === 'dropoffCoordinate' ||
+      (typeof v === 'object' && v !== null && ('lat' in v || 'latitude' in v) && ('lng' in v || 'longitude' in v || 'lon' in v));
+
+    if (isCoordKey) {
+      if (areCoordinatesEquivalent(v, rv)) {
+        continue;
+      }
+      differences.push({
+        field: k,
+        localVal: formatCoordinateForDisplay(v),
+        remoteVal: formatCoordinateForDisplay(rv)
+      });
       continue;
     }
 
     if (typeof v === 'object' && v !== null) {
-      if (JSON.stringify(v) !== JSON.stringify(rv)) {
-        differences.push({ field: k, localVal: v, remoteVal: rv });
+      if (!deepEqualIgnoreKeyOrder(v, rv)) {
+        differences.push({
+          field: k,
+          localVal: JSON.stringify(v),
+          remoteVal: typeof rv === 'object' && rv !== null ? JSON.stringify(rv) : String(rv)
+        });
       }
     } else if (v !== rv) {
       if ((k === 'orario' || k === 'time') && String(v).trim() === String(rv).trim()) continue;

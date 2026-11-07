@@ -16,6 +16,30 @@ interface PreActivationDiagnosticModalProps {
   onClose: () => void;
 }
 
+function formatDiffDisplay(val: any): string {
+  if (val === null || val === undefined) return '(non impostato)';
+  if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+    return String(val);
+  }
+  if (typeof val === 'object') {
+    const lat = val.lat ?? val.latitude;
+    const lng = val.lng ?? val.longitude ?? val.lon;
+    if (lat !== undefined && lng !== undefined) {
+      const nLat = Number(lat);
+      const nLng = Number(lng);
+      if (!isNaN(nLat) && !isNaN(nLng)) {
+        return `Lat ${nLat.toFixed(5)}, Lng ${nLng.toFixed(5)}`;
+      }
+    }
+    try {
+      return JSON.stringify(val);
+    } catch {
+      return String(val);
+    }
+  }
+  return String(val);
+}
+
 export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreActivationDiagnosticModalProps) {
   const [report, setReport] = useState<PreActivationSyncReport | null>(null);
   const [loading, setLoading] = useState(true);
@@ -407,7 +431,7 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                             <div className="space-y-1 max-h-32 overflow-y-auto font-mono text-[10px]">
                               {c.differences.map((d, di) => (
                                 <div key={di} className="p-1 rounded bg-white/60 dark:bg-slate-900/60">
-                                  <span className="font-bold">{d.field}:</span> iPhone="{String(d.localVal)}" vs Cloud="{String(d.remoteVal)}"
+                                  <span className="font-bold">{d.field}:</span> iPhone="{formatDiffDisplay(d.localVal)}" vs Cloud="{formatDiffDisplay(d.remoteVal)}"
                                 </div>
                               ))}
                             </div>

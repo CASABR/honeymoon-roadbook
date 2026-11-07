@@ -32,7 +32,7 @@ function fields(data) {
   const value = item => Array.isArray(item) ? { arrayValue: { values: item.map(value) } }
     : typeof item === 'string' ? { stringValue: item }
       : typeof item === 'boolean' ? { booleanValue: item }
-        : typeof item === 'number' ? { integerValue: String(item) }
+        : typeof item === 'number' ? (Number.isInteger(item) ? { integerValue: String(item) } : { doubleValue: item })
           : { mapValue: { fields: fields(item) } };
   return Object.fromEntries(Object.entries(data).filter(([,v])=>v !== undefined).map(([k,v])=>[k,value(v)]));
 }
@@ -42,6 +42,7 @@ function parseFields(doc) {
   const parseVal = f => {
     if ('stringValue' in f) return f.stringValue;
     if ('integerValue' in f) return Number(f.integerValue);
+    if ('doubleValue' in f) return Number(f.doubleValue);
     if ('booleanValue' in f) return f.booleanValue;
     if ('arrayValue' in f) return (f.arrayValue.values || []).map(parseVal);
     if ('mapValue' in f) return parseFields({ fields: f.mapValue.fields });
@@ -252,7 +253,8 @@ function load(file, dependencies, globals = {}) {
       allowCloudWriteForTrip0000,
       isTrip0000CloudWriteAllowed,
       resolveControlledConflict,
-      getPreActivationSyncReport
+      getPreActivationSyncReport,
+      compareCandidateWithRemote
     } = syncServiceModule;
 
     // =========================================================================
@@ -267,6 +269,7 @@ function load(file, dependencies, globals = {}) {
       orario: '10:25',
       time: '10:25',
       notes: 'Foto pre partenza',
+      coordinate: { lng: 12.4964, lat: 41.9028 }, // Ordine chiavi Firestore: lng prima di lat
       status: 'prenotato',
       hasPrivateCredentials: true,
       lastSanitizedAt: '2026-11-05T19:45:11.322Z',
@@ -415,7 +418,8 @@ function load(file, dependencies, globals = {}) {
     pendingQueue.length = 0;
     conflictArchive.length = 0;
 
-    // Reimpostiamo su Firestore il documento corrispondente alla mutazione reale Foto pre partenza
+    // Reimpostiamo su Firestore il documento pulito corrispondente alla mutazione reale Foto pre partenza
+    await request('DELETE', `trips/0000/attivita/${fotoId}`, 'ADMIN_EMULATOR_ONLY');
     await request('PATCH', `trips/0000/attivita/${fotoId}`, 'ADMIN_EMULATOR_ONLY', remoteFotoData);
 
     // Inseriamo nella coda la mutazione senza updatedAt esplicito in data (solo timestamp su item coda)
@@ -432,6 +436,7 @@ function load(file, dependencies, globals = {}) {
         orario: '10:25',
         time: '10:25',
         notes: 'Foto pre partenza',
+        coordinate: { lat: 41.9028, lng: 12.4964 }, // Ordine chiavi client iPhone: lat prima di lng
         status: 'prenotato'
         // updatedAt è omesso/indefinito, simulando la condizione che ha scatenato l'incertezza
       }
@@ -527,7 +532,49 @@ function load(file, dependencies, globals = {}) {
     assert.equal(conflict2Record.status, 'resolved_keep_remote');
     console.log('✓ TEST 5 SUPERATO: Tentativo mark_synced discorde bloccato, keep_remote applicabile.');
 
-    console.log('--- TUTTI I TEST FOTO PRE PARTENZA & RISOLUZIONE CONFLITTO SUPERATI CON SUCCESSO (5/5 PASS) ---');
+    // =========================================================================
+    // TEST 6: Confronto strutturale coordinate e formattazione leggibile (Requisito 2 & 4)
+    // =========================================================================
+    console.log('--- TEST 6: Confronto strutturale coordinate geografiche ---');
+    
+    // 6a: Ordine chiavi invertito con identici valori geografici -> deve essere equivalente al 100%
+    const coordClient = { lat: 41.9028, lng: 12.4964 };
+    const coordServer = { lng: 12.4964, lat: 41.9028 };
+    const testEquiv = compareCandidateWithRemote('attivita', '0000', {
+      id: 'test_coord_1',
+      title: 'Spot Foto',
+      coordinate: coordClient
+    }, {
+      id: 'test_coord_1',
+      title: 'Spot Foto',
+      coordinate: coordServer
+    });
+    console.log('Confronto coordinate identiche con ordine chiavi opposto: isEquivalent =', testEquiv.isEquivalent);
+    assert.equal(testEquiv.isEquivalent, true, 'Coordinate con chiavi in ordine differente devono essere equivalenti');
+    assert.equal(testEquiv.differences.length, 0);
+
+    // 6b: Differenze geografiche reali -> devono essere rilevate e formattate in modo leggibile (MAI [object Object])
+    const coordClientDiff = { lat: 41.89332, lng: 12.48293 };
+    const testDiff = compareCandidateWithRemote('attivita', '0000', {
+      id: 'test_coord_2',
+      title: 'Spot Foto',
+      coordinate: coordClientDiff
+    }, {
+      id: 'test_coord_2',
+      title: 'Spot Foto',
+      coordinate: coordServer
+    });
+    console.log('Confronto coordinate diverse:', JSON.stringify(testDiff, null, 2));
+    assert.equal(testDiff.isEquivalent, false, 'Coordinate geograficamente diverse devono essere rilevate come conflitto');
+    assert.equal(testDiff.differences.length, 1);
+    assert.equal(testDiff.differences[0].field, 'coordinate');
+    assert.ok(testDiff.differences[0].localVal.includes('Lat 41.89332'));
+    assert.ok(testDiff.differences[0].remoteVal.includes('Lat 41.90280'));
+    assert.ok(!testDiff.differences[0].localVal.includes('[object Object]'), 'Non deve MAI mostrare [object Object]');
+    assert.ok(!testDiff.differences[0].remoteVal.includes('[object Object]'), 'Non deve MAI mostrare [object Object]');
+    console.log('✓ TEST 6 SUPERATO: Coordinate strutturali indipendenti dall\'ordine chiavi, differenze leggibili.');
+
+    console.log('--- TUTTI I TEST FOTO PRE PARTENZA & COORDINATE SUPERATI CON SUCCESSO (6/6 PASS) ---');
   } finally {
     emulator.kill();
   }
