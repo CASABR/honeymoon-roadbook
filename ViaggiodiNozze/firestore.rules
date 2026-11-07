@@ -204,14 +204,15 @@ service cloud.firestore {
                           )
                         );
 
-        // Modifica: consentita unicamente all'owner o Admin globale su viaggi non-0000 (role e uid immutabili)
+        // Modifica: consentita all'owner, all'Admin globale (non-0000) o al membro stesso per il proprio profilo (role e uid immutabili)
         allow update: if isSignedIn()
-                        && (isTripOwner(tripId) || (isGlobalAdmin() && tripId != '0000'))
+                        && (isTripOwner(tripId) || (isGlobalAdmin() && tripId != '0000') || (request.auth.uid == uid && isTripMember(tripId)))
                         && request.resource.data.get('uid', resource.data.get('uid', uid)) == resource.data.get('uid', uid)
                         && request.resource.data.role == resource.data.role;
 
-        // Eliminazione: consentita all'owner effettivo o Admin globale su viaggi non-0000 (l'owner del viaggio non può mai essere eliminato)
-        allow delete: if isSignedIn()
+        // Eliminazione: consentita all'owner effettivo o Admin globale su viaggi non-0000 (l'owner non può mai essere eliminato e 0000 è protetto)
+        allow delete: if tripId != '0000'
+                        && isSignedIn()
                         && resource.data.role != 'owner'
                         && (isTripOwner(tripId) || (isGlobalAdmin() && tripId != '0000'));
       }
@@ -382,7 +383,9 @@ service cloud.firestore {
 
       match /guest_messages/{msgId} {
         allow read: if true;
-        allow create: if validGuestMessage(request.resource.data);
+        // Scrittura diretta non autenticata disabilitata per prevenire abusi e flood su Firebase Spark.
+        // Riservata a Owner e Copilota del viaggio (es. saluti/benvenuto) fino all'integrazione di un rate-limiter autoritativo.
+        allow create: if isSignedIn() && isTripPrivilegedMember(tripId) && validGuestMessage(request.resource.data);
         allow update: if isTripPrivilegedMember(tripId) || isGlobalAdmin();
         allow delete: if (isTripPrivilegedMember(tripId) || isGlobalAdmin()) && tripId != '0000';
       }
@@ -484,7 +487,7 @@ service cloud.firestore {
       allow create, update: if isSignedIn()
                             && request.auth.uid == userId
                             && request.resource.data.uid == userId
-                            && request.resource.data.keys().hasOnly(['uid', 'displayName', 'isAnonymous', 'lastAccessAt', 'lastSeenAt', 'updatedAt', 'lastTripId', 'associatedTripIds'])
+                            && request.resource.data.keys().hasOnly(['uid', 'displayName', 'customDisplayName', 'isAnonymous', 'lastAccessAt', 'lastSeenAt', 'updatedAt', 'lastTripId', 'associatedTripIds'])
                             && (
                               !('lastAccessAt' in request.resource.data)
                               || request.resource.data.lastAccessAt == request.time

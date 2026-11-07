@@ -1,5 +1,6 @@
 import { collection, doc, getDoc, writeBatch, onSnapshot, query, orderBy, setDoc, limit, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db, auth } from '../firebase';
+import { FEATURE_FLAGS } from '../config/featureFlags';
 
 /**
  * Feed pubblico: /live_feeds/{tripId} (testata) e /live_feeds/{tripId}/updates/{updateId}.
@@ -343,6 +344,12 @@ export const liveService = {
    */
   async sendGuestMessage(tripId: string, authorName: string, message: string): Promise<string> {
     if (!tripId) throw new Error('Viaggio non configurato.');
+    if (!FEATURE_FLAGS.LIVE_GUEST_MESSAGES_PUBLIC_WRITE) {
+      const user = auth?.currentUser;
+      if (!user) {
+        throw new Error('L’invio di messaggi pubblici dagli ospiti è temporaneamente sospeso per motivi di sicurezza anti-abuso.');
+      }
+    }
     const safe = sanitizeGuestMessageInput(authorName, message);
     if (!safe.authorName) {
       throw new Error('Inserisci il tuo nome (massimo 40 caratteri).');

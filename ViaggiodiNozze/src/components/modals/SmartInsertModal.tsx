@@ -70,14 +70,16 @@ export function parseEmlContent(rawEml: string): string {
   const from = extractHeader('From');
   const date = extractHeader('Date');
 
-  // Decodifica eventuale Quoted-Printable base (=XX e soft line breaks =\n)
+  // Decodifica Quoted-Printable conforme RFC 2045 con supporto completo sequenze multibyte UTF-8 (=C3=A8 -> è)
   bodyPart = bodyPart
-    .replace(/=\n/g, '')
-    .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => {
+    .replace(/=\r?\n/g, '')
+    .replace(/(?:=[0-9A-Fa-f]{2})+/g, (match) => {
+      const hexPairs = match.match(/=[0-9A-Fa-f]{2}/g) || [];
+      const bytes = new Uint8Array(hexPairs.map(h => parseInt(h.slice(1), 16)));
       try {
-        return String.fromCharCode(parseInt(hex, 16));
+        return new TextDecoder('utf-8').decode(bytes);
       } catch {
-        return '';
+        return match;
       }
     });
 

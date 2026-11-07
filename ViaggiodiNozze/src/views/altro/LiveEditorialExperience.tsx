@@ -5,6 +5,7 @@ import { GPS_STALE_THRESHOLD_MS, type LiveGpsDevice, type LiveGpsLease, type Liv
 import type { LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
 import { getTripConfig } from '../../utils/tripConfig';
 import { IMAGE_FILE_ACCEPT, isSupportedImageFile } from '../../utils/fileAttachment';
+import { FEATURE_FLAGS } from '../../config/featureFlags';
 
 export interface LiveGalleryPhotoItem {
   id: string;
@@ -790,7 +791,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             <p className="mt-0.5 text-xs text-slate-500">I messaggi compaiono nel diario pubblico del viaggio.</p>
           </div>
 
-          {props.onSendGuestMessage && (
+          {props.onSendGuestMessage && (FEATURE_FLAGS.LIVE_GUEST_MESSAGES_PUBLIC_WRITE || props.isOwner || props.isCopilota) ? (
             <form onSubmit={handleGuestMessageSubmit} className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
@@ -834,6 +835,16 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 </button>
               </div>
             </form>
+          ) : (
+            <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
+              <div className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200">
+                <span>🛡️</span>
+                <span>Bacheca Pensieri dal Pubblico</span>
+              </div>
+              <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                I pensieri pubblicati dagli organizzatori sono visibili qui sotto. L'invio pubblico diretto dal browser è temporaneamente disattivato in modalità lettura per la sicurezza del viaggio.
+              </p>
+            </div>
           )}
 
           {/* Lista messaggi ospiti */}

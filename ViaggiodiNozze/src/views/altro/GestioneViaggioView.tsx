@@ -259,6 +259,10 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
     if (!config?.id) return;
 
     // Controllo client per sicurezza
+    if (config.id === '0000') {
+      alert('Il viaggio master 0000 ha partecipanti fissi protetti e non supporta l’espulsione di membri.');
+      return;
+    }
     if (memberToKick.role === 'owner' || memberToKick.uid === config.ownerUid) {
       alert('Non è possibile espellere l’organizzatore del viaggio.');
       return;
