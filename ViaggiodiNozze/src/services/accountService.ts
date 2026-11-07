@@ -431,11 +431,17 @@ export async function checkPendingRedirectResult(): Promise<{
   if (!auth) return { success: false };
   try {
     const result = await getRedirectResult(auth);
+    try {
+      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('houni_oauth_redirect_pending');
+    } catch {}
     if (result && result.user) {
       return { success: true, user: result.user };
     }
     return { success: false };
   } catch (err: any) {
+    try {
+      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('houni_oauth_redirect_pending');
+    } catch {}
     const code = err?.code || 'auth/unknown';
     return {
       success: false,
@@ -488,6 +494,9 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
       if ((popupErr?.code === 'auth/popup-blocked' || popupErr?.code === 'auth/cancelled-popup-request') && typeof window !== 'undefined') {
         console.warn('[accountService] Popup bloccato dal browser (iOS Safari / PWA): avvio reindirizzamento Google.');
         onProgress?.('Reindirizzamento verso Google…');
+        try {
+          if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('houni_oauth_redirect_pending', '1');
+        } catch {}
         const { signInWithRedirect } = await import('firebase/auth');
         await signInWithRedirect(auth, provider);
         return { success: false, code: 'auth/redirect-started', error: 'Reindirizzamento verso Google in corso...' };

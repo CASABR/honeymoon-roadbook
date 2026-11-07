@@ -90,6 +90,8 @@ export default function TripSelectorModal({
           alert('Accesso completato con account Google esistente. I viaggi visualizzati corrispondono a quelli verificati per questo account.');
         }
         await loadTrips();
+      } else if (res.code === 'auth/redirect-started') {
+        return;
       } else if (res.error) {
         alert(res.error);
       }

@@ -357,8 +357,9 @@ export function useAuthIdentity(): AuthIdentityState {
         const memSnap = await getDoc(memRef).catch(() => null);
         if (!isMounted || auth?.currentUser?.uid !== activeUser.uid) return;
         if (memSnap?.exists() && ['owner', 'copilota'].includes(memSnap.data()?.role)) {
-          const memRole = memSnap.data()?.role;
-          updateRole(memRole === 'owner' ? 'owner' : 'copilota');
+          const memRole = memSnap.data()?.role === 'owner' ? 'owner' : 'copilota';
+          recordVerifiedTripAuth(tripId, activeUser.uid, memRole);
+          updateRole(memRole);
           return;
         }
 

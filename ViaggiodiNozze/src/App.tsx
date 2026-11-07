@@ -293,20 +293,38 @@ export default function App() {
       console.warn("Auth not initialized (e.g. Firebase blocked). Running in offline mode without cloud sync.");
       return;
     }
-    // Gestione rientro da redirect OAuth (PWA Standalone iOS / browser con blocco popup)
-    import('./services/accountService').then(({ checkPendingRedirectResult }) => {
-      checkPendingRedirectResult().then((redirectRes) => {
-        if (redirectRes.success && redirectRes.user) {
+    let isCancelled = false;
+    let redirectCheckResolved = false;
+
+    // Gestione rientro da redirect OAuth (PWA Standalone iOS / browser con blocco popup):
+    // attende il completamento di getRedirectResult prima di consentire qualsiasi fallback anonimo.
+    import('./services/accountService').then(async ({ checkPendingRedirectResult }) => {
+      try {
+        if (typeof (auth as any).authStateReady === 'function') {
+          await (auth as any).authStateReady();
+        }
+        const redirectRes = await checkPendingRedirectResult();
+        redirectCheckResolved = true;
+        if (!isCancelled && redirectRes.success && redirectRes.user) {
           setAuthUser(redirectRes.user);
           console.log('[Auth] Rientro da redirect OAuth completato per UID:', redirectRes.user.uid);
+          return;
         }
-      }).catch(() => {});
+      } catch {
+        redirectCheckResolved = true;
+      }
+      if (!isCancelled && !auth.currentUser) {
+        signInAnonymously(auth).catch((error) => {
+          console.error('[Auth] Errore signInAnonymously:', error);
+        });
+      }
     });
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setAuthUser(user);
       if (!user) {
-        // Se non è autenticato, proviamo l'accesso anonimo automatico
+        if (!redirectCheckResolved) return;
+        // Se non è autenticato e non c'è redirect OAuth pendente, proviamo l'accesso anonimo automatico
         signInAnonymously(auth).catch((error) => {
           console.error('[Auth] Errore signInAnonymously:', error);
         });
@@ -315,7 +333,10 @@ export default function App() {
         recordUserAccess(user, tripConfig?.id);
       }
     });
-    return () => unsubscribe();
+    return () => {
+      isCancelled = true;
+      unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
