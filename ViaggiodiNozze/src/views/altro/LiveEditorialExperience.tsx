@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import type { LiveUpdate } from '../../services/liveService';
+import type { LiveUpdate, LiveGuestMessage } from '../../services/liveService';
 import { GPS_STALE_THRESHOLD_MS, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation } from '../../services/liveGpsService';
 import type { LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
 import { getTripConfig } from '../../utils/tripConfig';
@@ -77,6 +77,9 @@ export interface LiveEditorialExperienceProps {
   onUploadPhoto?: (file: File, caption?: string) => Promise<void>;
   onDeletePhoto?: (photoId: string) => void;
   onDeleteUpdate?: (updateId: string) => Promise<void>;
+  guestMessages?: LiveGuestMessage[];
+  onSendGuestMessage?: (authorName: string, message: string) => Promise<void>;
+  onModerateGuestMessage?: (messageId: string, action: 'hide' | 'unhide' | 'delete') => Promise<void>;
 }
 
 const REACTIONS = ['❤️', '😍', '😂', '👋'];
@@ -247,6 +250,38 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   const [pendingCaptionInput, setPendingCaptionInput] = useState('');
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [photoRevealVersion, setPhotoRevealVersion] = useState(0);
+  const [guestAuthorInput, setGuestAuthorInput] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem('hounigo_guest_author_name') || '';
+  });
+  const [guestMessageInput, setGuestMessageInput] = useState('');
+  const [isSendingGuestMsg, setIsSendingGuestMsg] = useState(false);
+  const [guestMsgError, setGuestMsgError] = useState<string | null>(null);
+  const [guestMsgSuccess, setGuestMsgSuccess] = useState<string | null>(null);
+
+  const handleGuestMessageSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!props.onSendGuestMessage || isSendingGuestMsg) return;
+    setGuestMsgError(null);
+    setGuestMsgSuccess(null);
+    setIsSendingGuestMsg(true);
+    try {
+      const cleanAuthor = guestAuthorInput.trim();
+      const cleanMsg = guestMessageInput.trim();
+      await props.onSendGuestMessage(cleanAuthor, cleanMsg);
+      if (typeof window !== 'undefined' && cleanAuthor) {
+        try {
+          localStorage.setItem('hounigo_guest_author_name', cleanAuthor);
+        } catch {}
+      }
+      setGuestMessageInput('');
+      setGuestMsgSuccess('Messaggio inviato agli sposi! ❤️');
+    } catch (err: any) {
+      setGuestMsgError(err?.message || 'Impossibile inviare il messaggio. Riprova.');
+    } finally {
+      setIsSendingGuestMsg(false);
+    }
+  };
   const previousRealMarkerOffsetRef = useRef<{ dx: number; dy: number } | null>(null);
   const currentRealMarkerDx = props.realMarkerOffset?.dx;
   const currentRealMarkerDy = props.realMarkerOffset?.dy;
@@ -742,9 +777,125 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
       <section id="live-interactions" aria-labelledby="live-interactions-title" className="scroll-mt-16 border-t border-slate-200 py-7 dark:border-slate-800">
         <p className="text-xs font-bold text-[#FF6B5F]">Interazioni</p>
         <h2 id="live-interactions-title" className="text-2xl font-black tracking-tight text-[#172033] dark:text-white">Vicini, anche da lontano</h2>
-        <div className="mt-5 grid grid-cols-2 gap-4 border-y border-slate-200 py-4 dark:border-slate-800"><div><p className="text-2xl font-black">{reactionTotal}</p><p className="text-xs text-slate-500">Reazioni ricevute</p></div><div><p className="text-2xl font-black">{sortedUpdates.length}</p><p className="text-xs text-slate-500">Ricordi pubblici</p></div></div>
-        <button type="button" onClick={props.onShare} className="mt-5 min-h-11 rounded-full bg-[#172033] px-5 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">{props.copiedLink ? 'Link copiato ✓' : 'Condividi link ospiti'}</button>
-        <details className="mt-4 text-xs"><summary className="min-h-10 cursor-pointer py-2 font-bold">Cosa vedono gli ospiti</summary><p className="max-w-xl leading-5 text-slate-500">Posizione condivisa, ricordi pubblici e reazioni. Itinerario privato, documenti, prenotazioni, spese e contatti restano nascosti.</p></details>
+        <div className="mt-5 grid grid-cols-3 gap-4 border-y border-slate-200 py-4 dark:border-slate-800">
+          <div><p className="text-2xl font-black">{reactionTotal}</p><p className="text-xs text-slate-500">Reazioni ricevute</p></div>
+          <div><p className="text-2xl font-black">{sortedUpdates.length}</p><p className="text-xs text-slate-500">Ricordi pubblici</p></div>
+          <div><p className="text-2xl font-black">{(props.guestMessages || []).filter(m => !m.hidden).length}</p><p className="text-xs text-slate-500">Messaggi ospiti</p></div>
+        </div>
+
+        {/* Guestbook / Messaggi dagli Ospiti */}
+        <div className="mt-6 space-y-5">
+          <div>
+            <h3 className="text-base font-extrabold text-[#172033] dark:text-white">Lascia un pensiero agli sposi</h3>
+            <p className="mt-0.5 text-xs text-slate-500">I messaggi compaiono nel diario pubblico del viaggio.</p>
+          </div>
+
+          {props.onSendGuestMessage && (
+            <form onSubmit={handleGuestMessageSubmit} className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">Il tuo nome</label>
+                  <input
+                    type="text"
+                    maxLength={40}
+                    required
+                    value={guestAuthorInput}
+                    onChange={(e) => setGuestAuthorInput(e.target.value)}
+                    placeholder="Es. Zia Maria, Marco..."
+                    className="mt-1 min-h-10 w-full rounded-xl border border-slate-200 bg-[#F8F7F3] px-3 text-xs text-[#172033] focus:border-[#FF6B5F] focus:outline-none dark:border-slate-700 dark:bg-[#172033] dark:text-white"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">Messaggio o augurio</label>
+                    <span className="text-[10px] text-slate-400">{guestMessageInput.length}/280</span>
+                  </div>
+                  <input
+                    type="text"
+                    maxLength={280}
+                    required
+                    value={guestMessageInput}
+                    onChange={(e) => setGuestMessageInput(e.target.value)}
+                    placeholder="Scrivi un saluto o un augurio per il viaggio…"
+                    className="mt-1 min-h-10 w-full rounded-xl border border-slate-200 bg-[#F8F7F3] px-3 text-xs text-[#172033] focus:border-[#FF6B5F] focus:outline-none dark:border-slate-700 dark:bg-[#172033] dark:text-white"
+                  />
+                </div>
+              </div>
+              {guestMsgError && <p className="text-xs font-semibold text-rose-600 dark:text-rose-400" role="alert">{guestMsgError}</p>}
+              {guestMsgSuccess && <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400" role="status">{guestMsgSuccess}</p>}
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="text-[10px] text-slate-400">Visibile nel diario pubblico · Moderato dagli organizzatori</span>
+                <button
+                  type="submit"
+                  disabled={isSendingGuestMsg || !isOnline || !guestAuthorInput.trim() || !guestMessageInput.trim()}
+                  className="min-h-10 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white transition hover:bg-[#e85c50] disabled:opacity-40"
+                >
+                  {isSendingGuestMsg ? 'Invio…' : 'Invia messaggio'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Lista messaggi ospiti */}
+          {(props.guestMessages && props.guestMessages.length > 0) ? (
+            <div className="space-y-2.5">
+              {props.guestMessages.map((msg) => (
+                <div
+                  key={msg.id}
+                  className={`rounded-2xl border p-3.5 transition ${
+                    msg.hidden
+                      ? 'border-amber-200 bg-amber-50/50 opacity-75 dark:border-amber-900/50 dark:bg-amber-950/20'
+                      : 'border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-extrabold text-[#172033] dark:text-white">{msg.authorName}</span>
+                        <span className="text-[10px] text-slate-400">{formatUpdateDate(msg.createdAt)}</span>
+                        {msg.hidden && (
+                          <span className="rounded-md bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 dark:bg-amber-900/60 dark:text-amber-200">
+                            Nascosto al pubblico
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-700 dark:text-slate-200">
+                        {msg.message}
+                      </p>
+                    </div>
+                    {!props.isExternal && (props.isOwner || props.isCopilota) && props.onModerateGuestMessage && (
+                      <div className="flex shrink-0 items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => props.onModerateGuestMessage?.(msg.id, msg.hidden ? 'unhide' : 'hide')}
+                          className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                        >
+                          {msg.hidden ? 'Mostra' : 'Nascondi'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Eliminare il messaggio di "${msg.authorName}"?`)) {
+                              props.onModerateGuestMessage?.(msg.id, 'delete');
+                            }
+                          }}
+                          className="rounded-lg border border-rose-200 px-2 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400"
+                        >
+                          Elimina
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500">Nessun messaggio dagli ospiti ancora presente. Sii il primo a lasciare un saluto!</p>
+          )}
+        </div>
+
+        <button type="button" onClick={props.onShare} className="mt-6 min-h-11 rounded-full bg-[#172033] px-5 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">{props.copiedLink ? 'Link copiato ✓' : 'Condividi link ospiti'}</button>
+        <details className="mt-4 text-xs"><summary className="min-h-10 cursor-pointer py-2 font-bold">Cosa vedono gli ospiti</summary><p className="max-w-xl leading-5 text-slate-500">Posizione condivisa, ricordi pubblici, reazioni e messaggi degli ospiti. Itinerario privato, documenti, prenotazioni, spese e contatti restano nascosti.</p></details>
       </section>
 
       {pendingUploadItems.length > 0 && typeof document !== 'undefined' && createPortal(

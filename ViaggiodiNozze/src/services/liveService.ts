@@ -47,13 +47,40 @@ export interface LiveFeedHeaderInput {
 
 export const LIVE_REACTIONS = ['❤️', '😍', '😂', '👋'] as const;
 
+export interface LiveGuestMessage {
+  id: string;
+  visitorId: string;
+  authorName: string;
+  message: string;
+  createdAt: number;
+  hidden?: boolean;
+  deleted?: boolean;
+}
+
 const MAX_TITLE = 120;
 const MAX_TEXT = 1000;
 const MAX_LOCATION = 120;
 const MAX_URL = 2048;
+export const MAX_GUEST_AUTHOR = 40;
+export const MAX_GUEST_MESSAGE = 280;
+export const GUEST_MESSAGE_COOLDOWN_MS = 30_000;
 
 const cleanString = (value: unknown, max: number): string =>
   typeof value === 'string' ? value.trim().slice(0, max) : '';
+
+const stripControlAndHtml = (value: unknown, max: number): string => {
+  if (typeof value !== 'string') return '';
+  return value
+    .replace(/<[^>]*>/g, '')
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '')
+    .trim()
+    .slice(0, max);
+};
+
+export const sanitizeGuestMessageInput = (authorName: unknown, message: unknown) => ({
+  authorName: stripControlAndHtml(authorName, MAX_GUEST_AUTHOR),
+  message: stripControlAndHtml(message, MAX_GUEST_MESSAGE),
+});
 
 /** Accetta solo URL http(s) (niente data: URL con allegati/biglietti). */
 const cleanUrl = (value: unknown): string => {
@@ -307,6 +334,138 @@ export const liveService = {
           deletedBy: user.uid
         }).catch(() => {});
       }
+    }
+  },
+
+  /**
+   * Invia un messaggio pubblico dagli ospiti nel LIVE (Guestbook).
+   * Protetto da validazione lunghezza, rimozione HTML e rate limit per visitatore.
+   */
+  async sendGuestMessage(tripId: string, authorName: string, message: string): Promise<string> {
+    if (!tripId) throw new Error('Viaggio non configurato.');
+    const safe = sanitizeGuestMessageInput(authorName, message);
+    if (!safe.authorName) {
+      throw new Error('Inserisci il tuo nome (massimo 40 caratteri).');
+    }
+    if (!safe.message) {
+      throw new Error('Inserisci un messaggio (massimo 280 caratteri).');
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        const cooldownKey = `hounigo_guest_msg_last_ts_${tripId}`;
+        const lastTs = Number(localStorage.getItem(cooldownKey) || '0');
+        const elapsed = Date.now() - lastTs;
+        if (lastTs > 0 && elapsed < GUEST_MESSAGE_COOLDOWN_MS) {
+          const waitSec = Math.ceil((GUEST_MESSAGE_COOLDOWN_MS - elapsed) / 1000);
+          throw new Error(`Attendi ${waitSec}s prima di inviare un altro messaggio.`);
+        }
+      } catch (err: any) {
+        if (err?.message?.includes('Attendi')) throw err;
+      }
+    }
+
+    const visitorId = this.getVisitorId();
+    const now = Date.now();
+    const msgRef = doc(collection(db, 'live_feeds', tripId, 'guest_messages'));
+    await setDoc(msgRef, {
+      visitorId,
+      authorName: safe.authorName,
+      message: safe.message,
+      createdAt: now,
+      hidden: false,
+    });
+
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`hounigo_guest_msg_last_ts_${tripId}`, String(now));
+      } catch {}
+    }
+
+    return msgRef.id;
+  },
+
+  /**
+   * Sottoscrizione ai messaggi pubblici degli ospiti nel LIVE.
+   */
+  subscribeToGuestMessages(
+    tripId: string,
+    includeHidden: boolean,
+    callback: (messages: LiveGuestMessage[]) => void
+  ) {
+    const q = query(
+      collection(db, 'live_feeds', tripId, 'guest_messages'),
+      orderBy('createdAt', 'desc'),
+      limit(50)
+    );
+    return onSnapshot(
+      q,
+      (snap) => {
+        const results: LiveGuestMessage[] = [];
+        snap.forEach((docSnap) => {
+          const data = docSnap.data() as any;
+          if (data.deleted === true) return;
+          if (!includeHidden && data.hidden === true) return;
+          results.push({
+            id: docSnap.id,
+            visitorId: String(data.visitorId || ''),
+            authorName: String(data.authorName || 'Ospite'),
+            message: String(data.message || ''),
+            createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
+            hidden: Boolean(data.hidden),
+          });
+        });
+        callback(results);
+      },
+      (err) => {
+        console.warn('[LiveService] Errore sottoscrizione guest_messages:', err);
+        callback([]);
+      }
+    );
+  },
+
+  /**
+   * Modera (nasconde, mostra o elimina) un messaggio degli ospiti.
+   * Consentito solo a Owner e Copilota del viaggio.
+   */
+  async moderateGuestMessage(
+    tripId: string,
+    messageId: string,
+    action: 'hide' | 'unhide' | 'delete'
+  ): Promise<void> {
+    const user = auth?.currentUser;
+    if (!user) throw new Error('Autenticazione richiesta per moderare i messaggi.');
+    if (!tripId || !messageId) return;
+
+    const msgRef = doc(db, 'live_feeds', tripId, 'guest_messages', messageId);
+    const now = Date.now();
+
+    if (action === 'hide') {
+      await updateDoc(msgRef, {
+        hidden: true,
+        moderatedAt: now,
+        moderatedBy: user.uid,
+      });
+    } else if (action === 'unhide') {
+      await updateDoc(msgRef, {
+        hidden: false,
+        moderatedAt: now,
+        moderatedBy: user.uid,
+      });
+    } else if (action === 'delete') {
+      if (tripId !== '0000') {
+        try {
+          await deleteDoc(msgRef);
+          return;
+        } catch {}
+      }
+      await updateDoc(msgRef, {
+        deleted: true,
+        hidden: true,
+        message: '[Eliminato]',
+        deletedAt: now,
+        deletedBy: user.uid,
+      });
     }
   }
 };

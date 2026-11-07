@@ -105,6 +105,7 @@ service cloud.firestore {
                     && request.resource.data.get('ownerUid', null) == resource.data.get('ownerUid', null)
                     && (
                       isTripOwner(tripId)
+                      || (isGlobalAdmin() && tripId != '0000')
                       ||
                       (
                         isTripMember(tripId)
@@ -186,8 +187,8 @@ service cloud.firestore {
                            && request.resource.data.get('role', '') == 'owner'
                            && (isTripOwner(tripId) || uid == request.auth.uid))
                           ||
-                          // 2. Assegnazione diretta da parte dell'Owner del viaggio
-                          (isTripOwner(tripId) && request.resource.data.get('role', '') == 'copilota')
+                          // 2. Assegnazione diretta da parte dell'Owner del viaggio o Admin globale (escluso 0000)
+                          ((isTripOwner(tripId) || (isGlobalAdmin() && tripId != '0000')) && request.resource.data.get('role', '') == 'copilota')
                           ||
                           // 3. Riscatto crittografico con token valido in batch atomico (P0-B)
                           (
@@ -203,16 +204,16 @@ service cloud.firestore {
                           )
                         );
 
-        // Modifica: consentita unicamente all'owner (role e uid immutabili)
+        // Modifica: consentita unicamente all'owner o Admin globale su viaggi non-0000 (role e uid immutabili)
         allow update: if isSignedIn()
-                        && isTripOwner(tripId)
+                        && (isTripOwner(tripId) || (isGlobalAdmin() && tripId != '0000'))
                         && request.resource.data.get('uid', resource.data.get('uid', uid)) == resource.data.get('uid', uid)
                         && request.resource.data.role == resource.data.role;
 
-        // Eliminazione: consentita all'owner effettivo (l'owner del viaggio non può mai essere eliminato)
+        // Eliminazione: consentita all'owner effettivo o Admin globale su viaggi non-0000 (l'owner del viaggio non può mai essere eliminato)
         allow delete: if isSignedIn()
                         && resource.data.role != 'owner'
-                        && isTripOwner(tripId);
+                        && (isTripOwner(tripId) || (isGlobalAdmin() && tripId != '0000'));
       }
 
       // -----------------------------------------------------------------------
@@ -350,6 +351,15 @@ service cloud.firestore {
              && data.updatedAt == request.time;
     }
 
+    function validGuestMessage(data) {
+      return data.keys().hasOnly(['visitorId', 'authorName', 'message', 'createdAt', 'hidden'])
+             && data.visitorId is string && data.visitorId.size() >= 4 && data.visitorId.size() <= 128
+             && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 40
+             && data.message is string && data.message.size() >= 1 && data.message.size() <= 280
+             && data.createdAt is number
+             && data.hidden == false;
+    }
+
     match /live_feeds/{tripId} {
       // Chiunque può leggere il feed pubblico
       allow read: if true;
@@ -368,6 +378,13 @@ service cloud.firestore {
                         && request.resource.data.keys().hasOnly(['type', 'visitorId', 'timestamp']);
           allow delete: if false;
         }
+      }
+
+      match /guest_messages/{msgId} {
+        allow read: if true;
+        allow create: if validGuestMessage(request.resource.data);
+        allow update: if isTripPrivilegedMember(tripId) || isGlobalAdmin();
+        allow delete: if (isTripPrivilegedMember(tripId) || isGlobalAdmin()) && tripId != '0000';
       }
       match /gps_control/{controlId} {
         allow read: if controlId == 'current'

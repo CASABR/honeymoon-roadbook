@@ -4,6 +4,7 @@ import {
   getDocs,
   doc,
   setDoc,
+  arrayUnion,
   arrayRemove,
   writeBatch,
   type QueryDocumentSnapshot
@@ -19,7 +20,7 @@ import {
 import { db, auth } from '../../firebase';
 import { getTripConfig } from '../../utils/tripConfig';
 import { formatDateIT, formatDateTimeIT, formatDateRangeIT } from '../../utils/tripDates';
-import { fetchUsersAccessPage, type UserAccessEntry } from '../../services/userAccessService';
+import { fetchUsersAccessPage, formatUserDisplayName, type UserAccessEntry } from '../../services/userAccessService';
 import {
   formatStorageBytes,
   calculateQuotaPercentage,
@@ -55,6 +56,18 @@ export const KNOWN_ADMIN_DELETION_SUBCOLLECTIONS = [
   'members',
   'inviteTokens'
 ] as const;
+
+export function deriveTripDestination(tripId: string, d: Record<string, any> = {}): string | undefined {
+  const direct = d.destination || d.meta || d.city || d.countries || d.locationsSummary;
+  if (typeof direct === 'string' && direct.trim()) return direct.trim();
+  if (Array.isArray(direct) && direct.length > 0) return direct.filter(Boolean).join(', ');
+  if (tripId === '0000') return 'Nuova Zelanda, Australia & Filippine';
+  const rawTitle = String(d.title || d.name || '').trim();
+  if (rawTitle && !/^viaggio\b/i.test(rawTitle) && !/^il nostro viaggio$/i.test(rawTitle)) {
+    return rawTitle;
+  }
+  return undefined;
+}
 
 export function buildPrivilegedTripDeletionCommands(tripId: string): { inspect: string; execute: string } {
   const cleanId = String(tripId || '').trim();
@@ -233,6 +246,15 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
   } | null>(null);
   const [isRemovingCopilot, setIsRemovingCopilot] = useState(false);
 
+  // Stato Assegnazione Nuovo Copilota da Admin e Modifica Meta Viaggio
+  const [assignCopilotTripId, setAssignCopilotTripId] = useState('');
+  const [assignCopilotUid, setAssignCopilotUid] = useState('');
+  const [assignCopilotName, setAssignCopilotName] = useState('');
+  const [isAssigningCopilot, setIsAssigningCopilot] = useState(false);
+  const [editingDestinationTripId, setEditingDestinationTripId] = useState<string | null>(null);
+  const [editingDestinationValue, setEditingDestinationValue] = useState('');
+  const [isSavingDestination, setIsSavingDestination] = useState(false);
+
   // Stato Dettaglio Partecipanti del Viaggio Selezionato
   const [tripMembers, setTripMembers] = useState<Array<{
     uid: string;
@@ -405,9 +427,9 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
           }
         }
 
-        const destination = d.destination || d.meta || d.city || undefined;
+        const destination = deriveTripDestination(id, d);
         const ownerEmail = d.ownerEmail || d.creatorEmail || undefined;
-        const ownerName = d.ownerName || d.creatorName || undefined;
+        const ownerName = d.ownerName || d.creatorName || (id === '0000' ? 'Nunzio' : undefined);
 
         // Calcolo della dimensione documentale Firestore conforme alle specifiche ufficiali Google
         // Trasparenza Hounigo: se presente in cache di sessione, usa la stima dettagliata già calcolata
@@ -805,6 +827,100 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
       }
     } finally {
       setIsRemovingCopilot(false);
+    }
+  };
+
+  // Salvataggio manuale della Meta / Destinazione del viaggio da Console Manager
+  const handleSaveTripDestination = async (tripId: string) => {
+    if (!db || tripId === '0000') return;
+    const cleanDest = editingDestinationValue.trim();
+    setIsSavingDestination(true);
+    try {
+      const tripRef = doc(db, 'trips', tripId);
+      await setDoc(tripRef, { destination: cleanDest, updatedAt: Date.now() }, { merge: true });
+      setTrips(prev => prev.map(t => (t.id === tripId ? { ...t, destination: cleanDest || undefined } : t)));
+      setEditingDestinationTripId(null);
+      setEditingDestinationValue('');
+      logDiag(`Aggiornata meta viaggio ${tripId}: "${cleanDest || 'Non specificata'}"`, 'success');
+    } catch (err: any) {
+      console.error('[AdminDashboard] Errore salvataggio meta viaggio:', err);
+      logDiag(`Errore salvataggio meta per ${tripId}: ${err?.message}`, 'warn');
+    } finally {
+      setIsSavingDestination(false);
+    }
+  };
+
+  // Associazione diretta di un Copilota verificato a un viaggio da Console Manager
+  const handleAdminAssignCopilot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const targetTripId = assignCopilotTripId.trim();
+    const targetUid = assignCopilotUid.trim();
+    const targetName = assignCopilotName.trim() || 'Copilota';
+
+    if (!targetTripId || !targetUid) {
+      setCopilotActionError('Seleziona un viaggio e inserisci l’UID del Copilota da associare.');
+      return;
+    }
+    if (targetTripId === '0000') {
+      setCopilotActionError('Il viaggio reale 0000 è protetto: le membership non possono essere alterate dalla Console.');
+      return;
+    }
+    if (!db) return;
+
+    const targetTrip = trips.find(t => t.id === targetTripId);
+    if (targetTrip?.ownerUid === targetUid) {
+      setCopilotActionError('Questo UID appartiene già all’Organizzatore (Owner) del viaggio selezionato.');
+      return;
+    }
+
+    setIsAssigningCopilot(true);
+    setCopilotActionError(null);
+    setCopilotActionSuccess(null);
+
+    try {
+      const now = Date.now();
+      const batch = writeBatch(db);
+      const tripRef = doc(db, 'trips', targetTripId);
+      const memberRef = doc(db, 'trips', targetTripId, 'members', targetUid);
+
+      batch.update(tripRef, {
+        members: arrayUnion(targetUid),
+        updatedAt: now
+      });
+
+      batch.set(memberRef, {
+        uid: targetUid,
+        name: targetName,
+        role: 'copilota',
+        joinedAt: now,
+        updatedAt: now
+      }, { merge: true });
+
+      await batch.commit();
+
+      setTrips(prev => prev.map(t => {
+        if (t.id === targetTripId) {
+          const nextMembers = Array.from(new Set([...(t.membersList || []), targetUid]));
+          return { ...t, membersList: nextMembers, membersCount: nextMembers.length };
+        }
+        return t;
+      }));
+
+      setCopilotsMeta(prev => {
+        const next = new Map(prev);
+        next.set(`${targetTripId}_${targetUid}`, { name: targetName, role: 'copilota', joinedAt: now });
+        return next;
+      });
+
+      setAssignCopilotUid('');
+      setAssignCopilotName('');
+      setCopilotActionSuccess(`Copilota "${targetName}" (${targetUid.slice(0, 8)}…) associato con successo al viaggio "${targetTrip?.title || targetTripId}".`);
+      logDiag(`Associato copilota ${targetUid} (${targetName}) al viaggio ${targetTripId}`, 'success');
+    } catch (err: any) {
+      console.error('[AdminDashboard] Errore associazione copilota:', err);
+      setCopilotActionError(err?.message || 'Errore durante l’associazione del copilota.');
+    } finally {
+      setIsAssigningCopilot(false);
     }
   };
 
@@ -1826,7 +1942,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                                 📍 {trip.destination}
                               </span>
                             ) : (
-                              <span className="text-slate-400 italic">Meta: Non specificata</span>
+                              <span className="text-slate-400 italic">Meta: Da definire</span>
                             )}
                           </div>
                         </td>
@@ -1852,7 +1968,11 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                         {/* Proprietario */}
                         <td className="p-3">
                           <div className="font-semibold text-slate-900 dark:text-white">
-                            {trip.ownerName ? trip.ownerName : (trip.ownerEmail ? trip.ownerEmail : (trip.ownerUid ? 'Nome non specificato' : 'Non specificato'))}
+                            {formatUserDisplayName(
+                              trip.ownerName || (trip.ownerEmail ? trip.ownerEmail.split('@')[0] : null),
+                              'owner',
+                              trip.ownerUid
+                            )}
                           </div>
                           {trip.ownerEmail && trip.ownerName && (
                             <div className="text-[10px] text-slate-500 truncate max-w-[140px]">
@@ -2120,6 +2240,56 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                 </div>
               </div>
 
+              {/* Meta / Destinazione Viaggio con modifica rapida Admin */}
+              <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-2xl border border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span>📍</span>
+                  <span className="text-slate-500 font-semibold">Meta / Destinazione:</span>
+                  {editingDestinationTripId === selectedTrip.id ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={editingDestinationValue}
+                        onChange={e => setEditingDestinationValue(e.target.value)}
+                        placeholder="Es. Giappone (Tokyo, Kyoto, Osaka)"
+                        className="px-2.5 py-1 text-xs rounded-lg border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
+                      />
+                      <button
+                        type="button"
+                        disabled={isSavingDestination}
+                        onClick={() => handleSaveTripDestination(selectedTrip.id)}
+                        className="px-2.5 py-1 bg-indigo-600 text-white rounded-lg text-[11px] font-bold cursor-pointer"
+                      >
+                        {isSavingDestination ? '...' : 'Salva'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingDestinationTripId(null)}
+                        className="px-2 py-1 text-slate-500 text-[11px] cursor-pointer"
+                      >
+                        Annulla
+                      </button>
+                    </div>
+                  ) : (
+                    <strong className="text-slate-900 dark:text-white truncate">
+                      {selectedTrip.destination || 'Da definire'}
+                    </strong>
+                  )}
+                </div>
+                {selectedTrip.id !== '0000' && editingDestinationTripId !== selectedTrip.id && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingDestinationTripId(selectedTrip.id);
+                      setEditingDestinationValue(selectedTrip.destination || '');
+                    }}
+                    className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                  >
+                    ✏️ Imposta / Modifica Meta
+                  </button>
+                )}
+              </div>
+
               {/* Sezione Partecipanti Registrati e Controllo Discrepanze */}
               <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-3">
                 <div className="flex items-center justify-between">
@@ -2339,6 +2509,59 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
                 )}
               </div>
             </div>
+
+            {/* Form Associazione Diretta Copilota a un Viaggio (Solo Admin) */}
+            <form
+              onSubmit={handleAdminAssignCopilot}
+              className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/70 space-y-3"
+            >
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <h3 className="text-xs font-extrabold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <span>➕</span>
+                  <span>Associa Copilota a un Viaggio (Console Manager)</span>
+                </h3>
+                <span className="text-[10px] text-slate-500">Il viaggio 0000 è protetto da modifiche</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+                <select
+                  value={assignCopilotTripId}
+                  onChange={e => setAssignCopilotTripId(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                  required
+                >
+                  <option value="">Seleziona viaggio...</option>
+                  {trips
+                    .filter(t => t.id !== '0000')
+                    .map(t => (
+                      <option key={t.id} value={t.id}>
+                        {t.title} ({t.id})
+                      </option>
+                    ))}
+                </select>
+                <input
+                  type="text"
+                  value={assignCopilotUid}
+                  onChange={e => setAssignCopilotUid(e.target.value)}
+                  placeholder="UID Firebase Copilota"
+                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono text-slate-900 dark:text-white"
+                  required
+                />
+                <input
+                  type="text"
+                  value={assignCopilotName}
+                  onChange={e => setAssignCopilotName(e.target.value)}
+                  placeholder="Nome visualizzato (es. Giusy)"
+                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white"
+                />
+                <button
+                  type="submit"
+                  disabled={isAssigningCopilot || !assignCopilotTripId || !assignCopilotUid.trim()}
+                  className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {isAssigningCopilot ? 'Associazione...' : 'Associa Copilota'}
+                </button>
+              </div>
+            </form>
 
             {/* Tabella o Elenco Copiloti */}
             {loadingCopilotsMeta ? (

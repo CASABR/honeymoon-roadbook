@@ -70,7 +70,7 @@ interface CustomLivePhoto {
   timestamp: string;
 }
 
-import { liveService, type LiveUpdate } from '../../services/liveService';
+import { liveService, type LiveUpdate, type LiveGuestMessage } from '../../services/liveService';
 import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
 import LiveEditorialExperience, { type LiveGalleryPhotoItem } from './LiveEditorialExperience';
@@ -104,6 +104,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   // Live Feed Data from Firestore
   const [liveUpdates, setLiveUpdates] = useState<LiveUpdate[]>([]);
+  const [guestMessages, setGuestMessages] = useState<LiveGuestMessage[]>([]);
   const [localReactions, setLocalReactions] = useState<Record<string, string>>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -208,6 +209,15 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   useEffect(() => {
     remoteLocationRef.current = remoteGpsLocation;
   }, [remoteGpsLocation]);
+
+  useEffect(() => {
+    if (!activeTripId) return;
+    const isPrivileged = !isStandaloneExternal && (cloudRole === 'owner' || cloudRole === 'copilota');
+    const unsubGuest = liveService.subscribeToGuestMessages(activeTripId, isPrivileged, (msgs) => {
+      setGuestMessages(msgs);
+    });
+    return () => unsubGuest();
+  }, [activeTripId, cloudRole, isStandaloneExternal]);
 
   useEffect(() => {
     if (!activeTripId) return;
@@ -1822,6 +1832,15 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       onUploadPhoto={handleUploadPhoto}
       onDeletePhoto={handleDeletePhoto}
       onDeleteUpdate={handleDeleteLiveUpdate}
+      guestMessages={guestMessages}
+      onSendGuestMessage={async (authorName, message) => {
+        if (!activeTripId) return;
+        await liveService.sendGuestMessage(activeTripId, authorName, message);
+      }}
+      onModerateGuestMessage={async (messageId, action) => {
+        if (!activeTripId) return;
+        await liveService.moderateGuestMessage(activeTripId, messageId, action);
+      }}
     />
   );
 

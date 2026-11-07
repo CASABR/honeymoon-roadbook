@@ -53,6 +53,53 @@ function generateId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+/** Estrae oggetto, mittente, data e corpo leggibile da un file email .eml (RFC 822). */
+export function parseEmlContent(rawEml: string): string {
+  if (!rawEml || typeof rawEml !== 'string') return '';
+  const normalized = rawEml.replace(/\r\n/g, '\n');
+  const headerEndIdx = normalized.indexOf('\n\n');
+  const headerPart = headerEndIdx >= 0 ? normalized.slice(0, headerEndIdx) : '';
+  let bodyPart = headerEndIdx >= 0 ? normalized.slice(headerEndIdx + 2) : normalized;
+
+  const extractHeader = (name: string): string => {
+    const match = headerPart.match(new RegExp(`^${name}:\\s*(.+)$`, 'im'));
+    return match ? match[1].trim() : '';
+  };
+
+  const subject = extractHeader('Subject');
+  const from = extractHeader('From');
+  const date = extractHeader('Date');
+
+  // Decodifica eventuale Quoted-Printable base (=XX e soft line breaks =\n)
+  bodyPart = bodyPart
+    .replace(/=\n/g, '')
+    .replace(/=([0-9A-Fa-f]{2})/g, (_, hex) => {
+      try {
+        return String.fromCharCode(parseInt(hex, 16));
+      } catch {
+        return '';
+      }
+    });
+
+  // Rimuove tag HTML e boundary MIME rumorosi preservando il testo
+  const cleanBody = bodyPart
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/^--[-a-zA-Z0-9_.=_]+.*$/gm, '')
+    .replace(/^Content-[A-Za-z-]+:.*$/gm, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const headerLines = [
+    subject ? `[Oggetto Email]: ${subject}` : '',
+    from ? `[Da]: ${from}` : '',
+    date ? `[Data]: ${date}` : '',
+  ].filter(Boolean);
+
+  return [...headerLines, cleanBody.slice(0, 6000)].filter(Boolean).join('\n');
+}
+
 /** Rende cliccabili gli URL nella risposta del Concierge. */
 function renderMessage(message: string) {
   const parts = message.split(/(https?:\/\/[^\s)\]]+)/g);
@@ -294,7 +341,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
   if (!isOpen) return null;
 
-  // Caricamento allegato utente (PDF o Immagine)
+  // Caricamento allegato utente (PDF, Immagine o Email .eml)
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -302,8 +349,19 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
     setIsProcessingFile(true);
     setErrorMsg('');
     try {
-      const processed = await processFileForAttachment(file);
-      setAttachedFile(processed);
+      const isEml = file.name.toLowerCase().endsWith('.eml') || file.type === 'message/rfc822';
+      if (isEml) {
+        const rawText = await file.text();
+        const parsed = parseEmlContent(rawText);
+        if (!parsed.trim()) {
+          throw new Error('Il file .eml selezionato non contiene testo leggibile.');
+        }
+        setText(prev => (prev.trim() ? `${prev}\n\n${parsed}` : parsed));
+        setAttachedFile(null);
+      } else {
+        const processed = await processFileForAttachment(file);
+        setAttachedFile(processed);
+      }
     } catch (err: any) {
       console.error('Errore elaborazione file:', err);
       setErrorMsg(err.message || 'Impossibile elaborare il file selezionato.');
@@ -1010,7 +1068,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
         type="file"
         ref={fileInputRef}
         onChange={handleFileSelect}
-        accept={IMAGE_OR_PDF_FILE_ACCEPT}
+        accept={`${IMAGE_OR_PDF_FILE_ACCEPT},.eml,message/rfc822`}
         className="hidden"
       />
 

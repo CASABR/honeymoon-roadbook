@@ -51,11 +51,27 @@ export default function GmailConnectionRow({ onSearchEmails, className = '', com
       </div>
 
       {isExpanded && (
-        <div className="px-3.5 pb-3 pt-2 border-t border-slate-100 dark:border-slate-700/60 text-[11px] space-y-2 leading-relaxed">
-          <p className="rounded-xl bg-slate-50 dark:bg-slate-800 p-2.5 text-slate-600 dark:text-slate-300">Puoi incollare il testo delle conferme di prenotazione ricevute via email direttamente nella casella di testo per registrarle automaticamente nel viaggio.</p>
-          <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-100 dark:border-slate-800">
-            <span className="truncate text-[10px] text-slate-400">{googleEmail ? `Account Google: ${googleEmail}` : 'Nessun account Google collegato'}</span>
-            <button type="button" onClick={handleTryGmail} className="shrink-0 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 underline">Prova Gmail</button>
+        <div className="px-3.5 pb-3 pt-2 border-t border-slate-100 dark:border-slate-700/60 text-[11px] space-y-2.5 leading-relaxed">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800 p-2.5 text-slate-600 dark:text-slate-300 space-y-1.5">
+            <p>
+              <strong>Modalità immediata consigliata:</strong> puoi incollare il testo dell&apos;email oppure caricare file <strong>PDF, screenshot o .eml</strong> direttamente in HouniAI per estrarre voli, hotel, trasporti e attività con anteprima modificabile.
+            </p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400">
+              ℹ️ La lettura automatica diretta da Gmail richiede la verifica Google OAuth dello scope <code>gmail.readonly</code> sulla Google Cloud Console.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('open_smart_insert', { detail: { mode: 'manual' } }))}
+              className="px-3 py-1.5 rounded-xl text-[11px] font-bold bg-[#FF6B5F] text-white hover:bg-[#e85c50] transition cursor-pointer"
+            >
+              📎 Incolla testo email o carica PDF / screenshot / .eml
+            </button>
+            <div className="flex items-center gap-2">
+              <span className="truncate text-[10px] text-slate-400">{googleEmail ? `Google: ${googleEmail}` : 'Google non collegato'}</span>
+              <button type="button" onClick={handleTryGmail} className="shrink-0 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 underline cursor-pointer">Prova Gmail</button>
+            </div>
           </div>
         </div>
       )}

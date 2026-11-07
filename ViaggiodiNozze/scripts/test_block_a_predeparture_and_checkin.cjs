@@ -90,3 +90,4 @@ check('6. checkInDone / checkOutDone / dropoffDone sono campi operativi pubblici
 
 console.log(`\n=== RIEPILOGO: ${passed} PASS, ${failed} FAIL ===`);
 if (failed > 0) process.exit(1);
+

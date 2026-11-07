@@ -76,9 +76,10 @@ check('4. Sezione 11: AssicurazioneView non contiene più numeri telefonici fitt
 
 check('5. Sezione 10: GlobalSearchModal indicizza tutte le entità del viaggio attivo, protegge i dati privati per i Viewer ed esclude campi sensibili dal Trova/Sostituisci', () => {
   assert(globalSearchCode.includes('canSeePrivateInfo ? storageService.getDocuments()'), 'Documenti protetti da canSeePrivateInfo');
-  assert(globalSearchCode.includes('canSeePrivateInfo ? storageService.getExpenses()'), 'Spese protette da canSeePrivateInfo');
+  assert(globalSearchCode.includes('canSeePrivateInfo ? storageService.getSpese()'), 'Spese protette da canSeePrivateInfo');
   assert(globalSearchCode.includes("if (r.entityType === 'spesa' || r.entityType === 'documento') return false;"), 'Spese e documenti esclusi dal trova/sostituisci');
 });
 
 console.log(`\n=== RIEPILOGO BLOCK B: ${passed} PASS, ${failed} FAIL ===`);
 if (failed > 0) process.exit(1);
+
