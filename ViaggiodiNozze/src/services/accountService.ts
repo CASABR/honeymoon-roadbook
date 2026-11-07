@@ -8,9 +8,10 @@ import {
   signInWithEmailAndPassword,
   getRedirectResult
 } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, writeBatch, arrayUnion } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { buildTripDiscoveryPlan, resolveVerifiedTripRole } from '../utils/tripDiscovery';
+import { getCustomUserDisplayName } from './userAccessService';
 
 export interface UserTripSummary {
   id: string;
@@ -58,13 +59,143 @@ export function getAccountStatus(user: User | null = auth?.currentUser || null):
   }
 
   const providers = user.providerData.map(p => p.providerId);
+  const customName = getCustomUserDisplayName(user.uid);
   return {
     uid: user.uid,
     email: user.email || null,
-    displayName: user.displayName || null,
+    displayName: customName || user.displayName || null,
     isAnonymous: Boolean(user.isAnonymous),
     providers
   };
+}
+
+/**
+ * Recupero controllato della titolarità (ownership) di un viaggio legacy creato con sessione anonima
+ * (es. trip_l96ccua di Giusy dopo login permanente).
+ * REGOLE DI SICUREZZA:
+ * - Vietato toccare il viaggio master 0000.
+ * - Vietata qualsiasi migrazione automatica silenziosa: richiede confirmedByUser === true.
+ * - Richiede una prova verificabile: presenza del tripId nella memoria locale del dispositivo,
+ *   oppure appartenenza già registrata in /members/{uid}, oppure intervento amministrativo esplicito.
+ */
+export async function recoverLegacyTripOwnership(params: {
+  tripId: string;
+  targetOwnerUid: string;
+  targetOwnerName?: string;
+  previousAnonymousUid?: string;
+  confirmedByUser: boolean;
+  isAdminOverride?: boolean;
+}): Promise<{
+  success: boolean;
+  error?: string;
+  message?: string;
+}> {
+  const cleanTripId = (params.tripId || '').trim();
+  const cleanTargetUid = (params.targetOwnerUid || '').trim();
+
+  if (!cleanTripId || !cleanTargetUid) {
+    return { success: false, error: 'ID viaggio e UID destinatario sono obbligatori.' };
+  }
+  if (cleanTripId === '0000') {
+    return { success: false, error: 'Operazione bloccata: il viaggio master 0000 è protetto e non può essere riassegnato.' };
+  }
+  if (!params.confirmedByUser) {
+    return { success: false, error: 'Conferma esplicita richiesta prima di aggiornare la titolarità del viaggio.' };
+  }
+  if (!db) {
+    return { success: false, error: 'Database Firestore non disponibile.' };
+  }
+
+  try {
+    const tripRef = doc(db, 'trips', cleanTripId);
+    const tripSnap = await getDoc(tripRef);
+    if (!tripSnap.exists()) {
+      return { success: false, error: `Il viaggio "${cleanTripId}" non esiste su Firestore.` };
+    }
+
+    const tripData = tripSnap.data();
+    const currentOwnerUid = tripData?.ownerUid || tripData?.ownerId || '';
+
+    // Verifica prova di titolarità legittima se non è un override admin
+    if (!params.isAdminOverride) {
+      let hasProof = false;
+      if (currentOwnerUid === cleanTargetUid) {
+        hasProof = true;
+      }
+      if (params.previousAnonymousUid && currentOwnerUid === params.previousAnonymousUid) {
+        hasProof = true;
+      }
+      if (typeof localStorage !== 'undefined') {
+        const prevAnon = localStorage.getItem('hounigo_prev_anon_uid');
+        if (prevAnon && prevAnon === currentOwnerUid) hasProof = true;
+        const rawKnown = localStorage.getItem('hounigo_known_trip_ids') || '';
+        const rawConfig = localStorage.getItem('roadbook_trip_config') || '';
+        if (rawKnown.includes(cleanTripId) || rawConfig.includes(cleanTripId)) {
+          hasProof = true;
+        }
+      }
+      if (Array.isArray(tripData?.members) && tripData.members.includes(cleanTargetUid)) {
+        hasProof = true;
+      }
+      const memberSnap = await getDoc(doc(db, 'trips', cleanTripId, 'members', cleanTargetUid)).catch(() => null);
+      if (memberSnap?.exists()) {
+        hasProof = true;
+      }
+
+      if (!hasProof) {
+        return {
+          success: false,
+          error: 'Prova di titolarità insufficiente su questo dispositivo. Usa la Console Manager (Admin) per associare il viaggio in sicurezza.'
+        };
+      }
+    }
+
+    const resolvedOwnerName =
+      (params.targetOwnerName || '').trim() ||
+      getCustomUserDisplayName(cleanTargetUid) ||
+      tripData?.ownerName ||
+      'Organizzatore';
+
+    const batch = writeBatch(db);
+    batch.set(tripRef, {
+      ownerUid: cleanTargetUid,
+      ownerName: resolvedOwnerName,
+      legacyPreviousOwnerUid: currentOwnerUid && currentOwnerUid !== cleanTargetUid ? currentOwnerUid : (tripData?.legacyPreviousOwnerUid || null),
+      members: arrayUnion(cleanTargetUid),
+      ownershipRecoveredAt: Date.now(),
+      updatedAt: Date.now()
+    }, { merge: true });
+
+    const memberRef = doc(db, 'trips', cleanTripId, 'members', cleanTargetUid);
+    batch.set(memberRef, {
+      uid: cleanTargetUid,
+      name: resolvedOwnerName,
+      role: 'owner',
+      updatedAt: Date.now()
+    }, { merge: true });
+
+    const userRef = doc(db, 'users', cleanTargetUid);
+    batch.set(userRef, {
+      uid: cleanTargetUid,
+      associatedTripIds: arrayUnion(cleanTripId),
+      updatedAt: Date.now()
+    }, { merge: true });
+
+    await batch.commit();
+
+    return {
+      success: true,
+      message: `Titolarità del viaggio "${tripData?.title || cleanTripId}" associata con successo a ${resolvedOwnerName}.`
+    };
+  } catch (err: any) {
+    console.warn('[accountService] Errore recupero titolarità viaggio legacy:', err);
+    return {
+      success: false,
+      error: err?.code === 'permission-denied'
+        ? 'Permessi Firestore insufficienti dall’account corrente. Esegui il recupero dalla Console Manager con account Admin.'
+        : (err?.message || 'Impossibile completare il recupero del viaggio.')
+    };
+  }
 }
 
 /**

@@ -3,6 +3,8 @@ import {
   setDoc,
   updateDoc,
   getDoc,
+  getDocs,
+  collection,
   serverTimestamp,
   Timestamp,
   writeBatch,
@@ -341,6 +343,40 @@ export async function redeemTripInvite(
         ? 'Permesso negato: l’invito non è valido, è scaduto oppure non sei autorizzato.'
         : err?.message || 'Errore durante l’adesione al viaggio.'
     };
+  }
+}
+
+/**
+ * Elenca gli inviti creati per il viaggio specificato (per l'Owner).
+ */
+export async function listTripInvites(tripId: string): Promise<TripInvite[]> {
+  if (!db || !tripId || tripId === '0000') return [];
+  try {
+    const snap = await getDocs(collection(db, 'trips', tripId, 'invites'));
+    const list: TripInvite[] = [];
+    snap.docs.forEach((docSnap) => {
+      const data = docSnap.data();
+      const expiresAt = data.expiresAt instanceof Timestamp
+        ? data.expiresAt.toMillis()
+        : typeof data.expiresAt === 'number'
+        ? data.expiresAt
+        : 0;
+      list.push({
+        inviteToken: data.inviteToken || docSnap.id,
+        tripId: data.tripId || tripId,
+        role: data.role || 'copilota',
+        createdBy: data.createdBy || '',
+        createdAt: data.createdAt,
+        expiresAt,
+        status: data.status || 'active',
+        usedBy: data.usedBy || null,
+        usedAt: data.usedAt instanceof Timestamp ? data.usedAt.toMillis() : (data.usedAt || null)
+      });
+    });
+    return list.sort((a, b) => (b.expiresAt || 0) - (a.expiresAt || 0));
+  } catch (err) {
+    console.warn('[TripInviteService] Impossibile leggere lista inviti:', err);
+    return [];
   }
 }
 

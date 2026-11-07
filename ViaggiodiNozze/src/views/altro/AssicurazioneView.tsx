@@ -3,6 +3,7 @@ import type { TravelDocument } from '../../types';
 import { storageService } from '../../storage/storageService';
 import DocumentValidityModal from '../../components/modals/DocumentValidityModal';
 import { getTripConfig } from '../../utils/tripConfig';
+import { openAttachmentInNewTab } from '../../utils/fileAttachment';
 
 interface AssicurazioneViewProps {
   onBack: () => void;
@@ -167,6 +168,25 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
                 </span>
               </div>
             </div>
+
+            {doc?.attachments && doc.attachments.length > 0 && (
+              <div className="pt-3 mt-3 border-t border-slate-100 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Allegati Polizza (Disponibili Offline)</span>
+                <div className="flex flex-wrap gap-2">
+                  {doc.attachments.map((att) => (
+                    <button
+                      key={att.id}
+                      type="button"
+                      onClick={() => openAttachmentInNewTab(att.dataUrl, att.name || 'polizza.pdf')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 text-xs font-bold cursor-pointer transition-colors"
+                    >
+                      <span>{att.type === 'pdf' ? '📄' : '🖼️'}</span>
+                      <span className="truncate max-w-[180px]">{att.name || 'Apri allegato'}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ─── SEZIONE 2: EMERGENZE & SOS ──────────────────────────────── */}
@@ -190,30 +210,58 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
             </h3>
 
             {/* 1. Pulsantone Centrale Operativa H24 Assicurazione */}
-            <a
-              href="tel:+390000000000"
-              className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-3xl shadow-md shadow-rose-600/20 transition-all active:scale-[0.98] cursor-pointer"
-            >
-              <div className="flex items-center gap-3.5 min-w-0">
-                <span className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center text-xl shrink-0 border border-white/20">
-                  📞
-                </span>
-                <div className="min-w-0 text-left">
-                  <p className="text-[10px] font-bold text-rose-200 uppercase tracking-wider">
-                    ASSICURAZIONE DI VIAGGIO
-                  </p>
-                  <h4 className="text-sm font-extrabold text-white leading-tight truncate">
-                    Centrale Operativa H24
-                  </h4>
-                  <p className="font-mono text-xs font-bold text-rose-100 mt-0.5">
-                    +39 000 000 0000
-                  </p>
+            {doc?.assistancePhones?.trim() ? (
+              <a
+                href={`tel:${doc.assistancePhones.trim().replace(/\s+/g, '')}`}
+                className="w-full flex items-center justify-between p-4 bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-700 hover:to-red-700 text-white rounded-3xl shadow-md shadow-rose-600/20 transition-all active:scale-[0.98] cursor-pointer"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <span className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center text-xl shrink-0 border border-white/20">
+                    📞
+                  </span>
+                  <div className="min-w-0 text-left">
+                    <p className="text-[10px] font-bold text-rose-200 uppercase tracking-wider">
+                      ASSICURAZIONE DI VIAGGIO
+                    </p>
+                    <h4 className="text-sm font-extrabold text-white leading-tight truncate">
+                      Centrale Operativa H24
+                    </h4>
+                    <p className="font-mono text-xs font-bold text-rose-100 mt-0.5">
+                      {doc.assistancePhones.trim()}
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <span className="px-3 py-1.5 rounded-xl bg-white text-rose-700 font-extrabold text-xs shadow-xs shrink-0 ml-2">
-                Chiama
-              </span>
-            </a>
+                <span className="px-3 py-1.5 rounded-xl bg-white text-rose-700 font-extrabold text-xs shadow-xs shrink-0 ml-2">
+                  Chiama
+                </span>
+              </a>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="w-full flex items-center justify-between p-4 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-3xl border border-dashed border-slate-300 transition-all cursor-pointer text-left"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <span className="w-11 h-11 rounded-2xl bg-white flex items-center justify-center text-xl shrink-0 border border-slate-200">
+                    📞
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                      CENTRALE OPERATIVA H24
+                    </p>
+                    <h4 className="text-xs font-extrabold text-slate-800 leading-tight">
+                      Numero assistenza non ancora inserito
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Tocca per aggiungere il recapito reale della polizza
+                    </p>
+                  </div>
+                </div>
+                <span className="px-3 py-1.5 rounded-xl bg-white text-slate-700 font-extrabold text-xs border border-slate-200 shrink-0 ml-2">
+                  Configura
+                </span>
+              </button>
+            )}
 
             {/* 2. Pulsantone Emergenza Sanitaria Locale */}
             <div className="w-full bg-slate-900 text-white rounded-3xl p-4 shadow-sm border border-slate-800 space-y-3">
@@ -365,10 +413,12 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
                   </p>
                   <div className="space-y-2 pt-1 font-medium text-[11px] text-indigo-900">
                     <div className="p-2.5 rounded-xl bg-white/80 border border-indigo-150">
-                      <p className="font-bold text-slate-900">Ambasciata / Consolato</p>
-                      <p className="text-slate-600">Da inserire</p>
+                      <p className="font-bold text-slate-900">Ambasciata / Consolato &amp; Unità di Crisi Farnesina</p>
+                      <p className="text-slate-600">
+                        {doc?.usefulContacts?.trim() || 'Unità di Crisi Farnesina (attiva H24 per cittadini italiani all’estero)'}
+                      </p>
                       <p className="font-mono text-indigo-700 font-bold mt-0.5">
-                        Tel: <span className="underline">+00 0000 000</span>
+                        Tel: <a href="tel:+3906491115" className="underline">+39 06 491115</a>
                       </p>
                     </div>
                   </div>

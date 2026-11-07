@@ -9,6 +9,11 @@ import {
   loginWithEmailPassword,
   loginWithGoogle
 } from '../../services/accountService';
+import {
+  getCustomUserDisplayName,
+  saveCustomUserDisplayName,
+  formatUserDisplayName
+} from '../../services/userAccessService';
 
 interface AccountSyncModalProps {
   isOpen: boolean;
@@ -34,12 +39,19 @@ export default function AccountSyncModal({ isOpen, onClose, onSuccess }: Account
   const [newPassword, setNewPassword] = useState('');
   const [copiedUid, setCopiedUid] = useState(false);
 
+  // Nome personalizzato profilo utente
+  const [customDisplayName, setCustomDisplayName] = useState<string>(() => getCustomUserDisplayName() || auth?.currentUser?.displayName || '');
+  const [savingDisplayName, setSavingDisplayName] = useState(false);
+  const [displayNameSaved, setDisplayNameSaved] = useState(false);
+
   // Rimani sempre sincronizzato con lo stato Auth effettivo di Firebase
   useEffect(() => {
     if (!auth) return;
     setCurrentUser(auth.currentUser);
+    setCustomDisplayName(getCustomUserDisplayName(auth.currentUser?.uid) || auth.currentUser?.displayName || '');
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
+      setCustomDisplayName(getCustomUserDisplayName(user?.uid) || user?.displayName || '');
     });
     return () => unsubscribe();
   }, [isOpen]);
@@ -302,11 +314,16 @@ export default function AccountSyncModal({ isOpen, onClose, onSuccess }: Account
           </div>
         )}
 
-        {/* Profilo Utente */}
-        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-1">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
-            Profilo Attivo
-          </span>
+        {/* Profilo Utente e Nome Personalizzato */}
+        <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              Profilo Attivo
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
+              {formatUserDisplayName(status.displayName, status.isAnonymous ? 'viewer' : 'copilota', status.uid)}
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             <span className="text-sm">
               {status.isAnonymous ? '👤' : '🔒'}
@@ -320,6 +337,42 @@ export default function AccountSyncModal({ isOpen, onClose, onSuccess }: Account
               ? 'Se possiedi già un account Email o Google, accedi qui sotto.'
               : 'Questo account è registrato e conserva l\'accesso ai tuoi viaggi.'}
           </p>
+
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setSavingDisplayName(true);
+              try {
+                await saveCustomUserDisplayName(customDisplayName);
+                setDisplayNameSaved(true);
+                setTimeout(() => setDisplayNameSaved(false), 2500);
+              } finally {
+                setSavingDisplayName(false);
+              }
+            }}
+            className="pt-2 border-t border-slate-200/70 dark:border-slate-700/70 space-y-1.5"
+          >
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Il tuo Nome Visualizzato (nel viaggio e in Console)
+            </label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="text"
+                value={customDisplayName}
+                onChange={(e) => setCustomDisplayName(e.target.value)}
+                placeholder="Es. Nunzio, Giusy..."
+                maxLength={40}
+                className="flex-1 min-w-0 px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500"
+              />
+              <button
+                type="submit"
+                disabled={savingDisplayName}
+                className="shrink-0 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 text-white dark:text-slate-900 text-[11px] font-bold cursor-pointer transition-colors disabled:opacity-50"
+              >
+                {savingDisplayName ? '...' : displayNameSaved ? '✓ Salvato' : 'Salva Nome'}
+              </button>
+            </div>
+          </form>
         </div>
 
         {/* SEZIONE 1: SESSIONE OSPITE (ANONIMA) */}

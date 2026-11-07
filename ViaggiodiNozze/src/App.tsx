@@ -38,6 +38,7 @@ const LiveView = lazyWithRetry(() => import('./views/altro/LiveView'), 'LiveView
 const AdminDashboardView = lazyWithRetry(() => import('./views/altro/AdminDashboardView'), 'AdminDashboardView');
 import WalkthroughModal from './components/modals/WalkthroughModal';
 import SmartInsertModal from './components/modals/SmartInsertModal';
+import GlobalSearchModal from './components/modals/GlobalSearchModal';
 import { InstallPWA } from './components/InstallPWA';
 import DesktopNavigation, { type DesktopNavSection } from './components/common/DesktopNavigation';
 import PrenotazioniWorkspaceView from './views/desktop/PrenotazioniWorkspaceView';
@@ -507,6 +508,23 @@ export default function App() {
     }
     return false;
   });
+  const [isGlobalSearchOpen, setIsGlobalSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const handleOpenSearch = () => setIsGlobalSearchOpen(true);
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsGlobalSearchOpen(true);
+      }
+    };
+    window.addEventListener('open_global_search', handleOpenSearch);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('open_global_search', handleOpenSearch);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   const [desktopSection, setDesktopSection] = useState<DesktopNavSection>('prenotazioni');
 
@@ -830,6 +848,15 @@ export default function App() {
           </div>
           <div className="flex items-center gap-1.5 sm:gap-2">
             <button
+              type="button"
+              onClick={() => setIsGlobalSearchOpen(true)}
+              className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              aria-label="Ricerca globale nel viaggio"
+              title="Cerca nel viaggio (Ctrl+K)"
+            >
+              <span className="text-xs">🔍</span>
+            </button>
+            <button
               onClick={() => setIsWalkthroughOpen(true)}
               className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
               aria-label="Guida"
@@ -948,6 +975,13 @@ export default function App() {
         isOpen={isSmartInsertOpen}
         onClose={() => setIsSmartInsertOpen(false)}
         mode={smartInsertMode}
+      />
+
+      {/* Ricerca Globale */}
+      <GlobalSearchModal
+        isOpen={isGlobalSearchOpen}
+        onClose={() => setIsGlobalSearchOpen(false)}
+        onNavigate={(tab, cat, subView) => handleTabChange(tab, cat, subView)}
       />
 
       {/* PWA Update Toast */}

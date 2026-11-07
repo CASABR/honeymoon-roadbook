@@ -1,6 +1,7 @@
 import {
   doc,
   setDoc,
+  getDoc,
   serverTimestamp,
   arrayUnion,
   collection,
@@ -11,12 +12,13 @@ import {
   getDocs,
   type QueryDocumentSnapshot
 } from 'firebase/firestore';
-import type { User } from 'firebase/auth';
-import { db } from '../firebase';
+import { updateProfile, type User } from 'firebase/auth';
+import { db, auth } from '../firebase';
 
 export interface UserAccessEntry {
   uid: string;
   displayName: string | null;
+  customDisplayName?: string | null;
   isAnonymous: boolean;
   lastAccessAt: number | null; // millisecond timestamp o null se mancante
   lastSeenAt?: number | null; // millisecond timestamp dell'ultima attività in primo piano
@@ -24,7 +26,123 @@ export interface UserAccessEntry {
   associatedTripIds?: string[];
 }
 
-import { addKnownTripId } from '../utils/tripConfig';
+import { addKnownTripId, getTripConfig, saveTripConfig } from '../utils/tripConfig';
+
+const CUSTOM_NAME_KEY_PREFIX = 'hounigo_user_display_name_';
+const CUSTOM_NAME_GLOBAL_KEY = 'hounigo_user_display_name';
+
+export function getCustomUserDisplayName(uid?: string | null): string | null {
+  if (typeof localStorage === 'undefined') return null;
+  const targetUid = uid || auth?.currentUser?.uid;
+  if (targetUid) {
+    const byUid = localStorage.getItem(`${CUSTOM_NAME_KEY_PREFIX}${targetUid}`);
+    if (byUid && byUid.trim()) return byUid.trim();
+  }
+  const globalName = localStorage.getItem(CUSTOM_NAME_GLOBAL_KEY);
+  return globalName && globalName.trim() ? globalName.trim() : null;
+}
+
+/**
+ * Restituisce un nome leggibile e mai un UID tecnico grezzo per l'interfaccia utente.
+ */
+export function formatUserDisplayName(
+  name?: string | null,
+  role?: 'owner' | 'copilota' | 'viewer' | 'member' | string,
+  uid?: string | null
+): string {
+  const clean = (name || '').trim();
+  // Evita che un UID tecnico o 'Utente Anonimo' venga mostrato come nome primario
+  if (clean && clean !== 'Utente Anonimo' && clean !== uid) {
+    return clean;
+  }
+  if (uid) {
+    const localCustom = getCustomUserDisplayName(uid);
+    if (localCustom) return localCustom;
+  }
+  if (role === 'owner' || role === 'guida') return 'Organizzatore';
+  if (role === 'copilota') return 'Copilota';
+  if (role === 'viewer') return 'Ospite';
+  return 'Partecipante';
+}
+
+/**
+ * Salva il nome personalizzato dell'utente in localStorage, Firebase Auth, /users/{uid} e nel viaggio attivo.
+ */
+export async function saveCustomUserDisplayName(customName: string, tripId?: string): Promise<string> {
+  const cleanName = customName.trim();
+  const user = auth?.currentUser;
+  const uid = user?.uid;
+
+  if (typeof localStorage !== 'undefined') {
+    if (cleanName) {
+      localStorage.setItem(CUSTOM_NAME_GLOBAL_KEY, cleanName);
+      if (uid) localStorage.setItem(`${CUSTOM_NAME_KEY_PREFIX}${uid}`, cleanName);
+    } else {
+      localStorage.removeItem(CUSTOM_NAME_GLOBAL_KEY);
+      if (uid) localStorage.removeItem(`${CUSTOM_NAME_KEY_PREFIX}${uid}`);
+    }
+  }
+
+  if (user && cleanName) {
+    try {
+      await updateProfile(user, { displayName: cleanName });
+    } catch {
+      // ignore su sessioni che non supportano updateProfile
+    }
+  }
+
+  const activeConfig = getTripConfig();
+  const targetTripId = tripId || activeConfig?.id;
+
+  if (activeConfig && uid && activeConfig.ownerUid === uid && cleanName) {
+    const updatedCfg = { ...activeConfig, ownerName: cleanName };
+    saveTripConfig(updatedCfg);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('trip_config_changed', { detail: { config: updatedCfg } }));
+    }
+  }
+
+  if (db && uid) {
+    try {
+      await setDoc(doc(db, 'users', uid), {
+        uid,
+        displayName: cleanName || null,
+        customDisplayName: cleanName || null,
+        updatedAt: Date.now()
+      }, { merge: true });
+    } catch (err) {
+      console.warn('[userAccess] Aggiornamento nome su /users/{uid} rimandato:', err);
+    }
+
+    if (targetTripId && cleanName) {
+      try {
+        const memberRef = doc(db, 'trips', targetTripId, 'members', uid);
+        const memberSnap = await getDoc(memberRef).catch(() => null);
+        if (memberSnap?.exists()) {
+          await setDoc(memberRef, {
+            name: cleanName,
+            displayName: cleanName,
+            updatedAt: Date.now()
+          }, { merge: true });
+        }
+        if (activeConfig?.ownerUid === uid) {
+          await setDoc(doc(db, 'trips', targetTripId), {
+            ownerName: cleanName,
+            updatedAt: Date.now()
+          }, { merge: true });
+        }
+      } catch {
+        // non bloccante
+      }
+    }
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('user_display_name_changed', { detail: { uid, displayName: cleanName } }));
+  }
+
+  return cleanName;
+}
 
 let lastRecordedUid: string | null = null;
 let lastRecordedTripId: string | null = null;
@@ -55,13 +173,16 @@ export async function recordUserAccess(user: User | null, tripId?: string): Prom
 
   try {
     const userRef = doc(db, 'users', user.uid);
+    const resolvedName = getCustomUserDisplayName(user.uid) || user.displayName || null;
     const payload: Record<string, any> = {
       uid: user.uid,
-      displayName: user.displayName || (user.isAnonymous ? 'Utente Anonimo' : null),
       isAnonymous: Boolean(user.isAnonymous),
       lastAccessAt: serverTimestamp(),
       updatedAt: now
     };
+    if (resolvedName) {
+      payload.displayName = resolvedName;
+    }
 
     // Registra tripId nei viaggi associati del profilo utente per il recupero multi-dispositivo
     if (cleanTripId) {
@@ -99,13 +220,16 @@ export async function recordUserActivity(user: User | null, tripId?: string): Pr
   try {
     const cleanTripId = tripId && tripId.trim() !== '' ? tripId.trim() : undefined;
     const userRef = doc(db, 'users', user.uid);
+    const resolvedName = getCustomUserDisplayName(user.uid) || user.displayName || null;
     const payload: Record<string, any> = {
       uid: user.uid,
-      displayName: user.displayName || (user.isAnonymous ? 'Utente Anonimo' : null),
       isAnonymous: Boolean(user.isAnonymous),
       lastSeenAt: serverTimestamp(),
       updatedAt: now
     };
+    if (resolvedName) {
+      payload.displayName = resolvedName;
+    }
     if (cleanTripId) {
       payload.lastTripId = cleanTripId;
       payload.associatedTripIds = arrayUnion(cleanTripId);

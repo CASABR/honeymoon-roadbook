@@ -4,7 +4,9 @@ import { doc, setDoc, collection, getDocs, getDoc, arrayRemove, arrayUnion, writ
 import { db, auth } from '../../firebase';
 import { getTripConfig, saveTripConfig } from '../../utils/tripConfig';
 import { formatDateIT } from '../../utils/tripDates';
-import { createTripInvite } from '../../services/tripInviteService';
+import { createTripInvite, listTripInvites, revokeTripInvite, type TripInvite } from '../../services/tripInviteService';
+import { formatUserDisplayName, saveCustomUserDisplayName } from '../../services/userAccessService';
+import { recoverLegacyTripOwnership } from '../../services/accountService';
 
 export interface TripMemberInfo {
   uid: string;
@@ -41,6 +43,16 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
   const [addingMember, setAddingMember] = useState(false);
   const [addMemberSuccess, setAddMemberSuccess] = useState<string | null>(null);
   const [addMemberError, setAddMemberError] = useState<string | null>(null);
+
+  // Gestione Inviti Attivi e Revoca
+  const [invites, setInvites] = useState<TripInvite[]>([]);
+  const [revokingToken, setRevokingToken] = useState<string | null>(null);
+
+  // Recupero controllato viaggi legacy (es. trip_l96ccua creato con UID anonimo)
+  const [legacyTripId, setLegacyTripId] = useState('');
+  const [legacyConfirmChecked, setLegacyConfirmChecked] = useState(false);
+  const [recoveringLegacy, setRecoveringLegacy] = useState(false);
+  const [legacyRecoveryMsg, setLegacyRecoveryMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   // Immagine Header Centralizzata
   const [headerImageUrl, setHeaderImageUrl] = useState<string | null>(() => {
@@ -208,9 +220,38 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
     }
   };
 
+  const fetchInvites = async () => {
+    const config = getTripConfig();
+    if (!config?.id || config.id === '0000') {
+      setInvites([]);
+      return;
+    }
+    const list = await listTripInvites(config.id);
+    setInvites(list);
+  };
+
   useEffect(() => {
     fetchMembers();
+    fetchInvites();
   }, []);
+
+  const handleRevokeInvite = async (token: string) => {
+    const config = getTripConfig();
+    if (!config?.id) return;
+    setRevokingToken(token);
+    try {
+      await revokeTripInvite(config.id, token);
+      if (inviteCode === token) {
+        setInviteCode(null);
+        setInviteUrl(null);
+      }
+      await fetchInvites();
+    } catch (err: any) {
+      alert(err?.message || 'Impossibile revocare l’invito.');
+    } finally {
+      setRevokingToken(null);
+    }
+  };
 
   const handleKickMember = async () => {
     if (!memberToKick) return;
@@ -411,6 +452,7 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
       const res = await createTripInvite(config.id);
       setInviteCode(res.inviteToken);
       setInviteUrl(res.inviteLink);
+      await fetchInvites();
     } catch (err: any) {
       console.error('Errore generazione invito crittografico:', err);
       alert(err?.message || 'Impossibile generare il link d\'invito. Verifica la connessione e i permessi.');
@@ -769,7 +811,7 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-slate-900 text-xs sm:text-sm truncate">
-                          {m.name || 'Nome non specificato'}
+                          {formatUserDisplayName(m.name, isOwner ? 'owner' : m.role, m.uid)}
                         </span>
                         <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                           isOwner
@@ -811,6 +853,168 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
             })}
           </div>
         )}
+
+        {/* Inviti Attivi e Revoca */}
+        {invites.filter(i => i.status === 'active').length > 0 && (
+          <div className="mt-5 pt-4 border-t border-slate-100 space-y-2.5">
+            <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
+              Link di Invito Attivi ({invites.filter(i => i.status === 'active').length})
+            </h4>
+            {invites.filter(i => i.status === 'active').map((inv) => (
+              <div key={inv.inviteToken} className="p-3 rounded-2xl bg-indigo-50/50 border border-indigo-100 flex items-center justify-between gap-2 text-xs">
+                <div className="min-w-0">
+                  <div className="font-mono font-bold text-indigo-950 truncate">
+                    Token: …{inv.inviteToken.slice(-8)}
+                  </div>
+                  <div className="text-[10px] text-slate-500">
+                    Ruolo: Co-pilota • Scade: {inv.expiresAt ? formatDateIT(inv.expiresAt) : '7 giorni'}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={revokingToken === inv.inviteToken}
+                  onClick={() => handleRevokeInvite(inv.inviteToken)}
+                  className="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-bold cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  {revokingToken === inv.inviteToken ? 'Revoca...' : 'Revoca Invito'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Tabella Chiara dei Permessi per Ruolo */}
+        <div className="mt-5 pt-4 border-t border-slate-100 space-y-2.5">
+          <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-500">
+            Tabella Permessi e Ruoli del Viaggio
+          </h4>
+          <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
+            <table className="w-full text-left text-[11px] text-slate-700">
+              <thead className="bg-slate-100 text-slate-600 font-extrabold uppercase text-[10px]">
+                <tr>
+                  <th className="py-2 px-3">Funzione</th>
+                  <th className="py-2 px-2.5 text-center">👑 Owner</th>
+                  <th className="py-2 px-2.5 text-center">🤝 Copilota</th>
+                  <th className="py-2 px-2.5 text-center">👁️ Viewer</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                <tr>
+                  <td className="py-2 px-3 font-semibold">Itinerario, Tappe e Mappa</td>
+                  <td className="py-2 px-2.5 text-center text-emerald-600 font-bold">Modifica</td>
+                  <td className="py-2 px-2.5 text-center text-emerald-600 font-bold">Modifica</td>
+                  <td className="py-2 px-2.5 text-center text-slate-500">Lettura</td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-3 font-semibold">Cassaforte (PNR, PIN, Costi, Voucher)</td>
+                  <td className="py-2 px-2.5 text-center text-emerald-600 font-bold">Completo</td>
+                  <td className="py-2 px-2.5 text-center text-emerald-600 font-bold">Completo</td>
+                  <td className="py-2 px-2.5 text-center text-rose-500 font-bold">Nascosto</td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-3 font-semibold">Check-in, Spese e Note Copilota</td>
+                  <td className="py-2 px-2.5 text-center text-emerald-600 font-bold">Sì</td>
+                  <td className="py-2 px-2.5 text-center text-emerald-600 font-bold">Sì</td>
+                  <td className="py-2 px-2.5 text-center text-rose-500 font-bold">No</td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-3 font-semibold">Trasmissione GPS LIVE</td>
+                  <td className="py-2 px-2.5 text-center text-emerald-600 font-bold">Guida / Delega</td>
+                  <td className="py-2 px-2.5 text-center text-indigo-600 font-bold">Su delega</td>
+                  <td className="py-2 px-2.5 text-center text-slate-500">Sola vista</td>
+                </tr>
+                <tr>
+                  <td className="py-2 px-3 font-semibold">Gestione Inviti ed Espulsione Membri</td>
+                  <td className="py-2 px-2.5 text-center text-emerald-600 font-bold">Sì</td>
+                  <td className="py-2 px-2.5 text-center text-rose-500 font-bold">No</td>
+                  <td className="py-2 px-2.5 text-center text-rose-500 font-bold">No</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Recupero Sicuro Viaggi Legacy / Orfani (es. trip_l96ccua creato in sessione anonima) */}
+      <div className="bg-white rounded-3xl p-5 border border-slate-200/90 shadow-sm space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-xl shrink-0">
+            🔐
+          </div>
+          <div>
+            <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">Recupero Titolarità Viaggio Legacy</h3>
+            <p className="text-[11px] text-slate-500">
+              Ricollega in sicurezza un viaggio creato prima della registrazione permanente (es. <code className="font-mono">trip_l96ccua</code>). Il viaggio master <code className="font-mono">0000</code> è escluso e protetto.
+            </p>
+          </div>
+        </div>
+
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            const uid = auth?.currentUser?.uid;
+            if (!uid) {
+              setLegacyRecoveryMsg({ ok: false, text: 'Effettua prima il login con il tuo account registrato.' });
+              return;
+            }
+            setRecoveringLegacy(true);
+            setLegacyRecoveryMsg(null);
+            try {
+              const res = await recoverLegacyTripOwnership({
+                tripId: legacyTripId,
+                targetOwnerUid: uid,
+                targetOwnerName: ownerName || auth?.currentUser?.displayName || undefined,
+                confirmedByUser: legacyConfirmChecked
+              });
+              if (res.success) {
+                setLegacyRecoveryMsg({ ok: true, text: res.message || 'Titolarità recuperata con successo.' });
+                setLegacyConfirmChecked(false);
+                if (ownerName.trim()) {
+                  await saveCustomUserDisplayName(ownerName.trim(), legacyTripId.trim());
+                }
+                await fetchMembers();
+              } else {
+                setLegacyRecoveryMsg({ ok: false, text: res.error || 'Impossibile recuperare il viaggio.' });
+              }
+            } finally {
+              setRecoveringLegacy(false);
+            }
+          }}
+          className="space-y-3 pt-1"
+        >
+          <input
+            type="text"
+            value={legacyTripId}
+            onChange={(e) => setLegacyTripId(e.target.value)}
+            placeholder="ID del viaggio da recuperare (es. trip_l96ccua)"
+            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 text-slate-900 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-amber-500/30"
+          />
+          <label className="flex items-start gap-2 text-xs text-slate-700 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={legacyConfirmChecked}
+              onChange={(e) => setLegacyConfirmChecked(e.target.checked)}
+              className="mt-0.5 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
+            />
+            <span>Confermo di essere il creatore legittimo di questo viaggio e richiedo l’associazione al mio profilo autenticato corrente.</span>
+          </label>
+          {legacyRecoveryMsg && (
+            <div className={`p-3 rounded-xl text-xs font-semibold border ${
+              legacyRecoveryMsg.ok
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : 'bg-rose-50 border-rose-200 text-rose-800'
+            }`}>
+              {legacyRecoveryMsg.ok ? '✓ ' : '⚠️ '}{legacyRecoveryMsg.text}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={recoveringLegacy || !legacyTripId.trim() || !legacyConfirmChecked}
+            className="w-full py-2.5 rounded-xl font-bold bg-slate-900 hover:bg-slate-800 text-white text-xs transition-all cursor-pointer disabled:opacity-50"
+          >
+            {recoveringLegacy ? 'Verifica prova e recupero in corso...' : 'Verifica Prova e Recupera Titolarità'}
+          </button>
+        </form>
       </div>
 
       {/* Modal di Conferma Espulsione */}

@@ -120,11 +120,19 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
+    const handleSelectDate = (e: Event) => {
+      const targetDate = (e as CustomEvent)?.detail?.date;
+      if (targetDate && typeof targetDate === 'string') {
+        setSelectedDate(targetDate);
+      }
+    };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('roadbook_select_date', handleSelectDate);
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('roadbook_select_date', handleSelectDate);
     };
   }, []);
 
