@@ -1321,9 +1321,99 @@ export class SyncService {
               }
               return;
             }
+
+            // --- REQUISITI P0 CHECKPOINT 5: Riconoscimento idempotente e conservazione cassaforte ---
+            // 1. Una modifica esclusivamente pubblica NON deve mai cancellare private_credentials.
+            // 2. Se il documento remoto contiene già esattamente la modifica pendente, riconoscila
+            //    come sincronizzata e rimuovi soltanto la voce corrispondente dalla coda locale,
+            //    senza riscrivere inutilmente né il documento né la cassaforte.
+            // 3. Se i dati non coincidono o la verifica fallisce, preserva la mutazione in coda.
+            const normType = normalizeEntityType(collectionName);
+            const isOperationalWithCreds = ['alloggio', 'trasporto', 'attivita', 'tappa', 'ristorante', 'shopping', 'documento'].includes(normType);
+            const { publicDoc: candidatePublic, privateCredentialsDoc: candidatePriv } = isOperationalWithCreds
+              ? splitEntitySecurityData(normType as any, this.tripId, data)
+              : { publicDoc: data, privateCredentialsDoc: null };
+            const cleanCandidatePublic = this.cleanUndefinedValues(candidatePublic);
+
+            let isAlreadySynchronized = false;
+            if (serverUpdated > 0 && localUpdated > 0 && serverUpdated === localUpdated) {
+              let publicMatches = true;
+              for (const [k, v] of Object.entries(cleanCandidatePublic)) {
+                if (k === 'updatedAt' || k === 'lastSanitizedAt') continue;
+                if (v === undefined) continue;
+                const sv = serverData[k];
+                if (typeof v === 'object' && v !== null) {
+                  if (JSON.stringify(v) !== JSON.stringify(sv)) { publicMatches = false; break; }
+                } else if (v !== sv) {
+                  publicMatches = false; break;
+                }
+              }
+
+              if (publicMatches) {
+                if (!candidatePriv) {
+                  // Nessuna modifica/presenza di dati privati nel payload: il dato pubblico remoto è già perfettamente sincronizzato
+                  isAlreadySynchronized = true;
+                } else if (isCloudAuthorized(this.tripId)) {
+                  // Se il payload locale include credenziali private, verifichiamo la corrispondenza con la cassaforte
+                  try {
+                    const vaultId = getVaultDocId(normType, data.id);
+                    const privDocRef = doc(db, 'trips', this.tripId, 'private_credentials', vaultId);
+                    const privSnap = await getDoc(privDocRef);
+                    if (privSnap.exists()) {
+                      const privData = privSnap.data();
+                      const cleanPriv = this.cleanUndefinedValues(candidatePriv);
+                      let privMatches = true;
+                      for (const [pk, pv] of Object.entries(cleanPriv)) {
+                        if (pk === 'updatedAt' || pk === 'lastMigratedAt') continue;
+                        if (pv === undefined) continue;
+                        const spv = privData[pk];
+                        if (typeof pv === 'object' && pv !== null) {
+                          if (JSON.stringify(pv) !== JSON.stringify(spv)) { privMatches = false; break; }
+                        } else if (pv !== spv) {
+                          privMatches = false; break;
+                        }
+                      }
+                      if (privMatches) isAlreadySynchronized = true;
+                    }
+                  } catch {
+                    isAlreadySynchronized = false;
+                  }
+                }
+              }
+
+              if (isAlreadySynchronized) {
+                console.log(`[SyncService] Documento remoto ${collectionName}/${data.id} contiene già esattamente la modifica pendente: rimuovo dalla coda senza riscritture.`);
+                assertAuthorized();
+                await this.removePendingPushFromStore(collectionName, data.id, { action, data, mutationId: options.mutationId });
+                return;
+              } else {
+                // I timestamp sono identici ma il contenuto remoto differisce: preserva la mutazione in coda e archivia conflitto
+                console.warn(`[SyncService] Discrepanza contenuto su ${collectionName}/${data.id} con medesimo timestamp (${localUpdated}): preservo mutazione in coda.`);
+                await saveConflictBackup({
+                  tripId: this.tripId,
+                  entityType: collectionName,
+                  dataId: data.id,
+                  localData: data,
+                  serverData,
+                  conflictType: 'unreliable_timestamp_conflict',
+                  serverUpdated,
+                  localUpdated,
+                  status: 'pending_review'
+                });
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('roadbook_conflict_detected', {
+                    detail: { entityType: collectionName, id: data.id, conflictType: 'unreliable_timestamp_conflict' }
+                  }));
+                }
+                return;
+              }
+            }
           }
-        } catch (conflictCheckErr) {
-          // Se la verifica remota fallisce (es. lockdown o offline), procedi con il salvataggio protetto
+        } catch (conflictCheckErr: any) {
+          if (conflictCheckErr?.message?.includes('Cloud authorization changed')) {
+            throw conflictCheckErr;
+          }
+          console.warn(`[SyncService] Verifica remota non riuscita per ${collectionName}/${data.id}:`, conflictCheckErr?.message || conflictCheckErr);
         }
       }
 
@@ -1399,18 +1489,9 @@ export class SyncService {
           const vaultId = getVaultDocId(normType, data.id);
           const privDocRef = doc(db, 'trips', this.tripId, 'private_credentials', vaultId);
           await safeSet(privDocRef, this.cleanUndefinedValues(privateCredentialsDoc), { merge: true });
-        } else if (!privateCredentialsDoc && isCloudAuthorized(this.tripId) && data.hasPrivateCredentials === false) {
-          // Pulizia cassaforte solo se l'utente ha esplicitamente rimosso credenziali private preesistenti
-          const vaultId = getVaultDocId(normType, data.id);
-          try {
-            await safeDelete(doc(db, 'trips', this.tripId, 'private_credentials', vaultId));
-            if (vaultId !== data.id) {
-              await safeDelete(doc(db, 'trips', this.tripId, 'private_credentials', data.id));
-            }
-          } catch (vaultDelErr) {
-            console.warn(`[SyncService] Pulizia cassaforte non critica ignorata per ${vaultId}:`, vaultDelErr);
-          }
         }
+        // REQUISITO 1: Una modifica a un'attività o entità operativa NON deve mai cancellare la relativa private_credentials.
+        // La cancellazione della cassaforte è ammessa UNICAMENTE all'eliminazione dell'intera entità (action === 'delete').
       } else {
         const cleanPayload = this.cleanUndefinedValues(payloadToSync);
         await safeSet(docRef, cleanPayload, { merge: true });
