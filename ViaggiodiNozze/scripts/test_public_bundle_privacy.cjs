@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const assert = require('node:assert/strict');
 
 const root = path.resolve(__dirname, '..');
 const distArg = process.argv.find(value => value.startsWith('--dist='));
@@ -38,12 +39,16 @@ const publicText = textualFiles.map((file) => fs.readFileSync(file, 'utf8')).joi
 const privateMarkers = new Set();
 
 for (const relativePath of seedFiles) {
+  // Private seeds are intentionally absent from the cleanroom repository.
+  // Any reintroduced seed is still inspected and fails the source exclusion below.
+  if (!fs.existsSync(path.join(root, relativePath))) continue;
   const source = fs.readFileSync(path.join(root, relativePath), 'utf8');
   addMatches(privateMarkers, source, /(?:bookingCode|pinCode|ticketNumber|reservationCode|reference|email|phone)\s*:\s*['"`]([^'"`]+)['"`]/g, 1);
   addMatches(privateMarkers, source, /(?<!\d)\d{3}[- ]?\d{7,10}(?!\d)|\b[A-Z0-9]{6}\b|#[A-Z]-\d{5,}/g);
 }
 
-const transportSeed = fs.readFileSync(path.join(root, 'src/storage/seedTransports.ts'), 'utf8');
+const transportPath = path.join(root, 'src/storage/seedTransports.ts');
+const transportSeed = fs.existsSync(transportPath) ? fs.readFileSync(transportPath, 'utf8') : '';
 const nonPersonalLabels = new Set(['Globale', 'Internazionale']);
 for (const match of transportSeed.matchAll(/bookingCode\s*:\s*['"`]([^'"`]+)['"`]/g)) {
   const labels = new Set();
@@ -96,7 +101,13 @@ const secretPatterns = [
 ];
 const genericSecretHits = secretPatterns.filter((pattern) => pattern.test(publicText));
 
+// Negative controls keep exclusion checks effective even with no legacy seed fixtures.
+assert.ok(secretPatterns.some(pattern => pattern.test('-----BEGIN PRIVATE KEY-----')));
+assert.ok(secretPatterns.some(pattern => pattern.test('{"client_secret":"synthetic-sensitive-value"}')));
+assert.match("import('./seedActivities')", /(?:from\s+['"][^'"]*seed|import\s*\(\s*['"][^'"]*seed)/i);
+const privateSeedSources = walk(path.join(root, 'src')).filter(file => /(?:^|[\\/])seed(?:Activities|Alloggi|Ristoranti|Shopping|Tappe|Transports|Milano)/i.test(file));
 const checks = [
+  ['seed privati nelle sorgenti', privateSeedSources.length],
   ['valori privati', exposedMarkers.length],
   ['chunk seed', seedChunks.length],
   ['source map', sourceMaps.length],

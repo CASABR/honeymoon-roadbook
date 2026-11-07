@@ -87,7 +87,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [transports, setTransports] = useState<Trasporto[]>([]);
   const [tappe, setTappe] = useState<Tappa[]>([]);
   const [activities, setActivities] = useState<Attivita[]>([]);
-  const [mapCenterMode, setMapCenterMode] = useState<'both' | 'real' | 'planned'>('both');
+  const [mapCenterMode, setMapCenterMode] = useState<'both' | 'real' | 'planned'>('real');
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
 
@@ -1178,7 +1178,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   }, [liveIntelligence]);
 
   const effectiveMapCenter = useMemo(() => {
-    if (mapCenterMode === 'real') return realCoords || plannedCoords || null;
+    if (mapCenterMode === 'real') return realCoords || null;
     if (mapCenterMode === 'planned') return plannedCoords || realCoords || null;
     if (mapCenterMode === 'both' && realCoords && plannedCoords) {
       return {

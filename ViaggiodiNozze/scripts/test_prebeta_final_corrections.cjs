@@ -1,5 +1,7 @@
 const fs = require('fs');
 const path = require('path');
+const ts = require('typescript');
+const vm = require('node:vm');
 
 const root = path.join(__dirname, '..');
 const read = relativePath => fs.readFileSync(path.join(root, relativePath), 'utf8');
@@ -29,25 +31,34 @@ test('Le foto grandi vengono ottimizzate prima del limite finale', attachments.i
 test('Gli originali piccoli restano invariati', attachments.includes('file.size < 600 * 1024') && attachments.includes('readFileAsDataUrl(file)'));
 test('HouniAI usa il selettore foto/PDF condiviso', smartInsert.includes('accept={IMAGE_OR_PDF_FILE_ACCEPT}'));
 test('Il LIVE non forza più la fotocamera', !liveEditorial.includes('capture=') && !liveView.includes('capture='));
-test('Il LIVE mostra anteprima prima della conferma', liveEditorial.includes('pendingUploadPreview') && liveEditorial.includes('handleConfirmPhotoUpload'));
-test('Il LIVE valida PNG/JPEG/HEIC tramite helper condiviso', liveEditorial.includes('isSupportedImageFile(file)') && liveEditorial.includes('HEIC o HEIF'));
+// The single preview was replaced by a multi-photo gallery in 415856d.
+const selectionHandler = liveEditorial.slice(liveEditorial.indexOf('const handlePhotoFileSelected'), liveEditorial.indexOf('const clearPendingPhotos'));
+const confirmationHandler = liveEditorial.slice(liveEditorial.indexOf('const handleConfirmPhotoUpload'), liveEditorial.indexOf('const handleConfirmPhotoUpload') + 900);
+test('Il LIVE mostra tutte le anteprime e invia solo dopo conferma',
+  selectionHandler.includes('URL.createObjectURL(file)') && selectionHandler.includes('setPendingUploadItems') &&
+  !selectionHandler.includes('props.onUploadPhoto(') && liveEditorial.includes('src={item.preview}') &&
+  liveEditorial.includes('onClick={handleConfirmPhotoUpload}') &&
+  confirmationHandler.includes('for (const item of pendingUploadItems)') && confirmationHandler.includes('await props.onUploadPhoto(item.file') && confirmationHandler.includes('clearPendingPhotos()'));
+const attachmentRuntime = {};
+vm.runInNewContext(ts.transpileModule(attachments, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText, { exports: attachmentRuntime });
+test('Il LIVE valida PNG/JPEG/HEIC tramite helper condiviso', liveEditorial.includes('isSupportedImageFile(file)') && ['photo.png','photo.jpeg','photo.heic','photo.heif'].every(name => attachmentRuntime.isSupportedImageFile({name,type:''})) && !attachmentRuntime.isSupportedImageFile({name:'notes.txt',type:'text/plain'}));
 test('La disclosure GPS usa details/summary accessibili', liveEditorial.includes('<details') && liveEditorial.includes('<summary'));
-test('La disclosure GPS distingue Guida, Copilota e Viewer', ['<strong>Guida:</strong>', '<strong>Copilota:</strong>', '<strong>Viewer:</strong>'].every(value => liveEditorial.includes(value)));
+test('La disclosure GPS distingue Guida, Copilota e Viewer', liveEditorial.includes('!props.isExternal && (props.isOwner || props.isCopilota) &&') && liveEditorial.includes('props.isOwner &&') && liveEditorial.includes('props.isCopilota &&') && liveEditorial.includes('props.isExternal &&') && liveEditorial.includes('Privacy posizione'));
 test('La mappa parte dalla posizione reale', liveView.includes("useState<'both' | 'real' | 'planned'>('real')"));
-test('I due controlli viewer sono visibili e nominati chiaramente', liveEditorial.includes('Dove siamo adesso') && liveEditorial.includes('Dove dovremmo essere'));
-test('La modalità reale non usa una posizione pianificata come fallback', liveView.includes("if (mapCenterMode === 'real') return realCoords || { lat: 20, lng: 0 }"));
+test('I due controlli viewer sono visibili e nominati chiaramente', liveEditorial.includes("mode === 'real' ? 'GPS' : 'Programma'") && liveEditorial.includes('aria-pressed={props.mapCenterMode === mode}') && liveEditorial.includes('Dove dovremmo essere'));
+test('La modalità reale non usa una posizione pianificata come fallback', liveView.includes("if (mapCenterMode === 'real') return realCoords || null"));
 test('Il link Maps reale usa le coordinate GPS selezionate', liveView.includes("mapCenterMode === 'real' && realCoords") && liveView.includes('query=${realCoords.lat},${realCoords.lng}'));
-test('La modalità prevista mostra solo il marker itinerario', liveEditorial.includes('isPlannedMode && plannedLocation?.coords') && liveEditorial.includes('!isPlannedMode && hasRealLocation'));
+test('La modalità prevista mostra solo il marker itinerario', liveEditorial.includes("showRealMarker = hasRealLocation && props.mapCenterMode !== 'planned'") && liveEditorial.includes("showPlannedMarker = hasPlannedLocation && props.mapCenterMode !== 'real'") && liveEditorial.includes('{showRealMarker &&') && liveEditorial.includes('{showPlannedMarker &&'));
 test('Gli ospiti esterni non ricevono l’itinerario privato', liveIntelligence.includes('if (isExternalGuest)') && liveIntelligence.includes('plannedLocation: null'));
 test('Il calcolo previsto accetta un fuso IANA', liveIntelligence.includes('timeZone?: string') && liveIntelligence.includes('toWallClockMs(currentDateTime, timeZone)'));
 test('Altro usa la traccia grafica HOUNIGO', altroView.includes('hounigo-route-group') && indexCss.includes('.hounigo-route-group::before'));
 test('LIVE e PDF sono le sole evidenze Coral principali', altroView.includes('Posizione LIVE, programma previsto e cartoline') && altroView.includes('Roadbook A4 personalizzato, anche offline'));
 test('Le microinterazioni rispettano reduced motion globale', altroView.includes('hounigo-touch-feedback') && indexCss.includes('@media (prefers-reduced-motion: reduce)'));
 test('I riferimenti prenotazione sono esclusi per default', pdfModal.includes('useState(false)') && pdfModal.includes('Disattivati per privacy'));
-test('Il servizio PDF include i riferimenti solo su scelta esplicita', pdfService.includes('options.includeBookingRefs ?') && pdfService.includes('if (options.includeBookingRefs && day.accommodation.bookingCode)'));
+test('Il servizio PDF include i riferimenti solo su scelta esplicita', pdfService.includes('options.includeBookingRefs ?') && /options\.includeBookingRefs\s*&&\s*day\.accommodation\.bookingCode\s*\?/.test(pdfService));
 test('Tutti i chunk JS dinamici rientrano nel precache PWA', viteConfig.includes('**/*.{js,css,html,svg,png,jpg,jpeg,webp,ico}'));
 test('La privacy AI non promette conservazione zero o assenza di training', !smartInsert.includes('Non vengono salvati su server esterni') && !smartInsert.includes('né utilizzati per addestrare modelli'));
-test('La privacy AI segnala piano, impostazioni e log di sicurezza', smartInsert.includes('dipendono dal piano e dalle impostazioni') && smartInsert.includes('log per sicurezza e prevenzione abusi'));
+test('La privacy AI identifica il provider corrente e richiede consenso esplicito', smartInsert.includes('HouniAI usa modelli ospitati direttamente da Cloudflare') && smartInsert.includes('Nessun file viene inviato automaticamente') && smartInsert.includes('grantCloudflareAiConsent();') && smartInsert.includes('Ho capito, invia'));
 
 const serviceWorkerPath = path.join(root, 'dist', 'sw.js');
 if (fs.existsSync(serviceWorkerPath)) {
