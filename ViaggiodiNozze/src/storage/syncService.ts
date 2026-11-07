@@ -1092,8 +1092,8 @@ export class SyncService {
           try { localStorage.setItem(docId, 'true'); } catch (e) {}
         }
         pulledCount++;
-      } else {
-        // Setting ordinario
+      } else if (!docId.startsWith('device_role_backup') && !docId.startsWith('device_session_backup') && !docId.startsWith('trip_config_backup')) {
+        // Setting ordinario (escludendo sempre chiavi strettamente per-dispositivo)
         await idbPut(STORES.SETTINGS, { id: docId, ...serverData });
         pulledCount++;
       }
@@ -2145,6 +2145,10 @@ export class SyncService {
 
           // Ignoriamo i chunk degli allegati per non inquinare lo store dei documenti
           if (fb === 'documenti' && docId.startsWith('att_chunk_')) {
+            return;
+          }
+          // Ignoriamo sempre chiavi strettamente per-dispositivo in settings
+          if (fb === 'settings' && (docId.startsWith('device_role_backup') || docId.startsWith('device_session_backup') || docId.startsWith('trip_config_backup'))) {
             return;
           }
 

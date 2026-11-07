@@ -2071,11 +2071,16 @@ class StorageService {
     }
   }
 
-  // Device Role Management ('guida' | 'copilota' | 'viewer')
+  // Device Role Management ('guida' | 'copilota' | 'viewer') — rigorosamente per-dispositivo
   getDeviceRole(): DeviceRole {
     if (typeof window === 'undefined') return 'viewer';
     try {
-      const role = (localStorage.getItem('houni_device_role') || localStorage.getItem('app_device_role')) as DeviceRole | null;
+      const tripId = getActiveTripId();
+      const role = (
+        localStorage.getItem(`houni_device_role_${tripId}`) ||
+        localStorage.getItem('houni_device_role') ||
+        localStorage.getItem('app_device_role')
+      ) as DeviceRole | null;
       if (role === 'guida' || role === 'copilota' || role === 'viewer') {
         return role;
       }
@@ -2085,17 +2090,67 @@ class StorageService {
     }
   }
 
-  setDeviceRole(role: DeviceRole): void {
+  hasExplicitDeviceRole(): boolean {
+    if (typeof window === 'undefined') return false;
+    try {
+      const tripId = getActiveTripId();
+      const existing = localStorage.getItem(`houni_device_role_${tripId}`) || localStorage.getItem('houni_device_role') || localStorage.getItem('app_device_role');
+      return localStorage.getItem('houni_device_role_explicit') === 'true' ||
+             localStorage.getItem(`houni_device_role_explicit_${tripId}`) === 'true' ||
+             existing === 'guida' || existing === 'copilota';
+    } catch {
+      return false;
+    }
+  }
+
+  setDeviceRole(role: DeviceRole, explicit = true): void {
     if (typeof window === 'undefined') return;
     try {
+      const tripId = getActiveTripId();
       localStorage.setItem('houni_device_role', role);
       localStorage.setItem('app_device_role', role);
-      idbPut(STORES.SETTINGS, { id: 'device_role_backup', value: role }).catch(() => {});
+      localStorage.setItem(`houni_device_role_${tripId}`, role);
+      if (explicit) {
+        localStorage.setItem('houni_device_role_explicit', 'true');
+        localStorage.setItem(`houni_device_role_explicit_${tripId}`, 'true');
+      }
+      idbPut(STORES.SETTINGS, {
+        id: 'device_role_backup',
+        value: role,
+        explicit,
+        tripId,
+        updatedAt: Date.now()
+      }).catch(() => {});
       // Dispatch custom event to notify listeners across the app
-      window.dispatchEvent(new CustomEvent('device_role_changed', { detail: { role } }));
+      window.dispatchEvent(new CustomEvent('device_role_changed', { detail: { role, explicit } }));
     } catch (e) {
       console.error('[StorageService] Errore salvataggio device role:', e);
     }
+  }
+
+  async restoreDeviceRoleFromIndexedDB(): Promise<DeviceRole | null> {
+    if (typeof window === 'undefined') return null;
+    try {
+      const tripId = getActiveTripId();
+      const current = localStorage.getItem(`houni_device_role_${tripId}`) || localStorage.getItem('houni_device_role');
+      if (current === 'guida' || current === 'copilota' || current === 'viewer') {
+        return current;
+      }
+      const backup = await idbGet<any>(STORES.SETTINGS, 'device_role_backup');
+      const role = backup?.value as DeviceRole | undefined;
+      if (role === 'guida' || role === 'copilota' || role === 'viewer') {
+        localStorage.setItem('houni_device_role', role);
+        localStorage.setItem('app_device_role', role);
+        localStorage.setItem(`houni_device_role_${tripId}`, role);
+        if (backup?.explicit) {
+          localStorage.setItem('houni_device_role_explicit', 'true');
+          localStorage.setItem(`houni_device_role_explicit_${tripId}`, 'true');
+        }
+        window.dispatchEvent(new CustomEvent('device_role_changed', { detail: { role } }));
+        return role;
+      }
+    } catch {}
+    return null;
   }
 
   getOrCreateDeviceId(): string {

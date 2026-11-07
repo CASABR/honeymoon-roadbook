@@ -28,20 +28,32 @@ export function useDeviceRole(): {
   });
   const [simulatedRole, setSimulatedRole] = useState<SimulatedRole>(() => getSimulatedRole());
 
-  // Sincronizzazione automatica del ruolo da cloud verificato verso storage locale:
-  // Se viewer confermato, revoca immediatamente qualsiasi ruolo privilegiato locale
+  // Ripristino asincrono da IndexedDB qualora localStorage fosse stato ripulito dal browser mobile
   useEffect(() => {
-    if (cloudRole === 'owner' && role !== 'guida') {
-      storageService.setDeviceRole('guida');
-      setRole('guida');
-    } else if (cloudRole === 'copilota' && role !== 'copilota') {
-      storageService.setDeviceRole('copilota');
-      setRole('copilota');
-    } else if (cloudRole === 'viewer' && role !== 'viewer') {
+    storageService.restoreDeviceRoleFromIndexedDB().then((restored) => {
+      if (restored) setRole(restored);
+    }).catch(() => {});
+  }, []);
+
+  // Inizializzazione non distruttiva del ruolo da cloud verificato verso storage locale:
+  // NON sovrascrive mai la scelta esplicita già fatta dall'utente sul telefono!
+  // Se viewer confermato con revoca, riporta a viewer per sicurezza.
+  useEffect(() => {
+    const hasExplicitChoice = storageService.hasExplicitDeviceRole();
+    if (!hasExplicitChoice) {
+      if (cloudRole === 'owner' && role !== 'guida') {
+        storageService.setDeviceRole('guida', false);
+        setRole('guida');
+      } else if (cloudRole === 'copilota' && role !== 'copilota') {
+        storageService.setDeviceRole('copilota', false);
+        setRole('copilota');
+      }
+    }
+    if (cloudRole === 'viewer' && role !== 'viewer') {
       const tripConfig = getTripConfig();
       const currentTripId = tripConfig?.id || '0000';
       if (isTripAuthRevoked(currentTripId)) {
-        storageService.setDeviceRole('viewer');
+        storageService.setDeviceRole('viewer', false);
         setRole('viewer');
       }
     }
@@ -79,9 +91,7 @@ export function useDeviceRole(): {
 
   // L'autorizzazione alle modifiche richiede obbligatoriamente che l'identità
   // sia verificata e autorizzata dal backend Cloud (owner o copilota).
-  // Se il Cloud non autorizza (viewer, admin globale, checking, offline, unverified),
-  // le modifiche sono disabilitate a prescindere dal ruolo locale o dalla simulazione DEV.
-  // Ruolo effettivo calcolato combinando cloud verificato e persistenza locale
+  // Il ruolo del dispositivo ('guida' | 'copilota' | 'viewer') rimane strettamente per-dispositivo.
   const effectiveRole: DeviceRole = (() => {
     if (import.meta.env.DEV) {
       const sim = getSimulatedRole();
@@ -89,9 +99,12 @@ export function useDeviceRole(): {
       if (sim === 'copilota') return 'copilota';
       if (sim === 'viewer') return 'viewer';
     }
+    if (cloudRole === 'viewer') return 'viewer';
+    if (storageService.hasExplicitDeviceRole()) {
+      return role;
+    }
     if (cloudRole === 'owner') return 'guida';
     if (cloudRole === 'copilota') return 'copilota';
-    if (cloudRole === 'viewer') return 'viewer';
     return role;
   })();
 

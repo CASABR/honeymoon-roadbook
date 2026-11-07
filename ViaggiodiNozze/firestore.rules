@@ -382,10 +382,11 @@ service cloud.firestore {
                         isTripOwner(tripId)
                         || (request.auth.uid == resource.data.holderUid
                             && request.resource.data.holderUid == resource.data.holderUid
-                            && request.resource.data.holderDeviceId == resource.data.holderDeviceId
+                            && (request.resource.data.holderDeviceId == resource.data.holderDeviceId
+                                || resource.data.holderDeviceId == ('delegated_pending_' + resource.data.holderUid))
                             && request.resource.data.expiresAt == resource.data.expiresAt
-                            && resource.data.status == 'active'
-                            && request.resource.data.status in ['paused', 'stopped'])
+                            && resource.data.expiresAt > request.time
+                            && request.resource.data.status in ['active', 'paused', 'stopped'])
                       );
         allow delete: if false;
       }
@@ -394,7 +395,7 @@ service cloud.firestore {
         allow read: if locationId == 'current'
                     && (
                       (resource.data.status == 'active'
-                       && resource.data.updatedAt > request.time - duration.value(2, 'm')
+                       && resource.data.updatedAt > request.time - duration.value(15, 'm')
                        && gpsLease(tripId).status == 'active'
                        && gpsLease(tripId).expiresAt > request.time
                        && gpsLease(tripId).holderDeviceId == resource.data.publisherDeviceId)

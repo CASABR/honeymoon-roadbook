@@ -57,6 +57,7 @@ export interface LiveGpsPositionInput {
 
 const LEASE_HOURS = 18;
 const MIN_PUBLISH_INTERVAL_MS = 15_000;
+export const GPS_STALE_THRESHOLD_MS = 15 * 60 * 1000; // 15 minuti
 const lastPublishTimestampByTrip = new Map<string, number>();
 
 const asDate = (value: unknown): Date =>
@@ -140,7 +141,7 @@ export const liveGpsService = {
         publisherDeviceId: data.publisherDeviceId,
         status: data.status
       };
-      const isStale = Date.now() - location.updatedAt.getTime() >= 120_000;
+      const isStale = Date.now() - location.updatedAt.getTime() >= GPS_STALE_THRESHOLD_MS;
       if (isPrivileged) {
         callback(location, isStale);
       } else {
@@ -186,16 +187,35 @@ export const liveGpsService = {
     }, () => callback([]));
   },
 
-  async assignGuide(tripId: string, holderUid: string, holderDeviceId: string): Promise<void> {
+  async assignGuide(tripId: string, holderUid: string, holderDeviceId?: string): Promise<void> {
     const user = auth.currentUser;
     if (!user) throw new Error('Accedi prima di assegnare la guida GPS.');
+    const safeDeviceId = holderDeviceId && holderDeviceId.trim().length >= 16
+      ? holderDeviceId.trim()
+      : `delegated_pending_${holderUid}`.slice(0, 120);
     try {
       await setDoc(leaseRef(tripId), {
+        holderUid,
+        holderDeviceId: safeDeviceId,
+        status: 'active',
+        updatedAt: serverTimestamp(),
+        expiresAt: Timestamp.fromMillis(Date.now() + LEASE_HOURS * 60 * 60 * 1000)
+      });
+    } catch (error) {
+      throw friendlyError(error);
+    }
+  },
+
+  async claimOrResumeDelegatedGuide(tripId: string, holderUid: string, holderDeviceId: string, expiresAt: Date): Promise<void> {
+    const user = auth.currentUser;
+    if (!user || user.uid !== holderUid) throw new Error('Solo la guida designata può attivare questa delega GPS.');
+    try {
+      await updateDoc(leaseRef(tripId), {
         holderUid,
         holderDeviceId,
         status: 'active',
         updatedAt: serverTimestamp(),
-        expiresAt: Timestamp.fromMillis(Date.now() + LEASE_HOURS * 60 * 60 * 1000)
+        expiresAt: Timestamp.fromMillis(expiresAt.getTime())
       });
     } catch (error) {
       throw friendlyError(error);

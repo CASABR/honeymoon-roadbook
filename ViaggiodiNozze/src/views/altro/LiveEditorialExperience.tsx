@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { LiveUpdate } from '../../services/liveService';
-import type { LiveGpsDevice, LiveGpsLease, LiveGpsLocation } from '../../services/liveGpsService';
+import { GPS_STALE_THRESHOLD_MS, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation } from '../../services/liveGpsService';
 import type { LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
 import { getTripConfig } from '../../utils/tripConfig';
 import { IMAGE_FILE_ACCEPT, isSupportedImageFile } from '../../utils/fileAttachment';
@@ -34,6 +34,7 @@ export interface LiveEditorialExperienceProps {
   remoteGpsLease?: LiveGpsLease | null;
   remoteGpsLocation?: LiveGpsLocation | null;
   isGpsHolder?: boolean;
+  isDesignatedGuide?: boolean;
   isOwner?: boolean;
   isCopilota?: boolean;
   gpsDevices?: LiveGpsDevice[];
@@ -45,7 +46,7 @@ export interface LiveEditorialExperienceProps {
   onPauseGps?: () => void;
   onResumeGps?: () => void;
   onStopGps?: () => void;
-  onTransferGps?: (uid: string, deviceId: string) => Promise<void> | void;
+  onTransferGps?: (uid: string, deviceId?: string) => Promise<void> | void;
   onRevokeGps?: () => Promise<void> | void;
   liveIntelligence?: LiveIntelligenceState | null;
   mapCenterMode?: 'both' | 'real' | 'planned';
@@ -146,29 +147,39 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   const lastDetectedDate = props.remoteGpsLocation?.updatedAt
     ? parseSafeDate(props.remoteGpsLocation.updatedAt)
     : null;
+  const ageMs = lastDetectedDate ? Math.max(0, Date.now() - lastDetectedDate.getTime()) : Number.POSITIVE_INFINITY;
   const isFreshGps = Boolean(
     isLeaseActive &&
     lastDetectedDate &&
-    Date.now() - lastDetectedDate.getTime() < 120_000
+    ageMs < GPS_STALE_THRESHOLD_MS
   );
-  const hasRealLocation = Boolean(isFreshGps && props.remoteGpsLocation);
+  const isStaleGps = Boolean(
+    lastDetectedDate &&
+    ageMs >= GPS_STALE_THRESHOLD_MS
+  );
+  const hasRealLocation = Boolean((isFreshGps || (!props.isExternal && lastDetectedDate && props.remoteGpsLocation?.status !== 'stopped')) && props.remoteGpsLocation);
   const plannedLocation = props.liveIntelligence?.plannedLocation || null;
   const hasPlannedLocation = Boolean(!props.isExternal && plannedLocation?.coords);
   const showRealMarker = hasRealLocation && props.mapCenterMode !== 'planned';
-  const showPlannedMarker = hasPlannedLocation && props.mapCenterMode !== 'real';
+  const showPlannedMarker = hasPlannedMarkerCheck(hasPlannedLocation, props.mapCenterMode);
   const permissionDenied = Boolean(props.gpsError && /permess|denied|negat|autorizzat/i.test(props.gpsError));
 
+  function hasPlannedMarkerCheck(hasPlanned: boolean, mode?: 'both' | 'real' | 'planned') {
+    return hasPlanned && mode !== 'real';
+  }
+
   const gpsVisualState = useMemo(() => {
-    if (!isOnline) return { label: 'Offline', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
-    if (props.isDetectingGps) return { label: 'Ricerca GPS', tone: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500 motion-safe:animate-pulse' };
-    if (permissionDenied) return { label: 'GPS non autorizzato', tone: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' };
-    if (isFreshGps) return { label: 'Attiva', tone: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' };
-    if (isLeasePaused) return { label: 'In pausa', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
-    if (isLeaseExpired) return { label: 'Lease scaduto', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
-    if (props.remoteGpsLease?.status === 'stopped') return { label: 'Interrotta', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
-    if (isLeaseActive) return { label: 'Posizione scaduta', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
-    return { label: 'GPS assente', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
-  }, [isOnline, props.isDetectingGps, props.remoteGpsLease?.status, permissionDenied, isFreshGps, isLeasePaused, isLeaseActive, isLeaseExpired]);
+    if (!isOnline) return { label: 'Nessuna connessione (Offline)', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
+    if (props.isDetectingGps) return { label: 'Acquisizione GPS in corso…', tone: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500 motion-safe:animate-pulse' };
+    if (permissionDenied) return { label: 'Permesso GPS negato', tone: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' };
+    if (isFreshGps) return { label: 'GPS Attivo', tone: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' };
+    if (isLeasePaused) return { label: 'Condivisione in pausa', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
+    if (isStaleGps && isLeaseActive) return { label: 'Posizione non recente (> 15 min)', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
+    if (isLeaseExpired) return { label: 'Sessione guida scaduta', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
+    if (props.remoteGpsLease?.status === 'stopped') return { label: 'GPS Non attivo (Interrotto)', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
+    if (isLeaseActive) return { label: 'In attesa del primo segnale GPS', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
+    return { label: 'GPS Non attivo', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
+  }, [isOnline, props.isDetectingGps, props.remoteGpsLease?.status, permissionDenied, isFreshGps, isStaleGps, isLeasePaused, isLeaseActive, isLeaseExpired]);
 
   const currentGuideName = useMemo(() => {
     const holderUid = props.remoteGpsLease?.holderUid;
@@ -547,28 +558,41 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           <div className="mt-5 border-b border-slate-200 pb-5 dark:border-slate-800">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className={`flex items-center gap-2 text-sm font-extrabold ${gpsVisualState.tone}`}><span className={`h-2 w-2 rounded-full ${gpsVisualState.dot}`} />{gpsVisualState.label}</p>
-                <p className="mt-1 text-xs text-slate-500">Guida: {currentGuideName}</p>
+                <p className={`flex items-center gap-2 text-sm font-extrabold ${gpsVisualState.tone}`}>
+                  <span className={`h-2 w-2 rounded-full ${gpsVisualState.dot}`} />
+                  {gpsVisualState.label}
+                </p>
+                <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
+                  Organizzatore viaggio: <strong>{props.ownerName || 'Organizzatore'}</strong> · Guida GPS designata: <strong>{currentGuideName}</strong>
+                </p>
+                {lastDetectedDate && (
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    Ultima posizione ricevuta: {formatLastDetectedTimestamp(lastDetectedDate)} ({formatRelativeTime(lastDetectedDate)})
+                    {isStaleGps ? ' · ⚠️ Posizione non aggiornata da oltre 15 minuti' : ''}
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
-                {(isLeaseStopped || isLeaseExpired || permissionDenied || (isLeaseActive && props.isGpsHolder && !isFreshGps)) && props.isOwner && (
-                  <button type="button" onClick={props.onStartGps} disabled={props.isDetectingGps || !isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white disabled:opacity-40">{permissionDenied || isLeaseExpired || isLeaseActive ? 'Riattiva posizione' : 'Condividi posizione'}</button>
+                {(isLeaseStopped || isLeaseExpired || permissionDenied || (isLeaseActive && (props.isGpsHolder || props.isDesignatedGuide) && !isFreshGps)) && (props.isOwner || props.isDesignatedGuide) && (
+                  <button type="button" onClick={props.onStartGps} disabled={props.isDetectingGps || !isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white disabled:opacity-40">
+                    {permissionDenied || isLeaseExpired || isLeaseActive ? 'Riattiva posizione' : 'Condividi posizione'}
+                  </button>
                 )}
-                {isLeaseActive && props.isGpsHolder && (
+                {isLeaseActive && (props.isGpsHolder || props.isDesignatedGuide) && (
                   <>
-                    <button type="button" onClick={props.onPauseGps} disabled={!isOnline} className="min-h-11 rounded-full border border-amber-300 px-4 text-xs font-bold text-amber-800 dark:border-amber-800 dark:text-amber-200">Pausa</button>
+                    <button type="button" onClick={props.onPauseGps} disabled={!isOnline} className="min-h-11 rounded-full border border-amber-300 px-4 text-xs font-bold text-amber-800 dark:border-amber-800 dark:text-amber-200">Metti in pausa</button>
                     <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-11 rounded-full border border-rose-300 px-4 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300">Ferma condivisione</button>
                   </>
                 )}
-                {isLeaseActive && props.isOwner && !props.isGpsHolder && (
+                {isLeaseActive && props.isOwner && !props.isGpsHolder && !props.isDesignatedGuide && (
                   <>
                     <button type="button" onClick={props.onRevokeGps} disabled={!isOnline} className="min-h-11 rounded-full bg-[#172033] px-4 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">Prendi guida</button>
                     <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-11 rounded-full border border-rose-300 px-4 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300">Ferma condivisione</button>
                   </>
                 )}
-                {isLeasePaused && props.isOwner && (
+                {isLeasePaused && (props.isOwner || props.isDesignatedGuide) && (
                   <>
-                    <button type="button" onClick={props.onResumeGps} disabled={!isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white">Riprendi</button>
+                    <button type="button" onClick={props.onResumeGps} disabled={!isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white">Riprendi condivisione</button>
                     <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-11 rounded-full border border-rose-300 px-4 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300">Interrompi</button>
                   </>
                 )}
@@ -576,29 +600,54 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             </div>
             {props.gpsFeedback && <p className="mt-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300" role="status">✓ {props.gpsFeedback}</p>}
             {props.gpsError && <p className="mt-3 text-xs font-semibold text-rose-700 dark:text-rose-300" role="alert">{props.gpsError}</p>}
-            <button type="button" onClick={() => setIsGuideControlsOpen(open => !open)} className="mt-4 min-h-10 text-xs font-bold text-slate-600 underline underline-offset-4 dark:text-slate-300" aria-expanded={isGuideControlsOpen}>Chi guida {isGuideControlsOpen ? '−' : '+'}</button>
+            <p className="mt-3 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+              ℹ️ <strong>Nota iOS / iPhone PWA:</strong> L&apos;aggiornamento GPS funziona quando la PWA è aperta o viene riaperta, non come un&apos;app nativa con tracciamento continuo in background.
+            </p>
+            <button type="button" onClick={() => setIsGuideControlsOpen(open => !open)} className="mt-3 min-h-10 text-xs font-bold text-slate-600 underline underline-offset-4 dark:text-slate-300" aria-expanded={isGuideControlsOpen}>Gestione Delega Guida GPS {isGuideControlsOpen ? '−' : '+'}</button>
 
             {isGuideControlsOpen && (
-              <div className="mt-3 space-y-4 rounded-2xl bg-white p-4 dark:bg-slate-900">
-                <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">La posizione viene condivisa solo dopo un consenso esplicito. Su iPhone gli aggiornamenti possono fermarsi quando l’app è in background.</p>
+              <div className="mt-3 space-y-4 rounded-2xl bg-white p-4 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
+                <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
+                  L&apos;<strong>Organizzatore del viaggio ({props.ownerName || 'Owner'})</strong> può delegare temporaneamente la trasmissione della posizione GPS a un Copilota verificato e riprenderla in qualsiasi momento. Due telefoni non trasmettono mai posizioni concorrenti contemporaneamente.
+                </p>
                 {props.isOwner && (
                   <div className="space-y-2">
                     {props.remoteGpsLease?.holderUid && props.remoteGpsLease.holderUid !== props.ownerUid && (
-                      <button type="button" disabled={isHandoverLoading || !isOnline} onClick={() => props.onRevokeGps && runHandover(props.onRevokeGps, 'Guida ripresa.')} className="min-h-11 rounded-full border border-slate-300 px-4 text-xs font-bold dark:border-slate-700">Riprendi guida</button>
+                      <button type="button" disabled={isHandoverLoading || !isOnline} onClick={() => props.onRevokeGps && runHandover(props.onRevokeGps, 'Guida GPS riportata all’Organizzatore.')} className="min-h-11 rounded-full border border-slate-300 px-4 text-xs font-bold dark:border-slate-700">Riprendi Guida GPS</button>
                     )}
                     {copilots.map(copilot => {
                       const isCurrent = props.remoteGpsLease?.holderUid === copilot.uid;
                       return (
                         <div key={copilot.uid} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2 dark:border-slate-800">
-                          <div className="min-w-0"><p className="truncate text-xs font-bold">{copilot.name}</p><p className="text-[11px] text-slate-500">{copilot.deviceId ? isCurrent ? 'Guida attuale' : 'Dispositivo pronto' : 'Apri Hounigo sul suo dispositivo'}</p></div>
-                          {!isCurrent && <button type="button" disabled={!copilot.deviceId || isHandoverLoading || !isOnline} onClick={() => copilot.deviceId && props.onTransferGps && runHandover(() => props.onTransferGps?.(copilot.uid, copilot.deviceId!), `Guida assegnata a ${copilot.name}.`)} className="min-h-10 shrink-0 rounded-full bg-[#172033] px-3 text-[11px] font-bold text-white disabled:opacity-35 dark:bg-white dark:text-[#172033]">Assegna</button>}
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-bold">{copilot.name}</p>
+                            <p className="text-[11px] text-slate-500">
+                              {isCurrent ? '🟢 Guida GPS delegata attiva' : copilot.deviceId ? 'Dispositivo Copilota registrato' : 'Copilota verificato (attiverà dal suo iPhone)'}
+                            </p>
+                          </div>
+                          {!isCurrent && (
+                            <button
+                              type="button"
+                              disabled={isHandoverLoading || !isOnline}
+                              onClick={() => props.onTransferGps && runHandover(() => props.onTransferGps?.(copilot.uid, copilot.deviceId), `Delega Guida GPS assegnata a ${copilot.name}.`)}
+                              className="min-h-10 shrink-0 rounded-full bg-[#172033] px-3.5 text-[11px] font-bold text-white disabled:opacity-35 dark:bg-white dark:text-[#172033]"
+                            >
+                              Delega Guida GPS
+                            </button>
+                          )}
                         </div>
                       );
                     })}
                     {!copilots.length && <p className="text-xs text-slate-500">Nessun copilota disponibile.</p>}
                   </div>
                 )}
-                {props.isCopilota && <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">{props.isGpsHolder ? 'Questo dispositivo è la guida.' : 'L’organizzatore può assegnarti la guida.'}</p>}
+                {props.isCopilota && (
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    {props.isDesignatedGuide
+                      ? '🟢 Hai ricevuto la delega Guida GPS dall’Organizzatore: puoi condividere, mettere in pausa o riprendere la posizione da questo telefono.'
+                      : 'L’Organizzatore può delegarti temporaneamente la funzione Guida GPS.'}
+                  </p>
+                )}
                 {handoverFeedback && <p className="text-xs font-semibold text-slate-700 dark:text-slate-200" role="status">{handoverFeedback}</p>}
               </div>
             )}

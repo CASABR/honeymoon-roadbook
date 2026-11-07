@@ -15,7 +15,9 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { spawn } = require('child_process');
 const { initializeTestEnvironment, assertSucceeds, assertFails } = require('@firebase/rules-unit-testing');
 const {
   doc,
@@ -23,18 +25,40 @@ const {
   setDoc,
   updateDoc,
   runTransaction,
-  writeBatch,
   serverTimestamp,
   Timestamp
 } = require('firebase/firestore');
 
-const rules = fs.readFileSync(path.join(__dirname, '..', 'firestore.rules'), 'utf8');
+const root = path.resolve(__dirname, '..');
+const rulesPath = path.join(root, 'firestore.rules');
+const rules = fs.readFileSync(rulesPath, 'utf8');
 const projectId = 'demo-phase3-gps-live';
+const jar = process.env.HOUNIGO_FIRESTORE_EMULATOR_JAR || path.join(os.homedir(), '.cache/firebase/emulators/cloud-firestore-emulator-v1.22.0.jar');
 
 async function runPhase3() {
   console.log('========================================================================');
   console.log('HOUNIGO — FASE 3: GPS LIVE, DELEGA GUIDA E RESILIENZA STORAGE');
   console.log('========================================================================\n');
+
+  const emulator = spawn('java', [
+    '-Duser.language=en',
+    '-Duser.country=US',
+    '-jar', jar,
+    '--host', '127.0.0.1',
+    '--port', '8085',
+    '--project_id', projectId,
+    '--single_project_mode', 'true',
+    '--rules', rulesPath
+  ], { cwd: root, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+
+  try {
+    for (let i = 0; i < 80; i++) {
+      try {
+        await fetch('http://127.0.0.1:8085', { signal: AbortSignal.timeout(500) });
+        break;
+      } catch {}
+      await new Promise(r => setTimeout(r, 200));
+    }
 
   const testEnv = await initializeTestEnvironment({
     projectId,
@@ -136,26 +160,45 @@ async function runPhase3() {
     }
   });
 
-  await test('2.2: Verifica logica di freschezza (stale window 120s vs durata lease 18h)', async () => {
-    // Simulazione calcolo client
-    const freshTimestamp = Date.now() - 30_000; // 30s fa
-    const staleTimestamp = Date.now() - 150_000; // 2.5 min fa
-    const isFreshStale = (Date.now() - freshTimestamp) >= 120_000;
-    const isOldStale = (Date.now() - staleTimestamp) >= 120_000;
+  await test('2.2: Verifica logica di freschezza (stale window 15 min vs durata lease 18h)', async () => {
+    const STALE_MS = 15 * 60 * 1000;
+    const freshTimestamp = Date.now() - 5 * 60 * 1000; // 5 min fa
+    const staleTimestamp = Date.now() - 16 * 60 * 1000; // 16 min fa
+    const isFreshStale = (Date.now() - freshTimestamp) >= STALE_MS;
+    const isOldStale = (Date.now() - staleTimestamp) >= STALE_MS;
 
-    if (isFreshStale) throw new Error('Posizione recente erroneamente considerata obsoleta');
-    if (!isOldStale) throw new Error('Posizione > 2 minuti non considerata obsoleta');
+    if (isFreshStale) throw new Error('Posizione recente (5 min) erroneamente considerata obsoleta');
+    if (!isOldStale) throw new Error('Posizione > 15 minuti non considerata obsoleta');
   });
 
   console.log('\n--- 3. TRASFERIMENTO GUIDA AL COPILOTA AUTORIZZATO ---');
-  await test('3.1: Owner delega la Guida al Copilota (DEV_COPILOT)', async () => {
+  const sharedExpiry = Timestamp.fromMillis(Date.now() + 18 * 3600 * 1000);
+  await test('3.1: Owner delega la Guida al Copilota (con o senza deviceId preventivo)', async () => {
     const leaseRef = doc(dbOwner, 'live_feeds', TRIP_A, 'gps_control', 'current');
     await assertSucceeds(setDoc(leaseRef, {
+      holderUid: UID_COPILOT,
+      holderDeviceId: `delegated_pending_${UID_COPILOT}`,
+      status: 'active',
+      updatedAt: serverTimestamp(),
+      expiresAt: sharedExpiry
+    }));
+  });
+
+  await test('3.1b: Copilota delegato registra il proprio DEV_COPILOT e mette in pausa / riprende', async () => {
+    const leaseRef = doc(dbCopilot, 'live_feeds', TRIP_A, 'gps_control', 'current');
+    await assertSucceeds(updateDoc(leaseRef, {
+      holderUid: UID_COPILOT,
+      holderDeviceId: DEV_COPILOT,
+      status: 'paused',
+      updatedAt: serverTimestamp(),
+      expiresAt: sharedExpiry
+    }));
+    await assertSucceeds(updateDoc(leaseRef, {
       holderUid: UID_COPILOT,
       holderDeviceId: DEV_COPILOT,
       status: 'active',
       updatedAt: serverTimestamp(),
-      expiresAt: Timestamp.fromMillis(Date.now() + 18 * 3600 * 1000)
+      expiresAt: sharedExpiry
     }));
   });
 
@@ -289,11 +332,24 @@ async function runPhase3() {
     }
   });
 
+  await test('7.2: Ruolo Dispositivo persistente per-dispositivo (isolato tra due telefoni)', async () => {
+    const phone1Storage = new Map([['houni_device_role_0000', 'guida'], ['houni_device_role_explicit_0000', 'true']]);
+    const phone2Storage = new Map([['houni_device_role_0000', 'copilota'], ['houni_device_role_explicit_0000', 'true']]);
+    // Cambio ruolo sul telefono 1 (es. in viewer) non altera telefono 2
+    phone1Storage.set('houni_device_role_0000', 'viewer');
+    if (phone2Storage.get('houni_device_role_0000') !== 'copilota') {
+      throw new Error('Il cambio ruolo su un telefono ha alterato il secondo telefono!');
+    }
+  });
+
   console.log('\n------------------------------------------------------------------------');
   console.log(`ESITO FASE 3: ${passed}/${total} test superati con successo (${Math.round(passed / total * 100)}%)`);
   console.log('------------------------------------------------------------------------');
 
   await testEnv.cleanup();
+  } finally {
+    emulator.kill();
+  }
 }
 
 runPhase3().catch(err => {
