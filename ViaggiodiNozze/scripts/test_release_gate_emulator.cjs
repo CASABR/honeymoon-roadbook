@@ -129,7 +129,7 @@ function load(file, dependencies, globals = {}) {
       '../firebase':{auth,db:{}},'./indexedDB':{STORES:{SETTINGS:'settings'},idbGet:async()=>null},'./storageService':{},
       '../utils/tripDates':{normalizeTimestamp:v=>Number(v)||0},'../utils/useAuthIdentity':identity,
       '../services/pushNotificationService':{},'../utils/securityDataSplitter':splitter,'./localMutationQueue':queue
-    });
+    }, globals);
     const sync=Object.create(SyncService.prototype);
     sync.tripId='0000';sync.isDestroyed=false;sync.emitSyncStatus=()=>{};
     const pending={id:'iphone-synthetic-edit',cost:'1200',depositPaid:'300',bookingCode:'SYNTHETIC-VOUCHER',attachments:[{id:'voucher',data:'preserved'}]};
@@ -141,6 +141,7 @@ function load(file, dependencies, globals = {}) {
     assert.equal(writeAttempts,0,'UID transition alone must not authorize writes');
     await check('GET','trips/0000',auth.currentUser.uid,true);
     identity.setAuthoritativeCloudRole('owner');
+    storage.set('hounigo_allow_cloud_write_0000', 'true');
     await sync.flushPendingPushes();
     assert.equal(writeAttempts,1,'Verified Owner attempts a write; actual lockdown must deny it');
     assert.equal((await queue.getPendingMutations('0000')).length,1);

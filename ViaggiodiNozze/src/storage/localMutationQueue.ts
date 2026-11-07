@@ -140,3 +140,147 @@ export async function clearPendingMutations(tripId?: string): Promise<void> {
     };
   });
 }
+
+// -----------------------------------------------------------------------------
+// ARCHIVIO CONFLITTI LOCALE ISOLATO (P0 PRIVACY & RESILIENZA)
+// -----------------------------------------------------------------------------
+export interface ConflictBackupRecord {
+  id: string;
+  tripId: string;
+  entityType: string;
+  dataId: string;
+  localData: any;
+  serverData?: any;
+  conflictType: 'server_newer' | 'remote_tombstone_vs_local_edit' | 'manual';
+  serverUpdated?: number;
+  localUpdated?: number;
+  tombstoneDeletedAt?: number;
+  savedAt: number;
+  status: 'pending_review' | 'resolved_keep_local' | 'resolved_keep_remote';
+}
+
+const CONFLICT_DB_NAME = 'HounigoConflictArchiveDB';
+const CONFLICT_STORE_NAME = 'conflict_backups';
+const CONFLICT_DB_VERSION = 1;
+const memoryConflictStore = new Map<string, ConflictBackupRecord>();
+
+function openConflictDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = window.indexedDB.open(CONFLICT_DB_NAME, CONFLICT_DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(CONFLICT_STORE_NAME)) {
+        db.createObjectStore(CONFLICT_STORE_NAME, { keyPath: 'id' });
+      }
+    };
+    request.onsuccess = () => {
+      request.result.onversionchange = () => request.result.close();
+      resolve(request.result);
+    };
+    request.onerror = () => reject(request.error);
+    request.onblocked = () => console.warn('[ConflictArchive] Chiudi altre schede per aggiornare il database conflitti.');
+  });
+}
+
+async function conflictTx<T>(mode: IDBTransactionMode, run: (store: IDBObjectStore, resolve: (value: T) => void) => void): Promise<T> {
+  const db = await openConflictDB();
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      const tx = db.transaction(CONFLICT_STORE_NAME, mode);
+      let val: T;
+      tx.oncomplete = () => resolve(val);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error('Conflict transaction aborted'));
+      run(tx.objectStore(CONFLICT_STORE_NAME), result => { val = result; });
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function saveConflictBackup(backup: Omit<ConflictBackupRecord, 'id' | 'savedAt' | 'status'> & { id?: string; savedAt?: number; status?: ConflictBackupRecord['status'] }): Promise<string> {
+  const timestamp = backup.savedAt ?? Date.now();
+  const id = backup.id || `${backup.tripId}_${backup.entityType}_${backup.dataId}_${timestamp}`;
+  const record: ConflictBackupRecord = {
+    ...backup,
+    id,
+    savedAt: timestamp,
+    status: backup.status || 'pending_review'
+  };
+
+  if (!hasIndexedDB()) {
+    memoryConflictStore.set(id, structuredClone(record));
+    return id;
+  }
+
+  await conflictTx<void>('readwrite', (store, resolve) => {
+    store.put(record);
+    resolve();
+  });
+  return id;
+}
+
+export async function getConflictBackups(tripId?: string): Promise<ConflictBackupRecord[]> {
+  if (!hasIndexedDB()) {
+    const list = Array.from(memoryConflictStore.values());
+    return (!tripId ? list : list.filter(r => r.tripId === tripId)).sort((a, b) => b.savedAt - a.savedAt);
+  }
+
+  const all = await conflictTx<ConflictBackupRecord[]>('readonly', (store, resolve) => {
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result || []);
+  });
+
+  return (!tripId ? all : all.filter(r => r.tripId === tripId)).sort((a, b) => b.savedAt - a.savedAt);
+}
+
+export async function getConflictBackupById(id: string): Promise<ConflictBackupRecord | null> {
+  if (!hasIndexedDB()) {
+    return memoryConflictStore.get(id) ? structuredClone(memoryConflictStore.get(id)!) : null;
+  }
+
+  return conflictTx<ConflictBackupRecord | null>('readonly', (store, resolve) => {
+    const req = store.get(id);
+    req.onsuccess = () => resolve(req.result || null);
+  });
+}
+
+export async function removeConflictBackup(id: string): Promise<void> {
+  if (!hasIndexedDB()) {
+    memoryConflictStore.delete(id);
+    return;
+  }
+
+  await conflictTx<void>('readwrite', (store, resolve) => {
+    store.delete(id);
+    resolve();
+  });
+}
+
+export async function clearConflictBackups(tripId?: string): Promise<void> {
+  if (!hasIndexedDB()) {
+    if (!tripId) {
+      memoryConflictStore.clear();
+    } else {
+      for (const [k, v] of memoryConflictStore.entries()) {
+        if (v.tripId === tripId) memoryConflictStore.delete(k);
+      }
+    }
+    return;
+  }
+
+  if (!tripId) {
+    await conflictTx<void>('readwrite', (store, resolve) => {
+      store.clear();
+      resolve();
+    });
+  } else {
+    const all = await getConflictBackups(tripId);
+    await conflictTx<void>('readwrite', (store, resolve) => {
+      for (const r of all) {
+        store.delete(r.id);
+      }
+      resolve();
+    });
+  }
+}

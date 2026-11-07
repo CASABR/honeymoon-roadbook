@@ -513,6 +513,19 @@ export default function AccountSyncModal({ isOpen, onClose, onSuccess }: Account
                 {status.providers.length > 0 ? status.providers.join(', ') : 'anonymous'}
               </span>
             </div>
+            <div className="pt-2 border-t border-slate-200/60 dark:border-slate-700/60">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  window.dispatchEvent(new CustomEvent('open_preactivation_diagnostic'));
+                }}
+                className="w-full py-2 px-3 rounded-xl font-bold text-[11px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <span>🛡️</span>
+                <span>Visualizza Diagnostica Pre-Attivazione</span>
+              </button>
+            </div>
           </div>
         </details>
 

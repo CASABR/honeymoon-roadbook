@@ -13,6 +13,7 @@ import RouteErrorBoundary from '../components/common/RouteErrorBoundary';
 import TripSelectorModal from '../components/modals/TripSelectorModal';
 import DeviceRoleModal from '../components/common/DeviceRoleModal';
 import AccountSyncModal from '../components/modals/AccountSyncModal';
+import PreActivationDiagnosticModal from '../components/modals/PreActivationDiagnosticModal';
 import { useAuthIdentity } from '../utils/useAuthIdentity';
 import {
   TrailLive,
@@ -53,6 +54,13 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   const globalAdminAccess = useGlobalAdminAccess();
   const { currentUser, isAnonymous, isCloudAuthorized, cloudRole } = useAuthIdentity();
   const [showAccountModal, setShowAccountModal] = useState(false);
+  const [showDiagnosticModal, setShowDiagnosticModal] = useState(false);
+
+  useEffect(() => {
+    const handleOpenDiagnostic = () => setShowDiagnosticModal(true);
+    window.addEventListener('open_preactivation_diagnostic', handleOpenDiagnostic);
+    return () => window.removeEventListener('open_preactivation_diagnostic', handleOpenDiagnostic);
+  }, []);
 
   useEffect(() => {
     setActiveSubView(initialSubView);
@@ -495,6 +503,34 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
+          {/* Diagnostica Pre-Attivazione (Sola Lettura) */}
+          <button
+            type="button"
+            data-preactivation-diagnostic-card
+            onClick={() => setShowDiagnosticModal(true)}
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-100 dark:border-indigo-900/50">
+                <span className="text-base">🛡️</span>
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                    Diagnostica Pre-Attivazione
+                  </h4>
+                  <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300">
+                    Sola Lettura
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Verifica stato coda, conflitti e blocco scritture
+                </p>
+              </div>
+            </div>
+            <span className="text-slate-400 text-sm ml-2">›</span>
+          </button>
+
           {currentTripConfig?.id === '0000' && globalAdminAccess === 'authorized' && (
             <button
               type="button"
@@ -541,6 +577,12 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
       <PdfExportModal
         isOpen={showPdfExportModal}
         onClose={() => setShowPdfExportModal(false)}
+      />
+
+      {/* Modal Diagnostica Pre-Attivazione (Sola Lettura) */}
+      <PreActivationDiagnosticModal
+        isOpen={showDiagnosticModal}
+        onClose={() => setShowDiagnosticModal(false)}
       />
     </div>
   );
