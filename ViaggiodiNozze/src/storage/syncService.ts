@@ -12,7 +12,112 @@ import {
   normalizeEntityType,
   sanitizePublicDocument
 } from '../utils/securityDataSplitter';
-import { savePendingMutation, removePendingMutation, getPendingMutations, hasPendingMutation, type PendingMutation } from './localMutationQueue';
+import { savePendingMutation, removePendingMutation, getPendingMutations, hasPendingMutation, normalizeQueueEntityType, type PendingMutation } from './localMutationQueue';
+
+export interface PreActivationSyncReport {
+  tripId: string;
+  isQueueFlushAuthorized: boolean;
+  pendingCount: number;
+  pendingByType: Record<string, number>;
+  conflictsDetected: number;
+  items: Array<{
+    id: string;
+    entityType: string;
+    action: 'save' | 'delete';
+    timestamp: number;
+    hasPotentialConflict: boolean;
+    conflictReason?: string;
+  }>;
+}
+
+export function isQueueFlushAllowedForTrip0000(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  return localStorage.getItem('hounigo_allow_queue_flush_0000') === 'true';
+}
+
+export function allowQueueFlushForTrip0000(allow: boolean = true): void {
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem('hounigo_allow_queue_flush_0000', allow ? 'true' : 'false');
+  }
+}
+
+export async function getPreActivationSyncReport(tripId: string): Promise<PreActivationSyncReport> {
+  const isAuthorized = tripId === '0000' ? isQueueFlushAllowedForTrip0000() : true;
+  const queue = await getPendingMutations(tripId);
+  const pendingByType: Record<string, number> = {};
+  const items: PreActivationSyncReport['items'] = [];
+  let conflictsDetected = 0;
+
+  for (const q of queue) {
+    const normType = normalizeQueueEntityType(q.entityType);
+    pendingByType[normType] = (pendingByType[normType] || 0) + 1;
+
+    let hasPotentialConflict = false;
+    let conflictReason: string | undefined;
+
+    const dataId = q.data?.id;
+    if (dataId) {
+      // 1. Verifica tombstone locale/remoto
+      const tombstoneKey = `tombstone_${normType}_${dataId}`;
+      const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, tombstoneKey).catch(() => null);
+      if (tombstoneSetting && tombstoneSetting.value) {
+        const tombstoneTime = normalizeTimestamp(tombstoneSetting.value.deletedAt || tombstoneSetting.value.timestamp);
+        const mutationTime = normalizeTimestamp(q.timestamp || q.data?.updatedAt);
+        if (tombstoneTime > mutationTime) {
+          hasPotentialConflict = true;
+          conflictReason = 'remote_tombstone_newer';
+          conflictsDetected++;
+        }
+      }
+
+      // 2. Se autorizzato, verifica timestamp del server SENZA esporre dati sensibili/credenziali
+      if (!hasPotentialConflict && isCloudAuthorized(tripId)) {
+        try {
+          const { getDoc } = await import('firebase/firestore');
+          const docRef = doc(db, 'trips', tripId, normType, dataId);
+          const snap = await getDoc(docRef);
+          if (snap.exists()) {
+            const serverData = snap.data();
+            const serverUpdated = normalizeTimestamp(serverData?.updatedAt);
+            const localUpdated = normalizeTimestamp(q.data?.updatedAt || q.timestamp);
+            if (serverUpdated > 0 && localUpdated > 0 && serverUpdated > localUpdated) {
+              hasPotentialConflict = true;
+              conflictReason = 'server_newer_modification';
+              conflictsDetected++;
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // Includi SOLO metadati non sensibili (nessun PIN, PNR, note private o prezzi)
+    items.push({
+      id: dataId || q.id,
+      entityType: normType,
+      action: q.action,
+      timestamp: q.timestamp,
+      hasPotentialConflict,
+      conflictReason
+    });
+  }
+
+  return {
+    tripId,
+    isQueueFlushAuthorized: isAuthorized,
+    pendingCount: queue.length,
+    pendingByType,
+    conflictsDetected,
+    items
+  };
+}
+
+if (typeof window !== 'undefined') {
+  (window as any).__hounigoDiagnostics = {
+    getPreActivationSyncReport,
+    allowQueueFlushForTrip0000,
+    isQueueFlushAllowedForTrip0000
+  };
+}
 
 export class SyncService {
   private unsubscribes: (() => void)[] = [];
@@ -173,12 +278,22 @@ export class SyncService {
         if (store && deletedId) {
           const localItem = await idbGet<any>(store, deletedId);
           if (localItem) {
+            // CRITICITÀ 2 RISOLTA: Non cancellare se esiste una mutazione locale pendente in coda
+            const hasPending = await hasPendingMutation(this.tripId, entityType, deletedId) ||
+                               await hasPendingMutation(this.tripId, this.mapEntityToCollection(entityType) || entityType, deletedId);
+            if (hasPending) {
+              console.log(`[SyncService] Preservato record locale per ${entityType}/${deletedId} a fronte di tombstone remoto: mutazione locale pendente presente.`);
+              continue;
+            }
+
             const localCreated = normalizeTimestamp(localItem.createdAt);
+            const localUpdated = normalizeTimestamp(localItem.updatedAt);
             const tombstoneDeleted = normalizeTimestamp(serverData.deletedAt || serverData.timestamp);
 
-            if (localCreated > 0 && tombstoneDeleted > 0 && localCreated > tombstoneDeleted) {
-              // Ricreazione valida intenzionale locale: il tombstone remoto è superato
-              console.log(`[SyncService] Rilevata ricreazione valida locale per ${entityType}/${deletedId} - elimino tombstone remoto.`);
+            if ((localCreated > 0 && tombstoneDeleted > 0 && localCreated > tombstoneDeleted) ||
+                (localUpdated > 0 && tombstoneDeleted > 0 && localUpdated > tombstoneDeleted)) {
+              // Ricreazione o modifica valida intenzionale locale: il tombstone remoto è superato
+              console.log(`[SyncService] Rilevata ricreazione o modifica valida locale per ${entityType}/${deletedId} - elimino tombstone remoto.`);
               if (isCloudAuthorized(this.tripId)) {
                 await deleteDoc(doc(db, 'trips', this.tripId, 'settings', docId)).catch(() => {});
                 deletedCount++;
@@ -311,6 +426,15 @@ export class SyncService {
           const localUpdated = normalizeTimestamp(localData?.updatedAt);
           const serverUpdated = normalizeTimestamp(serverData?.updatedAt);
 
+          // CRITICITÀ 3 RISOLTA: La verifica della mutazione pendente DEVE avvenire PRIMA di needsPrivateReconstruction
+          // per impedire che il merge con la cassaforte remota sovrascriva modifiche locali/economiche non ancora sincronizzate!
+          const hasPendingQueueItem = await hasPendingMutation(this.tripId, fb, docId) ||
+                                      await hasPendingMutation(this.tripId, this.mapCollectionToEntity(fb) || fb, docId);
+          if (hasPendingQueueItem) {
+            console.log(`[SyncService] Conservo mutazione locale pendente in coda per ${fb}/${docId} - ignorato pull e ricostruzione cloud.`);
+            continue;
+          }
+
           const normType = normalizeEntityType(fb);
           const vaultId = getVaultDocId(normType, docId);
           const privData = credentialsMap.get(vaultId) || credentialsMap.get(docId);
@@ -359,12 +483,6 @@ export class SyncService {
             }
             await idbPut(store, reconstructed);
             pulledCount++;
-            continue;
-          }
-
-          const hasPendingQueueItem = await hasPendingMutation(this.tripId, fb, docId);
-          if (hasPendingQueueItem) {
-            console.log(`[SyncService] Conservo mutazione locale pendente in coda per ${fb}/${docId} - ignorato pull cloud.`);
             continue;
           }
 
@@ -524,7 +642,10 @@ export class SyncService {
       case 'spese':
       case 'spesa': return STORES.SPESE;
       case 'note':
-      case 'nota': return STORES.NOTE;
+      case 'nota':
+      case 'notes':
+      case 'scadenza':
+      case 'scadenze': return STORES.NOTE;
       case 'bagagli':
       case 'bagaglio': return STORES.BAGAGLI;
       default: return null;
@@ -594,8 +715,12 @@ export class SyncService {
     this.addDomListener(window, 'houni_cloud_role_changed', ((e: Event) => {
       const role = (e as CustomEvent)?.detail?.cloudRole;
       if (role === 'owner' || role === 'copilota') {
-        console.log(`[SyncService] Rilevato ruolo autorizzato (${role}): trigger sincronizzazione automatica.`);
-        this.flushPendingPushes().catch(() => {});
+        console.log(`[SyncService] Rilevato ruolo autorizzato (${role}): verifica sincronizzazione.`);
+        if (this.tripId !== '0000' || isQueueFlushAllowedForTrip0000()) {
+          this.flushPendingPushes().catch(() => {});
+        } else {
+          console.log('[SyncService] Replay automatico coda sospeso per viaggio 0000 (modalità pre-attivazione protetta).');
+        }
         this.requestInitialSync('cloud_role_authorized');
       } else if (role === 'viewer') {
         // La cache locale NON viene bonificata automaticamente per evitare perdite di dati off-line
@@ -703,8 +828,16 @@ export class SyncService {
     }).catch(() => {});
   }
 
+  public async flushPendingQueue(): Promise<void> {
+    return this.flushPendingPushes();
+  }
+
   private async flushPendingPushes(): Promise<void> {
     if (!isCloudAuthorized(this.tripId) || this.isFlushingPending || this.isDestroyed) return;
+    if (this.tripId === '0000' && !isQueueFlushAllowedForTrip0000()) {
+      console.log('[SyncService] Pre-attivazione viaggio 0000: replay automatico coda sospeso in attesa di sblocco esplicito.');
+      return;
+    }
     this.isFlushingPending = true;
     try {
       const queue = await this.getPendingPushesFromStore();
@@ -777,14 +910,70 @@ export class SyncService {
       }
       console.log(`[Cloud Sync] Eliminato ${entityType} ${data.id}`);
     } else {
-      // Protezione tombstone: evita di inviare al Cloud record con tombstone attivo non ricreati lecitamente
+      // Protezione tombstone: se l'elemento ha un tombstone attivo, verifica se è stato ricreato o modificato lecitamente
       const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${collectionName}_${data.id}`);
       if (tombstoneSetting && tombstoneSetting.value) {
         const itemCreated = normalizeTimestamp(data?.createdAt);
+        const itemUpdated = normalizeTimestamp(data?.updatedAt);
         const tombstoneDeleted = normalizeTimestamp(tombstoneSetting.value.deletedAt || tombstoneSetting.value.timestamp);
-        if (!(itemCreated > 0 && tombstoneDeleted > 0 && itemCreated > tombstoneDeleted)) {
-          console.warn(`[SyncService] pushToCloud bloccato per ${collectionName}/${data.id}: record con tombstone attivo e createdAt non successivo alla cancellazione.`);
+        const isLocallyNewer = (itemCreated > 0 && tombstoneDeleted > 0 && itemCreated > tombstoneDeleted) ||
+                               (itemUpdated > 0 && tombstoneDeleted > 0 && itemUpdated > tombstoneDeleted);
+        if (!isLocallyNewer) {
+          console.warn(`[SyncService] pushToCloud bloccato per ${collectionName}/${data.id}: record con tombstone attivo e nessuna modifica successiva alla cancellazione.`);
           return;
+        } else {
+          // Modifica o ricreazione locale vince: elimina il tombstone obsoleto
+          console.log(`[SyncService] Modifica locale posteriore al tombstone per ${collectionName}/${data.id}: supero tombstone.`);
+          await idbDelete(STORES.SETTINGS, `tombstone_${collectionName}_${data.id}`);
+          if (typeof localStorage !== 'undefined') {
+            try { localStorage.removeItem(`tombstone_${collectionName}_${data.id}`); } catch (e) {}
+          }
+          if (isCloudAuthorized(this.tripId)) {
+            await deleteDoc(doc(db, 'trips', this.tripId, 'settings', `tombstone_${collectionName}_${data.id}`)).catch(() => {});
+          }
+        }
+      }
+
+      // Rilevamento e risoluzione conflitti (P0): verifica se il server possiede una versione più recente
+      if (isCloudAuthorized(this.tripId)) {
+        try {
+          const { getDoc } = await import('firebase/firestore');
+          const serverSnap = await getDoc(docRef);
+          if (serverSnap.exists()) {
+            const serverData = serverSnap.data();
+            const serverUpdated = normalizeTimestamp(serverData?.updatedAt);
+            const localUpdated = normalizeTimestamp(data?.updatedAt);
+
+            if (serverUpdated > 0 && localUpdated > 0 && serverUpdated > localUpdated) {
+              console.warn(`[SyncService] Conflitto rilevato per ${collectionName}/${data.id}: il server è più recente (${serverUpdated} > ${localUpdated}). Preservo copia locale di sicurezza.`);
+              // Preserva copia di sicurezza locale per evitare qualunque perdita
+              await idbPut(STORES.SETTINGS, {
+                id: `_conflict_backup_${collectionName}_${data.id}_${Date.now()}`,
+                entityType: collectionName,
+                dataId: data.id,
+                localData: data,
+                serverUpdated,
+                localUpdated,
+                savedAt: Date.now()
+              });
+              // Allinea IndexedDB locale con il server integrando eventuali dati privati locali
+              const store = this.getStoreForEntity(collectionName);
+              if (store) {
+                const merged = mergeEntitySecurityData({ ...serverData, id: data.id }, data);
+                await idbPut(store, merged);
+              }
+              // Rimuovi la mutazione pendente dalla coda
+              await this.removePendingPushFromStore(collectionName, data.id, { action, data, mutationId: options.mutationId });
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('roadbook_conflict_detected', {
+                  detail: { entityType: collectionName, id: data.id, resolution: 'server_newer_preserved_local_backup' }
+                }));
+              }
+              return;
+            }
+          }
+        } catch (conflictCheckErr) {
+          // Se la verifica remota fallisce (es. lockdown o offline), procedi con il salvataggio protetto
         }
       }
 
