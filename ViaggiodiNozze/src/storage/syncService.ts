@@ -52,14 +52,67 @@ export interface ConflictReportItem {
   differences: Array<{ field: string; localVal: any; remoteVal: any }>;
 }
 
+export type UserFriendlySyncStatus =
+  | 'Sincronizzazione attiva'
+  | 'Modifiche in attesa'
+  | 'Nessuna connessione'
+  | 'Conflitto da verificare'
+  | 'Errore di sincronizzazione'
+  | 'In attesa di attivazione';
+
+const lastSyncErrorsByTrip = new Map<string, string>();
+const lastSyncTimestampsByTrip = new Map<string, number>();
+
+export function getLastSyncTimestamp(tripId: string): number | null {
+  const mem = lastSyncTimestampsByTrip.get(tripId);
+  if (mem) return mem;
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(`hounigo_last_sync_at_${tripId}`);
+      const parsed = Number(raw);
+      if (parsed > 0) return parsed;
+    } catch {}
+  }
+  return null;
+}
+
+export function setLastSyncTimestamp(tripId: string, ts: number = Date.now()): void {
+  lastSyncTimestampsByTrip.set(tripId, ts);
+  lastSyncErrorsByTrip.delete(tripId);
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem(`hounigo_last_sync_at_${tripId}`, String(ts));
+    } catch {}
+  }
+}
+
+export function getLastSyncError(tripId: string): string | null {
+  return lastSyncErrorsByTrip.get(tripId) || null;
+}
+
+export function setLastSyncError(tripId: string, errMessage: string | null): void {
+  if (!errMessage) {
+    lastSyncErrorsByTrip.delete(tripId);
+  } else {
+    lastSyncErrorsByTrip.set(tripId, errMessage);
+  }
+}
+
 export interface PreActivationSyncReport {
   tripId: string;
+  tripTitle?: string;
   isCloudWriteAllowed: boolean;
   isQueueFlushAuthorized: boolean;
   pendingCount: number;
   pendingByType: Record<string, number>;
   conflictsCount: number;
   conflictsByType: Record<string, number>;
+  archivedLocalOnlyCount?: number;
+  isOnline?: boolean;
+  lastSyncAt?: number | null;
+  lastSyncError?: string | null;
+  userFriendlyStatus?: UserFriendlySyncStatus;
+  hasActiveErrors?: boolean;
   items: PreActivationSyncReportItem[];
   conflictItems: ConflictReportItem[];
 }
@@ -347,14 +400,48 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
     });
   }
 
+  const currentConfig = getTripConfig();
+  const tripTitle = currentConfig?.id === tripId
+    ? (currentConfig?.title || (tripId === '0000' ? 'Viaggio di Nozze (0000)' : `Viaggio ${tripId}`))
+    : (tripId === '0000' ? 'Viaggio di Nozze (0000)' : `Viaggio ${tripId}`);
+  const archivedLocalOnlyCount = allConflictBackups.filter(c => c.conflictType === 'local_only_record' || c.status === 'archived_local_only').length;
+  const isOnline = typeof navigator === 'undefined' ? true : Boolean(navigator.onLine);
+  const lastSyncAt = getLastSyncTimestamp(tripId);
+  const lastSyncError = getLastSyncError(tripId);
+  const hasUnresolvedConflict = pendingConflicts.length > 0 || items.some(i => i.hasPotentialConflict && !i.isAlreadySynchronized);
+
+  let userFriendlyStatus: UserFriendlySyncStatus = 'Sincronizzazione attiva';
+  if (!isOnline) {
+    userFriendlyStatus = 'Nessuna connessione';
+  } else if (hasUnresolvedConflict) {
+    userFriendlyStatus = 'Conflitto da verificare';
+  } else if (lastSyncError) {
+    userFriendlyStatus = 'Errore di sincronizzazione';
+  } else if (!isAllowed) {
+    userFriendlyStatus = 'In attesa di attivazione';
+  } else if (queue.length > 0) {
+    userFriendlyStatus = 'Modifiche in attesa';
+  } else {
+    userFriendlyStatus = 'Sincronizzazione attiva';
+  }
+
+  const hasActiveErrors = !isOnline || hasUnresolvedConflict || Boolean(lastSyncError);
+
   return {
     tripId,
+    tripTitle,
     isCloudWriteAllowed: isAllowed,
     isQueueFlushAuthorized: isAllowed,
     pendingCount: queue.length,
     pendingByType,
     conflictsCount: pendingConflicts.length,
     conflictsByType,
+    archivedLocalOnlyCount,
+    isOnline,
+    lastSyncAt,
+    lastSyncError,
+    userFriendlyStatus,
+    hasActiveErrors,
     items,
     conflictItems
   };
@@ -740,7 +827,11 @@ if (typeof window !== 'undefined') {
     getConflictBackups,
     getPendingMutations,
     enableCopilotBidirectionalSync,
-    getActiveSyncService
+    getActiveSyncService,
+    getLastSyncTimestamp,
+    setLastSyncTimestamp,
+    getLastSyncError,
+    setLastSyncError
   };
 }
 
@@ -868,6 +959,13 @@ export class SyncService {
     }
 
     // --- FASE 3: EMISSIONE DEGLI EVENTI DI STATO ---
+    if (failedCount > 0) {
+      setLastSyncError(this.tripId, `Rilevati ${failedCount} errori durante la sincronizzazione cloud.`);
+    } else {
+      setLastSyncTimestamp(this.tripId, Date.now());
+    }
+    this.emitSyncStatus();
+
     if (typeof window !== 'undefined') {
       if (failedCount > 0) {
         window.dispatchEvent(new CustomEvent('roadbook_cloud_sync_error', {
@@ -958,8 +1056,11 @@ export class SyncService {
               continue;
             } else {
               // Cancellazione remota
+              const isExplicitAuthorizedDelete = Boolean(
+                serverData?.explicitDeleteBy || serverData?.value?.explicitDeleteBy
+              );
               if (this.tripId === '0000') {
-                // SICUREZZA 0000: I tombstone remoti non devono cancellare automaticamente dati locali non ancora verificati!
+                // SICUREZZA 0000: Archivia SEMPRE una copia di sicurezza prima di qualsiasi operazione
                 await saveConflictBackup({
                   tripId: this.tripId,
                   entityType,
@@ -971,10 +1072,13 @@ export class SyncService {
                   tombstoneDeletedAt: tombstoneDeleted,
                   status: 'archived_remote_delete'
                 });
-                console.warn(`[SyncService] Tombstone remoto per ${entityType}/${deletedId} su 0000: copia archiviata, dato locale preservato senza cancellazione automatica.`);
-                continue;
+                if (!isExplicitAuthorizedDelete) {
+                  // SICUREZZA 0000: I tombstone remoti non verificati non cancellano automaticamente dati locali!
+                  console.warn(`[SyncService] Tombstone remoto per ${entityType}/${deletedId} su 0000: copia archiviata, dato locale preservato senza cancellazione automatica.`);
+                  continue;
+                }
               }
-              // Per altri viaggi standard: elimina dallo store IndexedDB locale
+              // Applicazione cancellazione remota esplicita e verificata (o standard per altri viaggi)
               console.log(`[SyncService] Applicazione cancellazione remota: eliminato locale ${entityType}/${deletedId}`);
               await idbDelete(store, deletedId);
               deletedCount++;
@@ -1612,12 +1716,31 @@ export class SyncService {
 
   private emitSyncStatus(): void {
     if (typeof window === 'undefined') return;
-    this.getPendingPushesFromStore().then(queue => {
+    Promise.all([
+      this.getPendingPushesFromStore(),
+      getConflictBackups(this.tripId).catch(() => [])
+    ]).then(([queue, conflicts]) => {
+      const activeConflicts = (conflicts || []).filter(c => c.status === 'pending_review' && c.conflictType !== 'local_only_record');
+      const isOnline = typeof navigator === 'undefined' ? true : Boolean(navigator.onLine);
+      const lastError = getLastSyncError(this.tripId);
+      const isAllowed = this.tripId === '0000' ? isTrip0000CloudWriteAllowed() : true;
+      let friendlyStatus: UserFriendlySyncStatus = 'Sincronizzazione attiva';
+      if (!isOnline) friendlyStatus = 'Nessuna connessione';
+      else if (activeConflicts.length > 0) friendlyStatus = 'Conflitto da verificare';
+      else if (lastError) friendlyStatus = 'Errore di sincronizzazione';
+      else if (!isAllowed) friendlyStatus = 'In attesa di attivazione';
+      else if (queue.length > 0) friendlyStatus = 'Modifiche in attesa';
+
       window.dispatchEvent(new CustomEvent('roadbook_sync_status_changed', {
         detail: {
+          tripId: this.tripId,
           hasPending: queue.length > 0,
           pendingCount: queue.length,
-          status: queue.length > 0 ? 'local_only' : 'synced'
+          conflictsCount: activeConflicts.length,
+          lastSyncError: lastError,
+          lastSyncAt: getLastSyncTimestamp(this.tripId),
+          userFriendlyStatus: friendlyStatus,
+          status: !isOnline ? 'offline' : (lastError || activeConflicts.length > 0) ? 'error' : queue.length > 0 ? 'local_only' : 'synced'
         }
       }));
     }).catch(() => {});
@@ -1701,6 +1824,21 @@ export class SyncService {
             }).catch(() => {});
           }
         }
+      }
+      if (collectionName !== 'settings') {
+        const tombstoneId = `tombstone_${collectionName}_${data.id}`;
+        const nowTs = Date.now();
+        const tombstonePayload = {
+          id: tombstoneId,
+          value: {
+            deletedAt: nowTs,
+            timestamp: nowTs,
+            pending: false,
+            explicitDeleteBy: initiatingUid
+          }
+        };
+        await safeSet(doc(db, 'trips', this.tripId, 'settings', tombstoneId), tombstonePayload, { merge: true });
+        await idbPut(STORES.SETTINGS, tombstonePayload).catch(() => {});
       }
       await safeDelete(docRef);
       const normType = normalizeEntityType(collectionName);
@@ -1949,8 +2087,19 @@ export class SyncService {
     }
       assertAuthorized();
       await this.removePendingPushFromStore(collectionName, data.id, { action, data, mutationId: options.mutationId });
+      setLastSyncTimestamp(this.tripId, Date.now());
+      setLastSyncError(this.tripId, null);
+      this.emitSyncStatus();
     } catch (pushErr: any) {
-      console.warn(`[SyncService] pushToCloud non riuscito per ${entityType}/${data.id} (lockdown o offline): memorizzo in coda persistente.`, pushErr?.message || pushErr);
+      const errMsg = pushErr?.message || String(pushErr);
+      setLastSyncError(this.tripId, errMsg);
+      this.emitSyncStatus();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('roadbook_cloud_sync_error', {
+          detail: { tripId: this.tripId, entityType, id: data?.id, error: errMsg }
+        }));
+      }
+      console.warn(`[SyncService] pushToCloud non riuscito per ${entityType}/${data.id} (lockdown o offline): memorizzo in coda persistente.`, errMsg);
       throw pushErr;
     }
 
@@ -2133,6 +2282,41 @@ export class SyncService {
                 }
                 
                 await idbPut(store, itemToStore);
+                if (fb === 'settings' && docId.startsWith('tombstone_')) {
+                  const isAuthorizedTombstone = Boolean(itemToStore?.value?.explicitDeleteBy || itemToStore?.explicitDeleteBy || this.tripId !== '0000');
+                  if (isAuthorizedTombstone) {
+                    const parts = docId.split('_');
+                    if (parts.length >= 3) {
+                      const targetCol = parts[1];
+                      const targetId = parts.slice(2).join('_');
+                      const targetStore = this.getStoreForEntity(targetCol);
+                      if (targetStore) {
+                        const hasPending = await hasPendingMutation(this.tripId, targetCol, targetId);
+                        const existingTarget = await idbGet<any>(targetStore, targetId);
+                        if (existingTarget && !hasPending) {
+                          if (this.tripId === '0000') {
+                            await saveConflictBackup({
+                              tripId: this.tripId,
+                              entityType: targetCol,
+                              dataId: targetId,
+                              localData: existingTarget,
+                              serverData: itemToStore?.value || itemToStore,
+                              conflictType: 'remote_tombstone_vs_local_edit',
+                              localUpdated: normalizeTimestamp(existingTarget?.updatedAt),
+                              tombstoneDeletedAt: normalizeTimestamp(itemToStore?.value?.deletedAt || itemToStore?.value?.timestamp),
+                              status: 'archived_remote_delete'
+                            });
+                          }
+                          await idbDelete(targetStore, targetId);
+                          const targetEntity = this.mapCollectionToEntity(targetCol) || targetCol;
+                          scheduleRefresh(targetEntity, 'delete', { id: targetId });
+                        }
+                      }
+                    }
+                  }
+                }
+                setLastSyncTimestamp(this.tripId, Date.now());
+                this.emitSyncStatus();
                 const entityType = this.mapCollectionToEntity(fb) || fb;
                 scheduleRefresh(entityType, 'save', itemToStore);
                 console.log(`[Cloud Sync] Pull ${fb}/${docId}`);
@@ -2151,19 +2335,47 @@ export class SyncService {
                   return;
                 }
 
-                // Controlla se è un tombstone esplicito intenzionale
-                const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${fb}_${docId}`);
-                const isExplicitTombstone = Boolean(tombstoneSetting?.value);
+                // Controlla se è un tombstone esplicito intenzionale (locale o remoto)
+                let tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${fb}_${docId}`);
+                if (!tombstoneSetting?.value && db) {
+                  try {
+                    const { getDoc } = await import('firebase/firestore');
+                    const tsSnap = await getDoc(doc(db, 'trips', this.tripId, 'settings', `tombstone_${fb}_${docId}`)).catch(() => null);
+                    if (tsSnap && tsSnap.exists()) {
+                      tombstoneSetting = tsSnap.data();
+                      await idbPut(STORES.SETTINGS, { ...tombstoneSetting, id: `tombstone_${fb}_${docId}` }).catch(() => {});
+                    }
+                  } catch {}
+                }
+                const isExplicitTombstone = this.tripId === '0000'
+                  ? Boolean(tombstoneSetting?.value?.explicitDeleteBy || tombstoneSetting?.explicitDeleteBy)
+                  : Boolean(tombstoneSetting?.value);
 
                 // Se l'elemento esiste localmente e non ha tombstone esplicito, la rimozione remota
                 // è solo un rollback dell'ottimistic write di Firestore (es. 403 durante lockdown).
                 // NON eliminare la scadenza o la card creata localmente!
                 if (!isExplicitTombstone) {
-                  console.log(`[Cloud Sync] Preservato record locale ${fb}/${docId}: respinta cancellazione remota priva di tombstone.`);
+                  console.log(`[Cloud Sync] Preservato record locale ${fb}/${docId}: respinta cancellazione remota priva di tombstone autorizzato.`);
                   return;
                 }
 
+                if (this.tripId === '0000') {
+                  await saveConflictBackup({
+                    tripId: this.tripId,
+                    entityType: fb,
+                    dataId: docId,
+                    localData: localItem,
+                    serverData: tombstoneSetting?.value || tombstoneSetting,
+                    conflictType: 'remote_tombstone_vs_local_edit',
+                    localUpdated: normalizeTimestamp(localItem?.updatedAt),
+                    tombstoneDeletedAt: normalizeTimestamp(tombstoneSetting?.value?.deletedAt || tombstoneSetting?.value?.timestamp),
+                    status: 'archived_remote_delete'
+                  });
+                }
+
                 await idbDelete(store, docId);
+                setLastSyncTimestamp(this.tripId, Date.now());
+                this.emitSyncStatus();
                 const entityType = this.mapCollectionToEntity(fb) || fb;
                 scheduleRefresh(entityType, 'delete', { id: docId });
                 console.log(`[Cloud Sync] Rimosso confermato ${fb}/${docId}`);

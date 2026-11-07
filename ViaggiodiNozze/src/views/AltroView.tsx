@@ -14,7 +14,7 @@ import TripSelectorModal from '../components/modals/TripSelectorModal';
 import DeviceRoleModal from '../components/common/DeviceRoleModal';
 import AccountSyncModal from '../components/modals/AccountSyncModal';
 import PreActivationDiagnosticModal from '../components/modals/PreActivationDiagnosticModal';
-import { isTrip0000CloudWriteAllowed } from '../storage/syncService';
+import { getPreActivationSyncReport, type UserFriendlySyncStatus } from '../storage/syncService';
 import { useAuthIdentity } from '../utils/useAuthIdentity';
 import {
   TrailLive,
@@ -51,11 +51,55 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showTripSelector, setShowTripSelector] = useState(false);
   const [showPdfExportModal, setShowPdfExportModal] = useState(false);
-  const currentTripConfig = getTripConfig();
+  const [currentTripConfig, setCurrentTripConfig] = useState(() => getTripConfig());
   const globalAdminAccess = useGlobalAdminAccess();
   const { currentUser, isAnonymous, isCloudAuthorized, cloudRole } = useAuthIdentity();
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showDiagnosticModal, setShowDiagnosticModal] = useState(false);
+  const [syncSummary, setSyncSummary] = useState<{
+    status: UserFriendlySyncStatus;
+    pendingCount: number;
+    conflictsCount: number;
+    lastSyncAt: number | null;
+    hasActiveErrors: boolean;
+  }>({
+    status: 'In attesa di attivazione',
+    pendingCount: 0,
+    conflictsCount: 0,
+    lastSyncAt: null,
+    hasActiveErrors: false
+  });
+
+  useEffect(() => {
+    const refreshSyncSummary = () => {
+      const cfg = getTripConfig();
+      setCurrentTripConfig(cfg);
+      getPreActivationSyncReport(cfg?.id || '0000')
+        .then((rep) => {
+          setSyncSummary({
+            status: rep.userFriendlyStatus || 'In attesa di attivazione',
+            pendingCount: rep.pendingCount,
+            conflictsCount: rep.conflictsCount,
+            lastSyncAt: rep.lastSyncAt ?? null,
+            hasActiveErrors: Boolean(rep.hasActiveErrors)
+          });
+        })
+        .catch(() => {});
+    };
+    refreshSyncSummary();
+    window.addEventListener('trip_config_changed', refreshSyncSummary);
+    window.addEventListener('roadbook_sync_status_changed', refreshSyncSummary);
+    window.addEventListener('roadbook_cloud_synced', refreshSyncSummary);
+    window.addEventListener('online', refreshSyncSummary);
+    window.addEventListener('offline', refreshSyncSummary);
+    return () => {
+      window.removeEventListener('trip_config_changed', refreshSyncSummary);
+      window.removeEventListener('roadbook_sync_status_changed', refreshSyncSummary);
+      window.removeEventListener('roadbook_cloud_synced', refreshSyncSummary);
+      window.removeEventListener('online', refreshSyncSummary);
+      window.removeEventListener('offline', refreshSyncSummary);
+    };
+  }, []);
 
   useEffect(() => {
     const handleOpenDiagnostic = () => setShowDiagnosticModal(true);
@@ -167,10 +211,10 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
           type="button"
           onClick={() => setShowTripSelector(true)}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 text-xs font-bold transition-all border border-slate-200/80 dark:border-slate-700 cursor-pointer active:scale-95 shadow-2xs"
-          title="Visualizza e cambia viaggio"
+          title={`Viaggio attivo: ${currentTripConfig?.title || 'I tuoi viaggi'} (${currentTripConfig?.id || '0000'})`}
         >
           <TrailMappa size={14} active />
-          <span className="max-w-[92px] truncate">I tuoi viaggi</span>
+          <span className="max-w-[120px] truncate">{currentTripConfig?.title || 'I tuoi viaggi'}</span>
           <span className="text-[10px] text-slate-400">▾</span>
         </button>
       </div>
@@ -516,22 +560,26 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                 <span className="text-base">🛡️</span>
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
-                    Diagnostica & Sincronizzazione
+                    Stato Sincronizzazione
                   </h4>
                   <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
-                    isTrip0000CloudWriteAllowed()
+                    syncSummary.status === 'Sincronizzazione attiva'
                       ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
-                      : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300'
+                      : syncSummary.status === 'Conflitto da verificare' || syncSummary.status === 'Errore di sincronizzazione'
+                      ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300'
+                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
                   }`}>
-                    {isTrip0000CloudWriteAllowed() ? 'Sincronizzazione Attiva' : 'Pre-Attivazione'}
+                    {syncSummary.status}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  {isTrip0000CloudWriteAllowed()
-                    ? 'Stato sincronizzazione live, coda e archivio conflitti'
-                    : 'Risoluzione conflitti e attivazione sincronizzazione'}
+                  {syncSummary.lastSyncAt
+                    ? `Ultimo aggiornamento riuscito: ${new Date(syncSummary.lastSyncAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
+                    : syncSummary.pendingCount > 0
+                    ? `${syncSummary.pendingCount} modifiche in attesa di sincronizzazione`
+                    : `Viaggio ${currentTripConfig?.title || '0000'} • Verifica stato e attivazione`}
                 </p>
               </div>
             </div>

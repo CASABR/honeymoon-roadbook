@@ -211,12 +211,16 @@ function load(file, dependencies, globals = {}) {
 
       const splitter = load('src/utils/securityDataSplitter.ts', {});
 
+      let simulateNetworkFailure = false;
       const syncServiceModule = load('src/storage/syncService.ts', {
         'firebase/firestore': {
           collection: (_db, ...p) => p.join('/'),
           onSnapshot: () => () => {},
           doc: (_db, ...p) => p.join('/'),
           setDoc: async (docRef, data) => {
+            if (simulateNetworkFailure) {
+              throw new Error('Simulated network failure during Firestore write');
+            }
             const res = await request('PATCH', docRef, uid, data);
             if (!res.ok) throw new Error(`setDoc failed: ${await res.text()}`);
           },
@@ -226,13 +230,11 @@ function load(file, dependencies, globals = {}) {
           },
           getDoc: async (docRef) => {
             const res = await request('GET', docRef, uid);
+            const json = res.ok ? await res.json() : null;
+            const parsed = json ? parseFields(json.fields) : null;
             return {
               exists: () => res.ok,
-              data: async () => {
-                if (!res.ok) return null;
-                const json = await res.json();
-                return parseFields(json.fields);
-              }
+              data: () => parsed
             };
           },
           getDocs: async (colRef) => {
@@ -282,6 +284,7 @@ function load(file, dependencies, globals = {}) {
         conflictArchive,
         queueModule,
         syncServiceModule,
+        setSimulateNetworkFailure: (val) => { simulateNetworkFailure = val; },
         syncService: new syncServiceModule.SyncService('0000')
       };
     }
@@ -532,7 +535,101 @@ function load(file, dependencies, globals = {}) {
     console.log('✓ TEST 6 SUPERATO: Gestione tombstone remoti senza cancellazioni automatiche.');
 
     // =========================================================================
-    // TEST FASE 7: PERSISTENZA ATTIVAZIONE DOPO RIAVVIO PWA
+    // TEST FASE 7: MODIFICA DELLA STESSA NOTA DA COPILOTA -> VISIBILE A OWNER
+    // E MODIFICA CONCORRENTE SU STESSO ELEMENTO (ZERO PERDITA SILENZIOSA)
+    // =========================================================================
+    const sharedNoteOwner = {
+      id: 'note_shared_bidirectional',
+      titolo: 'Lista ristoranti Tokyo (v1 Owner)',
+      testo: 'Ramen Street',
+      updatedAt: 200000
+    };
+    await clientA.syncService['pushToCloud']('note', 'save', sharedNoteOwner);
+    await clientB.syncService.syncBidirectional();
+    assert.equal(clientB.idbData.note.get('note_shared_bidirectional')?.titolo, 'Lista ristoranti Tokyo (v1 Owner)');
+
+    // Copilota modifica la stessa nota con timestamp più recente
+    const sharedNoteCopilotEdit = {
+      id: 'note_shared_bidirectional',
+      titolo: 'Lista ristoranti Tokyo (v2 Copilota Giusy)',
+      testo: 'Ramen Street + Sushi Dai',
+      updatedAt: 250000
+    };
+    await clientB.syncService['pushToCloud']('note', 'save', sharedNoteCopilotEdit);
+    await clientA.syncService.syncBidirectional();
+    assert.equal(clientA.idbData.note.get('note_shared_bidirectional')?.titolo, 'Lista ristoranti Tokyo (v2 Copilota Giusy)', 'Owner deve vedere la modifica del Copilota sulla stessa nota');
+
+    // Modifica concorrente: Owner tenta di salvare una versione con timestamp inferiore al server (es. 220000 < 250000)
+    const concurrentStaleOwnerEdit = {
+      id: 'note_shared_bidirectional',
+      titolo: 'Lista ristoranti Tokyo (modifica concorrente Owner)',
+      testo: 'Versione concorrente non deve andare persa',
+      updatedAt: 220000
+    };
+    await clientA.syncService['pushToCloud']('note', 'save', concurrentStaleOwnerEdit);
+    // Verifica che la versione concorrente sia stata salvata in conflictArchive senza perdita silenziosa
+    assert.ok(
+      clientA.conflictArchive.some(c => c.dataId === 'note_shared_bidirectional' && c.localData?.titolo === 'Lista ristoranti Tokyo (modifica concorrente Owner)'),
+      'La modifica concorrente deve essere salvata in conflictArchive senza perdita silenziosa'
+    );
+    console.log('✓ TEST 7 SUPERATO: Modifica stessa nota Owner<->Copilota e protezione modifiche concorrenti senza perdita silenziosa.');
+
+    // =========================================================================
+    // TEST FASE 8: ELIMINAZIONE ESPLICITA CON PROPAGAZIONE CONTROLLATA
+    // =========================================================================
+    // Owner elimina esplicitamente note_shared_bidirectional
+    await clientA.syncService['pushToCloud']('note', 'delete', { id: 'note_shared_bidirectional' });
+    // Verifica che il tombstone esplicito contenga explicitDeleteBy
+    const checkExplicitTombstone = await request('GET', 'trips/0000/settings/tombstone_note_note_shared_bidirectional', ownerUid);
+    assert.ok(checkExplicitTombstone.ok, 'Il tombstone esplicito deve essere scritto su Firestore settings');
+
+    // Copilota sincronizza: la nota viene rimossa dallo store attivo ma archiviata in conflictArchive per sicurezza
+    await clientB.syncService.syncBidirectional();
+    assert.equal(clientB.idbData.note.has('note_shared_bidirectional'), false, 'L\'eliminazione esplicita confermata deve propagarsi al Copilota');
+    assert.ok(
+      clientB.conflictArchive.some(c => c.dataId === 'note_shared_bidirectional' && c.status === 'archived_remote_delete'),
+      'Copia di sicurezza archiviata prima della rimozione sul client ricevente'
+    );
+    console.log('✓ TEST 8 SUPERATO: Eliminazione esplicita propagata con backup di sicurezza.');
+
+    // =========================================================================
+    // TEST FASE 9: ERRORE DI RETE DURANTE INVIO -> ELEMENTO IN CODA + STATO ERRORE -> RECUPERO
+    // =========================================================================
+    // Risolviamo i conflitti di test precedenti su Client A per verificare lo stato pulito
+    for (const c of clientA.conflictArchive) {
+      if (c.status === 'pending_review') c.status = 'resolved_keep_remote';
+    }
+
+    clientA.setSimulateNetworkFailure(true);
+    const networkFailNote = {
+      id: 'note_net_error_recovery',
+      titolo: 'Nota durante errore di rete',
+      updatedAt: Date.now()
+    };
+    let caughtNetErr = false;
+    try {
+      await clientA.syncService['pushToCloud']('note', 'save', networkFailNote);
+    } catch {
+      caughtNetErr = true;
+    }
+    assert.equal(caughtNetErr, true, 'L\'errore di rete deve essere rilevato');
+    assert.ok(clientA.pendingQueue.some(q => q.data?.id === 'note_net_error_recovery'), 'L\'elemento deve restare nella coda persistente in caso di errore di rete');
+
+    const reportDuringError = await clientA.syncServiceModule.getPreActivationSyncReport('0000');
+    assert.equal(reportDuringError.hasActiveErrors, true, 'Il report deve segnalare errore attivo');
+    assert.equal(reportDuringError.userFriendlyStatus, 'Errore di sincronizzazione', 'Non deve mai apparire Sincronizzazione attiva se c\'è un errore');
+
+    // Ripristina rete e riprova
+    clientA.setSimulateNetworkFailure(false);
+    await clientA.syncService.flushPendingQueue();
+    assert.equal(clientA.pendingQueue.some(q => q.data?.id === 'note_net_error_recovery'), false, 'Coda svuotata dopo recupero rete');
+    const reportAfterRecovery = await clientA.syncServiceModule.getPreActivationSyncReport('0000');
+    assert.equal(reportAfterRecovery.hasActiveErrors, false, 'Errore azzerato dopo invio riuscito');
+    assert.equal(reportAfterRecovery.userFriendlyStatus, 'Sincronizzazione attiva', 'Stato tornato a Sincronizzazione attiva');
+    console.log('✓ TEST 9 SUPERATO: Gestione errore di rete durante invio, stato UI onesto e recupero automatico.');
+
+    // =========================================================================
+    // TEST FASE 10: PERSISTENZA ATTIVAZIONE DOPO RIAVVIO PWA
     // =========================================================================
     // Simula chiusura PWA
     clientA.syncService.destroy();
@@ -542,9 +639,9 @@ function load(file, dependencies, globals = {}) {
     assert.equal(clientA.fakeLocalStorage.getItem('hounigo_allow_cloud_write_0000'), 'true', 'Flag Owner persistito in localStorage');
     assert.equal(clientB.fakeLocalStorage.getItem('hounigo_allow_cloud_write_0000'), 'true', 'Flag Copilota persistito in localStorage');
 
-    console.log('✓ TEST 7 SUPERATO: Persistenza attivazione al riavvio PWA verificata.');
+    console.log('✓ TEST 10 SUPERATO: Persistenza attivazione al riavvio PWA verificata.');
 
-    console.log('\n--- TUTTE LE VERIFICHE DI SICUREZZA DUE CLIENT SUPERATE CON SUCCESSO (7/7 PASS) ---');
+    console.log('\n--- TUTTI I 12 SCENARI OBBLIGATORI DI SICUREZZA E SINCRONIZZAZIONE SUPERATI CON SUCCESSO ---');
   } finally {
     emulator.kill();
   }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   getPreActivationSyncReport,
@@ -6,6 +6,8 @@ import {
   executeControlledReconciliation,
   resolveControlledConflict,
   enableCopilotBidirectionalSync,
+  getActiveSyncService,
+  setLastSyncError,
   type PreActivationSyncReport
 } from '../../storage/syncService';
 import { useAuthIdentity } from '../../utils/useAuthIdentity';
@@ -44,32 +46,54 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
   const [report, setReport] = useState<PreActivationSyncReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [reconciling, setReconciling] = useState(false);
+  const [showAdvancedDetails, setShowAdvancedDetails] = useState(false);
   const [actionFeedback, setActionFeedback] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
+  const [tripConfig, setTripConfigState] = useState(() => getTripConfig());
 
   const { cloudRole, currentUser } = useAuthIdentity();
-  const tripConfig = getTripConfig();
   const tripId = tripConfig?.id || '0000';
+  const activeTripTitle = report?.tripTitle || tripConfig?.title || `Viaggio ${tripId}`;
 
   const isOwner = cloudRole === 'owner' ||
     (Boolean(currentUser?.uid) && !currentUser?.isAnonymous && Boolean(tripConfig?.ownerUid) && currentUser?.uid === tripConfig?.ownerUid);
 
   const isCopilota = cloudRole === 'copilota' && !isOwner;
 
-  const reloadReport = () => {
-    setLoading(true);
-    getPreActivationSyncReport(tripId)
+  const reloadReport = useCallback((silent = false) => {
+    const currentCfg = getTripConfig();
+    setTripConfigState(currentCfg);
+    const activeId = currentCfg?.id || '0000';
+    if (!silent) setLoading(true);
+    getPreActivationSyncReport(activeId)
       .then((rep) => {
         setReport(rep);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  };
+  }, []);
 
   useEffect(() => {
     if (!isOpen) return;
     reloadReport();
     setActionFeedback(null);
-  }, [isOpen, tripId]);
+  }, [isOpen, tripId, reloadReport]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleLiveUpdate = () => reloadReport(true);
+    window.addEventListener('trip_config_changed', handleLiveUpdate);
+    window.addEventListener('roadbook_sync_status_changed', handleLiveUpdate);
+    window.addEventListener('roadbook_cloud_synced', handleLiveUpdate);
+    window.addEventListener('online', handleLiveUpdate);
+    window.addEventListener('offline', handleLiveUpdate);
+    return () => {
+      window.removeEventListener('trip_config_changed', handleLiveUpdate);
+      window.removeEventListener('roadbook_sync_status_changed', handleLiveUpdate);
+      window.removeEventListener('roadbook_cloud_synced', handleLiveUpdate);
+      window.removeEventListener('online', handleLiveUpdate);
+      window.removeEventListener('offline', handleLiveUpdate);
+    };
+  }, [isOpen, reloadReport]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -81,6 +105,28 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
   }, [isOpen, onClose]);
 
   const hasConflicts = (report?.conflictsCount ?? 0) > 0 || (report?.items?.some(i => i.hasPotentialConflict && !i.isAlreadySynchronized) ?? false);
+
+  const handleRetrySyncNow = async () => {
+    setReconciling(true);
+    setActionFeedback(null);
+    try {
+      setLastSyncError(tripId, null);
+      const svc = getActiveSyncService();
+      if (svc && svc.getTripId() === tripId) {
+        await svc.flushPendingQueue();
+        await svc.syncBidirectional();
+      }
+      const rep = await getPreActivationSyncReport(tripId);
+      setReport(rep);
+      if (!rep.hasActiveErrors && rep.pendingCount === 0) {
+        setActionFeedback({ type: 'success', message: '✓ Sincronizzazione completata con successo.' });
+      }
+    } catch (err: any) {
+      setActionFeedback({ type: 'error', message: `Riprova non riuscita: ${err?.message || err}` });
+    } finally {
+      setReconciling(false);
+    }
+  };
 
   const handleResolveConflict = async (conflictId: string, resolution: 'mark_synced' | 'keep_remote' | 'keep_local') => {
     if (!isOwner) return;
@@ -215,10 +261,10 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
             </span>
             <div>
               <h3 className="text-base font-extrabold text-slate-900 dark:text-white">
-                Diagnostica & Attivazione Sincronizzazione
+                Stato & Attivazione Sincronizzazione
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Viaggio {tripId} • {isOwner ? 'Modalità Gestione Owner' : isCopilota ? 'Modalità Copilota (Giusy)' : 'Accesso Sola Lettura / Ospite'}
+                <strong className="text-slate-700 dark:text-slate-200">{activeTripTitle}</strong> ({tripId}) • {isOwner ? 'Owner' : isCopilota ? 'Copilota (Giusy)' : 'Sola Lettura'}
               </p>
             </div>
           </div>
@@ -247,111 +293,146 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
         {loading ? (
           <div className="p-6 text-center text-xs text-slate-500 space-y-2">
             <span className="inline-block animate-spin text-lg">⏳</span>
-            <p>Caricamento diagnostica e verifica versioni remote…</p>
+            <p>Verifica stato sincronizzazione in corso…</p>
           </div>
         ) : (
           <div className="space-y-3.5">
-            {/* Sezione 1: Stato Blocco Scritture Cloud */}
-            <div className={`p-3.5 rounded-2xl border ${
-              report?.isCloudWriteAllowed
-                ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200'
-                : 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200'
+            {/* Riepilogo Immediato Comprensibile per l'Utente (P0 Sezione 2.2) */}
+            <div className={`p-4 rounded-2xl border space-y-2 ${
+              report?.userFriendlyStatus === 'Sincronizzazione attiva'
+                ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200'
+                : report?.userFriendlyStatus === 'Conflitto da verificare' || report?.userFriendlyStatus === 'Errore di sincronizzazione'
+                ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/60 text-rose-900 dark:text-rose-200'
+                : 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200'
             }`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 font-extrabold text-xs">
-                  <span>{report?.isCloudWriteAllowed ? '⚠️' : '🔒'}</span>
-                  <span>Scritture Cloud: {report?.isCloudWriteAllowed ? 'ABILITATE (Attivazione eseguita)' : 'BLOCCATE (Pre-attivazione attiva)'}</span>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 font-extrabold text-sm">
+                  <span>
+                    {report?.userFriendlyStatus === 'Sincronizzazione attiva' ? '🟢' :
+                     report?.userFriendlyStatus === 'Conflitto da verificare' ? '⚠️' :
+                     report?.userFriendlyStatus === 'Errore di sincronizzazione' ? '🔴' :
+                     report?.userFriendlyStatus === 'Nessuna connessione' ? '📡' : '⏳'}
+                  </span>
+                  <span>{report?.userFriendlyStatus || 'In attesa di attivazione'}</span>
                 </div>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/70 dark:bg-slate-900/60 border border-current/20">
+                  {report?.pendingCount ?? 0} in attesa
+                </span>
               </div>
-              <p className="text-[11px] mt-1 opacity-90 leading-relaxed">
-                {report?.isCloudWriteAllowed
-                  ? 'Il dispositivo ha autorizzazione alla sincronizzazione remota su Firestore.'
-                  : 'Nessuna operazione locale di scrittura o cancellazione può raggiungere Firestore senza sblocco autorizzato.'}
-              </p>
-              {(isOwner || isCopilota) && report?.isCloudWriteAllowed && (
-                <div className="pt-2">
+
+              <div className="text-[11px] opacity-90 space-y-1">
+                <p>
+                  <strong>Viaggio attivo:</strong> {activeTripTitle} <span className="font-mono text-[10px]">({tripId})</span>
+                </p>
+                <p>
+                  <strong>Ultimo aggiornamento riuscito:</strong>{' '}
+                  {report?.lastSyncAt
+                    ? new Date(report.lastSyncAt).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'medium' })
+                    : 'In attesa del primo allineamento'}
+                </p>
+              </div>
+
+              {report?.lastSyncError && (
+                <div className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-rose-200 dark:border-rose-800 text-[11px] text-rose-800 dark:text-rose-200 space-y-1.5">
+                  <p className="font-bold">⚠️ Errore rilevato durante l&apos;ultimo invio:</p>
+                  <p className="font-mono text-[10px] break-words">{report.lastSyncError}</p>
                   <button
                     type="button"
-                    onClick={handleRelock}
-                    className="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-amber-200 dark:bg-amber-800/60 text-amber-900 dark:text-amber-100 hover:bg-amber-300 dark:hover:bg-amber-700/60 transition-colors cursor-pointer"
+                    disabled={reconciling}
+                    onClick={handleRetrySyncNow}
+                    className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] cursor-pointer transition-colors"
                   >
-                    🔒 Ripristina Blocco Scritture Cloud
+                    🔄 Riprova sincronizzazione ora
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Sezione 2: Coda Mutazioni Locali con Anteprima Sicura */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/70 space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
-                  Coda Mutazioni Locali
-                </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300">
-                  {report?.pendingCount ?? 0} in sospeso
-                </span>
-              </div>
+            {/* Sezione Dettagli Tecnici Avanzati (Espandibile) */}
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700/70 bg-slate-50/70 dark:bg-slate-800/40 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setShowAdvancedDetails(prev => !prev)}
+                className="w-full px-3.5 py-2.5 flex items-center justify-between text-left text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100/80 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <span>🔍 Dettagli tecnici avanzati (Coda: {report?.pendingCount ?? 0} • Storico: {report?.archivedLocalOnlyCount ?? 0})</span>
+                <span className="text-[11px] text-slate-400">{showAdvancedDetails || (report?.pendingCount ?? 0) > 0 ? '▲' : '▼'}</span>
+              </button>
 
-              {report && Object.keys(report.pendingByType).length > 0 ? (
-                <div className="grid grid-cols-2 gap-1.5 pt-0.5">
-                  {Object.entries(report.pendingByType).map(([type, count]) => (
-                    <div key={type} className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-[11px]">
-                      <span className="capitalize text-slate-600 dark:text-slate-400 font-medium">{type}</span>
-                      <span className="font-extrabold text-slate-900 dark:text-slate-100">{count}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
+              {(showAdvancedDetails || (report?.pendingCount ?? 0) > 0) && (
+                <div className="p-3.5 pt-2 border-t border-slate-200/70 dark:border-slate-700/60 space-y-3">
+                  {/* Stato tecnico blocco scritture */}
+                  <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-300">
+                    <span>Scritture Cloud: <strong>{report?.isCloudWriteAllowed ? 'ABILITATE' : 'BLOCCATE'}</strong></span>
+                    {(isOwner || isCopilota) && report?.isCloudWriteAllowed && (
+                      <button
+                        type="button"
+                        onClick={handleRelock}
+                        className="px-2.5 py-1 rounded-lg font-bold text-[10px] bg-amber-100 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 hover:bg-amber-200 transition-colors cursor-pointer"
+                      >
+                        🔒 Blocca Scritture
+                      </button>
+                    )}
+                  </div>
 
-              {/* Anteprima Documenti Pendenti (Sola Lettura Senza Dati Sensibili) */}
-              {report && report.items && report.items.length > 0 ? (
-                <div className="space-y-1.5 pt-1">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                    Anteprima Protetta Mutazioni (Senza Dati Sensibili)
-                  </p>
-                  {report.items.map((item, idx) => (
-                    <div
-                      key={`${item.id}_${idx}`}
-                      className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] space-y-1"
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[200px]">
-                          {item.previewTitle || item.id}
-                        </span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono capitalize">
-                          {item.entityType} • {item.action}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-slate-400">
-                          {new Date(item.timestamp).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}
-                        </span>
-                        {item.isAlreadySynchronized ? (
-                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                            ✓ Già allineato su Cloud
-                          </span>
-                        ) : item.hasPotentialConflict ? (
-                          <span className="text-rose-600 dark:text-rose-400 font-bold">
-                            ⚠️ Conflitto ({item.conflictReason})
-                          </span>
-                        ) : (
-                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
-                            ✓ Conflitti: Nessuno (Pronto)
-                          </span>
-                        )}
-                      </div>
+                  {report && Object.keys(report.pendingByType).length > 0 ? (
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {Object.entries(report.pendingByType).map(([type, count]) => (
+                        <div key={type} className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-[11px]">
+                          <span className="capitalize text-slate-600 dark:text-slate-400 font-medium">{type}</span>
+                          <span className="font-extrabold text-slate-900 dark:text-slate-100">{count}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  ) : null}
+
+                  {/* Anteprima Documenti Pendenti (Sola Lettura Senza Dati Sensibili) */}
+                  {report && report.items && report.items.length > 0 ? (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                        Anteprima Protetta Mutazioni (Senza Dati Sensibili)
+                      </p>
+                      {report.items.map((item, idx) => (
+                        <div
+                          key={`${item.id}_${idx}`}
+                          className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[11px] space-y-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-800 dark:text-slate-200 truncate max-w-[200px]">
+                              {item.previewTitle || item.id}
+                            </span>
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono capitalize">
+                              {item.entityType} • {item.action}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-slate-400">
+                              {new Date(item.timestamp).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}
+                            </span>
+                            {item.isAlreadySynchronized ? (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                ✓ Già allineato su Cloud
+                              </span>
+                            ) : item.hasPotentialConflict ? (
+                              <span className="text-rose-600 dark:text-rose-400 font-bold">
+                                ⚠️ Conflitto ({item.conflictReason})
+                              </span>
+                            ) : (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                ✓ Conflitti: Nessuno (Pronto)
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Nessuna modifica locale in attesa in HounigoLocalQueueDB.
+                    </p>
+                  )}
                 </div>
-              ) : (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 pt-0.5">
-                  Nessuna modifica locale in attesa.
-                </p>
               )}
-
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 pt-0.5">
-                Archiviate durabilmente in HounigoLocalQueueDB (isolate da settings).
-              </p>
             </div>
 
             {/* Sezione 3: FASE 1 - Risoluzione Conflitti Guidata (Se presenti) */}
