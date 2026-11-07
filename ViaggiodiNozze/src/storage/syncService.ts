@@ -227,7 +227,7 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
   const isAllowed = tripId === '0000' ? isTrip0000CloudWriteAllowed() : true;
   const queue = await getPendingMutations(tripId);
   const allConflictBackups = await getConflictBackups(tripId);
-  const pendingConflicts = allConflictBackups.filter(c => c.status === 'pending_review');
+  const pendingConflicts = allConflictBackups.filter(c => c.status === 'pending_review' && c.conflictType !== 'local_only_record');
 
   const pendingByType: Record<string, number> = {};
   const conflictsByType: Record<string, number> = {};
@@ -396,7 +396,7 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
 
   // 4. Controllo conflitti attivi pendenti nell'archivio
   const conflictBackups = await getConflictBackups(tripId);
-  const activeConflicts = conflictBackups.filter(c => c.status === 'pending_review');
+  const activeConflicts = conflictBackups.filter(c => c.status === 'pending_review' && c.conflictType !== 'local_only_record');
   if (activeConflicts.length > 0) {
     throw new Error(`Operazione bloccata: presenti ${activeConflicts.length} conflitti da risolvere prima di attivare le scritture.`);
   }
@@ -529,7 +529,7 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
   const afterQueue = await getPendingMutations(tripId);
   const remainingCount = afterQueue.length;
   const pushedCount = Math.max(0, beforeCount - remainingCount);
-  const remainingConflicts = (await getConflictBackups(tripId)).filter(c => c.status === 'pending_review');
+  const remainingConflicts = (await getConflictBackups(tripId)).filter(c => c.status === 'pending_review' && c.conflictType !== 'local_only_record');
 
   const isSuccess = errors.length === 0 && remainingCount === 0;
 
@@ -679,7 +679,7 @@ export async function enableCopilotBidirectionalSync(tripId: string): Promise<{
 
   // Verifica conflitti esistenti attivi (status: pending_review)
   const conflictBackups = await getConflictBackups(tripId);
-  const pendingConflicts = conflictBackups.filter(c => c.status === 'pending_review');
+  const pendingConflicts = conflictBackups.filter(c => c.status === 'pending_review' && c.conflictType !== 'local_only_record');
   if (pendingConflicts.length > 0) {
     throw new Error(`Operazione bloccata: presenti ${pendingConflicts.length} conflitti in archivio da verificare prima di attivare le scritture.`);
   }
@@ -773,6 +773,7 @@ export class SyncService {
 
   public canWriteToCloud(): boolean {
     if (this.isDestroyed) return false;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
     if (!isCloudAuthorized(this.tripId)) return false;
     if (this.tripId === '0000' && !isTrip0000CloudWriteAllowed()) {
       return false;
@@ -956,7 +957,24 @@ export class SyncService {
               // NON cancellare localmente e NON eliminare il tombstone remoto
               continue;
             } else {
-              // Cancellazione remota valida: elimina l'elemento dallo store IndexedDB locale
+              // Cancellazione remota
+              if (this.tripId === '0000') {
+                // SICUREZZA 0000: I tombstone remoti non devono cancellare automaticamente dati locali non ancora verificati!
+                await saveConflictBackup({
+                  tripId: this.tripId,
+                  entityType,
+                  dataId: deletedId,
+                  localData: localItem,
+                  serverData,
+                  conflictType: 'remote_tombstone_vs_local_edit',
+                  localUpdated,
+                  tombstoneDeletedAt: tombstoneDeleted,
+                  status: 'archived_remote_delete'
+                });
+                console.warn(`[SyncService] Tombstone remoto per ${entityType}/${deletedId} su 0000: copia archiviata, dato locale preservato senza cancellazione automatica.`);
+                continue;
+              }
+              // Per altri viaggi standard: elimina dallo store IndexedDB locale
               console.log(`[SyncService] Applicazione cancellazione remota: eliminato locale ${entityType}/${deletedId}`);
               await idbDelete(store, deletedId);
               deletedCount++;
@@ -983,6 +1001,11 @@ export class SyncService {
 
     for (const s of localSettings) {
       if (s && s.id && s.id.startsWith('tombstone_')) {
+        if (this.tripId === '0000') {
+          // SICUREZZA 0000: I tombstone locali storici NON devono mai essere pubblicati massivamente su Firestore!
+          // I tombstone rimangono isolati in IndexedDB locale.
+          continue;
+        }
         const isPending = !serverDocIds.has(s.id) || s.value?.pending === true;
         if (isPending) {
           if (!this.canWriteToCloud()) {
@@ -1067,7 +1090,13 @@ export class SyncService {
                 try { localStorage.removeItem(`tombstone_${fb}_${docId}`); } catch (e) {}
               }
             } else {
-              // Elemento cancellato: se autorizzati, elimina da Firestore per pulizia
+              // Elemento cancellato localmente
+              if (this.tripId === '0000') {
+                // SICUREZZA 0000: VIETATO cancellare automaticamente documenti su Firestore da tombstone locali!
+                // Le cancellazioni su 0000 possono avvenire SOLO da azioni utente esplicite in coda.
+                console.warn(`[SyncService] Sospesa cancellazione cloud per ${fb}/${docId} sul viaggio 0000: cancellazioni automatiche disabilitate.`);
+                continue;
+              }
               if (this.canWriteToCloud()) {
                 await deleteDoc(doc(db, 'trips', this.tripId, fb, docId)).catch(() => {});
                 deletedCount++;
@@ -1148,6 +1177,38 @@ export class SyncService {
               console.warn(`[SyncService] Sospeso push per ${fb}/${docId}: modifiche locali preservate in attesa di sblocco cloud/pre-attivazione.`);
               continue;
             }
+
+            // SICUREZZA 0000: NESSUN push automatico non richiesto di dati storici locali!
+            if (this.tripId === '0000') {
+              const hasExplicitMutation = await hasPendingMutation(this.tripId, fb, docId) ||
+                                          await hasPendingMutation(this.tripId, this.mapCollectionToEntity(fb) || fb, docId);
+              if (!hasExplicitMutation) {
+                // Il dato locale ha updatedAt > serverUpdated ma NON proviene da una mutazione esplicita in coda:
+                // Confronta strutturalmente con la versione remota
+                const normType = normalizeEntityType(fb);
+                const { isEquivalent } = compareCandidateWithRemote(normType, this.tripId, localData, serverData);
+                if (isEquivalent) {
+                  // Contenuto già equivalente, nessun push necessario
+                  continue;
+                }
+                // Contenuto discordante non autorizzato esplicitamente: NON sovrascrivere Firestore!
+                // Preserva entrambe le versioni e archivia il conflitto per revisione esplicita dell'utente.
+                console.warn(`[SyncService] Modifica locale storica discordante per ${fb}/${docId} su 0000: push automatico bloccato e versioni preservate.`);
+                await saveConflictBackup({
+                  tripId: this.tripId,
+                  entityType: normType,
+                  dataId: docId,
+                  localData,
+                  serverData,
+                  conflictType: 'unreliable_timestamp_conflict',
+                  serverUpdated,
+                  localUpdated,
+                  status: 'pending_review'
+                });
+                continue;
+              }
+            }
+
             const entityType = this.mapCollectionToEntity(fb);
             if (entityType) {
               await this.pushToCloud(entityType, 'save', localData);
@@ -1209,7 +1270,22 @@ export class SyncService {
               const localCreated = normalizeTimestamp(localItem.createdAt);
               const tombstoneDeleted = normalizeTimestamp(tombstoneSetting.value.deletedAt || tombstoneSetting.value.timestamp);
               if (!(localCreated > 0 && tombstoneDeleted > 0 && localCreated > tombstoneDeleted)) {
-                // Elemento eliminato! Rimuovi da IndexedDB ed evita push (nessuna resurrezione)
+                // Elemento eliminato
+                if (this.tripId === '0000') {
+                  // SICUREZZA 0000: Nessuna cancellazione automatica di dati locali non verificati
+                  await saveConflictBackup({
+                    tripId: this.tripId,
+                    entityType: normalizeEntityType(fb),
+                    dataId: localItem.id,
+                    localData: localItem,
+                    serverData: tombstoneSetting.value,
+                    conflictType: 'remote_tombstone_vs_local_edit',
+                    localUpdated: localCreated,
+                    tombstoneDeletedAt: tombstoneDeleted,
+                    status: 'archived_remote_delete'
+                  });
+                  continue;
+                }
                 await idbDelete(store, localItem.id);
                 continue;
               }
@@ -1217,6 +1293,28 @@ export class SyncService {
             if (!this.canWriteToCloud()) {
               continue;
             }
+
+            // SICUREZZA 0000: NESSUN push automatico di elementi locali non presenti su Firestore!
+            // I record solo locali storici non devono inquinare il Cloud né rischiare di sovrascrivere dati.
+            if (this.tripId === '0000') {
+              const hasExplicitMutation = await hasPendingMutation(this.tripId, fb, localItem.id) ||
+                                          await hasPendingMutation(this.tripId, this.mapCollectionToEntity(fb) || fb, localItem.id);
+              if (!hasExplicitMutation) {
+                console.warn(`[SyncService] Record solo locale ${fb}/${localItem.id} su 0000: preservato localmente, NESSUN push automatico a Firestore.`);
+                await saveConflictBackup({
+                  tripId: this.tripId,
+                  entityType: normalizeEntityType(fb),
+                  dataId: localItem.id,
+                  localData: localItem,
+                  serverData: null,
+                  conflictType: 'local_only_record',
+                  localUpdated: normalizeTimestamp(localItem.updatedAt || localItem.createdAt),
+                  status: 'archived_local_only'
+                });
+                continue;
+              }
+            }
+
             try {
               const entityType = this.mapCollectionToEntity(fb);
               if (entityType) {
@@ -1243,6 +1341,10 @@ export class SyncService {
 
 
   public async syncAllLocalToCloud(): Promise<void> {
+    if (this.tripId === '0000') {
+      console.warn('[SyncService] syncAllLocalToCloud annullato: operazione massiva VIETATA categoricamente per il viaggio 0000.');
+      return;
+    }
     if (!this.canWriteToCloud()) {
       console.warn('[SyncService] syncAllLocalToCloud annullato: scrittura cloud non autorizzata (pre-attivazione attiva).');
       return;
@@ -1913,6 +2015,11 @@ export class SyncService {
                     }
                   } else {
                     console.log(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Elemento contrassegnato da tombstone (eliminato)`);
+                    if (this.tripId === '0000') {
+                      // SICUREZZA 0000: VIETATO cancellare automaticamente documenti su Firestore!
+                      console.warn(`[Cloud Sync] Sospesa cancellazione remota per ${fb}/${docId} sul viaggio 0000: cancellazioni automatiche disabilitate.`);
+                      return;
+                    }
                     if (this.canWriteToCloud()) {
                       await deleteDoc(doc(db, 'trips', this.tripId, fb, docId)).catch(() => {});
                     } else {
@@ -1936,6 +2043,26 @@ export class SyncService {
                   if (localData && localUpdated > 0 && localUpdated >= serverUpdated) {
                     if (localUpdated > serverUpdated) {
                       console.warn(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Il dato locale e' piu' recente`);
+                      if (this.tripId === '0000') {
+                        // SICUREZZA 0000: Non pushare automaticamente da live listener se non è in coda esplicita!
+                        const normType = normalizeEntityType(fb);
+                        const { isEquivalent } = compareCandidateWithRemote(normType, this.tripId, localData, data);
+                        if (!isEquivalent) {
+                          console.warn(`[Cloud Sync] Rilevata divergenza locale storica su ${fb}/${docId} su 0000: preservo entrambe le versioni.`);
+                          await saveConflictBackup({
+                            tripId: this.tripId,
+                            entityType: normType,
+                            dataId: docId,
+                            localData,
+                            serverData: data,
+                            conflictType: 'unreliable_timestamp_conflict',
+                            serverUpdated,
+                            localUpdated,
+                            status: 'pending_review'
+                          });
+                        }
+                        return;
+                      }
                       if (this.canWriteToCloud()) {
                         // Pushiamo il dato locale al server per allinearlo (visto che il server ha dati vecchi)
                         const entityType = this.mapCollectionToEntity(fb);
@@ -2127,7 +2254,10 @@ export class SyncService {
       case 'spese':
       case 'spesa': return 'spese';
       case 'note':
-      case 'nota': return 'note';
+      case 'nota':
+      case 'notes':
+      case 'scadenza':
+      case 'scadenze': return 'note';
       case 'bagagli':
       case 'bagaglio': return 'bagagli';
       case 'settings': return 'settings';

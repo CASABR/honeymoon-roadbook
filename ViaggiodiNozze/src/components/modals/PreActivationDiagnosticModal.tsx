@@ -386,6 +386,8 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                           ? 'Tombstone vs Modifica locale'
                           : type === 'unreliable_timestamp_conflict'
                           ? 'Timestamp incerto / documento remoto presente'
+                          : type === 'local_only_record'
+                          ? 'Record presente solo in locale (preservato)'
                           : type}
                       </span>
                       <span className="font-extrabold text-rose-600 dark:text-rose-400">{count}</span>

@@ -151,12 +151,12 @@ export interface ConflictBackupRecord {
   dataId: string;
   localData: any;
   serverData?: any;
-  conflictType: 'server_newer' | 'remote_tombstone_vs_local_edit' | 'manual' | 'unreliable_timestamp_conflict';
+  conflictType: 'server_newer' | 'remote_tombstone_vs_local_edit' | 'manual' | 'unreliable_timestamp_conflict' | 'local_only_record';
   serverUpdated?: number;
   localUpdated?: number;
   tombstoneDeletedAt?: number;
   savedAt: number;
-  status: 'pending_review' | 'resolved_keep_local' | 'resolved_keep_remote' | 'resolved_already_synced';
+  status: 'pending_review' | 'resolved_keep_local' | 'resolved_keep_remote' | 'resolved_already_synced' | 'archived_remote_delete' | 'archived_local_only';
   resolvedAt?: number;
   resolutionNote?: string;
 }
@@ -249,7 +249,7 @@ export async function getConflictBackupById(id: string): Promise<ConflictBackupR
 
 export async function getPendingConflictBackups(tripId?: string): Promise<ConflictBackupRecord[]> {
   const all = await getConflictBackups(tripId);
-  return all.filter(c => c.status === 'pending_review');
+  return all.filter(c => c.status === 'pending_review' && c.conflictType !== 'local_only_record');
 }
 
 export async function updateConflictStatus(
