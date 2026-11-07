@@ -21,7 +21,7 @@ export interface UserTripSummary {
   ownerUid?: string;
   ownerName?: string;
   isOwner: boolean;
-  role: 'owner' | 'copilota';
+  role: 'owner' | 'copilota' | 'viewer';
   isLastUsed?: boolean;
   source?: 'cloud-index' | 'local-verified';
 }
@@ -127,8 +127,20 @@ export async function fetchUserTripsReport(uid: string): Promise<UserTripsReport
     if (cleanId && !rawLocalCandidateIds.includes(cleanId)) rawLocalCandidateIds.push(cleanId);
   };
 
+  // 1. Includi sempre MASTER_TRIP_ID ('0000') tra i candidati da verificare:
+  // Se l'UID autenticato è già membro/copilota o owner di 0000 su Firestore,
+  // verrà mostrato correttamente anche se l'indice users/{uid} è incompleto.
+  // Se non è autorizzato, Firestore restituirà permission-denied e NON verrà mostrato.
+  addLocalCandidate('0000');
+
   if (typeof localStorage !== 'undefined') {
-    const candidateKeys = ['roadbook_trip_config', 'hounigo_trip_config', 'houni_trip_id', 'hounigo_active_trip_id'];
+    const candidateKeys = [
+      'roadbook_trip_config',
+      'hounigo_trip_config',
+      'houni_trip_id',
+      'hounigo_active_trip_id',
+      'hounigo_last_active_trip_id'
+    ];
     for (const key of candidateKeys) {
       try {
         const raw = localStorage.getItem(key);
@@ -140,6 +152,12 @@ export async function fetchUserTripsReport(uid: string): Promise<UserTripsReport
     try {
       const { getKnownTripIds } = await import('../utils/tripConfig');
       getKnownTripIds().forEach(addLocalCandidate);
+    } catch {}
+  }
+  if (typeof sessionStorage !== 'undefined') {
+    try {
+      const sessTrip = sessionStorage.getItem('houni_trip_id') || sessionStorage.getItem('hounigo_trip_id');
+      if (sessTrip) addLocalCandidate(sessTrip);
     } catch {}
   }
 
@@ -164,12 +182,21 @@ export async function fetchUserTripsReport(uid: string): Promise<UserTripsReport
           const snap = await getDoc(doc(db, 'trips', tripId));
           if (!snap.exists()) return null;
           const tripData = snap.data();
-          let verifiedRole = resolveVerifiedTripRole(uid, tripData);
+          let verifiedRole: 'owner' | 'copilota' | 'viewer' | null = null;
 
-          if (!verifiedRole) {
+          if (tripData.ownerUid === uid || tripData.ownerId === uid) {
+            verifiedRole = 'owner';
+          } else {
+            // Verifica autorevole sulla sottocollezione /members/{uid}:
+            // Un membro Viewer non deve mai essere interpretato come Copilota.
             const memberSnap = await getDoc(doc(db, 'trips', tripId, 'members', uid)).catch(() => null);
-            verifiedRole = resolveVerifiedTripRole(uid, tripData, Boolean(memberSnap?.exists()), memberSnap?.data()?.role);
+            if (memberSnap?.exists()) {
+              verifiedRole = resolveVerifiedTripRole(uid, tripData, true, memberSnap.data()?.role);
+            } else if (Array.isArray(tripData.members) && tripData.members.includes(uid)) {
+              verifiedRole = resolveVerifiedTripRole(uid, tripData, false);
+            }
           }
+
           if (!verifiedRole) return null;
 
           return {
@@ -229,7 +256,7 @@ export async function switchActiveTrip(trip: UserTripSummary): Promise<void> {
   const { persistDeviceSession } = await import('../utils/deviceSession');
   const { recordUserAccess } = await import('./userAccessService');
 
-  const role = trip.isOwner ? 'guida' : 'copilota';
+  const role = trip.isOwner ? 'guida' : trip.role === 'viewer' ? 'viewer' : 'copilota';
   persistDeviceSession(trip.id, role);
   storageService.setDeviceRole(role);
   addKnownTripId(trip.id);

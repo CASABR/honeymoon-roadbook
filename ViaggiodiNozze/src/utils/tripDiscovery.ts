@@ -29,14 +29,31 @@ export function buildTripDiscoveryPlan(
   };
 }
 
+export type VerifiedTripRole = 'owner' | 'copilota' | 'viewer' | null;
+
 export function resolveVerifiedTripRole(
   uid: string,
   tripData: { ownerUid?: unknown; ownerId?: unknown; members?: unknown },
   memberDocumentExists = false,
   memberDocumentRole?: unknown
-): 'owner' | 'copilota' | null {
+): VerifiedTripRole {
+  if (!uid) return null;
   if (tripData.ownerUid === uid || tripData.ownerId === uid) return 'owner';
-  if (Array.isArray(tripData.members) && tripData.members.includes(uid)) return 'copilota';
-  if (!memberDocumentExists) return null;
-  return memberDocumentRole === 'owner' ? 'owner' : 'copilota';
+
+  // Se esiste il documento membro autoritativo nella sottocollezione /members/{uid},
+  // il suo ruolo ha precedenza assoluta. Un membro Viewer NON deve mai essere interpretato come Copilota.
+  if (memberDocumentExists) {
+    const roleStr = typeof memberDocumentRole === 'string' ? memberDocumentRole.trim().toLowerCase() : '';
+    if (roleStr === 'owner') return 'owner';
+    if (roleStr === 'viewer' || roleStr === 'ospite' || roleStr === 'guest') return 'viewer';
+    if (roleStr === 'copilota' || roleStr === 'guida') return 'copilota';
+    return null; // Ruolo non autorizzato, non valido o revocato
+  }
+
+  // Se non esiste un documento membro puntuale, controlla l'array dei members sul documento del viaggio
+  if (Array.isArray(tripData.members) && tripData.members.includes(uid)) {
+    return 'copilota';
+  }
+
+  return null;
 }

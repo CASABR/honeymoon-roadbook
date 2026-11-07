@@ -31,6 +31,11 @@ assert.equal(resolveVerifiedTripRole('owner', { ownerUid: 'owner' }), 'owner');
 assert.equal(resolveVerifiedTripRole('copilot', { members: ['copilot'] }), 'copilota');
 assert.equal(resolveVerifiedTripRole('owner-member', {}, true, 'owner'), 'owner');
 assert.equal(resolveVerifiedTripRole('copilot-member', {}, true, 'copilota'), 'copilota');
+assert.equal(resolveVerifiedTripRole('viewer-member', {}, true, 'viewer'), 'viewer');
+assert.notEqual(resolveVerifiedTripRole('viewer-member', {}, true, 'viewer'), 'copilota');
+assert.equal(resolveVerifiedTripRole('viewer-override', { members: ['viewer-override'] }, true, 'viewer'), 'viewer');
+assert.notEqual(resolveVerifiedTripRole('viewer-override', { members: ['viewer-override'] }, true, 'viewer'), 'copilota');
 assert.equal(resolveVerifiedTripRole('other', { ownerUid: 'owner', members: ['copilot'] }), null);
+assert.equal(resolveVerifiedTripRole('invalid-role', {}, true, 'unknown-role'), null);
 
 console.log('PASS: zero, uno, multipli, Owner/Copilota, cambio account e riapertura PWA');
