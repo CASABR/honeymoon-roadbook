@@ -3,7 +3,8 @@ import { auth, db } from '../firebase';
 import { STORES, idbPut, idbDelete, idbGetAll, idbGet, type StoreName } from './indexedDB';
 import { notifyDataChanged } from './storageService';
 import { normalizeTimestamp } from '../utils/tripDates';
-import { isCloudAuthorized, isTripAuthRevoked } from '../utils/useAuthIdentity';
+import { isCloudAuthorized, isTripAuthRevoked, getAuthoritativeCloudRole } from '../utils/useAuthIdentity';
+import { getTripConfig } from '../utils/tripConfig';
 import { recordPushMutation } from '../services/pushNotificationService';
 import {
   splitEntitySecurityData,
@@ -111,7 +112,10 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
           const remoteData = remoteSnap.data();
           const remoteUpdated = normalizeTimestamp(remoteData?.updatedAt);
           const localUpdated = normalizeTimestamp(q.data?.updatedAt);
-          if (remoteUpdated > 0 && localUpdated > 0 && remoteUpdated > localUpdated) {
+          if (remoteUpdated <= 0 || localUpdated <= 0) {
+            hasPotentialConflict = true;
+            conflictReason = 'unreliable_timestamp_conflict';
+          } else if (remoteUpdated > localUpdated) {
             hasPotentialConflict = true;
             conflictReason = 'server_newer';
           }
@@ -157,19 +161,93 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
   conflictsCount: number;
   errors: string[];
 }> {
+  // 1. Controllo revoca autorizzazioni
   if (isTripAuthRevoked(tripId)) {
-    throw new Error('Impossibile riconciliare: autorizzazioni per il viaggio revocate.');
+    throw new Error('Operazione bloccata: autorizzazioni per il viaggio revocate.');
   }
 
-  // 1. Abilita esplicitamente le scritture per il viaggio 0000
-  allowCloudWriteForTrip0000(true);
+  // 2. Controllo identità Owner verificata (nessun bypass o elevazione)
+  const user = auth?.currentUser;
+  const config = getTripConfig();
+  const authRole = getAuthoritativeCloudRole();
+  const isOwnerUid = Boolean(user && !user.isAnonymous && config?.ownerUid && user.uid === config.ownerUid);
+  const isOwnerRole = authRole === 'owner';
 
-  // 2. Controllo preventivo della coda
+  if (!user || user.isAnonymous || (!isOwnerRole && !isOwnerUid)) {
+    throw new Error('Operazione bloccata: riconciliazione consentita esclusivamente all\'Owner verificato del viaggio.');
+  }
+
+  // 3. Controllo connessione di rete
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('Operazione bloccata: dispositivo offline, impossibile verificare le versioni remote.');
+  }
+
+  // 4. Controllo preliminare della coda locale
   const beforeQueue = await getPendingMutations(tripId);
   const beforeCount = beforeQueue.length;
   if (beforeCount === 0) {
     return { success: true, pushedCount: 0, remainingCount: 0, conflictsCount: 0, errors: [] };
   }
+
+  // 5. Controllo preventivo approfondito conflitti e affidabilità timestamp su TUTTI gli elementi in coda
+  // Se anche un solo elemento presenta conflitti o timestamp inaffidabili, NON abilitare le scritture e NON inviare nulla!
+  for (const q of beforeQueue) {
+    const normType = normalizeQueueEntityType(q.entityType);
+    const dataId = q.data?.id;
+    if (!dataId) continue;
+
+    // Controllo tombstone locale/remoto
+    const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${normType}_${dataId}`).catch(() => null);
+    if (tombstoneSetting && tombstoneSetting.value) {
+      throw new Error(`Conflitto bloccante: rilevato tombstone per ${normType}/${dataId}. Scritture non abilitate.`);
+    }
+
+    // Controllo versione remota su Firestore
+    if (db) {
+      try {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const remoteDocRef = doc(db, 'trips', tripId, normType, dataId);
+        const remoteSnap = await getDoc(remoteDocRef).catch(() => null);
+        if (remoteSnap && remoteSnap.exists()) {
+          const remoteData = remoteSnap.data();
+          const remoteUpdated = normalizeTimestamp(remoteData?.updatedAt);
+          const localUpdated = normalizeTimestamp(q.data?.updatedAt);
+
+          const isUncertain = (remoteUpdated <= 0 || localUpdated <= 0);
+          const isServerNewer = (remoteUpdated > 0 && localUpdated > 0 && remoteUpdated > localUpdated);
+
+          if (isUncertain || isServerNewer) {
+            const reason = isUncertain
+              ? `timestamp inaffidabile (server: ${remoteUpdated}, locale: ${localUpdated})`
+              : `versione remota più recente (${remoteUpdated} > ${localUpdated})`;
+
+            // Archiviazione preventiva di sicurezza
+            await saveConflictBackup({
+              tripId,
+              entityType: normType,
+              dataId,
+              localData: q.data,
+              serverData: remoteData,
+              conflictType: isUncertain ? 'unreliable_timestamp_conflict' : 'server_newer',
+              serverUpdated: remoteUpdated,
+              localUpdated,
+              status: 'pending_review'
+            });
+
+            throw new Error(`Conflitto bloccante su ${normType}/${dataId}: ${reason}. Scrittura bloccata e versioni preservate.`);
+          }
+        }
+      } catch (checkErr: any) {
+        if (checkErr.message?.includes('Conflitto bloccante')) {
+          throw checkErr;
+        }
+        throw new Error(`Impossibile verificare lo stato remoto di ${normType}/${dataId}: ${checkErr.message || checkErr}. Scritture non abilitate.`);
+      }
+    }
+  }
+
+  // 6. TUTTI i controlli preliminari sono superati: abilita temporaneamente le scritture ed esegui il flush
+  allowCloudWriteForTrip0000(true);
 
   const errors: string[] = [];
   let service = activeSyncService;
@@ -194,12 +272,87 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
   const pushedCount = Math.max(0, beforeCount - remainingCount);
   const conflictBackups = await getConflictBackups(tripId);
 
+  const isSuccess = errors.length === 0 && remainingCount === 0;
+
+  // Punto 2: Non lasciare il flag cloud-write attivo dopo errori o riconciliazioni incomplete!
+  if (!isSuccess) {
+    allowCloudWriteForTrip0000(false);
+    console.warn(`[SyncService] Riconciliazione incompleta o fallita (${remainingCount} pendenti, ${errors.length} errori): flag cloud-write reimpostato su BLOCCATO.`);
+  }
+
   return {
-    success: errors.length === 0 && remainingCount === 0,
+    success: isSuccess,
     pushedCount,
     remainingCount,
     conflictsCount: conflictBackups.length,
     errors
+  };
+}
+
+export async function enableCopilotBidirectionalSync(tripId: string): Promise<{
+  success: boolean;
+  error?: string;
+  isCloudWriteAllowed: boolean;
+}> {
+  if (isTripAuthRevoked(tripId)) {
+    throw new Error('Operazione bloccata: autorizzazioni per il viaggio revocate.');
+  }
+
+  const user = auth?.currentUser;
+  const authRole = getAuthoritativeCloudRole();
+
+  if (!user || user.isAnonymous) {
+    throw new Error('Operazione bloccata: richiesta autenticazione Google.');
+  }
+
+  if (authRole !== 'copilota') {
+    throw new Error(`Operazione consentita solo per ruolo Copilota verificato (ruolo attuale: ${authRole}). Nessuna elevazione privilegi.`);
+  }
+
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    throw new Error('Operazione bloccata: dispositivo offline.');
+  }
+
+  // Verifica conflitti esistenti
+  const conflictBackups = await getConflictBackups(tripId);
+  if (conflictBackups.length > 0) {
+    throw new Error('Operazione bloccata: presenti conflitti in archivio da verificare prima di attivare le scritture.');
+  }
+
+  // Verifica mutazioni locali pendenti (se presenti sul dispositivo del Copilota)
+  const queue = await getPendingMutations(tripId);
+  if (queue.length > 0 && db) {
+    for (const q of queue) {
+      const normType = normalizeQueueEntityType(q.entityType);
+      const dataId = q.data?.id;
+      if (!dataId) continue;
+      const { doc, getDoc } = await import('firebase/firestore');
+      const snap = await getDoc(doc(db, 'trips', tripId, normType, dataId)).catch(() => null);
+      if (snap && snap.exists()) {
+        const sData = snap.data();
+        const sUp = normalizeTimestamp(sData?.updatedAt);
+        const lUp = normalizeTimestamp(q.data?.updatedAt);
+        if (sUp <= 0 || lUp <= 0 || sUp > lUp) {
+          throw new Error(`Conflitto rilevato su ${normType}/${dataId}: sincronizzazione bidirezionale Copilota non abilitata.`);
+        }
+      }
+    }
+  }
+
+  // Abilita la sincronizzazione cloud per 0000 sul client del Copilota (privilegi rigorosamente member / copilota)
+  allowCloudWriteForTrip0000(true);
+
+  if (activeSyncService && activeSyncService.getTripId() === tripId) {
+    if (queue.length > 0) {
+      activeSyncService.flushPendingQueue().catch((err) => {
+        console.warn('[SyncService] Flush iniziale Copilota differito:', err);
+      });
+    }
+  }
+
+  return {
+    success: true,
+    isCloudWriteAllowed: true
   };
 }
 
@@ -211,6 +364,7 @@ if (typeof window !== 'undefined') {
     allowQueueFlushForTrip0000,
     isQueueFlushAllowedForTrip0000,
     executeControlledReconciliation,
+    enableCopilotBidirectionalSync,
     getActiveSyncService
   };
 }
@@ -1116,8 +1270,12 @@ export class SyncService {
             const serverUpdated = normalizeTimestamp(serverData?.updatedAt);
             const localUpdated = normalizeTimestamp(data?.updatedAt);
 
-            if (serverUpdated > 0 && localUpdated > 0 && serverUpdated > localUpdated) {
-              console.warn(`[SyncService] Conflitto rilevato per ${collectionName}/${data.id}: il server è più recente (${serverUpdated} > ${localUpdated}). Preservo copia locale nell'archivio isolato.`);
+            const isUncertain = (serverUpdated <= 0 || localUpdated <= 0);
+            const isServerNewer = (serverUpdated > 0 && localUpdated > 0 && serverUpdated > localUpdated);
+
+            if (isUncertain || isServerNewer) {
+              const conflictType = isUncertain ? 'unreliable_timestamp_conflict' : 'server_newer';
+              console.warn(`[SyncService] Conflitto rilevato per ${collectionName}/${data.id}: ${conflictType} (server: ${serverUpdated}, local: ${localUpdated}). Preservo copia nell'archivio isolato.`);
               // Preserva copia di sicurezza nell'archivio isolato HounigoConflictArchiveDB (zero leak in settings)
               await saveConflictBackup({
                 tripId: this.tripId,
@@ -1125,22 +1283,30 @@ export class SyncService {
                 dataId: data.id,
                 localData: data,
                 serverData,
-                conflictType: 'server_newer',
+                conflictType,
                 serverUpdated,
                 localUpdated,
                 status: 'pending_review'
               });
-              // Allinea IndexedDB locale con il server integrando eventuali dati privati locali
-              const store = this.getStoreForEntity(collectionName);
-              if (store) {
-                const merged = mergeEntitySecurityData({ ...serverData, id: data.id }, data);
-                await idbPut(store, merged);
+
+              if (isServerNewer) {
+                // Allinea IndexedDB locale con il server integrando eventuali dati privati locali
+                const store = this.getStoreForEntity(collectionName);
+                if (store) {
+                  const merged = mergeEntitySecurityData({ ...serverData, id: data.id }, data);
+                  await idbPut(store, merged);
+                }
+                // Rimuovi la mutazione pendente dalla coda poiché il dato locale è archiviato in sicurezza
+                await this.removePendingPushFromStore(collectionName, data.id, { action, data, mutationId: options.mutationId });
+              } else {
+                // In caso di incertezza timestamp: BLOCCA LA SCRITTURA, CONSERVA ENTRAMBE LE VERSIONI!
+                // NON cancellare dalla coda, richiede verifica esplicita
+                console.warn(`[SyncService] Scrittura bloccata per incertezza timestamp su ${collectionName}/${data.id}: entrambe le versioni conservate.`);
               }
-              // Rimuovi la mutazione pendente dalla coda poiché il dato locale è archiviato in sicurezza
-              await this.removePendingPushFromStore(collectionName, data.id, { action, data, mutationId: options.mutationId });
+
               if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('roadbook_conflict_detected', {
-                  detail: { entityType: collectionName, id: data.id, resolution: 'server_newer_preserved_isolated_backup' }
+                  detail: { entityType: collectionName, id: data.id, conflictType }
                 }));
               }
               return;

@@ -128,6 +128,7 @@ function load(file, dependencies, globals = {}) {
       'firebase/firestore':{doc:(_db,...parts)=>parts.join('/'),setDoc:(ref,data)=>write('PATCH',ref,data),deleteDoc:ref=>write('DELETE',ref)},
       '../firebase':{auth,db:{}},'./indexedDB':{STORES:{SETTINGS:'settings'},idbGet:async()=>null},'./storageService':{},
       '../utils/tripDates':{normalizeTimestamp:v=>Number(v)||0},'../utils/useAuthIdentity':identity,
+      '../utils/tripConfig':{getTripConfig:()=>({id:'0000',ownerUid:'owner-original'})},
       '../services/pushNotificationService':{},'../utils/securityDataSplitter':splitter,'./localMutationQueue':queue
     }, globals);
     const sync=Object.create(SyncService.prototype);

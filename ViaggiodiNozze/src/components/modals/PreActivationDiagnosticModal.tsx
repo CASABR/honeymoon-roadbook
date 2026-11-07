@@ -4,6 +4,7 @@ import {
   getPreActivationSyncReport,
   allowCloudWriteForTrip0000,
   executeControlledReconciliation,
+  enableCopilotBidirectionalSync,
   type PreActivationSyncReport
 } from '../../storage/syncService';
 import { useAuthIdentity } from '../../utils/useAuthIdentity';
@@ -26,6 +27,8 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
 
   const isOwner = cloudRole === 'owner' ||
     (Boolean(currentUser?.uid) && !currentUser?.isAnonymous && Boolean(tripConfig?.ownerUid) && currentUser?.uid === tripConfig?.ownerUid);
+
+  const isCopilota = cloudRole === 'copilota' && !isOwner;
 
   const reloadReport = () => {
     setLoading(true);
@@ -99,7 +102,7 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
   };
 
   const handleRelock = async () => {
-    if (!isOwner) return;
+    if (!isOwner && !isCopilota) return;
     allowCloudWriteForTrip0000(false);
     const rep = await getPreActivationSyncReport(tripId);
     setReport(rep);
@@ -107,6 +110,30 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
       type: 'info',
       message: 'Scritture Cloud ri-bloccate con successo. Modalità pre-attivazione protetta attiva.'
     });
+  };
+
+  const handleEnableCopilotSync = async () => {
+    if (!isCopilota) return;
+    setReconciling(true);
+    setActionFeedback(null);
+    try {
+      const res = await enableCopilotBidirectionalSync(tripId);
+      const rep = await getPreActivationSyncReport(tripId);
+      setReport(rep);
+      if (res.success) {
+        setActionFeedback({
+          type: 'success',
+          message: '✓ Sincronizzazione bidirezionale Copilota abilitata con successo (privilegi conformi a Copilota).'
+        });
+      }
+    } catch (err: any) {
+      setActionFeedback({
+        type: 'error',
+        message: `Attivazione Copilota bloccata: ${err?.message || err}`
+      });
+    } finally {
+      setReconciling(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -135,7 +162,7 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                 Diagnostica Pre-Attivazione
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Viaggio {tripId} • {isOwner ? 'Modalità Gestione Owner' : 'Accesso Sola Lettura / Copilota'}
+                Viaggio {tripId} • {isOwner ? 'Modalità Gestione Owner' : isCopilota ? 'Modalità Copilota (Giusy)' : 'Accesso Sola Lettura / Ospite'}
               </p>
             </div>
           </div>
@@ -185,7 +212,7 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                   ? 'Il dispositivo ha autorizzazione alla sincronizzazione remota su Firestore.'
                   : 'Nessuna operazione locale di scrittura o cancellazione può raggiungere Firestore senza sblocco autorizzato.'}
               </p>
-              {isOwner && report?.isCloudWriteAllowed && (
+              {(isOwner || isCopilota) && report?.isCloudWriteAllowed && (
                 <div className="pt-2">
                   <button
                     type="button"
@@ -303,11 +330,15 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
               </p>
             </div>
 
-            {/* Sezione 4: Azione Riconciliazione (Riservata Owner) */}
+            {/* Sezione 4: Azione Riconciliazione (Riservata Owner / Copilota) */}
             <div className="p-3.5 rounded-2xl bg-indigo-50/50 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/40 space-y-2">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-extrabold text-indigo-950 dark:text-indigo-200">
-                  {isOwner ? 'Comando Riconciliazione Controllata' : 'Informazioni Sincronizzazione Copilota'}
+                  {isOwner
+                    ? 'Comando Riconciliazione Controllata (Owner)'
+                    : isCopilota
+                    ? 'Sincronizzazione Bidirezionale Protetta (Copilota)'
+                    : 'Informazioni Sola Lettura'}
                 </span>
               </div>
 
@@ -350,9 +381,53 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                     </p>
                   )}
                 </div>
+              ) : isCopilota ? (
+                <div className="space-y-2 pt-1">
+                  <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                    {!report?.isCloudWriteAllowed
+                      ? 'In qualità di Copilota verificato (Giusy), puoi abilitare la sincronizzazione bidirezionale protetta separata dal replay Owner. Nessuna elevazione di privilegi: le modifiche restano conformi al ruolo di Copilota.'
+                      : 'La sincronizzazione bidirezionale è attiva sul tuo dispositivo con permessi di Copilota.'}
+                  </p>
+
+                  {!report?.isCloudWriteAllowed ? (
+                    <button
+                      type="button"
+                      disabled={reconciling || hasConflicts}
+                      onClick={handleEnableCopilotSync}
+                      className={`w-full py-2.5 px-4 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                        reconciling || hasConflicts
+                          ? 'bg-slate-200 dark:bg-slate-800 text-slate-400 cursor-not-allowed'
+                          : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-md hover:shadow-emerald-500/20 active:scale-[0.98]'
+                      }`}
+                    >
+                      {reconciling ? (
+                        <>
+                          <span className="animate-spin text-sm">⏳</span>
+                          <span>Verifica e attivazione in corso…</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>🟢</span>
+                          <span>Abilita Sincronizzazione Bidirezionale (Copilota)</span>
+                        </>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleRelock}
+                      className="w-full py-2 px-3 rounded-xl font-bold text-[11px] bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200 transition-colors cursor-pointer"
+                    >
+                      🔒 Ripristina Blocco Scritture Copilota
+                    </button>
+                  )}
+                  <div className="p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/60 text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                    ℹ️ <strong>Ricezione Automatica Copilota:</strong> Il dispositivo riceve automaticamente tutti gli aggiornamenti dal server in background tramite listener Firestore live. Non è richiesta alcuna azione tecnica da parte del Copilota.
+                  </div>
+                </div>
               ) : (
                 <div className="p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/60 text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                  ℹ️ <strong>Ricezione Automatica Copilota:</strong> Il dispositivo riceve automaticamente tutti gli aggiornamenti dal server in background tramite listener Firestore live. Non è richiesta alcuna azione tecnica da parte del Copilota.
+                  ℹ️ <strong>Accesso Sola Lettura:</strong> Questo dispositivo riceve gli aggiornamenti dal cloud in consultazione senza permessi di scrittura sul viaggio.
                 </div>
               )}
             </div>
