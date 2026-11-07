@@ -1147,15 +1147,19 @@ export class SyncService {
   }
 
   public async flushPendingQueue(): Promise<void> {
-    return this.flushPendingPushes();
+    const pushErrors = await this.flushPendingPushes();
+    if (Array.isArray(pushErrors) && pushErrors.length > 0) {
+      throw new Error(`Push non riuscito per: ${pushErrors.join(' | ')}`);
+    }
   }
 
-  private async flushPendingPushes(): Promise<void> {
-    if (!this.canWriteToCloud() || this.isFlushingPending || this.isDestroyed) return;
+  private async flushPendingPushes(): Promise<string[]> {
+    if (!this.canWriteToCloud() || this.isFlushingPending || this.isDestroyed) return [];
     this.isFlushingPending = true;
+    const pushErrors: string[] = [];
     try {
       const queue = await this.getPendingPushesFromStore();
-      if (queue.length === 0) return;
+      if (queue.length === 0) return [];
       console.log(`[SyncService] Svuotamento coda push persistente (${queue.length} elementi in attesa)...`);
       for (const item of queue) {
         try {
@@ -1164,11 +1168,17 @@ export class SyncService {
             mutationId: item.mutationId,
             fromQueue: true,
           });
-        } catch (err) {
+        } catch (err: any) {
+          const errMsg = `${item.entityType}/${item.data?.id}: ${err?.message || String(err)}`;
+          pushErrors.push(errMsg);
           console.warn(`[SyncService] Errore riprova push persistente per ${item.entityType}/${item.data?.id}:`, err);
         }
       }
-    } finally { this.isFlushingPending = false; }
+    } finally {
+      this.isFlushingPending = false;
+      this.emitSyncStatus();
+    }
+    return pushErrors;
   }
 
   private async pushToCloud(
@@ -1389,11 +1399,16 @@ export class SyncService {
           const vaultId = getVaultDocId(normType, data.id);
           const privDocRef = doc(db, 'trips', this.tripId, 'private_credentials', vaultId);
           await safeSet(privDocRef, this.cleanUndefinedValues(privateCredentialsDoc), { merge: true });
-        } else if (!privateCredentialsDoc && isCloudAuthorized(this.tripId)) {
+        } else if (!privateCredentialsDoc && isCloudAuthorized(this.tripId) && data.hasPrivateCredentials === false) {
+          // Pulizia cassaforte solo se l'utente ha esplicitamente rimosso credenziali private preesistenti
           const vaultId = getVaultDocId(normType, data.id);
-          await safeDelete(doc(db, 'trips', this.tripId, 'private_credentials', vaultId));
-          if (vaultId !== data.id) {
-            await safeDelete(doc(db, 'trips', this.tripId, 'private_credentials', data.id));
+          try {
+            await safeDelete(doc(db, 'trips', this.tripId, 'private_credentials', vaultId));
+            if (vaultId !== data.id) {
+              await safeDelete(doc(db, 'trips', this.tripId, 'private_credentials', data.id));
+            }
+          } catch (vaultDelErr) {
+            console.warn(`[SyncService] Pulizia cassaforte non critica ignorata per ${vaultId}:`, vaultDelErr);
           }
         }
       } else {

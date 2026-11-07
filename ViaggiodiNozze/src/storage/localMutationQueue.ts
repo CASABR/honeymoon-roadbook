@@ -151,7 +151,7 @@ export interface ConflictBackupRecord {
   dataId: string;
   localData: any;
   serverData?: any;
-  conflictType: 'server_newer' | 'remote_tombstone_vs_local_edit' | 'manual';
+  conflictType: 'server_newer' | 'remote_tombstone_vs_local_edit' | 'manual' | 'unreliable_timestamp_conflict';
   serverUpdated?: number;
   localUpdated?: number;
   tombstoneDeletedAt?: number;
