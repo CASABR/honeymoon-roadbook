@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.8",
+      "publishedAt": "2026-11-07",
+      "sourceCommit": "e44329d",
+      "changes": [
+        "Diagnostica pre-attivazione con interfaccia di riconciliazione e anteprima sicura riservata all'Owner.",
+        "Verifica automatica versioni remote, blocco conflitti e ricezione passiva in background per Copilota."
+      ]
+    },
+    {
       "version": "1.5.7",
       "publishedAt": "2026-11-05",
       "sourceCommit": "d823342",
@@ -86,16 +95,6 @@
         "Sezione Tappe dell'itinerario in Prenotazioni e orari di apertura manuali con selettore a 5 minuti.",
         "Banner e stati noleggio auto e camper coerenti con date e luoghi effettivi di riconsegna.",
         "Garantita lettura sicura e non distruttiva all'avvio senza cancellazioni automatiche."
-      ]
-    },
-    {
-      "version": "1.3.0",
-      "publishedAt": "2026-11-02",
-      "sourceCommit": "b51c227",
-      "changes": [
-        "HouniAI gratuita disponibile per chat e importazione da testo, PDF e immagini.",
-        "Accesso HouniAI riservato a Owner e Copilota, con quote gratuite e fallback manuale.",
-        "Smart Import mantiene revisione e approvazione individuale prima di ogni salvataggio."
       ]
     }
   ]

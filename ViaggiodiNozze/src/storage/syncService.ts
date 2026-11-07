@@ -3,7 +3,7 @@ import { auth, db } from '../firebase';
 import { STORES, idbPut, idbDelete, idbGetAll, idbGet, type StoreName } from './indexedDB';
 import { notifyDataChanged } from './storageService';
 import { normalizeTimestamp } from '../utils/tripDates';
-import { isCloudAuthorized } from '../utils/useAuthIdentity';
+import { isCloudAuthorized, isTripAuthRevoked } from '../utils/useAuthIdentity';
 import { recordPushMutation } from '../services/pushNotificationService';
 import {
   splitEntitySecurityData,
@@ -24,6 +24,16 @@ import {
   type PendingMutation
 } from './localMutationQueue';
 
+export interface PreActivationSyncReportItem {
+  id: string;
+  entityType: string;
+  action: 'save' | 'delete';
+  timestamp: number;
+  previewTitle?: string;
+  hasPotentialConflict: boolean;
+  conflictReason?: string;
+}
+
 export interface PreActivationSyncReport {
   tripId: string;
   isCloudWriteAllowed: boolean;
@@ -32,14 +42,7 @@ export interface PreActivationSyncReport {
   pendingByType: Record<string, number>;
   conflictsCount: number;
   conflictsByType: Record<string, number>;
-  items: Array<{
-    id: string;
-    entityType: string;
-    action: 'save' | 'delete';
-    timestamp: number;
-    hasPotentialConflict: boolean;
-    conflictReason?: string;
-  }>;
+  items: PreActivationSyncReportItem[];
 }
 
 export function isTrip0000CloudWriteAllowed(): boolean {
@@ -93,11 +96,37 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
     }
 
     // Includi SOLO metadati non sensibili (nessun PIN, PNR, note private, prezzi o allegati)
+    const rawTitle = q.data?.titolo || q.data?.title || q.data?.nome || q.data?.name || q.data?.label || '';
+    const previewTitle = typeof rawTitle === 'string' && rawTitle.trim().length > 0
+      ? (rawTitle.length > 45 ? rawTitle.substring(0, 45) + '…' : rawTitle)
+      : (dataId || q.id);
+
+    // Controllo preventivo versioni remote sul cloud in sola lettura (se online)
+    if (dataId && !hasPotentialConflict && typeof navigator !== 'undefined' && navigator.onLine && db) {
+      try {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const remoteDocRef = doc(db, 'trips', tripId, normType, dataId);
+        const remoteSnap = await getDoc(remoteDocRef).catch(() => null);
+        if (remoteSnap && remoteSnap.exists()) {
+          const remoteData = remoteSnap.data();
+          const remoteUpdated = normalizeTimestamp(remoteData?.updatedAt);
+          const localUpdated = normalizeTimestamp(q.data?.updatedAt);
+          if (remoteUpdated > 0 && localUpdated > 0 && remoteUpdated > localUpdated) {
+            hasPotentialConflict = true;
+            conflictReason = 'server_newer';
+          }
+        }
+      } catch {
+        // Nessun blocco diagnostico in sola lettura se la connessione è instabile
+      }
+    }
+
     items.push({
       id: dataId || q.id,
       entityType: normType,
       action: q.action,
       timestamp: q.timestamp,
+      previewTitle,
       hasPotentialConflict,
       conflictReason
     });
@@ -115,13 +144,74 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
   };
 }
 
+let activeSyncService: SyncService | null = null;
+
+export function getActiveSyncService(): SyncService | null {
+  return activeSyncService;
+}
+
+export async function executeControlledReconciliation(tripId: string): Promise<{
+  success: boolean;
+  pushedCount: number;
+  remainingCount: number;
+  conflictsCount: number;
+  errors: string[];
+}> {
+  if (isTripAuthRevoked(tripId)) {
+    throw new Error('Impossibile riconciliare: autorizzazioni per il viaggio revocate.');
+  }
+
+  // 1. Abilita esplicitamente le scritture per il viaggio 0000
+  allowCloudWriteForTrip0000(true);
+
+  // 2. Controllo preventivo della coda
+  const beforeQueue = await getPendingMutations(tripId);
+  const beforeCount = beforeQueue.length;
+  if (beforeCount === 0) {
+    return { success: true, pushedCount: 0, remainingCount: 0, conflictsCount: 0, errors: [] };
+  }
+
+  const errors: string[] = [];
+  let service = activeSyncService;
+  let tempCreated = false;
+  if (!service || service.getTripId() !== tripId) {
+    service = new SyncService(tripId);
+    tempCreated = true;
+  }
+
+  try {
+    await service.flushPendingQueue();
+  } catch (err: any) {
+    errors.push(err?.message || String(err));
+  } finally {
+    if (tempCreated && service) {
+      service.destroy();
+    }
+  }
+
+  const afterQueue = await getPendingMutations(tripId);
+  const remainingCount = afterQueue.length;
+  const pushedCount = Math.max(0, beforeCount - remainingCount);
+  const conflictBackups = await getConflictBackups(tripId);
+
+  return {
+    success: errors.length === 0 && remainingCount === 0,
+    pushedCount,
+    remainingCount,
+    conflictsCount: conflictBackups.length,
+    errors
+  };
+}
+
 if (typeof window !== 'undefined') {
   (window as any).__hounigoDiagnostics = {
     getPreActivationSyncReport,
     allowCloudWriteForTrip0000,
     isTrip0000CloudWriteAllowed,
     allowQueueFlushForTrip0000,
-    isQueueFlushAllowedForTrip0000
+    isQueueFlushAllowedForTrip0000,
+    executeControlledReconciliation,
+    getActiveSyncService
   };
 }
 
@@ -139,6 +229,7 @@ export class SyncService {
 
   constructor(tripId: string) {
     this.tripId = tripId;
+    activeSyncService = this;
     this.cleanupLegacySettingsQueue().catch(() => {});
     this.cleanupLegacyConflictBackupsFromSettings().catch(() => {});
     this.setupLocalListeners();
@@ -1357,8 +1448,15 @@ export class SyncService {
     });
   }
 
+  public getTripId(): string {
+    return this.tripId;
+  }
+
   public destroy() {
     this.isDestroyed = true;
+    if (activeSyncService === this) {
+      activeSyncService = null;
+    }
     if (this.autoSyncDebounceTimer) {
       clearTimeout(this.autoSyncDebounceTimer);
       this.autoSyncDebounceTimer = null;
