@@ -4,6 +4,7 @@ import {
   getPreActivationSyncReport,
   allowCloudWriteForTrip0000,
   executeControlledReconciliation,
+  resolveControlledConflict,
   enableCopilotBidirectionalSync,
   type PreActivationSyncReport
 } from '../../storage/syncService';
@@ -55,7 +56,31 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
-  const hasConflicts = (report?.conflictsCount ?? 0) > 0 || (report?.items?.some(i => i.hasPotentialConflict) ?? false);
+  const hasConflicts = (report?.conflictsCount ?? 0) > 0 || (report?.items?.some(i => i.hasPotentialConflict && !i.isAlreadySynchronized) ?? false);
+
+  const handleResolveConflict = async (conflictId: string, resolution: 'mark_synced' | 'keep_remote' | 'keep_local') => {
+    if (!isOwner) return;
+    setReconciling(true);
+    setActionFeedback(null);
+    try {
+      const res = await resolveControlledConflict(tripId, conflictId, resolution);
+      const rep = await getPreActivationSyncReport(tripId);
+      setReport(rep);
+      if (res.success) {
+        setActionFeedback({
+          type: 'success',
+          message: res.message
+        });
+      }
+    } catch (err: any) {
+      setActionFeedback({
+        type: 'error',
+        message: `Risoluzione conflitto non riuscita: ${err?.message || err}`
+      });
+    } finally {
+      setReconciling(false);
+    }
+  };
 
   const handleReconcileAndUnlock = async () => {
     if (!isOwner) return;
@@ -270,7 +295,11 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                         <span className="text-slate-400">
                           {new Date(item.timestamp).toLocaleString('it-IT', { dateStyle: 'short', timeStyle: 'short' })}
                         </span>
-                        {item.hasPotentialConflict ? (
+                        {item.isAlreadySynchronized ? (
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                            ✓ Già allineato su Cloud
+                          </span>
+                        ) : item.hasPotentialConflict ? (
                           <span className="text-rose-600 dark:text-rose-400 font-bold">
                             ⚠️ Conflitto ({item.conflictReason})
                           </span>
@@ -294,8 +323,8 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
               </p>
             </div>
 
-            {/* Sezione 3: Archivio Conflitti Isolato */}
-            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/70 space-y-2">
+            {/* Sezione 3: Archivio Conflitti Isolato e Risoluzione Guidata */}
+            <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/70 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">
                   Archivio Conflitti Isolato
@@ -310,11 +339,15 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
               </div>
 
               {report && Object.keys(report.conflictsByType).length > 0 ? (
-                <div className="space-y-1.5 pt-1">
+                <div className="space-y-1.5 pt-0.5">
                   {Object.entries(report.conflictsByType).map(([type, count]) => (
                     <div key={type} className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 text-[11px]">
                       <span className="text-slate-600 dark:text-slate-400 font-medium">
-                        {type === 'remote_tombstone_vs_local_edit' ? 'Tombstone vs Modifica locale' : type}
+                        {type === 'remote_tombstone_vs_local_edit'
+                          ? 'Tombstone vs Modifica locale'
+                          : type === 'unreliable_timestamp_conflict'
+                          ? 'Timestamp incerto / documento remoto presente'
+                          : type}
                       </span>
                       <span className="font-extrabold text-rose-600 dark:text-rose-400">{count}</span>
                     </div>
@@ -325,6 +358,87 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                   ✓ Nessun conflitto riscontrato nell'archivio.
                 </p>
               )}
+
+              {/* Schede Dettaglio e Risoluzione Conflitti */}
+              {report?.conflictItems && report.conflictItems.length > 0 && (
+                <div className="space-y-2 pt-1">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    Dettaglio Conflitti e Risoluzione Guidata
+                  </p>
+                  {report.conflictItems.map((c) => (
+                    <div
+                      key={c.id}
+                      className="p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-slate-800 dark:text-slate-200 text-xs truncate max-w-[200px]">
+                          {c.previewTitle || c.dataId}
+                        </span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 font-mono">
+                          {c.entityType}
+                        </span>
+                      </div>
+
+                      {c.isEquivalent ? (
+                        <div className="space-y-2 pt-0.5">
+                          <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-[11px] text-emerald-800 dark:text-emerald-200 leading-relaxed">
+                            ✓ <strong>Contenuto già identico su Firestore:</strong> I campi pubblici dell'attività coincidono esattamente con la versione presente nel Cloud. Non occorre alcuna riscrittura né cancellazione di credenziali private.
+                          </div>
+                          {isOwner && (
+                            <button
+                              type="button"
+                              disabled={reconciling}
+                              onClick={() => handleResolveConflict(c.id, 'mark_synced')}
+                              className="w-full py-2 px-3 rounded-xl font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm flex items-center justify-center gap-1.5 transition-all cursor-pointer active:scale-[0.98]"
+                            >
+                              {reconciling ? (
+                                <span className="animate-spin text-sm">⏳</span>
+                              ) : (
+                                <span>✓</span>
+                              )}
+                              <span>Risolvi Conflitto (Contrassegna come già sincronizzato)</span>
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="space-y-2 pt-0.5">
+                          <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/60 text-[11px] text-rose-800 dark:text-rose-200 space-y-1">
+                            <p className="font-bold">⚠️ Rilevate differenze tra iPhone e Cloud:</p>
+                            <div className="space-y-1 max-h-32 overflow-y-auto font-mono text-[10px]">
+                              {c.differences.map((d, di) => (
+                                <div key={di} className="p-1 rounded bg-white/60 dark:bg-slate-900/60">
+                                  <span className="font-bold">{d.field}:</span> iPhone="{String(d.localVal)}" vs Cloud="{String(d.remoteVal)}"
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          {isOwner && (
+                            <div className="grid grid-cols-2 gap-2 pt-0.5">
+                              <button
+                                type="button"
+                                disabled={reconciling}
+                                onClick={() => handleResolveConflict(c.id, 'keep_remote')}
+                                className="py-1.5 px-2.5 rounded-xl font-bold text-[11px] bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 cursor-pointer"
+                              >
+                                Mantieni Cloud
+                              </button>
+                              <button
+                                type="button"
+                                disabled={reconciling}
+                                onClick={() => handleResolveConflict(c.id, 'keep_local')}
+                                className="py-1.5 px-2.5 rounded-xl font-bold text-[11px] bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer"
+                              >
+                                Applica iPhone
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <p className="text-[10px] text-slate-400 dark:text-slate-500 pt-0.5">
                 Archiviati in HounigoConflictArchiveDB (mai inviati a Firestore).
               </p>

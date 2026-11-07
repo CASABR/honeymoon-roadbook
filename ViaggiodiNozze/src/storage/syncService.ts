@@ -21,6 +21,7 @@ import {
   normalizeQueueEntityType,
   saveConflictBackup,
   getConflictBackups,
+  updateConflictStatus,
   getConflictBackupById,
   type PendingMutation
 } from './localMutationQueue';
@@ -33,6 +34,22 @@ export interface PreActivationSyncReportItem {
   previewTitle?: string;
   hasPotentialConflict: boolean;
   conflictReason?: string;
+  isAlreadySynchronized?: boolean;
+}
+
+export interface ConflictReportItem {
+  id: string;
+  tripId: string;
+  entityType: string;
+  dataId: string;
+  previewTitle?: string;
+  conflictType: string;
+  status: string;
+  savedAt: number;
+  serverUpdated?: number;
+  localUpdated?: number;
+  isEquivalent: boolean;
+  differences: Array<{ field: string; localVal: any; remoteVal: any }>;
 }
 
 export interface PreActivationSyncReport {
@@ -44,6 +61,7 @@ export interface PreActivationSyncReport {
   conflictsCount: number;
   conflictsByType: Record<string, number>;
   items: PreActivationSyncReportItem[];
+  conflictItems: ConflictReportItem[];
 }
 
 export function isTrip0000CloudWriteAllowed(): boolean {
@@ -66,16 +84,107 @@ export function allowQueueFlushForTrip0000(allow: boolean = true): void {
   allowCloudWriteForTrip0000(allow);
 }
 
+export function compareCandidateWithRemote(
+  normType: string,
+  tripId: string,
+  localData: any,
+  remoteData: any
+): { isEquivalent: boolean; differences: Array<{ field: string; localVal: any; remoteVal: any }> } {
+  if (!localData || !remoteData) {
+    return { isEquivalent: false, differences: [{ field: '_root', localVal: localData, remoteVal: remoteData }] };
+  }
+
+  const isOperationalWithCreds = ['alloggio', 'trasporto', 'attivita', 'tappa', 'ristorante', 'shopping', 'documento'].includes(normType);
+  const { publicDoc: candidatePublic } = isOperationalWithCreds
+    ? splitEntitySecurityData(normType as any, tripId, localData)
+    : { publicDoc: localData };
+
+  const differences: Array<{ field: string; localVal: any; remoteVal: any }> = [];
+  const ignoredKeys = new Set(['updatedAt', 'lastSanitizedAt', 'lastMigratedAt', 'createdAt']);
+
+  for (const [k, v] of Object.entries(candidatePublic)) {
+    if (ignoredKeys.has(k)) continue;
+    if (v === undefined) continue;
+
+    const rv = remoteData[k];
+    if (rv === undefined) {
+      if (v === '' || (Array.isArray(v) && v.length === 0) || v === false) continue;
+      differences.push({ field: k, localVal: v, remoteVal: rv });
+      continue;
+    }
+
+    if (typeof v === 'object' && v !== null) {
+      if (JSON.stringify(v) !== JSON.stringify(rv)) {
+        differences.push({ field: k, localVal: v, remoteVal: rv });
+      }
+    } else if (v !== rv) {
+      if ((k === 'orario' || k === 'time') && String(v).trim() === String(rv).trim()) continue;
+      if (typeof v === 'number' && typeof rv === 'string' && String(v) === rv.trim()) continue;
+      if (typeof v === 'string' && typeof rv === 'number' && v.trim() === String(rv)) continue;
+
+      differences.push({ field: k, localVal: v, remoteVal: rv });
+    }
+  }
+
+  return { isEquivalent: differences.length === 0, differences };
+}
+
 export async function getPreActivationSyncReport(tripId: string): Promise<PreActivationSyncReport> {
   const isAllowed = tripId === '0000' ? isTrip0000CloudWriteAllowed() : true;
   const queue = await getPendingMutations(tripId);
-  const conflictBackups = await getConflictBackups(tripId);
+  const allConflictBackups = await getConflictBackups(tripId);
+  const pendingConflicts = allConflictBackups.filter(c => c.status === 'pending_review');
 
   const pendingByType: Record<string, number> = {};
   const conflictsByType: Record<string, number> = {};
 
-  for (const c of conflictBackups) {
+  for (const c of pendingConflicts) {
     conflictsByType[c.conflictType] = (conflictsByType[c.conflictType] || 0) + 1;
+  }
+
+  const conflictItems: ConflictReportItem[] = [];
+  for (const c of pendingConflicts) {
+    const cNormType = normalizeQueueEntityType(c.entityType);
+    let isEquivalent = false;
+    let differences: Array<{ field: string; localVal: any; remoteVal: any }> = [];
+
+    if (typeof navigator !== 'undefined' && navigator.onLine && db) {
+      try {
+        const { doc, getDoc } = await import('firebase/firestore');
+        const remoteDocRef = doc(db, 'trips', tripId, cNormType, c.dataId);
+        const remoteSnap = await getDoc(remoteDocRef).catch(() => null);
+        if (remoteSnap && remoteSnap.exists()) {
+          const remoteData = remoteSnap.data();
+          const comp = compareCandidateWithRemote(cNormType, tripId, c.localData, remoteData);
+          isEquivalent = comp.isEquivalent;
+          differences = comp.differences;
+        }
+      } catch {}
+    } else if (c.serverData) {
+      const comp = compareCandidateWithRemote(cNormType, tripId, c.localData, c.serverData);
+      isEquivalent = comp.isEquivalent;
+      differences = comp.differences;
+    }
+
+    const rawTitle = c.localData?.titolo || c.localData?.title || c.localData?.nome || c.localData?.name || '';
+    const previewTitle = typeof rawTitle === 'string' && rawTitle.trim().length > 0
+      ? (rawTitle.length > 45 ? rawTitle.substring(0, 45) + '…' : rawTitle)
+      : c.dataId;
+
+    conflictItems.push({
+      id: c.id,
+      tripId: c.tripId,
+      entityType: cNormType,
+      dataId: c.dataId,
+      previewTitle,
+      conflictType: c.conflictType,
+      status: c.status,
+      savedAt: c.savedAt,
+      serverUpdated: c.serverUpdated,
+      localUpdated: c.localUpdated,
+      isEquivalent,
+      differences
+    });
   }
 
   const items: PreActivationSyncReport['items'] = [];
@@ -85,6 +194,7 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
 
     let hasPotentialConflict = false;
     let conflictReason: string | undefined;
+    let isAlreadySynchronized = false;
 
     const dataId = q.data?.id;
     if (dataId) {
@@ -111,8 +221,14 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
         if (remoteSnap && remoteSnap.exists()) {
           const remoteData = remoteSnap.data();
           const remoteUpdated = normalizeTimestamp(remoteData?.updatedAt);
-          const localUpdated = normalizeTimestamp(q.data?.updatedAt);
-          if (remoteUpdated <= 0 || localUpdated <= 0) {
+          const localUpdated = normalizeTimestamp(q.data?.updatedAt || q.timestamp);
+
+          const { isEquivalent } = compareCandidateWithRemote(normType, tripId, q.data, remoteData);
+          if (isEquivalent) {
+            isAlreadySynchronized = true;
+            hasPotentialConflict = false;
+            conflictReason = undefined;
+          } else if (remoteUpdated <= 0 || localUpdated <= 0) {
             hasPotentialConflict = true;
             conflictReason = 'unreliable_timestamp_conflict';
           } else if (remoteUpdated > localUpdated) {
@@ -132,7 +248,8 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
       timestamp: q.timestamp,
       previewTitle,
       hasPotentialConflict,
-      conflictReason
+      conflictReason,
+      isAlreadySynchronized
     });
   }
 
@@ -142,9 +259,10 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
     isQueueFlushAuthorized: isAllowed,
     pendingCount: queue.length,
     pendingByType,
-    conflictsCount: conflictBackups.length,
+    conflictsCount: pendingConflicts.length,
     conflictsByType,
-    items
+    items,
+    conflictItems
   };
 }
 
@@ -211,15 +329,33 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
         if (remoteSnap && remoteSnap.exists()) {
           const remoteData = remoteSnap.data();
           const remoteUpdated = normalizeTimestamp(remoteData?.updatedAt);
-          const localUpdated = normalizeTimestamp(q.data?.updatedAt);
+          const localUpdated = normalizeTimestamp(q.data?.updatedAt || q.timestamp);
+
+          // VERIFICA DI EQUIVALENZA PREVENTIVA (P0):
+          // Se la mutazione pendente è già presente in modo equivalente su Firestore,
+          // è già sincronizzata. Rimuovila dalla coda e risolvi conflitti pendenti correlati.
+          const { isEquivalent } = compareCandidateWithRemote(normType, tripId, q.data, remoteData);
+          if (isEquivalent) {
+            await removePendingMutation(tripId, normType, dataId);
+            const activeConflicts = await getConflictBackups(tripId);
+            for (const c of activeConflicts) {
+              if (c.dataId === dataId && c.entityType === normType && c.status === 'pending_review') {
+                await updateConflictStatus(c.id, 'resolved_already_synced', 'Allineamento verificato durante riconciliazione');
+              }
+            }
+            continue;
+          }
 
           const isUncertain = (remoteUpdated <= 0 || localUpdated <= 0);
           const isServerNewer = (remoteUpdated > 0 && localUpdated > 0 && remoteUpdated > localUpdated);
+          const isSameTimeDifferentContent = (remoteUpdated > 0 && localUpdated > 0 && remoteUpdated === localUpdated && !isEquivalent);
 
-          if (isUncertain || isServerNewer) {
+          if (isUncertain || isServerNewer || isSameTimeDifferentContent) {
             const reason = isUncertain
               ? `timestamp inaffidabile (server: ${remoteUpdated}, locale: ${localUpdated})`
-              : `versione remota più recente (${remoteUpdated} > ${localUpdated})`;
+              : isServerNewer
+              ? `versione remota più recente (${remoteUpdated} > ${localUpdated})`
+              : `stesso timestamp (${localUpdated}) con contenuti discordanti`;
 
             // Archiviazione preventiva di sicurezza
             await saveConflictBackup({
@@ -228,7 +364,7 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
               dataId,
               localData: q.data,
               serverData: remoteData,
-              conflictType: isUncertain ? 'unreliable_timestamp_conflict' : 'server_newer',
+              conflictType: isServerNewer ? 'server_newer' : 'unreliable_timestamp_conflict',
               serverUpdated: remoteUpdated,
               localUpdated,
               status: 'pending_review'
@@ -287,6 +423,109 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
     conflictsCount: conflictBackups.length,
     errors
   };
+}
+
+export async function resolveControlledConflict(
+  tripId: string,
+  conflictId: string,
+  resolution: 'mark_synced' | 'keep_remote' | 'keep_local'
+): Promise<{ success: boolean; message: string; isEquivalent?: boolean }> {
+  // 1. Verifica autorizzazioni
+  if (isTripAuthRevoked(tripId)) {
+    throw new Error('Operazione bloccata: autorizzazioni per il viaggio revocate.');
+  }
+  const user = auth?.currentUser;
+  const config = getTripConfig();
+  const authRole = getAuthoritativeCloudRole();
+  const isOwnerUid = Boolean(user && !user.isAnonymous && config?.ownerUid && user.uid === config.ownerUid);
+  const isOwnerRole = authRole === 'owner';
+
+  if (!user || user.isAnonymous || (!isOwnerRole && !isOwnerUid)) {
+    throw new Error('Operazione bloccata: risoluzione conflitti consentita esclusivamente all\'Owner verificato del viaggio.');
+  }
+
+  const conflict = await getConflictBackupById(conflictId);
+  if (!conflict || conflict.tripId !== tripId) {
+    throw new Error(`Conflitto ${conflictId} non trovato o non appartenente al viaggio.`);
+  }
+
+  const normType = normalizeQueueEntityType(conflict.entityType);
+  const dataId = conflict.dataId;
+
+  if (resolution === 'mark_synced') {
+    if (!db) throw new Error('Database Firestore non inizializzato.');
+    const { doc, getDoc } = await import('firebase/firestore');
+    const remoteDocRef = doc(db, 'trips', tripId, normType, dataId);
+    const remoteSnap = await getDoc(remoteDocRef).catch(() => null);
+    if (!remoteSnap || !remoteSnap.exists()) {
+      throw new Error(`Il documento ${normType}/${dataId} non esiste su Firestore. Impossibile contrassegnare come già sincronizzato.`);
+    }
+
+    const remoteData = remoteSnap.data();
+    const { isEquivalent, differences } = compareCandidateWithRemote(normType, tripId, conflict.localData, remoteData);
+    if (!isEquivalent) {
+      const diffFields = differences.map(d => d.field).join(', ');
+      throw new Error(`I contenuti differiscono su: ${diffFields}. Scegli se mantenere la versione Cloud o Locale.`);
+    }
+
+    // Contenuto verificato equivalente al 100%:
+    // 1. Archivia il conflitto come risolto
+    await updateConflictStatus(conflictId, 'resolved_already_synced', 'Allineamento verificato con Firestore in sola lettura.');
+    // 2. Rimuovi dalla coda locale
+    await removePendingMutation(tripId, normType, dataId);
+    // NOTA DI SICUREZZA: Nessuna scrittura verso Firestore, nessun tocco a private_credentials.
+
+    return {
+      success: true,
+      message: '✓ Mutazione verificata e confermata come già sincronizzata su Firestore. Coda liberata senza riscritture.',
+      isEquivalent: true
+    };
+  }
+
+  if (resolution === 'keep_remote') {
+    // 1. Archivia il conflitto come resolved_keep_remote
+    await updateConflictStatus(conflictId, 'resolved_keep_remote', 'Scelta esplicita Owner: mantenuta versione remota.');
+    // 2. Rimuovi dalla coda locale
+    await removePendingMutation(tripId, normType, dataId);
+    // 3. Se presente serverData, aggiorna lo store locale IndexedDB
+    if (conflict.serverData) {
+      const storeName = (STORES as any)[normType.toUpperCase()] || normType;
+      try {
+        const merged = mergeEntitySecurityData({ ...conflict.serverData, id: dataId }, conflict.localData);
+        await idbPut(storeName, merged);
+      } catch (idbErr) {
+        console.warn(`[SyncService] Impossibile aggiornare store locale per ${normType}/${dataId}:`, idbErr);
+      }
+    }
+
+    return {
+      success: true,
+      message: '✓ Versione Cloud mantenuta. Mutazione locale scartata e conflitto archiviato.'
+    };
+  }
+
+  if (resolution === 'keep_local') {
+    // Scelta esplicita Owner: forza la versione locale come vincente
+    await updateConflictStatus(conflictId, 'resolved_keep_local', 'Scelta esplicita Owner: priorità a versione locale.');
+    const now = Date.now();
+    await savePendingMutation({
+      tripId,
+      entityType: normType,
+      action: 'save',
+      data: {
+        ...conflict.localData,
+        updatedAt: now
+      },
+      timestamp: now
+    });
+
+    return {
+      success: true,
+      message: '✓ Versione locale impostata come vincente con timestamp aggiornato. Pronta per la riconciliazione.'
+    };
+  }
+
+  throw new Error(`Risoluzione '${resolution}' non supportata.`);
 }
 
 export async function enableCopilotBidirectionalSync(tripId: string): Promise<{
@@ -364,6 +603,10 @@ if (typeof window !== 'undefined') {
     allowQueueFlushForTrip0000,
     isQueueFlushAllowedForTrip0000,
     executeControlledReconciliation,
+    resolveControlledConflict,
+    compareCandidateWithRemote,
+    getConflictBackups,
+    getPendingMutations,
     enableCopilotBidirectionalSync,
     getActiveSyncService
   };
@@ -1280,11 +1523,67 @@ export class SyncService {
             const serverUpdated = normalizeTimestamp(serverData?.updatedAt);
             const localUpdated = normalizeTimestamp(data?.updatedAt);
 
+            // --- REQUISITI P0 CHECKPOINT 5: Riconoscimento idempotente e conservazione cassaforte ---
+            // 1. Una modifica esclusivamente pubblica NON deve mai cancellare private_credentials.
+            // 2. Se il documento remoto contiene già esattamente la modifica pendente, riconoscila
+            //    come sincronizzata e rimuovi soltanto la voce corrispondente dalla coda locale,
+            //    senza riscrivere inutilmente né il documento né la cassaforte.
+            // 3. Se i dati non coincidono o la verifica fallisce, preserva la mutazione in coda.
+            const normType = normalizeEntityType(collectionName);
+            const isOperationalWithCreds = ['alloggio', 'trasporto', 'attivita', 'tappa', 'ristorante', 'shopping', 'documento'].includes(normType);
+            const { privateCredentialsDoc: candidatePriv } = isOperationalWithCreds
+              ? splitEntitySecurityData(normType as any, this.tripId, data)
+              : { privateCredentialsDoc: null };
+
+            const { isEquivalent } = compareCandidateWithRemote(normType, this.tripId, data, serverData);
+
+            let isAlreadySynchronized = false;
+            if (isEquivalent) {
+              if (!candidatePriv) {
+                // Nessuna presenza di dati privati modificati nel payload: il dato pubblico remoto è già perfettamente sincronizzato
+                isAlreadySynchronized = true;
+              } else if (isCloudAuthorized(this.tripId)) {
+                // Se il payload locale include credenziali private, verifichiamo la corrispondenza con la cassaforte
+                try {
+                  const vaultId = getVaultDocId(normType, data.id);
+                  const privDocRef = doc(db, 'trips', this.tripId, 'private_credentials', vaultId);
+                  const privSnap = await getDoc(privDocRef);
+                  if (privSnap.exists()) {
+                    const privData = privSnap.data();
+                    const cleanPriv = this.cleanUndefinedValues(candidatePriv);
+                    let privMatches = true;
+                    for (const [pk, pv] of Object.entries(cleanPriv)) {
+                      if (pk === 'updatedAt' || pk === 'lastMigratedAt') continue;
+                      if (pv === undefined) continue;
+                      const spv = privData[pk];
+                      if (typeof pv === 'object' && pv !== null) {
+                        if (JSON.stringify(pv) !== JSON.stringify(spv)) { privMatches = false; break; }
+                      } else if (pv !== spv) {
+                        privMatches = false; break;
+                      }
+                    }
+                    if (privMatches) isAlreadySynchronized = true;
+                  }
+                } catch {
+                  isAlreadySynchronized = false;
+                }
+              }
+            }
+
+            if (isAlreadySynchronized) {
+              console.log(`[SyncService] Documento remoto ${collectionName}/${data.id} contiene già esattamente la modifica pendente: rimuovo dalla coda senza riscritture.`);
+              assertAuthorized();
+              await this.removePendingPushFromStore(collectionName, data.id, { action, data, mutationId: options.mutationId });
+              return;
+            }
+
+            // Solo se NON è già sincronizzato, valuta conflitti timestamp o versioni server più recenti
             const isUncertain = (serverUpdated <= 0 || localUpdated <= 0);
             const isServerNewer = (serverUpdated > 0 && localUpdated > 0 && serverUpdated > localUpdated);
+            const isSameTimeDifferent = (serverUpdated > 0 && localUpdated > 0 && serverUpdated === localUpdated && !isEquivalent);
 
-            if (isUncertain || isServerNewer) {
-              const conflictType = isUncertain ? 'unreliable_timestamp_conflict' : 'server_newer';
+            if (isUncertain || isServerNewer || isSameTimeDifferent) {
+              const conflictType = isServerNewer ? 'server_newer' : 'unreliable_timestamp_conflict';
               console.warn(`[SyncService] Conflitto rilevato per ${collectionName}/${data.id}: ${conflictType} (server: ${serverUpdated}, local: ${localUpdated}). Preservo copia nell'archivio isolato.`);
               // Preserva copia di sicurezza nell'archivio isolato HounigoConflictArchiveDB (zero leak in settings)
               await saveConflictBackup({
@@ -1320,93 +1619,6 @@ export class SyncService {
                 }));
               }
               return;
-            }
-
-            // --- REQUISITI P0 CHECKPOINT 5: Riconoscimento idempotente e conservazione cassaforte ---
-            // 1. Una modifica esclusivamente pubblica NON deve mai cancellare private_credentials.
-            // 2. Se il documento remoto contiene già esattamente la modifica pendente, riconoscila
-            //    come sincronizzata e rimuovi soltanto la voce corrispondente dalla coda locale,
-            //    senza riscrivere inutilmente né il documento né la cassaforte.
-            // 3. Se i dati non coincidono o la verifica fallisce, preserva la mutazione in coda.
-            const normType = normalizeEntityType(collectionName);
-            const isOperationalWithCreds = ['alloggio', 'trasporto', 'attivita', 'tappa', 'ristorante', 'shopping', 'documento'].includes(normType);
-            const { publicDoc: candidatePublic, privateCredentialsDoc: candidatePriv } = isOperationalWithCreds
-              ? splitEntitySecurityData(normType as any, this.tripId, data)
-              : { publicDoc: data, privateCredentialsDoc: null };
-            const cleanCandidatePublic = this.cleanUndefinedValues(candidatePublic);
-
-            let isAlreadySynchronized = false;
-            if (serverUpdated > 0 && localUpdated > 0 && serverUpdated === localUpdated) {
-              let publicMatches = true;
-              for (const [k, v] of Object.entries(cleanCandidatePublic)) {
-                if (k === 'updatedAt' || k === 'lastSanitizedAt') continue;
-                if (v === undefined) continue;
-                const sv = serverData[k];
-                if (typeof v === 'object' && v !== null) {
-                  if (JSON.stringify(v) !== JSON.stringify(sv)) { publicMatches = false; break; }
-                } else if (v !== sv) {
-                  publicMatches = false; break;
-                }
-              }
-
-              if (publicMatches) {
-                if (!candidatePriv) {
-                  // Nessuna modifica/presenza di dati privati nel payload: il dato pubblico remoto è già perfettamente sincronizzato
-                  isAlreadySynchronized = true;
-                } else if (isCloudAuthorized(this.tripId)) {
-                  // Se il payload locale include credenziali private, verifichiamo la corrispondenza con la cassaforte
-                  try {
-                    const vaultId = getVaultDocId(normType, data.id);
-                    const privDocRef = doc(db, 'trips', this.tripId, 'private_credentials', vaultId);
-                    const privSnap = await getDoc(privDocRef);
-                    if (privSnap.exists()) {
-                      const privData = privSnap.data();
-                      const cleanPriv = this.cleanUndefinedValues(candidatePriv);
-                      let privMatches = true;
-                      for (const [pk, pv] of Object.entries(cleanPriv)) {
-                        if (pk === 'updatedAt' || pk === 'lastMigratedAt') continue;
-                        if (pv === undefined) continue;
-                        const spv = privData[pk];
-                        if (typeof pv === 'object' && pv !== null) {
-                          if (JSON.stringify(pv) !== JSON.stringify(spv)) { privMatches = false; break; }
-                        } else if (pv !== spv) {
-                          privMatches = false; break;
-                        }
-                      }
-                      if (privMatches) isAlreadySynchronized = true;
-                    }
-                  } catch {
-                    isAlreadySynchronized = false;
-                  }
-                }
-              }
-
-              if (isAlreadySynchronized) {
-                console.log(`[SyncService] Documento remoto ${collectionName}/${data.id} contiene già esattamente la modifica pendente: rimuovo dalla coda senza riscritture.`);
-                assertAuthorized();
-                await this.removePendingPushFromStore(collectionName, data.id, { action, data, mutationId: options.mutationId });
-                return;
-              } else {
-                // I timestamp sono identici ma il contenuto remoto differisce: preserva la mutazione in coda e archivia conflitto
-                console.warn(`[SyncService] Discrepanza contenuto su ${collectionName}/${data.id} con medesimo timestamp (${localUpdated}): preservo mutazione in coda.`);
-                await saveConflictBackup({
-                  tripId: this.tripId,
-                  entityType: collectionName,
-                  dataId: data.id,
-                  localData: data,
-                  serverData,
-                  conflictType: 'unreliable_timestamp_conflict',
-                  serverUpdated,
-                  localUpdated,
-                  status: 'pending_review'
-                });
-                if (typeof window !== 'undefined') {
-                  window.dispatchEvent(new CustomEvent('roadbook_conflict_detected', {
-                    detail: { entityType: collectionName, id: data.id, conflictType: 'unreliable_timestamp_conflict' }
-                  }));
-                }
-                return;
-              }
             }
           }
         } catch (conflictCheckErr: any) {

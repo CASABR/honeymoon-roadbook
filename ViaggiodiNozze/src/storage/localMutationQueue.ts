@@ -156,7 +156,9 @@ export interface ConflictBackupRecord {
   localUpdated?: number;
   tombstoneDeletedAt?: number;
   savedAt: number;
-  status: 'pending_review' | 'resolved_keep_local' | 'resolved_keep_remote';
+  status: 'pending_review' | 'resolved_keep_local' | 'resolved_keep_remote' | 'resolved_already_synced';
+  resolvedAt?: number;
+  resolutionNote?: string;
 }
 
 const CONFLICT_DB_NAME = 'HounigoConflictArchiveDB';
@@ -242,6 +244,42 @@ export async function getConflictBackupById(id: string): Promise<ConflictBackupR
   return conflictTx<ConflictBackupRecord | null>('readonly', (store, resolve) => {
     const req = store.get(id);
     req.onsuccess = () => resolve(req.result || null);
+  });
+}
+
+export async function getPendingConflictBackups(tripId?: string): Promise<ConflictBackupRecord[]> {
+  const all = await getConflictBackups(tripId);
+  return all.filter(c => c.status === 'pending_review');
+}
+
+export async function updateConflictStatus(
+  id: string,
+  status: ConflictBackupRecord['status'],
+  note?: string
+): Promise<void> {
+  if (!hasIndexedDB()) {
+    const rec = memoryConflictStore.get(id);
+    if (rec) {
+      rec.status = status;
+      rec.resolvedAt = Date.now();
+      if (note) rec.resolutionNote = note;
+    }
+    return;
+  }
+
+  await conflictTx<void>('readwrite', (store, resolve) => {
+    const req = store.get(id);
+    req.onsuccess = () => {
+      const rec = req.result as ConflictBackupRecord | undefined;
+      if (rec) {
+        rec.status = status;
+        rec.resolvedAt = Date.now();
+        if (note) rec.resolutionNote = note;
+        store.put(rec);
+      }
+      resolve();
+    };
+    req.onerror = () => resolve();
   });
 }
 

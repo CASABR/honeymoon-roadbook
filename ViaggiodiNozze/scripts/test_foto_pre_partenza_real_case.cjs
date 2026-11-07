@@ -145,9 +145,22 @@ function load(file, dependencies, globals = {}) {
         return pendingQueue.some(q => q.id === id);
       },
       normalizeQueueEntityType: (t) => t === 'note' || t === 'nota' ? 'note' : (t === 'attivita' ? 'attivita' : t),
-      saveConflictBackup: async (rec) => { conflictArchive.push(rec); },
+      saveConflictBackup: async (rec) => {
+        const id = rec.id || `${rec.tripId}_${rec.entityType}_${rec.dataId}_${Date.now()}`;
+        conflictArchive.push({ ...rec, id, savedAt: Date.now(), status: rec.status || 'pending_review' });
+        return id;
+      },
       getConflictBackups: async () => [...conflictArchive],
-      getConflictBackupById: async (id) => conflictArchive.find(c => c.id === id) || null
+      getPendingConflictBackups: async () => conflictArchive.filter(c => c.status === 'pending_review'),
+      getConflictBackupById: async (id) => conflictArchive.find(c => c.id === id) || null,
+      updateConflictStatus: async (id, status, note) => {
+        const c = conflictArchive.find(x => x.id === id);
+        if (c) {
+          c.status = status;
+          c.resolvedAt = Date.now();
+          if (note) c.resolutionNote = note;
+        }
+      }
     };
 
     const mockFirestore = {
@@ -237,7 +250,9 @@ function load(file, dependencies, globals = {}) {
     const {
       executeControlledReconciliation,
       allowCloudWriteForTrip0000,
-      isTrip0000CloudWriteAllowed
+      isTrip0000CloudWriteAllowed,
+      resolveControlledConflict,
+      getPreActivationSyncReport
     } = syncServiceModule;
 
     // =========================================================================
@@ -379,14 +394,140 @@ function load(file, dependencies, globals = {}) {
       }
     });
 
-    const recResult3 = await executeControlledReconciliation('0000');
-    assert.equal(recResult3.success, false, 'Non deve dare successo su dati discordanti');
+    let recBlocked = false;
+    try {
+      await executeControlledReconciliation('0000');
+    } catch (err) {
+      recBlocked = true;
+      assert.ok(err.message.includes('Conflitto bloccante'));
+    }
+    assert.equal(recBlocked, true, 'Non deve dare successo su dati discordanti');
     assert.equal(pendingQueue.length, 1, 'La mutazione DEVE rimanere preservata in coda');
     assert.equal(conflictArchive.length, 1, 'Il conflitto deve essere stato archiviato');
     assert.equal(isTrip0000CloudWriteAllowed(), false, 'Cloud-write re-locked');
     console.log('✓ TEST 3 SUPERATO: Dati discordanti rilevati, mutazione preservata in coda e conflitto archiviato.');
 
-    console.log('--- TUTTI I TEST FOTO PRE PARTENZA & CASSAFORTE SUPERATI CON SUCCESSO (3/3 PASS) ---');
+    // =========================================================================
+    // TEST 4: Risoluzione Controllata del Conflitto Archiviato (mark_synced)
+    // =========================================================================
+    console.log('--- TEST 4: Risoluzione Controllata Conflitto Archiviato (mark_synced) ---');
+    // Puliamo la coda e l'archivio per isolare il test
+    pendingQueue.length = 0;
+    conflictArchive.length = 0;
+
+    // Reimpostiamo su Firestore il documento corrispondente alla mutazione reale Foto pre partenza
+    await request('PATCH', `trips/0000/attivita/${fotoId}`, 'ADMIN_EMULATOR_ONLY', remoteFotoData);
+
+    // Inseriamo nella coda la mutazione senza updatedAt esplicito in data (solo timestamp su item coda)
+    const realQueueItem = {
+      id: JSON.stringify(['0000', 'attivita', fotoId]),
+      tripId: '0000',
+      entityType: 'attivita',
+      action: 'save',
+      timestamp: 1794057047456,
+      data: {
+        id: fotoId,
+        date: '2026-11-28',
+        title: 'Foto pre partenza',
+        orario: '10:25',
+        time: '10:25',
+        notes: 'Foto pre partenza',
+        status: 'prenotato'
+        // updatedAt è omesso/indefinito, simulando la condizione che ha scatenato l'incertezza
+      }
+    };
+    pendingQueue.push(realQueueItem);
+
+    // Archiviazione del conflitto esattamente come avvenuto sull'iPhone reale
+    const conflictId = '0000_attivita_' + fotoId + '_1794057047456';
+    conflictArchive.push({
+      id: conflictId,
+      tripId: '0000',
+      entityType: 'attivita',
+      dataId: fotoId,
+      localData: realQueueItem.data,
+      serverData: remoteFotoData,
+      conflictType: 'unreliable_timestamp_conflict',
+      serverUpdated: 1794057047456,
+      localUpdated: 0,
+      savedAt: 1794057047456,
+      status: 'pending_review'
+    });
+
+    // Verifichiamo il report diagnostico: deve rilevare il conflitto e che il contenuto è equivalente
+    const preReport = await getPreActivationSyncReport('0000');
+    console.log('Pre-report conflictItems:', JSON.stringify(preReport.conflictItems, null, 2));
+    assert.equal(preReport.conflictsCount, 1, 'Deve esserci 1 conflitto da risolvere');
+    assert.equal(preReport.conflictItems.length, 1);
+    assert.equal(preReport.conflictItems[0].isEquivalent, true, 'Il contenuto deve risultare equivalente a Firestore');
+
+    // Eseguiamo la risoluzione controllata con 'mark_synced'
+    console.log('Esecuzione resolveControlledConflict con mark_synced...');
+    const resolveResult = await resolveControlledConflict('0000', conflictId, 'mark_synced');
+    console.log('resolveResult:', resolveResult);
+    assert.equal(resolveResult.success, true, 'Risoluzione deve avere successo');
+    assert.equal(resolveResult.isEquivalent, true);
+
+    // Verifichiamo che la coda locale sia stata svuotata
+    assert.equal(pendingQueue.length, 0, 'La mutazione deve essere stata rimossa dalla coda locale');
+
+    // Verifichiamo che il conflitto sia stato archiviato come resolved_already_synced
+    const resolvedConflict = conflictArchive.find(c => c.id === conflictId);
+    assert.ok(resolvedConflict);
+    assert.equal(resolvedConflict.status, 'resolved_already_synced', 'Lo stato deve essere resolved_already_synced');
+
+    // Verifichiamo che il nuovo report diagnostico abbia 0 conflitti bloccanti
+    const postReport = await getPreActivationSyncReport('0000');
+    assert.equal(postReport.conflictsCount, 0, 'Zero conflitti bloccanti dopo la risoluzione');
+    assert.equal(postReport.pendingCount, 0, 'Zero mutazioni pendenti');
+
+    // Verifichiamo che la cassaforte private_credentials sia ancora intatta al 100%
+    const vaultFinalCheck = await request('GET', `trips/0000/private_credentials/${vaultId}`, ownerUid);
+    assert.equal(vaultFinalCheck.status, 200);
+    const vaultFinalData = parseFields(await vaultFinalCheck.json());
+    assert.equal(vaultFinalData.paymentStatus, 'da_saldare', 'private_credentials NON toccata da mark_synced');
+    console.log('✓ TEST 4 SUPERATO: Risoluzione controllata mark_synced eseguita, coda svuotata, conflitto risolto, cassaforte intatta.');
+
+    // =========================================================================
+    // TEST 5: Protezione mark_synced con dati discordanti (Requisito 5)
+    // =========================================================================
+    console.log('--- TEST 5: Tentativo mark_synced con dati discordanti viene bloccato ---');
+    const conflictId2 = '0000_attivita_' + fotoId + '_discordante';
+    conflictArchive.push({
+      id: conflictId2,
+      tripId: '0000',
+      entityType: 'attivita',
+      dataId: fotoId,
+      localData: {
+        id: fotoId,
+        title: 'Foto pre partenza con titolo diverso',
+        orario: '12:00'
+      },
+      serverData: remoteFotoData,
+      conflictType: 'unreliable_timestamp_conflict',
+      savedAt: Date.now(),
+      status: 'pending_review'
+    });
+
+    // mark_synced deve fallire se i dati sono realmente discordanti
+    let threwError = false;
+    try {
+      await resolveControlledConflict('0000', conflictId2, 'mark_synced');
+    } catch (err) {
+      threwError = true;
+      console.log('Atteso rifiuto per dati discordanti:', err.message);
+      assert.ok(err.message.includes('differiscono'));
+    }
+    assert.equal(threwError, true, 'mark_synced DEVE essere respinto se i dati non coincidono');
+
+    // Risoluzione con 'keep_remote' invece deve essere accettata
+    const keepRemoteRes = await resolveControlledConflict('0000', conflictId2, 'keep_remote');
+    assert.equal(keepRemoteRes.success, true);
+    const conflict2Record = conflictArchive.find(c => c.id === conflictId2);
+    assert.equal(conflict2Record.status, 'resolved_keep_remote');
+    console.log('✓ TEST 5 SUPERATO: Tentativo mark_synced discorde bloccato, keep_remote applicabile.');
+
+    console.log('--- TUTTI I TEST FOTO PRE PARTENZA & RISOLUZIONE CONFLITTO SUPERATI CON SUCCESSO (5/5 PASS) ---');
   } finally {
     emulator.kill();
   }
