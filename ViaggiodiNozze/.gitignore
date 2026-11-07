@@ -45,3 +45,6 @@ scripts/create_valid_invite_token.cjs
 scripts/test_oauth_firestore.cjs
 scripts/inspect_invites.cjs
 screenshots/live/.profile/
+
+# Temporary isolated browser profiles for local P0 queue tests
+.p0-queue-test-*/
