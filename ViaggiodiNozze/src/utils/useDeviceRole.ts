@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { DeviceRole } from '../types';
 import { storageService } from '../storage/storageService';
-import { getSimulatedRole, type SimulatedRole, useAuthIdentity, type CloudRole, isTripAuthRevoked } from './useAuthIdentity';
+import { getSimulatedRole, type SimulatedRole, useAuthIdentity, type CloudRole, isTripAuthRevoked, canMutateLocally } from './useAuthIdentity';
 import { getTripConfig } from './tripConfig';
 
 export function useDeviceRole(): {
@@ -95,8 +95,8 @@ export function useDeviceRole(): {
     return role;
   })();
 
-  const canEdit = isCloudAuthorized && (effectiveRole === 'guida' || effectiveRole === 'copilota');
-  // Visibilità credenziali e PNR separata: concessa a Guida e Copilota (mai a viewer o revocati)
+  const canEdit = canMutateLocally() && (effectiveRole === 'guida' || effectiveRole === 'copilota');
+  // Visibilità credenziali, PIN, PNR e voucher: RIGOROSAMENTE vincolata all'autorizzazione cloud effettiva (mai a ruolo locale)
   const canSeePrivateInfo = isCloudAuthorized && (effectiveRole === 'guida' || effectiveRole === 'copilota');
   const isGuida = isCloudAuthorized && effectiveRole === 'guida';
   const isCopilota = isCloudAuthorized && effectiveRole === 'copilota';

@@ -1359,6 +1359,7 @@ class StorageService {
     const now = Date.now();
     const item: NotaViaggio = {
       ...nota,
+      recordKind: 'nota',
       createdAt: nota.createdAt || now,
       updatedAt: now
     };

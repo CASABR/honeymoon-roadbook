@@ -481,7 +481,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const fetchGlobalCopilotNote = useCallback(async () => {
     try {
       const allNotes = await storageService.getNote();
-      const dailyNote = allNotes.find(n => n.id === 'copilota_' + selectedDate && n.title === 'Note Copilota di Giornata');
+      const targetId = 'copilota_' + selectedDate;
+      const dailyNote = allNotes.find(n => n.id === targetId || ((n as any).date === selectedDate && n.title === 'Note Copilota di Giornata'));
       if (dailyNote) {
         setGlobalCopilotNoteId(dailyNote.id);
         setGlobalCopilotNoteStr(dailyNote.content || '');
@@ -2857,23 +2858,33 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         canEdit={canEdit}
         onSave={async (notes) => {
           try {
-            if (globalCopilotNoteId) {
-              const allNotes = await storageService.getNote();
-              const existing = allNotes.find(n => n.id === globalCopilotNoteId);
-              if (existing) {
-                await storageService.saveNota({ ...existing, content: notes.trim(), updatedAt: Date.now() });
-              }
+            const noteId = globalCopilotNoteId || ('copilota_' + selectedDate);
+            const allNotes = await storageService.getNote();
+            const existing = allNotes.find(n => n.id === noteId || ((n as any).date === selectedDate && n.title === 'Note Copilota di Giornata'));
+            if (existing) {
+              await storageService.saveNota({
+                ...existing,
+                id: noteId,
+                title: 'Note Copilota di Giornata',
+                content: notes.trim(),
+                date: selectedDate,
+                recordKind: 'nota',
+                updatedAt: Date.now()
+              } as any);
             } else {
               await storageService.saveNota({
-                id: 'note_' + Date.now(),
+                id: noteId,
                 title: 'Note Copilota di Giornata',
                 content: notes.trim(),
                 date: selectedDate,
                 type: 'info',
+                recordKind: 'nota',
                 createdAt: Date.now(),
                 updatedAt: Date.now()
               } as any);
             }
+            setGlobalCopilotNoteId(noteId);
+            setGlobalCopilotNoteStr(notes.trim());
             await fetchGlobalCopilotNote();
             setIsGlobalCopilotOpen(false);
           } catch (err) {

@@ -6,7 +6,6 @@ import {
   linkWithCredential,
   signInWithPopup,
   signInWithEmailAndPassword,
-  signInWithCredential,
   getRedirectResult
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -468,7 +467,6 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
     provider.setCustomParameters({ prompt: 'select_account' });
 
     const currentUser = auth.currentUser;
-    const isAnon = Boolean(currentUser && currentUser.isAnonymous);
     if (currentUser?.uid && currentUser.isAnonymous && typeof window !== 'undefined') {
       try {
         sessionStorage.setItem('houni_prev_anon_uid', currentUser.uid);
@@ -479,47 +477,22 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
     let targetUser: User | null = null;
     let isLinked = false;
 
-    // Se l'utente è attualmente anonimo su questo dispositivo, proviamo a collegare le credenziali Google
-    // al medesimo UID, preservando al 100% tutte le membership e associazioni già concesse
-    if (isAnon && currentUser) {
-      try {
-        onProgress?.('Verifica sessione e collegamento account…');
-        const linkRes = await linkWithPopup(currentUser, provider);
-        targetUser = linkRes.user;
-        isLinked = true;
-      } catch (linkErr: any) {
-        if (linkErr?.code === 'auth/credential-already-in-use') {
-          wasPreExisting = true;
-          onProgress?.('Accesso con account Google esistente…');
-          console.info('[accountService] Account Google già registrato con altro UID: accesso con credenziale.');
-
-          const credential = GoogleAuthProvider.credentialFromError(linkErr) || (linkErr as any)?.credential || null;
-          if (credential) {
-            const credRes = await signInWithCredential(auth, credential);
-            targetUser = credRes.user;
-          } else {
-            try {
-              const popupRes = await signInWithPopup(auth, provider);
-              targetUser = popupRes.user;
-            } catch (popupErr: any) {
-              if (popupErr?.code === 'auth/popup-blocked' && typeof window !== 'undefined') {
-                console.warn('[accountService] Secondo popup bloccato dal browser: reindirizzamento Google.');
-                const { signInWithRedirect } = await import('firebase/auth');
-                await signInWithRedirect(auth, provider);
-                return { success: false, code: 'auth/redirect-started', error: 'Reindirizzamento verso Google in corso...' };
-              }
-              throw popupErr;
-            }
-          }
-        } else {
-          throw linkErr;
-        }
-      }
-    } else {
-      // Accesso standard con Google per account nuovo o sessione già autenticata
-      onProgress?.('Autenticazione con Google…');
+    // Accesso esplicito con Google: recupera direttamente l'account Firebase registrato per l'identità Google.
+    // SICUREZZA: non collega automaticamente l'account Google al nuovo UID anonimo del dispositivo,
+    // garantendo il recupero dell'UID storico autentico (ownerUid).
+    onProgress?.('Autenticazione con Google…');
+    try {
       const res = await signInWithPopup(auth, provider);
       targetUser = res.user;
+    } catch (popupErr: any) {
+      if ((popupErr?.code === 'auth/popup-blocked' || popupErr?.code === 'auth/cancelled-popup-request') && typeof window !== 'undefined') {
+        console.warn('[accountService] Popup bloccato dal browser (iOS Safari / PWA): avvio reindirizzamento Google.');
+        onProgress?.('Reindirizzamento verso Google…');
+        const { signInWithRedirect } = await import('firebase/auth');
+        await signInWithRedirect(auth, provider);
+        return { success: false, code: 'auth/redirect-started', error: 'Reindirizzamento verso Google in corso...' };
+      }
+      throw popupErr;
     }
 
     if (!targetUser) {

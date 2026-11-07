@@ -293,6 +293,16 @@ export default function App() {
       console.warn("Auth not initialized (e.g. Firebase blocked). Running in offline mode without cloud sync.");
       return;
     }
+    // Gestione rientro da redirect OAuth (PWA Standalone iOS / browser con blocco popup)
+    import('./services/accountService').then(({ checkPendingRedirectResult }) => {
+      checkPendingRedirectResult().then((redirectRes) => {
+        if (redirectRes.success && redirectRes.user) {
+          setAuthUser(redirectRes.user);
+          console.log('[Auth] Rientro da redirect OAuth completato per UID:', redirectRes.user.uid);
+        }
+      }).catch(() => {});
+    });
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setAuthUser(user);
       if (!user) {

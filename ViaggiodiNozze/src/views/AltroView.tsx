@@ -12,6 +12,8 @@ import { lazyWithRetry } from '../utils/lazyWithRetry';
 import RouteErrorBoundary from '../components/common/RouteErrorBoundary';
 import TripSelectorModal from '../components/modals/TripSelectorModal';
 import DeviceRoleModal from '../components/common/DeviceRoleModal';
+import AccountSyncModal from '../components/modals/AccountSyncModal';
+import { useAuthIdentity } from '../utils/useAuthIdentity';
 import {
   TrailLive,
   TrailPrenotazioni,
@@ -49,6 +51,8 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   const [showPdfExportModal, setShowPdfExportModal] = useState(false);
   const currentTripConfig = getTripConfig();
   const globalAdminAccess = useGlobalAdminAccess();
+  const { currentUser, isAnonymous, isCloudAuthorized, cloudRole } = useAuthIdentity();
+  const [showAccountModal, setShowAccountModal] = useState(false);
 
   useEffect(() => {
     setActiveSubView(initialSubView);
@@ -421,6 +425,39 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
+          {/* Account & Autenticazione Cloud */}
+          <button
+            type="button"
+            onClick={() => setShowAccountModal(true)}
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 shrink-0">
+                <span className="text-base">👤</span>
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                    Account &amp; Accesso Cloud
+                  </h4>
+                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                    isCloudAuthorized
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                  }`}>
+                    {isCloudAuthorized ? (cloudRole === 'owner' ? 'Organizzatore Verificato' : 'Copilota Verificato') : 'Non Autenticato'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  {currentUser && !isAnonymous
+                    ? (currentUser.email || currentUser.displayName || 'Account collegato')
+                    : 'Accedi con Google per sbloccare PIN, PNR e voucher'}
+                </p>
+              </div>
+            </div>
+            <span className="text-slate-400 text-sm ml-2">›</span>
+          </button>
+
           {/* Ruolo Dispositivo */}
           <button
             type="button"
@@ -492,6 +529,12 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
       <TripSelectorModal
         isOpen={showTripSelector}
         onClose={() => setShowTripSelector(false)}
+      />
+
+      {/* Modal Account & Sincronizzazione */}
+      <AccountSyncModal
+        isOpen={showAccountModal}
+        onClose={() => setShowAccountModal(false)}
       />
 
       {/* Modal Esportazione PDF Roadbook */}

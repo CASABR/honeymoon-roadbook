@@ -89,9 +89,27 @@ export default function AccountSyncModal({ isOpen, onClose, onSuccess }: Account
       }
 
       setCurrentUser(res.user);
-      if (onSuccess) {
-        onSuccess(`✓ Accesso eseguito come ${res.user.email}!`);
+
+      // Verifica UID rispetto al viaggio configurato (non presumere che la sola email sia sufficiente)
+      const { getTripConfig } = await import('../../utils/tripConfig');
+      const tripConfig = getTripConfig();
+      const currentTripId = tripConfig?.id || '0000';
+      const expectedOwnerUid = tripConfig?.ownerUid;
+
+      if (expectedOwnerUid && res.user.uid === expectedOwnerUid) {
+        if (onSuccess) {
+          onSuccess(`✓ Accesso completato come Organizzatore di ${currentTripId} (UID confermato: ${res.user.uid.slice(0, 6)}...)!`);
+        }
+      } else if (Array.isArray((tripConfig as any)?.members) && (tripConfig as any).members.includes(res.user.uid)) {
+        if (onSuccess) {
+          onSuccess(`✓ Accesso completato come Partecipante autorizzato di ${currentTripId}!`);
+        }
+      } else {
+        if (onSuccess) {
+          onSuccess(`✓ Connesso come ${res.user.email || res.user.uid}. Attenzione: UID (${res.user.uid.slice(0, 6)}...) non registrato come organizzatore di ${currentTripId}. I dati privati rimarranno protetti.`);
+        }
       }
+      onClose();
     } catch (err: any) {
       setLoading(false);
       setStatusMessage(null);
@@ -106,19 +124,41 @@ export default function AccountSyncModal({ isOpen, onClose, onSuccess }: Account
     setLoading(true);
 
     try {
-      const res = await loginWithGoogle();
+      const res = await loginWithGoogle((stage) => setStatusMessage(stage));
       setLoading(false);
       setStatusMessage(null);
 
       if (!res.success || !res.user) {
+        if (res.code === 'auth/redirect-started') {
+          // Reindirizzamento OAuth verso Google in corso (PWA Standalone iOS)
+          return;
+        }
         setError(res.error || 'Accesso Google non riuscito.');
         return;
       }
 
       setCurrentUser(res.user);
-      if (onSuccess) {
-        onSuccess(`✓ Accesso Google completato come ${res.user.email}!`);
+
+      // Verifica UID rispetto al viaggio configurato (non presumere che la sola email sia sufficiente)
+      const { getTripConfig } = await import('../../utils/tripConfig');
+      const tripConfig = getTripConfig();
+      const currentTripId = tripConfig?.id || '0000';
+      const expectedOwnerUid = tripConfig?.ownerUid;
+
+      if (expectedOwnerUid && res.user.uid === expectedOwnerUid) {
+        if (onSuccess) {
+          onSuccess(`✓ Accesso completato come Organizzatore di ${currentTripId} (UID confermato: ${res.user.uid.slice(0, 6)}...)!`);
+        }
+      } else if (Array.isArray((tripConfig as any)?.members) && (tripConfig as any).members.includes(res.user.uid)) {
+        if (onSuccess) {
+          onSuccess(`✓ Accesso completato come Partecipante autorizzato di ${currentTripId}!`);
+        }
+      } else {
+        if (onSuccess) {
+          onSuccess(`✓ Connesso come ${res.user.email || res.user.uid}. Attenzione: UID (${res.user.uid.slice(0, 6)}...) non registrato come organizzatore di ${currentTripId}. I dati privati rimarranno protetti.`);
+        }
       }
+      onClose();
     } catch (err: any) {
       setLoading(false);
       setStatusMessage(null);

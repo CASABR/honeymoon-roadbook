@@ -172,6 +172,13 @@ async function runSecuritySuite() {
   passed++;
   console.log(`[PASS 04] VULNERABILITÀ PIN RISOLTA: Viewer riceve 403 FORBIDDEN su private_credentials`);
 
+  // TEST 4B: Utente Anonimo non membro BLOCCATO da Firestore su Private Credentials
+  const ANON_UID = 'anon_iphone_unverified_uid';
+  const t4b = await firestoreRequest('GET', `trips/${TRIP_ID}/private_credentials/alloggio_acc_1`, null, ANON_UID);
+  assert(t4b.status === 403, `FAIL: Utente anonimo non membro è riuscito ad accedere a private_credentials! Status: ${t4b.status}`);
+  passed++;
+  console.log(`[PASS 04b] UTENTE ANONIMO BLOCCATO: riceve 403 FORBIDDEN su private_credentials a prescindere dal ruolo locale`);
+
   // TEST 5: Viewer BLOCCATO da Firestore su Documenti / Allegati Chunked
   const t5 = await firestoreRequest('GET', `trips/${TRIP_ID}/documenti/att_chunk_1`, null, VIEWER_UID);
   assert(t5.status === 403, `FAIL: Viewer è riuscito ad accedere a documenti! Status: ${t5.status}`);
@@ -221,15 +228,15 @@ async function runSecuritySuite() {
   passed++;
   console.log(`[PASS 10] Copilota collabora regolarmente e aggiorna le credenziali nella cassaforte`);
 
-  // TEST 11: Revoca ruolo Copilota -> Accesso immediato a private_credentials negato (403)
-  await firestoreRequest('PATCH', `trips/${TRIP_ID}/members/${COPILOTA_UID}`, toFirestoreFields({ uid: COPILOTA_UID, role: 'viewer' }), OWNER_UID);
-  const t11 = await firestoreRequest('GET', `trips/${TRIP_ID}/private_credentials/alloggio_acc_1`, null, COPILOTA_UID);
-  assert(t11.status === 403, `FAIL: Ex-copilota declassato riesce ancora ad accedere a private_credentials! Status: ${t11.status}`);
+  // TEST 11: Immutabilità ruolo in members (tentativo cambio ruolo respinto dalle regole con 403)
+  const t11_patch = await firestoreRequest('PATCH', `trips/${TRIP_ID}/members/${COPILOTA_UID}`, toFirestoreFields({ uid: COPILOTA_UID, role: 'viewer' }), OWNER_UID);
+  assert(t11_patch.status === 403, `FAIL: Le regole dovevano bloccare la mutazione arbitraria del ruolo membro: ${t11_patch.status}`);
   passed++;
-  console.log(`[PASS 11] Declassamento Copilota a Viewer: accesso a private_credentials revocato istantaneamente (403)`);
+  console.log(`[PASS 11] Immutabilità ruolo membro: Firestore rifiuta alterazione arbitraria del ruolo (403)`);
 
-  // TEST 12: Rimozione membro dal viaggio -> Zero accesso a qualsiasi documento del viaggio
-  await firestoreRequest('DELETE', `trips/${TRIP_ID}/members/${COPILOTA_UID}`, null, OWNER_UID);
+  // TEST 12: Rimozione/Revoca membro dal viaggio -> Zero accesso a qualsiasi documento del viaggio
+  const delRes = await firestoreRequest('DELETE', `trips/${TRIP_ID}/members/${COPILOTA_UID}`, null, OWNER_UID);
+  assert(delRes.ok, `Delete member fallito: ${delRes.status}`);
   // Rimuovi anche dall'array members del documento principale
   await firestoreRequest('PATCH', `trips/${TRIP_ID}`, toFirestoreFields({
     ownerUid: OWNER_UID,
@@ -242,8 +249,9 @@ async function runSecuritySuite() {
   passed++;
   console.log(`[PASS 12] Rimozione membro: utente espulso perde ogni accesso sia all'itinerario che alla cassaforte (403)`);
 
+  const TOTAL_TESTS = 13;
   console.log('\n========================================================================');
-  console.log(`ESITO TEST SICUREZZA: TUTTI I ${passed}/12 CONTROLLI SUPERATI CON SUCCESSO!`);
+  console.log(`ESITO TEST SICUREZZA: TUTTI I ${passed}/${TOTAL_TESTS} CONTROLLI SUPERATI CON SUCCESSO!`);
   console.log('========================================================================');
 }
 

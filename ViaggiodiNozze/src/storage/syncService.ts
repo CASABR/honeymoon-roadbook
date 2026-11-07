@@ -1,5 +1,5 @@
 import { collection, doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { auth, db } from '../firebase';
 import { STORES, idbPut, idbDelete, idbGetAll, idbGet, type StoreName } from './indexedDB';
 import { notifyDataChanged } from './storageService';
 import { normalizeTimestamp } from '../utils/tripDates';
@@ -12,7 +12,7 @@ import {
   normalizeEntityType,
   sanitizePublicDocument
 } from '../utils/securityDataSplitter';
-import { savePendingMutation, removePendingMutation, getPendingMutations, hasPendingMutation, clearPendingMutations, type PendingMutation } from './localMutationQueue';
+import { savePendingMutation, removePendingMutation, getPendingMutations, hasPendingMutation, type PendingMutation } from './localMutationQueue';
 
 export class SyncService {
   private unsubscribes: (() => void)[] = [];
@@ -24,6 +24,7 @@ export class SyncService {
   private isDestroyed = false;
   private pendingSyncTimeout: ReturnType<typeof setTimeout> | null = null;
   private initialSyncRequested = false;
+  private isFlushingPending = false;
 
   constructor(tripId: string) {
     this.tripId = tripId;
@@ -31,7 +32,7 @@ export class SyncService {
     this.setupLocalListeners();
     this.setupCloudListeners();
     // Avvia sincronizzazione iniziale solo se già autorizzati, altrimenti il listener houni_cloud_role_changed la avvierà non appena confermato
-    if (isCloudAuthorized()) {
+    if (isCloudAuthorized(this.tripId)) {
       this.requestInitialSync('constructor');
     } else {
       console.log('[SyncService] Avvio sync iniziale posticipato: in attesa di autorizzazione cloud.');
@@ -52,7 +53,7 @@ export class SyncService {
     this.autoSyncDebounceTimer = setTimeout(() => {
       this.autoSyncDebounceTimer = null;
       if (this.isDestroyed) return;
-      if (!isCloudAuthorized()) {
+      if (!isCloudAuthorized(this.tripId)) {
         console.log(`[SyncService] Sincronizzazione automatica sospesa (${reason}): sessione non autorizzata.`);
         return;
       }
@@ -178,7 +179,7 @@ export class SyncService {
             if (localCreated > 0 && tombstoneDeleted > 0 && localCreated > tombstoneDeleted) {
               // Ricreazione valida intenzionale locale: il tombstone remoto è superato
               console.log(`[SyncService] Rilevata ricreazione valida locale per ${entityType}/${deletedId} - elimino tombstone remoto.`);
-              if (isCloudAuthorized()) {
+              if (isCloudAuthorized(this.tripId)) {
                 await deleteDoc(doc(db, 'trips', this.tripId, 'settings', docId)).catch(() => {});
                 deletedCount++;
               }
@@ -213,7 +214,7 @@ export class SyncService {
       if (s && s.id && s.id.startsWith('tombstone_')) {
         const isPending = !serverDocIds.has(s.id) || s.value?.pending === true;
         if (isPending) {
-          if (!isCloudAuthorized()) {
+          if (!isCloudAuthorized(this.tripId)) {
             pendingTombstonePushFailure = new Error(`Sessione non autorizzata per invio tombstone ${s.id}`);
             continue;
           }
@@ -247,7 +248,7 @@ export class SyncService {
     const { getDocs } = await import('firebase/firestore');
     const operationalCollections = this.getOperationalCollections();
     const credentialsMap = new Map<string, any>();
-    if (isCloudAuthorized()) {
+    if (isCloudAuthorized(this.tripId)) {
       try {
         const privSnap = await getDocs(collection(db, 'trips', this.tripId, 'private_credentials'));
         for (const pDoc of privSnap.docs) {
@@ -296,7 +297,7 @@ export class SyncService {
               }
             } else {
               // Elemento cancellato: se autorizzati, elimina da Firestore per pulizia
-              if (isCloudAuthorized()) {
+              if (isCloudAuthorized(this.tripId)) {
                 await deleteDoc(doc(db, 'trips', this.tripId, fb, docId)).catch(() => {});
                 deletedCount++;
               } else {
@@ -327,20 +328,49 @@ export class SyncService {
             (privData.bookingCode !== undefined && localData.bookingCode === undefined && localData.pnr === undefined && localData.codicePrenotazione === undefined) ||
             (privData.pnr !== undefined && localData.pnr === undefined && localData.bookingCode === undefined) ||
             (privData.pinCode !== undefined && localData.pinCode === undefined && localData.pin === undefined) ||
+            (privData.noteCopilota !== undefined && localData.noteCopilota === undefined) ||
             (Array.isArray(privData.attachments) && (!Array.isArray(localData.attachments) || localData.attachments.length < privData.attachments.length))
           ));
 
           if (needsPrivateReconstruction) {
             console.log(`[SyncService] Recupero automatico prezzi da cassaforte per ${fb}/${docId} (timestamp uguale)`);
             let reconstructed = mergeEntitySecurityData(localData, privData);
+            if (Array.isArray(reconstructed.attachments) && reconstructed.attachments.length > 0) {
+              const resolved = [];
+              for (const att of reconstructed.attachments) {
+                if (att.isChunked && !att.dataUrl) {
+                  const localAtt = (localData as any)?.attachments?.find((la: any) => la.id === att.id);
+                  if (localAtt && localAtt.dataUrl) {
+                    resolved.push({ ...att, dataUrl: localAtt.dataUrl });
+                  } else {
+                    try {
+                      const { downloadAttachmentFromChunks } = await import('./attachmentChunkService');
+                      const rec = await downloadAttachmentFromChunks(this.tripId, att);
+                      resolved.push(rec?.dataUrl ? rec : att);
+                    } catch {
+                      resolved.push(att);
+                    }
+                  }
+                } else {
+                  resolved.push(att);
+                }
+              }
+              reconstructed.attachments = resolved;
+            }
             await idbPut(store, reconstructed);
             pulledCount++;
             continue;
           }
 
+          const hasPendingQueueItem = await hasPendingMutation(this.tripId, fb, docId);
+          if (hasPendingQueueItem) {
+            console.log(`[SyncService] Conservo mutazione locale pendente in coda per ${fb}/${docId} - ignorato pull cloud.`);
+            continue;
+          }
+
           if (localData && localUpdated > 0 && localUpdated > serverUpdated) {
             // Local is newer: push to cloud solo se autorizzati
-            if (!isCloudAuthorized()) {
+            if (!isCloudAuthorized(this.tripId)) {
               console.warn(`[SyncService] Sospeso push per ${fb}/${docId}: modifiche locali preservate in attesa di autorizzazione cloud.`);
               continue;
             }
@@ -410,7 +440,7 @@ export class SyncService {
                 continue;
               }
             }
-            if (!isCloudAuthorized()) {
+            if (!isCloudAuthorized(this.tripId)) {
               continue;
             }
             try {
@@ -439,7 +469,7 @@ export class SyncService {
 
 
   public async syncAllLocalToCloud(): Promise<void> {
-    if (!isCloudAuthorized()) {
+    if (!isCloudAuthorized(this.tripId)) {
       console.warn('[SyncService] syncAllLocalToCloud annullato: sessione non autorizzata dal Cloud.');
       return;
     }
@@ -544,9 +574,10 @@ export class SyncService {
 
         this.addDomListener(window, 'houni_trip_auth_revoked', (async (e: Event) => {
       const revokedTripId = (e as CustomEvent)?.detail?.tripId;
-      console.log(`[SyncService] Ricevuta revoca autorizzazioni per viaggio ${revokedTripId}: bonifica cache e svuotamento code.`);
+      console.log(`[SyncService] Ricevuta revoca autorizzazioni per viaggio ${revokedTripId}: bonifica cache e conservazione della coda isolata.`);
+      if (revokedTripId !== this.tripId) return;
       await this.purgeSensitiveLocalCache();
-      await clearPendingMutations(this.tripId);
+      // Retain pending edits; verified authorization is required before replay.
     }) as EventListener);
 
     this.addDomListener(window, 'force_cloud_sync_requested', (async () => {
@@ -575,7 +606,7 @@ export class SyncService {
     this.addDomListener(window, 'online', (() => {
       console.log('[SyncService] Connessione di rete ripristinata (online): verifico autorizzazioni per sync.');
       setTimeout(() => {
-        if (isCloudAuthorized()) {
+        if (isCloudAuthorized(this.tripId)) {
           this.triggerAutomaticSync('network_online');
         }
       }, 600);
@@ -615,8 +646,8 @@ export class SyncService {
     this.emitSyncStatus();
   }
 
-  private async removePendingPushFromStore(entityType: string, dataId: string): Promise<void> {
-    await removePendingMutation(entityType, dataId);
+  private async removePendingPushFromStore(entityType: string, dataId: string, expected: Pick<PendingMutation, 'action' | 'data' | 'mutationId'>): Promise<void> {
+    await removePendingMutation(this.tripId, entityType, dataId, expected);
     this.emitSyncStatus();
   }
 
@@ -625,11 +656,17 @@ export class SyncService {
       const allSettings = await idbGetAll<any>(STORES.SETTINGS);
       for (const s of allSettings) {
         if (s && typeof s.id === 'string' && s.id.startsWith('pending_push_')) {
+          if ((s.tripId && s.tripId !== this.tripId) || !s.data?.id || !['save', 'delete'].includes(s.action)) continue;
           // Se contiene dati validi, migra e verifica nella nuova coda isolata prima di eliminare da settings
           if (s.data && s.data.id && s.action) {
             const rawEntity = s.entityType || s.collectionName || 'notes';
             const collectionName = this.mapEntityToCollection(rawEntity) || rawEntity;
-            const alreadyInQueue = await hasPendingMutation(collectionName, s.data.id);
+            const alreadyInQueue = await hasPendingMutation(this.tripId, collectionName, s.data.id);
+            if (alreadyInQueue) {
+              const queued = (await getPendingMutations(this.tripId)).find(item => item.data?.id === s.data.id && item.entityType === collectionName);
+              // A conflicting legacy payload stays intact until it can be reconciled explicitly.
+              if (!queued || queued.action !== s.action || JSON.stringify(queued.data) !== JSON.stringify(s.data)) continue;
+            }
             if (!alreadyInQueue) {
               await savePendingMutation({
                 tripId: this.tripId,
@@ -637,9 +674,10 @@ export class SyncService {
                 action: s.action,
                 data: s.data,
                 notifyCollaborators: Boolean(s.notifyCollaborators),
-                mutationId: s.mutationId
+                mutationId: s.mutationId,
+                timestamp: s.timestamp
               });
-              const verified = await hasPendingMutation(collectionName, s.data.id);
+              const verified = await hasPendingMutation(this.tripId, collectionName, s.data.id);
               if (!verified) {
                 console.warn(`[SyncService] Fallita verifica migrazione mutazione legacy ${s.id}, conservo in settings.`);
                 continue;
@@ -666,38 +704,41 @@ export class SyncService {
   }
 
   private async flushPendingPushes(): Promise<void> {
-    if (!isCloudAuthorized()) return;
-    const queue = await this.getPendingPushesFromStore();
-    if (queue.length === 0) return;
-    console.log(`[SyncService] Svuotamento coda push persistente (${queue.length} elementi in attesa)...`);
-    for (const item of queue) {
-      try {
-        await this.pushToCloud(item.entityType, item.action, item.data, {
-          notifyCollaborators: item.notifyCollaborators,
-          mutationId: item.mutationId,
-        });
-      } catch (err) {
-        console.warn(`[SyncService] Errore riprova push persistente per ${item.entityType}/${item.data?.id}:`, err);
+    if (!isCloudAuthorized(this.tripId) || this.isFlushingPending || this.isDestroyed) return;
+    this.isFlushingPending = true;
+    try {
+      const queue = await this.getPendingPushesFromStore();
+      if (queue.length === 0) return;
+      console.log(`[SyncService] Svuotamento coda push persistente (${queue.length} elementi in attesa)...`);
+      for (const item of queue) {
+        try {
+          await this.pushToCloud(item.entityType, item.action, item.data, {
+            notifyCollaborators: item.notifyCollaborators,
+            mutationId: item.mutationId,
+            fromQueue: true,
+          });
+        } catch (err) {
+          console.warn(`[SyncService] Errore riprova push persistente per ${item.entityType}/${item.data?.id}:`, err);
+        }
       }
-    }
+    } finally { this.isFlushingPending = false; }
   }
 
   private async pushToCloud(
     entityType: string,
     action: 'save' | 'delete',
     data: any,
-    options: { notifyCollaborators?: boolean; mutationId?: string } = {}
+    options: { notifyCollaborators?: boolean; mutationId?: string; fromQueue?: boolean } = {}
   ) {
-    if (!data || !data.id) return;
-    if (!isCloudAuthorized()) {
+    if (!data || !data.id || this.isDestroyed) return;
+    if (options.fromQueue) {
+      const current = (await this.getPendingPushesFromStore()).find(item => item.data?.id === data.id && item.entityType === this.mapEntityToCollection(entityType));
+      if (!current || current.action !== action || current.mutationId !== options.mutationId || JSON.stringify(current.data) !== JSON.stringify(data)) return;
+    } else {
+      await this.persistPendingPush({ entityType, action, data, notifyCollaborators: options.notifyCollaborators, mutationId: options.mutationId });
+    }
+    if (!isCloudAuthorized(this.tripId)) {
       console.warn(`[SyncService] Push to cloud differito (in coda persistente IndexedDB): sessione non ancora autorizzata per ${entityType}/${data.id}`);
-      await this.persistPendingPush({
-        entityType,
-        action,
-        data,
-        notifyCollaborators: options.notifyCollaborators === true,
-        mutationId: options.mutationId,
-      });
       return;
     }
     
@@ -706,6 +747,14 @@ export class SyncService {
 
     const docRef = doc(db, 'trips', this.tripId, collectionName, data.id);
 
+    const initiatingUid = auth?.currentUser?.uid;
+    const assertAuthorized = () => {
+      if (this.isDestroyed || !initiatingUid || auth?.currentUser?.uid !== initiatingUid || !isCloudAuthorized(this.tripId)) {
+        throw new Error('Cloud authorization changed; pending edit retained');
+      }
+    };
+    const safeSet: typeof setDoc = ((...args: Parameters<typeof setDoc>) => { assertAuthorized(); return setDoc(...args); }) as typeof setDoc;
+    const safeDelete = (ref: Parameters<typeof deleteDoc>[0]) => { assertAuthorized(); return deleteDoc(ref); };
     try {
 
     if (action === 'delete') {
@@ -719,12 +768,12 @@ export class SyncService {
           }
         }
       }
-      await deleteDoc(docRef);
+      await safeDelete(docRef);
       const normType = normalizeEntityType(collectionName);
       const vaultId = getVaultDocId(normType, data.id);
-      await deleteDoc(doc(db, 'trips', this.tripId, 'private_credentials', vaultId)).catch(() => {});
+      await safeDelete(doc(db, 'trips', this.tripId, 'private_credentials', vaultId));
       if (vaultId !== data.id) {
-        await deleteDoc(doc(db, 'trips', this.tripId, 'private_credentials', data.id)).catch(() => {});
+        await safeDelete(doc(db, 'trips', this.tripId, 'private_credentials', data.id));
       }
       console.log(`[Cloud Sync] Eliminato ${entityType} ${data.id}`);
     } else {
@@ -805,38 +854,32 @@ export class SyncService {
         );
 
         const cleanPublic = this.cleanUndefinedValues(publicDoc);
-        await setDoc(docRef, cleanPublic, { merge: true });
+        await safeSet(docRef, cleanPublic, { merge: true });
 
-        if (privateCredentialsDoc && isCloudAuthorized()) {
+        if (privateCredentialsDoc && isCloudAuthorized(this.tripId)) {
           const vaultId = getVaultDocId(normType, data.id);
           const privDocRef = doc(db, 'trips', this.tripId, 'private_credentials', vaultId);
-          await setDoc(privDocRef, this.cleanUndefinedValues(privateCredentialsDoc), { merge: true });
-        } else if (!privateCredentialsDoc && isCloudAuthorized()) {
+          await safeSet(privDocRef, this.cleanUndefinedValues(privateCredentialsDoc), { merge: true });
+        } else if (!privateCredentialsDoc && isCloudAuthorized(this.tripId)) {
           const vaultId = getVaultDocId(normType, data.id);
-          await deleteDoc(doc(db, 'trips', this.tripId, 'private_credentials', vaultId)).catch(() => {});
+          await safeDelete(doc(db, 'trips', this.tripId, 'private_credentials', vaultId));
           if (vaultId !== data.id) {
-            await deleteDoc(doc(db, 'trips', this.tripId, 'private_credentials', data.id)).catch(() => {});
+            await safeDelete(doc(db, 'trips', this.tripId, 'private_credentials', data.id));
           }
         }
       } else {
         const cleanPayload = this.cleanUndefinedValues(payloadToSync);
-        await setDoc(docRef, cleanPayload, { merge: true });
+        await safeSet(docRef, cleanPayload, { merge: true });
       }
       if (entityType === 'settings' && typeof data?.id === 'string' && data.id.startsWith('tombstone_')) {
         await idbPut(STORES.SETTINGS, { ...data, value: { ...(data.value || {}), pending: false } }).catch(() => {});
       }
       console.log(`[Cloud Sync] Salvato ${entityType} ${data.id}`);
     }
-      await this.removePendingPushFromStore(collectionName, data.id);
+      assertAuthorized();
+      await this.removePendingPushFromStore(collectionName, data.id, { action, data, mutationId: options.mutationId });
     } catch (pushErr: any) {
       console.warn(`[SyncService] pushToCloud non riuscito per ${entityType}/${data.id} (lockdown o offline): memorizzo in coda persistente.`, pushErr?.message || pushErr);
-      await this.persistPendingPush({
-        entityType,
-        action,
-        data,
-        notifyCollaborators: options.notifyCollaborators === true,
-        mutationId: options.mutationId
-      });
       throw pushErr;
     }
 
@@ -901,7 +944,7 @@ export class SyncService {
                     }
                   } else {
                     console.log(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Elemento contrassegnato da tombstone (eliminato)`);
-                    if (isCloudAuthorized()) {
+                    if (isCloudAuthorized(this.tripId)) {
                       await deleteDoc(doc(db, 'trips', this.tripId, fb, docId)).catch(() => {});
                     } else {
                       console.warn(`[Cloud Sync] Sospesa cancellazione remota per ${fb}/${docId}: in attesa di autorizzazione cloud.`);
@@ -912,13 +955,19 @@ export class SyncService {
 
                 let localData: any = null;
                 try {
+                  const isPendingInQueue = await hasPendingMutation(this.tripId, fb, docId);
+                  if (isPendingInQueue) {
+                    console.log(`[Cloud Sync] Conservo mutazione locale pendente in coda per ${fb}/${docId} - ignorato snapshot.`);
+                    return;
+                  }
+
                   localData = await idbGet<any>(store, docId);
                   const localUpdated = normalizeTimestamp(localData?.updatedAt);
                   const serverUpdated = normalizeTimestamp(data?.updatedAt);
                   if (localData && localUpdated > 0 && localUpdated >= serverUpdated) {
                     if (localUpdated > serverUpdated) {
                       console.warn(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Il dato locale e' piu' recente`);
-                      if (isCloudAuthorized()) {
+                      if (isCloudAuthorized(this.tripId)) {
                         // Pushiamo il dato locale al server per allinearlo (visto che il server ha dati vecchi)
                         const entityType = this.mapCollectionToEntity(fb);
                         if (entityType) {
@@ -939,7 +988,7 @@ export class SyncService {
                 
                 let itemToStore: any = { ...data, id: docId };
                 let mergedPrivate = false;
-                if (isCloudAuthorized()) {
+                if (isCloudAuthorized(this.tripId)) {
                   const normType = normalizeEntityType(fb);
                   const vaultId = getVaultDocId(normType, docId);
                   try {
@@ -1000,7 +1049,7 @@ export class SyncService {
                 if (!localItem) return;
 
                 // Controlla se c'è una mutazione pendente in coda per questo item
-                const pendingPush = await hasPendingMutation(fb, docId);
+                const pendingPush = await hasPendingMutation(this.tripId, fb, docId);
                 if (pendingPush) {
                   console.log(`[Cloud Sync] Preservato record locale per ${fb}/${docId}: mutazione pendente presente.`);
                   return;

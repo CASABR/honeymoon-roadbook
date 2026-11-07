@@ -65,6 +65,48 @@ export default function UniversalAttachmentModal({
     openAttachmentInNewTab(dataUrl, fileName);
   };
 
+  const handleOpenAttachment = async (att: TransportAttachment, attIdx: number) => {
+    setErrorMessage('');
+    let effectiveDataUrl = att.dataUrl;
+
+    if (!effectiveDataUrl && (att as any).isChunked) {
+      setIsUploading(true);
+      setUploadProgressText(`Ricomposizione di ${att.name}...`);
+      try {
+        const { getTripConfig } = await import('../../utils/tripConfig');
+        const config = getTripConfig();
+        const tripId = config?.id || '0000';
+        const { downloadAttachmentFromChunks } = await import('../../storage/attachmentChunkService');
+        const reconstructed = await downloadAttachmentFromChunks(tripId, att as any);
+        if (reconstructed && reconstructed.dataUrl) {
+          effectiveDataUrl = reconstructed.dataUrl;
+          const nextAttachments = attachments.map(a => a.id === att.id ? { ...a, dataUrl: effectiveDataUrl } : a);
+          await onSave(nextAttachments).catch(() => {});
+        } else {
+          setErrorMessage(`Impossibile scaricare "${att.name}": file protetto o sessione non autorizzata.`);
+          return;
+        }
+      } catch (err: any) {
+        setErrorMessage(err.message || `Errore durante il download di "${att.name}".`);
+        return;
+      } finally {
+        setIsUploading(false);
+        setUploadProgressText('');
+      }
+    }
+
+    if (!effectiveDataUrl) {
+      setErrorMessage(`Dati non disponibili per "${att.name}".`);
+      return;
+    }
+
+    if (att.type === 'pdf') {
+      handleOpenPdf(effectiveDataUrl, att.name);
+    } else {
+      setZoomedIndex(attIdx);
+    }
+  };
+
   const renderContent = () => {
     if (attachments.length === 0) {
       return (
@@ -87,13 +129,7 @@ export default function UniversalAttachmentModal({
             <div key={att.id} className="flex items-center justify-between p-3 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm">
               <div 
                 className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer group"
-                onClick={() => {
-                  if (att.type === 'pdf') {
-                    handleOpenPdf(att.dataUrl, att.name);
-                  } else {
-                    setZoomedIndex(attIdx);
-                  }
-                }}
+                onClick={() => handleOpenAttachment(att, attIdx)}
               >
                 <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700 overflow-hidden group-hover:border-[#DDF4F5] transition-colors">
                   {att.type === 'image' ? (
@@ -115,13 +151,13 @@ export default function UniversalAttachmentModal({
               <div className="flex items-center gap-1 ml-2 shrink-0">
                 <button
                   type="button"
-                  onClick={() => setZoomedIndex(attIdx)}
+                  onClick={() => handleOpenAttachment(att, attIdx)}
                   className="px-2 py-1 text-xs font-bold text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
                 >
                   Sfoglia
                 </button>
                 {att.type === 'pdf' && (
-                  <button onClick={() => handleOpenPdf(att.dataUrl, att.name)} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-[#172033] dark:hover:text-white bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-colors cursor-pointer" title="Apri / Scarica">
+                  <button onClick={() => handleOpenAttachment(att, attIdx)} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-[#172033] dark:hover:text-white bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-colors cursor-pointer" title="Apri / Scarica">
                     <Download className="w-4 h-4" />
                   </button>
                 )}
