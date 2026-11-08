@@ -442,7 +442,7 @@ service cloud.firestore {
                         (request.resource.data.status == 'active'
                          && gpsLeaseDoc(tripId).holderUid == request.auth.uid
                          && gpsLeaseDoc(tripId).status == 'active'
-                         && (resource.data.publisherDeviceId != request.resource.data.publisherDeviceId || resource.data.updatedAt <= request.time - duration.value(15, 's')))
+                         && (resource.data.status != 'active' || resource.data.publisherDeviceId != request.resource.data.publisherDeviceId || resource.data.updatedAt <= request.time - duration.value(15, 's')))
                         || (request.resource.data.status in ['paused', 'stopped']
                             && gpsLeaseDoc(tripId).status == request.resource.data.status
                             && (gpsLeaseDoc(tripId).holderUid == request.auth.uid || isTripOwner(tripId))

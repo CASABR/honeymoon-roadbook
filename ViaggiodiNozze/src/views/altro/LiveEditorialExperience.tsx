@@ -173,17 +173,26 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   }
 
   const gpsVisualState = useMemo(() => {
-    if (!isOnline) return { label: 'Nessuna connessione (Offline)', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
-    if (props.isDetectingGps) return { label: 'Acquisizione GPS in corso…', tone: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500 motion-safe:animate-pulse' };
-    if (permissionDenied) return { label: 'Permesso GPS negato', tone: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' };
-    if (isFreshGps) return { label: 'GPS Attivo', tone: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' };
-    if (isLeasePaused) return { label: 'Condivisione in pausa', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
-    if (isStaleGps && isLeaseActive) return { label: 'Posizione non recente (> 15 min)', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
-    if (isLeaseExpired) return { label: 'Sessione guida scaduta', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
-    if (props.remoteGpsLease?.status === 'stopped') return { label: 'GPS Non attivo (Interrotto)', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
-    if (isLeaseActive) return { label: 'In attesa del primo segnale GPS', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
-    return { label: 'GPS Non attivo', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
-  }, [isOnline, props.isDetectingGps, props.remoteGpsLease?.status, permissionDenied, isFreshGps, isStaleGps, isLeasePaused, isLeaseActive, isLeaseExpired]);
+    if (!isOnline || permissionDenied) {
+      return { label: 'GPS non disponibile', tone: 'text-rose-700 dark:text-rose-300', dot: 'bg-rose-500' };
+    }
+    if (props.isDetectingGps) {
+      return { label: 'Rilevamento posizione…', tone: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500 motion-safe:animate-pulse' };
+    }
+    if (isFreshGps) {
+      return { label: 'GPS attivo', tone: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' };
+    }
+    if (isStaleGps && (isLeaseActive || hasRealLocation)) {
+      return { label: 'Ultima posizione aggiornata', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
+    }
+    if (isLeasePaused || isLeaseStopped || isLeaseExpired || props.remoteGpsLease?.status === 'stopped') {
+      return { label: 'Condivisione interrotta', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
+    }
+    if (isLeaseActive && !hasRealLocation) {
+      return { label: 'GPS non disponibile', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
+    }
+    return { label: 'Condivisione interrotta', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
+  }, [isOnline, permissionDenied, props.isDetectingGps, isFreshGps, isStaleGps, isLeaseActive, hasRealLocation, isLeasePaused, isLeaseStopped, isLeaseExpired, props.remoteGpsLease?.status]);
 
   const currentGuideName = useMemo(() => {
     const holderUid = props.remoteGpsLease?.holderUid;
@@ -609,9 +618,9 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
-                {(isLeaseStopped || isLeaseExpired || permissionDenied || (isLeaseActive && (props.isGpsHolder || props.isDesignatedGuide) && !isFreshGps)) && (props.isOwner || props.isDesignatedGuide) && (
+                {(props.isOwner || props.isDesignatedGuide) && (
                   <button type="button" onClick={props.onStartGps} disabled={props.isDetectingGps || !isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white disabled:opacity-40">
-                    {permissionDenied || isLeaseExpired || isLeaseActive ? 'Riattiva posizione' : 'Condividi posizione'}
+                    {permissionDenied || isLeaseExpired || isLeaseActive ? 'Aggiorna posizione' : 'Condividi posizione'}
                   </button>
                 )}
                 {isLeaseActive && (props.isGpsHolder || props.isDesignatedGuide) && (
