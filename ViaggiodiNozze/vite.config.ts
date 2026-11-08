@@ -52,6 +52,26 @@ export default defineConfig(({ command }) => ({
     __COMMIT_HASH__: JSON.stringify(commitHash),
   },
   plugins: [
+    command === "serve"
+      ? {
+          name: "dev-csp-emulator",
+          transformIndexHtml(html: string) {
+            return html
+              .replace(
+                /frame-src 'self'/,
+                "frame-src 'self' http://127.0.0.1:* http://localhost:*"
+              )
+              .replace(
+                /child-src 'self'/,
+                "child-src 'self' http://127.0.0.1:* http://localhost:*"
+              )
+              .replace(
+                /connect-src 'self'/,
+                "connect-src 'self' http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*"
+              );
+          },
+        }
+      : null,
     react(),
     tailwindcss(),
     VitePWA({

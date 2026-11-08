@@ -26,11 +26,13 @@ let functionsInstance: any;
 let appCheckInstance: any;
 
 const isBrowser = typeof window !== 'undefined';
-const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true' ||
+const useEmulator = Boolean(import.meta.env.DEV && (
+  import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true' ||
   (isBrowser && (
     new URLSearchParams(window.location.search).get('emulator') === 'true' ||
     (window as any).__HOUNIGO_USE_EMULATOR__ === true
-  ));
+  ))
+));
 
 try {
   const app = initializeApp(firebaseConfig);

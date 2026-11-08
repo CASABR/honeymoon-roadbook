@@ -50,6 +50,32 @@ service cloud.firestore {
       );
     }
 
+    // Verifica se l'utente e membro privilegiato (owner o copilota)
+    function isTripPrivilegedMember(tripId) {
+      return isSignedIn() && (
+        isTripOwner(tripId)
+        ||
+        (exists(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid))
+         && get(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.get('role', '') in ['owner', 'copilota'])
+        ||
+        (request.resource != null && existsAfter(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid))
+         && getAfter(/databases/$(database)/documents/trips/$(tripId)/members/$(request.auth.uid)).data.get('role', '') in ['owner', 'copilota'])
+      );
+    }
+
+    // Schema guard: blocca qualsiasi scrittura contenente chiavi sensibili
+    function hasNoSensitiveKeys(data) {
+      return !data.keys().hasAny([
+        'pinCode', 'codiceAccesso', 'keyboxCode',
+        'bookingCode', 'pnr', 'codicePrenotazione', 'conferma', 'bookingReference',
+        'ticketUrl', 'voucherUrl', 'bookingUrl', 'linkPrenotazione',
+        'qrCode', 'qr', 'tavolo', 'posti', 'terminalGate',
+        'cost', 'costo', 'budget', 'deposit', 'depositPaid', 'acconto', 'cauzione', 'amountPaid', 'paymentStatus',
+        'noteCopilota', 'cancellazioneGratuitaEntro', 'attachments'
+      ]);
+    }
+
+
     // =========================================================================
     // 1. VIAGGI (TRIPS) E SOTTOCOLLEZIONI PRIVATE
     // =========================================================================
@@ -79,6 +105,7 @@ service cloud.firestore {
                     && request.resource.data.get('ownerUid', null) == resource.data.get('ownerUid', null)
                     && (
                       isTripOwner(tripId)
+                      || (isGlobalAdmin() && tripId != '0000')
                       ||
                       (
                         isTripMember(tripId)
@@ -160,8 +187,8 @@ service cloud.firestore {
                            && request.resource.data.get('role', '') == 'owner'
                            && (isTripOwner(tripId) || uid == request.auth.uid))
                           ||
-                          // 2. Assegnazione diretta da parte dell'Owner del viaggio
-                          (isTripOwner(tripId) && request.resource.data.get('role', '') == 'copilota')
+                          // 2. Assegnazione diretta da parte dell'Owner del viaggio o Admin globale (escluso 0000)
+                          ((isTripOwner(tripId) || (isGlobalAdmin() && tripId != '0000')) && request.resource.data.get('role', '') == 'copilota')
                           ||
                           // 3. Riscatto crittografico con token valido in batch atomico (P0-B)
                           (
@@ -177,16 +204,17 @@ service cloud.firestore {
                           )
                         );
 
-        // Modifica: consentita unicamente all'owner (role e uid immutabili)
+        // Modifica: consentita all'owner, all'Admin globale (non-0000) o al membro stesso per il proprio profilo (role e uid immutabili)
         allow update: if isSignedIn()
-                        && isTripOwner(tripId)
+                        && (isTripOwner(tripId) || (isGlobalAdmin() && tripId != '0000') || (request.auth.uid == uid && isTripMember(tripId)))
                         && request.resource.data.get('uid', resource.data.get('uid', uid)) == resource.data.get('uid', uid)
                         && request.resource.data.role == resource.data.role;
 
-        // Eliminazione: consentita all'owner effettivo (l'owner del viaggio non può mai essere eliminato)
-        allow delete: if isSignedIn()
+        // Eliminazione: consentita all'owner effettivo o Admin globale su viaggi non-0000 (l'owner non può mai essere eliminato e 0000 è protetto)
+        allow delete: if tripId != '0000'
+                        && isSignedIn()
                         && resource.data.role != 'owner'
-                        && isTripOwner(tripId);
+                        && (isTripOwner(tripId) || (isGlobalAdmin() && tripId != '0000'));
       }
 
       // -----------------------------------------------------------------------
@@ -200,13 +228,43 @@ service cloud.firestore {
       // -----------------------------------------------------------------------
       // 1.3 SOTTOCOLLEZIONI DATI PRIVATI DEL VIAGGIO
       // -----------------------------------------------------------------------
+      // 1.2.B CASSAFORTE CREDENZIALI PRIVATE E COLLEZIONI RISERVATE (DEFINITIVO)
+      match /private_credentials/{docId} {
+        allow read, write: if isTripPrivilegedMember(tripId);
+      }
+      match /documenti/{docId} {
+        allow read, write: if isTripPrivilegedMember(tripId);
+      }
+      match /spese/{docId} {
+        allow read, write: if isTripPrivilegedMember(tripId);
+      }
+      match /note/{docId} {
+        allow read, write: if isTripPrivilegedMember(tripId);
+      }
+
+      // 1.3 SOTTOCOLLEZIONI CONDIVISE (DATI SANIFICATI: LETTURA MEMBRI APERTA, SCHEMA GUARD ATTIVO)
       match /{subcol}/{docId} {
-        allow read, write: if subcol in [
-                               'tappe', 'attivita', 'alloggi', 'trasporti', 'spese',
-                               'documenti', 'note', 'bagagli', 'giorni', 'settings',
-                               'ristoranti', 'shopping', 'locks', 'devices'
-                             ]
-                             && isTripMember(tripId);
+        allow read: if subcol in [
+                         'tappe', 'attivita', 'alloggi', 'trasporti',
+                         'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
+                         'locks', 'devices'
+                       ]
+                       && isTripMember(tripId);
+
+        allow create, update: if subcol in [
+                                   'tappe', 'attivita', 'alloggi', 'trasporti',
+                                   'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
+                                   'locks', 'devices'
+                                 ]
+                                 && isTripPrivilegedMember(tripId)
+                                 && hasNoSensitiveKeys(request.resource.data);
+
+        allow delete: if subcol in [
+                           'tappe', 'attivita', 'alloggi', 'trasporti',
+                           'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
+                           'locks', 'devices'
+                         ]
+                         && isTripPrivilegedMember(tripId);
       }
     }
 
@@ -294,6 +352,15 @@ service cloud.firestore {
              && data.updatedAt == request.time;
     }
 
+    function validGuestMessage(data) {
+      return data.keys().hasOnly(['visitorId', 'authorName', 'message', 'createdAt', 'hidden'])
+             && data.visitorId is string && data.visitorId.size() >= 4 && data.visitorId.size() <= 128
+             && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 40
+             && data.message is string && data.message.size() >= 1 && data.message.size() <= 280
+             && data.createdAt is number
+             && data.hidden == false;
+    }
+
     match /live_feeds/{tripId} {
       // Chiunque può leggere il feed pubblico
       allow read: if true;
@@ -313,6 +380,19 @@ service cloud.firestore {
           allow delete: if false;
         }
       }
+
+      match /guest_messages/{msgId} {
+        // Lettura pubblica consentita ESCLUSIVAMENTE per messaggi non nascosti e non eliminati.
+        // I messaggi nascosti o eliminati sono leggibili unicamente dagli sposi (Owner/Copilota) o dall'Admin.
+        allow read: if (
+                      (resource == null || (resource.data.get('hidden', false) == false && resource.data.get('deleted', false) == false))
+                    ) || isTripPrivilegedMember(tripId) || isGlobalAdmin();
+        // Scrittura diretta non autenticata disabilitata per prevenire abusi e flood su Firebase Spark.
+        // Riservata a Owner e Copilota del viaggio (es. saluti/benvenuto) fino all'integrazione di un rate-limiter autoritativo.
+        allow create: if isSignedIn() && isTripPrivilegedMember(tripId) && validGuestMessage(request.resource.data);
+        allow update: if isTripPrivilegedMember(tripId) || isGlobalAdmin();
+        allow delete: if (isTripPrivilegedMember(tripId) || isGlobalAdmin()) && tripId != '0000';
+      }
       match /gps_control/{controlId} {
         allow read: if controlId == 'current'
                     && isSignedIn()
@@ -326,10 +406,11 @@ service cloud.firestore {
                         isTripOwner(tripId)
                         || (request.auth.uid == resource.data.holderUid
                             && request.resource.data.holderUid == resource.data.holderUid
-                            && request.resource.data.holderDeviceId == resource.data.holderDeviceId
+                            && (request.resource.data.holderDeviceId == resource.data.holderDeviceId
+                                || resource.data.holderDeviceId == ('delegated_pending_' + resource.data.holderUid))
                             && request.resource.data.expiresAt == resource.data.expiresAt
-                            && resource.data.status == 'active'
-                            && request.resource.data.status in ['paused', 'stopped'])
+                            && resource.data.expiresAt > request.time
+                            && request.resource.data.status in ['active', 'paused', 'stopped'])
                       );
         allow delete: if false;
       }
@@ -338,7 +419,7 @@ service cloud.firestore {
         allow read: if locationId == 'current'
                     && (
                       (resource.data.status == 'active'
-                       && resource.data.updatedAt > request.time - duration.value(2, 'm')
+                       && resource.data.updatedAt > request.time - duration.value(15, 'm')
                        && gpsLease(tripId).status == 'active'
                        && gpsLease(tripId).expiresAt > request.time
                        && gpsLease(tripId).holderDeviceId == resource.data.publisherDeviceId)
@@ -361,7 +442,7 @@ service cloud.firestore {
                         (request.resource.data.status == 'active'
                          && gpsLeaseDoc(tripId).holderUid == request.auth.uid
                          && gpsLeaseDoc(tripId).status == 'active'
-                         && (resource.data.publisherDeviceId != request.resource.data.publisherDeviceId || resource.data.updatedAt <= request.time - duration.value(15, 's')))
+                         && (resource.data.status != 'active' || resource.data.publisherDeviceId != request.resource.data.publisherDeviceId || resource.data.updatedAt <= request.time - duration.value(15, 's')))
                         || (request.resource.data.status in ['paused', 'stopped']
                             && gpsLeaseDoc(tripId).status == request.resource.data.status
                             && (gpsLeaseDoc(tripId).holderUid == request.auth.uid || isTripOwner(tripId))
@@ -410,7 +491,7 @@ service cloud.firestore {
       allow create, update: if isSignedIn()
                             && request.auth.uid == userId
                             && request.resource.data.uid == userId
-                            && request.resource.data.keys().hasOnly(['uid', 'displayName', 'isAnonymous', 'lastAccessAt', 'lastSeenAt', 'updatedAt', 'lastTripId', 'associatedTripIds'])
+                            && request.resource.data.keys().hasOnly(['uid', 'displayName', 'customDisplayName', 'isAnonymous', 'lastAccessAt', 'lastSeenAt', 'updatedAt', 'lastTripId', 'associatedTripIds'])
                             && (
                               !('lastAccessAt' in request.resource.data)
                               || request.resource.data.lastAccessAt == request.time

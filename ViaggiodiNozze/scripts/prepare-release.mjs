@@ -147,6 +147,9 @@ if (command === 'prepare') {
     sourceCommit,
     changes: draft.changes,
   });
+  if (history.releases.length > 10) {
+    history.releases = history.releases.slice(0, 10);
+  }
   writeJson(historyPath, history);
   writeAtomic(changelogPath, renderChangelog(history));
   rmSync(draftPath);
