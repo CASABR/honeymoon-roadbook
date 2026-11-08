@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.10 — 2026-11-08
+
+- Condivisione GPS LIVE in tempo reale con delega guida, protezione batteria e rate-limiting 15s.
+- Ricezione automatica posizioni su Copilota e protezione privacy su pagina pubblica ospiti.
+
 ## 1.5.9 — 2026-11-08
 
 - Sincronizzazione automatica bidirezionale in tempo reale tra Owner e Copilota.
@@ -50,15 +55,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Hotfix stabilizzazione focus: eliminata perdita del cursore durante la digitazione continua nei campi e nelle modali.
 - Selettore orario accessibile: etichetta 'Scegli orario' con icona orologio, overlay prioritario e auto-format rapido.
-
-## 1.5.0 — 2026-11-03
-
-- Eliminazione tappe fantasma da link Google Maps e isolamento waypoint stradali da soste reali.
-- Nuovo design compatto di Oggi e gestione orari confermati/indicativi.
-- Contenitore Passeggiata con sottocard e importazione simultanea con anteprima.
-
-## 1.4.0 — 2026-11-02
-
-- Sezione Tappe dell'itinerario in Prenotazioni e orari di apertura manuali con selettore a 5 minuti.
-- Banner e stati noleggio auto e camper coerenti con date e luoghi effettivi di riconsegna.
-- Garantita lettura sicura e non distruttiva all'avvio senza cancellazioni automatiche.
