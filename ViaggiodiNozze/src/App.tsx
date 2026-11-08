@@ -253,6 +253,9 @@ export default function App() {
 
     const trySafeReload = () => {
       if (refreshing) return;
+      if (typeof window !== 'undefined' && (window as any).__HOUNIGO_DISABLE_SW_RELOAD__) {
+        return;
+      }
       // Protezione: non interrompere se l'utente ha una modale o un form attivo aperto
       const isEditing = Boolean(
         document.querySelector('[role="dialog"]') ||

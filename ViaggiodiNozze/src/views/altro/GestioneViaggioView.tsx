@@ -487,6 +487,25 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
     }
   };
 
+  const handleShareInvite = async () => {
+    const url = getInviteUrl();
+    if (!url) return;
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      try {
+        await navigator.share({
+          title: `Invito a Copilota - HOUNIGO`,
+          text: `Unisciti al viaggio come Copilota per consultare e sincronizzare il programma:`,
+          url: url,
+        });
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+      }
+    }
+    // Fallback: clipboard
+    await copyToClipboard();
+  };
+
   return (
     <div className="space-y-6 pt-1 animate-fade-in pb-10 px-1">
       {/* Header */}
@@ -494,6 +513,7 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
         <button
           type="button"
           onClick={onBack}
+          aria-label="Torna indietro"
           className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-600 hover:bg-slate-200 transition-colors"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -684,16 +704,26 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
                   className="w-full bg-transparent px-1 text-xs text-slate-800 font-mono focus:outline-none select-all truncate"
                 />
               </div>
-              <button
-                type="button"
-                onClick={copyToClipboard}
-                className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 active:scale-[0.98] transition-all cursor-pointer text-xs"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-                {copied ? '✓ Link Copiato negli Appunti!' : 'Copia Link d\'Invito'}
-              </button>
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  type="button"
+                  onClick={handleShareInvite}
+                  className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 active:scale-[0.98] transition-all cursor-pointer text-xs"
+                >
+                  <span aria-hidden="true">📲</span>
+                  <span>Condividi Link (WhatsApp, SMS…)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={copyToClipboard}
+                  className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-bold bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 shadow-xs hover:bg-indigo-50 dark:hover:bg-slate-700 active:scale-[0.98] transition-all cursor-pointer text-xs"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <span>{copied ? '✓ Copiato!' : 'Copia Link d\'Invito'}</span>
+                </button>
+              </div>
             </div>
           )}
         </div>

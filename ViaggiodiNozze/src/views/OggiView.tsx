@@ -1622,16 +1622,25 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             Calendario Tappe
           </span>
           <div className="flex items-center gap-2">
-            <div
+            <button
+              type="button"
+              onClick={() => setIsGlobalCopilotOpen(true)}
+              title={globalCopilotNoteStr ? "Note Copilota di giornata presenti" : "Aggiungi note copilota di giornata"}
+              className={`relative w-8 h-8 flex items-center justify-center rounded-full transition-colors border cursor-pointer active:scale-95 shadow-xs ${
+                globalCopilotNoteStr
+                  ? 'bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/40 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700'
+                  : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
+              }`}
+              aria-label="Note Copilota di giornata"
+            >
+              <span className="text-sm select-none" aria-hidden="true">📝</span>
+              {globalCopilotNoteStr && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-purple-500 rounded-full ring-2 ring-white dark:ring-slate-900" />
+              )}
+            </button>
+
+            <label
               title="Scegli data dal calendario"
-              onClick={(e) => {
-                const input = e.currentTarget.querySelector('input[type="date"]') as HTMLInputElement | null;
-                if (input && typeof input.showPicker === 'function') {
-                  try {
-                    input.showPicker();
-                  } catch {}
-                }
-              }}
               className="relative w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors border border-slate-200 dark:border-slate-700 cursor-pointer overflow-hidden active:scale-95 shadow-xs"
             >
               <input
@@ -1646,7 +1655,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 aria-label="Scegli data dal calendario"
               />
               <span className="text-sm select-none pointer-events-none">📅</span>
-            </div>
+            </label>
             <span className="text-xs text-slate-400 font-medium">
               {currentDayMeta && currentDayMeta.dayNum > 0
                 ? `Giorno ${currentDayMeta.dayNum}`
@@ -2038,10 +2047,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                           <AttivitaCard
                             activity={item.originalData as Attivita}
                             variant="compact"
-                            onEdit={() => {
-                              const found = timeline.find(t => t.id === item.id);
-                              if (found) setDetailItem(found);
-                            }}
+                            onEdit={() => setEditingActivityItem(item.originalData as Attivita)}
                             onDelete={async () => {
                               await storageService.deleteActivity(item.originalData?.id || '');
                               await fetchTimeline();
@@ -2053,10 +2059,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                           <RistoranteCard
                             ristorante={item.originalData}
                             variant="compact"
-                            onEdit={() => {
-                              const found = timeline.find(t => t.id === item.id);
-                              if (found) setDetailItem(found);
-                            }}
+                            onEdit={() => setEditingRistoranteItem(item.originalData)}
                             onDelete={async () => {
                               await storageService.deleteRistorante(item.originalData?.id || '');
                               await fetchTimeline();
@@ -2067,10 +2070,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         ) : isShopping ? (
                           <ShoppingCard
                             shopping={item.originalData}
-                            onEdit={() => {
-                              const found = timeline.find(t => t.id === item.id);
-                              if (found) setDetailItem(found);
-                            }}
+                            onEdit={() => setEditingShoppingItem(item.originalData)}
                             onDelete={async () => {
                               await storageService.deleteShopping(item.originalData?.id || '');
                               await fetchTimeline();
@@ -2083,10 +2083,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                             <TappaCard
                               tappa={item.originalData}
                               variant="compact"
-                              onEdit={() => {
-                                const found = timeline.find(t => t.id === item.id);
-                                if (found) setDetailItem(found);
-                              }}
+                              sequenceInfo={passeggiataSequences.get(item.id)}
+                              onEdit={() => setEditingTappaItem(item.originalData as Tappa)}
                               onDelete={async () => {
                                 await storageService.deleteTappa(item.originalData?.id || '');
                                 await fetchTimeline();

@@ -83,18 +83,23 @@ export function extractMapsUrlFromText(rawText?: string): {
  * - Se è già un link web (http:// o https://, es. https://maps.app.goo.gl/... o https://www.google.com/maps/...), lo preserva intatto.
  * - Se è una stringa/indirizzo testuale, costruisce la search query corretta per Google Maps.
  */
-export function resolveMapUrl(input?: string): string {
+export function resolveMapUrl(input?: string, travelmode?: 'driving' | 'walking' | 'bicycling' | 'transit'): string {
   if (!input || !input.trim()) return '';
   const trimmed = input.trim();
 
   // Se è già un URL completo (es. maps.app.goo.gl o google.com/maps o http/https)
   if (/^https?:\/\//i.test(trimmed)) {
+    if (travelmode && !trimmed.includes('travelmode=')) {
+      const sep = trimmed.includes('?') ? '&' : '?';
+      return `${trimmed}${sep}travelmode=${travelmode}`;
+    }
     return trimmed;
   }
 
   // Altrimenti genera la query di ricerca codificata
   const cleanQuery = trimmed.replace(/\s+/g, ' ');
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanQuery)}`;
+  const modeParam = travelmode ? `&travelmode=${travelmode}` : '';
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleanQuery)}${modeParam}`;
 }
 
 /**

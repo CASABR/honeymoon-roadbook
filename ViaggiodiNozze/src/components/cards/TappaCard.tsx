@@ -83,6 +83,8 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
   const mapTarget = tappa.mapsUrl || tappa.indirizzo || tappa.titolo;
   const hasSubcategory = Boolean(tappa.sottocategoria && tappa.sottocategoria.trim() && tappa.sottocategoria !== 'Tappa');
   const isConfirmed = Boolean(orario) && tappa.timeStatus === 'confermato';
+  const isWalking = (tappa.sottocategoria || '').toLowerCase() === 'passeggiata' || Boolean(sequenceInfo?.inSequence);
+  const travelMode = isWalking ? 'walking' : undefined;
 
   const headerTimeSummary = orario
     ? `Ore ${orario}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
@@ -254,7 +256,10 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
               title="Note per il Copilota"
               aria-label="Note Copilota"
             >
-              <Handshake className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span className="relative inline-flex items-center">
+                <Handshake className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 ring-1.5 ring-white dark:ring-slate-900" />
+              </span>
               <span className="hounigo-ds-btn-text">Copilota</span>
             </button>
           )}
@@ -273,16 +278,28 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
           )}
           {mapTarget && (
             <a
-              href={resolveMapUrl(mapTarget)}
+              href={resolveMapUrl(mapTarget, travelMode)}
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
               className="hounigo-ds-action-btn"
-              title={hasReliableGeoDestination(tappa) ? "Avvia navigazione verso la destinazione" : "Cerca il luogo per nome su Google Maps"}
-              aria-label="Apri su Google Maps"
+              title={
+                isWalking
+                  ? "Apri indicazioni a piedi su Google Maps"
+                  : hasReliableGeoDestination(tappa)
+                  ? "Avvia navigazione verso la destinazione"
+                  : "Cerca il luogo per nome su Google Maps"
+              }
+              aria-label={isWalking ? "Apri percorso a piedi su Google Maps" : "Apri su Google Maps"}
             >
-              <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" />
-              <span className="hounigo-ds-btn-text">{getMapsActionLabel(hasReliableGeoDestination(tappa))}</span>
+              {isWalking ? (
+                <span className="text-xs" aria-hidden="true">🚶</span>
+              ) : (
+                <GoogleMapsIcon className="w-3.5 h-3.5 shrink-0" />
+              )}
+              <span className="hounigo-ds-btn-text">
+                {isWalking ? 'A piedi' : getMapsActionLabel(hasReliableGeoDestination(tappa))}
+              </span>
               <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
             </a>
           )}

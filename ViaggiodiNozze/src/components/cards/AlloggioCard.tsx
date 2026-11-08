@@ -381,7 +381,12 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               title={hasCopilotNotes ? 'Note copilota e istruzioni registrate' : 'Note per il copilota'}
               aria-label="Note Copilota"
             >
-              <Handshake className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span className="relative inline-flex items-center">
+                <Handshake className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                {hasCopilotNotes && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-500 ring-1.5 ring-white dark:ring-slate-900" />
+                )}
+              </span>
               <span className="hounigo-ds-btn-text">Copilota</span>
             </button>
           )}

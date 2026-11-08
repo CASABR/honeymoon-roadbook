@@ -238,15 +238,19 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     };
   }, [activeTripId, cloudRole]);
 
+  const activeTripCfg = getTripConfig();
+  const isTripOwner = Boolean(currentUid && activeTripCfg?.ownerUid && currentUid === activeTripCfg.ownerUid);
+  const isOwnerOrCopilota = cloudRole === 'owner' || cloudRole === 'copilota' || isTripOwner;
+
   useEffect(() => {
-    if (!activeTripId || (cloudRole !== 'owner' && cloudRole !== 'copilota')) {
+    if (!activeTripId || !isOwnerOrCopilota) {
       setRemoteGpsLease(null);
       setGpsDevices([]);
       return;
     }
     registerDeviceOnFirestore(activeTripId, deviceRole).catch(() => {});
     const unsubscribeLease = liveGpsService.subscribeLease(activeTripId, setRemoteGpsLease, (err) => setGpsError(err.message));
-    const unsubscribeDevices = cloudRole === 'owner'
+    const unsubscribeDevices = (cloudRole === 'owner' || isTripOwner)
       ? liveGpsService.subscribeDevices(activeTripId, setGpsDevices)
       : () => {};
     const unsubscribeMembers = liveGpsService.subscribeMembers(activeTripId, setTripMembers);
@@ -255,9 +259,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       unsubscribeDevices();
       unsubscribeMembers();
     };
-  }, [activeTripId, cloudRole, deviceRole]);
-
-  const activeTripCfg = getTripConfig();
+  }, [activeTripId, cloudRole, deviceRole, isOwnerOrCopilota, isTripOwner]);
   const membersMap = useMemo(() => {
     const map: Record<string, string> = {};
     if (activeTripCfg?.ownerUid) {
@@ -1775,15 +1777,15 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       gpsFeedback={gpsFeedback}
       isDetectingGps={isDetectingGps}
       isOnline={typeof navigator !== 'undefined' ? navigator.onLine : true}
-      canControlGps={cloudRole === 'owner' || isGpsHolder}
+      canControlGps={cloudRole === 'owner' || isTripOwner || isGpsHolder}
       deviceLabel={liveDeviceLabel}
       onDetectGps={() => handleDetectGps(false)}
       remoteGpsLease={remoteGpsLease}
       remoteGpsLocation={remoteGpsLocation}
       isGpsHolder={isGpsHolder}
       isDesignatedGuide={isDesignatedGuide}
-      isOwner={cloudRole === 'owner'}
-      isCopilota={cloudRole === 'copilota'}
+      isOwner={cloudRole === 'owner' || (Boolean(currentUid) && currentUid === activeTripCfg?.ownerUid)}
+      isCopilota={cloudRole === 'copilota' || (Boolean(currentUid) && tripMembers.some(m => m.uid === currentUid && m.role === 'copilota'))}
       gpsDevices={gpsDevices}
       tripMembers={tripMembers}
       membersMap={membersMap}

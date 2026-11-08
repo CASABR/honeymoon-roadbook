@@ -603,12 +603,15 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           <div className="mt-5 border-b border-slate-200 pb-5 dark:border-slate-800">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">
+                  Chi condivide la posizione?
+                </p>
                 <p className={`flex items-center gap-2 text-sm font-extrabold ${gpsVisualState.tone}`}>
                   <span className={`h-2 w-2 rounded-full ${gpsVisualState.dot}`} />
-                  {gpsVisualState.label}
+                  {isLeaseActive ? `Ora ${currentGuideName} condivide la posizione` : gpsVisualState.label}
                 </p>
                 <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                  Organizzatore viaggio: <strong>{props.ownerName || 'Organizzatore'}</strong> · Guida GPS designata: <strong>{currentGuideName}</strong>
+                  Organizzatore: <strong>{props.ownerName || 'Organizzatore'}</strong> · Guida designata: <strong>{currentGuideName}</strong>
                 </p>
                 {lastDetectedDate && (
                   <p className="mt-0.5 text-[11px] text-slate-500">
@@ -619,26 +622,26 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
               </div>
               <div className="flex flex-wrap gap-2">
                 {(props.isOwner || props.isDesignatedGuide) && (
-                  <button type="button" onClick={props.onStartGps} disabled={props.isDetectingGps || !isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white disabled:opacity-40">
+                  <button type="button" onClick={props.onStartGps} disabled={props.isDetectingGps || !isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white disabled:opacity-40 cursor-pointer">
                     {permissionDenied || isLeaseExpired || isLeaseActive ? 'Aggiorna posizione' : 'Condividi posizione'}
                   </button>
                 )}
                 {isLeaseActive && (props.isGpsHolder || props.isDesignatedGuide) && (
                   <>
-                    <button type="button" onClick={props.onPauseGps} disabled={!isOnline} className="min-h-11 rounded-full border border-amber-300 px-4 text-xs font-bold text-amber-800 dark:border-amber-800 dark:text-amber-200">Metti in pausa</button>
-                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-11 rounded-full border border-rose-300 px-4 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300">Ferma condivisione</button>
+                    <button type="button" onClick={props.onPauseGps} disabled={!isOnline} className="min-h-11 rounded-full border border-amber-300 px-4 text-xs font-bold text-amber-800 dark:border-amber-800 dark:text-amber-200 cursor-pointer">Metti in pausa</button>
+                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-11 rounded-full border border-rose-300 px-4 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300 cursor-pointer">Ferma condivisione</button>
                   </>
                 )}
                 {isLeaseActive && props.isOwner && !props.isGpsHolder && !props.isDesignatedGuide && (
                   <>
-                    <button type="button" onClick={props.onRevokeGps} disabled={!isOnline} className="min-h-11 rounded-full bg-[#172033] px-4 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">Prendi guida</button>
-                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-11 rounded-full border border-rose-300 px-4 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300">Ferma condivisione</button>
+                    <button type="button" onClick={props.onRevokeGps} disabled={!isOnline} className="min-h-11 rounded-full bg-[#172033] px-4 text-xs font-bold text-white dark:bg-white dark:text-[#172033] cursor-pointer">Riprendi la guida</button>
+                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-11 rounded-full border border-rose-300 px-4 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300 cursor-pointer">Ferma condivisione</button>
                   </>
                 )}
                 {isLeasePaused && (props.isOwner || props.isDesignatedGuide) && (
                   <>
-                    <button type="button" onClick={props.onResumeGps} disabled={!isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white">Riprendi condivisione</button>
-                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-11 rounded-full border border-rose-300 px-4 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300">Interrompi</button>
+                    <button type="button" onClick={props.onResumeGps} disabled={!isOnline} className="min-h-11 rounded-full bg-[#FF6B5F] px-4 text-xs font-bold text-white cursor-pointer">Riprendi condivisione</button>
+                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-11 rounded-full border border-rose-300 px-4 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300 cursor-pointer">Interrompi</button>
                   </>
                 )}
               </div>
@@ -648,17 +651,17 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             <p className="mt-3 text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
               ℹ️ <strong>Nota iOS / iPhone PWA:</strong> L&apos;aggiornamento GPS funziona quando la PWA è aperta o viene riaperta, non come un&apos;app nativa con tracciamento continuo in background.
             </p>
-            <button type="button" onClick={() => setIsGuideControlsOpen(open => !open)} className="mt-3 min-h-10 text-xs font-bold text-slate-600 underline underline-offset-4 dark:text-slate-300" aria-expanded={isGuideControlsOpen}>Gestione Delega Guida GPS {isGuideControlsOpen ? '−' : '+'}</button>
+            <button type="button" onClick={() => setIsGuideControlsOpen(open => !open)} className="mt-3 min-h-10 text-xs font-bold text-slate-600 underline underline-offset-4 dark:text-slate-300 cursor-pointer" aria-expanded={isGuideControlsOpen}>Gestione Delega Guida GPS {isGuideControlsOpen ? '−' : '+'}</button>
 
             {isGuideControlsOpen && (
               <div className="mt-3 space-y-4 rounded-2xl bg-white p-4 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
                 <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
-                  L&apos;<strong>Organizzatore del viaggio ({props.ownerName || 'Owner'})</strong> può delegare temporaneamente la trasmissione della posizione GPS a un Copilota verificato e riprenderla in qualsiasi momento. Due telefoni non trasmettono mai posizioni concorrenti contemporaneamente.
+                  L&apos;<strong>Organizzatore ({props.ownerName || 'Owner'})</strong> può passare la guida GPS a un Copilota verificato e riprenderla in qualsiasi momento. Un solo dispositivo alla volta trasmette la posizione.
                 </p>
                 {props.isOwner && (
                   <div className="space-y-2">
                     {props.remoteGpsLease?.holderUid && props.remoteGpsLease.holderUid !== props.ownerUid && (
-                      <button type="button" disabled={isHandoverLoading || !isOnline} onClick={() => props.onRevokeGps && runHandover(props.onRevokeGps, 'Guida GPS riportata all’Organizzatore.')} className="min-h-11 rounded-full border border-slate-300 px-4 text-xs font-bold dark:border-slate-700">Riprendi Guida GPS</button>
+                      <button type="button" disabled={isHandoverLoading || !isOnline} onClick={() => props.onRevokeGps && runHandover(props.onRevokeGps, 'Guida GPS riportata all’Organizzatore.')} className="min-h-11 rounded-full border border-slate-300 px-4 text-xs font-bold dark:border-slate-700 cursor-pointer">Riprendi la guida</button>
                     )}
                     {copilots.map(copilot => {
                       const isCurrent = props.remoteGpsLease?.holderUid === copilot.uid;
@@ -667,17 +670,19 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                           <div className="min-w-0">
                             <p className="truncate text-xs font-bold">{copilot.name}</p>
                             <p className="text-[11px] text-slate-500">
-                              {isCurrent ? '🟢 Guida GPS delegata attiva' : copilot.deviceId ? 'Dispositivo Copilota registrato' : 'Copilota verificato (attiverà dal suo iPhone)'}
+                              {isCurrent ? '🟢 Ora condivide la posizione' : copilot.deviceId ? 'Dispositivo Copilota registrato' : 'Copilota verificato (attiverà dal suo smartphone)'}
                             </p>
                           </div>
                           {!isCurrent && (
                             <button
                               type="button"
                               disabled={isHandoverLoading || !isOnline}
-                              onClick={() => props.onTransferGps && runHandover(() => props.onTransferGps?.(copilot.uid, copilot.deviceId), `Delega Guida GPS assegnata a ${copilot.name}.`)}
-                              className="min-h-10 shrink-0 rounded-full bg-[#172033] px-3.5 text-[11px] font-bold text-white disabled:opacity-35 dark:bg-white dark:text-[#172033]"
+                              onClick={() => props.onTransferGps && runHandover(() => props.onTransferGps?.(copilot.uid, copilot.deviceId), `Ora ${copilot.name} condivide la posizione.`)}
+                              aria-label={`Delega Guida GPS a ${copilot.name}`}
+                              title="Delega Guida GPS"
+                              className="min-h-10 shrink-0 rounded-full bg-[#172033] px-3.5 text-[11px] font-bold text-white disabled:opacity-35 dark:bg-white dark:text-[#172033] cursor-pointer"
                             >
-                              Delega Guida GPS
+                              Passa la guida a {copilot.name}
                             </button>
                           )}
                         </div>
@@ -689,8 +694,8 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                 {props.isCopilota && (
                   <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                     {props.isDesignatedGuide
-                      ? '🟢 Hai ricevuto la delega Guida GPS dall’Organizzatore: puoi condividere, mettere in pausa o riprendere la posizione da questo telefono.'
-                      : 'L’Organizzatore può delegarti temporaneamente la funzione Guida GPS.'}
+                      ? '🟢 Hai la guida attiva su questo smartphone: puoi condividere, mettere in pausa o riprendere la posizione.'
+                      : 'L’Organizzatore può passarti la guida per condividere la posizione da questo smartphone.'}
                   </p>
                 )}
                 {handoverFeedback && <p className="text-xs font-semibold text-slate-700 dark:text-slate-200" role="status">{handoverFeedback}</p>}

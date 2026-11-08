@@ -47,6 +47,11 @@ interface AltroViewProps {
 
 export default function AltroView({ initialSubView = null }: AltroViewProps) {
   const [activeSubView, setActiveSubView] = useState<SubViewType>(initialSubView);
+
+  useEffect(() => {
+    setActiveSubView(initialSubView);
+  }, [initialSubView]);
+
   const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showTripSelector, setShowTripSelector] = useState(false);
@@ -560,27 +565,47 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
                 <span className="text-base">🛡️</span>
               </div>
               <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
-                    Stato Sincronizzazione
-                  </h4>
-                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
-                    syncSummary.status === 'Sincronizzazione attiva'
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300'
-                      : syncSummary.status === 'Conflitto da verificare' || syncSummary.status === 'Errore di sincronizzazione'
-                      ? 'bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300'
-                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300'
-                  }`}>
-                    {syncSummary.status}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  {syncSummary.lastSyncAt
-                    ? `Ultimo aggiornamento riuscito: ${new Date(syncSummary.lastSyncAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
-                    : syncSummary.pendingCount > 0
-                    ? `${syncSummary.pendingCount} modifiche in attesa di sincronizzazione`
-                    : `Viaggio ${currentTripConfig?.title || '0000'} • Verifica stato e attivazione`}
-                </p>
+                {(() => {
+                  let label = 'Tutto aggiornato';
+                  let badgeClass = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300';
+                  let subtitle = syncSummary.lastSyncAt
+                    ? `Ultimo aggiornamento: ${new Date(syncSummary.lastSyncAt).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}`
+                    : `Tutti i dati sono allineati con il Cloud`;
+
+                  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+                    label = 'Connessione assente';
+                    badgeClass = 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+                    subtitle = syncSummary.pendingCount > 0
+                      ? `${syncSummary.pendingCount} modifiche salvate sul telefono, pronte all'invio`
+                      : 'Dispositivo offline. I tuoi dati restano al sicuro sul telefono';
+                  } else if (syncSummary.conflictsCount > 0 || syncSummary.hasActiveErrors || syncSummary.status === 'In attesa di attivazione') {
+                    label = 'Serve il tuo intervento';
+                    badgeClass = 'bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300';
+                    subtitle = syncSummary.status === 'In attesa di attivazione'
+                      ? 'Tocca qui per attivare la sincronizzazione sul dispositivo'
+                      : 'Tocca qui per verificare lo stato e confermare l\'attivazione';
+                  } else if (syncSummary.pendingCount > 0) {
+                    label = 'Salvato sul dispositivo';
+                    badgeClass = 'bg-sky-100 text-sky-800 dark:bg-sky-950/50 dark:text-sky-300';
+                    subtitle = `${syncSummary.pendingCount} modifiche salvate localmente in attesa di sincronizzazione`;
+                  }
+
+                  return (
+                    <>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white leading-tight">
+                          Stato Sincronizzazione
+                        </h4>
+                        <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${badgeClass}`}>
+                          {label}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                        {subtitle}
+                      </p>
+                    </>
+                  );
+                })()}
               </div>
             </div>
             <span className="text-slate-400 text-sm ml-2">›</span>
