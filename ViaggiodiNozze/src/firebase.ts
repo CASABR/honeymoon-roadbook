@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator } from "firebase/firestore";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
 import { getFunctions } from "firebase/functions";
 
 // Configurazione letta da .env.local (prefisso VITE_ obbligatorio per esporla al client).
@@ -15,8 +15,6 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-
-
 const missing = Object.entries(firebaseConfig).filter(([, v]) => !v).map(([k]) => k);
 if (missing.length) {
   console.error(`[Firebase] Variabili mancanti in .env.local: ${missing.join(", ")}`);
@@ -27,10 +25,17 @@ let authInstance: any;
 let functionsInstance: any;
 let appCheckInstance: any;
 
+const isBrowser = typeof window !== 'undefined';
+const useEmulator = import.meta.env.VITE_USE_FIREBASE_EMULATOR === 'true' ||
+  (isBrowser && (
+    new URLSearchParams(window.location.search).get('emulator') === 'true' ||
+    (window as any).__HOUNIGO_USE_EMULATOR__ === true
+  ));
+
 try {
   const app = initializeApp(firebaseConfig);
   const appCheckSiteKey = (import.meta.env.VITE_FIREBASE_APP_CHECK_SITE_KEY || '').trim();
-  if (typeof window !== 'undefined' && appCheckSiteKey) {
+  if (!useEmulator && isBrowser && appCheckSiteKey) {
     if (import.meta.env.DEV) {
       (globalThis as any).FIREBASE_APPCHECK_DEBUG_TOKEN = true;
     }
@@ -38,7 +43,7 @@ try {
       provider: new ReCaptchaEnterpriseProvider(appCheckSiteKey),
       isTokenAutoRefreshEnabled: true
     });
-  } else if (import.meta.env.PROD) {
+  } else if (!useEmulator && import.meta.env.PROD) {
     console.warn('[Firebase] App Check non configurato: HouniAI resterà non disponibile finché manca la site key pubblica.');
   }
   try {
@@ -54,6 +59,29 @@ try {
   }
   authInstance = getAuth(app);
   functionsInstance = getFunctions(app);
+
+  if (useEmulator) {
+    const emulatorHost = (isBrowser && (window as any).__HOUNIGO_EMULATOR_HOST__) || '127.0.0.1';
+    const firestorePort = Number((isBrowser && (window as any).__HOUNIGO_EMULATOR_PORT__) || import.meta.env.VITE_FIRESTORE_EMULATOR_PORT || 8194);
+    const authPort = Number((isBrowser && (window as any).__HOUNIGO_AUTH_PORT__) || import.meta.env.VITE_AUTH_EMULATOR_PORT || 9099);
+
+    if (dbInstance) {
+      try {
+        connectFirestoreEmulator(dbInstance, emulatorHost, firestorePort);
+        console.log(`[Firebase] Connesso con successo a Firestore Emulator su ${emulatorHost}:${firestorePort}`);
+      } catch (emuErr) {
+        console.warn('[Firebase] Impossibile connettere Firestore Emulator:', emuErr);
+      }
+    }
+    if (authInstance) {
+      try {
+        connectAuthEmulator(authInstance, `http://${emulatorHost}:${authPort}`, { disableWarnings: true });
+        console.log(`[Firebase] Connesso con successo ad Auth Emulator su http://${emulatorHost}:${authPort}`);
+      } catch (authErr) {
+        console.warn('[Firebase] Impossibile connettere Auth Emulator:', authErr);
+      }
+    }
+  }
 } catch (e) {
   console.error("Firebase initialization failed:", e);
 }
@@ -62,3 +90,4 @@ export const db = dbInstance;
 export const auth = authInstance;
 export const cloudFunctions = functionsInstance;
 export const appCheck = appCheckInstance;
+export { signInWithCustomToken } from "firebase/auth";
