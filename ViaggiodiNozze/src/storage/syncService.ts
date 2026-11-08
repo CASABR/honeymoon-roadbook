@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, setDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { STORES, idbPut, idbDelete, idbGetAll, idbGet, type StoreName } from './indexedDB';
 import { notifyDataChanged } from './storageService';
@@ -1282,6 +1282,27 @@ export class SyncService {
               continue;
             }
 
+            // Un documento Firestore privo di updatedAt (serverUpdated <= 0) NON deve essere considerato automaticamente vecchio!
+            if (serverUpdated <= 0) {
+              const normType = normalizeEntityType(fb);
+              const { isEquivalent } = compareCandidateWithRemote(normType, this.tripId, localData, serverData);
+              if (!isEquivalent) {
+                console.warn(`[SyncService] Documento remoto ${fb}/${docId} privo di updatedAt e discordante dal dato locale: preservo entrambe le copie e isolo il record.`);
+                await saveConflictBackup({
+                  tripId: this.tripId,
+                  entityType: normType,
+                  dataId: docId,
+                  localData,
+                  serverData,
+                  conflictType: 'unreliable_timestamp_conflict',
+                  serverUpdated,
+                  localUpdated,
+                  status: 'pending_review'
+                });
+              }
+              continue;
+            }
+
             // SICUREZZA 0000: NESSUN push automatico non richiesto di dati storici locali!
             if (this.tripId === '0000') {
               const hasExplicitMutation = await hasPendingMutation(this.tripId, fb, docId) ||
@@ -1982,16 +2003,20 @@ export class SyncService {
             }
 
             // Solo se NON è già sincronizzato, valuta versioni o conflitti:
-            // 1. Se localUpdated > 0 e serverUpdated <= 0 (record legacy su Firestore), la modifica locale è legittima e recente: è local_newer.
+            // 1. Se serverUpdated <= 0, il documento remoto Firestore non ha un timestamp affidabile:
+            //    NON deve essere automaticamente considerato più vecchio e sovrascritto!
+            //    Preserva entrambe le copie nell'archivio conflitti e isola soltanto questo record.
             // 2. Se serverUpdated > localUpdated, il server è più recente.
             // 3. Se serverUpdated === localUpdated e i dati divergono, timestamp identico ma contenuto divergente.
-            // 4. Se entrambi sono privi di timestamp (serverUpdated <= 0 && localUpdated <= 0) e divergono, è incertezza reale.
-            const isLocalNewer = (localUpdated > 0 && (serverUpdated <= 0 || localUpdated > serverUpdated));
-            const isServerNewer = (serverUpdated > 0 && localUpdated > 0 && serverUpdated > localUpdated);
-            const isSameTimeDifferent = (serverUpdated > 0 && localUpdated > 0 && serverUpdated === localUpdated && !isEquivalent);
-            const isUncertain = !isLocalNewer && !isServerNewer && !isSameTimeDifferent && !isEquivalent;
+            // 4. Se localUpdated > serverUpdated ed entrambi > 0, la modifica locale è affidabilmente più recente.
+            const isServerReliable = serverUpdated > 0;
+            const isLocalReliable = localUpdated > 0;
 
-            if (isServerNewer || isSameTimeDifferent || isUncertain) {
+            const isServerNewer = (isServerReliable && isLocalReliable && serverUpdated > localUpdated);
+            const isSameTimeDifferent = (isServerReliable && isLocalReliable && serverUpdated === localUpdated && !isEquivalent);
+            const isUnreliable = (!isServerReliable || !isLocalReliable) && !isEquivalent;
+
+            if (isServerNewer || isSameTimeDifferent || isUnreliable) {
               const conflictType = isServerNewer ? 'server_newer' : 'unreliable_timestamp_conflict';
               console.warn(`[SyncService] Conflitto rilevato per ${collectionName}/${data.id}: ${conflictType} (server: ${serverUpdated}, local: ${localUpdated}). Preservo copia nell'archivio isolato.`);
               // Preserva copia di sicurezza nell'archivio isolato HounigoConflictArchiveDB (zero leak in settings)
@@ -2017,9 +2042,11 @@ export class SyncService {
                 // Rimuovi la mutazione pendente dalla coda poiché il dato locale è archiviato in sicurezza
                 await this.removePendingPushFromStore(collectionName, data.id, { action, data, mutationId: options.mutationId });
               } else {
-                // In caso di incertezza timestamp: BLOCCA LA SCRITTURA, CONSERVA ENTRAMBE LE VERSIONI!
-                // NON cancellare dalla coda, richiede verifica esplicita
-                console.warn(`[SyncService] Scrittura bloccata per incertezza timestamp su ${collectionName}/${data.id}: entrambe le versioni conservate.`);
+                // In caso di incertezza timestamp (serverUpdated <= 0 o timestamp non affidabile):
+                // BLOCCA LA SCRITTURA SU FIRESTORE, CONSERVA ENTRAMBE LE VERSIONI!
+                // Isola SOLO questo record lasciandolo in attesa di revisione esplicita,
+                // senza lanciare eccezioni fatali che blocchino lo svuotamento degli altri elementi in coda!
+                console.warn(`[SyncService] Scrittura bloccata per incertezza timestamp su ${collectionName}/${data.id}: entrambe le versioni conservate, record isolato.`);
               }
 
               if (typeof window !== 'undefined') {
@@ -2103,19 +2130,39 @@ export class SyncService {
           payloadToSync
         );
 
-        // SCRITTURA ORDINATA (P0): Scrivi SEMPRE la cassaforte prima del documento pubblico.
-        // In questo modo, quando Firestore emette il listener onSnapshot per il documento pubblico
-        // verso i dispositivi dei collaboratori, la cassaforte è GIÀ presente e immediatamente leggibile!
+        // SCRITTURA ATOMICA E SICUREZZA CASSAFORTE (P0):
+        // Se la modifica contiene sia dati pubblici sia private_credentials, usa scrittura atomica batch
+        // per evitare salvataggi parziali. Se è solo pubblica, NON tocca la cassaforte.
         if (privateCredentialsDoc && isCloudAuthorized(this.tripId)) {
           const vaultId = getVaultDocId(normType, data.id);
           const privDocRef = doc(db, 'trips', this.tripId, 'private_credentials', vaultId);
-          await safeSet(privDocRef, this.cleanUndefinedValues(privateCredentialsDoc), { merge: true });
-        }
+          const cleanPrivate = this.cleanUndefinedValues(privateCredentialsDoc);
+          const cleanPublic = this.cleanUndefinedValues(publicDoc);
 
-        const cleanPublic = this.cleanUndefinedValues(publicDoc);
-        await safeSet(docRef, cleanPublic, { merge: true });
-        // REQUISITO 1: Una modifica a un'attività o entità operativa NON deve mai cancellare la relativa private_credentials.
-        // La cancellazione della cassaforte è ammessa UNICAMENTE all'eliminazione dell'intera entità (action === 'delete').
+          if (typeof writeBatch === 'function') {
+            assertAuthorized();
+            const batch = writeBatch(db);
+            batch.set(privDocRef, cleanPrivate, { merge: true });
+            batch.set(docRef, cleanPublic, { merge: true });
+            await batch.commit();
+          } else {
+            // Fallback verificabile e sicuro per ambienti privi di writeBatch:
+            // Scrivi cassaforte prima del documento pubblico; se il documento pubblico fallisce, rilancia per mantenere in coda
+            assertAuthorized();
+            await safeSet(privDocRef, cleanPrivate, { merge: true });
+            try {
+              assertAuthorized();
+              await safeSet(docRef, cleanPublic, { merge: true });
+            } catch (pubErr) {
+              console.error(`[SyncService] Fallimento scrittura documento pubblico dopo cassaforte per ${collectionName}/${data.id}: rilancio per conservare in coda.`, pubErr);
+              throw pubErr;
+            }
+          }
+        } else {
+          // Modifica SOLO pubblica: NON tocca la cassaforte private_credentials
+          const cleanPublic = this.cleanUndefinedValues(publicDoc);
+          await safeSet(docRef, cleanPublic, { merge: true });
+        }
       } else {
         const cleanPayload = this.cleanUndefinedValues(payloadToSync);
         await safeSet(docRef, cleanPayload, { merge: true });

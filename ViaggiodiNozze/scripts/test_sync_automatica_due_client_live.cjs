@@ -270,11 +270,15 @@ function load(file, dependencies, globals = {}) {
 
       let authRole = role;
       const identityModule = {
-        isCloudAuthorized: (tripId) => Boolean(uid && (authRole === 'owner' || authRole === 'copilota')),
+        isCloudAuthorized: (tripId) => fakeLocalStorage.getItem(`houni_revoked_trip_${tripId}`) !== 'true' && Boolean(uid && (authRole === 'owner' || authRole === 'copilota')),
         isTripAuthRevoked: (tripId) => fakeLocalStorage.getItem(`houni_revoked_trip_${tripId}`) === 'true',
-        getAuthoritativeCloudRole: () => authRole,
+        getAuthoritativeCloudRole: () => (fakeLocalStorage.getItem(`houni_revoked_trip_0000`) === 'true' ? 'viewer' : authRole),
         setAuthoritativeCloudRole: (r) => { authRole = r; },
-        assertCanMutate: () => {}
+        assertCanMutate: () => {
+          if (fakeLocalStorage.getItem(`houni_revoked_trip_0000`) === 'true' || (authRole !== 'owner' && authRole !== 'copilota')) {
+            throw new Error('Cloud authorization changed: session revoked or unauthorized');
+          }
+        }
       };
 
       const tripConfigModule = {
@@ -283,11 +287,45 @@ function load(file, dependencies, globals = {}) {
 
       const splitter = load('src/utils/securityDataSplitter.ts', {});
 
+      let failBatchOnClient = false;
       const firestoreMock = {
         collection: (_db, ...p) => p.join('/'),
         doc: (_db, ...p) => p.join('/'),
         onSnapshot: (colPath, onNext) => {
           return registerCloudWatcher(colPath, onNext);
+        },
+        writeBatch: () => {
+          const ops = [];
+          return {
+            set: (ref, data) => { ops.push({ type: 'set', ref, data }); },
+            delete: (ref) => { ops.push({ type: 'delete', ref }); },
+            commit: async () => {
+              if (!fakeNavigator.onLine) throw new Error('Offline (simulated network failure during batch commit)');
+              if (failBatchOnClient) {
+                failBatchOnClient = false;
+                throw new Error('Simulated crash / network fault during atomic batch write');
+              }
+              for (const op of ops) {
+                if (op.type === 'set') {
+                  const res = await request('PATCH', op.ref, uid, op.data);
+                  if (!res.ok) throw new Error(`batch setDoc failed: ${await res.text()}`);
+                } else if (op.type === 'delete') {
+                  const res = await request('DELETE', op.ref, uid);
+                  if (!res.ok) throw new Error(`batch deleteDoc failed: ${await res.text()}`);
+                }
+              }
+              for (const op of ops) {
+                const parts = op.ref.split('/');
+                const colPath = parts.slice(0, -1).join('/');
+                const docId = parts[parts.length - 1];
+                if (op.type === 'set') {
+                  notifyCloudChange(colPath, docId, 'modified', op.data);
+                } else {
+                  notifyCloudChange(colPath, docId, 'removed', { id: docId });
+                }
+              }
+            }
+          };
         },
         setDoc: async (docRef, data) => {
           if (!fakeNavigator.onLine) throw new Error('Offline (simulated network failure)');
@@ -388,6 +426,7 @@ function load(file, dependencies, globals = {}) {
         conflictArchive,
         dispatchedEvents,
         queueModule,
+        setFailBatch: (v) => { failBatchOnClient = v; },
         storageService: storageServiceModule.storageService,
         syncService,
         notifyDataChanged: storageServiceModule.notifyDataChanged
@@ -492,12 +531,12 @@ function load(file, dependencies, globals = {}) {
     console.log('✓ TEST 3 SUPERATO: Modifica Copilota ricevuta automaticamente da Owner.');
 
     // =========================================================================
-    // TEST 4: MODIFICA SU DATO LEGACY SENZA TIMESTAMP SU FIRESTORE (NO BLOCCO INCERTEZZA)
+    // TEST 4: DOCUMENTO FIRESTORE SENZA UPDATEDAT NON VIENE SOVRASCRITTO (ISOLATO)
     // =========================================================================
-    console.log('\n--- TEST 4: Modifica su record legacy senza timestamp su Firestore ---');
+    console.log('\n--- TEST 4: Protezione documento legacy privo di updatedAt (nessuna sovrascrittura automatica) ---');
     const editLegacy = {
       id: 'att_legacy_no_ts',
-      titolo: 'Attività Legacy Modificata Oggi dall\'Owner',
+      titolo: 'Tentativo di Modifica su Dato Legacy Discordante',
       date: '2026-06-20',
       dayId: 'day_2026-06-20',
       category: 'Relax',
@@ -507,15 +546,22 @@ function load(file, dependencies, globals = {}) {
     await clientOwner.storageService.saveActivity(editLegacy);
     await new Promise(r => setTimeout(r, 600));
 
-    // Non deve essere stato creato un backup di conflitto ingiustificato
-    assert.equal(clientOwner.conflictArchive.length, 0, 'Nessun falso conflitto da incertezza per record locale recente');
-
-    // Deve essere presente su Firestore con il nuovo titolo
+    // Il documento su Firestore NON deve essere stato sovrascritto
     const checkLegacyCloud = await request('GET', 'trips/0000/attivita/att_legacy_no_ts', ownerUid);
-    assert.ok(checkLegacyCloud.ok, 'Dato legacy aggiornato deve essere su Firestore');
+    assert.ok(checkLegacyCloud.ok, 'Dato legacy deve esistere su Firestore');
     const checkLegacyData = parseFields((await checkLegacyCloud.json()).fields);
-    assert.equal(checkLegacyData.titolo, 'Attività Legacy Modificata Oggi dall\'Owner');
-    console.log('✓ TEST 4 SUPERATO: Nessun falso blocco su record remoti privi di timestamp.');
+    assert.equal(checkLegacyData.titolo, 'Attività Legacy Senza Timestamp su Firestore', 'Documento Firestore privo di updatedAt NON deve essere sovrascritto');
+
+    // Entrambe le copie devono essere preservate nell'archivio conflitti
+    const legacyConflict = clientOwner.conflictArchive.find(c => c.dataId === 'att_legacy_no_ts');
+    assert.ok(legacyConflict, 'Conflitto di timestamp inaffidabile archiviato preservando entrambe le versioni');
+    assert.equal(legacyConflict.conflictType, 'unreliable_timestamp_conflict');
+    assert.equal(legacyConflict.serverData.titolo, 'Attività Legacy Senza Timestamp su Firestore');
+    assert.equal(legacyConflict.localData.titolo, 'Tentativo di Modifica su Dato Legacy Discordante');
+    console.log('✓ TEST 4 SUPERATO: Documento legacy remoto non sovrascritto, entrambe le copie conservate e record isolato.');
+
+    // Rimuovi il conflitto di test per non sporcare i test successivi
+    clientOwner.pendingQueue.splice(0, clientOwner.pendingQueue.length);
 
     // =========================================================================
     // TEST 5: OFFLINE -> ONLINE -> FLUSH AUTOMATICO SENZA SINCRONIZZA
@@ -591,8 +637,217 @@ function load(file, dependencies, globals = {}) {
     assert.equal(clientOwner.pendingQueue.length, 0, 'Coda Owner svuotata al resume PWA');
     console.log('✓ TEST 6 SUPERATO: Riapertura PWA / visibilitychange ha recuperato e inviato le mutazioni.');
 
+    // =========================================================================
+    // TEST 7: SCRITTURA ATOMICA BATCH (DATI PUBBLICI + CASSAFORTE PRIVATE_CREDENTIALS)
+    // =========================================================================
+    console.log('\n--- TEST 7: Scrittura Atomica Batch (Dati Pubblici + Private Credentials) ---');
+    const atomicActivity = {
+      id: 'att_atomic_01',
+      titolo: 'Biglietti Musei Vaticani prenotati',
+      date: '2026-06-22',
+      dayId: 'day_2026-06-22',
+      category: 'Museo',
+      cost: '120',
+      bookingCode: 'VAT-998877',
+      pinCode: '4321',
+      noteCopilota: 'Entrare dall\'ingresso riservato gruppi ore 10:00',
+      updatedAt: Date.now()
+    };
+
+    await clientOwner.storageService.saveActivity(atomicActivity);
+    await new Promise(r => setTimeout(r, 800));
+
+    // Verifica documento pubblico su Firestore (senza leak dei dati riservati)
+    const checkAtomicPub = await request('GET', 'trips/0000/attivita/att_atomic_01', ownerUid);
+    assert.ok(checkAtomicPub.ok, 'Documento pubblico deve esistere su Firestore');
+    const pubData = parseFields((await checkAtomicPub.json()).fields);
+    assert.equal(pubData.titolo, 'Biglietti Musei Vaticani prenotati');
+    assert.equal(pubData.cost, undefined, 'Nessun leak economico nel documento pubblico');
+    assert.equal(pubData.pinCode, undefined, 'Nessun leak PIN nel documento pubblico');
+    assert.equal(pubData.hasPrivateCredentials, true, 'Segnaposto cassaforte presente');
+
+    // Verifica cassaforte privata su Firestore
+    const checkAtomicPriv = await request('GET', 'trips/0000/private_credentials/attivita_att_atomic_01', ownerUid);
+    assert.ok(checkAtomicPriv.ok, 'Cassaforte privata deve esistere su Firestore');
+    const privData = parseFields((await checkAtomicPriv.json()).fields);
+    assert.equal(String(privData.cost), '120');
+    assert.equal(privData.bookingCode, 'VAT-998877');
+    assert.equal(privData.pinCode, '4321');
+
+    // Verifica che Copilota abbia ricevuto entrambi i dati ricostruiti via onSnapshot
+    const copilotAtomicRec = clientCopilot.idbData.attivita.get('att_atomic_01');
+    assert.ok(copilotAtomicRec, 'Copilota deve aver ricevuto l\'entità');
+    assert.equal(String(copilotAtomicRec.cost), '120', 'Copilota ha il costo ricostruito dalla cassaforte');
+    assert.equal(copilotAtomicRec.bookingCode, 'VAT-998877', 'Copilota ha il codice prenotazione');
+    console.log('✓ TEST 7 SUPERATO: Scrittura atomica batch completata e verificata con successo.');
+
+    // =========================================================================
+    // TEST 8: CRASH TRA SCRITTURE / SIMULAZIONE ERRORE BATCH & PERMANENZA CODA
+    // =========================================================================
+    console.log('\n--- TEST 8: Crash / Errore Batch: Nessun Salvataggio Parziale e Permanenza Coda ---');
+    clientOwner.setFailBatch(true);
+
+    const failActivity = {
+      id: 'att_batch_fail_01',
+      titolo: 'Attività durante fault di rete',
+      date: '2026-06-23',
+      dayId: 'day_2026-06-23',
+      category: 'Tour',
+      cost: '200',
+      pinCode: '9999',
+      updatedAt: Date.now()
+    };
+
+    try {
+      await clientOwner.storageService.saveActivity(failActivity);
+    } catch {}
+
+    await new Promise(r => setTimeout(r, 600));
+
+    // A seguito del fallimento atomico:
+    // 1. Il documento pubblico NON deve esistere su Firestore
+    const checkFailPub = await request('GET', 'trips/0000/attivita/att_batch_fail_01', ownerUid);
+    assert.equal(checkFailPub.status, 404, 'Nessun salvataggio parziale del documento pubblico su Firestore');
+
+    // 2. La cassaforte NON deve esistere su Firestore
+    const checkFailPriv = await request('GET', 'trips/0000/private_credentials/attivita_att_batch_fail_01', ownerUid);
+    assert.equal(checkFailPriv.status, 404, 'Nessun salvataggio parziale della cassaforte su Firestore');
+
+    // 3. La mutazione DEVE rimanere nella coda locale persistente (zero perdita)
+    assert.ok(clientOwner.pendingQueue.some(q => q.data?.id === 'att_batch_fail_01'), 'Mutazione deve permanere nella coda locale dopo l\'errore');
+    console.log('✓ TEST 8 PARTE A: Nessun salvataggio parziale e mutazione preservata nella coda locale.');
+
+    // Ripristina e svuota la coda
+    clientOwner.setFailBatch(false);
+    await clientOwner.syncService.flushPendingQueue();
+    await new Promise(r => setTimeout(r, 800));
+
+    // Ora entrambi i documenti devono esistere su Firestore
+    const checkRecoverPub = await request('GET', 'trips/0000/attivita/att_batch_fail_01', ownerUid);
+    assert.ok(checkRecoverPub.ok, 'Documento pubblico presente dopo ripristino');
+    const checkRecoverPriv = await request('GET', 'trips/0000/private_credentials/attivita_att_batch_fail_01', ownerUid);
+    assert.ok(checkRecoverPriv.ok, 'Cassaforte presente dopo ripristino');
+    assert.equal(clientOwner.pendingQueue.length, 0, 'Coda svuotata dopo ripristino');
+    console.log('✓ TEST 8 SUPERATO: Recupero verificabile e sicuro completato con successo.');
+
+    // =========================================================================
+    // TEST 9: MODIFICA SOLO PUBBLICA (ZERO TOCCO CASSAFORTE)
+    // =========================================================================
+    console.log('\n--- TEST 9: Modifica Solo Pubblica (Zero Tocco Cassaforte) ---');
+    const purelyPublicActivity = {
+      id: 'att_purely_public_01',
+      titolo: 'Passeggiata a Villa Borghese',
+      date: '2026-06-24',
+      dayId: 'day_2026-06-24',
+      category: 'Natura',
+      updatedAt: Date.now()
+    };
+
+    await clientOwner.storageService.saveActivity(purelyPublicActivity);
+    await new Promise(r => setTimeout(r, 600));
+
+    // Documento pubblico deve esistere
+    const checkPubOnly = await request('GET', 'trips/0000/attivita/att_purely_public_01', ownerUid);
+    assert.ok(checkPubOnly.ok, 'Documento pubblico presente su Firestore');
+
+    // La cassaforte NON deve essere stata toccata né creata
+    const checkPrivOnly = await request('GET', 'trips/0000/private_credentials/attivita_att_purely_public_01', ownerUid);
+    assert.equal(checkPrivOnly.status, 404, 'Cassaforte NON creata per modifica solo pubblica');
+    console.log('✓ TEST 9 SUPERATO: Modifica solo pubblica non tocca la cassaforte.');
+
+    // =========================================================================
+    // TEST 10: ERRORE DI AUTORIZZAZIONE E PERMANENZA CODA
+    // =========================================================================
+    console.log('\n--- TEST 10: Errore di Autorizzazione / Lockdown e Permanenza Coda ---');
+    const unauthorizedEdit = {
+      id: 'att_unauth_01',
+      titolo: 'Tentativo di modifica non autorizzata',
+      date: '2026-06-25',
+      dayId: 'day_2026-06-25',
+      category: 'Relax',
+      updatedAt: Date.now()
+    };
+
+    // 1. Salva mutazione nella coda prima della revoca
+    await clientCopilot.queueModule.savePendingMutation({
+      tripId: '0000',
+      entityType: 'attivita',
+      action: 'save',
+      data: unauthorizedEdit
+    });
+    assert.equal(clientCopilot.pendingQueue.length, 1);
+
+    // 2. Simula revoca autorizzazioni per il Copilota
+    clientCopilot.fakeLocalStorage.setItem('houni_revoked_trip_0000', 'true');
+
+    // 3. Tentativo di salvataggio da sessione revocata viene respinto
+    let mutateBlocked = false;
+    try {
+      await clientCopilot.storageService.saveActivity(unauthorizedEdit);
+    } catch {
+      mutateBlocked = true;
+    }
+    assert.ok(mutateBlocked, 'storageService deve bloccare scritture non autorizzate');
+
+    // 4. Tentativo di svuotamento coda viene bloccato da assertAuthorized
+    try {
+      await clientCopilot.syncService.flushPendingQueue();
+    } catch {}
+
+    // Il documento non deve essere stato scritto su Firestore
+    const checkUnauth = await request('GET', 'trips/0000/attivita/att_unauth_01', ownerUid);
+    assert.equal(checkUnauth.status, 404, 'Nessuna scrittura su Firestore da sessione revocata');
+
+    // La mutazione deve trovarsi nella coda isolata (non persa)
+    assert.ok(clientCopilot.pendingQueue.some(q => q.data?.id === 'att_unauth_01'), 'Mutazione non autorizzata protetta e conservata in coda');
+
+    // Ripristina autorizzazioni
+    clientCopilot.fakeLocalStorage.removeItem('houni_revoked_trip_0000');
+    clientCopilot.pendingQueue.splice(0, clientCopilot.pendingQueue.length);
+    console.log('✓ TEST 10 SUPERATO: Errore autorizzazione gestito con protezione da scritture arbitrarie.');
+
+    // =========================================================================
+    // TEST 11: MODIFICHE CONCORRENTI E PRESERVAZIONE SENZA PERDITA DATI
+    // =========================================================================
+    console.log('\n--- TEST 11: Modifiche Concorrenti e Protezione Dati ---');
+    // Pre-popola una nota su Firestore
+    const baseNote = {
+      id: 'note_concurrent_01',
+      testo: 'Nota iniziale condivisa',
+      updatedAt: 100000
+    };
+    await request('PATCH', 'trips/0000/note/note_concurrent_01', ownerUid, baseNote);
+
+    // Copilota aggiorna la nota con timestamp più recente
+    const copilotNote = {
+      id: 'note_concurrent_01',
+      testo: 'Modifica Copilota più recente',
+      updatedAt: 300000
+    };
+    await request('PATCH', 'trips/0000/note/note_concurrent_01', copilotUid, copilotNote);
+
+    // Owner tenta di inviare una modifica con timestamp meno recente (200000)
+    const ownerConcurrentNote = {
+      id: 'note_concurrent_01',
+      testo: 'Modifica Owner meno recente (concorrente)',
+      updatedAt: 200000
+    };
+
+    await clientOwner.syncService.pushToCloud('note', 'save', ownerConcurrentNote);
+
+    // Verifica che la modifica dell'Owner sia stata archiviata in sicurezza senza sovrascrivere Firestore
+    const checkConcurrentCloud = await request('GET', 'trips/0000/note/note_concurrent_01', ownerUid);
+    const currentCloudNote = parseFields((await checkConcurrentCloud.json()).fields);
+    assert.equal(currentCloudNote.testo, 'Modifica Copilota più recente', 'Firestore conserva la versione più recente');
+
+    // L'archivio dell'Owner contiene la copia di backup del dato locale
+    const conflictFound = clientOwner.conflictArchive.find(c => c.dataId === 'note_concurrent_01');
+    assert.ok(conflictFound, 'Copia di backup archiviata per modifica concorrente');
+    assert.equal(conflictFound.localData.testo, 'Modifica Owner meno recente (concorrente)');
+    console.log('✓ TEST 11 SUPERATO: Modifiche concorrenti gestite con archivio di sicurezza e zero perdita dati.');
+
     console.log('\n====================================================================');
-    console.log('✓✓✓ TUTTI I 6 TEST DI SINCRONIZZAZIONE AUTOMATICA LIVE SUPERATI! ✓✓✓');
+    console.log('✓✓✓ TUTTI GLI 11 TEST DI SINCRONIZZAZIONE AUTOMATICA LIVE E SICUREZZA SUPERATI! ✓✓✓');
     console.log('====================================================================');
 
   } finally {
