@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.9",
+      "publishedAt": "2026-11-08",
+      "sourceCommit": "469c3ab",
+      "changes": [
+        "Sincronizzazione automatica bidirezionale in tempo reale tra Owner e Copilota.",
+        "Scritture atomiche batch per cassaforte e dati pubblici con isolamento safe per documenti non versionati."
+      ]
+    },
+    {
       "version": "1.5.8",
       "publishedAt": "2026-11-07",
       "sourceCommit": "e44329d",
@@ -85,16 +94,6 @@
         "Eliminazione tappe fantasma da link Google Maps e isolamento waypoint stradali da soste reali.",
         "Nuovo design compatto di Oggi e gestione orari confermati/indicativi.",
         "Contenitore Passeggiata con sottocard e importazione simultanea con anteprima."
-      ]
-    },
-    {
-      "version": "1.4.0",
-      "publishedAt": "2026-11-02",
-      "sourceCommit": "3f7d316",
-      "changes": [
-        "Sezione Tappe dell'itinerario in Prenotazioni e orari di apertura manuali con selettore a 5 minuti.",
-        "Banner e stati noleggio auto e camper coerenti con date e luoghi effettivi di riconsegna.",
-        "Garantita lettura sicura e non distruttiva all'avvio senza cancellazioni automatiche."
       ]
     }
   ]

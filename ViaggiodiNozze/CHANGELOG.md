@@ -2,6 +2,16 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.9 — 2026-11-08
+
+- Sincronizzazione automatica bidirezionale in tempo reale tra Owner e Copilota.
+- Scritture atomiche batch per cassaforte e dati pubblici con isolamento safe per documenti non versionati.
+
+## 1.5.8 — 2026-11-07
+
+- Diagnostica pre-attivazione con interfaccia di riconciliazione e anteprima sicura riservata all'Owner.
+- Verifica automatica versioni remote, blocco conflitti e ricezione passiva in background per Copilota.
+
 ## 1.5.7 — 2026-11-05
 
 - Voce iniziale del footer rinominata in 'Viaggio'.
@@ -52,15 +62,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 - Sezione Tappe dell'itinerario in Prenotazioni e orari di apertura manuali con selettore a 5 minuti.
 - Banner e stati noleggio auto e camper coerenti con date e luoghi effettivi di riconsegna.
 - Garantita lettura sicura e non distruttiva all'avvio senza cancellazioni automatiche.
-
-## 1.3.0 — 2026-11-02
-
-- HouniAI gratuita disponibile per chat e importazione da testo, PDF e immagini.
-- Accesso HouniAI riservato a Owner e Copilota, con quote gratuite e fallback manuale.
-- Smart Import mantiene revisione e approvazione individuale prima di ogni salvataggio.
-
-## 1.2.0 — 2026-10-30
-
-- Nuova sezione Scadenze accessibile da Oggi e Altro, con stati, link e date da verificare.
-- Promemoria visibili nell'app anche offline, sincronizzati tra Owner e Copilota con tombstone preservati.
-- Preparazione push documentata; le notifiche server restano disattivate fino alla configurazione Firebase autorizzata.
