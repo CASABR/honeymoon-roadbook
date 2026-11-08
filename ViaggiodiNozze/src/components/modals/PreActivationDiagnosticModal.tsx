@@ -58,6 +58,8 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
     (Boolean(currentUser?.uid) && !currentUser?.isAnonymous && Boolean(tripConfig?.ownerUid) && currentUser?.uid === tripConfig?.ownerUid);
 
   const isCopilota = cloudRole === 'copilota' && !isOwner;
+  const copilotName = currentUser?.displayName || (tripId === '0000' ? 'Giusy' : '');
+  const copilotSuffix = copilotName ? ` (${copilotName})` : '';
 
   const reloadReport = useCallback((silent = false) => {
     const currentCfg = getTripConfig();
@@ -264,7 +266,7 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                 Stato & Attivazione Sincronizzazione
               </h3>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                <strong className="text-slate-700 dark:text-slate-200">{activeTripTitle}</strong> ({tripId}) • {isOwner ? 'Owner' : isCopilota ? 'Copilota (Giusy)' : 'Sola Lettura'}
+                <strong className="text-slate-700 dark:text-slate-200">{activeTripTitle}</strong> ({tripId}) • {isOwner ? 'Owner' : isCopilota ? `Copilota${copilotSuffix}` : 'Sola Lettura'}
               </p>
             </div>
           </div>
@@ -577,7 +579,7 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                     {isOwner
                       ? 'Attivazione Sincronizzazione (Owner)'
                       : isCopilota
-                      ? 'Attivazione Sincronizzazione (Copilota Giusy)'
+                      ? `Attivazione Sincronizzazione (Copilota${copilotSuffix})`
                       : 'Informazioni Sola Lettura'}
                   </span>
                 </div>
@@ -681,7 +683,7 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                     </div>
                   ) : (
                     <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
-                      In qualità di Copilota verificato (Giusy), puoi abilitare la sincronizzazione bidirezionale protetta separata dall'Owner. Nessuna elevazione di privilegi: le modifiche restano rigorosamente conformi al ruolo Copilota (zero accesso né sovrascrittura di credenziali private).
+                      In qualità di Copilota verificato{copilotSuffix}, puoi abilitare la sincronizzazione bidirezionale protetta separata dall'Owner. Nessuna elevazione di privilegi: le modifiche restano rigorosamente conformi al ruolo Copilota (zero accesso né sovrascrittura di credenziali private).
                     </p>
                   )}
 
@@ -709,7 +711,7 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                       ) : (
                         <>
                           <span>🟢</span>
-                          <span>Attiva Sincronizzazione Copilota (Giusy)</span>
+                          <span>Attiva Sincronizzazione Copilota{copilotSuffix}</span>
                         </>
                       )}
                     </button>
