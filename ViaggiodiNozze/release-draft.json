@@ -1,0 +1,8 @@
+{
+  "version": "1.5.9",
+  "preparedAt": "2026-11-08",
+  "changes": [
+    "Sincronizzazione automatica bidirezionale in tempo reale tra Owner e Copilota.",
+    "Scritture atomiche batch per cassaforte e dati pubblici con isolamento safe per documenti non versionati."
+  ]
+}
