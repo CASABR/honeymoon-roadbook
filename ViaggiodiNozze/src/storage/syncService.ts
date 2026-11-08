@@ -1334,16 +1334,30 @@ export class SyncService {
               }
             }
 
-            const entityType = this.mapCollectionToEntity(fb);
-            if (entityType) {
-              await this.pushToCloud(entityType, 'save', localData);
-            } else {
-              await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
+            const hasPendingPush = await hasPendingMutation(this.tripId, fb, docId) ||
+                                   await hasPendingMutation(this.tripId, this.mapCollectionToEntity(fb) || fb, docId);
+            if (this.tripId !== '0000' || hasPendingPush) {
+              const entityType = this.mapCollectionToEntity(fb);
+              if (entityType) {
+                await this.pushToCloud(entityType, 'save', localData);
+              } else {
+                await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
+              }
+              pushedCount++;
+              continue;
             }
-            pushedCount++;
           } else if (localData && localUpdated > 0 && localUpdated === serverUpdated) {
-            // Local e Cloud hanno esattamente lo stesso timestamp: il dato locale è già allineato
-            continue;
+            // Se localUpdated === serverUpdated, verifichiamo equivalenza strutturale:
+            const normType = normalizeEntityType(fb);
+            const { isEquivalent } = compareCandidateWithRemote(normType, this.tripId, localData, serverData);
+            if (isEquivalent) {
+              continue;
+            }
+            const hasExplicit = await hasPendingMutation(this.tripId, fb, docId) ||
+                                await hasPendingMutation(this.tripId, this.mapCollectionToEntity(fb) || fb, docId);
+            if (hasExplicit) {
+              continue;
+            }
           } else {
             // Cloud is newer or local item missing: store locally, reconstructing chunks if needed
             let itemToStore: any = { ...serverData, id: docId };
@@ -2006,7 +2020,7 @@ export class SyncService {
             // 1. Se serverUpdated <= 0, il documento remoto Firestore non ha un timestamp affidabile:
             //    NON deve essere automaticamente considerato più vecchio e sovrascritto!
             //    Preserva entrambe le copie nell'archivio conflitti e isola soltanto questo record.
-            // 2. Se serverUpdated > localUpdated, il server è più recente.
+            // 2. Se serverUpdated > localUpdated, il server è più recente (conflitto concorrente).
             // 3. Se serverUpdated === localUpdated e i dati divergono, timestamp identico ma contenuto divergente.
             // 4. Se localUpdated > serverUpdated ed entrambi > 0, la modifica locale è affidabilmente più recente.
             const isServerReliable = serverUpdated > 0;
@@ -2055,6 +2069,19 @@ export class SyncService {
                 }));
               }
               return;
+            }
+
+            // GESTIONE TIMESTAMP MONOTONO ED IDENTITÀ AUTORE:
+            // La modifica locale è legittimamente più recente: garantiamo un timestamp monotono crescente
+            // e tracciamo l'autore per prevenire problemi di clock skew sui dispositivi destinatari.
+            const resolvedUpdated = Math.max(localUpdated, serverUpdated + 1, Date.now());
+            data.updatedAt = resolvedUpdated;
+            if (initiatingUid) {
+              data.updatedBy = initiatingUid;
+            }
+            const localStore = this.getStoreForEntity(collectionName);
+            if (localStore) {
+              await idbPut(localStore, data).catch(() => {});
             }
           }
         } catch (conflictCheckErr: any) {
@@ -2278,48 +2305,42 @@ export class SyncService {
                   }
 
                   localData = await idbGet<any>(store, docId);
+                  const normType = normalizeEntityType(fb);
+
+                  // 1. Se il dato locale esiste, controlla l'equivalenza strutturale:
+                  // Se sono già identici, è un vero echo o dato già allineato.
+                  if (localData) {
+                    const { isEquivalent } = compareCandidateWithRemote(normType, this.tripId, localData, data);
+                    if (isEquivalent) {
+                      console.log(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Dato locale gia' allineato (echo server)`);
+                      return;
+                    }
+                  }
+
                   const localUpdated = normalizeTimestamp(localData?.updatedAt);
                   const serverUpdated = normalizeTimestamp(data?.updatedAt);
-                  if (localData && localUpdated > 0 && localUpdated >= serverUpdated) {
-                    if (localUpdated > serverUpdated) {
-                      console.warn(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Il dato locale e' piu' recente`);
-                      if (this.tripId === '0000') {
-                        // SICUREZZA 0000: Non pushare automaticamente da live listener se non è in coda esplicita!
-                        const normType = normalizeEntityType(fb);
-                        const { isEquivalent } = compareCandidateWithRemote(normType, this.tripId, localData, data);
-                        if (!isEquivalent) {
-                          console.warn(`[Cloud Sync] Rilevata divergenza locale storica su ${fb}/${docId} su 0000: preservo entrambe le versioni.`);
-                          await saveConflictBackup({
-                            tripId: this.tripId,
-                            entityType: normType,
-                            dataId: docId,
-                            localData,
-                            serverData: data,
-                            conflictType: 'unreliable_timestamp_conflict',
-                            serverUpdated,
-                            localUpdated,
-                            status: 'pending_review'
-                          });
-                        }
-                        return;
-                      }
-                      if (this.canWriteToCloud()) {
-                        // Pushiamo il dato locale al server per allinearlo (visto che il server ha dati vecchi)
-                        const entityType = this.mapCollectionToEntity(fb);
-                        if (entityType) {
-                          await this.pushToCloud(entityType, 'save', localData);
-                        } else {
-                          await setDoc(doc(db, 'trips', this.tripId, fb, docId), this.cleanUndefinedValues(localData), { merge: true });
-                        }
-                      } else {
-                        console.warn(`[Cloud Sync] Sospeso push per ${fb}/${docId}: sessione non autorizzata o pre-attivazione attiva, dato locale piu recente conservato.`);
-                      }
-                    } else {
-                      // localUpdated === serverUpdated: snapshot proveniente dal nostro stesso push, ignora per non ricreare lo stato
-                      console.log(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Dato locale gia' allineato (echo server)`);
-                    }
+
+                  // 2. Protezione da documenti remoti privi di timestamp valido su 0000:
+                  if (localData && localUpdated > 0 && serverUpdated <= 0 && this.tripId === '0000') {
+                    console.warn(`[Cloud Sync] Rilevata divergenza su documento remoto privo di timestamp valido per ${fb}/${docId}: preservo entrambe le versioni.`);
+                    await saveConflictBackup({
+                      tripId: this.tripId,
+                      entityType: normType,
+                      dataId: docId,
+                      localData,
+                      serverData: data,
+                      conflictType: 'unreliable_timestamp_conflict',
+                      serverUpdated,
+                      localUpdated,
+                      status: 'pending_review'
+                    });
                     return;
                   }
+
+                  // 3. Il dato remoto differisce dal dato locale (!isEquivalent) e questo dispositivo NON ha mutazioni pendenti in coda.
+                  // Anche se localUpdated >= serverUpdated a causa di clock skew tra dispositivi,
+                  // la modifica remota proveniente da Firestore (da un collaboratore autorizzato) è legittima.
+                  // Procedi con il pull.
                 } catch (e) {}
                 
                 let itemToStore: any = { ...data, id: docId };

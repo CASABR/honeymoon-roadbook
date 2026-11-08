@@ -493,42 +493,94 @@ function load(file, dependencies, globals = {}) {
     console.log('✓ TEST 2 SUPERATO: Modifica Owner ricevuta automaticamente da Copilota in tempo reale.');
 
     // =========================================================================
-    // TEST 3: COPILOTA MODIFICA RECORD ESISTENTE -> INVIO E RICEZIONE OWNER LIVE
+    // TEST 3: COPILOTA MODIFICA ORARIO RECORD ESISTENTE CON CLOCK SKEW -> INVIO E RICEZIONE OWNER LIVE
     // =========================================================================
-    console.log('\n--- TEST 3: Modifica Copilota -> Ricezione automatica Owner ---');
+    console.log('\n--- TEST 3: Modifica Orario Copilota con Clock Skew -> Ricezione automatica Owner ---');
     clientOwner.dispatchedEvents.length = 0; // reset log eventi
+
+    // Simula clock skew reale: l'orologio di Giusy è indietro rispetto al timestamp di creazione dell'Owner!
+    const creationTime = activityOwner.updatedAt || Date.now();
+    const skewedCopilotTime = creationTime - 3000; // 3 secondi INDIETRO rispetto alla creazione Owner
 
     const updatedByCopilot = {
       ...copilotLocalActivity,
+      time: '11:30',
+      orario: '11:30',
+      orarioInizio: '11:30',
+      orarioRitrovo: '11:15',
       titolo: 'Visita guidata Colosseo + Sotterranei (aggiornato da Giusy)',
-      noteCopilota: 'Aggiunti sotterranei e ritrovo alle 09:30',
-      updatedAt: Date.now() + 5000
+      noteCopilota: 'Orario spostato alle 11:30 con sotterranei inclusi',
+      updatedAt: skewedCopilotTime
     };
 
-    // Copilota salva la modifica tramite storageService
+    // Copilota salva la modifica dell'orario tramite storageService
     await clientCopilot.storageService.saveActivity(updatedByCopilot);
 
     // Attendi elaborazione push e snapshot
     await new Promise(r => setTimeout(r, 600));
 
-    // Verifica su Firestore
+    // Verifica su Firestore: la modifica deve essere stata scritta e il timestamp deve essere monotonicamente avanzato
     const resCloudFromCopilot = await request('GET', 'trips/0000/attivita/att_auto_owner_01', copilotUid);
     assert.ok(resCloudFromCopilot.ok, 'Modifica Copilota deve essere scritta su Firestore');
     const cloudCopilotData = parseFields((await resCloudFromCopilot.json()).fields);
+    assert.equal(cloudCopilotData.time, '11:30', 'Orario su Firestore deve essere aggiornato alle 11:30');
     assert.equal(cloudCopilotData.titolo, 'Visita guidata Colosseo + Sotterranei (aggiornato da Giusy)');
+    assert.ok(cloudCopilotData.updatedAt >= creationTime, 'Timestamp su Firestore deve essere monotonicamente avanzato rispetto alla creazione');
 
-    // Verifica che l'Owner abbia ricevuto l'aggiornamento in IndexedDB
+    // Verifica che l'Owner abbia ricevuto l'orario aggiornato in IndexedDB SENZA sync manuale
     const ownerReceivedFromCopilot = clientOwner.idbData.attivita.get('att_auto_owner_01');
     assert.ok(ownerReceivedFromCopilot, 'Owner deve avere il record aggiornato in IndexedDB');
+    assert.equal(ownerReceivedFromCopilot.time, '11:30', 'Owner deve vedere il nuovo orario 11:30 aggiornato automaticamente');
     assert.equal(ownerReceivedFromCopilot.titolo, 'Visita guidata Colosseo + Sotterranei (aggiornato da Giusy)');
-    assert.equal(ownerReceivedFromCopilot.noteCopilota, 'Aggiunti sotterranei e ritrovo alle 09:30');
+    assert.equal(ownerReceivedFromCopilot.noteCopilota, 'Orario spostato alle 11:30 con sotterranei inclusi');
 
     // Verifica evento UI emesso per l'Owner
     const uiEventsOwner = clientOwner.dispatchedEvents.filter(e =>
       e.type === 'roadbook_data_mutated' || e.type === 'attivita_updated'
     );
     assert.ok(uiEventsOwner.length > 0, 'Owner deve aver emesso evento UI per aggiornamento automatico');
-    console.log('✓ TEST 3 SUPERATO: Modifica Copilota ricevuta automaticamente da Owner.');
+    console.log('✓ TEST 3 SUPERATO: Modifica orario Copilota con clock skew ricevuta automaticamente da Owner.');
+
+    // =========================================================================
+    // TEST 3B: CLOCK SKEW RICEZIONE OWNER (localUpdated >= serverUpdated NON SCARTA MODIFICA REMOTA)
+    // =========================================================================
+    console.log('\n--- TEST 3B: Listener Owner onSnapshot non scarta modifiche remote in presenza di clock skew locale ---');
+    clientOwner.dispatchedEvents.length = 0;
+
+    // Crea seconda attività creata da Copilota
+    const act2 = {
+      id: 'att_skew_test_02',
+      titolo: 'Pranzo a Trastevere scelto da Giusy',
+      time: '13:00',
+      orario: '13:00',
+      date: '2026-06-16',
+      dayId: 'day_2026-06-16',
+      updatedAt: 1000000
+    };
+    await clientCopilot.storageService.saveActivity(act2);
+    await new Promise(r => setTimeout(r, 600));
+
+    // Simula che l'Owner abbia un timestamp locale AVANTI (ad es. per orologio locale Owner avanti di 5 minuti)
+    const ownerLocalSkewed = clientOwner.idbData.attivita.get('att_skew_test_02');
+    assert.ok(ownerLocalSkewed, 'Owner deve aver ricevuto act2 inizialmente');
+    ownerLocalSkewed.updatedAt = 1005000; // Orologio locale Owner avanti di 5 secondi
+    clientOwner.idbData.attivita.set('att_skew_test_02', ownerLocalSkewed);
+
+    // Giusy ora modifica l'orario a 13:30 con il suo orologio (timestamp 1002000, che è MINORE di 1005000 di Owner)
+    // ma Giusy ha salvato la modifica e la invia a Firestore
+    const act2ModifiedByGiusy = {
+      ...clientCopilot.idbData.attivita.get('att_skew_test_02'),
+      time: '13:30',
+      orario: '13:30',
+      updatedAt: 1002000
+    };
+    await clientCopilot.storageService.saveActivity(act2ModifiedByGiusy);
+    await new Promise(r => setTimeout(r, 600));
+
+    // Verifica che l'Owner, pur avendo localUpdated (1005000) > serverUpdated originario, NON abbia scartato la modifica
+    const ownerFinalAct2 = clientOwner.idbData.attivita.get('att_skew_test_02');
+    assert.equal(ownerFinalAct2.time, '13:30', 'Owner deve aver aggiornato l\'orario a 13:30 nonostante il clock skew locale');
+    console.log('✓ TEST 3B SUPERATO: Owner accetta modifiche del collaboratore anche con clock locale avanti.');
 
     // =========================================================================
     // TEST 4: DOCUMENTO FIRESTORE SENZA UPDATEDAT NON VIENE SOVRASCRITTO (ISOLATO)

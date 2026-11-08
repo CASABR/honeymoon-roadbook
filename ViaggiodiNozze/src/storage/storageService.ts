@@ -16,6 +16,20 @@ import { lookupKnownCoordinate } from '../utils/geoCoordinatesHelper';
 
 export const SEED_FLAG_KEY = 'honeymoon_roadbook_seeded_v1';
 
+/**
+ * Calcola timestamp monotono crescente per prevenire regressioni temporali da clock skew tra dispositivi.
+ * Conserva inoltre baseUpdatedAt per consentire al SyncService di distinguere tra clock skew e veri conflitti concorrenti.
+ */
+export function computeMonotonicUpdatedAt(candidate?: any): { updatedAt: number; baseUpdatedAt?: number } {
+  const prevUpdated = normalizeTimestamp(candidate?.updatedAt || (typeof candidate === 'number' ? candidate : 0));
+  const now = Date.now();
+  const effectiveUpdated = Math.max(now, prevUpdated > 0 ? prevUpdated + 1 : now);
+  return {
+    updatedAt: effectiveUpdated,
+    baseUpdatedAt: prevUpdated > 0 ? prevUpdated : undefined
+  };
+}
+
 export function notifyDataChanged(entityType: string, action: 'save' | 'delete', data?: any, source: 'local' | 'cloud' = 'local'): void {
   if (typeof window === 'undefined') return;
   try {
@@ -501,6 +515,7 @@ class StorageService {
 
     const cleanCopilot = (activity.noteCopilota || '').trim() || undefined;
     const cleanNotes = (activity.notes || (activity as any).nota || '').trim() || undefined;
+    const { updatedAt: effectiveUpdated, baseUpdatedAt } = computeMonotonicUpdatedAt(activity);
 
     const item: Attivita = {
       ...activity,
@@ -514,8 +529,9 @@ class StorageService {
       noteCopilota: cleanCopilot,
       notes: cleanNotes,
       copilota: Boolean(cleanCopilot) || activity.copilota || undefined,
+      baseUpdatedAt: baseUpdatedAt || (activity as any).baseUpdatedAt,
       createdAt: activity.createdAt || now,
-      updatedAt: now
+      updatedAt: effectiveUpdated
     } as any;
     if (!await this.validateSaveAgainstTombstone('attivita', item.id, item.createdAt)) {
       return;
@@ -584,6 +600,7 @@ class StorageService {
     const cleanCopilot = (acc.noteCopilota || '').trim() || undefined;
     const cleanNotes = (acc.notes || (acc as any).nota || '').trim() || undefined;
     const cleanAcconto = acc.acconto || acc.depositPaid || undefined;
+    const { updatedAt: effectiveUpdated, baseUpdatedAt } = computeMonotonicUpdatedAt(acc);
     const item: Alloggio = {
       ...acc,
       acconto: cleanAcconto,
@@ -593,9 +610,10 @@ class StorageService {
       noteCopilota: cleanCopilot,
       notes: cleanNotes,
       copilota: Boolean(cleanCopilot) || acc.copilota || undefined,
+      baseUpdatedAt: baseUpdatedAt || (acc as any).baseUpdatedAt,
       createdAt: acc.createdAt || now,
-      updatedAt: now
-    };
+      updatedAt: effectiveUpdated
+    } as any;
     if (!await this.validateSaveAgainstTombstone('alloggi', item.id, item.createdAt)) {
       return;
     }
@@ -668,6 +686,7 @@ class StorageService {
     const cleanCopilot = (transport.noteCopilota || '').trim() || undefined;
     const cleanNotes = ((transport as any).notes || (transport as any).nota || '').trim() || undefined;
     const cleanAcconto = (transport as any).acconto || transport.depositPaid || (transport as any).amountPaid || undefined;
+    const { updatedAt: effectiveUpdated, baseUpdatedAt } = computeMonotonicUpdatedAt(transport);
     const item: Trasporto = {
       ...transport,
       data: transport.date,
@@ -677,9 +696,10 @@ class StorageService {
       noteCopilota: cleanCopilot,
       notes: cleanNotes,
       copilota: Boolean(cleanCopilot) || transport.copilota || undefined,
+      baseUpdatedAt: baseUpdatedAt || (transport as any).baseUpdatedAt,
       createdAt: transport.createdAt || now,
-      updatedAt: now
-    };
+      updatedAt: effectiveUpdated
+    } as any;
     if (!await this.validateSaveAgainstTombstone('trasporti', item.id, item.createdAt)) {
       return;
     }
@@ -756,11 +776,13 @@ class StorageService {
   async saveDocument(doc: TravelDocument): Promise<void> {
     assertCanMutate('documenti');
     const now = Date.now();
+    const { updatedAt: effectiveUpdated, baseUpdatedAt } = computeMonotonicUpdatedAt(doc);
     const item: TravelDocument = {
       ...doc,
+      baseUpdatedAt: baseUpdatedAt || (doc as any).baseUpdatedAt,
       createdAt: (doc as any).createdAt || now,
-      updatedAt: new Date().toISOString()
-    };
+      updatedAt: effectiveUpdated
+    } as any;
     if (!await this.validateSaveAgainstTombstone('documenti', item.id, (item as any).createdAt)) {
       return;
     }
@@ -946,6 +968,7 @@ class StorageService {
     const cleanNotes = (tappa.nota || (tappa as any).notes || '').trim() || undefined;
     const rawSub = tappa.sottocategoria;
     const cleanSub = rawSub === 'Sosta fotografica' ? 'Spot fotografico' : (rawSub === 'Sosta' || rawSub === 'Sosta generica' ? 'Sosta tecnica' : (rawSub || 'Tappa'));
+    const { updatedAt: effectiveUpdated, baseUpdatedAt } = computeMonotonicUpdatedAt(tappa);
     const item: Tappa = {
       ...tappa,
       sottocategoria: cleanSub,
@@ -958,9 +981,10 @@ class StorageService {
       nota: cleanNotes,
       notes: cleanNotes,
       copilota: Boolean(cleanCopilot) || tappa.copilota || undefined,
+      baseUpdatedAt: baseUpdatedAt || (tappa as any).baseUpdatedAt,
       createdAt: tappa.createdAt || now,
-      updatedAt: now
-    };
+      updatedAt: effectiveUpdated
+    } as any;
     if (!await this.validateSaveAgainstTombstone('tappe', item.id, item.createdAt)) {
       return;
     }
@@ -1104,6 +1128,7 @@ class StorageService {
     const effectiveTime = rawTime || undefined;
     const cleanCopilot = (r.noteCopilota || '').trim() || undefined;
     const cleanNotes = (r.nota || (r as any).notes || '').trim() || undefined;
+    const { updatedAt: effectiveUpdated, baseUpdatedAt } = computeMonotonicUpdatedAt(r);
     const item: Ristorante = {
       ...r,
       orario: effectiveTime,
@@ -1115,8 +1140,9 @@ class StorageService {
       nota: cleanNotes,
       notes: cleanNotes,
       copilota: Boolean(cleanCopilot) || r.copilota || undefined,
+      baseUpdatedAt: baseUpdatedAt || (r as any).baseUpdatedAt,
       createdAt: r.createdAt || now,
-      updatedAt: now
+      updatedAt: effectiveUpdated
     } as any;
     if (!await this.validateSaveAgainstTombstone('ristoranti', item.id, item.createdAt)) {
       return;
@@ -1262,6 +1288,7 @@ class StorageService {
     const cleanCopilot = (s.noteCopilota || '').trim() || undefined;
     const cleanNotes = (s.nota || (s as any).notes || '').trim() || undefined;
     const cleanAcconto = (s as any).acconto || (s as any).depositPaid || undefined;
+    const { updatedAt: effectiveUpdated, baseUpdatedAt } = computeMonotonicUpdatedAt(s);
     const item: Shopping = {
       ...s,
       acconto: cleanAcconto,
@@ -1278,8 +1305,9 @@ class StorageService {
       nota: cleanNotes,
       notes: cleanNotes,
       copilota: Boolean(cleanCopilot) || s.copilota || undefined,
+      baseUpdatedAt: baseUpdatedAt || (s as any).baseUpdatedAt,
       createdAt: s.createdAt || now,
-      updatedAt: now
+      updatedAt: effectiveUpdated
     } as any;
     if (!await this.validateSaveAgainstTombstone('shopping', item.id, item.createdAt)) {
       return;
@@ -1316,11 +1344,13 @@ class StorageService {
   async saveSpesa(spesa: Spesa): Promise<void> {
     assertCanMutate('spese');
     const now = Date.now();
+    const { updatedAt: effectiveUpdated, baseUpdatedAt } = computeMonotonicUpdatedAt(spesa);
     const item: Spesa = {
       ...spesa,
+      baseUpdatedAt: baseUpdatedAt || (spesa as any).baseUpdatedAt,
       createdAt: spesa.createdAt || now,
-      updatedAt: now
-    };
+      updatedAt: effectiveUpdated
+    } as any;
     if (!await this.validateSaveAgainstTombstone('spese', item.id, item.createdAt)) {
       return;
     }
@@ -1384,12 +1414,14 @@ class StorageService {
 
   async saveNota(nota: NotaViaggio): Promise<void> {
     const now = Date.now();
+    const { updatedAt: effectiveUpdated, baseUpdatedAt } = computeMonotonicUpdatedAt(nota);
     const item: NotaViaggio = {
       ...nota,
       recordKind: 'nota',
+      baseUpdatedAt: baseUpdatedAt || (nota as any).baseUpdatedAt,
       createdAt: nota.createdAt || now,
-      updatedAt: now
-    };
+      updatedAt: effectiveUpdated
+    } as any;
     if (!await this.validateSaveAgainstTombstone('note', item.id, item.createdAt)) {
       return;
     }
@@ -2056,11 +2088,13 @@ class StorageService {
   async saveBagaglio(bagaglio: Bagaglio): Promise<void> {
     assertCanMutate('bagagli');
     const now = Date.now();
+    const { updatedAt: effectiveUpdated, baseUpdatedAt } = computeMonotonicUpdatedAt(bagaglio);
     const item: Bagaglio = {
       ...bagaglio,
+      baseUpdatedAt: baseUpdatedAt || (bagaglio as any).baseUpdatedAt,
       createdAt: bagaglio.createdAt || now,
-      updatedAt: now
-    };
+      updatedAt: effectiveUpdated
+    } as any;
     if (!await this.validateSaveAgainstTombstone('bagagli', item.id, item.createdAt)) {
       return;
     }

@@ -667,11 +667,18 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       loadData(false);
     };
 
+    const handleCloudSynced = () => {
+      fetchTimeline();
+      loadData(false);
+    };
+
     window.addEventListener('roadbook_data_mutated', handleDataMutated);
     window.addEventListener('activity_updated', handleActivityUpdated);
+    window.addEventListener('roadbook_cloud_synced', handleCloudSynced);
     return () => {
       window.removeEventListener('roadbook_data_mutated', handleDataMutated);
       window.removeEventListener('activity_updated', handleActivityUpdated);
+      window.removeEventListener('roadbook_cloud_synced', handleCloudSynced);
     };
   }, [fetchTimeline, loadData]);
 
