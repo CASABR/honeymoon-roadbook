@@ -1532,18 +1532,27 @@ export class SyncService {
   }
 
   private addDomListener(target: EventTarget, type: string, listener: EventListener) {
-    target.addEventListener(type, listener);
-    this.domListeners.push({ target, type, listener });
+    if (target && typeof (target as any).addEventListener === 'function') {
+      target.addEventListener(type, listener);
+      this.domListeners.push({ target, type, listener });
+    }
   }
 
   // --- 1. LOCAL TO CLOUD ---
   private setupLocalListeners() {
     this.addDomListener(window, 'roadbook_data_mutated', (async (e: Event) => {
       const custom = e as CustomEvent;
-      const { entityType, action, data, source } = custom.detail;
+      const detail = custom?.detail || {};
+      const { source } = detail;
       
       // Ignoriamo le mutazioni che arrivano gia dal cloud per evitare loop infiniti
       if (source === 'cloud') return;
+
+      const rawEntity = detail.entityType || (typeof detail.action === 'string' && detail.action.includes('_') ? detail.action.split('_')[1] : '');
+      const entityType = normalizeQueueEntityType(rawEntity) || rawEntity;
+      const action = detail.action === 'delete' || (typeof detail.action === 'string' && detail.action.startsWith('delete_')) ? 'delete' : 'save';
+      const data = detail.data || detail.item;
+      if (!data || !data.id) return;
       
       try {
         const mutationId = typeof globalThis.crypto !== 'undefined' && typeof globalThis.crypto.randomUUID === 'function'
@@ -1555,7 +1564,7 @@ export class SyncService {
       }
     }) as EventListener);
 
-        this.addDomListener(window, 'houni_trip_auth_revoked', (async (e: Event) => {
+    this.addDomListener(window, 'houni_trip_auth_revoked', (async (e: Event) => {
       const revokedTripId = (e as CustomEvent)?.detail?.tripId;
       console.log(`[SyncService] Ricevuta revoca autorizzazioni per viaggio ${revokedTripId}: bonifica cache e conservazione della coda isolata.`);
       if (revokedTripId !== this.tripId) return;
@@ -1593,14 +1602,34 @@ export class SyncService {
       }
     }) as EventListener);
 
-    // Ripresa automatica al ritorno della connessione online
+    // Ripresa automatica al ritorno della connessione online con flush immediato della coda persistente
     this.addDomListener(window, 'online', (() => {
       console.log('[SyncService] Connessione di rete ripristinata (online): verifico autorizzazioni per sync.');
       setTimeout(() => {
         if (this.canWriteToCloud()) {
+          this.flushPendingPushes().catch(() => {});
           this.triggerAutomaticSync('network_online');
         }
-      }, 600);
+      }, 300);
+    }) as EventListener);
+
+    // Ripresa automatica al resume PWA (quando la finestra torna in primo piano / schermo sbloccato su iPhone)
+    if (typeof document !== 'undefined') {
+      this.addDomListener(document, 'visibilitychange', (() => {
+        if (document.visibilityState === 'visible') {
+          console.log('[SyncService] PWA in primo piano (visible): verifico autorizzazioni e coda pendente.');
+          if (this.canWriteToCloud()) {
+            this.flushPendingPushes().catch(() => {});
+            this.triggerAutomaticSync('pwa_visible');
+          }
+        }
+      }) as EventListener);
+    }
+
+    this.addDomListener(window, 'focus', (() => {
+      if (this.canWriteToCloud()) {
+        this.flushPendingPushes().catch(() => {});
+      }
     }) as EventListener);
   }
 
@@ -1788,6 +1817,9 @@ export class SyncService {
     options: { notifyCollaborators?: boolean; mutationId?: string; fromQueue?: boolean } = {}
   ) {
     if (!data || !data.id || this.isDestroyed) return;
+    if (action === 'save' && !data.updatedAt) {
+      data.updatedAt = Date.now();
+    }
     if (options.fromQueue) {
       const current = (await this.getPendingPushesFromStore()).find(item => item.data?.id === data.id && item.entityType === this.mapEntityToCollection(entityType));
       if (!current || current.action !== action || current.mutationId !== options.mutationId || JSON.stringify(current.data) !== JSON.stringify(data)) return;
@@ -1949,12 +1981,17 @@ export class SyncService {
               return;
             }
 
-            // Solo se NON è già sincronizzato, valuta conflitti timestamp o versioni server più recenti
-            const isUncertain = (serverUpdated <= 0 || localUpdated <= 0);
+            // Solo se NON è già sincronizzato, valuta versioni o conflitti:
+            // 1. Se localUpdated > 0 e serverUpdated <= 0 (record legacy su Firestore), la modifica locale è legittima e recente: è local_newer.
+            // 2. Se serverUpdated > localUpdated, il server è più recente.
+            // 3. Se serverUpdated === localUpdated e i dati divergono, timestamp identico ma contenuto divergente.
+            // 4. Se entrambi sono privi di timestamp (serverUpdated <= 0 && localUpdated <= 0) e divergono, è incertezza reale.
+            const isLocalNewer = (localUpdated > 0 && (serverUpdated <= 0 || localUpdated > serverUpdated));
             const isServerNewer = (serverUpdated > 0 && localUpdated > 0 && serverUpdated > localUpdated);
             const isSameTimeDifferent = (serverUpdated > 0 && localUpdated > 0 && serverUpdated === localUpdated && !isEquivalent);
+            const isUncertain = !isLocalNewer && !isServerNewer && !isSameTimeDifferent && !isEquivalent;
 
-            if (isUncertain || isServerNewer || isSameTimeDifferent) {
+            if (isServerNewer || isSameTimeDifferent || isUncertain) {
               const conflictType = isServerNewer ? 'server_newer' : 'unreliable_timestamp_conflict';
               console.warn(`[SyncService] Conflitto rilevato per ${collectionName}/${data.id}: ${conflictType} (server: ${serverUpdated}, local: ${localUpdated}). Preservo copia nell'archivio isolato.`);
               // Preserva copia di sicurezza nell'archivio isolato HounigoConflictArchiveDB (zero leak in settings)
@@ -2066,14 +2103,17 @@ export class SyncService {
           payloadToSync
         );
 
-        const cleanPublic = this.cleanUndefinedValues(publicDoc);
-        await safeSet(docRef, cleanPublic, { merge: true });
-
+        // SCRITTURA ORDINATA (P0): Scrivi SEMPRE la cassaforte prima del documento pubblico.
+        // In questo modo, quando Firestore emette il listener onSnapshot per il documento pubblico
+        // verso i dispositivi dei collaboratori, la cassaforte è GIÀ presente e immediatamente leggibile!
         if (privateCredentialsDoc && isCloudAuthorized(this.tripId)) {
           const vaultId = getVaultDocId(normType, data.id);
           const privDocRef = doc(db, 'trips', this.tripId, 'private_credentials', vaultId);
           await safeSet(privDocRef, this.cleanUndefinedValues(privateCredentialsDoc), { merge: true });
         }
+
+        const cleanPublic = this.cleanUndefinedValues(publicDoc);
+        await safeSet(docRef, cleanPublic, { merge: true });
         // REQUISITO 1: Una modifica a un'attività o entità operativa NON deve mai cancellare la relativa private_credentials.
         // La cancellazione della cassaforte è ammessa UNICAMENTE all'eliminazione dell'intera entità (action === 'delete').
       } else {

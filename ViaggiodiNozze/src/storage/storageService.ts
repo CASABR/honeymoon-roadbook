@@ -55,20 +55,47 @@ class StorageService {
     if (typeof window !== 'undefined') {
       window.addEventListener('roadbook_data_mutated', (e: any) => {
         const entityType = e?.detail?.entityType;
-        if (entityType) {
+        if (entityType && entityType !== 'all') {
           const storeMap: Record<string, string> = {
             giorni: STORES.GIORNI,
+            giorno: STORES.GIORNI,
+            day: STORES.GIORNI,
+            days: STORES.GIORNI,
             attivita: STORES.ATTIVITA,
+            attività: STORES.ATTIVITA,
+            activity: STORES.ATTIVITA,
+            activities: STORES.ATTIVITA,
             alloggi: STORES.ALLOGGI,
+            alloggio: STORES.ALLOGGI,
+            accommodation: STORES.ALLOGGI,
+            accommodations: STORES.ALLOGGI,
             trasporti: STORES.TRASPORTI,
+            trasporto: STORES.TRASPORTI,
+            transport: STORES.TRASPORTI,
+            transports: STORES.TRASPORTI,
             tappe: STORES.TAPPE,
             tappa: STORES.TAPPE,
+            stage: STORES.TAPPE,
+            stages: STORES.TAPPE,
             ristoranti: STORES.RISTORANTI,
+            ristorante: STORES.RISTORANTI,
+            restaurant: STORES.RISTORANTI,
+            restaurants: STORES.RISTORANTI,
             shopping: STORES.SHOPPING,
             spese: STORES.SPESE,
-            documenti: STORES.DOCUMENTI
+            spesa: STORES.SPESE,
+            documenti: STORES.DOCUMENTI,
+            documento: STORES.DOCUMENTI,
+            valigie: STORES.BAGAGLI,
+            bagagli: STORES.BAGAGLI,
+            bagaglio: STORES.BAGAGLI,
+            note: STORES.NOTE,
+            nota: STORES.NOTE,
+            notes: STORES.NOTE,
+            routes: STORES.ROUTES,
+            settings: STORES.SETTINGS
           };
-          const targetStore = storeMap[entityType] || entityType;
+          const targetStore = storeMap[String(entityType).toLowerCase()] || entityType;
           this.memoryCache.delete(targetStore);
         } else {
           this.memoryCache.clear();

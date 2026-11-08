@@ -32,14 +32,18 @@ const memoryQueue = new Map<string, PendingMutation>();
 
 export function normalizeQueueEntityType(entityType: string): string {
   const clean = String(entityType || '').trim().toLowerCase();
-  if (clean === 'nota' || clean === 'notes') return 'note';
-  if (clean === 'spesa') return 'spese';
-  if (clean === 'bagaglio') return 'bagagli';
-  if (clean === 'attivita' || clean === 'attività') return 'attivita';
-  if (clean === 'alloggio') return 'alloggi';
-  if (clean === 'trasporto') return 'trasporti';
-  if (clean === 'tappa') return 'tappe';
-  if (clean === 'ristorante') return 'ristoranti';
+  if (clean === 'nota' || clean === 'notes' || clean === 'note') return 'note';
+  if (clean === 'spesa' || clean === 'spese' || clean === 'expense' || clean === 'expenses') return 'spese';
+  if (clean === 'bagaglio' || clean === 'bagagli' || clean === 'luggage' || clean === 'bag') return 'bagagli';
+  if (clean === 'attivita' || clean === 'attività' || clean === 'activity' || clean === 'activities') return 'attivita';
+  if (clean === 'alloggio' || clean === 'alloggi' || clean === 'accommodation' || clean === 'accommodations') return 'alloggi';
+  if (clean === 'trasporto' || clean === 'trasporti' || clean === 'transport' || clean === 'transports') return 'trasporti';
+  if (clean === 'tappa' || clean === 'tappe' || clean === 'stage' || clean === 'stages') return 'tappe';
+  if (clean === 'ristorante' || clean === 'ristoranti' || clean === 'restaurant' || clean === 'restaurants') return 'ristoranti';
+  if (clean === 'shopping') return 'shopping';
+  if (clean === 'documento' || clean === 'documenti' || clean === 'document' || clean === 'documents') return 'documenti';
+  if (clean === 'giorno' || clean === 'giorni' || clean === 'day' || clean === 'days') return 'giorni';
+  if (clean === 'setting' || clean === 'settings') return 'settings';
   return clean;
 }
 
@@ -98,7 +102,8 @@ export async function savePendingMutation(mutation: Omit<PendingMutation, 'id' |
   if (!dataId || !mutation.tripId) throw new Error('Mutation requires tripId and data.id');
   const entityType = normalizeQueueEntityType(mutation.entityType);
   const id = mutationQueueKey(mutation.tripId, entityType, dataId);
-  const record: PendingMutation = { ...mutation, id, entityType, timestamp: mutation.timestamp ?? Date.now() };
+  const normAction: 'save' | 'delete' = mutation.action === 'delete' ? 'delete' : 'save';
+  const record: PendingMutation = { ...mutation, id, entityType, action: normAction, timestamp: mutation.timestamp ?? Date.now() };
   if (!hasIndexedDB()) { memoryQueue.set(id, structuredClone(record)); return; }
   // Browser storage errors propagate: volatile memory cannot replace durable writes.
   await transaction<void>('readwrite', store => { store.put(record); });
@@ -106,8 +111,15 @@ export async function savePendingMutation(mutation: Omit<PendingMutation, 'id' |
 export async function removePendingMutation(tripId: string, entityType: string, dataId: string,
   expected?: Pick<PendingMutation, 'action' | 'data' | 'mutationId'>): Promise<void> {
   const id = mutationQueueKey(tripId, entityType, dataId);
-  const matches = (record?: PendingMutation) => record && (!expected ||
-    (record.action === expected.action && record.mutationId === expected.mutationId && JSON.stringify(record.data) === JSON.stringify(expected.data)));
+  const expAction: 'save' | 'delete' | undefined = expected?.action ? (expected.action === 'delete' ? 'delete' : 'save') : undefined;
+  const matches = (record?: PendingMutation) => {
+    if (!record) return false;
+    if (!expected) return true;
+    const recAction: 'save' | 'delete' = record.action === 'delete' ? 'delete' : 'save';
+    if (expAction && recAction !== expAction) return false;
+    if (expected.mutationId && record.mutationId && record.mutationId !== expected.mutationId) return false;
+    return true;
+  };
   if (!hasIndexedDB()) { if (matches(memoryQueue.get(id))) memoryQueue.delete(id); return; }
   await transaction<void>('readwrite', store => {
     const req = store.get(id);
