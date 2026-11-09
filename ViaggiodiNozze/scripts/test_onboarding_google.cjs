@@ -61,9 +61,7 @@ async function runTest() {
   page.on('pageerror', err => console.error('BROWSER ERROR:', err));
 
   await page.goto('http://localhost:5288/honeymoon-roadbook/');
-  await page.waitForTimeout(2000);
-  await page.screenshot({ path: path.resolve(__dirname, 'debug_onboarding.png') });
-  console.log('HTML snippet:', (await page.content()).slice(0, 500));
+  await page.waitForTimeout(500);
 
   // Attende che l'inizializzazione termini e che l'onboarding sia visualizzato
   const googleBtn = page.locator('button:has-text("Continua con Google")');

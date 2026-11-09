@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.15 — 2026-11-09
+
+- Onboarding con accesso Google in evidenza nella schermata iniziale
+- Percorso dedicato per accesso con account e credenziali preesistenti
+
 ## 1.5.14 — 2026-11-09
 
 - Correzione overflow orizzontale Documenti su iPhone e layout responsive pulsanti
@@ -47,9 +52,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Navigazione footer: voce 'Itinerario' sostituita con 'Aggiungi' e icona bicolore MapPin + Plus corallo.
 - Voce 'Oggi' nel footer rinominata in 'La giornata'.
-
-## 1.5.5 — 2026-11-05
-
-- Icona ufficiale vettoriale Google Maps per tutti i collegamenti e percorsi.
-- Focus della giornata compatto con pulsanti Maps e Dettagli allineati.
-- Footer card responsive: etichette visibili e collasso a sola icona se forzati ad andare a capo.

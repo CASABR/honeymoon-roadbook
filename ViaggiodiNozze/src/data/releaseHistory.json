@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.15",
+      "publishedAt": "2026-11-09",
+      "sourceCommit": "9db3e09",
+      "changes": [
+        "Onboarding con accesso Google in evidenza nella schermata iniziale",
+        "Percorso dedicato per accesso con account e credenziali preesistenti"
+      ],
+      "publishedAtIso": "2026-11-09T13:25:00+01:00"
+    },
+    {
       "version": "1.5.14",
       "publishedAt": "2026-11-09",
       "sourceCommit": "c04a8af",
@@ -83,16 +93,6 @@
       "changes": [
         "Navigazione footer: voce 'Itinerario' sostituita con 'Aggiungi' e icona bicolore MapPin + Plus corallo.",
         "Voce 'Oggi' nel footer rinominata in 'La giornata'."
-      ]
-    },
-    {
-      "version": "1.5.5",
-      "publishedAt": "2026-11-05",
-      "sourceCommit": "1beb24d",
-      "changes": [
-        "Icona ufficiale vettoriale Google Maps per tutti i collegamenti e percorsi.",
-        "Focus della giornata compatto con pulsanti Maps e Dettagli allineati.",
-        "Footer card responsive: etichette visibili e collasso a sola icona se forzati ad andare a capo."
       ]
     }
   ]
