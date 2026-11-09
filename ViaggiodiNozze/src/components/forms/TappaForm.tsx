@@ -1,3 +1,4 @@
+import { isTaskTappa, getTaskLink } from '../../utils/taskTappa';
 import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress, extractMapsUrlFromText } from '../../utils/mapsHelper';
@@ -24,6 +25,7 @@ interface TappaFormProps {
 }
 
 export const SOTTOCATEGORIE_TAPPA: { value: string; label: string; icon: string }[] = [
+  { value: 'Task', label: 'Task', icon: '\u2611' },
   { value: 'Tappa', label: '📍 Tappa', icon: '📍' },
   { value: 'Sosta panoramica', label: '⛰️ Sosta panoramica', icon: '⛰️' },
   { value: 'Spot fotografico', label: '📸 Spot fotografico', icon: '📸' },
@@ -35,6 +37,10 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
 
   const [data, setData] = useState(() => initialData?.data || (initialData as any)?.date || defaultDate || new Date().toISOString().split('T')[0]);
   const [sottocategoria, setSottocategoria] = useState(() => initialData?.sottocategoria || 'Tappa');
+  const isTask = isTaskTappa({ sottocategoria });
+  const [taskLink, setTaskLink] = useState(initialData?.link || '');
+  const [taskNotes, setTaskNotes] = useState(initialData?.nota || initialData?.notes || '');
+  const [completed, setCompleted] = useState(Boolean(initialData?.completed));
   const [attachments, setAttachments] = useState<TransportAttachment[]>(() => initialData?.attachments || []);
   const [lightWindow, setLightWindow] = useState<FasciaLuceFotografica>(() => (initialData as any)?.lightWindow || 'qualsiasi');
   const [photoSubject, setPhotoSubject] = useState(() => (initialData as any)?.photoSubject || '');
@@ -76,13 +82,16 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       setData(initialData.data || (initialData as any)?.date || defaultDate || new Date().toISOString().split('T')[0]);
       setSottocategoria(initialData.sottocategoria || 'Tappa');
       setPasseggiataId(initialData.passeggiataId);
+      setTaskLink(initialData.link || '');
+      setTaskNotes(initialData.nota || initialData.notes || '');
+      setCompleted(Boolean(initialData.completed));
       setTitolo(initialData.titolo || '');
       setOrario(initialData.orario || (initialData as any).time || '');
       setTimeStatus(initialData.timeStatus || 'indicativo');
       setIndirizzo(initialData.indirizzo || '');
       setMapsUrl(initialData.mapsUrl || '');
       const existingNotes = [initialData.noteCopilota, initialData.nota, (initialData as any).notes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n\n');
-      setNoteCopilota(existingNotes);
+      setNoteCopilota(isTaskTappa(initialData) ? (initialData.noteCopilota || '') : existingNotes);
       setOpeningHours(initialData.openingHours);
       setAttachments(initialData.attachments || []);
       setLightWindow((initialData as any).lightWindow || 'qualsiasi');
@@ -145,10 +154,10 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
     setError('');
     setIsGeocoding(true);
 
-    let finalCoord = initialData?.coordinate;
+    let finalCoord = isTask ? undefined : (coordinate || initialData?.coordinate);
     
     // Geocoding basato sull'indirizzo se fornito
-    if (indirizzo && indirizzo.trim()) {
+    if (!isTask && indirizzo && indirizzo.trim()) {
       try {
         const coord = await getCoordinatesFromAddress(indirizzo);
         if (coord) {
@@ -160,7 +169,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       } catch (e) {
         console.error("Geocoding fallito", e);
       }
-    } else if (titolo.trim() && !finalCoord) {
+    } else if (!isTask && titolo.trim() && !finalCoord) {
        try {
          const coord = await getCoordinatesFromAddress(titolo);
          if (coord) finalCoord = coord;
@@ -177,22 +186,23 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       id: initialData?.id,
       titolo: titolo.trim(),
       sottocategoria: (sottocategoria === 'Sosta fotografica' ? 'Spot fotografico' : (sottocategoria.trim() || 'Tappa')),
-      passeggiataId: passeggiataId || undefined,
+      passeggiataId: isTask ? undefined : (passeggiataId || undefined),
       orario: orario.trim() || undefined,
       time: orario.trim() || undefined,
       timeStatus: orario.trim() ? timeStatus : undefined,
-      indirizzo: indirizzo.trim() || undefined,
-      mapsUrl: mapsUrl.trim() || undefined,
+      indirizzo: isTask ? undefined : (indirizzo.trim() || undefined),
+      mapsUrl: isTask ? undefined : (mapsUrl.trim() || undefined),
+      link: isTask ? (getTaskLink(taskLink) || '') : initialData?.link,
       coordinate: finalCoord,
       noteCopilota: noteCopilota.trim() || undefined,
-      nota: noteCopilota.trim() || undefined,
-      notes: noteCopilota.trim() || undefined,
+      nota: isTask ? taskNotes.trim() : (noteCopilota.trim() || undefined),
+      notes: isTask ? taskNotes.trim() : (noteCopilota.trim() || undefined),
       copilota: hasCopilotaNotes || initialData?.copilota || undefined,
       data: dateClean,
       date: dateClean,
       dayId: dateClean ? `day_${dateClean}` : initialData?.dayId,
-      completed: initialData?.completed,
-      openingHours,
+      completed: isTask ? completed : initialData?.completed,
+      openingHours: isTask ? undefined : openingHours,
       lightWindow: isPhotoSpot ? lightWindow : undefined,
       photoSubject: isPhotoSpot ? (photoSubject.trim() || undefined) : undefined,
       attachments: attachments.length > 0 ? attachments : undefined,
@@ -204,6 +214,12 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
     if (!titolo.trim()) {
       setError('Il titolo/nome della sosta è obbligatorio.');
       return;
+    }
+    if (isTask && !/^([01]\d|2[0-3]):[0-5]\d$/.test(orario.trim())) {
+      setError('Inserisci un orario valido per il Task (HH:mm).'); return;
+    }
+    if (isTask && taskLink.trim() && !getTaskLink(taskLink)) {
+      setError('Inserisci un link HTTP o HTTPS valido.'); return;
     }
     processSave();
   };
@@ -248,6 +264,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
             onChange={(e) => setSottocategoria(e.target.value)}
             className="w-full h-11 px-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F]"
           >
+            <option value="Task">Task</option>
             <option value="Tappa">📍 Tappa</option>
             <option value="Passeggiata">🚶 Passeggiata</option>
             <option value="Sosta panoramica">⛰️ Sosta panoramica</option>
@@ -365,10 +382,24 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
               </button>
             </div>
           </div>
-          <TimePickerInput value={orario} onChange={setOrario} ariaLabel="Orario tappa" />
+          <TimePickerInput value={orario} onChange={setOrario} required={isTask} ariaLabel={isTask ? "Orario Task" : "Orario tappa"} />
         </div>
       </div>
 
+      {isTask && (
+        <div className="space-y-3">
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">Nome Task *
+            <input value={titolo} onChange={e => setTitolo(e.target.value)} required placeholder="es. Check-in online" className="w-full h-11 px-3 mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm" />
+          </label>
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">Link URL (facoltativo)
+            <input type="url" value={taskLink} onChange={e => setTaskLink(e.target.value)} placeholder="https://..." className="w-full h-11 px-3 mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm" />
+          </label>
+          <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">Stato
+            <select value={completed ? 'completed' : 'todo'} onChange={e => setCompleted(e.target.value === 'completed')} className="w-full h-11 px-3 mt-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm"><option value="todo">Da fare</option><option value="completed">Completato</option></select>
+          </label>
+        </div>
+      )}
+      {!isTask && <>
       {/* 2. Nome / Titolo con Autocomplete Integrato */}
       <div className="space-y-1">
         <div className="flex items-center justify-between">
@@ -454,17 +485,18 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
       )}
 
       <OpeningHoursFields value={openingHours} onChange={setOpeningHours} date={data} time={orario} />
+      </>}
 
       {/* 4. Note Copilota */}
       <div className="p-3 bg-[#F0FAF9] dark:bg-slate-800/80 border border-[#DDF4F5] dark:border-slate-700 rounded-2xl">
         <label className="flex items-center gap-1.5 text-xs font-extrabold text-[#172033] dark:text-slate-200 uppercase tracking-wider mb-1.5">
-          <span>🧭</span> Note per il Copilota (Guida & Dettagli)
+          <span>🧭</span> {isTask ? 'Descrizione / Note operative' : 'Note per il Copilota (Guida & Dettagli)'}
         </label>
         <textarea
           rows={3}
-          placeholder="es. Parcheggio gratuito a sinistra dopo il ponte. Attenzione al fondo sterrato."
-          value={noteCopilota}
-          onChange={(e) => setNoteCopilota(e.target.value)}
+          placeholder={isTask ? "es. Aprire il sito della compagnia e completare il check-in." : "es. Parcheggio gratuito a sinistra dopo il ponte. Attenzione al fondo sterrato."}
+          value={isTask ? taskNotes : noteCopilota}
+          onChange={(e) => isTask ? setTaskNotes(e.target.value) : setNoteCopilota(e.target.value)}
           className="w-full p-3 bg-white dark:bg-slate-900 border border-[#DDF4F5] dark:border-slate-700 rounded-xl text-slate-900 dark:text-slate-100 text-sm focus:outline-none focus:border-[#FF6B5F] resize-none"
         />
       </div>
@@ -476,7 +508,7 @@ export default function TappaForm({ initialData, defaultDate, defaultTime, onSav
           disabled={isGeocoding}
           className="w-full sm:w-auto min-w-[200px] min-h-[44px] px-6 rounded-xl text-sm font-bold bg-[#FF6B5F] hover:bg-[#e85c50] active:scale-95 text-white shadow-md shadow-rose-500/20 transition-all cursor-pointer disabled:opacity-50"
         >
-          {isGeocoding ? 'Salvataggio...' : (initialData ? 'Salva Modifiche' : 'Crea Tappa')}
+          {isGeocoding ? 'Salvataggio...' : (initialData ? 'Salva Modifiche' : isTask ? 'Crea Task' : 'Crea Tappa')}
         </button>
         
         <button

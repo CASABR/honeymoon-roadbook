@@ -1,3 +1,4 @@
+import { isTaskTappa } from '../utils/taskTappa';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -298,6 +299,7 @@ export default function MappaView({ onNavigateTab }: MappaViewProps = {}) {
 
         // 1. Tappe
         tappe.forEach((t) => {
+          if (isTaskTappa(t)) return;
           const directCoord = parseValidCoord(t.coordinate);
           const coord = directCoord || lookupKnownCoordinate(t.indirizzo || t.titolo || '');
           if (coord) {

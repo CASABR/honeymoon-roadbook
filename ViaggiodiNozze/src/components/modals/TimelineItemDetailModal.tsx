@@ -1,3 +1,4 @@
+import { isTaskTappa, getTaskLink } from '../../utils/taskTappa';
 import { useState } from 'react';
 import type { TimelineItem, TransportAttachment } from '../../types';
 import Modal from '../common/Modal';
@@ -26,6 +27,8 @@ export default function TimelineItemDetailModal({
   onDuplicate
 }: TimelineItemDetailModalProps) {
   const { canEdit, canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
+  const [taskSaving, setTaskSaving] = useState(false);
+  const [taskError, setTaskError] = useState('');
   const [pnrCopied, setPnrCopied] = useState(false);
   const [pinCopied, setPinCopied] = useState(false);
 
@@ -46,6 +49,9 @@ export default function TimelineItemDetailModal({
   const isAlloggio = item.type === 'alloggio';
   const isRistorante = item.type === 'ristorante';
   const data = item.originalData as any;
+
+  const isTask = isTappa && isTaskTappa(data);
+  const taskLink = isTask ? getTaskLink(data?.link) : undefined;
 
   // 1. Note: separazione semantica rigorosa
   const rawCopilotNotes = (
@@ -70,7 +76,7 @@ export default function TimelineItemDetailModal({
     : isTrasporto
     ? 'Dettagli Trasporto'
     : isTappa
-    ? 'Dettagli Tappa'
+    ? (isTask ? 'Dettagli Task' : 'Dettagli Tappa')
     : isShopping
     ? 'Dettagli Shopping'
     : isAlloggio
@@ -201,6 +207,7 @@ export default function TimelineItemDetailModal({
         </div>
 
         {/* ─── 2. INFORMAZIONI ESSENZIALI: LUOGO & PERCORSO ─── */}
+        {!isTask && <>
         <div className="p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200/80 dark:border-slate-700/80 space-y-2">
           {isTrasporto ? (
             <div className="space-y-2 text-xs">
@@ -268,6 +275,7 @@ export default function TimelineItemDetailModal({
         </div>
 
         {/* ─── 3. DETTAGLI OPERATIVI SPECIFICI PER SOTTOCATEGORIA ─── */}
+        </>}
         {hasOperationalDetails && (
           <div className="p-3.5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800 space-y-3">
           <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 block mb-1">
@@ -668,11 +676,26 @@ export default function TimelineItemDetailModal({
         )}
 
         {/* ─── 5. NOTE E COPILOTA: NOTE GENERICHE + COPILOTA DISTINTE ─── */}
+        {isTask && <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3">
+          <p className="text-xs font-bold text-slate-700 dark:text-slate-200">{data.completed ? 'Completato' : 'Da fare'}</p>
+          {!rawGeneralNotes && <p className="text-xs text-slate-600 dark:text-slate-300">Una cosa pratica da fare durante il viaggio.</p>}
+          {taskLink && <a href={taskLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 min-h-11 px-3 rounded-xl text-xs font-bold text-[#FF6B5F] border border-slate-200 dark:border-slate-700"><ExternalLink className="w-4 h-4" />Apri link</a>}
+          {canEdit && <button type="button" disabled={taskSaving} onClick={async () => {
+            setTaskSaving(true); setTaskError('');
+            try {
+              const { storageService } = await import('../../storage/storageService');
+              await storageService.saveTappa({ ...data, completed: !data.completed });
+              onClose();
+            } catch { setTaskError('Impossibile aggiornare il Task. Riprova.'); }
+            finally { setTaskSaving(false); }
+          }} className="min-h-11 px-3 rounded-xl text-xs font-bold bg-[#FF6B5F] text-white disabled:opacity-50">{data.completed ? 'Segna come da fare' : 'Segna come completato'}</button>}
+          {taskError && <p role="alert" className="text-xs text-rose-600">{taskError}</p>}
+        </div>}
         {/* A. Note Generiche della Prenotazione */}
         {rawGeneralNotes && (
           <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/80 text-xs space-y-1">
             <span className="text-[10px] uppercase font-extrabold text-slate-500 dark:text-slate-400 tracking-wider block">
-              Note di Viaggio & Prenotazione
+              {isTask ? 'Descrizione / Note operative' : 'Note di Viaggio & Prenotazione'}
             </span>
             <p className="text-slate-800 dark:text-slate-200 font-medium whitespace-pre-wrap leading-relaxed">
               {rawGeneralNotes}

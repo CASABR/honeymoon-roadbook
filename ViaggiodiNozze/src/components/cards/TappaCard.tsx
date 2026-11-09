@@ -1,4 +1,6 @@
-import { Handshake } from 'lucide-react';
+import { isTaskTappa } from '../../utils/taskTappa';
+import TimelineItemDetailModal from '../modals/TimelineItemDetailModal';
+import { Handshake, ListChecks } from 'lucide-react';
 import type { Tappa } from '../../types';
 import { useState, useEffect, useRef } from 'react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
@@ -22,6 +24,8 @@ interface TappaCardProps {
 }
 
 export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpdate, variant = 'full', sequenceInfo }: TappaCardProps) {
+  const isTask = isTaskTappa(tappa);
+  const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const initialCopilot = (tappa as any).noteCopilota || (tappa as any).nota || (tappa as any).notes || '';
   const [copilotNotes, setCopilotNotes] = useState<string>(initialCopilot);
@@ -80,7 +84,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
   const orario = tappa.orario || (tappa as any).time;
   const isCompact = variant === 'compact';
 
-  const mapTarget = tappa.mapsUrl || tappa.indirizzo || tappa.titolo;
+  const mapTarget = isTask ? undefined : (tappa.mapsUrl || tappa.indirizzo || tappa.titolo);
   const hasSubcategory = Boolean(tappa.sottocategoria && tappa.sottocategoria.trim() && tappa.sottocategoria !== 'Tappa');
   const isConfirmed = Boolean(orario) && tappa.timeStatus === 'confermato';
   const isWalking = (tappa.sottocategoria || '').toLowerCase() === 'passeggiata' || Boolean(sequenceInfo?.inSequence);
@@ -92,7 +96,8 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
 
   return (
     <div
-      onClick={onDetail || onEdit}
+      onClick={isTask ? () => setIsTaskDetailOpen(true) : (onDetail || onEdit)}
+      data-task-card={isTask ? tappa.id : undefined}
       className="hounigo-ds-card hounigo-ds-cat-tappa cursor-pointer"
     >
       {/* 1. HEADER: TARGA CATEGORIA ROSA E CARTELLINO ORARIO CONFERMATO/INDICATIVO */}
@@ -132,8 +137,9 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
       {/* 2. BODY: TITOLO, TRACCIATO LUOGO ED EVENTUALI ORARI/NOTE */}
       <div className="hounigo-ds-card-body">
         <h3 className="font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
-          {tappa.titolo}
+          {isTask && <ListChecks className="inline-block w-4 h-4 mr-1.5 text-[#FF6B5F]" aria-label="Task" />}{tappa.titolo}
         </h3>
+        {isTask && <span className={`inline-flex text-[10px] font-bold rounded-full px-2 py-0.5 mt-1 ${tappa.completed ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'}`}>{tappa.completed ? 'Completato' : 'Da fare'}</span>}
 
         {tappa.indirizzo && (
           <div className="hounigo-ds-route-track">
@@ -306,6 +312,11 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
         </div>
       </div>
 
+      {isTask && <div onClick={e => e.stopPropagation()}>
+        <TimelineItemDetailModal isOpen={isTaskDetailOpen} onClose={() => setIsTaskDetailOpen(false)}
+          item={{ id: tappa.id, type: 'tappa', title: tappa.titolo, time: orario || '', location: '', categoryOrType: 'Task', completed: tappa.completed, originalData: tappa }}
+          onEdit={() => { setIsTaskDetailOpen(false); onEdit(); }} />
+      </div>}
       <UniversalCopilotaModal
         isOpen={isCopilotOpen}
         onClose={() => setIsCopilotOpen(false)}

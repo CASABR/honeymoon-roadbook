@@ -92,7 +92,7 @@ export interface Attivita {
   updatedAt: number;
 }
 
-export type SottocategoriaTappa = 'Tappa' | 'Sosta panoramica' | 'Spot fotografico' | 'Sosta tecnica' | 'Passeggiata';
+export type SottocategoriaTappa = 'Task' | 'Tappa' | 'Sosta panoramica' | 'Spot fotografico' | 'Sosta tecnica' | 'Passeggiata';
 
 export interface Tappa {
   id: string;
@@ -108,6 +108,7 @@ export interface Tappa {
   timeStatus?: TimeStatus;
   coordinate?: Coordinate;
   indirizzo?: string;
+  link?: string; // Link operativo facoltativo del Task (HTTP/HTTPS)
   mapsUrl?: string; // Link o indirizzo Maps
   bookingCode?: string; // Riferimento di una prenotazione effettiva
   qrCode?: string; // Codice QR o biglietto associato

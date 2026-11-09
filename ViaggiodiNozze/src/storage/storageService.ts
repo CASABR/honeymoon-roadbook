@@ -1,3 +1,4 @@
+import { isTaskTappa } from '../utils/taskTappa';
 import type { Giorno, Attivita, Alloggio, Trasporto, TravelDocument, RoutingCacheItem, Tappa, Ristorante, Shopping, Spesa, DeviceRole, NotaViaggio, Scadenza, Bagaglio, DayMapsRoutes, DayMapRouteEntry, DayRouteTransportMode } from '../types';
 import {
   STORES,
@@ -1912,7 +1913,7 @@ class StorageService {
       const standaloneTappe: Tappa[] = [];
 
       dayTappe.forEach(t => {
-        if (t.passeggiataId && activities.some(a => a.id === t.passeggiataId)) {
+        if (!isTaskTappa(t) && t.passeggiataId && activities.some(a => a.id === t.passeggiataId)) {
           const list = childTappeMap.get(t.passeggiataId) || [];
           list.push(t);
           childTappeMap.set(t.passeggiataId, list);
@@ -1947,16 +1948,16 @@ class StorageService {
           timeStatus,
           timeIsDefault: timeStatus === 'indicativo' || !time,
           title: t.titolo,
-          location: t.indirizzo || t.titolo,
+          location: isTaskTappa(t) ? '' : (t.indirizzo || t.titolo),
           categoryOrType: 'tappa',
           copilota: t.copilota,
           completed: t.completed,
           noteCopilota: t.noteCopilota,
-          coordinate: t.coordinate,
+          coordinate: isTaskTappa(t) ? undefined : t.coordinate,
           originalData: t,
           effectiveDate: dateStr,
           sortOrder: t.order,
-          physicalLocation: true
+          physicalLocation: !isTaskTappa(t)
         });
       });
 

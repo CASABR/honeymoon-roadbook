@@ -1,3 +1,4 @@
+import { isTaskTappa } from '../../utils/taskTappa';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import type { Tappa } from '../../types';
 import { storageService } from '../../storage/storageService';
@@ -364,7 +365,7 @@ export default function TappeView({ onBack }: TappeViewProps) {
 
                     <div className="space-y-2.5">
                       {tappeGroup.map((tappa, idx) => {
-                        const nextTappa = tappeGroup[idx + 1];
+                        const nextTappa = isTaskTappa(tappa) ? undefined : tappeGroup.slice(idx + 1).find(t => !isTaskTappa(t));
 
                         return (
                           <React.Fragment key={tappa.id}>

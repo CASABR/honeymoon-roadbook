@@ -1,3 +1,4 @@
+import { isTaskTappa } from './taskTappa';
 import type { Giorno, Attivita, Tappa, Alloggio, Trasporto, Coordinate } from '../types';
 import { lookupKnownCoordinate } from './geoCoordinatesHelper.ts';
 
@@ -346,7 +347,7 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
   }
 
   // 2.C Controllo Tappa del giorno come fallback di contesto
-  const currentDayTappa = tappe.find(t => (t.data || t.date) === todayStr);
+  const currentDayTappa = tappe.find(t => !isTaskTappa(t) && (t.data || t.date) === todayStr);
 
   // L'alloggio non viene usato automaticamente come posizione attuale.
   const currentEvent: LiveTimelineEvent | null =
@@ -438,6 +439,7 @@ export function deriveLiveIntelligence(params: DeriveIntelligenceParams): LiveIn
   // Tappe future se non ci sono attività future
   if (futureCandidates.length === 0) {
     for (const tp of tappe) {
+      if (isTaskTappa(tp)) continue;
       const tpDate = tp.data || tp.date;
       if (tpDate && tpDate > todayStr) {
         futureCandidates.push({
