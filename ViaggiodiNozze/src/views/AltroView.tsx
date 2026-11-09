@@ -61,6 +61,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   const { currentUser, isAnonymous, isCloudAuthorized, cloudRole } = useAuthIdentity();
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showDiagnosticModal, setShowDiagnosticModal] = useState(false);
+  const [openDriveOnDocumenti, setOpenDriveOnDocumenti] = useState(false);
   const [syncSummary, setSyncSummary] = useState<{
     status: UserFriendlySyncStatus;
     pendingCount: number;
@@ -171,7 +172,17 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
     );
   }
   if (activeSubView === 'assicurazione') return <AssicurazioneView onBack={handleBack} />;
-  if (activeSubView === 'documenti') return <DocumentiView onBack={handleBack} />;
+  if (activeSubView === 'documenti') {
+    return (
+      <DocumentiView
+        onBack={() => {
+          setOpenDriveOnDocumenti(false);
+          handleBack();
+        }}
+        initialOpenDriveModal={openDriveOnDocumenti}
+      />
+    );
+  }
   if (activeSubView === 'emergenza') return <EmergenzeView onBack={handleBack} />;
   if (activeSubView === 'info') return <TravelToolkitView onBack={handleBack} />;
   if (activeSubView === 'spese') {
@@ -292,7 +303,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
-          {/* Accesso Rapido Google Drive */}
+          {/* Accesso Rapido Google Drive (Esterno) */}
           <a
             href={driveUrl}
             target="_blank"
@@ -314,17 +325,43 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
-                    Google Drive
+                    Apri Google Drive
                   </h4>
                   <span className="text-[10px] text-slate-400 font-semibold">↗</span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Cartella cloud condivisa e documenti originali
+                  Cartella cloud condivisa o drive.google.com
                 </p>
               </div>
             </div>
             <span className="text-slate-400 text-xs ml-2 font-bold px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800">Apri ↗</span>
           </a>
+
+          {/* Collega Documento Drive (Funzione Interna HOUNIGO) */}
+          <button
+            type="button"
+            data-google-drive-connect-card
+            onClick={() => {
+              setOpenDriveOnDocumenti(true);
+              setActiveSubView('documenti');
+            }}
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-200/80 dark:border-blue-800">
+                <span className="text-base">📎</span>
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
+                  Collega documento Drive
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Associa voucher o file Google Drive a questo viaggio
+                </p>
+              </div>
+            </div>
+            <span className="text-indigo-600 dark:text-indigo-400 text-xs ml-2 font-bold px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60">Collega +</span>
+          </button>
 
           {/* Esporta Itinerario PDF */}
           <button

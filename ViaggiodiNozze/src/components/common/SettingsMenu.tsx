@@ -6,7 +6,7 @@ import { clearDeviceSession } from '../../utils/deviceSession';
 import { idbClearAll } from '../../storage/indexedDB';
 import AccountSyncModal from '../modals/AccountSyncModal';
 import PushNotificationModal from '../modals/PushNotificationModal';
-import { APP_VERSION, BUILD_TIME, COMMIT_HASH } from '../../utils/appVersion';
+import { APP_VERSION, BUILD_TIME, COMMIT_HASH, FORMATTED_RELEASE_TIME } from '../../utils/appVersion';
 import { openAppInfo } from './AppInfo';
 import { BACKGROUND_PUSH_ENABLED } from '../../config/freeArchitecture';
 
@@ -382,7 +382,7 @@ export default function SettingsMenu() {
                 }}
                 className="w-full px-4 py-2.5 text-center text-[10px] font-bold tracking-wide text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 border-t border-slate-100 dark:border-slate-800 transition-colors cursor-pointer"
               >
-                HOUNIGO v{APP_VERSION}
+                HOUNIGO v{APP_VERSION}{FORMATTED_RELEASE_TIME ? ` · ${FORMATTED_RELEASE_TIME}` : ''}
               </button>
             </div>
           </div>,

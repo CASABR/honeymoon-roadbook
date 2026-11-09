@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Info } from 'lucide-react';
 import Modal from './Modal';
 import releaseHistory from '../../data/releaseHistory.json';
-import { APP_VERSION, BUILD_TIME, COMMIT_HASH } from '../../utils/appVersion';
+import { APP_VERSION, BUILD_TIME, COMMIT_HASH, formatReleaseTimestamp } from '../../utils/appVersion';
 import {
   APP_UPDATE_STATE_EVENT,
   isAppUpdateAvailable,
@@ -13,6 +13,7 @@ export const OPEN_APP_INFO_EVENT = 'open_hounigo_app_info';
 interface ReleaseEntry {
   version: string;
   publishedAt: string;
+  publishedAtIso?: string;
   sourceCommit: string;
   changes: string[];
 }
@@ -85,7 +86,7 @@ export default function AppInfoModal() {
             <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Versione installata</p>
             <p className="mt-1 text-xl font-black text-[#172033] dark:text-white">HOUNIGO v{APP_VERSION}</p>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Pubblicata {installedRelease ? formatPublishedDate(installedRelease.publishedAt) : 'in data non disponibile'}
+              Pubblicata {installedRelease ? formatReleaseTimestamp(installedRelease.publishedAtIso || installedRelease.publishedAt) : 'in data non disponibile'}
             </p>
           </div>
           <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold ${

@@ -127,6 +127,7 @@ if (command === 'prepare') {
   console.log(`Release ${nextVersion} preparata. Pubblicala solo dopo verifica e approvazione finale.`);
 } else if (command === 'publish') {
   const publishedAt = validateDate(readOption('--date') || '');
+  const publishedAtIso = readOption('--iso') || new Date().toISOString();
   const sourceCommit = readOption('--source');
   if (!/^[a-f0-9]{7,40}$/i.test(sourceCommit || '')) fail('specifica lo SHA sorgente con --source');
   const draft = readJson(draftPath);
@@ -136,17 +137,21 @@ if (command === 'prepare') {
   if (packageMetadata.version !== draft.version) fail('package.json e release draft non coincidono');
   if (history.releases.some((release) => release.version === draft.version)) fail('versione già pubblicata');
 
-  console.log(`Pubblicazione proposta: ${draft.version} del ${publishedAt}, sorgente ${sourceCommit.slice(0, 7)}.`);
+  console.log(`Pubblicazione proposta: ${draft.version} del ${publishedAt} (${publishedAtIso}), sorgente ${sourceCommit.slice(0, 7)}.`);
   console.log('La cronologia pubblicata non cambia senza --approve.');
   if (!approved) process.exit(0);
 
   ensureCleanRepository();
-  history.releases.unshift({
+  const newReleaseEntry = {
     version: draft.version,
     publishedAt,
     sourceCommit,
     changes: draft.changes,
-  });
+  };
+  if (publishedAtIso) {
+    newReleaseEntry.publishedAtIso = publishedAtIso;
+  }
+  history.releases.unshift(newReleaseEntry);
   if (history.releases.length > 10) {
     history.releases = history.releases.slice(0, 10);
   }

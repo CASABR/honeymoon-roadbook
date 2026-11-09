@@ -20,6 +20,7 @@ export interface GooglePickerConfigStatus {
   isConfigured: boolean;
   clientId: string;
   apiKey: string;
+  appId?: string;
   missingConfigs: string[];
 }
 
@@ -93,6 +94,13 @@ export function getGooglePickerConfigStatus(): GooglePickerConfigStatus {
   const clientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID || '').trim();
   const apiKey = (import.meta.env.VITE_GOOGLE_PICKER_API_KEY || import.meta.env.VITE_FIREBASE_API_KEY || '').trim();
 
+  // Estrai App ID / Google Cloud Project Number se presente
+  let appId = (import.meta.env.VITE_GOOGLE_APP_ID || import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '').trim();
+  if (!appId && import.meta.env.VITE_FIREBASE_APP_ID) {
+    const match = /^1:(\d+):web:/.exec(import.meta.env.VITE_FIREBASE_APP_ID.trim());
+    if (match) appId = match[1];
+  }
+
   const missing: string[] = [];
   if (!clientId) {
     missing.push('OAuth 2.0 Web Client ID (VITE_GOOGLE_CLIENT_ID)');
@@ -105,6 +113,7 @@ export function getGooglePickerConfigStatus(): GooglePickerConfigStatus {
     isConfigured: Boolean(clientId && apiKey),
     clientId,
     apiKey,
+    appId: appId || undefined,
     missingConfigs: missing
   };
 }
@@ -199,11 +208,20 @@ export async function openGooglePicker(options: {
           const view = new google.picker.View(google.picker.ViewId.DOCS);
           view.setMimeTypes('application/pdf,image/png,image/jpeg,application/vnd.google-apps.document,application/vnd.google-apps.spreadsheet');
 
-          const picker = new google.picker.PickerBuilder()
+          const builder = new google.picker.PickerBuilder()
             .addView(view)
             .addView(new google.picker.DocsUploadView())
             .setOAuthToken(accessToken)
-            .setDeveloperKey(status.apiKey)
+            .setDeveloperKey(status.apiKey);
+
+          if (status.appId) {
+            builder.setAppId(status.appId);
+          }
+          if (typeof builder.setLocale === 'function') {
+            builder.setLocale('it');
+          }
+
+          const picker = builder
             .setCallback((data: any) => {
               if (data[google.picker.Response.ACTION] === google.picker.Action.PICKED) {
                 const doc = data[google.picker.Response.DOCUMENTS][0];

@@ -8,10 +8,11 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import SwipeToDelete from '../../components/common/SwipeToDelete';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { formatDateIT } from '../../utils/tripDates';
-import { openDriveUrlSafely } from '../../services/googlePickerService';
+import { openDriveUrlSafely, getGooglePickerConfigStatus } from '../../services/googlePickerService';
 
 interface DocumentiViewProps {
   onBack: () => void;
+  initialOpenDriveModal?: boolean;
 }
 
 type DocCategory = 'passaporto' | 'visto' | 'patente' | 'assicurazione' | 'alloggi' | 'attivita' | 'altro';
@@ -84,8 +85,9 @@ const CATEGORY_PRESETS: CategoryPreset[] = [
   }
 ];
 
-export default function DocumentiView({ onBack }: DocumentiViewProps) {
+export default function DocumentiView({ onBack, initialOpenDriveModal = false }: DocumentiViewProps) {
   const { canEdit } = useDeviceRole();
+  const pickerStatus = getGooglePickerConfigStatus();
   const [documents, setDocuments] = useState<TravelDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState<DocCategory | 'tutti'>('tutti');
@@ -103,11 +105,17 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
   const [expiresAt, setExpiresAt] = useState('');
 
   // Modale Google Drive
-  const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
+  const [isDriveModalOpen, setIsDriveModalOpen] = useState(initialOpenDriveModal);
   const [editingDriveDoc, setEditingDriveDoc] = useState<TravelDocument | null>(null);
 
   // Dialog Eliminazione
   const [deleteTarget, setDeleteTarget] = useState<TravelDocument | null>(null);
+
+  useEffect(() => {
+    if (initialOpenDriveModal) {
+      setIsDriveModalOpen(true);
+    }
+  }, [initialOpenDriveModal]);
 
   const loadDocs = useCallback(async () => {
     try {
@@ -243,84 +251,82 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
   };
 
   return (
-    <div className="flex flex-col h-full animate-fade-in pb-16 space-y-4">
-      {/* HEADER STILE iOS FOLDER */}
-      <header className="flex items-center justify-between px-1">
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={onBack}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200/60 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-            title="Torna ad Altro"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div>
-            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
-              <span>📁</span>
-              <span>Documenti del Viaggio</span>
-            </h1>
-            <p className="text-[11px] text-slate-500 font-medium">
-              Cartella digitale passaporti, visti, patenti e voucher
-            </p>
+    <div className="flex flex-col w-full max-w-full min-w-0 h-full animate-fade-in pb-16 space-y-4">
+      {/* HEADER STILE iOS FOLDER RESPONSIVE */}
+      <header className="flex flex-col gap-3 px-1 w-full max-w-full min-w-0">
+        <div className="flex items-center justify-between gap-2 w-full min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <button
+              onClick={onBack}
+              className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200/60 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition-colors cursor-pointer shrink-0"
+              title="Torna ad Altro"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-lg sm:text-xl font-extrabold text-slate-900 dark:text-white tracking-tight flex items-center gap-2 truncate">
+                <span>📁</span>
+                <span className="truncate">Documenti del Viaggio</span>
+              </h1>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium truncate">
+                Cartella digitale passaporti, visti, patenti e voucher
+              </p>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
           {emptyPlaceholdersCount > 0 && (
             <button
               type="button"
               onClick={() => setShowEmptyPlaceholders(v => !v)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition-all cursor-pointer active:scale-95 shrink-0"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-all cursor-pointer active:scale-95 shrink-0"
               title="Mostra o nascondi i documenti predefiniti senza allegati"
             >
-              <span>{showEmptyPlaceholders ? '👁️ Nascondi segnaposto' : '📂 Mostra tutti'}</span>
-              <span className="text-[10px] text-slate-500 font-bold">({emptyPlaceholdersCount})</span>
+              <span>{showEmptyPlaceholders ? '👁️ Nascondi' : '📂 Mostra tutti'}</span>
+              <span className="text-[10px] text-slate-400 font-bold">({emptyPlaceholdersCount})</span>
             </button>
           )}
-          {canEdit && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <button
-                type="button"
-                onClick={handleOpenDriveModal}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold border border-slate-300 shadow-2xs transition-all cursor-pointer active:scale-95 shrink-0"
-                title="Collega un documento o cartella da Google Drive"
-              >
-                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
-                  <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-                  <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
-                  <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
-                  <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-                  <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
-                  <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-                </svg>
-                <span>Aggiungi da Google Drive</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleOpenAddModal}
-                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm shadow-indigo-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
-              >
-                <span>+</span>
-                <span>Nuovo Documento</span>
-              </button>
-            </div>
-          )}
         </div>
+
+        {canEdit && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full min-w-0">
+            <button
+              type="button"
+              onClick={handleOpenDriveModal}
+              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl bg-white hover:bg-slate-50 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-800 dark:text-slate-100 text-xs font-bold border border-slate-300 dark:border-slate-700 shadow-2xs transition-all cursor-pointer active:scale-98 min-w-0"
+              title="Collega un documento o cartella da Google Drive"
+            >
+              <svg className="w-4 h-4 shrink-0" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+                <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+              </svg>
+              <span className="truncate">{pickerStatus.isConfigured ? 'Scegli da Google Drive' : 'Aggiungi da Google Drive'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenAddModal}
+              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs shadow-indigo-600/20 transition-all cursor-pointer active:scale-98 min-w-0"
+            >
+              <span className="text-sm font-black">+</span>
+              <span className="truncate">Nuovo Documento</span>
+            </button>
+          </div>
+        )}
       </header>
 
-      {/* Collegamento Gmail Compatto (1 riga) */}
-      
-
       {/* FILTRI A PILLOLE PER CATEGORIA */}
-      <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 px-0.5 -mx-0.5">
+      <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 px-0.5 -mx-0.5 w-full max-w-full min-w-0">
         <button
           onClick={() => setSelectedFilter('tutti')}
           className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
             selectedFilter === 'tutti'
-              ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-              : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200'
+              ? 'bg-slate-900 text-white border-slate-900 shadow-xs dark:bg-white dark:text-slate-900 dark:border-white'
+              : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
           }`}
         >
           Tutti ({documents.length})
@@ -334,8 +340,8 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
               onClick={() => setSelectedFilter(p.id)}
               className={`shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                 selectedFilter === p.id
-                  ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
-                  : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200'
+                  ? 'bg-slate-900 text-white border-slate-900 shadow-xs dark:bg-white dark:text-slate-900 dark:border-white'
+                  : 'bg-white hover:bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
               }`}
             >
               <span>{p.icon}</span>
@@ -350,17 +356,16 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
       {loading ? (
         <div className="p-8 text-center text-slate-400 text-xs font-medium">Caricamento documenti...</div>
       ) : filteredDocs.length === 0 ? (
-        <div className="bg-slate-50 rounded-3xl border border-slate-200 border-dashed p-8 text-center my-4">
+        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-200 dark:border-slate-700 border-dashed p-8 text-center my-4">
           <span className="text-4xl mb-2 block">📄</span>
-          <p className="text-xs font-bold text-slate-700">Nessun documento trovato</p>
-          <p className="text-[11px] text-slate-400 mt-0.5">Tocca su "+ Nuovo Documento" per aggiungere passaporti o visti.</p>
+          <p className="text-xs font-bold text-slate-700 dark:text-slate-300">Nessun documento trovato</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">Tocca su "+ Nuovo Documento" o collega un file da Google Drive.</p>
         </div>
       ) : (
-        <div className="grid gap-3">
+        <div className="grid gap-3 w-full max-w-full min-w-0">
           {filteredDocs.map((doc) => {
             const catInfo = getCategoryInfo(doc.category);
             return (
-
               <SwipeToDelete key={doc.id} disabled={!canEdit} onDelete={() => setDeleteTarget(doc)}>
                 <div
                   onClick={() => {
@@ -371,11 +376,11 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
                       setValidityModalDoc(doc);
                     }
                   }}
-                  className="w-full min-w-0 max-w-full overflow-hidden bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs hover:shadow-sm hover:border-slate-300 transition-all cursor-pointer flex flex-col gap-2.5 active:scale-[0.99]"
+                  className="w-full min-w-0 max-w-full overflow-hidden bg-white dark:bg-[#172033] rounded-3xl p-4 border border-slate-200/90 dark:border-slate-800 shadow-xs hover:shadow-sm hover:border-slate-300 dark:hover:border-slate-700 transition-all cursor-pointer flex flex-col gap-2.5 active:scale-[0.99]"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="w-9 h-9 rounded-2xl bg-slate-100 flex items-center justify-center text-lg shrink-0 border border-slate-200/60">
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      <span className="w-9 h-9 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-lg shrink-0 border border-slate-200/60 dark:border-slate-700">
                         {catInfo.icon}
                       </span>
                       <div className="min-w-0 flex-1">
@@ -384,7 +389,7 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
                             {catInfo.label.split(' ')[1] || doc.category}
                           </span>
                           {(doc.source === 'google_drive' || doc.driveUrl) && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold" title="Documento collegato da Google Drive">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 text-[9px] font-bold" title="Documento collegato da Google Drive">
                               <svg className="w-2.5 h-2.5 shrink-0" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
                                 <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
                                 <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
@@ -397,12 +402,12 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
                             </span>
                           )}
                           {doc.attachments && doc.attachments.length > 0 && (
-                            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-[9px] font-bold" title={`${doc.attachments.length} allegati`}>
+                            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 text-[9px] font-bold" title={`${doc.attachments.length} allegati`}>
                               📎 {doc.attachments.length}
                             </span>
                           )}
                         </div>
-                        <h3 className="font-extrabold text-slate-900 text-sm leading-snug truncate mt-0.5">
+                        <h3 className="font-extrabold text-slate-900 dark:text-white text-sm leading-snug truncate mt-0.5">
                           {doc.title}
                         </h3>
                       </div>
@@ -412,12 +417,12 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
                     </div>
                   </div>
 
-                  <p className="min-w-0 break-words text-xs text-slate-600 leading-relaxed line-clamp-2 pl-0.5">
+                  <p className="min-w-0 break-words text-xs text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-2 pl-0.5">
                     {doc.description || 'Nessuna descrizione.'}
                   </p>
 
-                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
-                    <div className="flex items-center gap-2 text-slate-500 font-medium truncate">
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 text-[11px] gap-2">
+                    <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-medium truncate min-w-0 flex-1">
                       {doc.driveUrl ? (
                         <button
                           type="button"
@@ -425,7 +430,7 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
                             e.stopPropagation();
                             openDriveUrlSafely(doc.driveUrl!);
                           }}
-                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold border border-blue-200 transition-colors cursor-pointer active:scale-95"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-[11px] font-bold border border-blue-200 dark:border-blue-800 transition-colors cursor-pointer active:scale-95 shrink-0"
                           title="Apri su Google Drive in una nuova scheda"
                         >
                           <span>Apri su Drive</span>
@@ -444,7 +449,7 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
                     </div>
 
                     {canEdit && (
-                      <div className="flex items-center gap-2.5">
+                      <div className="flex items-center gap-2.5 shrink-0">
                         {(doc.source === 'google_drive' || doc.driveUrl) && (
                           <button
                             type="button"
@@ -453,7 +458,7 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
                               setEditingDriveDoc(doc);
                               setIsDriveModalOpen(true);
                             }}
-                            className="text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer text-[11px]"
+                            className="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 font-semibold cursor-pointer text-[11px]"
                           >
                             Modifica
                           </button>
@@ -464,7 +469,7 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
                             e.stopPropagation();
                             setDeleteTarget(doc);
                           }}
-                          className="text-rose-500 hover:text-rose-700 font-semibold cursor-pointer text-[11px]"
+                          className="text-rose-500 hover:text-rose-700 dark:text-rose-400 font-semibold cursor-pointer text-[11px]"
                         >
                           Elimina
                         </button>

@@ -4,6 +4,7 @@
     {
       "version": "1.5.13",
       "publishedAt": "2026-11-09",
+      "publishedAtIso": "2026-11-09T11:19:16+01:00",
       "sourceCommit": "884baaf5d8a00126f9acd610e48488634239081b",
       "changes": [
         "Integrazione collegamenti Google Drive nella cartella Documenti con apertura protetta e selettore categorie"
