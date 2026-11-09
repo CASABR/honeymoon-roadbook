@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.16",
+      "publishedAt": "2026-11-09",
+      "sourceCommit": "303ff24",
+      "changes": [
+        "Gestione rate-limit notifiche push con countdown e protezione invii multipli",
+        "Distinzione esplicita invio simulato dry-run rispetto a broadcast reale in Admin"
+      ],
+      "publishedAtIso": "2026-11-09T13:52:33+01:00"
+    },
+    {
       "version": "1.5.15",
       "publishedAt": "2026-11-09",
       "sourceCommit": "9db3e09",
@@ -84,15 +94,6 @@
       "changes": [
         "Voce iniziale del footer rinominata in 'Viaggio'.",
         "Stabilizzazione footer PWA mobile: ancoraggio viewport fisso e reset scroll al cambio pagina."
-      ]
-    },
-    {
-      "version": "1.5.6",
-      "publishedAt": "2026-11-05",
-      "sourceCommit": "c250eb6",
-      "changes": [
-        "Navigazione footer: voce 'Itinerario' sostituita con 'Aggiungi' e icona bicolore MapPin + Plus corallo.",
-        "Voce 'Oggi' nel footer rinominata in 'La giornata'."
       ]
     }
   ]

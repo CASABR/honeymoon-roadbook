@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.16 — 2026-11-09
+
+- Gestione rate-limit notifiche push con countdown e protezione invii multipli
+- Distinzione esplicita invio simulato dry-run rispetto a broadcast reale in Admin
+
 ## 1.5.15 — 2026-11-09
 
 - Onboarding con accesso Google in evidenza nella schermata iniziale
@@ -47,8 +52,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Voce iniziale del footer rinominata in 'Viaggio'.
 - Stabilizzazione footer PWA mobile: ancoraggio viewport fisso e reset scroll al cambio pagina.
-
-## 1.5.6 — 2026-11-05
-
-- Navigazione footer: voce 'Itinerario' sostituita con 'Aggiungi' e icona bicolore MapPin + Plus corallo.
-- Voce 'Oggi' nel footer rinominata in 'La giornata'.
