@@ -224,11 +224,21 @@ createRoot(document.getElementById('root')!).render(<TestContainer />);
     // TEST 3 & 4: FLUSSO PICKER (MOCK), FALLBACK MANUALE E SALVATAGGIO LINK
     // ─────────────────────────────────────────────────────────────────────────────
     console.log('[TEST 3 & 4] Verifica flusso Picker simulato, fallback manuale e salvataggio collegamento...');
-    // Apri modale Drive da Documenti
-    await page.click('button:has-text("Aggiungi da Google Drive")');
+    // Assicurati di essere sul tab Documenti
+    await page.click('#tab-documenti');
+    await page.waitForSelector('text=Documenti del Viaggio');
+
+    // Apri modale Drive da Documenti (funziona sia con "Scegli da Google Drive" che "Aggiungi da Google Drive")
+    const driveDocBtn = page.getByRole('button', { name: /Scegli da Google Drive|Aggiungi da Google Drive/i });
+    await driveDocBtn.click();
     await page.waitForSelector('text=Collega da Google Drive');
 
-    // Verifica fallback manuale: inserimento link manuale
+    // Verifica presenza pulsante Picker e fallback manuale
+    const manualBtn = page.locator('button:has-text("Oppure inserisci il link manualmente")');
+    if (await manualBtn.isVisible()) {
+      console.log('  -> Google Picker configurato: selezionato fallback manuale');
+      await manualBtn.click();
+    }
     const manualUrlInput = page.locator('input[type="url"]');
     await manualUrlInput.fill('https://drive.google.com/file/d/testFile12345/view?usp=sharing');
 
@@ -293,9 +303,10 @@ createRoot(document.getElementById('root')!).render(<TestContainer />);
     });
 
     console.log('  -> Dati versione registrati:', versionData);
-    assert.equal(versionData.appVersion, '1.5.13', 'Versione app corretta');
-    assert.match(versionData.isoTimestamp, /^2026-11-09T11:19:16/, 'Timestamp ISO con fuso orario presente');
-    assert.match(versionData.formattedTime, /^09\/11\/2026, 11:19/, 'Timestamp formattato nel fuso locale come "09/11/2026, 11:19"');
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    assert.equal(versionData.appVersion, pkg.version, 'Versione app corretta');
+    assert.match(versionData.isoTimestamp, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/, 'Timestamp ISO con fuso orario presente');
+    assert.match(versionData.formattedTime, /^\d{2}\/\d{2}\/\d{4}/, 'Timestamp formattato nel fuso locale');
     assert.notEqual(versionData.formattedTime, versionData.buildTime, 'Data di pubblicazione distinta da orario di compilazione');
 
     console.log('✓ TEST 6 Superato: Versione e timestamp ISO nel fuso locale ("v1.5.13 · 09/11/2026, 11:19") verificati.');

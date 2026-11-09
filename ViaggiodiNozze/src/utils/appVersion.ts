@@ -43,6 +43,22 @@ export function formatReleaseTimestamp(isoOrDate?: string): string {
   }).format(date);
 }
 
+/**
+ * Estrae e formatta l'orario effettivo di pubblicazione nel fuso locale dell'utente.
+ * Es. "13:52" da un timestamp ISO come "2026-11-09T13:52:33+01:00".
+ */
+export function formatReleaseTimeOnly(isoOrDate?: string): string {
+  if (!isoOrDate || !isoOrDate.includes('T')) return '';
+  const date = new Date(isoOrDate);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat('it-IT', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+}
+
+
 const currentRelease = (releaseHistory.releases as ReleaseHistoryItem[]).find(
   (r) => r.version === APP_VERSION
 ) || (releaseHistory.releases as ReleaseHistoryItem[])[0];

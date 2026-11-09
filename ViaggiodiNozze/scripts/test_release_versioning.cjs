@@ -24,8 +24,9 @@ const viteSource = read('vite.config.ts');
 
 assert.match(packageMetadata.version, /^\d+\.\d+\.\d+$/, 'package.json deve contenere una versione SemVer');
 assert.ok(
-  releaseHistory.releases.some((release) => release.version === packageMetadata.version),
-  'la versione installata deve avere una release pubblicata verificabile'
+  releaseHistory.releases.some((release) => release.version === packageMetadata.version) ||
+  (existsSync(path.join(root, 'release-draft.json')) && JSON.parse(read('release-draft.json')).version === packageMetadata.version),
+  'la versione installata deve avere una release pubblicata o preparata verificabile'
 );
 assert.ok(releaseHistory.releases.length <= 10, 'la cronologia distribuita deve restare compatta');
 

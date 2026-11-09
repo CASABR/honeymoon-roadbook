@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Info } from 'lucide-react';
 import Modal from './Modal';
 import releaseHistory from '../../data/releaseHistory.json';
-import { APP_VERSION, BUILD_TIME, COMMIT_HASH, formatReleaseTimestamp } from '../../utils/appVersion';
+import { APP_VERSION, BUILD_TIME, COMMIT_HASH, formatReleaseTimeOnly } from '../../utils/appVersion';
 import {
   APP_UPDATE_STATE_EVENT,
   isAppUpdateAvailable,
@@ -56,7 +56,10 @@ export default function AppInfoModal() {
     () => (releaseHistory.releases as ReleaseEntry[]).slice(0, 10),
     []
   );
-  const installedRelease = releases.find((release) => release.version === APP_VERSION);
+  const installedRelease = releases.find((release) => release.version === APP_VERSION) || releases[0];
+  const releaseTimeFormatted = installedRelease?.publishedAtIso
+    ? formatReleaseTimeOnly(installedRelease.publishedAtIso)
+    : '';
 
   useEffect(() => {
     const handleOpen = () => setIsOpen(true);
@@ -85,9 +88,18 @@ export default function AppInfoModal() {
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Versione installata</p>
             <p className="mt-1 text-xl font-black text-[#172033] dark:text-white">HOUNIGO v{APP_VERSION}</p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Pubblicata {installedRelease ? formatReleaseTimestamp(installedRelease.publishedAtIso || installedRelease.publishedAt) : 'in data non disponibile'}
-            </p>
+            <div className="mt-2 space-y-0.5 text-xs text-slate-500 dark:text-slate-400">
+              <p>
+                <span className="font-semibold text-slate-700 dark:text-slate-300">Data di pubblicazione:</span>{' '}
+                {installedRelease ? formatPublishedDate(installedRelease.publishedAt) : 'in data non disponibile'}
+              </p>
+              {releaseTimeFormatted ? (
+                <p>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Ora effettiva release:</span>{' '}
+                  {releaseTimeFormatted} (fuso locale)
+                </p>
+              ) : null}
+            </div>
           </div>
           <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-extrabold ${
             updateAvailable

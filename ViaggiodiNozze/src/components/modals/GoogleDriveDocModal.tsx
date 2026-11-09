@@ -232,6 +232,16 @@ export default function GoogleDriveDocModal({
                 >
                   Oppure inserisci il link manualmente
                 </button>
+
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  >
+                    Annulla
+                  </button>
+                </div>
               </div>
             ) : (
               /* PICKER NON CONFIGURATO: AVVISO OPERATIVO CHIARO */
