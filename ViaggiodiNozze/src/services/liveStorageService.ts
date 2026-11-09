@@ -1,4 +1,4 @@
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { storage } from '../firebase';
 
 export const MAX_LIVE_PHOTO_BYTES = 5 * 1024 * 1024; // 5 MB
@@ -95,4 +95,26 @@ export async function uploadLivePhoto(
     path: storagePath
   };
 }
+
+/**
+ * Rimuove un'immagine caricata nel percorso Live su Firebase Storage (es. revoca condivisione).
+ */
+export async function deleteLivePhoto(tripId: string, photoIdOrUrl: string): Promise<boolean> {
+  if (!tripId || !photoIdOrUrl || !storage) return false;
+  try {
+    let storageRef;
+    if (photoIdOrUrl.startsWith('https://')) {
+      storageRef = ref(storage, photoIdOrUrl);
+    } else {
+      const cleanPhotoId = photoIdOrUrl.replace(/[^a-zA-Z0-9_-]/g, '_');
+      storageRef = ref(storage, `trips/${tripId}/live_photos/${cleanPhotoId}.jpg`);
+    }
+    await deleteObject(storageRef);
+    return true;
+  } catch (err) {
+    console.warn('[liveStorageService] Rimozione foto non riuscita o già rimossa:', err);
+    return false;
+  }
+}
+
 

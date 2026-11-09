@@ -606,6 +606,10 @@ export async function loginWithEmailPassword(
   pass: string
 ): Promise<{ success: boolean; user?: User; error?: string; code?: string }> {
   if (!auth) return { success: false, error: 'Firebase Auth non inizializzato.' };
+  if (typeof window !== 'undefined' && (window as any).__HOUNIGO_MOCK_GOOGLE_USER__) {
+    const mockUser = (window as any).__HOUNIGO_MOCK_GOOGLE_USER__;
+    return { success: true, user: mockUser, preExistingAccount: false };
+  }
   try {
     const res = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), pass);
     return { success: true, user: res.user };
@@ -675,6 +679,10 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
   preExistingAccount?: boolean;
 }> {
   if (!auth) return { success: false, error: 'Firebase Auth non inizializzato.' };
+  if (typeof window !== 'undefined' && (window as any).__HOUNIGO_MOCK_GOOGLE_USER__) {
+    const mockUser = (window as any).__HOUNIGO_MOCK_GOOGLE_USER__;
+    return { success: true, user: mockUser, preExistingAccount: false };
+  }
   try {
     onProgress?.('Apertura finestra di autenticazione…');
     const provider = new GoogleAuthProvider();

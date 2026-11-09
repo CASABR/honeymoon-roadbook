@@ -266,19 +266,25 @@ createRoot(document.getElementById('root')!).render(<TestApp />);
     // TEST 1: ONBOARDING GOOGLE-FIRST E CREA VIAGGIO
     // ─────────────────────────────────────────────────────────────────────────────
     console.log('[TEST 1] Verifica Onboarding Google-First...');
-    // Clicca "Crea un nuovo viaggio"
-    await page.click('button:has-text("Crea un nuovo viaggio")');
-    await page.waitForSelector('text=Crea un Viaggio');
+    // Clicca "Crea il tuo viaggio"
+    await page.click('button:has-text("Crea il tuo viaggio")');
+    await page.waitForSelector('text=Salva e ritrova il tuo viaggio');
 
     // Verifica presenza della schermata Google-first senza riferimenti tecnici ad "Accesso Rapido Dispositivo"
     const contentText = await page.innerText('body');
     assert.doesNotMatch(contentText, /Accesso Rapido Dispositivo/i, 'Nessun riferimento tecnico "Accesso Rapido Dispositivo" nel flusso Google-first');
-    assert.match(contentText, /Continua con Google/i, 'Pulsante Continua con Google visibile');
-    assert.match(contentText, /Oppure continua senza account Google/i, 'Opzione alternativa discreta presente');
+    assert.match(contentText, /Accedi con Google e inizia/i, 'Pulsante Accedi con Google e inizia visibile');
 
-    // Clicca su opzione continua senza Google per accedere al form
-    await page.click('button:has-text("Oppure continua senza account Google")');
-    await page.waitForSelector('text=Nuovo Viaggio');
+    // Simula accesso Google per sbloccare il form
+    await page.evaluate(() => {
+      window.__HOUNIGO_MOCK_GOOGLE_USER__ = {
+        uid: 'google_user_test_123',
+        displayName: 'Mario Rossi',
+        email: 'mario.rossi@example.com'
+      };
+    });
+    await page.click('button:has-text("Accedi con Google e inizia")');
+    await page.waitForSelector('text=Il tuo primo viaggio');
     console.log('✓ TEST 1 Superato: Flusso Google-first e assenza di termini tecnici confermati.');
 
     // ─────────────────────────────────────────────────────────────────────────────
@@ -344,7 +350,7 @@ createRoot(document.getElementById('root')!).render(<TestApp />);
     await startDateInput.fill('2026-11-20');
     await endDateInput.fill('2026-11-10'); // Antecedente!
 
-    await page.click('button:has-text("Crea Viaggio e Prosegui")');
+    await page.click('button:has-text("Crea viaggio"), button:has-text("Crea Viaggio")');
     await page.waitForSelector('[role="alert"]');
     const alertText = await page.innerText('[role="alert"]');
     console.log(`  -> Messaggio validazione data: "${alertText}"`);

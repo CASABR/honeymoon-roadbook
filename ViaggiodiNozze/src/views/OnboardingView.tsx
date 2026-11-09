@@ -17,7 +17,6 @@ import {
   validateTripInvite,
   redeemTripInvite
 } from '../services/tripInviteService';
-import { TrailItinerario, TrailCopiloti } from '../components/icons/TrailIcons';
 import HounigoLogo from '../components/common/HounigoLogo';
 
 export type OnboardingMode =
@@ -41,7 +40,6 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [createdInviteUrl, setCreatedInviteUrl] = useState('');
-  const [skipGoogleForCreate, setSkipGoogleForCreate] = useState(false);
   const [dateError, setDateError] = useState<string | null>(null);
 
   // Invite state in creation flow
@@ -374,15 +372,59 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         } catch {}
       }
       setActiveAuthUser(res.user);
+      setAuthenticatedUser(res.user);
       if (res.user.displayName) {
         setOwnerName(res.user.displayName);
+      } else if (res.user.email) {
+        setOwnerName(res.user.email.split('@')[0]);
       }
-      setLoading(false);
-      setLoginProgressMsg(null);
+
+      // Verifica se l'account Google possiede già viaggi
+      setLoginProgressMsg('Verifica viaggi esistenti…');
+      try {
+        const report = await fetchUserTripsReport(res.user.uid);
+        setRecoveredTrips(report.trips || []);
+        setLoading(false);
+        setLoginProgressMsg(null);
+        if (report.trips && report.trips.length > 0) {
+          // Ha già viaggi: mostra schermata "I tuoi viaggi" con opzione "+ Crea un altro viaggio"
+          setMode('account_login');
+        } else {
+          // Nuovo utente: apri direttamente il form "Il tuo primo viaggio"
+          setMode('create');
+        }
+      } catch {
+        setLoading(false);
+        setLoginProgressMsg(null);
+        setMode('create');
+      }
     } catch (err: any) {
       setLoading(false);
       setLoginProgressMsg(null);
       setLoginError(err?.message || 'Accesso con Google non riuscito. Riprova.');
+    }
+  };
+
+  const handleStartCreateTrip = async () => {
+    setLoginError(null);
+    setDateError(null);
+    if (!activeAuthUser || activeAuthUser.isAnonymous) {
+      setMode('create');
+    } else {
+      setLoading(true);
+      try {
+        const report = await fetchUserTripsReport(activeAuthUser.uid);
+        setRecoveredTrips(report.trips || []);
+        if (report.trips && report.trips.length > 0) {
+          setMode('account_login');
+        } else {
+          setMode('create');
+        }
+      } catch {
+        setMode('create');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -413,21 +455,14 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
       } else if (auth.currentUser && !auth.currentUser.isAnonymous) {
         ownerUid = auth.currentUser.uid;
         userObj = auth.currentUser;
-      } else if (skipGoogleForCreate) {
-        try {
-          const authPromise = signInAnonymously(auth);
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 4000));
-          const userCredential = (await Promise.race([authPromise, timeoutPromise])) as any;
-          ownerUid = userCredential.user.uid;
-          userObj = userCredential.user;
-        } catch (err) {
-          console.warn('Errore autenticazione (fallback locale):', err);
-          if (auth.currentUser) {
-            ownerUid = auth.currentUser.uid;
-            userObj = auth.currentUser;
-          }
-        }
       }
+    }
+
+    if (!userObj || ownerUid === 'local_fallback') {
+      setLoading(false);
+      setLoginError('Per salvare il tuo viaggio nel cloud, accedi prima con il tuo account Google.');
+      setMode('create');
+      return;
     }
 
     const id = 'trip_' + Math.random().toString(36).substring(2, 9);
@@ -718,16 +753,16 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           {/* Logo Ufficiale Completo (Lettering Navy) */}
           <div className="flex flex-col items-center gap-2 pt-1">
             <HounigoLogo variant="onLight" size="md" className="mx-auto" />
-            <h1 className="font-brand-title font-extrabold text-lg sm:text-xl text-[#172033] tracking-tight leading-snug mt-1">
-              Il Roadbook per organizzare e condividere il tuo viaggio
+            <h1 className="font-brand-title font-extrabold text-xl sm:text-2xl text-[#172033] tracking-tight leading-snug mt-1">
+              Organizza il tuo viaggio
             </h1>
             <p className="font-brand-body text-xs text-slate-500 font-medium leading-relaxed max-w-xs mx-auto">
-              Itinerario giorno per giorno, tappe offline, documenti e sincronizzazione in tempo reale tra viaggiatori.
+              Il roadbook semplice e collaborativo per tappe, date, documenti e ricordi in tempo reale.
             </p>
           </div>
         </div>
 
-        {/* AZIONI PRINCIPALI SEMPLIFICATE E CHIARE */}
+        {/* AZIONI PRINCIPALI MOBILE-FIRST */}
         <div className="space-y-3 pt-0">
           {/* Se l'utente ha già un viaggio locale attivo su questo dispositivo, mostra 'Continua il viaggio' */}
           {savedLocalTrip && (
@@ -750,145 +785,88 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             </button>
           )}
 
-          {/* 1. CONTINUA CON GOOGLE (ACCESSO PRINCIPALE) */}
-          {(!activeAuthUser || activeAuthUser.isAnonymous) ? (
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={loading}
-              className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer bg-[#172033] hover:bg-[#222f4b] text-white shadow-xl shadow-slate-900/15 flex items-center justify-between text-left group disabled:opacity-75 disabled:pointer-events-none"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shrink-0 shadow-xs">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                  </svg>
-                </div>
-                <div>
-                  <div className="font-extrabold text-base leading-tight font-brand-title">
-                    {loading ? (loginProgressMsg || 'Accesso in corso…') : 'Continua con Google'}
-                  </div>
-                  <div className="text-xs text-slate-300 font-normal mt-0.5">
-                    Accesso rapido consigliato con account Google
-                  </div>
-                </div>
+          {/* Stato connesso se utente loggato con Google */}
+          {activeAuthUser && !activeAuthUser.isAnonymous && (
+            <div className="flex items-center justify-between px-3.5 py-2.5 rounded-2xl bg-slate-100 text-[11px] text-slate-700">
+              <div className="flex items-center gap-2 truncate">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <span className="truncate">Connesso: <strong>{activeAuthUser.displayName || activeAuthUser.email}</strong></span>
               </div>
-              <span className="text-slate-300 text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
-            </button>
-          ) : (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between px-3.5 py-2 rounded-2xl bg-slate-100 text-[11px] text-slate-700">
-                <div className="flex items-center gap-2 truncate">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                  <span className="truncate">Connesso: <strong>{activeAuthUser.displayName || activeAuthUser.email}</strong></span>
-                </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setMode('account_login')}
+                  className="text-indigo-600 hover:text-indigo-800 font-bold underline cursor-pointer"
+                >
+                  I tuoi viaggi
+                </button>
                 <button
                   type="button"
                   onClick={async () => {
                     if (auth) await auth.signOut();
                     setActiveAuthUser(null);
                   }}
-                  className="text-rose-500 hover:text-rose-700 font-bold underline ml-2 shrink-0 cursor-pointer"
+                  className="text-rose-500 hover:text-rose-700 font-bold underline cursor-pointer"
                 >
                   Esci
                 </button>
               </div>
-
-              <button
-                type="button"
-                onClick={() => inspectUserTrips(activeAuthUser)}
-                disabled={loading}
-                className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer bg-[#172033] hover:bg-[#222f4b] text-white shadow-lg shadow-slate-900/10 flex items-center justify-between text-left group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0">
-                    🌐
-                  </div>
-                  <div>
-                    <div className="font-extrabold text-base leading-tight font-brand-title">I tuoi viaggi nel Cloud</div>
-                    <div className="text-xs text-slate-300 font-normal mt-0.5">Gestisci o riapri i viaggi sincronizzati</div>
-                  </div>
-                </div>
-                <span className="text-slate-300 text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
-              </button>
             </div>
           )}
 
-          {/* 2. CREA UN VIAGGIO */}
+          {/* CTA PRINCIPALE: CREA IL TUO VIAGGIO */}
           <button
             type="button"
-            onClick={() => setMode('create')}
-            className={`w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer flex items-center justify-between text-left group ${
-              savedLocalTrip ? 'border border-slate-200 bg-white hover:bg-slate-50 text-[#172033] shadow-xs' : 'border border-slate-200/90 bg-[#F8F7F3] hover:bg-slate-100 text-[#172033] shadow-xs'
-            }`}
+            onClick={handleStartCreateTrip}
+            disabled={loading}
+            className="w-full py-4 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer bg-[#172033] hover:bg-[#222f4b] text-white shadow-xl shadow-slate-900/15 flex items-center justify-between text-left group disabled:opacity-75 disabled:pointer-events-none"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-rose-50 text-[#FF6B5F] flex items-center justify-center shrink-0 shadow-2xs">
-                <TrailItinerario size={20} active />
+              <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 shadow-xs text-xl">
+                🗺️
               </div>
               <div>
-                <div className="font-extrabold text-base leading-tight font-brand-title">Crea un nuovo viaggio</div>
-                <div className="text-xs text-slate-500 font-normal mt-0.5">Pianifica tappe, itinerario e date</div>
+                <div className="font-extrabold text-base leading-tight font-brand-title">
+                  Crea il tuo viaggio
+                </div>
+                <div className="text-xs text-slate-300 font-normal mt-0.5">
+                  Inizia un nuovo itinerario da zero
+                </div>
               </div>
             </div>
-            <span className="text-slate-400 text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
+            <span className="text-slate-300 text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
           </button>
 
-          {/* 3. UNISCITI A UN VIAGGIO (COPILOTA) */}
+          {/* CTA SECONDARIA: PARTECIPA CON INVITO */}
           <button
             type="button"
             onClick={() => setMode('join')}
-            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer border border-slate-200/90 hover:border-slate-300 bg-[#F8F7F3] flex items-center justify-between text-left group shadow-xs text-[#172033]"
+            className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm transition-all duration-200 active:scale-[0.98] hover:-translate-y-0.5 cursor-pointer bg-white hover:bg-[#F8F7F3] text-[#172033] border border-slate-200/90 shadow-xs flex items-center justify-between text-left group"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-white text-[#172033] flex items-center justify-center shrink-0 border border-slate-200 shadow-2xs">
-                <TrailCopiloti size={18} active />
+              <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 shadow-2xs text-lg">
+                🤝
               </div>
               <div>
-                <div className="font-extrabold text-base leading-tight font-brand-title">Unisciti a un viaggio</div>
-                <div className="text-xs text-slate-500 font-normal mt-0.5">Entra come copilota con link o codice</div>
+                <div className="font-extrabold text-sm leading-tight font-brand-title">
+                  Hai ricevuto un invito? Partecipa
+                </div>
+                <div className="text-xs text-slate-500 font-normal mt-0.5">
+                  Inserisci il codice o link del tuo compagno
+                </div>
               </div>
             </div>
             <span className="text-slate-400 text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
           </button>
 
-          {/* Visualizzazione Errore Accesso Esplicito con Riprova */}
-          {loginError && (
-            <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold leading-relaxed text-left flex items-start gap-2.5 shadow-2xs">
-              <span className="shrink-0 text-base">⚠️</span>
-              <div className="flex-1 space-y-1">
-                <p>{loginError}</p>
-                <div className="flex items-center gap-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => { setLoginError(null); handleGoogleLogin(); }}
-                    className="text-[11px] font-bold text-white bg-rose-600 hover:bg-rose-500 px-2.5 py-1 rounded-lg transition-all cursor-pointer shadow-2xs"
-                  >
-                    Riprova con Google ↻
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setLoginError(null); setMode('account_login'); }}
-                    className="text-[11px] font-medium text-slate-600 hover:text-slate-900 underline cursor-pointer"
-                  >
-                    Accedi con Email
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Link discreto ad accesso email tradizionale */}
-          <div className="pt-1 text-center">
+          {/* ACCESSO DISCRETO PER CHI POSSIEDE GIÀ UN ACCOUNT */}
+          <div className="pt-2 text-center">
             <button
               type="button"
               onClick={() => setMode('account_login')}
-              className="text-xs font-medium text-slate-500 hover:text-[#172033] transition-colors underline cursor-pointer"
+              className="text-xs font-semibold text-slate-500 hover:text-[#172033] transition-colors underline cursor-pointer"
             >
-              Ho già un account con email e password
+              Hai già un account? Accedi
             </button>
           </div>
         </div>
@@ -904,8 +882,8 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
   // 2. CREATE MODE
   // ─────────────────────────────────────────
   if (mode === 'create') {
-    // FASE 1: Se l'utente non è autenticato con Google e non ha scelto il fallback locale, mostra Google-first
-    if ((!activeAuthUser || activeAuthUser.isAnonymous) && !skipGoogleForCreate) {
+    // FASE 1: Se l'utente non è autenticato con Google, percorso Google-first verificato
+    if (!activeAuthUser || activeAuthUser.isAnonymous) {
       return renderLayout(
         <div className="rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/5 p-6 sm:p-7 space-y-6">
           <div className="flex items-center gap-3">
@@ -918,7 +896,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             </button>
             <div>
               <h2 className="text-xl font-extrabold text-[#172033] font-brand-title">
-                Crea un Viaggio
+                Salva e ritrova il tuo viaggio
               </h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 Accedi con Google per iniziare
@@ -937,7 +915,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 </svg>
               </div>
               <p className="text-xs text-slate-600 leading-relaxed max-w-xs mx-auto">
-                Collega il tuo account Google per salvare il roadbook, sincronizzare con il Copilota e accedere da qualsiasi dispositivo.
+                Google serve a salvare il tuo viaggio al sicuro nel cloud, ritrovarlo su tutti i tuoi dispositivi e sincronizzarlo in tempo reale con i tuoi compagni di viaggio.
               </p>
             </div>
 
@@ -974,31 +952,21 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 </div>
                 <div>
                   <div className="font-extrabold text-base leading-tight font-brand-title">
-                    {loading ? (loginProgressMsg || 'Connessione in corso…') : 'Continua con Google'}
+                    {loading ? (loginProgressMsg || 'Connessione in corso…') : 'Accedi con Google e inizia'}
                   </div>
                   <div className="text-xs text-slate-300 font-normal mt-0.5">
-                    Accesso immediato con account Google
+                    Salva il viaggio sul cloud in un tocco
                   </div>
                 </div>
               </div>
               <span className="text-slate-300 text-base font-bold group-hover:translate-x-1 transition-transform">→</span>
             </button>
-
-            <div className="pt-2 text-center">
-              <button
-                type="button"
-                onClick={() => setSkipGoogleForCreate(true)}
-                className="text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors underline cursor-pointer"
-              >
-                Oppure continua senza account Google
-              </button>
-            </div>
           </div>
         </div>
       );
     }
 
-    // FASE 2: Form compilazione dettagli viaggio (Google verificato o fallback locale scelto)
+    // FASE 2: Form compilazione dettagli viaggio (Google verificato)
     return renderLayout(
       <div className="rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-slate-900/5 p-6 sm:p-7 space-y-6">
         <div className="flex items-center gap-3">
@@ -1011,10 +979,10 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
           </button>
           <div>
             <h2 className="text-xl font-extrabold text-[#172033] font-brand-title">
-              Nuovo Viaggio
+              {recoveredTrips && recoveredTrips.length > 0 ? 'Crea un nuovo viaggio' : 'Il tuo primo viaggio'}
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Imposta nome e date del roadbook
+              {recoveredTrips && recoveredTrips.length > 0 ? 'Imposta nome e date del roadbook' : 'Inserisci pochi dettagli per iniziare il tuo roadbook'}
             </p>
           </div>
         </div>
@@ -1032,13 +1000,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
                 Verificato ✓
               </span>
             </div>
-          ) : (
-            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600">
-              <span className="text-[11px] text-slate-500 block">
-                Stai creando il viaggio su questo dispositivo. Potrai collegare Google in seguito.
-              </span>
-            </div>
-          )}
+          ) : null}
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider mb-2 text-slate-600">
@@ -1126,7 +1088,7 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             className="w-full py-3.5 mt-2 rounded-2xl font-bold text-base transition-all active:scale-[0.98] hover:opacity-95 cursor-pointer disabled:opacity-60 shadow-md shadow-[#FF6B5F]/20"
             style={{ background: '#FF6B5F', color: '#ffffff' }}
           >
-            {loading ? 'Creazione in corso…' : 'Crea Viaggio e Prosegui 🚀'}
+            {loading ? 'Creazione in corso…' : 'Crea viaggio'}
           </button>
         </form>
       </div>
@@ -1154,13 +1116,13 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         </div>
 
         <div className="space-y-3.5 pt-1 text-left">
-          {/* Opzione 1: Invita un Copilota */}
+          {/* Opzione facoltativa: Invita un Copilota */}
           <div className="p-4 rounded-2xl border border-slate-200 bg-[#F8F7F3] space-y-3">
             <div className="flex items-center gap-2.5">
               <span className="text-2xl">🤝</span>
               <div>
-                <h3 className="font-bold text-sm text-[#172033]">Invita un Copilota</h3>
-                <p className="text-[11px] text-slate-500">Condividi il link d'accesso al viaggio</p>
+                <h3 className="font-bold text-sm text-[#172033]">Invita un Copilota (facoltativo)</h3>
+                <p className="text-[11px] text-slate-500">Condividi l'accesso per organizzare insieme</p>
               </div>
             </div>
 
@@ -1185,51 +1147,20 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             </div>
 
             <p className="text-[10px] text-slate-400 leading-tight">
-              Il copilota riceverà un link diretto per collegare il proprio dispositivo al tuo viaggio.
+              Potrai invitare o gestire i partecipanti in qualsiasi momento anche successivamente.
             </p>
           </div>
-
-          {/* Opzione 2: Lo farò più tardi */}
-          <button
-            type="button"
-            onClick={() => {
-              if (tempConfig?.id === '0000') {
-                setMode('role');
-              } else {
-                setMode('ai');
-              }
-            }}
-            className="w-full p-4 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 transition-all text-left active:scale-[0.98] cursor-pointer"
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <span className="text-xl">⏳</span>
-                <div>
-                  <h3 className="font-bold text-sm text-[#172033]">Lo farò più tardi</h3>
-                  <p className="text-[11px] text-slate-500">Entra subito nel viaggio e invita in seguito</p>
-                </div>
-              </div>
-              <span className="text-slate-400 text-lg">→</span>
-            </div>
-            <p className="text-[10px] text-slate-400 mt-2 pl-8">
-              Potrai generare o revocare l'invito in qualunque momento da Impostazioni ⚙️ → Partecipanti.
-            </p>
-          </button>
         </div>
 
+        {/* Prima azione utile: Aggiungi la prima tappa */}
         <button
           type="button"
-          onClick={() => {
-            if (tempConfig?.id === '0000') {
-              setMode('role');
-            } else {
-              setMode('ai');
-            }
-          }}
-          className="w-full py-3.5 rounded-xl font-extrabold text-sm transition-all active:scale-[0.98] hover:opacity-95 cursor-pointer shadow-md text-white"
+          onClick={() => handleFinishOnboarding(undefined, tempConfig, 'guida')}
+          className="w-full py-4 rounded-2xl font-black text-sm transition-all active:scale-[0.98] hover:opacity-95 cursor-pointer shadow-lg shadow-[#FF6B5F]/20 text-white flex items-center justify-center gap-2"
           style={{ background: '#FF6B5F' }}
         >
-          Entra nel Roadbook 🚀
+          <span>📍</span>
+          <span>Aggiungi la prima tappa →</span>
         </button>
       </div>
     );
@@ -1386,9 +1317,10 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
             <button
               type="button"
               onClick={() => setMode('create')}
-              className="w-full py-2.5 text-xs text-slate-500 hover:text-[#172033] transition-colors cursor-pointer"
+              className="w-full py-3.5 px-4 rounded-2xl font-bold text-sm bg-[#FF6B5F] text-white hover:bg-[#ed5d52] transition-all active:scale-[0.98] cursor-pointer shadow-md shadow-[#FF6B5F]/20 flex items-center justify-center gap-2"
             >
-              + Crea un altro viaggio con questo account
+              <span>+</span>
+              <span>Crea un altro viaggio</span>
             </button>
           </div>
         ) : authenticatedUser && tripLoadFailed ? (

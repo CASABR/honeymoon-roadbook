@@ -4,13 +4,31 @@ service firebase.storage {
   match /b/{bucket}/o {
     // Foto condivise esplicitamente nel live feed pubblico del viaggio
     match /trips/{tripId}/live_photos/{photoId} {
+      // Funzione di verifica server-side: solo Owner o Copilota autorizzati del viaggio
+      function isTripEditor() {
+        let tripPath = /databases/(default)/documents/trips/$(tripId);
+        let memberPath = /databases/(default)/documents/trips/$(tripId)/members/$(request.auth.uid);
+        return request.auth != null && (
+          (firestore.exists(tripPath) && firestore.get(tripPath).data.ownerUid == request.auth.uid) ||
+          (firestore.exists(tripPath) && firestore.get(tripPath).data.ownerId == request.auth.uid) ||
+          (firestore.exists(tripPath) && request.auth.uid in firestore.get(tripPath).data.members) ||
+          (firestore.exists(memberPath) && firestore.get(memberPath).data.role in ['owner', 'copilota'])
+        );
+      }
+
       // Gli ospiti possono visualizzare/scaricare le immagini pubblicate nel Live
       allow read: if true;
-      // Solo utenti autenticati possono caricare o aggiornare scatti live (max 5MB, solo formati immagine)
-      allow create, update: if request.auth != null
+
+      // Solo l'Owner o Copilota effettivo del viaggio può caricare scatti live (max 5MB, solo immagini)
+      allow create: if isTripEditor()
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
-      allow delete: if request.auth != null;
+
+      // Impedisci sovrascritture arbitrarie di foto già caricate
+      allow update: if false;
+
+      // Rimozione permessa solo all'Owner o Copilota del viaggio (es. revoca condivisione LIVE)
+      allow delete: if isTripEditor();
     }
 
     // Documenti personali, voucher, biglietti e allegati privati dell'utente
