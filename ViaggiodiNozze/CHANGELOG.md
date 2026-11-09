@@ -2,6 +2,10 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.13 — 2026-11-09
+
+- Integrazione collegamenti Google Drive nella cartella Documenti con apertura protetta e selettore categorie
+
 ## 1.5.12 — 2026-11-09
 
 - UX LIVE desktop panoramica per ospiti con banner discreto e riordino schermata Altro con accesso rapido Google Drive
@@ -49,9 +53,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 - Footer card compatti con sole icone su mobile, pulsante PNR e desk ritiro trasporti.
 - Header compatto con dark mode, periodo alloggi solo su piu notti e filtri spese saldato.
 - Interfaccia semplificata per utenti non esperti e rimozione schermata blocco pin.
-
-## 1.5.3 — 2026-11-05
-
-- Card mobile ultra-compatte: footer a riga singola con icone, orari compatti per le attività.
-- Note copilota discrete con icona verde e toggle per visualizzazione a vista sulla card.
-- Pulsante bagagli dedicato nei trasporti e supporto drag-and-drop foto per Spot fotografico.

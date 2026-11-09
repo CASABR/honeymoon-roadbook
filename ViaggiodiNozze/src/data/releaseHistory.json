@@ -2,6 +2,14 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.13",
+      "publishedAt": "2026-11-09",
+      "sourceCommit": "884baaf5d8a00126f9acd610e48488634239081b",
+      "changes": [
+        "Integrazione collegamenti Google Drive nella cartella Documenti con apertura protetta e selettore categorie"
+      ]
+    },
+    {
       "version": "1.5.12",
       "publishedAt": "2026-11-09",
       "sourceCommit": "ef2916d33c7b3565db7f43448f6e7003c2828303",
@@ -83,16 +91,6 @@
         "Footer card compatti con sole icone su mobile, pulsante PNR e desk ritiro trasporti.",
         "Header compatto con dark mode, periodo alloggi solo su piu notti e filtri spese saldato.",
         "Interfaccia semplificata per utenti non esperti e rimozione schermata blocco pin."
-      ]
-    },
-    {
-      "version": "1.5.3",
-      "publishedAt": "2026-11-05",
-      "sourceCommit": "c3f5455",
-      "changes": [
-        "Card mobile ultra-compatte: footer a riga singola con icone, orari compatti per le attività.",
-        "Note copilota discrete con icona verde e toggle per visualizzazione a vista sulla card.",
-        "Pulsante bagagli dedicato nei trasporti e supporto drag-and-drop foto per Spot fotografico."
       ]
     }
   ]
