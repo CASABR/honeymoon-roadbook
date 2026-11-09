@@ -642,7 +642,7 @@ export default function App() {
 
   // Se non c'è un viaggio configurato e NON siamo in modalità Live esterna con tripId, mostra l'Onboarding
   const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
-  const externalTripId = urlParams.get('tripId');
+  const externalTripId = urlParams.get('tripId') || urlParams.get('trip');
   
   if (initError && !isAuthenticated) {
     return (
@@ -714,19 +714,19 @@ export default function App() {
     const activeTripId = tripConfig?.id || externalTripId || '';
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col items-center selection:bg-rose-500 selection:text-white font-sans antialiased">
-        <header className="w-full max-w-md mx-auto flex items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2 h-2 rounded-full bg-rose-500" />
+        <header className="w-full max-w-md md:max-w-2xl lg:max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-8 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
               Hounigo • Live
             </p>
           </div>
-          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full border border-slate-200/60 dark:border-slate-700">
+          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200/60 dark:border-slate-700">
             Vista Ospiti
           </span>
         </header>
 
-        <main className="w-full max-w-md mx-auto flex-1 flex flex-col px-4 pt-1 pb-10">
+        <main className="w-full max-w-md md:max-w-2xl lg:max-w-7xl mx-auto flex-1 flex flex-col px-4 lg:px-8 pt-1 pb-10">
           <Suspense fallback={
             <div className="flex flex-col h-64 items-center justify-center rounded-3xl border border-slate-200 dark:border-slate-800 bg-slate-100/60 dark:bg-slate-900/60 animate-pulse">
               <div className="flex flex-col items-center gap-2">

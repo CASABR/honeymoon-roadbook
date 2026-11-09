@@ -459,7 +459,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   );
 
   return (
-    <div className="hounigo-live-entry mx-auto w-full max-w-5xl overflow-x-hidden px-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-slate-900 dark:text-slate-100 sm:px-6">
+    <div className="hounigo-live-entry mx-auto w-full max-w-5xl lg:max-w-7xl overflow-x-hidden px-3 pb-[calc(5.5rem+env(safe-area-inset-bottom))] text-slate-900 dark:text-slate-100 sm:px-6">
       <header className="border-b border-slate-200 pb-4 dark:border-slate-800">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-start gap-2.5">
@@ -484,6 +484,110 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         </div>
       </header>
 
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* BANNER DESKTOP ELEGANTE (SOLO VISTA PUBBLICA OSPITI, SOLO DESKTOP) */}
+      {/* Su smartphone e tablet: hidden, zero spazio */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {props.isExternal && (
+        <div data-testid="desktop-live-banner" className="hidden lg:block mt-6 mb-2 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#172033] p-6 shadow-xs relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-[#FF6B5F]/10 via-[#FFF0ED]/40 to-transparent dark:from-[#FF6B5F]/10 dark:via-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
+          
+          <div className="relative z-10">
+            <div className="flex items-start justify-between gap-6">
+              <div className="min-w-0 max-w-2xl">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 text-[#FF6B5F] text-xs font-black uppercase tracking-widest mb-2">
+                  <span className="w-2 h-2 rounded-full bg-[#FF6B5F] animate-ping" />
+                  Segui il viaggio in diretta
+                </div>
+                <h2 className="text-2xl xl:text-3xl font-black text-[#172033] dark:text-white tracking-tight">
+                  {tripTitle}
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                  Benvenuti nella finestra LIVE di HOUNIGO per gli ospiti: segui le tappe, la posizione aggiornata e i ricordi condivisi in tempo reale.
+                </p>
+              </div>
+
+              {/* Statistiche rapide del Live */}
+              <div className="flex items-center gap-3 shrink-0">
+                <div className="px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700 text-center min-w-[80px]">
+                  <p className="text-xl font-black text-[#172033] dark:text-white">{sortedUpdates.length}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ricordi</p>
+                </div>
+                <div className="px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700 text-center min-w-[80px]">
+                  <p className="text-xl font-black text-[#172033] dark:text-white">{displayPhotos.length}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Foto</p>
+                </div>
+                <div className="px-4 py-2.5 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700 text-center min-w-[80px]">
+                  <p className="text-xl font-black text-[#172033] dark:text-white">{reactionTotal}</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Reazioni</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Tre schede con distinzione chiara fra i 3 stati */}
+            <div className="grid grid-cols-3 gap-3.5 mt-5 pt-5 border-t border-slate-100 dark:border-slate-800/80">
+              {/* 1. Posizione Attuale */}
+              <div className="rounded-2xl p-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className={`w-2 h-2 rounded-full ${hasRealLocation && !isStaleGps ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                      Posizione Attuale (GPS Live)
+                    </p>
+                  </div>
+                  <p className="text-sm font-extrabold text-[#172033] dark:text-white truncate">
+                    {hasRealLocation && !isStaleGps
+                      ? (props.remoteGpsLocation?.city || 'Trasmessa in tempo reale')
+                      : 'Nessuna trasmissione in corso'}
+                  </p>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                  {hasRealLocation && !isStaleGps ? 'Segnale GPS live attivo' : 'La guida condivide la posizione a intervalli'}
+                </p>
+              </div>
+
+              {/* 2. Ultima Posizione Nota */}
+              <div className="rounded-2xl p-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                      Ultima Posizione Nota
+                    </p>
+                  </div>
+                  <p className="text-sm font-extrabold text-[#172033] dark:text-white truncate">
+                    {hasRealLocation
+                      ? (props.remoteGpsLocation?.city || 'Rilevamento registrato')
+                      : 'In attesa del primo fix'}
+                  </p>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                  {hasRealLocation && lastDetectedDate ? formatLastDetectedTimestamp(lastDetectedDate) : 'Nessun fix registrato nelle ultime ore'}
+                </p>
+              </div>
+
+              {/* 3. Itinerario Previsto */}
+              <div className="rounded-2xl p-3.5 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <span className="w-2 h-2 rounded-full bg-sky-500" />
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                      Itinerario Previsto
+                    </p>
+                  </div>
+                  <p className="text-sm font-extrabold text-[#172033] dark:text-white truncate">
+                    {plannedLocation?.title || 'Secondo la tabella di marcia'}
+                  </p>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+                  {plannedLocation?.coords ? 'Tappa da programma roadbook' : 'Da pianificazione del viaggio'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <nav className="sticky top-0 z-30 -mx-3 grid grid-cols-3 border-b border-slate-200 bg-[#F8F7F3]/95 px-3 py-2 backdrop-blur dark:border-slate-800 dark:bg-[#172033]/95 sm:-mx-6 sm:px-6" aria-label="Sezioni LIVE">
         <a href="#live-position" className="min-h-10 rounded-full px-2 py-2 text-center text-xs font-bold hover:bg-white dark:hover:bg-slate-800">Posizione</a>
         <a href="#live-diary" className="min-h-10 rounded-full px-2 py-2 text-center text-xs font-bold hover:bg-white dark:hover:bg-slate-800">Diario</a>
@@ -496,7 +600,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         </div>
       )}
 
-      <section id="live-position" aria-labelledby="live-position-title" className="scroll-mt-16 py-7">
+      {/* Wrapper panoramico Desktop (2 colonne affiancate su lg:, flusso verticale su mobile/tablet) */}
+      <div className="lg:grid lg:grid-cols-12 lg:gap-8 lg:items-start mt-2">
+        {/* Colonna Sinistra Desktop: Mappa in evidenza & Info Posizione */}
+        <div className="lg:col-span-7 space-y-6 lg:sticky lg:top-14">
+          <section id="live-position" aria-labelledby="live-position-title" className="scroll-mt-16 py-6 lg:py-2">
         <div className="mb-4 flex items-end justify-between gap-3">
           <div>
             <p className="text-xs font-bold text-[#FF6B5F]">Posizione</p>
@@ -569,19 +677,19 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           </div>
         </div>
 
-        <div className={`mt-4 grid gap-4 ${props.isExternal ? 'grid-cols-1' : 'sm:grid-cols-2'}`}>
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="border-l-2 border-[#FF6B5F] pl-3">
-            <p className="text-[11px] font-bold text-slate-400">Dove siamo</p>
+            <p className="text-[11px] font-bold text-slate-400">
+              {hasRealLocation && !isStaleGps ? 'Posizione attuale (GPS Live)' : 'Ultima posizione nota'}
+            </p>
             <p className="mt-1 text-sm font-extrabold text-[#172033] dark:text-white">{hasRealLocation ? props.remoteGpsLocation?.city || 'Posizione GPS' : 'Nessuna posizione condivisa'}</p>
             <p className="mt-1 text-xs text-slate-500">{hasRealLocation && lastDetectedDate ? formatRelativeTime(lastDetectedDate) : gpsVisualState.label}</p>
           </div>
-          {!props.isExternal && (
-            <div className="border-l-2 border-[#172033] pl-3 dark:border-slate-500">
-              <p className="text-[11px] font-bold text-slate-400">Dove dovremmo essere</p>
-              <p className="mt-1 text-sm font-extrabold text-[#172033] dark:text-white">{plannedLocation?.title || 'Nessun luogo previsto ora'}</p>
-              <p className="mt-1 text-xs text-slate-500">{plannedLocation?.coords ? 'Secondo il programma' : 'Coordinate non disponibili'}</p>
-            </div>
-          )}
+          <div className="border-l-2 border-[#172033] pl-3 dark:border-slate-500">
+            <p className="text-[11px] font-bold text-slate-400">Itinerario previsto</p>
+            <p className="mt-1 text-sm font-extrabold text-[#172033] dark:text-white">{plannedLocation?.title || 'Nessun luogo previsto ora'}</p>
+            <p className="mt-1 text-xs text-slate-500">{plannedLocation?.coords ? 'Secondo il programma' : 'Coordinate non disponibili'}</p>
+          </div>
         </div>
 
         {!props.isExternal && props.liveIntelligence && (
@@ -711,8 +819,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           </details>
         )}
       </section>
+    </div>
 
-      <section id="live-diary" aria-labelledby="live-diary-title" className="scroll-mt-16 border-t border-slate-200 py-7 dark:border-slate-800">
+    {/* Colonna Destra Desktop: Diario, Fotografie, Interazioni */}
+    <div className="lg:col-span-5 space-y-8">
+      <section id="live-diary" aria-labelledby="live-diary-title" className="scroll-mt-16 border-t border-slate-200 py-7 dark:border-slate-800 lg:border-t-0 lg:py-2">
         <div className="flex items-end justify-between gap-3">
           <div>
             <p className="text-xs font-bold text-[#FF6B5F]">Diario</p>
@@ -922,6 +1033,8 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         <button type="button" onClick={props.onShare} className="mt-6 min-h-11 rounded-full bg-[#172033] px-5 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">{props.copiedLink ? 'Link copiato ✓' : 'Condividi link ospiti'}</button>
         <details className="mt-4 text-xs"><summary className="min-h-10 cursor-pointer py-2 font-bold">Cosa vedono gli ospiti</summary><p className="max-w-xl leading-5 text-slate-500">Posizione condivisa, ricordi pubblici, reazioni e messaggi degli ospiti. Itinerario privato, documenti, prenotazioni, spese e contatti restano nascosti.</p></details>
       </section>
+    </div>
+  </div>
 
       {pendingUploadItems.length > 0 && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[9998] flex items-end justify-center bg-black/70 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label="Aggiungi fotografie">
