@@ -128,26 +128,60 @@ export const liveGpsService = {
     isPrivileged: boolean,
     callback: (location: LiveGpsLocation | null, isStale: boolean) => void
   ): Unsubscribe {
-    return onSnapshot(locationRef(tripId), snapshot => {
-      if (!snapshot.exists()) return callback(null, false);
-      const data = snapshot.data();
-      const location: LiveGpsLocation = {
-        lat: data.lat,
-        lng: data.lng,
-        accuracy: data.accuracy,
-        city: data.city || '',
-        country: data.country || '',
-        updatedAt: asDate(data.updatedAt),
-        publisherDeviceId: data.publisherDeviceId,
-        status: data.status
-      };
-      const isStale = Date.now() - location.updatedAt.getTime() >= GPS_STALE_THRESHOLD_MS;
-      if (isPrivileged) {
-        callback(location, isStale);
-      } else {
-        callback(location.status === 'active' && !isStale ? location : null, isStale);
+    let active = true;
+    let unsubFirestore: Unsubscribe | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const setupListener = () => {
+      if (!active) return;
+      try {
+        unsubFirestore = onSnapshot(locationRef(tripId), snapshot => {
+          if (!active) return;
+          if (!snapshot.exists()) return callback(null, false);
+          const data = snapshot.data();
+          const location: LiveGpsLocation = {
+            lat: data.lat,
+            lng: data.lng,
+            accuracy: data.accuracy,
+            city: data.city || '',
+            country: data.country || '',
+            updatedAt: asDate(data.updatedAt),
+            publisherDeviceId: data.publisherDeviceId,
+            status: data.status
+          };
+          const isStale = Date.now() - location.updatedAt.getTime() >= GPS_STALE_THRESHOLD_MS;
+          if (isPrivileged) {
+            callback(location, isStale);
+          } else {
+            callback(location.status === 'active' && !isStale ? location : null, isStale);
+          }
+        }, () => {
+          if (!active) return;
+          callback(null, false);
+          // Riconnessione periodica: se le Security Rules hanno negato l'accesso (posizione inattiva o lease scaduta),
+          // riprova tra 20s così che appena la guida avvia la condivisione, l'ospite si ricolleghi automaticamente.
+          if (retryTimer) clearTimeout(retryTimer);
+          retryTimer = setTimeout(() => {
+            if (active) setupListener();
+          }, 20_000);
+        });
+      } catch {
+        if (!active) return;
+        callback(null, false);
+        if (retryTimer) clearTimeout(retryTimer);
+        retryTimer = setTimeout(() => {
+          if (active) setupListener();
+        }, 20_000);
       }
-    }, () => callback(null, false));
+    };
+
+    setupListener();
+
+    return () => {
+      active = false;
+      if (retryTimer) clearTimeout(retryTimer);
+      if (unsubFirestore) unsubFirestore();
+    };
   },
 
   subscribePublicLocation(tripId: string, callback: (location: LiveGpsLocation | null) => void): Unsubscribe {

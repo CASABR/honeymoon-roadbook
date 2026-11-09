@@ -143,25 +143,37 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     ? 'Diario di viaggio'
     : tripConfig?.title || props.location?.city || 'Il nostro viaggio';
   const isOnline = props.isOnline ?? (typeof navigator === 'undefined' || navigator.onLine);
-  const rawLeaseActive = props.remoteGpsLease?.status === 'active';
-  const isLeaseExpired = Boolean(rawLeaseActive && props.remoteGpsLease && props.remoteGpsLease.expiresAt.getTime() <= Date.now());
-  const isLeaseActive = Boolean(rawLeaseActive && !isLeaseExpired);
-  const isLeasePaused = props.remoteGpsLease?.status === 'paused';
-  const isLeaseStopped = !props.remoteGpsLease || props.remoteGpsLease.status === 'stopped';
   const lastDetectedDate = props.remoteGpsLocation?.updatedAt
     ? parseSafeDate(props.remoteGpsLocation.updatedAt)
     : null;
   const ageMs = lastDetectedDate ? Math.max(0, Date.now() - lastDetectedDate.getTime()) : Number.POSITIVE_INFINITY;
+
+  // Per gli ospiti la lease non è accessibile direttamente (protetta da Firestore rules),
+  // ma la presenza di remoteGpsLocation attiva certifica che la lease è valida lato server.
+  const rawLeaseActive = props.remoteGpsLease
+    ? props.remoteGpsLease.status === 'active'
+    : (props.remoteGpsLocation?.status === 'active');
+  const isLeaseExpired = props.remoteGpsLease
+    ? Boolean(props.remoteGpsLease.expiresAt.getTime() <= Date.now())
+    : (ageMs >= GPS_STALE_THRESHOLD_MS);
+  const isLeaseActive = Boolean(rawLeaseActive && !isLeaseExpired);
+  const isLeasePaused = props.remoteGpsLease?.status === 'paused';
+  const isLeaseStopped = props.remoteGpsLease
+    ? props.remoteGpsLease.status === 'stopped'
+    : (!props.remoteGpsLocation || props.remoteGpsLocation.status === 'stopped');
+
   const isFreshGps = Boolean(
     isLeaseActive &&
     lastDetectedDate &&
-    ageMs < GPS_STALE_THRESHOLD_MS
+    ageMs < GPS_STALE_THRESHOLD_MS &&
+    props.remoteGpsLocation?.status === 'active'
   );
   const isStaleGps = Boolean(
     lastDetectedDate &&
     ageMs >= GPS_STALE_THRESHOLD_MS
   );
-  const hasRealLocation = Boolean((isFreshGps || (!props.isExternal && lastDetectedDate && props.remoteGpsLocation?.status !== 'stopped')) && props.remoteGpsLocation);
+  // Protezione privacy: mai mostrare coordinate a ospiti se il GPS è scaduto, fermato o in pausa
+  const hasRealLocation = Boolean(isFreshGps && props.remoteGpsLocation);
   const plannedLocation = props.liveIntelligence?.plannedLocation || null;
   const hasPlannedLocation = Boolean(!props.isExternal && plannedLocation?.coords);
   const showRealMarker = hasRealLocation && props.mapCenterMode !== 'planned';
@@ -182,6 +194,9 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     if (isFreshGps) {
       return { label: 'GPS attivo', tone: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' };
     }
+    if (props.isExternal) {
+      return { label: 'Posizione non condivisa al momento', tone: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-400' };
+    }
     if (isStaleGps && (isLeaseActive || hasRealLocation)) {
       return { label: 'Ultima posizione aggiornata', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
     }
@@ -192,7 +207,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
       return { label: 'GPS non disponibile', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
     }
     return { label: 'Condivisione interrotta', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
-  }, [isOnline, permissionDenied, props.isDetectingGps, isFreshGps, isStaleGps, isLeaseActive, hasRealLocation, isLeasePaused, isLeaseStopped, isLeaseExpired, props.remoteGpsLease?.status]);
+  }, [isOnline, permissionDenied, props.isDetectingGps, isFreshGps, isStaleGps, isLeaseActive, hasRealLocation, isLeasePaused, isLeaseStopped, isLeaseExpired, props.remoteGpsLease?.status, props.isExternal]);
 
   const currentGuideName = useMemo(() => {
     const holderUid = props.remoteGpsLease?.holderUid;
@@ -680,15 +695,21 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="border-l-2 border-[#FF6B5F] pl-3">
             <p className="text-[11px] font-bold text-slate-400">
-              {hasRealLocation && !isStaleGps ? 'Posizione attuale (GPS Live)' : 'Ultima posizione nota'}
+              {hasRealLocation ? 'Posizione attuale (GPS Live)' : 'Posizione in tempo reale'}
             </p>
-            <p className="mt-1 text-sm font-extrabold text-[#172033] dark:text-white">{hasRealLocation ? props.remoteGpsLocation?.city || 'Posizione GPS' : 'Nessuna posizione condivisa'}</p>
-            <p className="mt-1 text-xs text-slate-500">{hasRealLocation && lastDetectedDate ? formatRelativeTime(lastDetectedDate) : gpsVisualState.label}</p>
+            <p className="mt-1 text-sm font-extrabold text-[#172033] dark:text-white">
+              {hasRealLocation ? (props.remoteGpsLocation?.city || 'Posizione GPS attiva') : 'Posizione non condivisa al momento'}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              {hasRealLocation && lastDetectedDate
+                ? `Ultimo aggiornamento: ${formatRelativeTime(lastDetectedDate)} (${formatLastDetectedTimestamp(lastDetectedDate)})`
+                : (props.isExternal ? 'Posizione non condivisa al momento' : gpsVisualState.label)}
+            </p>
           </div>
           <div className="border-l-2 border-[#172033] pl-3 dark:border-slate-500">
-            <p className="text-[11px] font-bold text-slate-400">Itinerario previsto</p>
+            <p className="text-[11px] font-bold text-slate-400">Itinerario programmato (Destinazione)</p>
             <p className="mt-1 text-sm font-extrabold text-[#172033] dark:text-white">{plannedLocation?.title || 'Nessun luogo previsto ora'}</p>
-            <p className="mt-1 text-xs text-slate-500">{plannedLocation?.coords ? 'Secondo il programma' : 'Coordinate non disponibili'}</p>
+            <p className="mt-1 text-xs text-slate-500">{plannedLocation?.coords ? 'Destinazione da programma (non GPS)' : 'Coordinate non disponibili'}</p>
           </div>
         </div>
 
@@ -843,7 +864,18 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
               <button type="button" onClick={props.onSaveStatus} className="mt-2 min-h-11 rounded-full bg-[#172033] px-4 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">Salva</button>
             </div>
           ) : (
-            <><p className="mt-1 text-base font-semibold leading-6 text-[#172033] dark:text-white">{props.statusMessage}</p><time className="mt-2 block text-[11px] text-slate-400">{props.statusUpdatedAt}</time></>
+            <>
+              <p className="mt-1 text-base font-semibold leading-6 text-[#172033] dark:text-white">{props.statusMessage}</p>
+              {props.statusUpdatedAt && (
+                <time className="mt-2 block text-[11px] text-slate-400">
+                  {typeof props.statusUpdatedAt === 'string'
+                    ? props.statusUpdatedAt
+                    : (props.statusUpdatedAt instanceof Date
+                        ? props.statusUpdatedAt.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
+                        : String(props.statusUpdatedAt))}
+                </time>
+              )}
+            </>
           )}
         </article>
 
