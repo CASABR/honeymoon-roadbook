@@ -2,6 +2,17 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.12 — 2026-11-09
+
+- UX LIVE desktop panoramica per ospiti con banner discreto e riordino schermata Altro con accesso rapido Google Drive
+- Ricerca rapida con badge sezioni, parita logo chiaro e scuro e safe area migliorata per notch e home indicator iPhone
+- Sottocategoria Task per tappe con data orario link e note persistiti offline e sincronizzabili
+
+## 1.5.11 — 2026-11-09
+
+- Invito e adesione Copilota nativa: convalida crittografica token, onboarding e sync automatico in tempo reale.
+- Share sheet di sistema con fallback appunti, note copilota con badge visivo e handover guida GPS reattivo.
+
 ## 1.5.10 — 2026-11-08
 
 - Condivisione GPS LIVE in tempo reale con delega guida, protezione batteria e rate-limiting 15s.
@@ -44,14 +55,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 - Card mobile ultra-compatte: footer a riga singola con icone, orari compatti per le attività.
 - Note copilota discrete con icona verde e toggle per visualizzazione a vista sulla card.
 - Pulsante bagagli dedicato nei trasporti e supporto drag-and-drop foto per Spot fotografico.
-
-## 1.5.2 — 2026-11-05
-
-- Unificazione note copilota in tutte le categorie con salvaguardia e migrazione automatica dei dati.
-- Riorganizzazione sottocategorie tappe e consolidamento dello Spot fotografico unico.
-- Footer card compatti con icone responsive ottimizzate per la consultazione mobile.
-
-## 1.5.1 — 2026-11-03
-
-- Hotfix stabilizzazione focus: eliminata perdita del cursore durante la digitazione continua nei campi e nelle modali.
-- Selettore orario accessibile: etichetta 'Scegli orario' con icona orologio, overlay prioritario e auto-format rapido.

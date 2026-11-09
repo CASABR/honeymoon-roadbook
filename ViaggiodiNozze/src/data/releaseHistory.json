@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.12",
+      "publishedAt": "2026-11-09",
+      "sourceCommit": "ef2916d33c7b3565db7f43448f6e7003c2828303",
+      "changes": [
+        "UX LIVE desktop panoramica per ospiti con banner discreto e riordino schermata Altro con accesso rapido Google Drive",
+        "Ricerca rapida con badge sezioni, parita logo chiaro e scuro e safe area migliorata per notch e home indicator iPhone",
+        "Sottocategoria Task per tappe con data orario link e note persistiti offline e sincronizzabili"
+      ]
+    },
+    {
       "version": "1.5.11",
       "publishedAt": "2026-11-09",
       "sourceCommit": "ebfa10d",
@@ -83,16 +93,6 @@
         "Card mobile ultra-compatte: footer a riga singola con icone, orari compatti per le attività.",
         "Note copilota discrete con icona verde e toggle per visualizzazione a vista sulla card.",
         "Pulsante bagagli dedicato nei trasporti e supporto drag-and-drop foto per Spot fotografico."
-      ]
-    },
-    {
-      "version": "1.5.2",
-      "publishedAt": "2026-11-05",
-      "sourceCommit": "b417e09",
-      "changes": [
-        "Unificazione note copilota in tutte le categorie con salvaguardia e migrazione automatica dei dati.",
-        "Riorganizzazione sottocategorie tappe e consolidamento dello Spot fotografico unico.",
-        "Footer card compatti con icone responsive ottimizzate per la consultazione mobile."
       ]
     }
   ]
