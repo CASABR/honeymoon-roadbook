@@ -246,6 +246,10 @@ export interface TravelDocument {
   linkedEntityType?: 'tappa' | 'attivita' | 'trasporto' | 'alloggio' | 'ristorante' | 'shopping';
   linkedEntityId?: string;
   attachments: TransportAttachment[];
+  driveUrl?: string; // Link diretto al file o cartella su Google Drive
+  driveFileId?: string; // ID Google Drive del file o cartella
+  isFolder?: boolean; // Se il link punta a una cartella Google Drive
+  source?: 'local' | 'google_drive'; // Origine del documento (locale o Google Drive)
   createdAt?: number | string;
   updatedAt: string | number;
 }

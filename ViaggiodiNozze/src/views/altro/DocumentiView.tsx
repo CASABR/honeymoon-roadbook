@@ -2,11 +2,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import type { TravelDocument } from '../../types';
 import { storageService } from '../../storage/storageService';
 import DocumentValidityModal from '../../components/modals/DocumentValidityModal';
+import GoogleDriveDocModal from '../../components/modals/GoogleDriveDocModal';
 import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import SwipeToDelete from '../../components/common/SwipeToDelete';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { formatDateIT } from '../../utils/tripDates';
+import { openDriveUrlSafely } from '../../services/googlePickerService';
 
 interface DocumentiViewProps {
   onBack: () => void;
@@ -100,6 +102,10 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
   const [validity, setValidity] = useState('');
   const [expiresAt, setExpiresAt] = useState('');
 
+  // Modale Google Drive
+  const [isDriveModalOpen, setIsDriveModalOpen] = useState(false);
+  const [editingDriveDoc, setEditingDriveDoc] = useState<TravelDocument | null>(null);
+
   // Dialog Eliminazione
   const [deleteTarget, setDeleteTarget] = useState<TravelDocument | null>(null);
 
@@ -135,6 +141,11 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
     setIsAddModalOpen(true);
   };
 
+  const handleOpenDriveModal = () => {
+    setEditingDriveDoc(null);
+    setIsDriveModalOpen(true);
+  };
+
   const handleCreateDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     const newDoc: TravelDocument = {
@@ -160,6 +171,17 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
       await loadDocs();
     } catch (err) {
       console.error('Errore salvataggio documento:', err);
+    }
+  };
+
+  const handleSaveDriveDocument = async (doc: TravelDocument) => {
+    try {
+      await storageService.saveDocument(doc);
+      setIsDriveModalOpen(false);
+      setEditingDriveDoc(null);
+      await loadDocs();
+    } catch (err) {
+      console.error('Errore salvataggio documento Google Drive:', err);
     }
   };
 
@@ -258,13 +280,32 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
             </button>
           )}
           {canEdit && (
-            <button
-              onClick={handleOpenAddModal}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm shadow-indigo-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
-            >
-              <span>+</span>
-              <span>Nuovo Documento</span>
-            </button>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={handleOpenDriveModal}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold border border-slate-300 shadow-2xs transition-all cursor-pointer active:scale-95 shrink-0"
+                title="Collega un documento o cartella da Google Drive"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+                  <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                  <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                  <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                  <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                  <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                  <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                </svg>
+                <span>Aggiungi da Google Drive</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleOpenAddModal}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-sm shadow-indigo-600/20 transition-all cursor-pointer active:scale-95 shrink-0"
+              >
+                <span>+</span>
+                <span>Nuovo Documento</span>
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -322,7 +363,14 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
 
               <SwipeToDelete key={doc.id} disabled={!canEdit} onDelete={() => setDeleteTarget(doc)}>
                 <div
-                  onClick={() => setValidityModalDoc(doc)}
+                  onClick={() => {
+                    if (doc.source === 'google_drive' || doc.driveUrl) {
+                      setEditingDriveDoc(doc);
+                      setIsDriveModalOpen(true);
+                    } else {
+                      setValidityModalDoc(doc);
+                    }
+                  }}
                   className="w-full min-w-0 max-w-full overflow-hidden bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs hover:shadow-sm hover:border-slate-300 transition-all cursor-pointer flex flex-col gap-2.5 active:scale-[0.99]"
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -335,6 +383,19 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
                           <span className={`px-2 py-0.2 rounded-full text-[9px] font-bold border ${catInfo.badgeClass}`}>
                             {catInfo.label.split(' ')[1] || doc.category}
                           </span>
+                          {(doc.source === 'google_drive' || doc.driveUrl) && (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200 text-[9px] font-bold" title="Documento collegato da Google Drive">
+                              <svg className="w-2.5 h-2.5 shrink-0" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
+                                <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
+                                <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
+                                <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
+                                <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
+                                <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/>
+                                <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
+                              </svg>
+                              <span>{doc.isFolder ? 'Cartella Drive' : 'Google Drive'}</span>
+                            </span>
+                          )}
                           {doc.attachments && doc.attachments.length > 0 && (
                             <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-[9px] font-bold" title={`${doc.attachments.length} allegati`}>
                               📎 {doc.attachments.length}
@@ -357,25 +418,57 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
 
                   <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-[11px]">
                     <div className="flex items-center gap-2 text-slate-500 font-medium truncate">
-                      {doc.validity && (
-                        <span className="truncate">🗓️ {doc.validity}</span>
-                      )}
-                      {doc.expiresAt && (
-                        <span className="font-semibold text-rose-600">⏳ Scad: {formatDateIT(doc.expiresAt)}</span>
+                      {doc.driveUrl ? (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDriveUrlSafely(doc.driveUrl!);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold border border-blue-200 transition-colors cursor-pointer active:scale-95"
+                          title="Apri su Google Drive in una nuova scheda"
+                        >
+                          <span>Apri su Drive</span>
+                          <span>↗</span>
+                        </button>
+                      ) : (
+                        <>
+                          {doc.validity && (
+                            <span className="truncate">🗓️ {doc.validity}</span>
+                          )}
+                          {doc.expiresAt && (
+                            <span className="font-semibold text-rose-600">⏳ Scad: {formatDateIT(doc.expiresAt)}</span>
+                          )}
+                        </>
                       )}
                     </div>
 
                     {canEdit && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDeleteTarget(doc);
-                        }}
-                        className="text-rose-500 hover:text-rose-700 font-semibold cursor-pointer text-[11px]"
-                      >
-                        Elimina
-                      </button>
+                      <div className="flex items-center gap-2.5">
+                        {(doc.source === 'google_drive' || doc.driveUrl) && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingDriveDoc(doc);
+                              setIsDriveModalOpen(true);
+                            }}
+                            className="text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer text-[11px]"
+                          >
+                            Modifica
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteTarget(doc);
+                          }}
+                          className="text-rose-500 hover:text-rose-700 font-semibold cursor-pointer text-[11px]"
+                        >
+                          Elimina
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -526,11 +619,28 @@ export default function DocumentiView({ onBack }: DocumentiViewProps) {
       {deleteTarget && (
         <ConfirmDialog
           isOpen={!!deleteTarget}
-          title="Elimina Documento"
-          message={`Sei sicuro di voler eliminare "${deleteTarget.title}"?`}
-          confirmLabel="Elimina"
+          title={deleteTarget.source === 'google_drive' || deleteTarget.driveUrl ? 'Rimuovi Collegamento Drive' : 'Elimina Documento'}
+          message={
+            deleteTarget.source === 'google_drive' || deleteTarget.driveUrl
+              ? `Vuoi rimuovere il collegamento a "${deleteTarget.title}" da questo viaggio? Il file o la cartella originale sul tuo Google Drive non verrà modificata né eliminata.`
+              : `Sei sicuro di voler eliminare "${deleteTarget.title}"?`
+          }
+          confirmLabel={deleteTarget.source === 'google_drive' || deleteTarget.driveUrl ? 'Rimuovi' : 'Elimina'}
           onConfirm={handleDeleteDocument}
           onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {/* MODALE COLLEGAMENTO GOOGLE DRIVE */}
+      {isDriveModalOpen && (
+        <GoogleDriveDocModal
+          isOpen={isDriveModalOpen}
+          onClose={() => {
+            setIsDriveModalOpen(false);
+            setEditingDriveDoc(null);
+          }}
+          onSave={handleSaveDriveDocument}
+          documentToEdit={editingDriveDoc}
         />
       )}
     </div>
