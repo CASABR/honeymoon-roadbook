@@ -3,6 +3,7 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-ch
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, connectFirestoreEmulator } from "firebase/firestore";
 import { getAuth, connectAuthEmulator } from "firebase/auth";
 import { getFunctions } from "firebase/functions";
+import { getStorage, connectStorageEmulator } from "firebase/storage";
 
 // Configurazione letta da .env.local (prefisso VITE_ obbligatorio per esporla al client).
 // Progetto: app-viaggio-di-nozze — lo stesso su cui vengono deployate le firestore.rules (.firebaserc).
@@ -10,7 +11,7 @@ const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'app-viaggio-di-nozze.firebasestorage.app',
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
@@ -24,6 +25,7 @@ let dbInstance: any;
 let authInstance: any;
 let functionsInstance: any;
 let appCheckInstance: any;
+let storageInstance: any;
 
 const isBrowser = typeof window !== 'undefined';
 const useEmulator = Boolean(import.meta.env.DEV && (
@@ -61,11 +63,17 @@ try {
   }
   authInstance = getAuth(app);
   functionsInstance = getFunctions(app);
+  try {
+    storageInstance = getStorage(app);
+  } catch (storageErr) {
+    console.warn("[Firebase] Impossibile inizializzare Storage:", storageErr);
+  }
 
   if (useEmulator) {
     const emulatorHost = (isBrowser && (window as any).__HOUNIGO_EMULATOR_HOST__) || '127.0.0.1';
     const firestorePort = Number((isBrowser && (window as any).__HOUNIGO_EMULATOR_PORT__) || import.meta.env.VITE_FIRESTORE_EMULATOR_PORT || 8194);
     const authPort = Number((isBrowser && (window as any).__HOUNIGO_AUTH_PORT__) || import.meta.env.VITE_AUTH_EMULATOR_PORT || 9099);
+    const storagePort = Number((isBrowser && (window as any).__HOUNIGO_STORAGE_PORT__) || import.meta.env.VITE_STORAGE_EMULATOR_PORT || 9199);
 
     if (dbInstance) {
       try {
@@ -83,6 +91,14 @@ try {
         console.warn('[Firebase] Impossibile connettere Auth Emulator:', authErr);
       }
     }
+    if (storageInstance) {
+      try {
+        connectStorageEmulator(storageInstance, emulatorHost, storagePort);
+        console.log(`[Firebase] Connesso con successo a Storage Emulator su ${emulatorHost}:${storagePort}`);
+      } catch (storageEmuErr) {
+        console.warn('[Firebase] Impossibile connettere Storage Emulator:', storageEmuErr);
+      }
+    }
   }
 } catch (e) {
   console.error("Firebase initialization failed:", e);
@@ -92,4 +108,5 @@ export const db = dbInstance;
 export const auth = authInstance;
 export const cloudFunctions = functionsInstance;
 export const appCheck = appCheckInstance;
+export const storage = storageInstance;
 export { signInWithCustomToken } from "firebase/auth";

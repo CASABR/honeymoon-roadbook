@@ -2,6 +2,18 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
+    // Foto condivise esplicitamente nel live feed pubblico del viaggio
+    match /trips/{tripId}/live_photos/{photoId} {
+      // Gli ospiti possono visualizzare/scaricare le immagini pubblicate nel Live
+      allow read: if true;
+      // Solo utenti autenticati possono caricare o aggiornare scatti live (max 5MB, solo formati immagine)
+      allow create, update: if request.auth != null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+      allow delete: if request.auth != null;
+    }
+
+    // Documenti personali, voucher, biglietti e allegati privati dell'utente
     match /users/{userId}/{allPaths=**} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow create, update: if request.auth != null
@@ -11,6 +23,7 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Qualsiasi altro percorso è inaccessibile di default
     match /{allPaths=**} {
       allow read, write: if false;
     }

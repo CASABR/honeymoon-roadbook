@@ -789,13 +789,43 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const handleUploadPhoto = async (file: File, caption?: string) => {
     if (!file) return;
     const compressedDataUrl = await compressImage(file);
+    const photoId = `photo_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+    let publicPhotoUrl: string | null = null;
+    // Se l'organizzatore o il copilota pubblicano nel viaggio, carichiamo su Firebase Storage
+    if (activeTripId && (cloudRole === 'owner' || cloudRole === 'copilota')) {
+      try {
+        const { uploadLivePhoto } = await import('../../services/liveStorageService');
+        const uploadRes = await uploadLivePhoto(activeTripId, compressedDataUrl, photoId);
+        publicPhotoUrl = uploadRes.downloadUrl;
+      } catch (uploadErr) {
+        console.error('Errore caricamento foto su Storage:', uploadErr);
+        throw new Error(uploadErr instanceof Error ? uploadErr.message : 'Caricamento foto su Storage non riuscito. Verifica la connessione.');
+      }
+    }
+
+    // Se autorizzati e foto caricata online, sincronizziamo l'aggiornamento LIVE per gli ospiti
+    if (activeTripId && (cloudRole === 'owner' || cloudRole === 'copilota') && publicPhotoUrl) {
+      try {
+        await liveService.publishToLive(activeTripId, {
+          title: caption || 'Nuovo scatto dal vivo 📸',
+          text: '',
+          photoUrl: publicPhotoUrl,
+          locationName: currentLocation?.city || undefined
+        });
+      } catch (err) {
+        console.warn('Errore sync aggiornamento con foto:', err);
+        throw new Error('Foto caricata, ma pubblicazione nel feed LIVE non riuscita. Riprova.');
+      }
+    }
+
     const newPhoto: LiveGalleryPhotoItem = {
-      id: `photo_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      url: compressedDataUrl,
+      id: photoId,
+      url: publicPhotoUrl || compressedDataUrl,
       caption: caption || 'Foto dal viaggio ❤️',
       location: currentLocation?.city || 'In viaggio',
       timestamp: Date.now(),
-      isCustom: true
+      isCustom: !publicPhotoUrl
     };
 
     setGalleryCustomPhotos(prev => {
@@ -814,19 +844,6 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       }
       return updated;
     });
-
-    // Se l'organizzatore è autorizzato, creiamo anche un aggiornamento di viaggio sincronizzato
-    if (activeTripId && (cloudRole === 'owner' || cloudRole === 'copilota')) {
-      try {
-        await liveService.publishToLive(activeTripId, {
-          title: caption || 'Nuovo scatto dal vivo 📸',
-          text: '',
-          locationName: currentLocation?.city || undefined
-        });
-      } catch (err) {
-        console.warn('Errore sync aggiornamento con foto:', err);
-      }
-    }
   };
 
   // Eliminazione foto dalla galleria (FASE 1)

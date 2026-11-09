@@ -77,9 +77,13 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
     setIsSharing(true);
     try {
       const { liveService } = await import('../../services/liveService');
+      const { uploadLivePhoto } = await import('../../services/liveStorageService');
+      const photoId = `predeparture_${Date.now()}`;
+      const uploadRes = await uploadLivePhoto(tripId, currentPhoto.url, photoId);
       const updateId = await liveService.publishToLive(tripId, {
         title: 'Si parte! 📸',
-        text: 'La foto ricordo pre-partenza è stata aggiunta al diario di viaggio.'
+        text: 'La foto ricordo pre-partenza è stata aggiunta al diario di viaggio.',
+        photoUrl: uploadRes.downloadUrl
       });
       const updated = setPredepartureLiveUpdate(tripId, updateId);
       if (updated) setPhoto(updated);

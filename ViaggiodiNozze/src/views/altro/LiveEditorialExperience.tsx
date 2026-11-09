@@ -55,7 +55,7 @@ export interface LiveEditorialExperienceProps {
   realMarkerOffset?: { dx: number; dy: number } | null;
   plannedMarkerOffset?: { dx: number; dy: number } | null;
   statusMessage: string;
-  statusUpdatedAt: string;
+  statusUpdatedAt: string | Date;
   canPublish: boolean;
   isEditingStatus: boolean;
   tempStatus: string;
