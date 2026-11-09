@@ -337,13 +337,19 @@ export async function handlePushRequest(path, uid, tripId, payload, env) {
   if (path === '/v1/push/test') {
     const rateKey = `test:${subscriberId}`;
     const previous = await env.RATE_LIMITS.prepare('SELECT created_at FROM push_dispatches WHERE dispatch_key = ?1').bind(rateKey).first();
-    if (previous && Date.now() - Number(previous.created_at) < 30_000) throw new Error('PUSH_RATE_LIMITED');
-    await env.RATE_LIMITS.prepare('INSERT OR REPLACE INTO push_dispatches (dispatch_key, trip_id, created_at) VALUES (?1, ?2, ?3)')
-      .bind(rateKey, tripId, Date.now()).run();
+    const elapsed = previous ? Date.now() - Number(previous.created_at) : Infinity;
+    if (elapsed < 30_000) {
+      const waitSeconds = Math.max(1, Math.ceil((30_000 - elapsed) / 1000));
+      const err = new Error('PUSH_RATE_LIMITED');
+      err.retryAfter = waitSeconds;
+      throw err;
+    }
     await sendPush(JSON.parse(registration.subscription_json), {
       title: 'Notifica di prova HOUNIGO', body: 'Il dispositivo è registrato per le notifiche del viaggio.',
       url: `${BASE_PATH}?pushView=oggi`, tag: `hounigo-test-${subscriberId}`, type: 'test',
     }, env);
+    await env.RATE_LIMITS.prepare('INSERT OR REPLACE INTO push_dispatches (dispatch_key, trip_id, created_at) VALUES (?1, ?2, ?3)')
+      .bind(rateKey, tripId, Date.now()).run();
     return { accepted: true, deliveryConfirmed: false, status: 'accepted' };
   }
   throw new Error('PUSH_ENDPOINT_NOT_FOUND');

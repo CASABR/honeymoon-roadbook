@@ -216,9 +216,15 @@ export async function handleRequest(request, env) {
         : code.includes('NOT_FOUND') ? 404
         : code.includes('RATE_LIMITED') || code.includes('QUOTA') ? 429
         : code.includes('INVALID') ? 400 : 503;
-      return json(origin, env, status, { error: status === 503
-        ? 'Notifiche non disponibili. I promemoria nell’app restano attivi.'
-        : code });
+      const resBody = {
+        error: status === 503
+          ? 'Notifiche non disponibili. I promemoria nell’app restano attivi.'
+          : code
+      };
+      if (error?.retryAfter) {
+        resBody.retryAfter = error.retryAfter;
+      }
+      return json(origin, env, status, resBody);
     }
   }
 

@@ -84,6 +84,30 @@ async function ensurePushAuthUser() {
   }
 }
 
+const PUSH_TEST_COOLDOWN_MS = 30_000;
+const PUSH_TEST_STORAGE_KEY = 'hounigo_push_test_last_sent';
+
+export function getPushTestRemainingSeconds(): number {
+  if (typeof sessionStorage === 'undefined') return 0;
+  const raw = sessionStorage.getItem(PUSH_TEST_STORAGE_KEY);
+  if (!raw) return 0;
+  const elapsed = Date.now() - Number(raw);
+  if (elapsed >= PUSH_TEST_COOLDOWN_MS || isNaN(elapsed)) {
+    sessionStorage.removeItem(PUSH_TEST_STORAGE_KEY);
+    return 0;
+  }
+  return Math.max(1, Math.ceil((PUSH_TEST_COOLDOWN_MS - elapsed) / 1000));
+}
+
+export function recordPushTestSent(remainingSeconds?: number): void {
+  if (typeof sessionStorage === 'undefined') return;
+  const targetMs = (typeof remainingSeconds === 'number' && remainingSeconds > 0)
+    ? remainingSeconds * 1000
+    : PUSH_TEST_COOLDOWN_MS;
+  const effectiveTimestamp = Date.now() - (PUSH_TEST_COOLDOWN_MS - targetMs);
+  sessionStorage.setItem(PUSH_TEST_STORAGE_KEY, String(effectiveTimestamp));
+}
+
 async function callPush<T>(action: string, payload: Record<string, unknown>): Promise<T> {
   if (!BACKGROUND_PUSH_ENABLED || !PUSH_WORKER_URL) throw new Error('Servizio push gratuito non ancora attivo.');
   const user = await ensurePushAuthUser();
@@ -93,8 +117,20 @@ async function callPush<T>(action: string, payload: Record<string, unknown>): Pr
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  const result = await response.json().catch(() => ({})) as T & { error?: string };
-  if (!response.ok) throw new Error(result.error || 'Servizio push non disponibile.');
+  const result = await response.json().catch(() => ({})) as T & { error?: string; retryAfter?: number };
+  if (!response.ok) {
+    const rawError = result.error || 'Servizio push non disponibile.';
+    let errMessage = rawError;
+    const isRateLimited = response.status === 429 || rawError === 'PUSH_RATE_LIMITED' || rawError.includes('RATE_LIMITED');
+    const retrySeconds = result.retryAfter || 30;
+    if (isRateLimited) {
+      errMessage = `Limite anti-spam attivo: attendi ancora ${retrySeconds} secondi prima di richiedere un'altra notifica di prova.`;
+    }
+    const err: any = new Error(errMessage);
+    err.code = isRateLimited ? 'PUSH_RATE_LIMITED' : (result.error || 'PUSH_ERROR');
+    err.retryAfter = retrySeconds;
+    throw err;
+  }
   return result;
 }
 

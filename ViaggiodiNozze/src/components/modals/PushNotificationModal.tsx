@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react';
 import { BACKGROUND_PUSH_DISABLED_MESSAGE, BACKGROUND_PUSH_ENABLED } from '../../config/freeArchitecture';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
-import type { PushPreferences } from '../../services/pushNotificationService';
+import {
+  type PushPreferences,
+  getPushTestRemainingSeconds,
+  recordPushTestSent,
+} from '../../services/pushNotificationService';
 import Modal from '../common/Modal';
 
 interface PushNotificationModalProps {
@@ -24,13 +28,50 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
   const push = usePushNotifications();
   const [draft, setDraft] = useState<PushPreferences>(push.preferences);
   const [feedback, setFeedback] = useState('');
+  const [testCooldown, setTestCooldown] = useState(() => getPushTestRemainingSeconds());
+  const [isSendingTest, setIsSendingTest] = useState(false);
 
   useEffect(() => setDraft(push.preferences), [push.preferences]);
   useEffect(() => {
     if (isOpen && BACKGROUND_PUSH_ENABLED) {
       void push.refreshStatus();
+      setTestCooldown(getPushTestRemainingSeconds());
     }
   }, [isOpen, push.refreshStatus]);
+
+  useEffect(() => {
+    if (testCooldown <= 0) return;
+    const interval = setInterval(() => {
+      const remaining = getPushTestRemainingSeconds();
+      setTestCooldown(remaining);
+      if (remaining <= 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [testCooldown]);
+
+  const handleSendTestNotification = async () => {
+    if (isSendingTest || testCooldown > 0) return;
+    setIsSendingTest(true);
+    setFeedback('');
+    try {
+      await push.sendTestNotification();
+      recordPushTestSent(30);
+      setTestCooldown(30);
+      setFeedback('✓ Invio accettato dal server. La notifica è stata trasmessa al servizio push; la comparsa effettiva dipende dai permessi OS e dalla modalità \'Non disturbare\'.');
+    } catch (error: any) {
+      const isRateLimited = error?.code === 'PUSH_RATE_LIMITED' || String(error?.message || '').includes('anti-spam') || String(error?.message || '').includes('RATE_LIMITED');
+      const remaining = error?.retryAfter || (testCooldown > 0 ? testCooldown : 30);
+      if (isRateLimited) {
+        recordPushTestSent(remaining);
+        setTestCooldown(remaining);
+        setFeedback(`⚠️ Limite anti-spam attivo: attendi ancora ${remaining} secondi prima di richiedere un'altra notifica di prova.`);
+      } else {
+        setFeedback(error instanceof Error ? error.message : 'Operazione non completata.');
+      }
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
 
   const run = async (operation: () => Promise<unknown>, success: string) => {
     setFeedback('');
@@ -123,11 +164,15 @@ export default function PushNotificationModal({ isOpen, onClose }: PushNotificat
 
           <button
             type="button"
-            disabled={push.state !== 'active' || push.isSubscribing}
-            onClick={() => void run(push.sendTestNotification, 'Notifica di prova inviata! Controlla lo schermo del dispositivo.')}
+            disabled={push.state !== 'active' || push.isSubscribing || isSendingTest || testCooldown > 0}
+            onClick={handleSendTestNotification}
             className="rounded-xl border border-indigo-200 px-4 py-2.5 text-xs font-bold text-indigo-700 hover:bg-indigo-50 disabled:opacity-40 transition-colors dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950/50 cursor-pointer"
           >
-            Invia notifica di prova
+            {isSendingTest
+              ? 'Invio in corso…'
+              : testCooldown > 0
+                ? `Attendi ${testCooldown}s per riprovare`
+                : 'Invia notifica di prova'}
           </button>
         </div>
 

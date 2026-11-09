@@ -1,7 +1,12 @@
-import { sendPushTestOnServer, readStoredPushRegistration } from '../../services/pushNotificationService';
+import {
+  sendPushTestOnServer,
+  readStoredPushRegistration,
+  getPushTestRemainingSeconds,
+  recordPushTestSent
+} from '../../services/pushNotificationService';
 import { usePushNotifications } from '../../hooks/usePushNotifications';
 import { createPortal } from 'react-dom';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { TripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
 
@@ -45,8 +50,19 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
   const [feedbackMessage, setFeedbackMessage] = useState<{ text: string; type: 'success' | 'error'; isGlobalAdminError?: boolean } | null>(null);
   const pushLocal = usePushNotifications();
   const [isSendingLocalTest, setIsSendingLocalTest] = useState(false);
+  const [localTestCooldown, setLocalTestCooldown] = useState(() => getPushTestRemainingSeconds());
   const [localTestFeedback, setLocalTestFeedback] = useState<string | null>(null);
   const [copiedUid, setCopiedUid] = useState(false);
+
+  useEffect(() => {
+    if (localTestCooldown <= 0) return;
+    const interval = setInterval(() => {
+      const remaining = getPushTestRemainingSeconds();
+      setLocalTestCooldown(remaining);
+      if (remaining <= 0) clearInterval(interval);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [localTestCooldown]);
 
   // Storico invii locale sicuro (zero PII)
   const [history, setHistory] = useState<NotificationHistoryItem[]>(() => {
@@ -107,6 +123,7 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
 
 
   const handleSendLocalDeviceTest = async () => {
+    if (isSendingLocalTest || localTestCooldown > 0) return;
     setIsSendingLocalTest(true);
     setLocalTestFeedback(null);
     try {
@@ -118,9 +135,19 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
         throw new Error('Dispositivo non ancora registrato sul server D1. Riprova ad abilitare le notifiche.');
       }
       await sendPushTestOnServer(reg.subscriberId);
-      setLocalTestFeedback('✓ Richiesta accettata dal server. La notifica apparirà sul dispositivo se abilitata a livello OS.');
+      recordPushTestSent(30);
+      setLocalTestCooldown(30);
+      setLocalTestFeedback('✓ Invio accettato dal server. Notifica trasmessa al servizio push del dispositivo (la comparsa effettiva dipende dai permessi OS e da "Non disturbare").');
     } catch (err: any) {
-      setLocalTestFeedback('⚠️ ' + (err?.message || 'Errore durante l\'invio del test locale.'));
+      const isRateLimited = err?.code === 'PUSH_RATE_LIMITED' || String(err?.message || '').includes('anti-spam') || String(err?.message || '').includes('RATE_LIMITED');
+      const remaining = err?.retryAfter || (localTestCooldown > 0 ? localTestCooldown : 30);
+      if (isRateLimited) {
+        recordPushTestSent(remaining);
+        setLocalTestCooldown(remaining);
+        setLocalTestFeedback(`⚠️ Limite anti-spam attivo: attendi ancora ${remaining} secondi prima di richiedere un altro test.`);
+      } else {
+        setLocalTestFeedback('⚠️ ' + (err?.message || 'Errore durante l\'invio del test locale.'));
+      }
     } finally {
       setIsSendingLocalTest(false);
     }
@@ -190,7 +217,7 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
 
       setFeedbackMessage({
         text: isDryRun
-          ? `[DRY-RUN SICURO] Simulazione completata: ${recipientsSent} iscritti verificati sul server D1. Nessun push reale inviato.`
+          ? `[Simulazione completata] Verificati ${recipientsSent} destinatari registrati sul server D1. Nessuna notifica reale inviata.`
           : scheduleMode === 'now'
             ? `Notifica manuale inviata con successo a ${recipientsSent} destinatari!`
             : `Notifica programmata con successo per le ore ${scheduleTime}.`,
@@ -284,11 +311,11 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
         <div className="flex items-center gap-3 flex-wrap pt-1">
           <button
             type="button"
-            disabled={isSendingLocalTest}
+            disabled={isSendingLocalTest || localTestCooldown > 0}
             onClick={handleSendLocalDeviceTest}
             className="px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer disabled:opacity-50 min-h-[36px]"
           >
-            {isSendingLocalTest ? 'Invio test in corso…' : 'Invia Notifica di Prova a questo Dispositivo ➔'}
+            {isSendingLocalTest ? 'Invio test in corso…' : localTestCooldown > 0 ? `Attendi ${localTestCooldown}s per riprovare` : 'Invia Notifica di Prova a questo Dispositivo ➔'}
           </button>
           {localTestFeedback && (
             <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 animate-fade-in">
@@ -467,7 +494,7 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
               onClick={() => setIsConfirmModalOpen(true)}
               className="w-full py-2.5 rounded-2xl bg-[#FF6B5F] hover:bg-[#e05b50] text-white font-extrabold text-xs transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-[#FF6B5F]/20 cursor-pointer"
             >
-              {isDryRun ? 'Simula Invio (Dry-Run) ➔' : 'Rivedi e Invia Notifica ➔'}
+              {isDryRun ? 'Simula invio (nessuna notifica) ➔' : 'Rivedi e Invia Notifica ➔'}
             </button>
           </div>
 
@@ -604,8 +631,8 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
 
             {isDryRun ? (
               <div className="p-3 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-xs text-indigo-800 dark:text-indigo-200 space-y-1">
-                <p className="font-bold">🛡️ Modalità Dry-Run Attiva:</p>
-                <p>Nessun push reale verrà inviato ai telefoni degli utenti. Verranno verificate le autorizzazioni IAM e il conteggio iscritti D1.</p>
+                <p className="font-bold">🛡️ Simula invio (nessuna notifica):</p>
+                <p>Nessun push reale verrà inviato ai telefoni degli utenti. Verranno verificate le autorizzazioni e il conteggio dei destinatari ({estimatedRecipients} stimati).</p>
               </div>
             ) : (
               <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-200 space-y-1">
@@ -636,7 +663,7 @@ export function AdminNotificationsPanel({ currentTrip }: AdminNotificationsPanel
                 onClick={handleExecuteSend}
                 className="flex-1 py-2 rounded-xl bg-[#FF6B5F] hover:bg-[#e05b50] text-white font-extrabold text-xs transition-all shadow-md shadow-[#FF6B5F]/20 cursor-pointer disabled:opacity-50"
               >
-                {isSending ? 'Invio in corso...' : 'Conferma ed Esegui'}
+                {isSending ? 'Operazione in corso...' : isDryRun ? 'Esegui simulazione (nessuna notifica)' : 'Conferma ed Esegui'}
               </button>
             </div>
           </div>
