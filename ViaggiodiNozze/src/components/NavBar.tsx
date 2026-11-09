@@ -88,7 +88,7 @@ export default function NavBar({
   };
 
   return (
-    <nav style={{ WebkitTransform: "translate3d(0,0,0)", transform: "translate3d(0,0,0)", WebkitBackfaceVisibility: "hidden", backfaceVisibility: "hidden" }} className="fixed bottom-0 left-0 right-0 z-40 flex justify-center bg-[#F8F7F3]/95 dark:bg-[#172033]/95 backdrop-blur-xl border-t border-slate-200/90 dark:border-slate-800 px-4 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_24px_rgba(23,32,51,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.35)]">
+    <nav style={{ WebkitTransform: "translate3d(0,0,0)", transform: "translate3d(0,0,0)", WebkitBackfaceVisibility: "hidden", backfaceVisibility: "hidden" }} className="app-bottom-nav fixed bottom-0 left-0 right-0 z-40 flex justify-center bg-[#F8F7F3]/95 dark:bg-[#172033]/95 backdrop-blur-xl border-t border-slate-200/90 dark:border-slate-800 px-4 pt-1.5 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-4px_24px_rgba(23,32,51,0.06)] dark:shadow-[0_-4px_24px_rgba(0,0,0,0.35)]">
       <div className="w-full max-w-md mx-auto flex items-center justify-around gap-2 font-sans">
         {tabs.slice(0, 2).map((tab) => {
           const isSelected = tab.id === 'categorie'

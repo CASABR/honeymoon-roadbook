@@ -713,8 +713,8 @@ export default function App() {
   if (isExternalLive) {
     const activeTripId = tripConfig?.id || externalTripId || '';
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col items-center selection:bg-rose-500 selection:text-white font-sans antialiased">
-        <header className="w-full max-w-md md:max-w-2xl lg:max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-8 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
+      <div className="app-safe-shell min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col items-center selection:bg-rose-500 selection:text-white font-sans antialiased">
+        <header className="app-mobile-header w-full max-w-md md:max-w-2xl lg:max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-8 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
@@ -787,7 +787,7 @@ export default function App() {
   const isForcedMobileView = viewMode === 'mobile';
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="app-safe-shell flex flex-col min-h-screen">
       {/* ─── BANNER MODALITÀ TEST SIMULATA (Solo ambiente Dev) ────────────────────────── */}
       {isSimulated && (
         <div className="w-full bg-amber-500 text-slate-950 px-4 py-2 text-xs font-black flex items-center justify-between sticky top-0 z-50 shadow-lg border-b border-amber-600">
@@ -842,23 +842,25 @@ export default function App() {
       )}
 
       {/* ─── MAIN CONTENT CONTAINER (Responsive: mobile centered shell, desktop full workspace) ─ */}
-      <div ref={mainScrollContainerRef} className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative pb-20' : 'h-[100vh] h-[100dvh] overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}>
+      <div ref={mainScrollContainerRef} className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative app-forced-mobile' : 'h-[100vh] h-[100dvh] overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}>
         
         {/* Top Header Mobile / Tablet Header (o sempre in modalità mobile forzata) */}
-        <header className={`w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3]/90 dark:bg-[#172033]/90 backdrop-blur-md sticky top-0 z-30`}>
-          <div className="flex items-center">
-            <HounigoLogo size="xs" className="h-6 w-auto" />
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2">
+        <header className={`app-mobile-header w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3]/90 dark:bg-[#172033]/90 backdrop-blur-md sticky top-0 z-30`}>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <HounigoLogo size={23.5} />
             <button
               type="button"
               onClick={() => setIsGlobalSearchOpen(true)}
-              className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+              className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-500 dark:text-slate-300 hover:bg-slate-200/70 dark:hover:bg-slate-800 focus-visible:ring-2 focus-visible:ring-[#FF6B5F] outline-hidden transition-colors cursor-pointer"
               aria-label="Ricerca globale nel viaggio"
+              aria-haspopup="dialog"
+              aria-expanded={isGlobalSearchOpen}
               title="Cerca nel viaggio (Ctrl+K)"
             >
-              <span className="text-xs">🔍</span>
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 4.5 4.5" /></svg>
             </button>
+          </div>
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={() => setIsWalkthroughOpen(true)}
               className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800/80 flex items-center justify-center text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors cursor-pointer"
@@ -875,7 +877,7 @@ export default function App() {
 
         {/* Workspace Body */}
         <main
-          className={`flex-1 px-3 sm:px-6 md:px-8 py-3 md:py-6 ${isForcedMobileView ? 'max-w-md w-full px-4 py-3' : 'max-w-7xl w-full mx-auto pb-24 md:pb-12'}`}
+          className={`app-workspace flex-1 px-3 sm:px-6 md:px-8 py-3 md:py-6 ${isForcedMobileView ? 'max-w-md w-full px-4 py-3' : 'max-w-7xl w-full mx-auto pb-24 md:pb-12'}`}
           onTouchStart={handleMainSwipeStart}
           onTouchEnd={handleMainSwipeEnd}
           onTouchCancel={() => { mainSwipeStartRef.current = null; }}

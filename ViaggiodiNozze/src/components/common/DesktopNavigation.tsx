@@ -140,17 +140,17 @@ export default function DesktopNavigation({
     : '👁️ Partecipante';
 
   return (
-    <aside className="w-full h-screen sticky top-0 flex flex-col justify-between overflow-x-hidden overflow-y-hidden bg-[#fffdfa] dark:bg-slate-900 border-r border-[#e5e3dd] dark:border-slate-800 shadow-[4px_0_24px_rgba(23,32,51,0.035)] select-none">
+    <aside className="app-desktop-navigation w-full h-screen sticky top-0 flex flex-col justify-between overflow-x-hidden overflow-y-hidden bg-[#fffdfa] dark:bg-slate-900 border-r border-[#e5e3dd] dark:border-slate-800 shadow-[4px_0_24px_rgba(23,32,51,0.035)] select-none">
       
       {/* ─── LOGO & TRIP INFO ─────────────────────────────────────────── */}
       <div className="px-4 pt-4 pb-2 space-y-3 shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className="dark:hidden">
-              <HounigoLogo variant="onLight" size="sm" />
+              <HounigoLogo variant="onLight" size={30} />
             </div>
             <div className="hidden dark:block">
-              <HounigoLogo variant="onDark" size="sm" />
+              <HounigoLogo variant="onDark" size={30} />
             </div>
           </div>
           <div className="flex items-center gap-1.5 shrink-0">

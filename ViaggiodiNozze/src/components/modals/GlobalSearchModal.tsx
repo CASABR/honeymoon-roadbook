@@ -388,11 +388,11 @@ export default function GlobalSearchModal({ isOpen, onClose, onNavigate }: Globa
       aria-modal="true"
       aria-label="Ricerca globale nel viaggio"
       onClick={onClose}
-      className="fixed inset-0 z-[9999] flex items-start justify-center p-3 sm:p-6 bg-slate-950/60 backdrop-blur-xs animate-fade-in"
+      className="app-search-overlay fixed inset-0 z-[9999] flex items-start justify-center p-3 sm:p-6 bg-slate-950/60 backdrop-blur-xs animate-fade-in"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
+        className="app-search-panel w-full max-w-xl rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[88vh]"
       >
         {/* Barra di ricerca */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 space-y-3">
