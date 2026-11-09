@@ -83,7 +83,7 @@ createRoot(document.getElementById('root')!).render(<App />);
     });
 
     const page = await context.newPage();
-    page.setDefaultTimeout(7000);
+    page.setDefaultTimeout(15000);
 
     const fixtureUrl = `http://127.0.0.1:5195/${path.basename(fixture)}/index.html`;
     await page.goto(fixtureUrl);

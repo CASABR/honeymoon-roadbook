@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.14",
+      "publishedAt": "2026-11-09",
+      "sourceCommit": "c04a8af",
+      "changes": [
+        "Correzione overflow orizzontale Documenti su iPhone e layout responsive pulsanti",
+        "Distinzione comandi Google Drive esterno e collegamento protetto documenti con categorie",
+        "Card foto pre-partenza compatta e orario effettivo di pubblicazione nel fuso locale utente"
+      ],
+      "publishedAtIso": "2026-11-09T12:03:00+01:00"
+    },
+    {
       "version": "1.5.13",
       "publishedAt": "2026-11-09",
       "publishedAtIso": "2026-11-09T11:19:16+01:00",
@@ -82,16 +93,6 @@
         "Icona ufficiale vettoriale Google Maps per tutti i collegamenti e percorsi.",
         "Focus della giornata compatto con pulsanti Maps e Dettagli allineati.",
         "Footer card responsive: etichette visibili e collasso a sola icona se forzati ad andare a capo."
-      ]
-    },
-    {
-      "version": "1.5.4",
-      "publishedAt": "2026-11-05",
-      "sourceCommit": "67dbac8",
-      "changes": [
-        "Footer card compatti con sole icone su mobile, pulsante PNR e desk ritiro trasporti.",
-        "Header compatto con dark mode, periodo alloggi solo su piu notti e filtri spese saldato.",
-        "Interfaccia semplificata per utenti non esperti e rimozione schermata blocco pin."
       ]
     }
   ]

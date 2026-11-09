@@ -118,10 +118,11 @@ createRoot(document.getElementById('root')!).render(<TestContainer />);
     const { createServer } = await import('vite');
     server = await createServer({
       root,
-      server: { host: '127.0.0.1', port: 5198, strictPort: true },
+      server: { host: '127.0.0.1', port: 0 },
       logLevel: 'error'
     });
     await server.listen();
+    const actualPort = server.httpServer.address().port;
 
     browser = await chromium.launch({
       executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -135,7 +136,7 @@ createRoot(document.getElementById('root')!).render(<TestContainer />);
     const page = await context.newPage();
     page.setDefaultTimeout(15000);
 
-    const fixtureUrl = `http://127.0.0.1:5198/${path.basename(fixture)}/index.html`;
+    const fixtureUrl = `http://127.0.0.1:${actualPort}/${path.basename(fixture)}/index.html`;
     await page.goto(fixtureUrl, { waitUntil: 'domcontentloaded' });
 
     // ─────────────────────────────────────────────────────────────────────────────

@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.5.14 — 2026-11-09
+
+- Correzione overflow orizzontale Documenti su iPhone e layout responsive pulsanti
+- Distinzione comandi Google Drive esterno e collegamento protetto documenti con categorie
+- Card foto pre-partenza compatta e orario effettivo di pubblicazione nel fuso locale utente
+
 ## 1.5.13 — 2026-11-09
 
 - Integrazione collegamenti Google Drive nella cartella Documenti con apertura protetta e selettore categorie
@@ -47,9 +53,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 - Icona ufficiale vettoriale Google Maps per tutti i collegamenti e percorsi.
 - Focus della giornata compatto con pulsanti Maps e Dettagli allineati.
 - Footer card responsive: etichette visibili e collasso a sola icona se forzati ad andare a capo.
-
-## 1.5.4 — 2026-11-05
-
-- Footer card compatti con sole icone su mobile, pulsante PNR e desk ritiro trasporti.
-- Header compatto con dark mode, periodo alloggi solo su piu notti e filtri spese saldato.
-- Interfaccia semplificata per utenti non esperti e rimozione schermata blocco pin.
