@@ -549,6 +549,56 @@ export async function linkEmailPasswordToCurrentSession(
 }
 
 /**
+ * Assicura che la sessione corrente sia autenticata con un account permanente (email/password),
+ * creando l'account o effettuando il login.
+ */
+export async function ensureAuthenticatedAccount(
+  email: string,
+  pass: string
+): Promise<{ success: boolean; user?: User; error?: string }> {
+  if (!auth) return { success: false, error: 'Firebase Auth non inizializzato.' };
+  const { createUserWithEmailAndPassword, signInWithEmailAndPassword } = await import('firebase/auth');
+  const cleanEmail = email.trim().toLowerCase();
+
+  // 1. Prova prima il login se l'account è già stato registrato
+  try {
+    const cred = await signInWithEmailAndPassword(auth, cleanEmail, pass);
+    return { success: true, user: cred.user };
+  } catch (signErr: any) {
+    // Continua con la creazione se non esiste
+  }
+
+  // 2. Se c'è una sessione anonima corrente, prova prima a collegare le credenziali per preservare l'UID
+  if (auth.currentUser && auth.currentUser.isAnonymous) {
+    try {
+      const linkRes = await linkEmailPasswordToCurrentSession(auth.currentUser, cleanEmail, pass);
+      if (linkRes.success) {
+        return { success: true, user: auth.currentUser };
+      }
+    } catch {}
+  }
+
+  // 3. Creazione diretta dell'account su Firebase Auth
+  try {
+    if (auth.currentUser && auth.currentUser.isAnonymous) {
+      try { await auth.signOut(); } catch {}
+    }
+    const cred = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
+    return { success: true, user: cred.user };
+  } catch (createErr: any) {
+    if (createErr?.code === 'auth/email-already-in-use') {
+      try {
+        const cred = await signInWithEmailAndPassword(auth, cleanEmail, pass);
+        return { success: true, user: cred.user };
+      } catch (loginErr: any) {
+        return { success: false, error: loginErr?.message || 'Email già in uso.' };
+      }
+    }
+    return { success: false, error: createErr?.message || 'Errore creazione account' };
+  }
+}
+
+/**
  * Effettua il login su un secondo dispositivo con Email e Password.
  */
 export async function loginWithEmailPassword(

@@ -218,9 +218,23 @@ export function useAuthIdentity(): AuthIdentityState {
 
   const [authoritativeOwnerUid, setAuthoritativeOwnerUid] = useState<string | null>(null);
   const [authoritativeOwnerName, setAuthoritativeOwnerName] = useState<string | null>(null);
+  const [activeConfig, setActiveConfig] = useState(() => getTripConfig());
 
-  const config = getTripConfig();
+  const config = activeConfig || getTripConfig();
   const tripId = config?.id || '0000';
+  
+  // Listener Trip Config Change
+  useEffect(() => {
+    const handleConfig = () => {
+      setActiveConfig(getTripConfig());
+    };
+    window.addEventListener('trip_config_changed', handleConfig);
+    window.addEventListener('storage', handleConfig);
+    return () => {
+      window.removeEventListener('trip_config_changed', handleConfig);
+      window.removeEventListener('storage', handleConfig);
+    };
+  }, []);
   
   // ownerName: usa il dato autorevole, la configurazione locale o un ruolo generico
   const ownerName = authoritativeOwnerName || config?.ownerName || (tripId === '0000' ? 'Owner' : 'Non specificato');

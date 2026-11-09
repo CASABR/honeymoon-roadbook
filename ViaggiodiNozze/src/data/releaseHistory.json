@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.5.11",
+      "publishedAt": "2026-11-09",
+      "sourceCommit": "ebfa10d",
+      "changes": [
+        "Invito e adesione Copilota nativa: convalida crittografica token, onboarding e sync automatico in tempo reale.",
+        "Share sheet di sistema con fallback appunti, note copilota con badge visivo e handover guida GPS reattivo."
+      ]
+    },
+    {
       "version": "1.5.10",
       "publishedAt": "2026-11-08",
       "sourceCommit": "7f3bfab",
@@ -84,15 +93,6 @@
         "Unificazione note copilota in tutte le categorie con salvaguardia e migrazione automatica dei dati.",
         "Riorganizzazione sottocategorie tappe e consolidamento dello Spot fotografico unico.",
         "Footer card compatti con icone responsive ottimizzate per la consultazione mobile."
-      ]
-    },
-    {
-      "version": "1.5.1",
-      "publishedAt": "2026-11-03",
-      "sourceCommit": "f9daae4",
-      "changes": [
-        "Hotfix stabilizzazione focus: eliminata perdita del cursore durante la digitazione continua nei campi e nelle modali.",
-        "Selettore orario accessibile: etichetta 'Scegli orario' con icona orologio, overlay prioritario e auto-format rapido."
       ]
     }
   ]
