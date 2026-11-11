@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.4",
+      "publishedAt": "2026-11-11",
+      "sourceCommit": "44ba9a2",
+      "changes": [
+        "Aggiornata CSP per consentire Google Picker tramite docs.google.com",
+        "Gestione condivisa di checkPendingRedirectResult al rientro dal login OAuth"
+      ],
+      "publishedAtIso": "2026-11-11T17:11:26+01:00"
+    },
+    {
       "version": "1.6.3",
       "publishedAt": "2026-11-11",
       "sourceCommit": "d8db2a0",
@@ -91,15 +101,6 @@
         "UX LIVE desktop panoramica per ospiti con banner discreto e riordino schermata Altro con accesso rapido Google Drive",
         "Ricerca rapida con badge sezioni, parita logo chiaro e scuro e safe area migliorata per notch e home indicator iPhone",
         "Sottocategoria Task per tappe con data orario link e note persistiti offline e sincronizzabili"
-      ]
-    },
-    {
-      "version": "1.5.11",
-      "publishedAt": "2026-11-09",
-      "sourceCommit": "ebfa10d",
-      "changes": [
-        "Invito e adesione Copilota nativa: convalida crittografica token, onboarding e sync automatico in tempo reale.",
-        "Share sheet di sistema con fallback appunti, note copilota con badge visivo e handover guida GPS reattivo."
       ]
     }
   ]

@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.6.4 — 2026-11-11
+
+- Aggiornata CSP per consentire Google Picker tramite docs.google.com
+- Gestione condivisa di checkPendingRedirectResult al rientro dal login OAuth
+
 ## 1.6.3 — 2026-11-11
 
 - Risolto blocco primo avvio PWA iPhone con card onboarding visibile sopra la piega
@@ -49,8 +54,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 - UX LIVE desktop panoramica per ospiti con banner discreto e riordino schermata Altro con accesso rapido Google Drive
 - Ricerca rapida con badge sezioni, parita logo chiaro e scuro e safe area migliorata per notch e home indicator iPhone
 - Sottocategoria Task per tappe con data orario link e note persistiti offline e sincronizzabili
-
-## 1.5.11 — 2026-11-09
-
-- Invito e adesione Copilota nativa: convalida crittografica token, onboarding e sync automatico in tempo reale.
-- Share sheet di sistema con fallback appunti, note copilota con badge visivo e handover guida GPS reattivo.
