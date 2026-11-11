@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.1",
+      "publishedAt": "2026-11-11",
+      "sourceCommit": "a709d4a",
+      "changes": [
+        "Copertura Dynamic Island iPhone in PWA/Safari e contrasto barra di stato",
+        "Eliminato ritorno involontario verso l'alto durante scroll e sync cloud"
+      ],
+      "publishedAtIso": "2026-11-11T13:03:47+01:00"
+    },
+    {
       "version": "1.6.0",
       "publishedAt": "2026-11-11",
       "sourceCommit": "1ae8c0c",
@@ -87,15 +97,6 @@
       "changes": [
         "Sincronizzazione automatica bidirezionale in tempo reale tra Owner e Copilota.",
         "Scritture atomiche batch per cassaforte e dati pubblici con isolamento safe per documenti non versionati."
-      ]
-    },
-    {
-      "version": "1.5.8",
-      "publishedAt": "2026-11-07",
-      "sourceCommit": "e44329d",
-      "changes": [
-        "Diagnostica pre-attivazione con interfaccia di riconciliazione e anteprima sicura riservata all'Owner.",
-        "Verifica automatica versioni remote, blocco conflitti e ricezione passiva in background per Copilota."
       ]
     }
   ]

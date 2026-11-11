@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.6.1 — 2026-11-11
+
+- Copertura Dynamic Island iPhone in PWA/Safari e contrasto barra di stato
+- Eliminato ritorno involontario verso l'alto durante scroll e sync cloud
+
 ## 1.6.0 — 2026-11-11
 
 - Integrazione Google Picker, data di rilascio locale nella modale info e rifiniture iPhone/Dynamic Island
@@ -48,8 +53,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Sincronizzazione automatica bidirezionale in tempo reale tra Owner e Copilota.
 - Scritture atomiche batch per cassaforte e dati pubblici con isolamento safe per documenti non versionati.
-
-## 1.5.8 — 2026-11-07
-
-- Diagnostica pre-attivazione con interfaccia di riconciliazione e anteprima sicura riservata all'Owner.
-- Verifica automatica versioni remote, blocco conflitti e ricezione passiva in background per Copilota.
