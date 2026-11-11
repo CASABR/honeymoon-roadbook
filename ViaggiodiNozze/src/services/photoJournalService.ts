@@ -35,7 +35,8 @@ function writeGallery(photos: JournalPhotoRecord[]): void {
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(GALLERY_KEY, JSON.stringify(sliced));
   }
-  storageService.saveSetting(GALLERY_KEY, sliced).catch(() => {});
+  // Unshared photographs stay on this device. Only explicit LIVE publication
+  // may upload an image; never mirror the private gallery into shared settings.
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('hounigo_journal_photos_changed'));
   }
@@ -67,6 +68,8 @@ export function savePredeparturePhoto(tripId: string, dataUrl: string, userId = 
   writeGallery(updated);
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(LAST_PHOTO_KEY, JSON.stringify({
+      tripId,
+      userId,
       dataUrl,
       caption: photo.caption,
       timestamp: new Date(photo.timestamp).toISOString()

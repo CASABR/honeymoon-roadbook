@@ -2,6 +2,37 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
+    // Foto condivise esplicitamente nel live feed pubblico del viaggio
+    match /trips/{tripId}/live_photos/{photoId} {
+      // Funzione di verifica server-side: solo Owner o Copilota autorizzati del viaggio
+      function isTripEditor() {
+        let tripPath = /databases/(default)/documents/trips/$(tripId);
+        let memberPath = /databases/(default)/documents/trips/$(tripId)/members/$(request.auth.uid);
+        return request.auth != null && (
+          (firestore.exists(tripPath) && firestore.get(tripPath).data.get('ownerUid', '') == request.auth.uid) ||
+          (firestore.exists(tripPath) && firestore.get(tripPath).data.get('ownerId', '') == request.auth.uid) ||
+          (firestore.exists(memberPath) && firestore.get(memberPath).data.get('role', '') in ['owner', 'copilota'])
+        );
+      }
+
+      // Gli ospiti possono visualizzare/scaricare le immagini pubblicate nel Live
+      allow get: if true;
+      allow list: if isTripEditor();
+
+      // Solo l'Owner o Copilota effettivo del viaggio può caricare scatti live (max 5MB, solo immagini)
+      allow create: if isTripEditor()
+        && resource == null
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
+
+      // Impedisci sovrascritture arbitrarie di foto già caricate
+      allow update: if false;
+
+      // Rimozione permessa solo all'Owner o Copilota del viaggio (es. revoca condivisione LIVE)
+      allow delete: if isTripEditor();
+    }
+
+    // Documenti personali, voucher, biglietti e allegati privati dell'utente
     match /users/{userId}/{allPaths=**} {
       allow read: if request.auth != null && request.auth.uid == userId;
       allow create, update: if request.auth != null
@@ -11,6 +42,7 @@ service firebase.storage {
       allow delete: if request.auth != null && request.auth.uid == userId;
     }
 
+    // Qualsiasi altro percorso è inaccessibile di default
     match /{allPaths=**} {
       allow read, write: if false;
     }

@@ -46,7 +46,16 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
     depositPaid: accommodation.depositPaid || accommodation.acconto,
     paymentStatus: accommodation.paymentStatus,
     status: accommodation.status,
-    completed: accommodation.completed
+    completed: accommodation.completed,
+    currencyUncertain: (accommodation as any).currencyUncertain,
+    conversionType: (accommodation as any).conversionType,
+    depositConversionType: (accommodation as any).depositConversionType,
+    originalCurrency: (accommodation as any).originalCurrency,
+    originalCost: (accommodation as any).originalCost,
+    originalDepositPaid: (accommodation as any).originalDepositPaid,
+    exchangeRate: (accommodation as any).exchangeRate,
+    exchangeRateDate: (accommodation as any).exchangeRateDate,
+    exchangeRateSource: (accommodation as any).exchangeRateSource
   });
 
   const { isFree, isPaid, costNum, paidNum, remainingNum, compactPaymentText } = paymentInfo;

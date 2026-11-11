@@ -129,10 +129,6 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
       try {
         const { liveService } = await import('../../services/liveService');
         await liveService.deleteLiveUpdate(tripId, photo.liveUpdateId);
-        try {
-          const { deleteLivePhoto } = await import('../../services/liveStorageService');
-          await deleteLivePhoto(tripId, photo.id);
-        } catch {}
         const updated = setPredepartureLiveUpdate(tripId, undefined);
         if (updated) setPhoto(updated);
         setMessage('Condivisione rimossa da LIVE; la foto resta salvata sul dispositivo.');

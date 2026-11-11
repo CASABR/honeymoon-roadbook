@@ -1,6 +1,7 @@
 {
   "firestore": {
-    "rules": "firestore.rules"
+    "rules": "firestore.rules",
+    "indexes": "ViaggiodiNozze/firestore.indexes.json"
   },
   "storage": {
     "rules": "storage.rules"

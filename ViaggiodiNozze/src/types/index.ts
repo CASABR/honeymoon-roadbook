@@ -116,6 +116,7 @@ export interface Tappa {
   linkedBookingId?: string; // Prenotazione esplicitamente associata
   linkedDocumentId?: string; // Documento esplicitamente associato
   linkedDocumentIds?: string[];
+  publicDocumentIds?: string[]; // Explicitly reviewed publishable references; opaque IDs only, never private file URLs.
   attachments?: TransportAttachment[];
   lightWindow?: FasciaLuceFotografica;
   photoSubject?: string;
@@ -285,6 +286,7 @@ export interface Trasporto {
   depositPaid?: string; // Quantitativo di acconto già dato
   acconto?: string; // Alias di depositPaid
   amountPaid?: string; // Alias di depositPaid
+  cauzione?: string; // Cauzione / preautorizzazione informativa (esclusa dai totali spese)
   paymentStatus?: 'saldato' | 'da_saldare'; // Stato pagamento
   layover?: {
     airport: string;
@@ -514,6 +516,23 @@ export interface PrivateCredentials {
   cauzione?: string;
   amountPaid?: string;
   paymentStatus?: 'saldato' | 'da_saldare';
+  originalCurrency?: string;
+  originalCost?: string | number;
+  originalDepositPaid?: string | number;
+  originalDepositCurrency?: string;
+  depositExchangeRate?: number;
+  depositExchangeRateDate?: string;
+  depositExchangeRateSource?: string;
+  originalRemaining?: string | number;
+  originalCauzione?: string | number;
+  originalCauzioneCurrency?: string;
+  exchangeRate?: number;
+  exchangeRateDate?: string;
+  exchangeRateSource?: string;
+  conversionType?: 'definitiva' | 'stimata';
+  depositConversionType?: 'definitiva' | 'stimata';
+  convertedAt?: string;
+  currencyUncertain?: boolean;
   noteCopilota?: string;
   copilota?: boolean;
   cancellazioneGratuitaEntro?: string;

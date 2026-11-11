@@ -1,8 +1,9 @@
 {
   "version": "1.6.0",
-  "preparedAt": "2026-11-09",
+  "preparedAt": "2026-11-11",
   "changes": [
-    "Integrazione automatica Google Picker per selezione diretta file Drive",
-    "Visualizzazione data e ora effettiva di rilascio nel fuso locale nella modale info"
+    "Integrazione Google Picker, data di rilascio locale nella modale info e rifiniture iPhone/Dynamic Island",
+    "Sistema budget interamente in EUR con conversione automatica verificabile e metadati privati protetti",
+    "Separazione dati riservati schema v2, regole Firestore/Storage potenziate e sincronizzazione offline/LIVE sicura"
   ]
 }

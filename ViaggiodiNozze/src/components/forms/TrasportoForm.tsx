@@ -3,6 +3,8 @@ import { usePresence } from '../../hooks/usePresence';
 import type { Trasporto, TipoTrasporto, StatoTrasporto } from '../../types';
 import TimeZoneInput from '../common/TimeZoneInput';
 import { DateTimePickerInput } from '../common/TimePickerInput';
+import { buildEurSavePatch } from '../../services/currencyService';
+import { parseCostToNumber } from '../../utils/priceHelper';
 
 interface TrasportoFormProps {
   initialData?: Trasporto | null;
@@ -160,7 +162,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
     }
   }, [isSaldato, cost]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!departureLocation.trim() || !departureDate) {
       setError('Partenza (Luogo e Data) sono obbligatori.');
@@ -184,7 +186,16 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
     }
 
     setError('');
+
+    const normalizedMoney = !packageIncluded
+      ? await buildEurSavePatch({
+          costRaw: cost.trim() || undefined,
+          depositRaw: depositPaid.trim() || undefined,
+          existingItem: initialData
+        })
+      : {};
     
+    const { cost: normCost, depositPaid: normDep, acconto: normAcc, ...normMeta } = normalizedMoney;
     const baseData = {
       id: initialData?.id,
       type,
@@ -197,10 +208,11 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
       departureLocation: departureLocation.trim(),
       departureIata: departureIata.trim() || undefined,
       
-      cost: packageIncluded ? 'Incluso nel pacchetto' : (cost.trim() || undefined),
+      ...normMeta,
+      cost: packageIncluded ? 'Incluso nel pacchetto' : (normCost ?? (cost.trim() || undefined)),
       packageIncluded,
-      depositPaid: packageIncluded ? '0' : (depositPaid.trim() || undefined),
-      acconto: packageIncluded ? '0' : (depositPaid.trim() || undefined),
+      depositPaid: packageIncluded ? '0' : (normDep ?? (depositPaid.trim() || undefined)),
+      acconto: packageIncluded ? '0' : (normAcc ?? (depositPaid.trim() || undefined)),
       
       ticketUrl: ticketUrl.trim() || undefined,
       noteCopilota: noteCopilota.trim() || undefined,
@@ -241,8 +253,8 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   };
 
   const getSaldo = () => {
-    const c = parseFloat(cost.replace(',', '.')) || 0;
-    const a = parseFloat(depositPaid.replace(',', '.')) || 0;
+    const c = parseCostToNumber(cost);
+    const a = parseCostToNumber(depositPaid);
     return Math.max(0, c - a);
   };
 

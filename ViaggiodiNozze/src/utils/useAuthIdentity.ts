@@ -124,6 +124,20 @@ export function isCloudAuthorized(targetTripId?: string): boolean {
  * Determina se il dispositivo ha i permessi per mutare e salvare dati in locale (IndexedDB / HounigoLocalQueueDB).
  * Distingue la preservazione delle modifiche locali dall'accesso a credenziali private cloud.
  */
+/** Local access only: previous server verification never grants cloud writes. */
+export function getAuthorizedLocalEditorRole(tripId: string | null, uid: string | null): 'owner' | 'copilota' | null {
+  if (!tripId || !uid || auth?.currentUser?.uid !== uid || auth.currentUser.isAnonymous
+      || isTripAuthRevoked(tripId)) return null;
+  if (authoritativeCloudRole === 'owner' || authoritativeCloudRole === 'copilota') {
+    return authorizedIdentity?.uid === uid && authorizedIdentity.tripId === tripId ? authoritativeCloudRole : null;
+  }
+  const isOfflineState = authoritativeCloudRole === 'offline' ||
+    (authoritativeCloudRole === 'checking' && typeof navigator !== 'undefined' && !navigator.onLine);
+  if (!isOfflineState || typeof navigator === 'undefined' || navigator.onLine) return null;
+  const verified = getVerifiedTripAuth(tripId);
+  return verified?.uid === uid && ['owner', 'copilota'].includes(verified.role) ? verified.role : null;
+}
+
 export function canMutateLocally(targetTripId?: string): boolean {
   if (import.meta.env.DEV) {
     const sim = getSimulatedRole();
@@ -149,8 +163,7 @@ export function canMutateLocally(targetTripId?: string): boolean {
   }
   // Se la sessione è in stato transitorio (unverified, checking, offline):
   // consente mutazioni locali purché il dispositivo sia configurato come guida o copilota e non revocato
-  const role = getLocalDeviceRole();
-  return role === 'guida' || role === 'copilota';
+  return Boolean(getAuthorizedLocalEditorRole(currentTripId, auth?.currentUser?.uid || null));
 }
 
 /**
@@ -345,7 +358,6 @@ export function useAuthIdentity(): AuthIdentityState {
         const tripData = tripSnap.data();
         const remoteOwnerUid = tripData?.ownerUid || null;
         const remoteOwnerName = tripData?.ownerName || (tripId === '0000' ? 'Owner' : undefined);
-        const remoteMembers: string[] = Array.isArray(tripData?.members) ? tripData.members : [];
 
         if (isMounted) {
           if (remoteOwnerUid) setAuthoritativeOwnerUid(remoteOwnerUid);
@@ -356,13 +368,6 @@ export function useAuthIdentity(): AuthIdentityState {
         if (remoteOwnerUid && activeUser.uid === remoteOwnerUid) {
           recordVerifiedTripAuth(tripId, activeUser.uid, 'owner');
           updateRole('owner');
-          return;
-        }
-
-        // 2. Copilota presente nell'array members del documento radice
-        if (remoteMembers.includes(activeUser.uid)) {
-          recordVerifiedTripAuth(tripId, activeUser.uid, 'copilota');
-          updateRole('copilota');
           return;
         }
 

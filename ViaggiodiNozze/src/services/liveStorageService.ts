@@ -48,13 +48,6 @@ export async function uploadLivePhoto(
     if (source.startsWith('data:')) {
       blob = dataUrlToBlob(source);
       mimeType = blob.type || 'image/jpeg';
-    } else if (/^https?:\/\//i.test(source)) {
-      // Già un URL remoto valido
-      return {
-        downloadUrl: source,
-        photoId: photoId || `photo_${Date.now()}`,
-        path: ''
-      };
     } else {
       throw new Error('Formato sorgente foto non supportato.');
     }
@@ -63,13 +56,13 @@ export async function uploadLivePhoto(
     mimeType = source.type || 'image/jpeg';
   }
 
-  if (blob.size > MAX_LIVE_PHOTO_BYTES) {
+  if (blob.size >= MAX_LIVE_PHOTO_BYTES) {
     throw new Error(`L'immagine (${Math.round(blob.size / 1024)} KB) supera il limite consentito di 5 MB.`);
   }
 
   // Normalizza MIME per restrizioni storage.rules (jpeg, png, webp, gif)
   if (!/^image\/(jpeg|png|webp|gif)$/i.test(mimeType)) {
-    mimeType = 'image/jpeg';
+    throw new Error('Formato immagine non supportato. Usa JPEG, PNG, WebP o GIF.');
   }
 
   const cleanPhotoId = (photoId || `photo_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`)
@@ -81,6 +74,7 @@ export async function uploadLivePhoto(
   const storageRef = ref(storage, storagePath);
   await uploadBytes(storageRef, blob, {
     contentType: mimeType,
+    cacheControl: 'private, no-store, max-age=0',
     customMetadata: {
       tripId,
       uploadedAt: new Date().toISOString()
@@ -100,20 +94,26 @@ export async function uploadLivePhoto(
  * Rimuove un'immagine caricata nel percorso Live su Firebase Storage (es. revoca condivisione).
  */
 export async function deleteLivePhoto(tripId: string, photoIdOrUrl: string): Promise<boolean> {
-  if (!tripId || !photoIdOrUrl || !storage) return false;
+  if (!tripId || !photoIdOrUrl || !storage) throw new Error('Impossibile revocare la foto: Storage non disponibile.');
   try {
     let storageRef;
-    if (photoIdOrUrl.startsWith('https://')) {
+    if (photoIdOrUrl.startsWith('https://')
+        || (import.meta.env.DEV && /^http:\/\/(127\.0\.0\.1|localhost):\d+\//.test(photoIdOrUrl))) {
       storageRef = ref(storage, photoIdOrUrl);
     } else {
       const cleanPhotoId = photoIdOrUrl.replace(/[^a-zA-Z0-9_-]/g, '_');
       storageRef = ref(storage, `trips/${tripId}/live_photos/${cleanPhotoId}.jpg`);
     }
+    const prefix = `trips/${tripId}/live_photos/`;
+    if (storageRef.bucket !== ref(storage).bucket || !storageRef.fullPath.startsWith(prefix)
+        || storageRef.fullPath.slice(prefix.length).includes('/')) {
+      throw new Error('La foto non appartiene allo spazio LIVE di questo viaggio.');
+    }
     await deleteObject(storageRef);
     return true;
-  } catch (err) {
-    console.warn('[liveStorageService] Rimozione foto non riuscita o già rimossa:', err);
-    return false;
+  } catch (err: any) {
+    if (err?.code === 'storage/object-not-found') return true;
+    throw new Error('Revoca della foto non confermata. Riprova online.', { cause: err });
   }
 }
 

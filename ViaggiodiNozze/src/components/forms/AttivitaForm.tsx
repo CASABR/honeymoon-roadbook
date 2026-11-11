@@ -12,6 +12,8 @@ import TimeZoneInput from '../common/TimeZoneInput';
 import TappaForm from './TappaForm';
 import TimePickerInput from '../common/TimePickerInput';
 import OpeningHoursFields from '../common/OpeningHoursFields';
+import { buildEurSavePatch } from '../../services/currencyService';
+import { parseCostToNumber } from '../../utils/priceHelper';
 
 interface AttivitaFormProps {
   days?: any[];
@@ -379,6 +381,16 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
     const finalRitrovo = (orarioRitrovo || orarioInizio || '').trim() || undefined;
     const finalInizio = (orarioInizio || orarioRitrovo || '').trim() || undefined;
 
+    const costInput = trekking && cost.trim() && currency && currency !== 'EUR' && !/[a-zA-Z€$£¥₱]/.test(cost)
+      ? `${cost.trim()} ${currency}`
+      : (cost.trim() || undefined);
+    const normalizedMoney = await buildEurSavePatch({
+      costRaw: costInput,
+      depositRaw: acconto.trim() || undefined,
+      existingItem: initialData
+    });
+    const { cost: normCost, depositPaid: normDep, acconto: normAcc, ...normMeta } = normalizedMoney;
+
     onSave({
       id: initialData?.id,
       dayId: `day_${customDate}`,
@@ -398,7 +410,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       hikingDurationMinutes: trekking && totalHikingMinutes > 0 ? totalHikingMinutes : initialData?.hikingDurationMinutes,
       routeType: trekking && routeType ? routeType : initialData?.routeType,
       routePreview: trekking ? initialData?.routePreview : undefined,
-      currency: trekking && cost.trim() ? currency : initialData?.currency,
+      currency: normMeta.originalCurrency ? 'EUR' : (trekking && cost.trim() ? currency : initialData?.currency),
       difficulty: trekking && difficulty.trim() ? difficulty.trim() : initialData?.difficulty,
       lightWindow: photoSpot ? lightWindow : initialData?.lightWindow,
       photoSubject: photoSpot && photoSubject.trim() ? photoSubject.trim() : initialData?.photoSubject,
@@ -409,8 +421,10 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       isRoute: Boolean(isRoute),
       location: address.trim() || title.trim(),
       coordinate: finalCoordToSave,
-      cost: cost.trim() || undefined,
-      acconto: acconto.trim() || undefined,
+      ...normMeta,
+      cost: normCost ?? (cost.trim() || undefined),
+      acconto: normAcc ?? (acconto.trim() || undefined),
+      depositPaid: normDep ?? (acconto.trim() || undefined),
       paymentStatus,
       link: link.trim() || undefined,
       qrCode: qrCode.trim() || undefined,
@@ -421,13 +435,13 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       attachments: attachments.length > 0 ? attachments : undefined,
       platform: initialData?.platform,
       openingHours
-    });
+    } as any);
   };
 
   const calculateSaldo = () => {
-    const c = parseFloat(cost.replace(',', '.')) || 0;
-    const a = parseFloat(acconto.replace(',', '.')) || 0;
-    return c - a;
+    const c = parseCostToNumber(cost);
+    const a = parseCostToNumber(acconto);
+    return Math.max(0, c - a);
   };
   const saldo = calculateSaldo();
   const isTrekking = sottocategoria

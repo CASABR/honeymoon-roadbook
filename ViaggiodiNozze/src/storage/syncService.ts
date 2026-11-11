@@ -1,4 +1,4 @@
-import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, deleteDoc, writeBatch, query, where } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { STORES, idbPut, idbDelete, idbGetAll, idbGet, type StoreName } from './indexedDB';
 import { notifyDataChanged } from './storageService';
@@ -11,7 +11,9 @@ import {
   mergeEntitySecurityData,
   getVaultDocId,
   normalizeEntityType,
-  sanitizePublicDocument
+  sanitizePublicDocument,
+  stampPublicDocument,
+  classifyLegacyRecord
 } from '../utils/securityDataSplitter';
 import {
   savePendingMutation,
@@ -25,6 +27,9 @@ import {
   getConflictBackupById,
   type PendingMutation
 } from './localMutationQueue';
+
+const isBlockingConflict = (c: { status?: string; conflictType?: string } | null | undefined): boolean =>
+  Boolean(c && c.status === 'pending_review' && c.conflictType !== 'local_only_record' && c.conflictType !== 'private_cache_copy');
 
 export interface PreActivationSyncReportItem {
   id: string;
@@ -223,7 +228,7 @@ export function compareCandidateWithRemote(
     : { publicDoc: localData };
 
   const differences: Array<{ field: string; localVal: any; remoteVal: any }> = [];
-  const ignoredKeys = new Set(['updatedAt', 'lastSanitizedAt', 'lastMigratedAt', 'createdAt']);
+  const ignoredKeys = new Set(['updatedAt', 'lastSanitizedAt', 'lastMigratedAt', 'createdAt', 'publicSchemaVersion']);
 
   for (const [k, v] of Object.entries(candidatePublic)) {
     if (ignoredKeys.has(k)) continue;
@@ -280,7 +285,7 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
   const isAllowed = tripId === '0000' ? isTrip0000CloudWriteAllowed() : true;
   const queue = await getPendingMutations(tripId);
   const allConflictBackups = await getConflictBackups(tripId);
-  const pendingConflicts = allConflictBackups.filter(c => c.status === 'pending_review' && c.conflictType !== 'local_only_record');
+  const pendingConflicts = allConflictBackups.filter(isBlockingConflict);
 
   const pendingByType: Record<string, number> = {};
   const conflictsByType: Record<string, number> = {};
@@ -483,7 +488,7 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
 
   // 4. Controllo conflitti attivi pendenti nell'archivio
   const conflictBackups = await getConflictBackups(tripId);
-  const activeConflicts = conflictBackups.filter(c => c.status === 'pending_review' && c.conflictType !== 'local_only_record');
+  const activeConflicts = conflictBackups.filter(isBlockingConflict);
   if (activeConflicts.length > 0) {
     throw new Error(`Operazione bloccata: presenti ${activeConflicts.length} conflitti da risolvere prima di attivare le scritture.`);
   }
@@ -533,7 +538,7 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
             await removePendingMutation(tripId, normType, dataId);
             const activeConflicts = await getConflictBackups(tripId);
             for (const c of activeConflicts) {
-              if (c.dataId === dataId && c.entityType === normType && c.status === 'pending_review') {
+              if (c.dataId === dataId && c.entityType === normType && isBlockingConflict(c)) {
                 await updateConflictStatus(c.id, 'resolved_already_synced', 'Allineamento verificato durante riconciliazione');
               }
             }
@@ -616,7 +621,7 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
   const afterQueue = await getPendingMutations(tripId);
   const remainingCount = afterQueue.length;
   const pushedCount = Math.max(0, beforeCount - remainingCount);
-  const remainingConflicts = (await getConflictBackups(tripId)).filter(c => c.status === 'pending_review' && c.conflictType !== 'local_only_record');
+  const remainingConflicts = (await getConflictBackups(tripId)).filter(isBlockingConflict);
 
   const isSuccess = errors.length === 0 && remainingCount === 0;
 
@@ -766,7 +771,7 @@ export async function enableCopilotBidirectionalSync(tripId: string): Promise<{
 
   // Verifica conflitti esistenti attivi (status: pending_review)
   const conflictBackups = await getConflictBackups(tripId);
-  const pendingConflicts = conflictBackups.filter(c => c.status === 'pending_review' && c.conflictType !== 'local_only_record');
+  const pendingConflicts = conflictBackups.filter(isBlockingConflict);
   if (pendingConflicts.length > 0) {
     throw new Error(`Operazione bloccata: presenti ${pendingConflicts.length} conflitti in archivio da verificare prima di attivare le scritture.`);
   }
@@ -1165,10 +1170,27 @@ export class SyncService {
     let deletedCount = 0;
     let failedCount = 0;
 
+    const viewerCollections = ['giorni', 'attivita', 'alloggi', 'trasporti', 'tappe', 'ristoranti', 'shopping', 'bagagli'];
+    const privilegedSync = isCloudAuthorized(this.tripId);
+
     for (const { fb, store } of operationalCollections) {
+      if (!privilegedSync && !viewerCollections.includes(fb)) continue;
       try {
         const colRef = collection(db, 'trips', this.tripId, fb);
-        const snap = await getDocs(colRef);
+        let snap;
+        if (privilegedSync) {
+          snap = await getDocs(colRef);
+        } else {
+          try {
+            snap = await getDocs(colRef);
+          } catch (readErr: any) {
+            if (readErr?.code === 'permission-denied') {
+              snap = await getDocs(query(colRef, where('publicSchemaVersion', '==', 2)));
+            } else {
+              throw readErr;
+            }
+          }
+        }
         const serverDocIds = new Set<string>();
 
         for (const docSnap of snap.docs) {
@@ -1177,6 +1199,10 @@ export class SyncService {
           serverDocIds.add(docId);
 
           if (fb === 'documenti' && docId.startsWith('att_chunk_')) {
+            continue;
+          }
+          if (!privilegedSync && classifyLegacyRecord(fb, serverData) === 'requires_classification') {
+            await idbDelete(store, docId).catch(() => {});
             continue;
           }
 
@@ -1366,11 +1392,12 @@ export class SyncService {
             const privData = credentialsMap.get(vaultId) || credentialsMap.get(docId);
             if (privData) {
               itemToStore = mergeEntitySecurityData(itemToStore, privData);
-            } else if (localData) {
+            } else if (localData && isCloudAuthorized(this.tripId)) {
               // PRESERVAZIONE DATI PRIVATI: Se la cassaforte remota non è accessibile (lockdown o offline),
               // non azzerare mai i dati economici e sensibili già presenti nella copia locale!
               itemToStore = mergeEntitySecurityData(itemToStore, localData);
             }
+            if (!isCloudAuthorized(this.tripId)) itemToStore = sanitizePublicDocument(itemToStore);
             if (Array.isArray(itemToStore.attachments) && itemToStore.attachments.length > 0) {
               const resolved = [];
               for (const att of itemToStore.attachments) {
@@ -1622,8 +1649,12 @@ export class SyncService {
     }) as EventListener);
 
     // Ripresa automatica al cambio di ruolo cloud verificato (owner / copilota)
-    this.addDomListener(window, 'houni_cloud_role_changed', ((e: Event) => {
+    this.addDomListener(window, 'houni_cloud_role_changed', (async (e: Event) => {
       const role = (e as CustomEvent)?.detail?.cloudRole;
+      this.unsubscribes.forEach(unsub => unsub());
+      this.unsubscribes = [];
+      if (role === 'viewer') await this.purgeSensitiveLocalCache();
+      this.setupCloudListeners();
       if (role === 'owner' || role === 'copilota') {
         console.log(`[SyncService] Rilevato ruolo autorizzato (${role}): verifica sincronizzazione.`);
         if (this.canWriteToCloud()) {
@@ -1632,8 +1663,6 @@ export class SyncService {
           console.log('[SyncService] Replay automatico coda sospeso per viaggio 0000 (modalità pre-attivazione protetta).');
         }
         this.requestInitialSync('cloud_role_authorized');
-      } else if (role === 'viewer') {
-        // La cache locale NON viene bonificata automaticamente per evitare perdite di dati off-line
       }
     }) as EventListener);
 
@@ -1691,6 +1720,7 @@ export class SyncService {
 
   private async persistPendingPush(item: { entityType: string; action: 'save' | 'delete'; data: any; notifyCollaborators?: boolean; mutationId?: string }): Promise<void> {
     await savePendingMutation({
+      ownerUid: auth.currentUser?.uid,
       tripId: this.tripId,
       entityType: item.entityType,
       action: item.action,
@@ -1784,7 +1814,7 @@ export class SyncService {
       this.getPendingPushesFromStore(),
       getConflictBackups(this.tripId).catch(() => [])
     ]).then(([queue, conflicts]) => {
-      const activeConflicts = (conflicts || []).filter(c => c.status === 'pending_review' && c.conflictType !== 'local_only_record');
+      const activeConflicts = (conflicts || []).filter(isBlockingConflict);
       const isOnline = typeof navigator === 'undefined' ? true : Boolean(navigator.onLine);
       const lastError = getLastSyncError(this.tripId);
       const isAllowed = this.tripId === '0000' ? isTrip0000CloudWriteAllowed() : true;
@@ -1826,6 +1856,7 @@ export class SyncService {
       if (queue.length === 0) return [];
       console.log(`[SyncService] Svuotamento coda push persistente (${queue.length} elementi in attesa)...`);
       for (const item of queue) {
+        if (item.ownerUid && item.ownerUid !== auth.currentUser?.uid) continue;
         try {
           await this.pushToCloud(item.entityType, item.action, item.data, {
             notifyCollaborators: item.notifyCollaborators,
@@ -2191,7 +2222,7 @@ export class SyncService {
           await safeSet(docRef, cleanPublic, { merge: true });
         }
       } else {
-        const cleanPayload = this.cleanUndefinedValues(payloadToSync);
+        const cleanPayload = this.cleanUndefinedValues(stampPublicDocument(collectionName, payloadToSync));
         await safeSet(docRef, cleanPayload, { merge: true });
       }
       if (entityType === 'settings' && typeof data?.id === 'string' && data.id.startsWith('tombstone_')) {
@@ -2246,9 +2277,19 @@ export class SyncService {
     };
 
     collectionsToSync.forEach(({ fb, store }) => {
+      const privileged = isCloudAuthorized(this.tripId);
+      const viewerCollections = ['giorni', 'attivita', 'alloggi', 'trasporti', 'tappe', 'ristoranti', 'shopping', 'bagagli'];
+      if (!privileged && !viewerCollections.includes(fb)) return;
       const colRef = collection(db, 'trips', this.tripId, fb);
-      
-      const unsub = onSnapshot(colRef, async (snapshot) => {
+      const unsubSlot = this.unsubscribes.length;
+      this.unsubscribes.push(() => {});
+
+      const attachListener = (useStrictV2Query: boolean) => {
+        const readable = (privileged || !useStrictV2Query)
+          ? colRef
+          : query(colRef, where('publicSchemaVersion', '==', 2));
+
+        const unsub = onSnapshot(readable, async (snapshot) => {
         // Ignoriamo i nostri stessi salvataggi locali non ancora confermati dal server
         const promises: Promise<void>[] = [];
 
@@ -2269,6 +2310,10 @@ export class SyncService {
           if (change.type === 'added' || change.type === 'modified') {
             promises.push(
               (async () => {
+                if (!privileged && classifyLegacyRecord(fb, data) === 'requires_classification') {
+                  await idbDelete(store, docId).catch(() => {});
+                  return;
+                }
                 // Se l'elemento è stato eliminato intenzionalmente (tombstone), verifica se è una ricreazione valida
                 const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, `tombstone_${fb}_${docId}`);
                 if (tombstoneSetting && tombstoneSetting.value) {
@@ -2357,11 +2402,12 @@ export class SyncService {
                     }
                   } catch (e) {}
                 }
-                if (!mergedPrivate && localData) {
+                if (!mergedPrivate && localData && isCloudAuthorized(this.tripId)) {
                   // Preserva sempre i dati economici e sensibili locali già presenti in IndexedDB
                   itemToStore = mergeEntitySecurityData(itemToStore, localData);
                 }
 
+                if (!isCloudAuthorized(this.tripId)) itemToStore = sanitizePublicDocument(itemToStore);
                 // Se l'item dal cloud ha allegati salvati in chunk, ricomponiamo i dataUrl
                 // preservando sempre i dataUrl locali se già presenti
                 if (Array.isArray(itemToStore.attachments) && itemToStore.attachments.length > 0) {
@@ -2497,11 +2543,19 @@ export class SyncService {
         });
 
         await Promise.all(promises);
-      }, (error) => {
+      }, (error: any) => {
+        if (!this.isDestroyed && !privileged && !useStrictV2Query && error?.code === 'permission-denied') {
+          try { this.unsubscribes[unsubSlot]?.(); } catch {}
+          attachListener(true);
+          return;
+        }
         console.error(`[Cloud Sync] Errore ascolto ${fb}:`, error);
       });
 
-      this.unsubscribes.push(unsub);
+        this.unsubscribes[unsubSlot] = unsub;
+      };
+
+      attachListener(false);
     });
   }
 
@@ -2531,6 +2585,8 @@ export class SyncService {
   }
 
   public async purgeSensitiveLocalCache(): Promise<void> {
+    const currentUid = auth?.currentUser?.uid || null;
+    const isRevoked = isTripAuthRevoked(this.tripId);
     const storesToPurge = [
       STORES.ALLOGGI,
       STORES.TRASPORTI,
@@ -2538,7 +2594,10 @@ export class SyncService {
       STORES.TAPPE,
       STORES.RISTORANTI,
       STORES.SHOPPING,
-      STORES.SPESE
+      STORES.SPESE,
+      STORES.DOCUMENTI,
+      STORES.NOTE,
+      STORES.SETTINGS
     ];
 
     for (const store of storesToPurge) {
@@ -2546,10 +2605,70 @@ export class SyncService {
         const records = await idbGetAll<any>(store);
         for (const rec of records) {
           if (!rec || !rec.id) continue;
-          if (store === STORES.SPESE) {
+          if (store === STORES.SETTINGS) {
+            // Tombstones are operational state, not deleted content. Removing them
+            // would allow a later snapshot to resurrect an explicitly deleted row.
+            if (rec.id.startsWith('tombstone_')) {
+              const value = rec.value || {};
+              await idbPut(store, { id: rec.id, value: {
+                deletedAt: value.deletedAt, timestamp: value.timestamp,
+                entityType: value.entityType, dataId: value.dataId,
+              } });
+              continue;
+            }
+            if (rec.id === 'device_session_backup') {
+              if (!isRevoked && rec.value?.tripId === this.tripId
+                  && (!rec.value.uid || !currentUid || rec.value.uid === currentUid)) {
+                await idbPut(store, { id: rec.id, value: {
+                  tripId: this.tripId, uid: currentUid || rec.value.uid || null,
+                  role: 'viewer', authenticated: rec.value.authenticated === true,
+                  updatedAt: Date.now(),
+                } });
+              } else {
+                await idbDelete(store, rec.id);
+              }
+              continue;
+            }
+            if (rec.id === 'trip_config_backup') {
+              if (!isRevoked && rec.value?.id === this.tripId) {
+                await idbPut(store, {
+                  id: rec.id,
+                  value: {
+                    id: rec.value.id,
+                    title: rec.value.title,
+                    startDate: rec.value.startDate,
+                    endDate: rec.value.endDate,
+                    totalDays: rec.value.totalDays,
+                    ownerName: rec.value.ownerName,
+                    headerImageUrl: rec.value.headerImageUrl,
+                  }
+                });
+              } else {
+                await idbDelete(store, rec.id);
+              }
+              continue;
+            }
+            if (rec.id === 'device_role_backup') {
+              await idbDelete(store, rec.id);
+              continue;
+            }
+            if (rec.id === 'theme' && typeof rec.value === 'string') continue;
+          }
+          const fullyPrivate = [STORES.SPESE, STORES.DOCUMENTI, STORES.NOTE, STORES.SETTINGS].includes(store as any);
+          const sanitized = sanitizePublicDocument(rec);
+          const sameUserWork = !isRevoked && (!rec.ownerUid || !currentUid || rec.ownerUid === currentUid);
+          if (sameUserWork && (fullyPrivate || JSON.stringify(sanitized) !== JSON.stringify(rec))) {
+            // Preserve offline work in the existing isolated archive before hiding it
+            // from the Viewer-facing cache. Never enqueue these copies for cloud sync.
+            await saveConflictBackup({
+              tripId: this.tripId, entityType: store, dataId: rec.id,
+              ownerUid: currentUid || undefined,
+              localData: rec, serverData: null, conflictType: 'private_cache_copy', status: 'archived_private_cache'
+            });
+          }
+          if (fullyPrivate) {
             await idbDelete(store, rec.id);
           } else {
-            const sanitized = sanitizePublicDocument(rec);
             await idbPut(store, sanitized);
           }
         }

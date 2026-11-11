@@ -6,7 +6,8 @@ import { deriveLiveIntelligence, type LiveIntelligenceState } from '../../utils/
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
 import { generateTripDays, getTripDateRange, formatDateTimeIT, formatDateIT } from '../../utils/tripDates';
 import { lookupKnownCoordinate } from '../../services/routingService';
-import { useAuthIdentity } from '../../utils/useAuthIdentity';
+import { useAuthIdentity, getAuthorizedLocalEditorRole, isTripAuthRevoked } from '../../utils/useAuthIdentity';
+import { canReadLocalLivePhoto } from '../../utils/livePhotoPrivacy';
 import { persistDeviceSession } from '../../utils/deviceSession';
 import {
   updateRealLocation,
@@ -65,6 +66,8 @@ const SPOSI_PIN = "2026";
 const LAST_PHOTO_KEY = "live_last_photo";
 
 interface CustomLivePhoto {
+  tripId?: string;
+  userId?: string;
   dataUrl: string;
   caption: string;
   timestamp: string;
@@ -79,6 +82,9 @@ import { registerDeviceOnFirestore } from '../../utils/deviceSession';
 
 export default function LiveView({ onBack, isStandaloneExternal = false, tripId }: LiveViewProps) {
   const activeTripId = tripId || getTripConfig()?.id || null;
+  const { cloudRole, currentUid } = useAuthIdentity();
+  const localGalleryRole = getAuthorizedLocalEditorRole(activeTripId, currentUid);
+  const hasPrivateGalleryAccess = !isStandaloneExternal && Boolean(localGalleryRole);
 
   const [now, setNow] = useState<Date>(new Date());
   const [timelineItems, setTimelineItems] = useState<TimelineItem[]>([]);
@@ -155,12 +161,12 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     });
     const unsubUpdates = liveService.subscribeToLiveUpdates(activeTripId, (updates) => {
       setLiveUpdates(updates);
-    });
+    }, hasPrivateGalleryAccess);
     return () => {
       unsubHeader();
       unsubUpdates();
     };
-  }, [activeTripId]);
+  }, [activeTripId, hasPrivateGalleryAccess]);
 
   // Messaggio di stato locale/fallback
   const [statusMessage, setStatusMessage] = useState<string>(() => {
@@ -204,7 +210,6 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [showMyCurrentGps, setShowMyCurrentGps] = useState(true);
   const dragStartRef = useRef<{ x: number; y: number } | null>(null);
   const [deviceRole, setDeviceRole] = useState<DeviceRole>(() => storageService.getDeviceRole());
-  const { cloudRole, currentUid } = useAuthIdentity();
 
   useEffect(() => {
     remoteLocationRef.current = remoteGpsLocation;
@@ -628,7 +633,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
             url: parsed.dataUrl,
             caption: parsed.caption || 'Foto scattata dagli sposi ❤️',
             timestamp: new Date(parsed.timestamp || Date.now()).getTime(),
-            isCustom: true
+            isCustom: true,
+            tripId: parsed.tripId, userId: parsed.userId
           }];
         }
       }
@@ -664,13 +670,13 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
     // 2. Dalla galleria personalizzata del dispositivo
     galleryCustomPhotos.forEach(p => {
-      if (!map.has(p.url)) {
+      if (canReadLocalLivePhoto(p, activeTripId, currentUid, localGalleryRole, isStandaloneExternal) && !map.has(p.url)) {
         map.set(p.url, p);
       }
     });
 
     // 3. Fallback foto singola custom legacy se non ancora inclusa
-    if (customPhoto && customPhoto.dataUrl && !map.has(customPhoto.dataUrl)) {
+    if (customPhoto && canReadLocalLivePhoto(customPhoto, activeTripId, currentUid, localGalleryRole, isStandaloneExternal) && customPhoto.dataUrl && !map.has(customPhoto.dataUrl)) {
       map.set(customPhoto.dataUrl, {
         id: 'sposi_custom_photo',
         url: customPhoto.dataUrl,
@@ -681,7 +687,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     }
 
     return Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
-  }, [liveUpdates, galleryCustomPhotos, customPhoto]);
+  }, [liveUpdates, galleryCustomPhotos, customPhoto, activeTripId, currentUid, cloudRole, localGalleryRole, isStandaloneExternal]);
 
   // Backward compatibility per vecchio portal viewer
   const publishedLivePhotos = useMemo(() => {
@@ -765,7 +771,10 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   const handleSaveCustomPhoto = () => {
     if (!pendingPhotoUrl) return;
+    if (!hasPrivateGalleryAccess) return;
     const photoObj: CustomLivePhoto = {
+      tripId: activeTripId || undefined,
+      userId: currentUid || undefined,
       dataUrl: pendingPhotoUrl,
       caption: photoCaptionInput.trim() || 'Foto scattata dagli sposi ❤️',
       timestamp: new Date().toISOString()
@@ -788,6 +797,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   // Caricamento e compressione foto per la Galleria Live
   const handleUploadPhoto = async (file: File, caption?: string) => {
     if (!file) return;
+    if (!hasPrivateGalleryAccess) throw new Error('Accedi come Owner o Copilota per caricare foto.');
     const compressedDataUrl = await compressImage(file);
     const photoId = `photo_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
@@ -820,12 +830,15 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     }
 
     const newPhoto: LiveGalleryPhotoItem = {
+      tripId: activeTripId || undefined,
+      userId: currentUid || undefined,
       id: photoId,
       url: publicPhotoUrl || compressedDataUrl,
       caption: caption || 'Foto dal viaggio ❤️',
       location: currentLocation?.city || 'In viaggio',
       timestamp: Date.now(),
-      isCustom: !publicPhotoUrl
+      isCustom: !publicPhotoUrl,
+      pendingSync: !publicPhotoUrl
     };
 
     setGalleryCustomPhotos(prev => {
@@ -834,6 +847,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         try {
           localStorage.setItem('hounigo_live_gallery', JSON.stringify(updated.slice(0, 30)));
           localStorage.setItem(LAST_PHOTO_KEY, JSON.stringify({
+            tripId: activeTripId,
+            userId: currentUid,
             dataUrl: compressedDataUrl,
             caption: newPhoto.caption,
             timestamp: new Date().toISOString()
@@ -846,26 +861,78 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     });
   };
 
-  // Eliminazione foto dalla galleria (FASE 1)
-  const handleDeletePhoto = (photoId: string) => {
-    setGalleryCustomPhotos(prev => {
-      const updated = prev.filter(p => p.id !== photoId);
-      if (typeof window !== 'undefined') {
-        localStorage.setItem('hounigo_live_gallery', JSON.stringify(updated));
-        if (updated.length === 0) {
-          localStorage.removeItem(LAST_PHOTO_KEY);
+  // Sincronizzazione automatica al ritorno online per le sole foto scattate offline (pendingSync === true)
+  const syncingOfflinePhotoIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!isOnline || isStandaloneExternal || !activeTripId || !currentUid) return;
+    if (cloudRole !== 'owner' && cloudRole !== 'copilota') return;
+    if (isTripAuthRevoked(activeTripId)) return;
+
+    const pendingPhotos = galleryCustomPhotos.filter(p =>
+      p.pendingSync === true &&
+      typeof p.url === 'string' &&
+      p.url.startsWith('data:image/') &&
+      canReadLocalLivePhoto(p, activeTripId, currentUid, localGalleryRole, isStandaloneExternal) &&
+      !syncingOfflinePhotoIdsRef.current.has(p.id)
+    );
+    if (pendingPhotos.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      const { uploadLivePhoto } = await import('../../services/liveStorageService');
+      for (const p of pendingPhotos) {
+        if (cancelled || isTripAuthRevoked(activeTripId)) break;
+        syncingOfflinePhotoIdsRef.current.add(p.id);
+        try {
+          const uploadRes = await uploadLivePhoto(activeTripId, p.url, p.id);
+          await liveService.publishToLive(activeTripId, {
+            title: p.caption || 'Nuovo scatto dal vivo 📸',
+            text: '',
+            photoUrl: uploadRes.downloadUrl,
+            locationName: p.location || undefined
+          });
+          setGalleryCustomPhotos(prev => {
+            const updated = prev.map(item =>
+              item.id === p.id
+                ? { ...item, url: uploadRes.downloadUrl, isCustom: false, pendingSync: false }
+                : item
+            );
+            try {
+              localStorage.setItem('hounigo_live_gallery', JSON.stringify(updated.slice(0, 30)));
+            } catch {}
+            return updated;
+          });
+        } catch (err) {
+          console.warn('[LiveView] Rinvio sincronizzazione foto offline al prossimo collegamento:', err);
+        } finally {
+          syncingOfflinePhotoIdsRef.current.delete(p.id);
         }
       }
-      return updated;
-    });
+    })();
 
-    // Se la foto corrisponde a un update remoto, eliminiamo anche l'aggiornamento
-    const matchingUpdate = liveUpdates.find(u => u.id === photoId || u.photoUrl === photoId);
-    if (matchingUpdate && activeTripId) {
-      liveService.deleteLiveUpdate(activeTripId, matchingUpdate.id).catch(err => {
-        console.warn('Errore eliminazione update correlato a foto:', err);
+    return () => { cancelled = true; };
+  }, [isOnline, isStandaloneExternal, activeTripId, currentUid, cloudRole, localGalleryRole, galleryCustomPhotos]);
+
+  // Eliminazione foto dalla galleria (FASE 1)
+  const handleDeletePhoto = async (photoId: string) => {
+    const photo = allLiveGalleryPhotos.find(p => p.id === photoId);
+    const matchingUpdate = liveUpdates.find(u => u.id === photoId || (photo && u.photoUrl === photo.url));
+    try {
+      if (matchingUpdate && activeTripId) {
+        await liveService.deleteLiveUpdate(activeTripId, matchingUpdate.id);
+        setLiveUpdates(prev => prev.filter(u => u.id !== matchingUpdate.id));
+      } else if (photo && !photo.isCustom && activeTripId) {
+        const { deleteLivePhoto } = await import('../../services/liveStorageService');
+        await deleteLivePhoto(activeTripId, photo.url);
+      }
+      setGalleryCustomPhotos(prev => {
+        const updated = prev.filter(p => p.id !== photoId && p.url !== photo?.url);
+        localStorage.setItem('hounigo_live_gallery', JSON.stringify(updated));
+        if (!updated.length) localStorage.removeItem(LAST_PHOTO_KEY);
+        return updated;
       });
-      setLiveUpdates(prev => prev.filter(u => u.id !== matchingUpdate.id));
+    } catch (err: any) {
+      alert(err?.message || 'Rimozione della foto non confermata. Riprova online.');
     }
   };
 
@@ -1569,7 +1636,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   // Foto d'ispirazione / copertina per la sezione foto (priorità a foto reale caricata dagli sposi)
   const photoUpdateData = useMemo(() => {
-    if (customPhoto) {
+    if (customPhoto && canReadLocalLivePhoto(customPhoto, activeTripId, currentUid, localGalleryRole, isStandaloneExternal)) {
       const timeAgo = (() => {
         try {
           const diffMs = Date.now() - new Date(customPhoto.timestamp).getTime();
@@ -1629,7 +1696,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       caption: 'Inizio del viaggio on the road • Verso la baia di Auckland',
       tag: '🇳🇿 Nuova Zelanda'
     };
-  }, [currentLocation, customPhoto]);
+  }, [currentLocation, customPhoto, activeTripId, currentUid, cloudRole, localGalleryRole, isStandaloneExternal]);
 
   // Calcolo stato temporale per la timeline (Completato, ORA, Previsto)
   const evaluatedTimeline = useMemo(() => {
@@ -1848,9 +1915,9 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       copiedLink={copiedLink}
       online={isOnline}
       galleryPhotos={allLiveGalleryPhotos}
-      onUploadPhoto={handleUploadPhoto}
-      onDeletePhoto={handleDeletePhoto}
-      onDeleteUpdate={handleDeleteLiveUpdate}
+      onUploadPhoto={hasPrivateGalleryAccess ? handleUploadPhoto : undefined}
+      onDeletePhoto={hasPrivateGalleryAccess ? handleDeletePhoto : undefined}
+      onDeleteUpdate={hasPrivateGalleryAccess ? handleDeleteLiveUpdate : undefined}
       guestMessages={guestMessages}
       onSendGuestMessage={async (authorName, message) => {
         if (!activeTripId) return;

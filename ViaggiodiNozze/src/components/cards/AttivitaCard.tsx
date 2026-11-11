@@ -139,7 +139,16 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
     depositPaid: (activity as any).depositPaid || (activity as any).amountPaid,
     paymentStatus: activity.paymentStatus,
     status: activity.status,
-    completed: (activity as any).completed
+    completed: (activity as any).completed,
+    currencyUncertain: (activity as any).currencyUncertain,
+    conversionType: (activity as any).conversionType,
+    depositConversionType: (activity as any).depositConversionType,
+    originalCurrency: (activity as any).originalCurrency,
+    originalCost: (activity as any).originalCost,
+    originalDepositPaid: (activity as any).originalDepositPaid,
+    exchangeRate: (activity as any).exchangeRate,
+    exchangeRateDate: (activity as any).exchangeRateDate,
+    exchangeRateSource: (activity as any).exchangeRateSource
   });
 
   const { isFree, isPaid, costNum, paidNum, remainingNum, displayText, compactPaymentText } = paymentInfo;

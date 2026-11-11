@@ -398,6 +398,7 @@ async function run() {
   console.log('\n-----------------------------------------------------------------');
   console.log(`RISULTATO EMULATORE: ${passed}/${total} test superati con successo (${Math.round(passed/total*100)}%)`);
   console.log('-----------------------------------------------------------------');
+  await testEnv.cleanup();
 }
 
 run().catch((err) => {

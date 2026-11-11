@@ -132,7 +132,16 @@ export default function TimelineItemDetailModal({
     paymentStatus: data?.paymentStatus || data?.status,
     status: data?.status,
     completed: data?.completed,
-    packageIncluded: Boolean(data?.packageIncluded)
+    packageIncluded: Boolean(data?.packageIncluded),
+    currencyUncertain: data?.currencyUncertain,
+    conversionType: data?.conversionType,
+    depositConversionType: data?.depositConversionType,
+    originalCurrency: data?.originalCurrency,
+    originalCost: data?.originalCost,
+    originalDepositPaid: data?.originalDepositPaid,
+    exchangeRate: data?.exchangeRate,
+    exchangeRateDate: data?.exchangeRateDate,
+    exchangeRateSource: data?.exchangeRateSource
   });
 
   const hasCostInfo = paymentInfo.costNum > 0 || paymentInfo.isPackageIncluded || Boolean(data?.budget) || paymentInfo.paidNum > 0;

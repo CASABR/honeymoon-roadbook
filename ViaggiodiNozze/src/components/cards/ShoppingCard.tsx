@@ -29,7 +29,14 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
     depositPaid: shopping.depositPaid || (shopping as any).amountPaid || (shopping as any).acconto,
     paymentStatus: shopping.paymentStatus,
     status: (shopping as any).status,
-    completed: shopping.completed
+    completed: shopping.completed,
+    currencyUncertain: (shopping as any).currencyUncertain,
+    conversionType: (shopping as any).conversionType,
+    originalCurrency: (shopping as any).originalCurrency,
+    originalCost: (shopping as any).originalCost,
+    exchangeRate: (shopping as any).exchangeRate,
+    exchangeRateDate: (shopping as any).exchangeRateDate,
+    exchangeRateSource: (shopping as any).exchangeRateSource
   });
 
   const isSaldato = paymentInfo.isPaid;

@@ -70,7 +70,7 @@ if (fs.existsSync(serviceAccountPath)) {
 const exposedMarkers = [...privateMarkers].filter((value) => publicText.includes(value));
 const seedChunks = distFiles.filter((file) => /(?:^|[\\/])seed(?:Activities|Alloggi|Ristoranti|Shopping|Tappe|Transports|Milano)/i.test(file));
 const sourceMaps = distFiles.filter((file) => file.endsWith('.map'));
-const forbiddenFiles = distFiles.filter((file) => /(?:^|[\\/])(?:serviceAccountKey|\.env|.*(?:backup|receipt|credential|secret|private).*)\.(?:json|txt|zip|pdf|pem|key)$/i.test(file));
+const forbiddenFiles = distFiles.filter((file) => /(?:^|[\\/])(?:serviceAccountKey|\.env|.*(?:backup|receipt|credential|secret|private).*)\.(?:json|txt|zip|pdf|pem|key)$/i.test(path.relative(distDir, file)));
 const embeddedDocuments = distFiles.filter((file) => /\.(?:pdf|zip|docx?|xlsx?)$/i.test(file));
 const runtimeFiles = walk(path.join(root, 'src')).filter((file) => /\.(?:ts|tsx)$/.test(file) && !seedFiles.some((seed) => file === path.join(root, seed)));
 const runtimeText = runtimeFiles.map((file) => fs.readFileSync(file, 'utf8')).join('\n');

@@ -5,7 +5,8 @@ import { Search, ChevronRight } from "lucide-react";
 import Modal from "../../components/common/Modal";
 
 import { formatDate } from '../../utils/tripDates';
-import { resolvePaymentInfo } from '../../utils/priceHelper';
+import { resolvePaymentInfo, resolveCauzioneInfo } from '../../utils/priceHelper';
+import { buildEurSavePatch, normalizeFinancialFieldsToEur, roundEur } from '../../services/currencyService';
 
 // ============================================================================
 // TIPI & COSTANTI
@@ -21,6 +22,10 @@ export interface UnifiedExpense {
   cost: number;
   paidAmount: number;
   paid: boolean;
+  isEstimatedConversion?: boolean;
+  conversionSummary?: string;
+  isCurrencyUnresolved?: boolean;
+  unverifiedRawText?: string;
   rawItem: any;
 }
 
@@ -170,20 +175,34 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
   // ============================================================================
   // MAPPATURA CENTRALIZZATA (UnifiedExpense)
   // ============================================================================
+  const buildPaymentInput = (item: any, rawCost: any) => ({
+    cost: rawCost,
+    depositPaid: item.depositPaid || item.acconto || item.amountPaid,
+    paymentStatus: item.paymentStatus,
+    status: item.status,
+    completed: item.completed,
+    packageIncluded: item.packageIncluded,
+    currencyUncertain: item.currencyUncertain,
+    conversionType: item.conversionType,
+    depositConversionType: item.depositConversionType,
+    originalCurrency: item.originalCurrency,
+    originalCost: item.originalCost,
+    originalDepositPaid: item.originalDepositPaid,
+    exchangeRate: item.exchangeRate,
+    exchangeRateDate: item.exchangeRateDate,
+    exchangeRateSource: item.exchangeRateSource,
+  });
+
   const unifiedExpenses = useMemo<UnifiedExpense[]>(() => {
     const list: UnifiedExpense[] = [];
 
     const addToList = (items: any[], cat: string, titleField1: string, titleField2: string, dateField: string, costField: string, altCostField: string) => {
       items.forEach((item) => {
-        const rawCost = item[costField] || item[altCostField];
-        const paymentInfo = resolvePaymentInfo({
-          cost: rawCost,
-          depositPaid: item.depositPaid || item.acconto || item.amountPaid,
-          paymentStatus: item.paymentStatus,
-          status: item.status,
-          completed: item.completed,
-          packageIncluded: item.packageIncluded
-        });
+        const rawCost = item.currencyUncertain
+          ? (item.cost ?? (item.originalCost !== undefined
+            ? `${item.originalCost} ${item.originalCurrency || ''}` : item[costField]))
+          : (item[costField] ?? item[altCostField]);
+        const paymentInfo = resolvePaymentInfo(buildPaymentInput(item, rawCost));
 
         const getSubcategoryInfo = (entity: any, category: string): { name: string; icon: string } => {
           if (category === 'trasporti') {
@@ -231,6 +250,25 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
 
         const subInfo = getSubcategoryInfo(item, cat);
 
+        if (paymentInfo.isCurrencyUnresolved) {
+          list.push({
+            id: item.id,
+            category: cat as any,
+            subcategory: subInfo.name,
+            subcategoryIcon: subInfo.icon,
+            title: item[titleField1] || item[titleField2] || 'Senza titolo',
+            date: item[dateField] || item.startDate || item.checkIn || item.data,
+            cost: 0,
+            paidAmount: 0,
+            paid: false,
+            isCurrencyUnresolved: true,
+            unverifiedRawText: paymentInfo.unverifiedRawText,
+            conversionSummary: paymentInfo.conversionSummary,
+            rawItem: item,
+          });
+          return;
+        }
+
         // Se è gratuito o incluso nel pacchetto, non è una spesa da saldare né un costo a carico del viaggiatore
         if (paymentInfo.isFree || paymentInfo.isPackageIncluded) {
           list.push({
@@ -263,6 +301,8 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             cost: costNum,
             paidAmount: paidAmount,
             paid: isPaid,
+            isEstimatedConversion: paymentInfo.isEstimatedConversion,
+            conversionSummary: paymentInfo.conversionSummary,
             rawItem: item,
           });
         }
@@ -294,14 +334,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
         }
       }
 
-      const paymentInfo = resolvePaymentInfo({
-        cost: t.cost,
-        depositPaid: t.depositPaid || t.acconto || t.amountPaid,
-        paymentStatus: t.paymentStatus,
-        status: t.status,
-        completed: t.completed,
-        packageIncluded: t.packageIncluded
-      });
+      const paymentInfo = resolvePaymentInfo(buildPaymentInput(t, t.cost));
 
       let subName = 'Voli';
       let subIcon = '✈️';
@@ -311,6 +344,25 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
       else if (tType === 'camper') { subName = 'Camper / Van'; subIcon = '🚐'; }
       else if (tType === 'transfer') { subName = 'Transfer / Bus'; subIcon = '🚌'; }
       else if (tType === 'treno') { subName = 'Treni'; subIcon = '🚆'; }
+
+      if (paymentInfo.isCurrencyUnresolved) {
+        list.push({
+          id: t.id,
+          category: 'trasporti',
+          subcategory: subName,
+          subcategoryIcon: subIcon,
+          title: t.carrier || `${t.departureLocation} → ${t.arrivalLocation}`,
+          date: t.date || t.startDate,
+          cost: 0,
+          paidAmount: 0,
+          paid: false,
+          isCurrencyUnresolved: true,
+          unverifiedRawText: paymentInfo.unverifiedRawText,
+          conversionSummary: paymentInfo.conversionSummary,
+          rawItem: t,
+        });
+        return;
+      }
 
       if (paymentInfo.isFree || paymentInfo.isPackageIncluded) {
         // Se è un volo gratuito/incluso (tratta di coincidenza o layover), non mostrare doppioni a 0€
@@ -346,6 +398,8 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           cost: costNum,
           paidAmount: acconto,
           paid: isPaid,
+          isEstimatedConversion: paymentInfo.isEstimatedConversion,
+          conversionSummary: paymentInfo.conversionSummary,
           rawItem: t,
         });
       }
@@ -378,9 +432,44 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
     return uniqueList;
   }, [spese, trasporti, alloggi, attivita, ristoranti, shoppingItemsList]);
 
-  // Filtro
+  const resolvedEurExpenses = useMemo(
+    () => unifiedExpenses.filter((e) => !e.isCurrencyUnresolved),
+    [unifiedExpenses]
+  );
+
+  const unresolvedExpenses = useMemo(
+    () => unifiedExpenses.filter((e) => Boolean(e.isCurrencyUnresolved)),
+    [unifiedExpenses]
+  );
+
+  const cauzioniList = useMemo(() => {
+    const items: Array<{ id: string; title: string; categoryLabel: string; rawText: string; eurEquivalentText?: string }> = [];
+    const seen = new Set<string>();
+    const scan = (arr: any[], titleFn: (x: any) => string, catLabel: string) => {
+      arr.forEach((x) => {
+        if (!x?.id || seen.has(x.id)) return;
+        const cInfo = resolveCauzioneInfo(x);
+        if (cInfo) {
+          seen.add(x.id);
+          items.push({
+            id: x.id,
+            title: titleFn(x),
+            categoryLabel: catLabel,
+            rawText: cInfo.rawText,
+            eurEquivalentText: cInfo.eurEquivalentText
+          });
+        }
+      });
+    };
+    scan(trasporti, (t) => t.carrier || `${t.departureLocation} → ${t.arrivalLocation}`, 'Trasporti');
+    scan(alloggi, (a) => a.name || a.title || 'Alloggio', 'Alloggi');
+    scan(attivita, (a) => a.title || a.name || 'Attività', 'Attività');
+    return items;
+  }, [trasporti, alloggi, attivita]);
+
+  // Filtro (solo spese EUR risolte nella lista principale)
   const filteredUnifiedExpenses = useMemo(() => {
-    return unifiedExpenses.filter((e) => {
+    return resolvedEurExpenses.filter((e) => {
       const safeTitle = (e.title || '').toLowerCase();
       const matchesSearch = safeTitle.includes(searchTerm.toLowerCase());
       const matchesCat = (() => {
@@ -397,13 +486,14 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
       })();
       return matchesSearch && matchesCat;
     });
-  }, [unifiedExpenses, searchTerm, selectedCategory]);
+  }, [resolvedEurExpenses, searchTerm, selectedCategory]);
 
-  // Calcoli Budget
+  // Calcoli Budget esclusivamente in EUR con arrotondamento a 2 decimali
   const stats = useMemo(() => {
     let totSaldato = 0;
     let totDaSaldare = 0;
     let maxCategoryTotal = 0;
+    let estimatedCount = 0;
     const catStats = {
       trasporti: { saldato: 0, daSaldare: 0, total: 0 },
       alloggi: { saldato: 0, daSaldare: 0, total: 0 },
@@ -413,26 +503,28 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
       altro: { saldato: 0, daSaldare: 0, total: 0 },
     };
 
-    unifiedExpenses.forEach((e) => {
+    resolvedEurExpenses.forEach((e) => {
       const cat = e.category;
-      
-      const actuallyPaid = e.paidAmount || (e.paid ? e.cost : 0);
-      const remaining = Math.max(0, e.cost - actuallyPaid);
-      
-      totSaldato += actuallyPaid;
-      totDaSaldare += remaining;
-      
-      catStats[cat].saldato += actuallyPaid;
-      catStats[cat].daSaldare += remaining;
-      catStats[cat].total += e.cost;
+      if (e.isEstimatedConversion) estimatedCount += 1;
+
+      const actuallyPaid = roundEur(e.paidAmount || (e.paid ? e.cost : 0));
+      const remaining = roundEur(Math.max(0, e.cost - actuallyPaid));
+
+      totSaldato = roundEur(totSaldato + actuallyPaid);
+      totDaSaldare = roundEur(totDaSaldare + remaining);
+
+      catStats[cat].saldato = roundEur(catStats[cat].saldato + actuallyPaid);
+      catStats[cat].daSaldare = roundEur(catStats[cat].daSaldare + remaining);
+      catStats[cat].total = roundEur(catStats[cat].saldato + catStats[cat].daSaldare);
 
       if (catStats[cat].total > maxCategoryTotal) {
         maxCategoryTotal = catStats[cat].total;
       }
     });
 
-    return { totSaldato, totDaSaldare, totGenerale: totSaldato + totDaSaldare, catStats, maxCategoryTotal };
-  }, [unifiedExpenses]);
+    const totGenerale = roundEur(totSaldato + totDaSaldare);
+    return { totSaldato, totDaSaldare, totGenerale, catStats, maxCategoryTotal, estimatedCount };
+  }, [resolvedEurExpenses]);
 
   // ============================================================================
   // HANDLERS CENTRALIZZATI
@@ -449,16 +541,23 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
     setSavingItemId(e.id);
     try {
       const raw = e.rawItem;
-      const formattedCost = newCostStr ? `${newCostStr} €` : raw.cost || raw.budget || raw.amount;
-      const formattedPaid = newPaidStr ? `${newPaidStr} €` : "0 €";
-      const updated = { 
-        ...raw, 
-        paymentStatus: newStatus, 
-        status: newStatus, 
+      const normalized = await buildEurSavePatch({
+        costRaw: newCostStr ? newCostStr : (raw.cost || raw.budget || raw.amount),
+        depositRaw: newPaidStr ? newPaidStr : '0',
+        existingItem: raw
+      });
+      const { cost: normCost, depositPaid: normDep, acconto: _normAcc, ...normMeta } = normalized;
+      const formattedCost = normCost || (newCostStr ? `${newCostStr} €` : raw.cost || raw.budget || raw.amount);
+      const formattedPaid = normDep || (newPaidStr ? `${newPaidStr} €` : "0 €");
+      const updated = {
+        ...raw,
+        ...normMeta,
+        paymentStatus: newStatus,
+        status: newStatus,
         depositPaid: formattedPaid,
         acconto: formattedPaid,
         amountPaid: formattedPaid,
-        updatedAt: Date.now() 
+        updatedAt: Date.now()
       };
 
       switch (e.category) {
@@ -491,7 +590,8 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
         default:
           updated.status = newStatus;
           updated.paymentStatus = newStatus;
-          updated.amount = newCostStr ? (parseFloat(newCostStr) || raw.amount) : raw.amount;
+          updated.cost = normCost;
+          updated.amount = normalized.currencyUncertain ? 0 : Number(normCost ?? raw.amount);
           await storageService.saveSpesa(updated);
           notifyDataChanged('spese', 'save', updated);
           break;
@@ -582,15 +682,19 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
 
   const handleSaveNewExpense = async () => {
     if (!newExpenseTitle.trim() || !newExpenseAmount.trim()) return;
-    const num = parseFloat(newExpenseAmount.replace(",", "."));
-    if (isNaN(num)) return;
+    const normalized = await normalizeFinancialFieldsToEur({
+      costRaw: newExpenseAmount.trim()
+    });
+      const num = normalized.cost ? Number(normalized.cost) : NaN;
+    if (isNaN(num) && !normalized.currencyUncertain) return;
     setIsSavingExpense(true);
     try {
       const now = Date.now();
       const spesaItem: Spesa = {
         id: `spesa_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         title: newExpenseTitle.trim(),
-        amount: num,
+          ...normalized,
+          amount: normalized.currencyUncertain ? 0 : roundEur(isNaN(num) ? 0 : num),
         category: (newExpenseCategory === 'shopping' ? 'altro' : newExpenseCategory) as CategoriaSpesa,
         date: new Date().toISOString().split('T')[0],
         status: newExpensePaid ? 'saldato' : 'da_saldare',
@@ -642,8 +746,18 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
+            <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500 flex-wrap">
               {item.date && <span>{formatDate(item.date)}</span>}
+              {item.isEstimatedConversion && (
+                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-sky-50 text-sky-700 border border-sky-200">
+                  ~ Stima BCE
+                </span>
+              )}
+              {item.conversionSummary && (
+                <span className="text-[9px] text-slate-400 truncate max-w-full" title={item.conversionSummary}>
+                  {item.conversionSummary}
+                </span>
+              )}
             </div>
             
             {/* Visualizzazione Parziale o Badge Stato */}
@@ -862,6 +976,18 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
               <div className="h-full bg-emerald-400" style={{ width: `${stats.totGenerale > 0 ? (stats.totSaldato / stats.totGenerale) * 100 : 0}%` }} />
               <div className="h-full bg-amber-400" style={{ width: `${stats.totGenerale > 0 ? (stats.totDaSaldare / stats.totGenerale) * 100 : 0}%` }} />
             </div>
+
+            {stats.estimatedCount > 0 && (
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2.5">
+                Include {stats.estimatedCount} {stats.estimatedCount === 1 ? 'voce convertita a cambio stimato' : 'voci convertite a cambio stimato'} (~ Stima BCE).
+              </p>
+            )}
+
+            {unresolvedExpenses.length > 0 && (
+              <div className="mt-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200 font-semibold">
+                ⚠️ Totale incompleto: {unresolvedExpenses.length} {unresolvedExpenses.length === 1 ? 'voce ha' : 'voci hanno'} valuta incerta o non convertita ed {unresolvedExpenses.length === 1 ? 'è esclusa' : 'sono escluse'} dalla somma in EUR.
+              </div>
+            )}
           </div>
         </div>
 
@@ -871,7 +997,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           <div className="flex flex-col gap-2">
             {(Object.entries(CATEGORY_CONFIG) as [CategoriaSpesa | "shopping", any][]).map(([catKey, config]) => {
               const catStats = stats.catStats[catKey];
-              const count = unifiedExpenses.filter(e => e.category === catKey).length;
+              const count = resolvedEurExpenses.filter(e => e.category === catKey).length;
               
               const barWidth = stats.maxCategoryTotal > 0 ? (catStats.total / stats.maxCategoryTotal) * 100 : 0;
 
@@ -910,6 +1036,63 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             })}
           </div>
         </div>
+
+        {unresolvedExpenses.length > 0 && (
+          <div className="bg-amber-50/70 dark:bg-amber-950/30 rounded-3xl p-4 border border-amber-200/80 dark:border-amber-800/50 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-extrabold text-amber-900 dark:text-amber-200 uppercase tracking-wider">
+                ⚠️ Importi con valuta incerta da verificare ({unresolvedExpenses.length})
+              </h3>
+            </div>
+            <p className="text-[11px] text-amber-800/90 dark:text-amber-300/90">
+              Esclusi dal totale EUR finché non viene confermata la valuta originale o inserito l'importo in euro.
+            </p>
+            <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+              {unresolvedExpenses.map((u) => {
+                const cfg = CATEGORY_CONFIG[u.category];
+                return (
+                  <div
+                    key={`unres_${u.id}`}
+                    className="bg-white dark:bg-slate-900 rounded-2xl px-3 py-2 border border-amber-200/70 dark:border-amber-800/40 flex items-center justify-between gap-2"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-xs font-bold text-slate-900 dark:text-white truncate">{cfg.icon} {u.title}</div>
+                      <div className="text-[10px] text-slate-500">{cfg.label}{u.date ? ` · ${formatDate(u.date)}` : ''}</div>
+                    </div>
+                    <span className="text-xs font-black font-mono text-amber-700 dark:text-amber-300 shrink-0">
+                      {u.unverifiedRawText || 'Da verificare'}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {cauzioniList.length > 0 && (
+          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-3xl p-4 border border-slate-200/80 dark:border-slate-700 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="text-xs font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
+                🛡️ Cauzioni &amp; Preautorizzazioni (escluse dal totale)
+              </h3>
+            </div>
+            <div className="space-y-2">
+              {cauzioniList.map((c) => (
+                <div key={`cauz_${c.id}`} className="bg-white dark:bg-slate-900 rounded-2xl px-3 py-2 border border-slate-200/70 dark:border-slate-700 flex items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900 dark:text-white truncate">{c.title}</div>
+                    <div className="text-[10px] text-slate-500 truncate" title={c.rawText}>{c.categoryLabel} · {c.rawText}</div>
+                  </div>
+                  {c.eurEquivalentText && (
+                    <span className="text-xs font-black font-mono text-slate-700 dark:text-slate-200 shrink-0">
+                      {c.eurEquivalentText}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Lista Dettagliata (Filtro e Risultati) */}
         <div className="pt-2">
@@ -964,7 +1147,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           </div>
 
           <div className="mt-4 space-y-3">
-            {unifiedExpenses.length === 0 ? (
+            {resolvedEurExpenses.length === 0 ? (
               <div className="text-center py-12 px-4 rounded-3xl border border-dashed border-slate-200 bg-white/50">
                 <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl">
                   💳
@@ -1009,7 +1192,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
         {drillDownCategory && (() => {
           const catConfig = CATEGORY_CONFIG[drillDownCategory];
           const catStats = stats.catStats[drillDownCategory];
-          const items = unifiedExpenses.filter(e => e.category === drillDownCategory);
+          const items = resolvedEurExpenses.filter(e => e.category === drillDownCategory);
 
           return (
             <div className="space-y-4">

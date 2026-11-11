@@ -27,11 +27,12 @@ const rulesPath = path.join(root, 'firestore.rules');
 const jar = process.env.HOUNIGO_FIRESTORE_EMULATOR_JAR || path.join(os.homedir(), '.cache/firebase/emulators/cloud-firestore-emulator-v1.22.0.jar');
 
 function fields(data) {
-  const value = item => Array.isArray(item) ? { arrayValue: { values: item.map(value) } }
-    : typeof item === 'string' ? { stringValue: item }
-      : typeof item === 'boolean' ? { booleanValue: item }
-        : typeof item === 'number' ? { doubleValue: item }
-          : { mapValue: { fields: fields(item) } };
+  const value = item => item === null ? { nullValue: null }
+    : Array.isArray(item) ? { arrayValue: { values: item.map(value) } }
+      : typeof item === 'string' ? { stringValue: item }
+        : typeof item === 'boolean' ? { booleanValue: item }
+          : typeof item === 'number' ? (Number.isInteger(item) ? { integerValue: String(item) } : { doubleValue: item })
+            : { mapValue: { fields: fields(item) } };
   return Object.fromEntries(Object.entries(data).filter(([,v])=>v !== undefined).map(([k,v])=>[k,value(v)]));
 }
 
@@ -217,11 +218,14 @@ function load(file, dependencies, globals = {}) {
           collection: (_db, ...p) => p.join('/'),
           onSnapshot: () => () => {},
           doc: (_db, ...p) => p.join('/'),
-          setDoc: async (docRef, data) => {
+          setDoc: async (docRef, data, opts) => {
             if (simulateNetworkFailure) {
               throw new Error('Simulated network failure during Firestore write');
             }
-            const res = await request('PATCH', docRef, uid, data);
+            const mask = opts?.merge && data && typeof data === 'object'
+              ? '?' + Object.keys(data).filter(k => data[k] !== undefined).map(k => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join('&')
+              : '';
+            const res = await request('PATCH', `${docRef}${mask === '?' ? '' : mask}`, uid, data);
             if (!res.ok) throw new Error(`setDoc failed: ${await res.text()}`);
           },
           deleteDoc: async (docRef) => {
@@ -507,7 +511,7 @@ function load(file, dependencies, globals = {}) {
     const finalVaultJson = await checkVaultAfterPublicEdit.json();
     assert.equal(finalVaultJson.fields.pnr.stringValue, 'CANONICAL-PNR-777');
     assert.equal(finalVaultJson.fields.pin.stringValue, '1234');
-    assert.equal(finalVaultJson.fields.cost.doubleValue, 250);
+    assert.equal(Number(finalVaultJson.fields.cost.integerValue ?? finalVaultJson.fields.cost.doubleValue), 250);
 
     console.log('✓ TEST 5 SUPERATO: Protezione assoluta cassaforte, PIN, PNR e costi verificata.');
 

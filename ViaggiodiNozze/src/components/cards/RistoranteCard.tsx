@@ -30,7 +30,14 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
     budget: ristorante.budget,
     paymentStatus: (ristorante as any).paymentStatus || (ristorante.status === 'saldato' ? 'saldato' : 'da_saldare'),
     status: ristorante.status,
-    completed: (ristorante as any).completed
+    completed: (ristorante as any).completed,
+    currencyUncertain: (ristorante as any).currencyUncertain,
+    conversionType: (ristorante as any).conversionType,
+    originalCurrency: (ristorante as any).originalCurrency,
+    originalCost: (ristorante as any).originalCost,
+    exchangeRate: (ristorante as any).exchangeRate,
+    exchangeRateDate: (ristorante as any).exchangeRateDate,
+    exchangeRateSource: (ristorante as any).exchangeRateSource
   });
 
   const { isFree, isPaid, costNum } = paymentInfo;

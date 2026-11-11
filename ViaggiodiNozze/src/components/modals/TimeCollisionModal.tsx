@@ -378,7 +378,7 @@ export default function TimeCollisionModal({
 
   const modalNode = (
     <div 
-      className="fixed inset-0 z-[100000] flex items-center justify-center p-3 sm:p-5 bg-slate-950/75 backdrop-blur-xs select-none"
+      className="fixed inset-0 z-[100000] flex items-center justify-center bg-slate-950/75 backdrop-blur-xs select-none"
       style={{
         position: 'fixed',
         top: 0,
@@ -388,6 +388,7 @@ export default function TimeCollisionModal({
         width: '100vw',
         height: '100dvh',
         minHeight: '100vh',
+        padding: 'max(0.75rem, var(--app-safe-top)) max(0.75rem, var(--app-safe-right)) max(0.75rem, var(--app-safe-bottom)) max(0.75rem, var(--app-safe-left))',
       }}
     >
       {/* Backdrop overlay per click to dismiss */}
@@ -401,7 +402,7 @@ export default function TimeCollisionModal({
       <div 
         className="relative z-10 bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-6 max-w-xl w-full shadow-2xl border border-slate-200/90 dark:border-slate-800 space-y-3.5 flex flex-col pointer-events-auto"
         style={{
-          maxHeight: 'calc(100dvh - 32px)',
+          maxHeight: 'calc(100dvh - var(--app-safe-top) - var(--app-safe-bottom) - 1.5rem)',
         }}
         onClick={(e) => e.stopPropagation()}
       >

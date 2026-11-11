@@ -3,6 +3,7 @@ import { usePresence } from '../../hooks/usePresence';
 import type { Shopping, TimeStatus } from '../../types';
 import { extractFromText } from '../../services/aiExtractor';
 import TimePickerInput from '../common/TimePickerInput';
+import { buildEurSavePatch } from '../../services/currencyService';
 
 interface ShoppingFormProps {
   initialData?: Shopping | null;
@@ -104,7 +105,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nome.trim()) {
       setError('Il nome del negozio o centro commerciale è obbligatorio.');
@@ -112,6 +113,13 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
     }
 
     setError('');
+    const normalizedMoney = await buildEurSavePatch({
+      costRaw: budget.trim() || undefined,
+      existingItem: initialData
+    });
+    const { cost: normCost, depositPaid: _dp, acconto: _ac, ...normMeta } = normalizedMoney;
+    const finalBudget = normCost ?? (budget.trim() || undefined);
+
     onSave({
       id: initialData?.id,
       sottocategoria: sottocategoria || undefined,
@@ -123,15 +131,16 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       time: orario || undefined,
       timeStatus: orario ? timeStatus : undefined,
       indirizzo: indirizzo.trim() || undefined,
-      budget: budget.trim() || undefined,
-      cost: budget.trim() || undefined,
+      ...normMeta,
+      budget: finalBudget,
+      cost: finalBudget,
       link: link.trim() || undefined,
       coordinate: initialData?.coordinate,
       noteCopilota: noteCopilota.trim() || undefined,
       nota: noteCopilota.trim() || undefined,
       notes: noteCopilota.trim() || undefined,
       copilota: Boolean(noteCopilota.trim()) || copilota || undefined
-    });
+    } as any);
   };
 
   return (

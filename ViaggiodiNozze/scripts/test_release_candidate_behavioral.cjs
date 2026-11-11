@@ -51,7 +51,7 @@ function fields(data) {
     if (Array.isArray(item)) return { arrayValue: { values: item.map(value) } };
     if (typeof item === 'string') return { stringValue: item };
     if (typeof item === 'boolean') return { booleanValue: item };
-    if (typeof item === 'number') return { doubleValue: item };
+    if (typeof item === 'number') return Number.isInteger(item) ? { integerValue: String(item) } : { doubleValue: item };
     if (item instanceof Date) return { timestampValue: item.toISOString() };
     if (typeof item === 'object') {
       if (item._isTimestamp && item.iso) return { timestampValue: item.iso };
@@ -381,9 +381,13 @@ async function asyncCheck(name, fn) {
 
   // Test 5: Guestbook / Messaggi Ospiti
   await asyncCheck('5.1: Chiunque (anche non autenticato) può leggere i messaggi del guestbook', async () => {
+    const created = await request('PATCH', 'live_feeds/0000/guest_messages/msg_test_01', UID_OWNER, {
+      visitorId: 'synthetic-visitor', authorName: 'Synthetic guest', message: 'Public greeting',
+      createdAt: Date.now(), hidden: false, deleted: false, publicSchemaVersion: 2
+    });
+    assert.strictEqual(created.status, 200, `Creazione fixture guestbook fallita: ${await created.text()}`);
     const res = await request('GET', 'live_feeds/0000/guest_messages/msg_test_01', null);
-    // 404 o 200 significano che la lettura è permessa dalle regole (403 indicherebbe permission-denied)
-    assert.notStrictEqual(res.status, 403, 'Lettura pubblica deve essere consentita');
+    assert.strictEqual(res.status, 200, 'Un messaggio pubblico realmente esistente e validato deve essere leggibile');
   });
 
   await asyncCheck('5.2: Utente anonimo o non autorizzato NON può creare messaggi direttamente (anti-spam Spark)', async () => {

@@ -229,7 +229,16 @@ export default function TrasportoCard({
     paymentStatus: transport.paymentStatus,
     status: transport.status,
     completed: transport.completed,
-    packageIncluded: transport.packageIncluded
+    packageIncluded: transport.packageIncluded,
+    currencyUncertain: (transport as any).currencyUncertain,
+    conversionType: (transport as any).conversionType,
+    depositConversionType: (transport as any).depositConversionType,
+    originalCurrency: (transport as any).originalCurrency,
+    originalCost: (transport as any).originalCost,
+    originalDepositPaid: (transport as any).originalDepositPaid,
+    exchangeRate: (transport as any).exchangeRate,
+    exchangeRateDate: (transport as any).exchangeRateDate,
+    exchangeRateSource: (transport as any).exchangeRateSource
   });
 
   const { isFree, isPackageIncluded, isPaid, costNum, paidNum, remainingNum, compactPaymentText } = paymentInfo;

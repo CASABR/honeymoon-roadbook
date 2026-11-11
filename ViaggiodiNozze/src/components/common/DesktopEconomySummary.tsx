@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
+import { roundEur } from '../../services/currencyService';
 
 interface DesktopEconomySummaryProps {
   items: any[];
@@ -15,6 +16,7 @@ export default function DesktopEconomySummary({
   const summary = useMemo(() => {
     let totalCost = 0;
     let paidCost = 0;
+    let unverifiedCount = 0;
 
     items.forEach((item) => {
       const paymentInfo = resolvePaymentInfo({
@@ -23,30 +25,45 @@ export default function DesktopEconomySummary({
         paymentStatus: item.paymentStatus,
         status: item.status,
         completed: item.completed,
-        packageIncluded: item.packageIncluded
+        packageIncluded: item.packageIncluded,
+        currencyUncertain: item.currencyUncertain,
+        conversionType: item.conversionType,
+        depositConversionType: item.depositConversionType,
+        originalCurrency: item.originalCurrency,
+        originalCost: item.originalCost,
+        originalDepositPaid: item.originalDepositPaid,
+        exchangeRate: item.exchangeRate,
+        exchangeRateDate: item.exchangeRateDate,
+        exchangeRateSource: item.exchangeRateSource
       });
+
+      if (paymentInfo.isCurrencyUnresolved) {
+        unverifiedCount += 1;
+        return;
+      }
 
       if (paymentInfo.isFree || paymentInfo.isPackageIncluded) {
         return;
       }
 
       const cost = paymentInfo.costNum;
-      totalCost += cost;
+      totalCost = roundEur(totalCost + cost);
 
       if (paymentInfo.isPaid) {
-        paidCost += cost;
+        paidCost = roundEur(paidCost + cost);
       } else if (paymentInfo.paidNum > 0) {
-        paidCost += Math.min(cost, paymentInfo.paidNum);
+        paidCost = roundEur(paidCost + Math.min(cost, paymentInfo.paidNum));
       }
     });
 
-    const toPayCost = Math.max(0, totalCost - paidCost);
+    const toPayCost = roundEur(Math.max(0, totalCost - paidCost));
 
     return {
       totalCost,
       paidCost,
       toPayCost,
-      count: items.length
+      count: items.length,
+      unverifiedCount
     };
   }, [items]);
 
@@ -73,6 +90,9 @@ export default function DesktopEconomySummary({
         </div>
         <p className="text-[11px] text-slate-400 mt-0.5">
           {summary.count} {summary.count === 1 ? 'elemento registrato' : 'elementi registrati'}
+          {summary.unverifiedCount > 0 && (
+            <span className="text-amber-600 dark:text-amber-400 font-semibold"> · {summary.unverifiedCount} da verificare</span>
+          )}
         </p>
       </div>
 

@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, writeBatch, onSnapshot, query, orderBy, setDoc, limit, updateDoc, deleteDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, writeBatch, onSnapshot, query, orderBy, where, setDoc, limit, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { FEATURE_FLAGS } from '../config/featureFlags';
 
@@ -89,6 +89,58 @@ const cleanUrl = (value: unknown): string => {
   return /^https:\/\/|^http:\/\//i.test(s) ? s : '';
 };
 
+export type LiveLegacyClassification = 'v2_verified' | 'legacy_publishable' | 'requires_classification';
+
+const LIVE_UPDATE_PUBLIC_KEYS = new Set([
+  'title', 'text', 'photoUrl', 'timestamp', 'locationName',
+  'reactionCounts', 'deleted', 'deletedAt', 'deletedBy', 'publicSchemaVersion',
+]);
+
+const LIVE_GUEST_MSG_PUBLIC_KEYS = new Set([
+  'visitorId', 'authorName', 'message', 'createdAt', 'hidden',
+  'deleted', 'deletedAt', 'deletedBy', 'moderatedAt', 'publicSchemaVersion',
+]);
+
+export function classifyLegacyLiveUpdate(data: Record<string, any> | null | undefined): LiveLegacyClassification {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return 'requires_classification';
+  if (data.publicSchemaVersion === 0) return 'requires_classification';
+  if (data.deleted === true || data.title === '[Rimosso]' || data.title === '[Eliminato]') return 'requires_classification';
+  if (typeof data.title !== 'string' || !data.title.trim() || data.title.length > MAX_TITLE) return 'requires_classification';
+  if (data.timestamp !== undefined && typeof data.timestamp !== 'number') return 'requires_classification';
+  if (data.text !== undefined && (typeof data.text !== 'string' || data.text.length > MAX_TEXT)) return 'requires_classification';
+  if (data.locationName !== undefined && (typeof data.locationName !== 'string' || data.locationName.length > MAX_LOCATION)) return 'requires_classification';
+  if (data.photoUrl !== undefined) {
+    if (typeof data.photoUrl !== 'string' || data.photoUrl.length > MAX_URL) return 'requires_classification';
+    if (data.photoUrl.trim() && !/^https:\/\/|^http:\/\//i.test(data.photoUrl.trim())) return 'requires_classification';
+  }
+  if (data.reactionCounts !== undefined) {
+    if (!data.reactionCounts || typeof data.reactionCounts !== 'object' || Array.isArray(data.reactionCounts)) {
+      return 'requires_classification';
+    }
+    for (const [k, v] of Object.entries(data.reactionCounts)) {
+      if (!(LIVE_REACTIONS as readonly string[]).includes(k) || typeof v !== 'number') return 'requires_classification';
+    }
+  }
+  for (const key of Object.keys(data)) {
+    if (!LIVE_UPDATE_PUBLIC_KEYS.has(key)) return 'requires_classification';
+  }
+  return data.publicSchemaVersion === 2 ? 'v2_verified' : 'legacy_publishable';
+}
+
+export function classifyLegacyGuestMessage(data: Record<string, any> | null | undefined): LiveLegacyClassification {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return 'requires_classification';
+  if (data.publicSchemaVersion === 0) return 'requires_classification';
+  if (data.deleted === true) return 'requires_classification';
+  if (typeof data.authorName !== 'string' || !data.authorName.trim() || data.authorName.length > MAX_GUEST_AUTHOR) return 'requires_classification';
+  if (typeof data.message !== 'string' || !data.message.trim() || data.message.length > MAX_GUEST_MESSAGE) return 'requires_classification';
+  if (data.visitorId !== undefined && typeof data.visitorId !== 'string') return 'requires_classification';
+  if (data.createdAt !== undefined && typeof data.createdAt !== 'number') return 'requires_classification';
+  for (const key of Object.keys(data)) {
+    if (!LIVE_GUEST_MSG_PUBLIC_KEYS.has(key)) return 'requires_classification';
+  }
+  return data.publicSchemaVersion === 2 ? 'v2_verified' : 'legacy_publishable';
+}
+
 /** Whitelist rigorosa: qualsiasi altro campo passato viene scartato. */
 export const sanitizeLiveUpdate = (input: LiveUpdateInput) => ({
   title: cleanString(input?.title, MAX_TITLE),
@@ -127,9 +179,8 @@ export const liveService = {
     // 1. Verifica membership (difesa client; l'enforcement reale è nelle Firestore rules)
     const tripSnap = await getDoc(doc(db, 'trips', tripId));
     const tripData = tripSnap.exists() ? tripSnap.data() : null;
-    const members: string[] = Array.isArray(tripData?.members) ? tripData!.members : [];
     const isOwner = tripData?.ownerUid === user.uid || tripData?.ownerId === user.uid;
-    let isMember = isOwner || members.includes(user.uid);
+    let isMember = isOwner;
     if (!isMember) {
       const memberDoc = await getDoc(doc(db, 'trips', tripId, 'members', user.uid)).catch(() => null);
       if (memberDoc?.exists() && ['owner', 'copilota'].includes(memberDoc.data()?.role)) {
@@ -160,6 +211,7 @@ export const liveService = {
     const batch = writeBatch(db);
     batch.set(updateRef, {
       ...safe,
+      publicSchemaVersion: 2,
       timestamp: now,
       reactionCounts: { '❤️': 0, '😍': 0, '😂': 0, '👋': 0 },
     });
@@ -262,24 +314,45 @@ export const liveService = {
   },
 
   /**
-   * Sottoscrizione agli updates con esclusione automatica di cartoline eliminate e tombstones.
+   * Sottoscrizione agli updates con classificazione sicura dei record legacy,
+   * esclusione automatica di cartoline eliminate/non classificate e fallback v2 su regole restrittive.
    */
-  subscribeToLiveUpdates(tripId: string, callback: (updates: LiveUpdate[]) => void) {
-    const q = query(collection(db, 'live_feeds', tripId, 'updates'), orderBy('timestamp', 'desc'), limit(50));
-    return onSnapshot(q, (snap) => {
-      const tombstones = this.getLocalUpdateTombstones(tripId);
-      const results: LiveUpdate[] = [];
-      snap.forEach(doc => {
-        const data = doc.data() as any;
-        if (tombstones.has(doc.id)) return;
-        if (data.deleted === true || data.title === '[Rimosso]' || data.title === '[Eliminato]') return;
-        results.push({ id: doc.id, ...data } as LiveUpdate);
+  subscribeToLiveUpdates(tripId: string, callback: (updates: LiveUpdate[]) => void, includeUnreviewed = false) {
+    const base = collection(db, 'live_feeds', tripId, 'updates');
+    let unsubCurrent: (() => void) | null = null;
+    let disposed = false;
+
+    const attach = (useStrictV2Query: boolean) => {
+      const q = (includeUnreviewed || !useStrictV2Query)
+        ? query(base, orderBy('timestamp', 'desc'), limit(50))
+        : query(base, where('publicSchemaVersion', '==', 2), orderBy('timestamp', 'desc'), limit(50));
+
+      unsubCurrent = onSnapshot(q, (snap) => {
+        const tombstones = this.getLocalUpdateTombstones(tripId);
+        const results: LiveUpdate[] = [];
+        snap.forEach(doc => {
+          const data = doc.data() as any;
+          if (tombstones.has(doc.id)) return;
+          if (data.deleted === true || data.title === '[Rimosso]' || data.title === '[Eliminato]') return;
+          if (!includeUnreviewed && classifyLegacyLiveUpdate(data) === 'requires_classification') return;
+          results.push({ id: doc.id, ...data } as LiveUpdate);
+        });
+        callback(results);
+      }, (err: any) => {
+        if (!disposed && !includeUnreviewed && !useStrictV2Query && err?.code === 'permission-denied') {
+          attach(true);
+          return;
+        }
+        console.warn('[LiveService] Errore sottoscrizione updates:', err);
+        callback([]);
       });
-      callback(results);
-    }, (err) => {
-      console.warn('[LiveService] Errore sottoscrizione updates:', err);
-      callback([]);
-    });
+    };
+
+    attach(false);
+    return () => {
+      disposed = true;
+      unsubCurrent?.();
+    };
   },
 
   /**
@@ -295,9 +368,8 @@ export const liveService = {
       // 1. Verifica autorizzazione con supporto a ownerUid, ownerId e subcollection members
       const tripSnap = await getDoc(doc(db, 'trips', tripId));
       const tripData = tripSnap.exists() ? tripSnap.data() : null;
-      const members: string[] = Array.isArray(tripData?.members) ? tripData!.members : [];
       const isOwner = tripData?.ownerUid === user.uid || tripData?.ownerId === user.uid;
-      let isMember = isOwner || members.includes(user.uid);
+      let isMember = isOwner;
       if (!isMember) {
         const memberDoc = await getDoc(doc(db, 'trips', tripId, 'members', user.uid)).catch(() => null);
         if (memberDoc?.exists() && ['owner', 'copilota'].includes(memberDoc.data()?.role)) {
@@ -308,33 +380,24 @@ export const liveService = {
         throw new Error('Solo i membri autorizzati possono eliminare gli aggiornamenti.');
       }
 
-      // 2. Registra immediatamente il tombstone locale persistente
-      this.recordLocalUpdateTombstone(tripId, updateId);
-
-      // 3. Esecuzione cancellazione su Firestore
+      // Revoke the stored object BEFORE removing its reference. A failed revoke must
+      // remain visible/retryable; a local tombstone must never hide an unsuccessful deletion.
       const updateRef = doc(db, 'live_feeds', tripId, 'updates', updateId);
-      if (tripId !== '0000') {
-        try {
-          await deleteDoc(updateRef);
-        } catch {
-          await updateDoc(updateRef, {
-            title: '[Eliminato]',
-            text: '',
-            deleted: true,
-            deletedAt: Date.now(),
-            deletedBy: user.uid
-          }).catch(() => {});
-        }
-      } else {
-        // Sul viaggio master 0000 applica soft-delete
-        await updateDoc(updateRef, {
-          title: '[Eliminato]',
-          text: '',
-          deleted: true,
-          deletedAt: Date.now(),
-          deletedBy: user.uid
-        }).catch(() => {});
+      const existing = await getDoc(updateRef);
+      const photoUrl = existing.exists() ? existing.data()?.photoUrl : null;
+      if (photoUrl) {
+        const { deleteLivePhoto } = await import('./liveStorageService');
+        await deleteLivePhoto(tripId, photoUrl);
       }
+      if (tripId === '0000') {
+        await updateDoc(updateRef, {
+          title: '[Eliminato]', text: '', photoUrl: '', deleted: true,
+          deletedAt: Date.now(), deletedBy: user.uid,
+        });
+      } else {
+        await deleteDoc(updateRef);
+      }
+      this.recordLocalUpdateTombstone(tripId, updateId);
     }
   },
 
@@ -381,6 +444,8 @@ export const liveService = {
       message: safe.message,
       createdAt: now,
       hidden: false,
+      deleted: false,
+      publicSchemaVersion: 2,
     });
 
     if (typeof window !== 'undefined') {
@@ -393,42 +458,61 @@ export const liveService = {
   },
 
   /**
-   * Sottoscrizione ai messaggi pubblici degli ospiti nel LIVE.
+   * Sottoscrizione ai messaggi pubblici degli ospiti nel LIVE, con classificazione sicura dei messaggi legacy.
    */
   subscribeToGuestMessages(
     tripId: string,
     includeHidden: boolean,
     callback: (messages: LiveGuestMessage[]) => void
   ) {
-    const q = query(
-      collection(db, 'live_feeds', tripId, 'guest_messages'),
-      orderBy('createdAt', 'desc'),
-      limit(50)
-    );
-    return onSnapshot(
-      q,
-      (snap) => {
-        const results: LiveGuestMessage[] = [];
-        snap.forEach((docSnap) => {
-          const data = docSnap.data() as any;
-          if (data.deleted === true) return;
-          if (!includeHidden && data.hidden === true) return;
-          results.push({
-            id: docSnap.id,
-            visitorId: String(data.visitorId || ''),
-            authorName: String(data.authorName || 'Ospite'),
-            message: String(data.message || ''),
-            createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
-            hidden: Boolean(data.hidden),
+    const base = collection(db, 'live_feeds', tripId, 'guest_messages');
+    let unsubCurrent: (() => void) | null = null;
+    let disposed = false;
+
+    const attach = (useStrictV2Query: boolean) => {
+      const q = includeHidden
+        ? query(base, orderBy('createdAt', 'desc'), limit(50))
+        : useStrictV2Query
+          ? query(base, where('publicSchemaVersion', '==', 2), where('hidden', '==', false),
+              where('deleted', '==', false), orderBy('createdAt', 'desc'), limit(50))
+          : query(base, where('hidden', '==', false), orderBy('createdAt', 'desc'), limit(50));
+
+      unsubCurrent = onSnapshot(
+        q,
+        (snap) => {
+          const results: LiveGuestMessage[] = [];
+          snap.forEach((docSnap) => {
+            const data = docSnap.data() as any;
+            if (data.deleted === true) return;
+            if (!includeHidden && data.hidden === true) return;
+            if (!includeHidden && classifyLegacyGuestMessage(data) === 'requires_classification') return;
+            results.push({
+              id: docSnap.id,
+              visitorId: String(data.visitorId || ''),
+              authorName: String(data.authorName || 'Ospite'),
+              message: String(data.message || ''),
+              createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
+              hidden: Boolean(data.hidden),
+            });
           });
-        });
-        callback(results);
-      },
-      (err) => {
-        console.warn('[LiveService] Errore sottoscrizione guest_messages:', err);
-        callback([]);
-      }
-    );
+          callback(results);
+        },
+        (err: any) => {
+          if (!disposed && !includeHidden && !useStrictV2Query && err?.code === 'permission-denied') {
+            attach(true);
+            return;
+          }
+          console.warn('[LiveService] Errore sottoscrizione guest_messages:', err);
+          callback([]);
+        }
+      );
+    };
+
+    attach(false);
+    return () => {
+      disposed = true;
+      unsubCurrent?.();
+    };
   },
 
   /**
@@ -451,13 +535,13 @@ export const liveService = {
       await updateDoc(msgRef, {
         hidden: true,
         moderatedAt: now,
-        moderatedBy: user.uid,
+        moderatedBy: deleteField(),
       });
     } else if (action === 'unhide') {
       await updateDoc(msgRef, {
         hidden: false,
         moderatedAt: now,
-        moderatedBy: user.uid,
+        moderatedBy: deleteField(),
       });
     } else if (action === 'delete') {
       if (tripId !== '0000') {

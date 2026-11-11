@@ -573,7 +573,7 @@ input[type="password"] {
 @media (min-width: 640px) {
   .modal-backdrop-layer {
     align-items: center !important;
-    padding: max(1rem, var(--app-safe-top)) max(1rem, var(--app-safe-right)) 1rem max(1rem, var(--app-safe-left)) !important;
+    padding: max(1rem, var(--app-safe-top)) max(1rem, var(--app-safe-right)) max(1rem, var(--app-safe-bottom)) max(1rem, var(--app-safe-left)) !important;
   }
 }
 
@@ -583,7 +583,7 @@ input[type="password"] {
   width: 100% !important;
   max-width: 32rem !important;
   max-height: 88vh !important;
-  max-height: min(88dvh, calc(100dvh - var(--app-safe-top) - 2rem)) !important;
+  max-height: min(88dvh, calc(100dvh - var(--app-safe-top) - var(--app-safe-bottom) - 1.5rem)) !important;
   display: flex !important;
   flex-direction: column !important;
   overflow: hidden !important;
@@ -599,7 +599,7 @@ input[type="password"] {
   overflow-y: auto !important;
   overscroll-behavior: contain !important;
   -webkit-overflow-scrolling: touch !important;
-  padding: 1.25rem 1.5rem max(2rem, env(safe-area-inset-bottom, 1.5rem)) 1.5rem !important;
+  padding: 1.25rem 1.5rem max(1.5rem, var(--app-safe-bottom)) 1.5rem !important;
 }
 
 /* ============================================================================

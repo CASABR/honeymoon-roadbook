@@ -1,0 +1,22 @@
+// Local generation only. Never deploys rules or accesses Firebase.
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const ts = require('typescript');
+const root = path.resolve(__dirname, '..');
+const exportsObject = {};
+const code = ts.transpileModule(fs.readFileSync(path.join(root,'src/utils/securityDataSplitter.ts'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText;
+vm.runInNewContext(code,{exports:exportsObject});
+const keys = exportsObject.SENSITIVE_KEYS;
+const lines = [];
+for (let i=0;i<keys.length;i+=5) lines.push('        '+keys.slice(i,i+5).map(k=>`'${k}'`).join(', '));
+const target = path.join(root,'firestore.rules');
+let rules = fs.readFileSync(target,'utf8');
+const start = rules.indexOf('    function hasNoSensitiveKeys(data) {');
+const end = rules.indexOf('    // Fail closed',start);
+if (start < 0 || end < 0) throw Error('Sensitive rule markers missing');
+rules = rules.slice(0,start)+`    function hasNoSensitiveKeys(data) {\n      return !data.keys().hasAny([\n${lines.join(',\n')}\n      ]);\n    }\n\n`+rules.slice(end);
+fs.writeFileSync(target,rules);
+fs.copyFileSync(target,path.join(root,'..','firestore.rules'));
+fs.copyFileSync(path.join(root,'storage.rules'),path.join(root,'..','storage.rules'));
+console.log(`Synchronized ${keys.length} sensitive keys and root rules locally.`);

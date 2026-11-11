@@ -48,3 +48,37 @@ screenshots/live/.profile/
 
 # Temporary isolated browser profiles for local P0 queue tests
 .p0-queue-test-*/
+
+# Local audit data and production maintenance scripts: retain locally, exclude from release.
+/docs/audit/audit_flights_rentals_raw.json
+/docs/audit/backup_eur_budget_0000.json
+/docs/audit/backup_flights_rentals_0000.json
+/docs/audit/backup_trip0000_2026-12-20.json
+/docs/audit/backup_trip0000_2026-12-29_and_flights.json
+/docs/audit/backup_trip0000_2026-12-30.json
+/docs/audit/backup_trip0000_2026-12-31.json
+/docs/audit/backup_trip0000_2027-01-01_to_10.json
+/scripts/apply-audit-flights-rentals-0000.mjs
+/scripts/apply-eur-budget-0000.mjs
+/scripts/apply-trip0000-2026-12-20.mjs
+/scripts/apply-trip0000-2026-12-29.mjs
+/scripts/apply-trip0000-2026-12-30.mjs
+/scripts/apply-trip0000-2026-12-31.mjs
+/scripts/apply-trip0000-2027-01-01_to_10.mjs
+/scripts/audit-flights-rentals-0000.mjs
+/scripts/backup-dec28-29-flights-boracay.mjs
+/scripts/backup-jan1-10.mjs
+/scripts/inspect-all-days-0000.mjs
+/scripts/inspect-and-backup-dec30.mjs
+/scripts/inspect-and-backup-dec31.mjs
+/scripts/inspect-dec28-29.mjs
+/scripts/inspect-jan1-2.mjs
+/scripts/inspect-jan3-7-tao.mjs
+/scripts/inspect-jan7-10.mjs
+/scripts/inspect-vault.mjs
+/scripts/test_eur_budget.mjs
+/scripts/verify-trip0000-2026-12-20.mjs
+/scripts/verify-trip0000-2026-12-29.mjs
+/scripts/verify-trip0000-2026-12-30.mjs
+/scripts/verify-trip0000-2026-12-31.mjs
+/scripts/verify-trip0000-2027-01-01_to_10.mjs

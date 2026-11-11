@@ -66,15 +66,662 @@ service cloud.firestore {
     // Schema guard: blocca qualsiasi scrittura contenente chiavi sensibili
     function hasNoSensitiveKeys(data) {
       return !data.keys().hasAny([
-        'pinCode', 'codiceAccesso', 'keyboxCode',
+        'pinCode', 'pin', 'codiceAccesso', 'keyboxCode', 'keybox',
         'bookingCode', 'pnr', 'codicePrenotazione', 'conferma', 'bookingReference',
-        'ticketUrl', 'voucherUrl', 'bookingUrl', 'linkPrenotazione',
-        'qrCode', 'qr', 'tavolo', 'posti', 'terminalGate',
-        'cost', 'costo', 'budget', 'deposit', 'depositPaid', 'acconto', 'cauzione', 'amountPaid', 'paymentStatus',
-        'noteCopilota', 'cancellazioneGratuitaEntro', 'attachments'
+        'ticketNumber', 'ticketUrl', 'voucherUrl', 'bookingUrl', 'linkPrenotazione',
+        'qrCode', 'qr', 'tavolo', 'posti', 'postiASedere',
+        'seat', 'terminalGate', 'gate', 'cost', 'costo',
+        'budget', 'budgetConfig', 'deposit', 'depositPaid', 'acconto',
+        'cauzione', 'amountPaid', 'amount', 'paymentStatus', 'originalCurrency',
+        'originalCost', 'originalDepositPaid', 'originalDepositCurrency', 'depositExchangeRate', 'depositExchangeRateDate',
+        'depositExchangeRateSource', 'originalRemaining', 'originalCauzione', 'originalCauzioneCurrency', 'exchangeRate',
+        'exchangeRateDate', 'exchangeRateSource', 'conversionType', 'depositConversionType', 'convertedAt',
+        'currencyUncertain', 'privateNested', 'noteCopilota', 'copilota', 'cancellazioneGratuitaEntro',
+        'attachments'
       ]);
     }
 
+    // Fail closed on historical leaks and unknown structured payloads. An editor
+    // can still recover them; Viewer reads never expose raw legacy credentials.
+    function publicScalar(value) {
+      return !(value is map) && !(value is list);
+    }
+    function publicCoordinates(value) {
+      return value == null || (value is map && value.keys().hasOnly(['lat', 'lng'])
+        && value.get('lat', 0) is number && value.get('lng', 0) is number);
+    }
+    // BEGIN OPERATIONAL VIEWER VALIDATORS
+    function publicReferenceSlot(value, index) {
+      return value.size() <= index || (value[index] is string && value[index].matches('^[A-Za-z0-9_-]{1,128}$'));
+    }
+    function publicDocumentReferences(value) {
+      return value == null || (value is list && value.size() <= 32
+        && publicReferenceSlot(value, 0)
+        && publicReferenceSlot(value, 1)
+        && publicReferenceSlot(value, 2)
+        && publicReferenceSlot(value, 3)
+        && publicReferenceSlot(value, 4)
+        && publicReferenceSlot(value, 5)
+        && publicReferenceSlot(value, 6)
+        && publicReferenceSlot(value, 7)
+        && publicReferenceSlot(value, 8)
+        && publicReferenceSlot(value, 9)
+        && publicReferenceSlot(value, 10)
+        && publicReferenceSlot(value, 11)
+        && publicReferenceSlot(value, 12)
+        && publicReferenceSlot(value, 13)
+        && publicReferenceSlot(value, 14)
+        && publicReferenceSlot(value, 15)
+        && publicReferenceSlot(value, 16)
+        && publicReferenceSlot(value, 17)
+        && publicReferenceSlot(value, 18)
+        && publicReferenceSlot(value, 19)
+        && publicReferenceSlot(value, 20)
+        && publicReferenceSlot(value, 21)
+        && publicReferenceSlot(value, 22)
+        && publicReferenceSlot(value, 23)
+        && publicReferenceSlot(value, 24)
+        && publicReferenceSlot(value, 25)
+        && publicReferenceSlot(value, 26)
+        && publicReferenceSlot(value, 27)
+        && publicReferenceSlot(value, 28)
+        && publicReferenceSlot(value, 29)
+        && publicReferenceSlot(value, 30)
+        && publicReferenceSlot(value, 31));
+    }
+    function validDocumentPublication(data) {
+      return (!('linkedDocumentId' in data) || data.linkedDocumentId == null
+          || data.linkedDocumentId in data.get('publicDocumentIds', []))
+        && (!('linkedDocumentIds' in data) || data.linkedDocumentIds == null
+          || data.linkedDocumentIds.hasOnly(data.get('publicDocumentIds', [])));
+    }
+    function publicHoursSlot(value, key) {
+      return !(key in value) || (value[key] is string && value[key].size() <= 200);
+    }
+    function publicExceptionSlot(value, index) {
+      return value.keys().size() <= index || (value.keys()[index].matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && publicHoursSlot(value, value.keys()[index]));
+    }
+    function publicOpeningHours(value) {
+      return value == null || (value is map
+        && value.keys().hasOnly(['status','accessType','weekly','exceptions','source','verifiedAt','timeZone','notes'])
+        && value.status in ['unverified','manual','verified'] && value.accessType in ['unknown','attraction','outdoor']
+        && (!('weekly' in value) || (value.weekly is map && value.weekly.keys().hasOnly(['sun','mon','tue','wed','thu','fri','sat'])
+          && publicHoursSlot(value.weekly, 'sun')
+          && publicHoursSlot(value.weekly, 'mon')
+          && publicHoursSlot(value.weekly, 'tue')
+          && publicHoursSlot(value.weekly, 'wed')
+          && publicHoursSlot(value.weekly, 'thu')
+          && publicHoursSlot(value.weekly, 'fri')
+          && publicHoursSlot(value.weekly, 'sat')))
+        && (!('exceptions' in value) || (value.exceptions is map && value.exceptions.size() <= 32
+          && publicExceptionSlot(value.exceptions, 0)
+          && publicExceptionSlot(value.exceptions, 1)
+          && publicExceptionSlot(value.exceptions, 2)
+          && publicExceptionSlot(value.exceptions, 3)
+          && publicExceptionSlot(value.exceptions, 4)
+          && publicExceptionSlot(value.exceptions, 5)
+          && publicExceptionSlot(value.exceptions, 6)
+          && publicExceptionSlot(value.exceptions, 7)
+          && publicExceptionSlot(value.exceptions, 8)
+          && publicExceptionSlot(value.exceptions, 9)
+          && publicExceptionSlot(value.exceptions, 10)
+          && publicExceptionSlot(value.exceptions, 11)
+          && publicExceptionSlot(value.exceptions, 12)
+          && publicExceptionSlot(value.exceptions, 13)
+          && publicExceptionSlot(value.exceptions, 14)
+          && publicExceptionSlot(value.exceptions, 15)
+          && publicExceptionSlot(value.exceptions, 16)
+          && publicExceptionSlot(value.exceptions, 17)
+          && publicExceptionSlot(value.exceptions, 18)
+          && publicExceptionSlot(value.exceptions, 19)
+          && publicExceptionSlot(value.exceptions, 20)
+          && publicExceptionSlot(value.exceptions, 21)
+          && publicExceptionSlot(value.exceptions, 22)
+          && publicExceptionSlot(value.exceptions, 23)
+          && publicExceptionSlot(value.exceptions, 24)
+          && publicExceptionSlot(value.exceptions, 25)
+          && publicExceptionSlot(value.exceptions, 26)
+          && publicExceptionSlot(value.exceptions, 27)
+          && publicExceptionSlot(value.exceptions, 28)
+          && publicExceptionSlot(value.exceptions, 29)
+          && publicExceptionSlot(value.exceptions, 30)
+          && publicExceptionSlot(value.exceptions, 31)))
+        && (!('source' in value) || (value.source is string && value.source.size() <= 2048))
+        && (!('verifiedAt' in value) || (value.verifiedAt is string && value.verifiedAt.size() <= 2048))
+        && (!('timeZone' in value) || (value.timeZone is string && value.timeZone.size() <= 2048))
+        && (!('notes' in value) || (value.notes is string && value.notes.size() <= 2048)));
+    }
+    function publicLayover(value) {
+      return value == null || (value is map
+        && value.keys().hasOnly(['airport','duration','arrivalTime','departureTime','departureDate','arrivalDate','carrier','notes'])
+        && (!('airport' in value) || value.airport is string)
+        && (!('duration' in value) || value.duration is string)
+        && (!('arrivalTime' in value) || value.arrivalTime is string)
+        && (!('departureTime' in value) || value.departureTime is string)
+        && (!('departureDate' in value) || value.departureDate is string)
+        && (!('arrivalDate' in value) || value.arrivalDate is string)
+        && (!('carrier' in value) || value.carrier is string)
+        && (!('notes' in value) || value.notes is string));
+    }
+    function publicDocumentReference(value) { return value == null || (value is string && value.matches('^[A-Za-z0-9_-]{1,128}$')); }
+    function viewer_giorni_0(data) {
+      return (!('_enriched' in data) || publicScalar(data._enriched))
+        && (!('address' in data) || publicScalar(data.address))
+        && (!('category' in data) || publicScalar(data.category))
+        && (!('completed' in data) || publicScalar(data.completed))
+        && (!('coordinate' in data) || publicCoordinates(data.coordinate))
+        && (!('createdAt' in data) || publicScalar(data.createdAt))
+        && (!('data' in data) || publicScalar(data.data))
+        && (!('date' in data) || publicScalar(data.date))
+        && (!('dayId' in data) || publicScalar(data.dayId))
+        && (!('deleted' in data) || publicScalar(data.deleted));
+    }
+
+    function viewer_giorni_1(data) {
+      return (!('deletedAt' in data) || publicScalar(data.deletedAt))
+        && (!('deletedBy' in data) || publicScalar(data.deletedBy))
+        && (!('hasPrivateCredentials' in data) || publicScalar(data.hasPrivateCredentials))
+        && (!('id' in data) || publicScalar(data.id))
+        && (!('indirizzo' in data) || publicScalar(data.indirizzo))
+        && (!('lastSanitizedAt' in data) || publicScalar(data.lastSanitizedAt))
+        && (!('location' in data) || publicScalar(data.location))
+        && (!('name' in data) || publicScalar(data.name))
+        && (!('nome' in data) || publicScalar(data.nome))
+        && (!('nota' in data) || publicScalar(data.nota));
+    }
+
+    function viewer_giorni_2(data) {
+      return (!('notes' in data) || publicScalar(data.notes))
+        && (!('orario' in data) || publicScalar(data.orario))
+        && (!('publicSchemaVersion' in data) || publicScalar(data.publicSchemaVersion))
+        && (!('sottocategoria' in data) || publicScalar(data.sottocategoria))
+        && (!('status' in data) || publicScalar(data.status))
+        && (!('time' in data) || publicScalar(data.time))
+        && (!('timeStatus' in data) || publicScalar(data.timeStatus))
+        && (!('title' in data) || publicScalar(data.title))
+        && (!('titolo' in data) || publicScalar(data.titolo))
+        && (!('updatedAt' in data) || publicScalar(data.updatedAt));
+    }
+
+    function viewer_giorni(data) {
+      return data.keys().hasOnly(["_enriched","address","category","completed","coordinate","createdAt","data","date","dayId","deleted","deletedAt","deletedBy","hasPrivateCredentials","id","indirizzo","lastSanitizedAt","location","name","nome","nota","notes","orario","publicSchemaVersion","sottocategoria","status","time","timeStatus","title","titolo","updatedAt"])
+        && viewer_giorni_0(data)
+        && viewer_giorni_1(data)
+        && viewer_giorni_2(data);
+    }
+
+    function viewer_tappe_0(data) {
+      return (!('_enriched' in data) || publicScalar(data._enriched))
+        && (!('address' in data) || publicScalar(data.address))
+        && (!('category' in data) || publicScalar(data.category))
+        && (!('completed' in data) || publicScalar(data.completed))
+        && (!('coordinate' in data) || publicCoordinates(data.coordinate))
+        && (!('createdAt' in data) || publicScalar(data.createdAt))
+        && (!('data' in data) || publicScalar(data.data))
+        && (!('date' in data) || publicScalar(data.date))
+        && (!('dayId' in data) || publicScalar(data.dayId))
+        && (!('deleted' in data) || publicScalar(data.deleted));
+    }
+
+    function viewer_tappe_1(data) {
+      return (!('deletedAt' in data) || publicScalar(data.deletedAt))
+        && (!('deletedBy' in data) || publicScalar(data.deletedBy))
+        && (!('hasPrivateCredentials' in data) || publicScalar(data.hasPrivateCredentials))
+        && (!('id' in data) || publicScalar(data.id))
+        && (!('indirizzo' in data) || publicScalar(data.indirizzo))
+        && (!('lastSanitizedAt' in data) || publicScalar(data.lastSanitizedAt))
+        && (!('lightWindow' in data) || publicScalar(data.lightWindow))
+        && (!('link' in data) || publicScalar(data.link))
+        && (!('linkedBookingId' in data) || publicScalar(data.linkedBookingId))
+        && (!('linkedDocumentId' in data) || publicDocumentReference(data.linkedDocumentId));
+    }
+
+    function viewer_tappe_2(data) {
+      return (!('linkedDocumentIds' in data) || publicDocumentReferences(data.linkedDocumentIds))
+        && (!('location' in data) || publicScalar(data.location))
+        && (!('mapsUrl' in data) || publicScalar(data.mapsUrl))
+        && (!('mostraNoteInCard' in data) || publicScalar(data.mostraNoteInCard))
+        && (!('name' in data) || publicScalar(data.name))
+        && (!('nome' in data) || publicScalar(data.nome))
+        && (!('nota' in data) || publicScalar(data.nota))
+        && (!('notes' in data) || publicScalar(data.notes))
+        && (!('openingHours' in data) || publicOpeningHours(data.openingHours))
+        && (!('orario' in data) || publicScalar(data.orario));
+    }
+
+    function viewer_tappe_3(data) {
+      return (!('order' in data) || publicScalar(data.order))
+        && (!('passeggiataId' in data) || publicScalar(data.passeggiataId))
+        && (!('photoSubject' in data) || publicScalar(data.photoSubject))
+        && (!('publicDocumentIds' in data) || publicDocumentReferences(data.publicDocumentIds))
+        && (!('publicSchemaVersion' in data) || publicScalar(data.publicSchemaVersion))
+        && (!('sottocategoria' in data) || publicScalar(data.sottocategoria))
+        && (!('status' in data) || publicScalar(data.status))
+        && (!('time' in data) || publicScalar(data.time))
+        && (!('timeStatus' in data) || publicScalar(data.timeStatus))
+        && (!('title' in data) || publicScalar(data.title));
+    }
+
+    function viewer_tappe_4(data) {
+      return (!('titolo' in data) || publicScalar(data.titolo))
+        && (!('updatedAt' in data) || publicScalar(data.updatedAt));
+    }
+
+    function viewer_tappe(data) {
+      return data.keys().hasOnly(["_enriched","address","category","completed","coordinate","createdAt","data","date","dayId","deleted","deletedAt","deletedBy","hasPrivateCredentials","id","indirizzo","lastSanitizedAt","lightWindow","link","linkedBookingId","linkedDocumentId","linkedDocumentIds","location","mapsUrl","mostraNoteInCard","name","nome","nota","notes","openingHours","orario","order","passeggiataId","photoSubject","publicDocumentIds","publicSchemaVersion","sottocategoria","status","time","timeStatus","title","titolo","updatedAt"])
+        && viewer_tappe_0(data)
+        && viewer_tappe_1(data)
+        && viewer_tappe_2(data)
+        && viewer_tappe_3(data)
+        && viewer_tappe_4(data);
+    }
+
+    function viewer_attivita_0(data) {
+      return (!('_enriched' in data) || publicScalar(data._enriched))
+        && (!('address' in data) || publicScalar(data.address))
+        && (!('category' in data) || publicScalar(data.category))
+        && (!('childTappe' in data) || publicScalar(data.childTappe))
+        && (!('completed' in data) || publicScalar(data.completed))
+        && (!('coordinate' in data) || publicCoordinates(data.coordinate))
+        && (!('createdAt' in data) || publicScalar(data.createdAt))
+        && (!('currency' in data) || publicScalar(data.currency))
+        && (!('data' in data) || publicScalar(data.data))
+        && (!('date' in data) || publicScalar(data.date));
+    }
+
+    function viewer_attivita_1(data) {
+      return (!('dayId' in data) || publicScalar(data.dayId))
+        && (!('deleted' in data) || publicScalar(data.deleted))
+        && (!('deletedAt' in data) || publicScalar(data.deletedAt))
+        && (!('deletedBy' in data) || publicScalar(data.deletedBy))
+        && (!('destinationLocation' in data) || publicScalar(data.destinationLocation))
+        && (!('difficulty' in data) || publicScalar(data.difficulty))
+        && (!('distanceKm' in data) || publicScalar(data.distanceKm))
+        && (!('duration' in data) || publicScalar(data.duration))
+        && (!('elevationGainM' in data) || publicScalar(data.elevationGainM))
+        && (!('endDate' in data) || publicScalar(data.endDate));
+    }
+
+    function viewer_attivita_2(data) {
+      return (!('googleMapsUrl' in data) || publicScalar(data.googleMapsUrl))
+        && (!('hasPrivateCredentials' in data) || publicScalar(data.hasPrivateCredentials))
+        && (!('hikingDurationMinutes' in data) || publicScalar(data.hikingDurationMinutes))
+        && (!('id' in data) || publicScalar(data.id))
+        && (!('indirizzo' in data) || publicScalar(data.indirizzo))
+        && (!('isRoute' in data) || publicScalar(data.isRoute))
+        && (!('lastSanitizedAt' in data) || publicScalar(data.lastSanitizedAt))
+        && (!('lightWindow' in data) || publicScalar(data.lightWindow))
+        && (!('link' in data) || publicScalar(data.link))
+        && (!('location' in data) || publicScalar(data.location));
+    }
+
+    function viewer_attivita_3(data) {
+      return (!('mapsUrl' in data) || publicScalar(data.mapsUrl))
+        && (!('mostraNoteInCard' in data) || publicScalar(data.mostraNoteInCard))
+        && (!('name' in data) || publicScalar(data.name))
+        && (!('nome' in data) || publicScalar(data.nome))
+        && (!('nota' in data) || publicScalar(data.nota))
+        && (!('notes' in data) || publicScalar(data.notes))
+        && (!('openingHours' in data) || publicOpeningHours(data.openingHours))
+        && (!('orario' in data) || publicScalar(data.orario))
+        && (!('orarioInizio' in data) || publicScalar(data.orarioInizio))
+        && (!('orarioRitrovo' in data) || publicScalar(data.orarioRitrovo));
+    }
+
+    function viewer_attivita_4(data) {
+      return (!('order' in data) || publicScalar(data.order))
+        && (!('originLocation' in data) || publicScalar(data.originLocation))
+        && (!('photoSubject' in data) || publicScalar(data.photoSubject))
+        && (!('platform' in data) || publicScalar(data.platform))
+        && (!('publicSchemaVersion' in data) || publicScalar(data.publicSchemaVersion))
+        && (!('routePreview' in data) || publicScalar(data.routePreview))
+        && (!('routeType' in data) || publicScalar(data.routeType))
+        && (!('sottocategoria' in data) || publicScalar(data.sottocategoria))
+        && (!('status' in data) || publicScalar(data.status))
+        && (!('time' in data) || publicScalar(data.time));
+    }
+
+    function viewer_attivita_5(data) {
+      return (!('timeStatus' in data) || publicScalar(data.timeStatus))
+        && (!('timeZone' in data) || publicScalar(data.timeZone))
+        && (!('title' in data) || publicScalar(data.title))
+        && (!('titolo' in data) || publicScalar(data.titolo))
+        && (!('updatedAt' in data) || publicScalar(data.updatedAt));
+    }
+
+    function viewer_attivita(data) {
+      return data.keys().hasOnly(["_enriched","address","category","childTappe","completed","coordinate","createdAt","currency","data","date","dayId","deleted","deletedAt","deletedBy","destinationLocation","difficulty","distanceKm","duration","elevationGainM","endDate","googleMapsUrl","hasPrivateCredentials","hikingDurationMinutes","id","indirizzo","isRoute","lastSanitizedAt","lightWindow","link","location","mapsUrl","mostraNoteInCard","name","nome","nota","notes","openingHours","orario","orarioInizio","orarioRitrovo","order","originLocation","photoSubject","platform","publicSchemaVersion","routePreview","routeType","sottocategoria","status","time","timeStatus","timeZone","title","titolo","updatedAt"])
+        && viewer_attivita_0(data)
+        && viewer_attivita_1(data)
+        && viewer_attivita_2(data)
+        && viewer_attivita_3(data)
+        && viewer_attivita_4(data)
+        && viewer_attivita_5(data);
+    }
+
+    function viewer_alloggi_0(data) {
+      return (!('_enriched' in data) || publicScalar(data._enriched))
+        && (!('address' in data) || publicScalar(data.address))
+        && (!('arrivalTime' in data) || publicScalar(data.arrivalTime))
+        && (!('category' in data) || publicScalar(data.category))
+        && (!('checkIn' in data) || publicScalar(data.checkIn))
+        && (!('checkInAt' in data) || publicScalar(data.checkInAt))
+        && (!('checkInDone' in data) || publicScalar(data.checkInDone))
+        && (!('checkInTime' in data) || publicScalar(data.checkInTime))
+        && (!('checkOut' in data) || publicScalar(data.checkOut))
+        && (!('checkOutAt' in data) || publicScalar(data.checkOutAt));
+    }
+
+    function viewer_alloggi_1(data) {
+      return (!('checkOutDone' in data) || publicScalar(data.checkOutDone))
+        && (!('checkOutTime' in data) || publicScalar(data.checkOutTime))
+        && (!('completed' in data) || publicScalar(data.completed))
+        && (!('coordinate' in data) || publicCoordinates(data.coordinate))
+        && (!('createdAt' in data) || publicScalar(data.createdAt))
+        && (!('data' in data) || publicScalar(data.data))
+        && (!('date' in data) || publicScalar(data.date))
+        && (!('dayId' in data) || publicScalar(data.dayId))
+        && (!('deleted' in data) || publicScalar(data.deleted))
+        && (!('deletedAt' in data) || publicScalar(data.deletedAt));
+    }
+
+    function viewer_alloggi_2(data) {
+      return (!('deletedBy' in data) || publicScalar(data.deletedBy))
+        && (!('hasPrivateCredentials' in data) || publicScalar(data.hasPrivateCredentials))
+        && (!('id' in data) || publicScalar(data.id))
+        && (!('indirizzo' in data) || publicScalar(data.indirizzo))
+        && (!('lastSanitizedAt' in data) || publicScalar(data.lastSanitizedAt))
+        && (!('location' in data) || publicScalar(data.location))
+        && (!('mostraNoteInCard' in data) || publicScalar(data.mostraNoteInCard))
+        && (!('name' in data) || publicScalar(data.name))
+        && (!('nome' in data) || publicScalar(data.nome))
+        && (!('nota' in data) || publicScalar(data.nota));
+    }
+
+    function viewer_alloggi_3(data) {
+      return (!('notes' in data) || publicScalar(data.notes))
+        && (!('orario' in data) || publicScalar(data.orario))
+        && (!('phone' in data) || publicScalar(data.phone))
+        && (!('publicSchemaVersion' in data) || publicScalar(data.publicSchemaVersion))
+        && (!('sottocategoria' in data) || publicScalar(data.sottocategoria))
+        && (!('status' in data) || publicScalar(data.status))
+        && (!('time' in data) || publicScalar(data.time))
+        && (!('timeStatus' in data) || publicScalar(data.timeStatus))
+        && (!('timeZone' in data) || publicScalar(data.timeZone))
+        && (!('title' in data) || publicScalar(data.title));
+    }
+
+    function viewer_alloggi_4(data) {
+      return (!('titolo' in data) || publicScalar(data.titolo))
+        && (!('updatedAt' in data) || publicScalar(data.updatedAt));
+    }
+
+    function viewer_alloggi(data) {
+      return data.keys().hasOnly(["_enriched","address","arrivalTime","category","checkIn","checkInAt","checkInDone","checkInTime","checkOut","checkOutAt","checkOutDone","checkOutTime","completed","coordinate","createdAt","data","date","dayId","deleted","deletedAt","deletedBy","hasPrivateCredentials","id","indirizzo","lastSanitizedAt","location","mostraNoteInCard","name","nome","nota","notes","orario","phone","publicSchemaVersion","sottocategoria","status","time","timeStatus","timeZone","title","titolo","updatedAt"])
+        && viewer_alloggi_0(data)
+        && viewer_alloggi_1(data)
+        && viewer_alloggi_2(data)
+        && viewer_alloggi_3(data)
+        && viewer_alloggi_4(data);
+    }
+
+    function viewer_trasporti_0(data) {
+      return (!('_enriched' in data) || publicScalar(data._enriched))
+        && (!('address' in data) || publicScalar(data.address))
+        && (!('arrivalDate' in data) || publicScalar(data.arrivalDate))
+        && (!('arrivalIata' in data) || publicScalar(data.arrivalIata))
+        && (!('arrivalLocation' in data) || publicScalar(data.arrivalLocation))
+        && (!('arrivalTime' in data) || publicScalar(data.arrivalTime))
+        && (!('bagagli' in data) || publicScalar(data.bagagli))
+        && (!('carrier' in data) || publicScalar(data.carrier))
+        && (!('category' in data) || publicScalar(data.category))
+        && (!('checkInAt' in data) || publicScalar(data.checkInAt));
+    }
+
+    function viewer_trasporti_1(data) {
+      return (!('checkInDone' in data) || publicScalar(data.checkInDone))
+        && (!('checkinCutoff' in data) || publicScalar(data.checkinCutoff))
+        && (!('completed' in data) || publicScalar(data.completed))
+        && (!('coordinate' in data) || publicCoordinates(data.coordinate))
+        && (!('createdAt' in data) || publicScalar(data.createdAt))
+        && (!('data' in data) || publicScalar(data.data))
+        && (!('date' in data) || publicScalar(data.date))
+        && (!('dayId' in data) || publicScalar(data.dayId))
+        && (!('deleted' in data) || publicScalar(data.deleted))
+        && (!('deletedAt' in data) || publicScalar(data.deletedAt));
+    }
+
+    function viewer_trasporti_2(data) {
+      return (!('deletedBy' in data) || publicScalar(data.deletedBy))
+        && (!('departureIata' in data) || publicScalar(data.departureIata))
+        && (!('departureLocation' in data) || publicScalar(data.departureLocation))
+        && (!('departureTime' in data) || publicScalar(data.departureTime))
+        && (!('departureTimeZone' in data) || publicScalar(data.departureTimeZone))
+        && (!('dropoffAt' in data) || publicScalar(data.dropoffAt))
+        && (!('dropoffCoordinate' in data) || publicCoordinates(data.dropoffCoordinate))
+        && (!('dropoffDate' in data) || publicScalar(data.dropoffDate))
+        && (!('dropoffDone' in data) || publicScalar(data.dropoffDone))
+        && (!('dropoffLocation' in data) || publicScalar(data.dropoffLocation));
+    }
+
+    function viewer_trasporti_3(data) {
+      return (!('dropoffTime' in data) || publicScalar(data.dropoffTime))
+        && (!('dropoffTimeZone' in data) || publicScalar(data.dropoffTimeZone))
+        && (!('hasPrivateCredentials' in data) || publicScalar(data.hasPrivateCredentials))
+        && (!('id' in data) || publicScalar(data.id))
+        && (!('indirizzo' in data) || publicScalar(data.indirizzo))
+        && (!('lastSanitizedAt' in data) || publicScalar(data.lastSanitizedAt))
+        && (!('layover' in data) || publicLayover(data.layover))
+        && (!('location' in data) || publicScalar(data.location))
+        && (!('mostraNoteInCard' in data) || publicScalar(data.mostraNoteInCard))
+        && (!('name' in data) || publicScalar(data.name));
+    }
+
+    function viewer_trasporti_4(data) {
+      return (!('nome' in data) || publicScalar(data.nome))
+        && (!('nota' in data) || publicScalar(data.nota))
+        && (!('notes' in data) || publicScalar(data.notes))
+        && (!('orario' in data) || publicScalar(data.orario))
+        && (!('packageIncluded' in data) || publicScalar(data.packageIncluded))
+        && (!('publicSchemaVersion' in data) || publicScalar(data.publicSchemaVersion))
+        && (!('sottocategoria' in data) || publicScalar(data.sottocategoria))
+        && (!('status' in data) || publicScalar(data.status))
+        && (!('time' in data) || publicScalar(data.time))
+        && (!('timeStatus' in data) || publicScalar(data.timeStatus));
+    }
+
+    function viewer_trasporti_5(data) {
+      return (!('title' in data) || publicScalar(data.title))
+        && (!('titolo' in data) || publicScalar(data.titolo))
+        && (!('type' in data) || publicScalar(data.type))
+        && (!('updatedAt' in data) || publicScalar(data.updatedAt));
+    }
+
+    function viewer_trasporti(data) {
+      return data.keys().hasOnly(["_enriched","address","arrivalDate","arrivalIata","arrivalLocation","arrivalTime","bagagli","carrier","category","checkInAt","checkInDone","checkinCutoff","completed","coordinate","createdAt","data","date","dayId","deleted","deletedAt","deletedBy","departureIata","departureLocation","departureTime","departureTimeZone","dropoffAt","dropoffCoordinate","dropoffDate","dropoffDone","dropoffLocation","dropoffTime","dropoffTimeZone","hasPrivateCredentials","id","indirizzo","lastSanitizedAt","layover","location","mostraNoteInCard","name","nome","nota","notes","orario","packageIncluded","publicSchemaVersion","sottocategoria","status","time","timeStatus","title","titolo","type","updatedAt"])
+        && viewer_trasporti_0(data)
+        && viewer_trasporti_1(data)
+        && viewer_trasporti_2(data)
+        && viewer_trasporti_3(data)
+        && viewer_trasporti_4(data)
+        && viewer_trasporti_5(data);
+    }
+
+    function viewer_ristoranti_0(data) {
+      return (!('_enriched' in data) || publicScalar(data._enriched))
+        && (!('address' in data) || publicScalar(data.address))
+        && (!('category' in data) || publicScalar(data.category))
+        && (!('completed' in data) || publicScalar(data.completed))
+        && (!('coordinate' in data) || publicCoordinates(data.coordinate))
+        && (!('createdAt' in data) || publicScalar(data.createdAt))
+        && (!('data' in data) || publicScalar(data.data))
+        && (!('date' in data) || publicScalar(data.date))
+        && (!('dayId' in data) || publicScalar(data.dayId))
+        && (!('deleted' in data) || publicScalar(data.deleted));
+    }
+
+    function viewer_ristoranti_1(data) {
+      return (!('deletedAt' in data) || publicScalar(data.deletedAt))
+        && (!('deletedBy' in data) || publicScalar(data.deletedBy))
+        && (!('hasPrivateCredentials' in data) || publicScalar(data.hasPrivateCredentials))
+        && (!('id' in data) || publicScalar(data.id))
+        && (!('indirizzo' in data) || publicScalar(data.indirizzo))
+        && (!('lastSanitizedAt' in data) || publicScalar(data.lastSanitizedAt))
+        && (!('location' in data) || publicScalar(data.location))
+        && (!('mostraNoteInCard' in data) || publicScalar(data.mostraNoteInCard))
+        && (!('name' in data) || publicScalar(data.name))
+        && (!('nome' in data) || publicScalar(data.nome));
+    }
+
+    function viewer_ristoranti_2(data) {
+      return (!('nota' in data) || publicScalar(data.nota))
+        && (!('notes' in data) || publicScalar(data.notes))
+        && (!('orario' in data) || publicScalar(data.orario))
+        && (!('publicSchemaVersion' in data) || publicScalar(data.publicSchemaVersion))
+        && (!('sottocategoria' in data) || publicScalar(data.sottocategoria))
+        && (!('status' in data) || publicScalar(data.status))
+        && (!('telefono' in data) || publicScalar(data.telefono))
+        && (!('time' in data) || publicScalar(data.time))
+        && (!('timeStatus' in data) || publicScalar(data.timeStatus))
+        && (!('title' in data) || publicScalar(data.title));
+    }
+
+    function viewer_ristoranti_3(data) {
+      return (!('titolo' in data) || publicScalar(data.titolo))
+        && (!('updatedAt' in data) || publicScalar(data.updatedAt));
+    }
+
+    function viewer_ristoranti(data) {
+      return data.keys().hasOnly(["_enriched","address","category","completed","coordinate","createdAt","data","date","dayId","deleted","deletedAt","deletedBy","hasPrivateCredentials","id","indirizzo","lastSanitizedAt","location","mostraNoteInCard","name","nome","nota","notes","orario","publicSchemaVersion","sottocategoria","status","telefono","time","timeStatus","title","titolo","updatedAt"])
+        && viewer_ristoranti_0(data)
+        && viewer_ristoranti_1(data)
+        && viewer_ristoranti_2(data)
+        && viewer_ristoranti_3(data);
+    }
+
+    function viewer_shopping_0(data) {
+      return (!('_enriched' in data) || publicScalar(data._enriched))
+        && (!('address' in data) || publicScalar(data.address))
+        && (!('category' in data) || publicScalar(data.category))
+        && (!('completed' in data) || publicScalar(data.completed))
+        && (!('coordinate' in data) || publicCoordinates(data.coordinate))
+        && (!('createdAt' in data) || publicScalar(data.createdAt))
+        && (!('data' in data) || publicScalar(data.data))
+        && (!('date' in data) || publicScalar(data.date))
+        && (!('dayId' in data) || publicScalar(data.dayId))
+        && (!('deleted' in data) || publicScalar(data.deleted));
+    }
+
+    function viewer_shopping_1(data) {
+      return (!('deletedAt' in data) || publicScalar(data.deletedAt))
+        && (!('deletedBy' in data) || publicScalar(data.deletedBy))
+        && (!('hasPrivateCredentials' in data) || publicScalar(data.hasPrivateCredentials))
+        && (!('id' in data) || publicScalar(data.id))
+        && (!('indirizzo' in data) || publicScalar(data.indirizzo))
+        && (!('lastSanitizedAt' in data) || publicScalar(data.lastSanitizedAt))
+        && (!('link' in data) || publicScalar(data.link))
+        && (!('location' in data) || publicScalar(data.location))
+        && (!('name' in data) || publicScalar(data.name))
+        && (!('nome' in data) || publicScalar(data.nome));
+    }
+
+    function viewer_shopping_2(data) {
+      return (!('nota' in data) || publicScalar(data.nota))
+        && (!('notes' in data) || publicScalar(data.notes))
+        && (!('orario' in data) || publicScalar(data.orario))
+        && (!('publicSchemaVersion' in data) || publicScalar(data.publicSchemaVersion))
+        && (!('scopo' in data) || publicScalar(data.scopo))
+        && (!('sottocategoria' in data) || publicScalar(data.sottocategoria))
+        && (!('status' in data) || publicScalar(data.status))
+        && (!('time' in data) || publicScalar(data.time))
+        && (!('timeStatus' in data) || publicScalar(data.timeStatus))
+        && (!('title' in data) || publicScalar(data.title));
+    }
+
+    function viewer_shopping_3(data) {
+      return (!('titolo' in data) || publicScalar(data.titolo))
+        && (!('updatedAt' in data) || publicScalar(data.updatedAt));
+    }
+
+    function viewer_shopping(data) {
+      return data.keys().hasOnly(["_enriched","address","category","completed","coordinate","createdAt","data","date","dayId","deleted","deletedAt","deletedBy","hasPrivateCredentials","id","indirizzo","lastSanitizedAt","link","location","name","nome","nota","notes","orario","publicSchemaVersion","scopo","sottocategoria","status","time","timeStatus","title","titolo","updatedAt"])
+        && viewer_shopping_0(data)
+        && viewer_shopping_1(data)
+        && viewer_shopping_2(data)
+        && viewer_shopping_3(data);
+    }
+
+    function viewer_bagagli_0(data) {
+      return (!('_enriched' in data) || publicScalar(data._enriched))
+        && (!('address' in data) || publicScalar(data.address))
+        && (!('category' in data) || publicScalar(data.category))
+        && (!('completed' in data) || publicScalar(data.completed))
+        && (!('coordinate' in data) || publicCoordinates(data.coordinate))
+        && (!('createdAt' in data) || publicScalar(data.createdAt))
+        && (!('data' in data) || publicScalar(data.data))
+        && (!('date' in data) || publicScalar(data.date))
+        && (!('dayId' in data) || publicScalar(data.dayId))
+        && (!('deleted' in data) || publicScalar(data.deleted));
+    }
+
+    function viewer_bagagli_1(data) {
+      return (!('deletedAt' in data) || publicScalar(data.deletedAt))
+        && (!('deletedBy' in data) || publicScalar(data.deletedBy))
+        && (!('descrizione' in data) || publicScalar(data.descrizione))
+        && (!('hasPrivateCredentials' in data) || publicScalar(data.hasPrivateCredentials))
+        && (!('id' in data) || publicScalar(data.id))
+        && (!('indirizzo' in data) || publicScalar(data.indirizzo))
+        && (!('lastSanitizedAt' in data) || publicScalar(data.lastSanitizedAt))
+        && (!('location' in data) || publicScalar(data.location))
+        && (!('name' in data) || publicScalar(data.name))
+        && (!('nome' in data) || publicScalar(data.nome));
+    }
+
+    function viewer_bagagli_2(data) {
+      return (!('nota' in data) || publicScalar(data.nota))
+        && (!('note' in data) || publicScalar(data.note))
+        && (!('notes' in data) || publicScalar(data.notes))
+        && (!('orario' in data) || publicScalar(data.orario))
+        && (!('passeggero' in data) || publicScalar(data.passeggero))
+        && (!('pesoKg' in data) || publicScalar(data.pesoKg))
+        && (!('publicSchemaVersion' in data) || publicScalar(data.publicSchemaVersion))
+        && (!('sottocategoria' in data) || publicScalar(data.sottocategoria))
+        && (!('status' in data) || publicScalar(data.status))
+        && (!('time' in data) || publicScalar(data.time));
+    }
+
+    function viewer_bagagli_3(data) {
+      return (!('timeStatus' in data) || publicScalar(data.timeStatus))
+        && (!('tipo' in data) || publicScalar(data.tipo))
+        && (!('title' in data) || publicScalar(data.title))
+        && (!('titolo' in data) || publicScalar(data.titolo))
+        && (!('updatedAt' in data) || publicScalar(data.updatedAt))
+        && (!('verificato' in data) || publicScalar(data.verificato))
+        && (!('voloId' in data) || publicScalar(data.voloId))
+        && (!('voloTitle' in data) || publicScalar(data.voloTitle));
+    }
+
+    function viewer_bagagli(data) {
+      return data.keys().hasOnly(["_enriched","address","category","completed","coordinate","createdAt","data","date","dayId","deleted","deletedAt","deletedBy","descrizione","hasPrivateCredentials","id","indirizzo","lastSanitizedAt","location","name","nome","nota","note","notes","orario","passeggero","pesoKg","publicSchemaVersion","sottocategoria","status","time","timeStatus","tipo","title","titolo","updatedAt","verificato","voloId","voloTitle"])
+        && viewer_bagagli_0(data)
+        && viewer_bagagli_1(data)
+        && viewer_bagagli_2(data)
+        && viewer_bagagli_3(data);
+    }
+
+    function safeSharedViewerDocument(data, subcol) {
+      return hasNoSensitiveKeys(data) && validDocumentPublication(data) && (
+        (subcol == 'giorni' && viewer_giorni(data)) ||
+        (subcol == 'tappe' && viewer_tappe(data)) ||
+        (subcol == 'attivita' && viewer_attivita(data)) ||
+        (subcol == 'alloggi' && viewer_alloggi(data)) ||
+        (subcol == 'trasporti' && viewer_trasporti(data)) ||
+        (subcol == 'ristoranti' && viewer_ristoranti(data)) ||
+        (subcol == 'shopping' && viewer_shopping(data)) ||
+        (subcol == 'bagagli' && viewer_bagagli(data))
+      );
+    }
 
     // =========================================================================
     // 1. VIAGGI (TRIPS) E SOTTOCOLLEZIONI PRIVATE
@@ -85,7 +732,8 @@ service cloud.firestore {
       // Lettura di un singolo viaggio per ID: consentita SOLO ai membri effettivi o all'Admin globale verificato
       // (Gli estranei con solo tripId NON possono leggere né il viaggio né i suoi dati privati)
       allow get: if isSignedIn() && (
-        isTripMember(tripId)
+        (isTripMember(tripId) && hasNoSensitiveKeys(resource.data))
+        || isTripPrivilegedMember(tripId)
         || isGlobalAdmin()
       );
 
@@ -95,6 +743,7 @@ service cloud.firestore {
       // Creazione di un nuovo viaggio:
       // L'utente autenticato deve dichiararsi come ownerUid/ownerId e includersi nei members.
       allow create: if isSignedIn()
+                      && hasNoSensitiveKeys(request.resource.data)
                       && (request.resource.data.get('ownerUid', null) == request.auth.uid || request.resource.data.get('ownerId', null) == request.auth.uid)
                       && (!('members' in request.resource.data) || request.auth.uid in request.resource.data.members);
 
@@ -102,6 +751,7 @@ service cloud.firestore {
       // Riservata all'owner; i membri ordinari possono aggiornare solo senza toccare members o primaryDeviceUid.
       // Auto-join copilota: consentito SOLO con prova crittografica verificata (batch con membro autorizzato) e mai per il viaggio 0000
       allow update: if isSignedIn()
+                    && hasNoSensitiveKeys(request.resource.data)
                     && request.resource.data.get('ownerUid', null) == resource.data.get('ownerUid', null)
                     && (
                       isTripOwner(tripId)
@@ -244,20 +894,52 @@ service cloud.firestore {
 
       // 1.3 SOTTOCOLLEZIONI CONDIVISE (DATI SANIFICATI: LETTURA MEMBRI APERTA, SCHEMA GUARD ATTIVO)
       match /{subcol}/{docId} {
-        allow read: if subcol in [
+        allow get: if subcol in [
                          'tappe', 'attivita', 'alloggi', 'trasporti',
                          'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
                          'locks', 'devices'
                        ]
-                       && isTripMember(tripId);
+                       && isTripMember(tripId)
+                       && (isTripPrivilegedMember(tripId) ||
+                           (subcol != 'settings' && subcol != 'devices' && subcol != 'locks'
+                            && safeSharedViewerDocument(resource.data, subcol)));
 
-        allow create, update: if subcol in [
-                                   'tappe', 'attivita', 'alloggi', 'trasporti',
-                                   'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
-                                   'locks', 'devices'
-                                 ]
-                                 && isTripPrivilegedMember(tripId)
-                                 && hasNoSensitiveKeys(request.resource.data);
+        // Collection queries must prove the schema marker. Per-document key checks
+        // alone do not constrain a Firestore query over historical records.
+        allow list: if subcol in ['tappe', 'attivita', 'alloggi', 'trasporti', 'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping', 'locks', 'devices']
+          && isTripMember(tripId)
+          && (isTripPrivilegedMember(tripId) ||
+              (subcol in ['tappe', 'attivita', 'alloggi', 'trasporti', 'bagagli', 'giorni', 'ristoranti', 'shopping']
+               && resource.data.publicSchemaVersion == 2));
+
+        allow create: if subcol in [
+                           'tappe', 'attivita', 'alloggi', 'trasporti',
+                           'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
+                           'locks', 'devices'
+                         ]
+                         && isTripPrivilegedMember(tripId)
+                         && hasNoSensitiveKeys(request.resource.data)
+                         && request.resource.data.get('publicSchemaVersion', 0) is int
+                         && (request.resource.data.get('publicSchemaVersion', 0) != 2
+                             || safeSharedViewerDocument(request.resource.data, subcol));
+
+        // Impedisce ai client legacy 1.5.16 di rimuovere il marker v2 dai record già bonificati
+        allow update: if subcol in [
+                           'tappe', 'attivita', 'alloggi', 'trasporti',
+                           'bagagli', 'giorni', 'settings', 'ristoranti', 'shopping',
+                           'locks', 'devices'
+                         ]
+                         && isTripPrivilegedMember(tripId)
+                         && hasNoSensitiveKeys(request.resource.data)
+                         && request.resource.data.get('publicSchemaVersion', 0) is int
+                         && (request.resource.data.get('publicSchemaVersion', 0) != 2
+                             || safeSharedViewerDocument(request.resource.data, subcol))
+                         && (!(subcol in [
+                               'tappe', 'attivita', 'alloggi', 'trasporti',
+                               'bagagli', 'giorni', 'ristoranti', 'shopping'
+                             ])
+                             || resource.data.get('publicSchemaVersion', 0) != 2
+                             || request.resource.data.get('publicSchemaVersion', 0) == 2);
 
         allow delete: if subcol in [
                            'tappe', 'attivita', 'alloggi', 'trasporti',
@@ -288,18 +970,31 @@ service cloud.firestore {
     // 3. LIVE FEEDS (PUBBLICO)
     // =========================================================================
     function validFeedHeader(data) {
-      return data.keys().hasOnly(['title', 'coverPhotoUrl', 'status', 'currentCity', 'lastUpdateAt'])
+      return data.keys().hasOnly(['title', 'coverPhotoUrl', 'status', 'currentCity', 'lastUpdateAt', 'statusMessage', 'statusUpdatedAt'])
              && (!('status' in data) || data.status in ['in_corso', 'completato'])
-             && (!('title' in data) || (data.title is string && data.title.size() <= 120));
+             && (!('title' in data) || (data.title is string && data.title.size() <= 120))
+             && (!('coverPhotoUrl' in data) || (data.coverPhotoUrl is string && data.coverPhotoUrl.size() <= 2048))
+             && (!('currentCity' in data) || (data.currentCity is string && data.currentCity.size() <= 120))
+             && (!('statusMessage' in data) || (data.statusMessage is string && data.statusMessage.size() <= 1000))
+             && (!('lastUpdateAt' in data) || data.lastUpdateAt is number)
+             && (!('statusUpdatedAt' in data) || data.statusUpdatedAt is number);
     }
 
     function validLiveUpdate(data) {
-      return data.keys().hasOnly(['title', 'text', 'photoUrl', 'timestamp', 'locationName', 'reactionCounts', 'deleted', 'deletedAt', 'deletedBy'])
+      return data.keys().hasOnly(['title', 'text', 'photoUrl', 'timestamp', 'locationName', 'reactionCounts', 'deleted', 'deletedAt', 'deletedBy', 'publicSchemaVersion'])
+             && data.get('publicSchemaVersion', 0) in [0, 2]
+             && data.get('publicSchemaVersion', 0) is int
+             && data.timestamp is number
              && data.title is string && data.title.size() > 0 && data.title.size() <= 120
              && (!('text' in data) || (data.text is string && data.text.size() <= 1000))
              && (!('photoUrl' in data) || (data.photoUrl is string && data.photoUrl.size() <= 2048))
              && (!('locationName' in data) || (data.locationName is string && data.locationName.size() <= 120))
-             && (!('reactionCounts' in data) || data.reactionCounts.keys().hasOnly(['❤️', '😍', '😂', '👋']))
+             && (!('reactionCounts' in data) || (data.reactionCounts is map
+                 && data.reactionCounts.keys().hasOnly(['❤️', '😍', '😂', '👋'])
+                 && data.reactionCounts.get('❤️', 0) is number
+                 && data.reactionCounts.get('😍', 0) is number
+                 && data.reactionCounts.get('😂', 0) is number
+                 && data.reactionCounts.get('👋', 0) is number))
              && (!('deleted' in data) || data.deleted is bool)
              && (!('deletedAt' in data) || data.deletedAt is number)
              && (!('deletedBy' in data) || (data.deletedBy is string && data.deletedBy.size() <= 128));
@@ -338,7 +1033,7 @@ service cloud.firestore {
       return gpsLeaseDoc(tripId);
     }
 
-    function validGpsLocation(data) {
+    function validGpsLocationShape(data) {
       return data.keys().hasOnly(['lat', 'lng', 'accuracy', 'city', 'country', 'updatedAt', 'publisherDeviceId', 'status'])
              && data.lat is number && data.lat >= -90 && data.lat <= 90
              && data.lng is number && data.lng >= -180 && data.lng <= 180
@@ -349,31 +1044,43 @@ service cloud.firestore {
              && data.publisherDeviceId.size() >= 16
              && data.publisherDeviceId.size() <= 128
              && data.status in ['active', 'paused', 'stopped']
-             && data.updatedAt == request.time;
+             && data.updatedAt is timestamp;
+    }
+
+    function validGpsLocation(data) {
+      return validGpsLocationShape(data) && data.updatedAt == request.time;
     }
 
     function validGuestMessage(data) {
-      return data.keys().hasOnly(['visitorId', 'authorName', 'message', 'createdAt', 'hidden'])
+      return data.keys().hasOnly(['visitorId', 'authorName', 'message', 'createdAt', 'hidden', 'deleted', 'deletedAt', 'deletedBy', 'moderatedAt', 'publicSchemaVersion'])
+             && data.get('publicSchemaVersion', 0) in [0, 2]
+             && data.get('publicSchemaVersion', 0) is int
              && data.visitorId is string && data.visitorId.size() >= 4 && data.visitorId.size() <= 128
              && data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 40
              && data.message is string && data.message.size() >= 1 && data.message.size() <= 280
              && data.createdAt is number
-             && data.hidden == false;
+             && data.hidden is bool
+             && data.get('deleted', false) is bool
+             && (!('deletedAt' in data) || data.deletedAt is number)
+             && (!('deletedBy' in data) || data.deletedBy is string)
+             && (!('moderatedAt' in data) || data.moderatedAt is number);
     }
 
     match /live_feeds/{tripId} {
       // Chiunque può leggere il feed pubblico
-      allow read: if true;
-      allow create, update: if isTripMember(tripId) && validFeedHeader(request.resource.data);
+      allow get: if isTripPrivilegedMember(tripId) || validFeedHeader(resource.data);
+      allow list: if isGlobalAdmin();
+      allow create, update: if isTripPrivilegedMember(tripId) && validFeedHeader(request.resource.data);
       allow delete: if isTripOwner(tripId) && tripId != '0000';
 
       match /updates/{updateId} {
-        allow read: if true;
-        allow create, update: if isTripMember(tripId) && validLiveUpdate(request.resource.data);
-        allow delete: if isTripMember(tripId) && tripId != '0000';
+        allow get: if isTripPrivilegedMember(tripId) || validLiveUpdate(resource.data);
+        allow list: if isTripPrivilegedMember(tripId) || resource.data.publicSchemaVersion == 2;
+        allow create, update: if isTripPrivilegedMember(tripId) && validLiveUpdate(request.resource.data);
+        allow delete: if isTripPrivilegedMember(tripId) && tripId != '0000';
         
         match /reactions/{reactionId} {
-          allow read: if isTripMember(tripId);
+          allow read: if isTripPrivilegedMember(tripId);
           allow create, update: if request.resource.data.type in ['❤️', '😍', '😂', '👋']
                         && request.resource.data.visitorId == reactionId
                         && request.resource.data.keys().hasOnly(['type', 'visitorId', 'timestamp']);
@@ -384,13 +1091,14 @@ service cloud.firestore {
       match /guest_messages/{msgId} {
         // Lettura pubblica consentita ESCLUSIVAMENTE per messaggi non nascosti e non eliminati.
         // I messaggi nascosti o eliminati sono leggibili unicamente dagli sposi (Owner/Copilota) o dall'Admin.
-        allow read: if (
-                      (resource == null || (resource.data.get('hidden', false) == false && resource.data.get('deleted', false) == false))
-                    ) || isTripPrivilegedMember(tripId) || isGlobalAdmin();
+        allow get: if (resource.data.get('hidden', false) == false && resource.data.get('deleted', false) == false
+                       && validGuestMessage(resource.data)) || isTripPrivilegedMember(tripId) || isGlobalAdmin();
+        allow list: if (resource.data.publicSchemaVersion == 2 && resource.data.hidden == false && resource.data.deleted == false)
+                    || isTripPrivilegedMember(tripId) || isGlobalAdmin();
         // Scrittura diretta non autenticata disabilitata per prevenire abusi e flood su Firebase Spark.
         // Riservata a Owner e Copilota del viaggio (es. saluti/benvenuto) fino all'integrazione di un rate-limiter autoritativo.
-        allow create: if isSignedIn() && isTripPrivilegedMember(tripId) && validGuestMessage(request.resource.data);
-        allow update: if isTripPrivilegedMember(tripId) || isGlobalAdmin();
+        allow create: if isSignedIn() && isTripPrivilegedMember(tripId) && validGuestMessage(request.resource.data) && request.resource.data.hidden == false;
+        allow update: if (isTripPrivilegedMember(tripId) || isGlobalAdmin()) && validGuestMessage(request.resource.data);
         allow delete: if (isTripPrivilegedMember(tripId) || isGlobalAdmin()) && tripId != '0000';
       }
       match /gps_control/{controlId} {
@@ -418,7 +1126,8 @@ service cloud.firestore {
       match /locations/{locationId} {
         allow read: if locationId == 'current'
                     && (
-                      (resource.data.status == 'active'
+                        (validGpsLocationShape(resource.data)
+                         && resource.data.status == 'active'
                        && resource.data.updatedAt > request.time - duration.value(15, 'm')
                        && gpsLease(tripId).status == 'active'
                        && gpsLease(tripId).expiresAt > request.time

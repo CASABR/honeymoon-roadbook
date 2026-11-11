@@ -26,6 +26,7 @@ fs.writeFileSync(path.join(fixture, 'index.html'), `
     }));
     localStorage.setItem('houni_device_role', 'guida');
     localStorage.setItem('app_device_role', 'guida');
+    sessionStorage.setItem('houni_dev_simulated_role', 'owner');
   </script>
   <script type="module" src="./fixture.tsx"></script>
 </body>
@@ -125,20 +126,34 @@ createRoot(document.getElementById('root')!).render(<App />);
       const api = window.driveTestApi;
       return api.getGooglePickerConfigStatus();
     });
-    // In assenza di VITE_GOOGLE_CLIENT_ID configurato in env, isConfigured deve essere false
-    assert.equal(pickerStatus.isConfigured, false, 'Picker deve risultare non configurato senza OAuth Client ID');
-    assert.ok(pickerStatus.missingConfigs.length > 0, 'Segnala configurazioni mancanti');
-    console.log(`✓ TEST 2 Superato: Google Picker rileva correttamente credenziali mancanti (${pickerStatus.missingConfigs.join(', ')}).`);
+    assert.equal(typeof pickerStatus.isConfigured, 'boolean', 'isConfigured booleano');
+    assert.equal(Array.isArray(pickerStatus.missingConfigs), true, 'missingConfigs è un array');
+    assert.equal(
+      pickerStatus.isConfigured,
+      pickerStatus.missingConfigs.length === 0,
+      'Coerenza stato Picker: isConfigured deve corrispondere all’assenza di configurazioni mancanti'
+    );
+    console.log(
+      pickerStatus.isConfigured
+        ? '✓ TEST 2 Superato: Google Picker configurato correttamente nell’ambiente corrente.'
+        : `✓ TEST 2 Superato: Google Picker rileva correttamente credenziali mancanti (${pickerStatus.missingConfigs.join(', ')}).`
+    );
 
     // 3. TEST AGGIUNTA DOCUMENTO GOOGLE DRIVE VIA UI
     console.log('[TEST 3] Apertura modale ed inserimento documento Drive via interfaccia...');
-    const addDriveBtn = page.getByRole('button', { name: /Aggiungi da Google Drive/i });
-    await assert.doesNotReject(addDriveBtn.waitFor({ state: 'visible' }), 'Pulsante "Aggiungi da Google Drive" presente');
+    const addDriveBtn = page.getByRole('button', { name: /Aggiungi da Google Drive|Scegli da Google Drive/i });
+    await assert.doesNotReject(addDriveBtn.waitFor({ state: 'visible' }), 'Pulsante Google Drive presente');
     await addDriveBtn.click();
 
     // Verifica campi modale
     const modalHeading = page.getByText(/Collega da Google Drive/i);
     await modalHeading.waitFor({ state: 'visible' });
+
+    const manualBtn = page.getByRole('button', { name: /Oppure inserisci il link manualmente/i });
+    if (pickerStatus.isConfigured) {
+      await manualBtn.waitFor({ state: 'visible' });
+      await manualBtn.click();
+    }
 
     // Seleziona categoria "Biglietti & Voucher"
     const catBtn = page.getByRole('button', { name: /Biglietti & Voucher/i });

@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
-import { resolvePaymentInfo } from '../../utils/priceHelper';
+import { resolvePaymentInfo, parseCostToNumber } from '../../utils/priceHelper';
+import { buildEurSavePatch } from '../../services/currencyService';
 import DestinationSearchModal from '../modals/DestinationSearchModal';
 import type { Alloggio, Coordinate } from '../../types';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
@@ -111,9 +112,9 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
   }, [defaultDate, defaultTime, initialData]);
 
   const calculateSaldo = () => {
-    const c = parseFloat(cost.replace(',', '.')) || 0;
-    const a = parseFloat(acconto.replace(',', '.')) || 0;
-    return c - a;
+    const c = parseCostToNumber(cost);
+    const a = parseCostToNumber(acconto);
+    return Math.max(0, c - a);
   };
 
   const handleSelectPlace = (place: PlaceSuggestion) => {
@@ -159,6 +160,13 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
 
     setIsGeocoding(false);
 
+    const normalizedMoney = await buildEurSavePatch({
+      costRaw: cost.trim() || undefined,
+      depositRaw: acconto.trim() || undefined,
+      existingItem: initialData
+    });
+    const { cost: normCost, depositPaid: normDep, acconto: normAcc, ...normMeta } = normalizedMoney;
+
     onSave({
       id: initialData?.id,
       sottocategoria: sottocategoria || undefined,
@@ -173,18 +181,19 @@ export default function AlloggioForm({ initialData, defaultDate, defaultTime, on
       address: address.trim() || name.trim(),
       pinCode: pinCode.trim() || undefined,
       phone: phone.trim() || undefined,
-      cost: cost.trim() || undefined,
+      ...normMeta,
+      cost: normCost ?? (cost.trim() || undefined),
         completed: paymentStatus === 'saldato',
         status: (paymentStatus === 'saldato' ? 'completato' : 'prenotato') as any,
-      acconto: acconto.trim() || undefined,
-      depositPaid: acconto.trim() || undefined,
+      acconto: normAcc ?? (acconto.trim() || undefined),
+      depositPaid: normDep ?? (acconto.trim() || undefined),
       paymentStatus,
       cancellazioneGratuitaEntro: cancellazioneGratuitaEntro.trim() || undefined,
       noteCopilota: noteCopilota.trim() || undefined,
       notes: noteCopilota.trim() || undefined,
       copilota: Boolean(noteCopilota.trim()) || initialData?.copilota || undefined,
       coordinate: finalCoord
-    });
+    } as any);
   };
 
   const handleSubmit = (e: React.FormEvent) => {

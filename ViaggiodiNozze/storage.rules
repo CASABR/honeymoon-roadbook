@@ -9,18 +9,19 @@ service firebase.storage {
         let tripPath = /databases/(default)/documents/trips/$(tripId);
         let memberPath = /databases/(default)/documents/trips/$(tripId)/members/$(request.auth.uid);
         return request.auth != null && (
-          (firestore.exists(tripPath) && firestore.get(tripPath).data.ownerUid == request.auth.uid) ||
-          (firestore.exists(tripPath) && firestore.get(tripPath).data.ownerId == request.auth.uid) ||
-          (firestore.exists(tripPath) && request.auth.uid in firestore.get(tripPath).data.members) ||
-          (firestore.exists(memberPath) && firestore.get(memberPath).data.role in ['owner', 'copilota'])
+          (firestore.exists(tripPath) && firestore.get(tripPath).data.get('ownerUid', '') == request.auth.uid) ||
+          (firestore.exists(tripPath) && firestore.get(tripPath).data.get('ownerId', '') == request.auth.uid) ||
+          (firestore.exists(memberPath) && firestore.get(memberPath).data.get('role', '') in ['owner', 'copilota'])
         );
       }
 
       // Gli ospiti possono visualizzare/scaricare le immagini pubblicate nel Live
-      allow read: if true;
+      allow get: if true;
+      allow list: if isTripEditor();
 
       // Solo l'Owner o Copilota effettivo del viaggio può caricare scatti live (max 5MB, solo immagini)
       allow create: if isTripEditor()
+        && resource == null
         && request.resource.size < 5 * 1024 * 1024
         && request.resource.contentType.matches('image/(jpeg|png|webp|gif)');
 

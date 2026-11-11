@@ -6,6 +6,7 @@ import { storageService } from '../../storage/storageService';
 import PlaceAutocompleteInput from '../common/PlaceAutocompleteInput';
 import type { PlaceSuggestion } from '../../services/photonService';
 import TimePickerInput from '../common/TimePickerInput';
+import { buildEurSavePatch } from '../../services/currencyService';
 
 interface RistoranteFormProps {
   initialData?: Ristorante | null;
@@ -136,6 +137,12 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
 
     setIsGeocoding(false);
 
+    const normalizedMoney = await buildEurSavePatch({
+      costRaw: budget.trim() || undefined,
+      existingItem: initialData
+    });
+    const { cost: normCost, depositPaid: _dp, acconto: _ac, ...normMeta } = normalizedMoney;
+
     onSave({
       id: initialData?.id,
       dayId: dayId,
@@ -149,7 +156,8 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
       indirizzo: indirizzo.trim() || undefined,
       telefono: telefono.trim() || undefined,
       linkPrenotazione: linkPrenotazione.trim() || undefined,
-      budget: budget.trim() || undefined,
+      ...normMeta,
+      budget: normCost ?? (budget.trim() || undefined),
       status: status,
       completed: status === 'saldato',
       noteCopilota: noteCopilota.trim() || undefined,

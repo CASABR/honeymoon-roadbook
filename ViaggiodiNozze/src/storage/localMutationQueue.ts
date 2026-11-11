@@ -13,6 +13,7 @@
  */
 
 export interface PendingMutation {
+  ownerUid?: string; // Identity that created the offline edit; never replay as another user.
   id: string; // JSON tuple [tripId, entityType, dataId]
   tripId: string;
   entityType: string;
@@ -157,18 +158,19 @@ export async function clearPendingMutations(tripId?: string): Promise<void> {
 // ARCHIVIO CONFLITTI LOCALE ISOLATO (P0 PRIVACY & RESILIENZA)
 // -----------------------------------------------------------------------------
 export interface ConflictBackupRecord {
+  ownerUid?: string;
   id: string;
   tripId: string;
   entityType: string;
   dataId: string;
   localData: any;
   serverData?: any;
-  conflictType: 'server_newer' | 'remote_tombstone_vs_local_edit' | 'manual' | 'unreliable_timestamp_conflict' | 'local_only_record';
+  conflictType: 'server_newer' | 'remote_tombstone_vs_local_edit' | 'manual' | 'unreliable_timestamp_conflict' | 'local_only_record' | 'private_cache_copy';
   serverUpdated?: number;
   localUpdated?: number;
   tombstoneDeletedAt?: number;
   savedAt: number;
-  status: 'pending_review' | 'resolved_keep_local' | 'resolved_keep_remote' | 'resolved_already_synced' | 'archived_remote_delete' | 'archived_local_only';
+  status: 'pending_review' | 'resolved_keep_local' | 'resolved_keep_remote' | 'resolved_already_synced' | 'archived_remote_delete' | 'archived_local_only' | 'archived_private_cache';
   resolvedAt?: number;
   resolutionNote?: string;
 }
@@ -259,9 +261,15 @@ export async function getConflictBackupById(id: string): Promise<ConflictBackupR
   });
 }
 
+export function isBlockingConflict(c: Pick<ConflictBackupRecord, 'status' | 'conflictType'>): boolean {
+  return c.status === 'pending_review'
+    && c.conflictType !== 'local_only_record'
+    && c.conflictType !== 'private_cache_copy';
+}
+
 export async function getPendingConflictBackups(tripId?: string): Promise<ConflictBackupRecord[]> {
   const all = await getConflictBackups(tripId);
-  return all.filter(c => c.status === 'pending_review' && c.conflictType !== 'local_only_record');
+  return all.filter(isBlockingConflict);
 }
 
 export async function updateConflictStatus(

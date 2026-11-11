@@ -1,5 +1,6 @@
 import type { DeviceRole } from '../types';
 import { idbGet, idbPut, idbDelete } from '../storage/indexedDB';
+import { auth } from '../firebase';
 
 const DEVICE_ID_KEY = 'houni_device_id';
 const TRIP_ID_KEY = 'houni_trip_id';
@@ -83,6 +84,7 @@ export async function persistDeviceSession(tripId: string, role: DeviceRole): Pr
     await idbPut('settings', {
       id: 'device_session_backup',
       value: {
+        uid: auth?.currentUser?.uid || null,
         tripId,
         role,
         authenticated: true,
@@ -156,6 +158,20 @@ export async function restorePersistedSessionFromIndexedDB(): Promise<{
       return { isAuthenticated: false, tripId: null, role: null };
     }
 
+    const candidateTripId = typeof backup.value.tripId === 'string' ? backup.value.tripId.trim() : '';
+    if (backup.value.revoked === true || (candidateTripId && typeof localStorage !== 'undefined'
+        && localStorage.getItem(`houni_revoked_trip_${candidateTripId}`) === 'true')) {
+      return { isAuthenticated: false, tripId: null, role: null };
+    }
+
+    await auth?.authStateReady?.();
+    // An offline session is navigation state, never authority to recover another
+    // user's cache. Legacy unbound editor sessions require an online login.
+    if (!auth?.currentUser || auth.currentUser.isAnonymous ||
+        backup.value.uid !== auth.currentUser.uid) {
+      return { isAuthenticated: false, tripId: null, role: null };
+    }
+
     // Se durante il caricamento è intervenuta una mutazione locale più recente di logout
     if (backup.value.updatedAt && backup.value.updatedAt < lastSessionMutationTime) {
       return { isAuthenticated: false, tripId: null, role: null };
@@ -166,7 +182,7 @@ export async function restorePersistedSessionFromIndexedDB(): Promise<{
       const rawRole = backup.value.role;
       const role: DeviceRole = (rawRole === 'guida' || rawRole === 'copilota' || rawRole === 'viewer')
         ? rawRole
-        : 'guida';
+        : 'viewer';
 
       // Ripristina in localStorage per le letture sincrone future dell'app
       if (typeof localStorage !== 'undefined') {

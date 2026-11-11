@@ -14,6 +14,9 @@ export interface LiveGalleryPhotoItem {
   location?: string;
   timestamp: number;
   isCustom?: boolean;
+  pendingSync?: boolean;
+  tripId?: string;
+  userId?: string;
 }
 
 export interface LiveEditorialExperienceProps {

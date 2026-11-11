@@ -604,9 +604,9 @@ export async function ensureAuthenticatedAccount(
 export async function loginWithEmailPassword(
   email: string,
   pass: string
-): Promise<{ success: boolean; user?: User; error?: string; code?: string }> {
+): Promise<{ success: boolean; user?: User; error?: string; code?: string; preExistingAccount?: boolean }> {
   if (!auth) return { success: false, error: 'Firebase Auth non inizializzato.' };
-  if (typeof window !== 'undefined' && (window as any).__HOUNIGO_MOCK_GOOGLE_USER__) {
+  if (import.meta.env.DEV && typeof window !== 'undefined' && (window as any).__HOUNIGO_MOCK_GOOGLE_USER__) {
     const mockUser = (window as any).__HOUNIGO_MOCK_GOOGLE_USER__;
     return { success: true, user: mockUser, preExistingAccount: false };
   }
@@ -679,7 +679,7 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
   preExistingAccount?: boolean;
 }> {
   if (!auth) return { success: false, error: 'Firebase Auth non inizializzato.' };
-  if (typeof window !== 'undefined' && (window as any).__HOUNIGO_MOCK_GOOGLE_USER__) {
+  if (import.meta.env.DEV && typeof window !== 'undefined' && (window as any).__HOUNIGO_MOCK_GOOGLE_USER__) {
     const mockUser = (window as any).__HOUNIGO_MOCK_GOOGLE_USER__;
     return { success: true, user: mockUser, preExistingAccount: false };
   }
