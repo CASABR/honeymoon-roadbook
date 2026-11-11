@@ -5,7 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="description" content="Organizza il viaggio, vivi ogni momento e condividilo con chi vuoi." />
-  <meta name="theme-color" content="#FF6B5F" />
+  <meta name="theme-color" content="#F8F7F3" />
   
   <!-- Open Graph -->
   <meta property="og:type" content="website" />
@@ -13,8 +13,8 @@
   <meta property="og:description" content="Organizza il viaggio, vivi ogni momento e condividilo con chi vuoi." />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-  <meta name="color-scheme" content="light" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="color-scheme" content="light dark" />
   <link rel="apple-touch-icon" href="pwa-192x192.png" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
@@ -46,19 +46,22 @@
   <link rel="manifest" href="manifest.json" />
 
   <script>
-    // Prevent Flash Of Unstyled Content for Dark Mode
+    // Prevent Flash Of Unstyled Content for Dark Mode & sync iOS/Safari theme-color
     (function () {
       try {
         var saved = localStorage.getItem('houni_theme') || localStorage.getItem('theme');
-        if (saved === 'dark') {
+        var isDark = saved === 'dark';
+        if (isDark) {
           document.documentElement.classList.add('dark');
         } else {
           document.documentElement.classList.remove('dark');
         }
+        var themeMeta = document.querySelector('meta[name="theme-color"]');
+        if (themeMeta) themeMeta.setAttribute('content', isDark ? '#172033' : '#F8F7F3');
       } catch (e) { }
     })();
   </script>
-  <script type="module" crossorigin src="/honeymoon-roadbook/assets/index-DLCCnw_B.js"></script>
+  <script type="module" crossorigin src="/honeymoon-roadbook/assets/index-DjoAAS47.js"></script>
   <link rel="modulepreload" crossorigin href="/honeymoon-roadbook/assets/rolldown-runtime-QTnfLwEv.js">
   <link rel="modulepreload" crossorigin href="/honeymoon-roadbook/assets/preload-helper-BieB08Nl.js">
   <link rel="modulepreload" crossorigin href="/honeymoon-roadbook/assets/index.esm-BKTj5K_K.js">
@@ -70,7 +73,7 @@
   <link rel="modulepreload" crossorigin href="/honeymoon-roadbook/assets/indexedDB-B_M65Fhz.js">
   <link rel="modulepreload" crossorigin href="/honeymoon-roadbook/assets/deviceSession-C3hLImjx.js">
   <link rel="modulepreload" crossorigin href="/honeymoon-roadbook/assets/storageService-BL4oQoen.js">
-  <link rel="stylesheet" crossorigin href="/honeymoon-roadbook/assets/index-D1PVyoLb.css">
+  <link rel="stylesheet" crossorigin href="/honeymoon-roadbook/assets/index-Cj5w2Neb.css">
 <link rel="manifest" href="/honeymoon-roadbook/manifest.webmanifest"></head>
 
 <body>
