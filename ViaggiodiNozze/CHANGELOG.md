@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.6.0 — 2026-11-11
+
+- Integrazione Google Picker, data di rilascio locale nella modale info e rifiniture iPhone/Dynamic Island
+- Sistema budget interamente in EUR con conversione automatica verificabile e metadati privati protetti
+- Separazione dati riservati schema v2, regole Firestore/Storage potenziate e sincronizzazione offline/LIVE sicura
+
 ## 1.5.16 — 2026-11-09
 
 - Gestione rate-limit notifiche push con countdown e protezione invii multipli
@@ -47,8 +53,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Diagnostica pre-attivazione con interfaccia di riconciliazione e anteprima sicura riservata all'Owner.
 - Verifica automatica versioni remote, blocco conflitti e ricezione passiva in background per Copilota.
-
-## 1.5.7 — 2026-11-05
-
-- Voce iniziale del footer rinominata in 'Viaggio'.
-- Stabilizzazione footer PWA mobile: ancoraggio viewport fisso e reset scroll al cambio pagina.

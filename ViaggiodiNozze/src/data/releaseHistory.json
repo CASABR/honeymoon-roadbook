@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.0",
+      "publishedAt": "2026-11-11",
+      "sourceCommit": "1ae8c0c",
+      "changes": [
+        "Integrazione Google Picker, data di rilascio locale nella modale info e rifiniture iPhone/Dynamic Island",
+        "Sistema budget interamente in EUR con conversione automatica verificabile e metadati privati protetti",
+        "Separazione dati riservati schema v2, regole Firestore/Storage potenziate e sincronizzazione offline/LIVE sicura"
+      ],
+      "publishedAtIso": "2026-11-11T11:53:05+01:00"
+    },
+    {
       "version": "1.5.16",
       "publishedAt": "2026-11-09",
       "sourceCommit": "303ff24",
@@ -85,15 +96,6 @@
       "changes": [
         "Diagnostica pre-attivazione con interfaccia di riconciliazione e anteprima sicura riservata all'Owner.",
         "Verifica automatica versioni remote, blocco conflitti e ricezione passiva in background per Copilota."
-      ]
-    },
-    {
-      "version": "1.5.7",
-      "publishedAt": "2026-11-05",
-      "sourceCommit": "d823342",
-      "changes": [
-        "Voce iniziale del footer rinominata in 'Viaggio'.",
-        "Stabilizzazione footer PWA mobile: ancoraggio viewport fisso e reset scroll al cambio pagina."
       ]
     }
   ]
