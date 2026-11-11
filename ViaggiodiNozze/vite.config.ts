@@ -109,7 +109,7 @@ export default defineConfig(({ command }) => ({
       workbox: {
         navigateFallback: "index.html",
         globPatterns: ["**/*.{js,css,html,svg,png,jpg,jpeg,webp,ico}"],
-        navigateFallbackDenylist: [/^\/__\/auth/, /\/(?:info|privacy|termini)\.html$/],
+        navigateFallbackDenylist: [/^\/__\/auth/, /\/(?:info|privacy|termini|google[a-f0-9]+)\.html$/],
         importScripts: ["push-sw.js"],
         skipWaiting: true,
         clientsClaim: true,
