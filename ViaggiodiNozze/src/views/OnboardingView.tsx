@@ -708,6 +708,34 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
         style={{ background: 'radial-gradient(circle, #172033, transparent 70%)' }}
       />
       <div className="relative z-10 w-full max-w-sm">{children}</div>
+      <footer className="relative z-10 mt-4 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] font-medium text-slate-500">
+        <a
+          href={`${import.meta.env.BASE_URL}info.html`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-[#172033] hover:underline"
+        >
+          Cos'è HOUNIGO
+        </a>
+        <span aria-hidden="true">·</span>
+        <a
+          href={`${import.meta.env.BASE_URL}privacy.html`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-[#172033] hover:underline"
+        >
+          Privacy Policy
+        </a>
+        <span aria-hidden="true">·</span>
+        <a
+          href={`${import.meta.env.BASE_URL}termini.html`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:text-[#172033] hover:underline"
+        >
+          Termini
+        </a>
+      </footer>
     </div>
   );
 

@@ -190,6 +190,36 @@ export default function AppInfoModal() {
         </div>
       </section>
 
+      <section aria-label="Documenti pubblici e trasparenza" className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900/40 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span className="font-semibold text-slate-600 dark:text-slate-300">Documentazione pubblica</span>
+        <div className="flex flex-wrap items-center gap-3 font-bold">
+          <a
+            href={`${import.meta.env.BASE_URL}info.html`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sky-700 dark:text-sky-400 hover:underline"
+          >
+            Cos’è HOUNIGO ↗
+          </a>
+          <a
+            href={`${import.meta.env.BASE_URL}privacy.html`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sky-700 dark:text-sky-400 hover:underline"
+          >
+            Privacy ↗
+          </a>
+          <a
+            href={`${import.meta.env.BASE_URL}termini.html`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sky-700 dark:text-sky-400 hover:underline"
+          >
+            Termini ↗
+          </a>
+        </div>
+      </section>
+
       <details className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
         <summary className="cursor-pointer font-bold">Dettagli tecnici</summary>
         <p className="mt-2 font-mono">Commit {COMMIT_HASH}{BUILD_TIME ? ` · Build ${BUILD_TIME}` : ''}</p>
