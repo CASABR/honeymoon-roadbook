@@ -714,16 +714,18 @@ export default function App() {
     const activeTripId = tripConfig?.id || externalTripId || '';
     return (
       <div className="app-safe-shell min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 flex flex-col items-center selection:bg-rose-500 selection:text-white font-sans antialiased">
-        <header className="app-mobile-header w-full max-w-md md:max-w-2xl lg:max-w-7xl mx-auto flex items-center justify-between px-4 lg:px-8 pt-[max(0.75rem,env(safe-area-inset-top))] pb-2">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-              Hounigo • Live
-            </p>
+        <header className="app-mobile-header relative w-full pb-2">
+          <div className="w-full max-w-md md:max-w-2xl lg:max-w-7xl mx-auto flex items-center justify-between lg:px-4">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                Hounigo • Live
+              </p>
+            </div>
+            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200/60 dark:border-slate-700">
+              Vista Ospiti
+            </span>
           </div>
-          <span className="text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-full border border-slate-200/60 dark:border-slate-700">
-            Vista Ospiti
-          </span>
         </header>
 
         <main className="w-full max-w-md md:max-w-2xl lg:max-w-7xl mx-auto flex-1 flex flex-col px-4 lg:px-8 pt-1 pb-10">
@@ -787,7 +789,7 @@ export default function App() {
   const isForcedMobileView = viewMode === 'mobile';
 
   return (
-    <div className="app-safe-shell flex flex-col min-h-screen">
+    <div className="app-safe-shell flex flex-col min-h-screen overflow-x-clip">
       {/* ─── BANNER MODALITÀ TEST SIMULATA (Solo ambiente Dev) ────────────────────────── */}
       {isSimulated && (
         <div className="w-full bg-amber-500 text-slate-950 px-4 py-2 text-xs font-black flex items-center justify-between sticky top-0 z-50 shadow-lg border-b border-amber-600">
@@ -841,11 +843,15 @@ export default function App() {
         </div>
       )}
 
-      {/* ─── MAIN CONTENT CONTAINER (Responsive: mobile centered shell, desktop full workspace) ─ */}
-      <div ref={mainScrollContainerRef} className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative app-forced-mobile' : 'h-[100vh] h-[100dvh] overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}>
+      {/* ─── MAIN CONTENT CONTAINER (Responsive: mobile native document scroll, desktop internal scroll) ─ */}
+      <div
+        ref={mainScrollContainerRef}
+        data-main-scroll-container="true"
+        className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative app-forced-mobile' : 'min-h-[100dvh] overflow-x-clip md:h-[100dvh] md:overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}
+      >
         
         {/* Top Header Mobile / Tablet Header (o sempre in modalità mobile forzata) */}
-        <header className={`app-mobile-header w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3]/90 dark:bg-[#172033]/90 backdrop-blur-md sticky top-0 z-30`}>
+        <header className={`app-mobile-header w-full flex ${isForcedMobileView ? 'flex' : 'md:hidden'} items-center justify-between pb-1.5 border-b border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3]/92 dark:bg-[#172033]/92 backdrop-blur-md sticky top-0 z-30`}>
           <div className="flex items-center gap-1.5 shrink-0">
             <HounigoLogo size={23.5} />
             <button

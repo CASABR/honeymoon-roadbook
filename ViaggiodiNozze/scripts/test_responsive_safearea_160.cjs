@@ -83,6 +83,39 @@ fs.mkdirSync(outDir, { recursive: true });
       if (w === 393) await page.screenshot({ path: path.join(outDir, 'app-393-island.png') });
     }
 
+    // 3. Verify installed PWA status-bar meta & scroll stability at iPhone 15 Pro width (393x852)
+    await page.setViewportSize({ width: 393, height: 852 });
+    await page.evaluate(() => ['top', 'right', 'bottom', 'left'].forEach((e, i) => document.documentElement.style.setProperty('--app-safe-' + e, [59, 0, 34, 0][i] + 'px')));
+    const metaChecks = await page.evaluate(() => ({
+      statusBar: document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')?.getAttribute('content'),
+      themeColor: document.querySelector('meta[name="theme-color"]')?.getAttribute('content'),
+      viewport: document.querySelector('meta[name="viewport"]')?.getAttribute('content'),
+    }));
+    assert.equal(metaChecks.statusBar, 'black-translucent');
+    assert.equal(metaChecks.themeColor, '#F8F7F3');
+    assert.ok(metaChecks.viewport?.includes('viewport-fit=cover'));
+
+    // Return to OggiView, force scrollable height, scroll down, and emit cloud sync bursts
+    await page.locator('nav.app-bottom-nav button').filter({ hasText: 'Viaggio' }).click();
+    await page.waitForTimeout(450);
+    await page.evaluate(() => {
+      const filler = document.createElement('div');
+      filler.id = 'scroll-stability-probe';
+      filler.style.height = '1800px';
+      document.querySelector('main.app-workspace')?.appendChild(filler);
+      window.scrollTo(0, 620);
+    });
+    const scrollBefore = await page.evaluate(() => window.scrollY);
+    assert.ok(scrollBefore >= 500, `Expected page scrolled down (>=500), got ${scrollBefore}`);
+    await page.evaluate(() => {
+      window.dispatchEvent(new CustomEvent('roadbook_cloud_synced'));
+      window.dispatchEvent(new CustomEvent('activity_updated'));
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { source: 'cloud', entityType: 'tappa' } }));
+    });
+    await page.waitForTimeout(300);
+    const scrollAfter = await page.evaluate(() => window.scrollY);
+    assert.ok(Math.abs(scrollAfter - scrollBefore) <= 2, `Scroll jumped on cloud sync burst: ${scrollBefore} -> ${scrollAfter}`);
+
     // Check Altro + LIVE at 393px with Dynamic Island insets
     await page.setViewportSize({ width: 393, height: 852 });
     await page.evaluate(() => ['top', 'right', 'bottom', 'left'].forEach((e, i) => document.documentElement.style.setProperty('--app-safe-' + e, [59, 0, 34, 0][i] + 'px')));
@@ -91,7 +124,7 @@ fs.mkdirSync(outDir, { recursive: true });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
     await page.screenshot({ path: path.join(outDir, 'altro-393-island.png') });
 
-    console.log('PASS: Responsive & simulated Dynamic Island safe-area checks passed across 320, 375, 393, 430, 1440px (no overflow, header/nav/onboarding clear safe areas). Note: physical iPhone hardware/Safari requires live device check.');
+    console.log('PASS: Responsive, Dynamic Island meta/insets & zero-jump scroll stability checks passed across 320, 375, 393, 430, 1440px. Note: physical iPhone hardware/Safari requires live device check.');
   } finally {
     if (browser) await browser.close();
     await new Promise(r => server.httpServer.close(r));

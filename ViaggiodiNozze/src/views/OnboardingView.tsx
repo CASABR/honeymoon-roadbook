@@ -690,12 +690,12 @@ export default function OnboardingView({ onComplete }: { onComplete?: (config: a
 
   const renderLayout = (children: React.ReactNode) => (
     <div
-      className="min-h-[100dvh] flex flex-col items-center justify-center relative overflow-y-auto overflow-x-hidden font-sans"
+      className="app-onboarding-shell min-h-[100dvh] flex flex-col items-center justify-center relative overflow-x-clip font-sans"
       style={{
         background: '#F8F7F3',
-        paddingTop: 'max(1rem, var(--app-safe-top))',
+        paddingTop: 'calc(var(--app-safe-top) + 1rem)',
         paddingRight: 'max(1rem, var(--app-safe-right))',
-        paddingBottom: 'max(1rem, var(--app-safe-bottom))',
+        paddingBottom: 'calc(var(--app-safe-bottom) + 1rem)',
         paddingLeft: 'max(1rem, var(--app-safe-left))',
       }}
     >

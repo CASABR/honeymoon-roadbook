@@ -473,13 +473,18 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const hasInitialScrolledRef = useRef<string | null>(null);
 
   // Auto-scroll cronologico alla tappa/evento più vicino all'orario attuale solo al cambio data iniziale
+  // e solo se l'utente non ha già iniziato a scorrere manualmente la schermata
   useEffect(() => {
     const todayStr = new Date().toISOString().split('T')[0];
     if (selectedDate === todayStr || selectedDate === (tripDays[0]?.dateStr || '2026-11-29')) {
       if (hasInitialScrolledRef.current !== selectedDate && timeline.length > 0) {
         hasInitialScrolledRef.current = selectedDate;
         const timer = setTimeout(() => {
-          scrollToCurrentEvent();
+          const mainEl = document.querySelector<HTMLElement>('[data-main-scroll-container]');
+          const verticalOffset = Math.max(window.scrollY || 0, mainEl?.scrollTop || 0);
+          if (verticalOffset < 40) {
+            scrollToCurrentEvent();
+          }
         }, 350);
         return () => clearTimeout(timer);
       }
@@ -601,7 +606,15 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       }
 
       const dynamicDays = range?.tripDays || [];
-      setTripDays(dynamicDays);
+      setTripDays(prev => {
+        if (
+          prev.length === dynamicDays.length &&
+          prev.every((d, idx) => d.dateStr === dynamicDays[idx]?.dateStr)
+        ) {
+          return prev;
+        }
+        return dynamicDays;
+      });
 
       // Data selezionata: per 0000 usa periodo storico, per altri viaggi usa le date del viaggio o oggi
       const todayStr = new Date().toISOString().split('T')[0];
@@ -632,19 +645,26 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     fetchTimeline();
   }, [fetchTimeline]);
 
-  // Centratura automatica del selettore orizzontale dei giorni su selectedDate
+  const tripDaysSignature = useMemo(
+    () => tripDays.map(d => d.dateStr).join('|'),
+    [tripDays]
+  );
+
+  // Centratura SOLO orizzontale del selettore dei giorni: evita qualsiasi scroll vertical jump su iOS WebKit
   useEffect(() => {
     const timer = setTimeout(() => {
-      if (selectedDayBtnRef.current) {
-        selectedDayBtnRef.current.scrollIntoView({
-          inline: 'center',
-          block: 'nearest',
+      const container = calendarContainerRef.current;
+      const btn = selectedDayBtnRef.current;
+      if (container && btn) {
+        const targetLeft = Math.max(0, btn.offsetLeft - (container.clientWidth - btn.offsetWidth) / 2);
+        container.scrollTo({
+          left: targetLeft,
           behavior: 'smooth'
         });
       }
     }, 100);
     return () => clearTimeout(timer);
-  }, [selectedDate, tripDays]);
+  }, [selectedDate, tripDaysSignature]);
 
   // Ascolta eventi globali di mutazione dati (roadbook_data_mutated) e aggiornamento attività
   useEffect(() => {

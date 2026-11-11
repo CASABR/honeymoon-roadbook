@@ -119,6 +119,7 @@ html.dark, html.dark body, html.dark #root {
 
 html, body {
   overscroll-behavior-y: none;
+  overflow-x: clip;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
 }
@@ -148,11 +149,44 @@ button, a, input, select {
 }
 
 .app-safe-shell {
-  padding-left: var(--app-safe-left);
-  padding-right: var(--app-safe-right);
+  background-color: var(--bg-app);
 }
 
-.app-mobile-header { padding-top: max(0.75rem, var(--app-safe-top)); }
+.app-workspace {
+  padding-left: max(0.75rem, var(--app-safe-left));
+  padding-right: max(0.75rem, var(--app-safe-right));
+}
+
+.app-mobile-header {
+  padding-top: calc(var(--app-safe-top) + 0.625rem);
+  padding-left: max(1rem, var(--app-safe-left));
+  padding-right: max(1rem, var(--app-safe-right));
+}
+
+.app-mobile-header > *,
+.app-onboarding-shell > * {
+  position: relative;
+  z-index: 1;
+}
+
+.app-mobile-header::before,
+.app-onboarding-shell::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--app-safe-top);
+  pointer-events: none;
+  z-index: 0;
+  background: linear-gradient(180deg, rgba(23, 32, 51, 0.94) 0%, rgba(23, 32, 51, 0.78) 82%, transparent 100%);
+}
+
+html.dark .app-mobile-header::before,
+html.dark .app-onboarding-shell::before {
+  background: rgba(23, 32, 51, 0.92);
+}
+
 .app-desktop-navigation {
   height: 100dvh;
   padding-top: var(--app-safe-top);

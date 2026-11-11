@@ -5,13 +5,15 @@ export default function DarkModeToggle() {
 
   useEffect(() => {
     const saved = localStorage.getItem('houni_theme') || localStorage.getItem('theme');
-    if (saved === 'dark') {
-      setIsDark(true);
+    const dark = saved === 'dark';
+    setIsDark(dark);
+    if (dark) {
       document.documentElement.classList.add('dark');
     } else {
-      setIsDark(false);
       document.documentElement.classList.remove('dark');
     }
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) themeMeta.setAttribute('content', dark ? '#172033' : '#F8F7F3');
   }, []);
 
   const toggleDarkMode = () => {
@@ -24,6 +26,8 @@ export default function DarkModeToggle() {
     } else {
       document.documentElement.classList.remove('dark');
     }
+    const themeMeta = document.querySelector('meta[name="theme-color"]');
+    if (themeMeta) themeMeta.setAttribute('content', nextMode ? '#172033' : '#F8F7F3');
     localStorage.setItem('houni_theme', themeStr);
     localStorage.setItem('theme', themeStr);
     

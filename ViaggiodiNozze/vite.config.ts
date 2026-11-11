@@ -84,8 +84,8 @@ export default defineConfig(({ command }) => ({
         id: "/honeymoon-roadbook/",
         start_url: "/honeymoon-roadbook/",
         scope: "/honeymoon-roadbook/",
-        theme_color: "#FF6B5F",
-        background_color: "#ffffff",
+        theme_color: "#F8F7F3",
+        background_color: "#F8F7F3",
         display: "standalone",
         icons: [
           {

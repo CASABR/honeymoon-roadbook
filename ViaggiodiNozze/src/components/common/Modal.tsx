@@ -28,7 +28,7 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
     const scrollY = window.scrollY || window.pageYOffset || 0;
 
     // Se esiste un container scrollabile principale interno ad App.tsx
-    const mainScrollEl = document.querySelector<HTMLElement>('.h-screen.overflow-y-auto, [data-main-scroll-container]');
+    const mainScrollEl = document.querySelector<HTMLElement>('[data-main-scroll-container], .h-screen.overflow-y-auto');
     const mainScrollTop = mainScrollEl ? mainScrollEl.scrollTop : 0;
 
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
