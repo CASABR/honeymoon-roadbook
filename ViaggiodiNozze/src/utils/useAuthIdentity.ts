@@ -32,14 +32,33 @@ export function setSimulatedRole(role: SimulatedRole): void {
 let authoritativeCloudRole: CloudRole = 'checking';
 let authorizedIdentity: { uid: string; tripId: string } | null = null;
 
+interface CachedCloudRoleResult {
+  key: string;
+  role: CloudRole;
+  ownerUid: string | null;
+  ownerName?: string;
+  timestamp: number;
+}
+const CLOUD_ROLE_CACHE_TTL_MS = 3_000;
+let cachedRoleResult: CachedCloudRoleResult | null = null;
+let inFlightRoleVerification: { key: string; promise: Promise<CachedCloudRoleResult> } | null = null;
+let lastObservedAuthKey: string | null = null;
+
 export function getAuthoritativeCloudRole(): CloudRole {
   return authoritativeCloudRole;
 }
 
 export function setAuthoritativeCloudRole(role: CloudRole): void {
-  authoritativeCloudRole = role;
-  authorizedIdentity = (role === 'owner' || role === 'copilota') && auth?.currentUser?.uid
+  const nextAuthorizedIdentity = (role === 'owner' || role === 'copilota') && auth?.currentUser?.uid
     ? { uid: auth.currentUser.uid, tripId: getTripConfig()?.id || '0000' } : null;
+  const isUnchanged =
+    authoritativeCloudRole === role &&
+    authorizedIdentity?.uid === nextAuthorizedIdentity?.uid &&
+    authorizedIdentity?.tripId === nextAuthorizedIdentity?.tripId;
+  if (isUnchanged) return;
+
+  authoritativeCloudRole = role;
+  authorizedIdentity = nextAuthorizedIdentity;
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('houni_cloud_role_changed', { detail: { cloudRole: role } }));
   }
@@ -82,7 +101,7 @@ export function recordVerifiedTripAuth(tripId: string, uid: string, role: 'owner
       verifiedAt: Date.now()
     }));
     localStorage.removeItem(`houni_revoked_trip_${tripId}`);
-  } catch {}
+  } catch { }
 }
 
 export function revokeTripAuth(tripId: string): void {
@@ -94,7 +113,7 @@ export function revokeTripAuth(tripId: string): void {
     localStorage.setItem('app_device_role', 'viewer');
     setAuthoritativeCloudRole('viewer');
     window.dispatchEvent(new CustomEvent('houni_trip_auth_revoked', { detail: { tripId } }));
-  } catch {}
+  } catch { }
 }
 
 export function isTripAuthRevoked(tripId: string): boolean {
@@ -127,7 +146,7 @@ export function isCloudAuthorized(targetTripId?: string): boolean {
 /** Local access only: previous server verification never grants cloud writes. */
 export function getAuthorizedLocalEditorRole(tripId: string | null, uid: string | null): 'owner' | 'copilota' | null {
   if (!tripId || !uid || auth?.currentUser?.uid !== uid || auth.currentUser.isAnonymous
-      || isTripAuthRevoked(tripId)) return null;
+    || isTripAuthRevoked(tripId)) return null;
   if (authoritativeCloudRole === 'owner' || authoritativeCloudRole === 'copilota') {
     return authorizedIdentity?.uid === uid && authorizedIdentity.tripId === tripId ? authoritativeCloudRole : null;
   }
@@ -187,23 +206,23 @@ export interface AuthIdentityState {
   shortUid: string;
   email: string | null;
   isAnonymous: boolean;
-  
+
   // Dati del Viaggio
   tripId: string;
   ownerName: string;
   ownerUid: string | null;
   shortOwnerUid: string;
   isOwnerUidVerified: boolean;
-  
+
   // Ruoli
   cloudRole: CloudRole;
   deviceRole: DeviceRole;
   isCloudAuthorized: boolean;
-  
+
   // Discrepanza tra cloud reale e localStorage locale
   hasDiscrepancy: boolean;
   discrepancyMessage: string | null;
-  
+
   // Simulatore Dev
   isSimulated: boolean;
   simulatedRole: SimulatedRole;
@@ -235,10 +254,12 @@ export function useAuthIdentity(): AuthIdentityState {
 
   const config = activeConfig || getTripConfig();
   const tripId = config?.id || '0000';
-  
+
   // Listener Trip Config Change
   useEffect(() => {
     const handleConfig = () => {
+      cachedRoleResult = null;
+      inFlightRoleVerification = null;
       setActiveConfig(getTripConfig());
     };
     window.addEventListener('trip_config_changed', handleConfig);
@@ -248,10 +269,10 @@ export function useAuthIdentity(): AuthIdentityState {
       window.removeEventListener('storage', handleConfig);
     };
   }, []);
-  
+
   // ownerName: usa il dato autorevole, la configurazione locale o un ruolo generico
   const ownerName = authoritativeOwnerName || config?.ownerName || (tripId === '0000' ? 'Owner' : 'Non specificato');
-  
+
   // ownerUid: proviene prioritariamente dal documento remoto Firestore attendibile
   const ownerUid = authoritativeOwnerUid || config?.ownerUid || null;
   const isOwnerUidVerified = !!authoritativeOwnerUid;
@@ -271,8 +292,17 @@ export function useAuthIdentity(): AuthIdentityState {
       return;
     }
     const unsub = onAuthStateChanged(auth, user => {
-      setAuthoritativeCloudRole('checking');
-      setCurrentUser(user);
+      const nextAuthKey = user ? `${user.uid}:${Boolean(user.isAnonymous)}` : 'none';
+      if (lastObservedAuthKey !== nextAuthKey) {
+        lastObservedAuthKey = nextAuthKey;
+        cachedRoleResult = null;
+        inFlightRoleVerification = null;
+        setAuthoritativeCloudRole('checking');
+      }
+      setCurrentUser(prev => {
+        const prevKey = prev ? `${prev.uid}:${Boolean(prev.isAnonymous)}` : 'none';
+        return prevKey === nextAuthKey ? prev : user;
+      });
     });
     return () => unsub();
   }, []);
@@ -312,7 +342,7 @@ export function useAuthIdentity(): AuthIdentityState {
       setAuthoritativeCloudRole(newRole);
     }
 
-    async function verifyCloudRole() {
+    async function verifyCloudRole(forceRefresh = false) {
       // 1. Controllo offline immediato
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         updateRole('offline');
@@ -323,7 +353,7 @@ export function useAuthIdentity(): AuthIdentityState {
       if (auth && typeof (auth as any).authStateReady === 'function') {
         try {
           await (auth as any).authStateReady();
-        } catch {}
+        } catch { }
       }
       const activeUser = auth?.currentUser || currentUser;
       // 2. Utente non autenticato o anonimo -> sessione non verificata sul backend Cloud
@@ -342,63 +372,97 @@ export function useAuthIdentity(): AuthIdentityState {
         return;
       }
 
-      try {
-        updateRole('checking');
-
-        // Lettura documento radice attendibile
-        const tripRef = doc(db, 'trips', tripId);
-        const tripSnap = await getDoc(tripRef);
-
-        if (!tripSnap.exists()) {
-          updateRole(isAdmin ? 'admin' : 'unverified');
-          return;
-        }
-
-        if (!isMounted || auth?.currentUser?.uid !== activeUser.uid) return;
-        const tripData = tripSnap.data();
-        const remoteOwnerUid = tripData?.ownerUid || null;
-        const remoteOwnerName = tripData?.ownerName || (tripId === '0000' ? 'Owner' : undefined);
-
+      const verifyKey = `${activeUser.uid}:${tripId}`;
+      const now = Date.now();
+      if (!forceRefresh && cachedRoleResult && cachedRoleResult.key === verifyKey && now - cachedRoleResult.timestamp < CLOUD_ROLE_CACHE_TTL_MS) {
         if (isMounted) {
-          if (remoteOwnerUid) setAuthoritativeOwnerUid(remoteOwnerUid);
-          if (remoteOwnerName) setAuthoritativeOwnerName(remoteOwnerName);
+          if (cachedRoleResult.ownerUid) setAuthoritativeOwnerUid(cachedRoleResult.ownerUid);
+          if (cachedRoleResult.ownerName) setAuthoritativeOwnerName(cachedRoleResult.ownerName);
+          updateRole(cachedRoleResult.role);
+        }
+        return;
+      }
+
+      try {
+        // Evita di far oscillare il ruolo già risolto tornando a 'checking' su altri mount
+        if (
+          authoritativeCloudRole === 'checking' ||
+          authoritativeCloudRole === 'unverified' ||
+          authoritativeCloudRole === 'offline' ||
+          cachedRoleResult?.key !== verifyKey
+        ) {
+          updateRole('checking');
         }
 
-        // 1. Owner effettivo del viaggio verificato da Firestore
-        if (remoteOwnerUid && activeUser.uid === remoteOwnerUid) {
-          recordVerifiedTripAuth(tripId, activeUser.uid, 'owner');
-          updateRole('owner');
-          return;
+        if (forceRefresh || !inFlightRoleVerification || inFlightRoleVerification.key !== verifyKey) {
+          const firestoreDb = db;
+          const runCheck = async (): Promise<CachedCloudRoleResult> => {
+            const tripRef = doc(firestoreDb, 'trips', tripId);
+            const tripSnap = await getDoc(tripRef);
+
+            if (!tripSnap.exists()) {
+              return { key: verifyKey, role: isAdmin ? 'admin' : 'unverified', ownerUid: null, timestamp: Date.now() };
+            }
+
+            if (auth?.currentUser?.uid !== activeUser.uid) {
+              return { key: verifyKey, role: 'unverified', ownerUid: null, timestamp: Date.now() };
+            }
+
+            const tripData = tripSnap.data();
+            const remoteOwnerUid = tripData?.ownerUid || null;
+            const remoteOwnerName = tripData?.ownerName || (tripId === '0000' ? 'Owner' : undefined);
+
+            if (remoteOwnerUid && activeUser.uid === remoteOwnerUid) {
+              recordVerifiedTripAuth(tripId, activeUser.uid, 'owner');
+              return { key: verifyKey, role: 'owner', ownerUid: remoteOwnerUid, ownerName: remoteOwnerName, timestamp: Date.now() };
+            }
+
+            const memRef = doc(firestoreDb, 'trips', tripId, 'members', activeUser.uid);
+            const memSnap = await getDoc(memRef).catch(() => null);
+            if (auth?.currentUser?.uid !== activeUser.uid) {
+              return { key: verifyKey, role: 'unverified', ownerUid: remoteOwnerUid, ownerName: remoteOwnerName, timestamp: Date.now() };
+            }
+            if (memSnap?.exists() && ['owner', 'copilota'].includes(memSnap.data()?.role)) {
+              const memRole: CloudRole = memSnap.data()?.role === 'owner' ? 'owner' : 'copilota';
+              recordVerifiedTripAuth(tripId, activeUser.uid, memRole);
+              return { key: verifyKey, role: memRole, ownerUid: remoteOwnerUid, ownerName: remoteOwnerName, timestamp: Date.now() };
+            }
+
+            if (isAdmin) {
+              return { key: verifyKey, role: 'admin', ownerUid: remoteOwnerUid, ownerName: remoteOwnerName, timestamp: Date.now() };
+            }
+
+            const verified = getVerifiedTripAuth(tripId);
+            if (verified && verified.uid === activeUser.uid && !(activeUser as any).isAnonymous) {
+              console.warn(`[useAuthIdentity] Revoca confermata dal backend per utente ${activeUser.uid} su viaggio ${tripId}`);
+              revokeTripAuth(tripId);
+            }
+            return { key: verifyKey, role: 'viewer', ownerUid: remoteOwnerUid, ownerName: remoteOwnerName, timestamp: Date.now() };
+          };
+
+          const sharedPromise = runCheck().then(
+            (res) => {
+              cachedRoleResult = res;
+              if (inFlightRoleVerification?.promise === sharedPromise) {
+                inFlightRoleVerification = null;
+              }
+              return res;
+            },
+            (err) => {
+              if (inFlightRoleVerification?.promise === sharedPromise) {
+                inFlightRoleVerification = null;
+              }
+              throw err;
+            }
+          );
+          inFlightRoleVerification = { key: verifyKey, promise: sharedPromise };
         }
 
-        // 3. Verifica opzionale nella sottocollezione /trips/{tripId}/members/{uid}
-        const memRef = doc(db, 'trips', tripId, 'members', activeUser.uid);
-        const memSnap = await getDoc(memRef).catch(() => null);
+        const result = await inFlightRoleVerification.promise;
         if (!isMounted || auth?.currentUser?.uid !== activeUser.uid) return;
-        if (memSnap?.exists() && ['owner', 'copilota'].includes(memSnap.data()?.role)) {
-          const memRole = memSnap.data()?.role === 'owner' ? 'owner' : 'copilota';
-          recordVerifiedTripAuth(tripId, activeUser.uid, memRole);
-          updateRole(memRole);
-          return;
-        }
-
-        // 4. Se non è owner né copilota del viaggio, ma è amministratore globale di sistema
-        if (isAdmin) {
-          updateRole('admin');
-          return;
-        }
-
-        // 5. Se l'UID non è owner e non è presente in members:
-        // Controlla se questo specifico utente era precedentemente verificato come Owner o Copilota.
-        // Se un utente anonimo o un utente secondario accede, NON revoca le credenziali verificate del dispositivo!
-        const verified = getVerifiedTripAuth(tripId);
-        if (verified && verified.uid === activeUser.uid && !(activeUser as any).isAnonymous) {
-          // L'utente era formalmente abilitato per questo viaggio, ma il backend Firestore
-          // conferma che non è più né owner né membro: revoca confermata!
-          console.warn(`[useAuthIdentity] Revoca confermata dal backend per utente ${activeUser.uid} su viaggio ${tripId}`);
-          revokeTripAuth(tripId);
-        }
-        updateRole('viewer');
+        if (result.ownerUid) setAuthoritativeOwnerUid(result.ownerUid);
+        if (result.ownerName) setAuthoritativeOwnerName(result.ownerName);
+        updateRole(result.role);
       } catch (err) {
         console.warn('[useAuthIdentity] Errore lettura remota autorizzazioni:', err);
         const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
@@ -406,10 +470,13 @@ export function useAuthIdentity(): AuthIdentityState {
       }
     }
 
-    verifyCloudRole();
+    verifyCloudRole(false);
 
     // Riascolta ritorno online
-    const handleOnline = () => verifyCloudRole();
+    const handleOnline = () => {
+      cachedRoleResult = null;
+      verifyCloudRole(true);
+    };
     const handleOffline = () => {
       updateRole('offline');
     };

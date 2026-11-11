@@ -842,6 +842,7 @@ if (typeof window !== 'undefined') {
 
 export class SyncService {
   private unsubscribes: (() => void)[] = [];
+  private lastAppliedCloudRoleKey: string | null = null;
   private domListeners: { target: EventTarget; type: string; listener: EventListener }[] = [];
   private tripId: string;
   private isSyncing = false;
@@ -1003,6 +1004,10 @@ export class SyncService {
     let pushedCount = 0;
     let deletedCount = 0;
     const serverDocIds = new Set<string>();
+    const localSettings = await idbGetAll<any>(STORES.SETTINGS);
+    const localSettingsMap = new Map<string, any>(
+      localSettings.filter(s => s && s.id).map(s => [s.id, s])
+    );
 
     for (const docSnap of snap.docs) {
       const serverData = docSnap.data();
@@ -1091,21 +1096,30 @@ export class SyncService {
           }
         }
 
-        // Salva il tombstone in STORES.SETTINGS locale e in localStorage
-        await idbPut(STORES.SETTINGS, { id: docId, value: { ...serverData, pending: false } });
-        if (typeof localStorage !== 'undefined') {
-          try { localStorage.setItem(docId, 'true'); } catch (e) {}
+        // Salva il tombstone in STORES.SETTINGS locale solo se cambiato rispetto alla copia locale
+        const nextTombstoneValue = { ...serverData, pending: false };
+        const prevTombstone = localSettingsMap.get(docId);
+        if (!prevTombstone || JSON.stringify(prevTombstone.value) !== JSON.stringify(nextTombstoneValue)) {
+          await idbPut(STORES.SETTINGS, { id: docId, value: nextTombstoneValue });
+          pulledCount++;
         }
-        pulledCount++;
+        if (typeof localStorage !== 'undefined') {
+          try {
+            if (localStorage.getItem(docId) !== 'true') localStorage.setItem(docId, 'true');
+          } catch (e) {}
+        }
       } else if (!docId.startsWith('device_role_backup') && !docId.startsWith('device_session_backup') && !docId.startsWith('trip_config_backup')) {
         // Setting ordinario (escludendo sempre chiavi strettamente per-dispositivo)
-        await idbPut(STORES.SETTINGS, { id: docId, ...serverData });
-        pulledCount++;
+        const nextSetting = { id: docId, ...serverData };
+        const prevSetting = localSettingsMap.get(docId);
+        if (!prevSetting || JSON.stringify(prevSetting) !== JSON.stringify(nextSetting)) {
+          await idbPut(STORES.SETTINGS, nextSetting);
+          pulledCount++;
+        }
       }
     }
 
     // Push dei tombstone locali non ancora presenti sul server o marcati come pending
-    const localSettings = await idbGetAll<any>(STORES.SETTINGS);
     let pendingTombstonePushFailure: Error | null = null;
 
     for (const s of localSettings) {
@@ -1651,6 +1665,11 @@ export class SyncService {
     // Ripresa automatica al cambio di ruolo cloud verificato (owner / copilota)
     this.addDomListener(window, 'houni_cloud_role_changed', (async (e: Event) => {
       const role = (e as CustomEvent)?.detail?.cloudRole;
+      const roleKey = `${String(role || '')}:${auth?.currentUser?.uid || ''}:${this.tripId}`;
+      if (this.lastAppliedCloudRoleKey === roleKey) {
+        return;
+      }
+      this.lastAppliedCloudRoleKey = roleKey;
       this.unsubscribes.forEach(unsub => unsub());
       this.unsubscribes = [];
       if (role === 'viewer') await this.purgeSensitiveLocalCache();

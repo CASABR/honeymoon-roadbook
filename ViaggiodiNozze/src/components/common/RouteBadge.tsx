@@ -1,5 +1,5 @@
 import GoogleMapsIcon from '../icons/GoogleMapsIcon';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { RouteInfo, RouteProfile, Coordinate } from '../../types';
 import { getRoute, saveManualRoute } from '../../services/routingService';
 import { openMapLink } from '../../utils/mapsHelper';
@@ -49,6 +49,15 @@ export default function RouteBadge({
   const [manualDistance, setManualDistance] = useState('');
   const [manualDuration, setManualDuration] = useState('');
 
+  const fromLat = fromCoord?.lat;
+  const fromLng = fromCoord?.lng;
+  const toLat = toCoord?.lat;
+  const toLng = toCoord?.lng;
+  const routeKey = `${from}|${to}|${mode}|${fromLat ?? ''},${fromLng ?? ''}|${toLat ?? ''},${toLng ?? ''}`;
+  const loadedKeyRef = useRef<string | null>(null);
+  const onDistanceCalculatedRef = useRef(onDistanceCalculated);
+  onDistanceCalculatedRef.current = onDistanceCalculated;
+
   const updateMode = (newMode: SegmentTravelMode) => {
     setMode(newMode);
     if (typeof localStorage !== 'undefined') {
@@ -58,15 +67,19 @@ export default function RouteBadge({
 
   useEffect(() => {
     let mounted = true;
+    if (loadedKeyRef.current === routeKey) return;
 
     async function loadRoute() {
       if (!from || !to) return;
-      setLoading(true);
+      if (!loadedKeyRef.current) setLoading(true);
       try {
         const orsProfile: RouteProfile = mode === 'walking' ? 'foot-walking' : 'driving-car';
-        const info = await getRoute(from, to, orsProfile, fromCoord, toCoord);
+        const resolvedFromCoord = typeof fromLat === 'number' && typeof fromLng === 'number' ? { lat: fromLat, lng: fromLng } : undefined;
+        const resolvedToCoord = typeof toLat === 'number' && typeof toLng === 'number' ? { lat: toLat, lng: toLng } : undefined;
+        const info = await getRoute(from, to, orsProfile, resolvedFromCoord, resolvedToCoord);
 
         if (mounted && info) {
+          loadedKeyRef.current = routeKey;
           if (mode === 'transit') {
             if (info.manualOverride) {
               setRoute(info);
@@ -86,8 +99,8 @@ export default function RouteBadge({
             setRoute(info);
           }
 
-          if (info.distanceKm > 0 && onDistanceCalculated) {
-            onDistanceCalculated(info.distanceKm);
+          if (info.distanceKm > 0 && onDistanceCalculatedRef.current) {
+            onDistanceCalculatedRef.current(info.distanceKm);
           }
           if (info.manualOverride) {
             setManualDistance(info.formattedDistance);
@@ -106,7 +119,7 @@ export default function RouteBadge({
     return () => {
       mounted = false;
     };
-  }, [from, to, mode, fromCoord, toCoord, onDistanceCalculated]);
+  }, [from, to, mode, fromLat, fromLng, toLat, toLng, routeKey]);
 
   const isExplicitFlight = isFlight || (route?.formattedDistance || '').toLowerCase().includes('aereo') || (route?.formattedDistance || '').toLowerCase().includes('transoceanic') || (route?.formattedDuration || '').toLowerCase().includes('volo');
   const isUnverified = Boolean(
@@ -194,7 +207,7 @@ export default function RouteBadge({
 
   if (loading) {
     return (
-      <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100/90 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700 text-[11px] font-medium animate-pulse ${className}`}>
+      <div className={`inline-flex items-center min-h-[34px] gap-1.5 px-2.5 py-1 rounded-2xl bg-slate-100/90 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200/80 dark:border-slate-700 text-[11px] font-medium animate-pulse ${className}`}>
         <span>{mode === 'driving' ? '🚗' : mode === 'walking' ? '🚶' : '🚆'}</span>
         <span>Calcolo percorso...</span>
       </div>
@@ -245,7 +258,7 @@ export default function RouteBadge({
 
   return (
     <div
-      className={`flex items-center justify-between flex-nowrap gap-2 py-1 px-2.5 rounded-2xl bg-white/95 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 shadow-2xs text-xs overflow-x-auto no-scrollbar ${className}`}
+      className={`flex items-center justify-between flex-nowrap min-h-[34px] gap-2 py-1 px-2.5 rounded-2xl bg-white/95 dark:bg-slate-900/90 border border-slate-200/90 dark:border-slate-800 shadow-2xs text-xs overflow-x-auto no-scrollbar ${className}`}
     >
       {/* 3 pulsanti pillola indipendenti: [🚗 Auto] [🚶 Piedi] [🚆 Mezzi] */}
       <div className="inline-flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700 shrink-0">

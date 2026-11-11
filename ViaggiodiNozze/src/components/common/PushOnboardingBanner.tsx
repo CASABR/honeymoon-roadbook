@@ -13,16 +13,31 @@ export default function PushOnboardingBanner() {
 
   useEffect(() => {
     // 1. Controllo supporto browser di base
-    if (!isSupported) return;
+    if (!isSupported) {
+      setIsVisible(false);
+      return;
+    }
 
-    // 2. Se la registrazione push è già attiva e confermata dal server, nascondi il banner
-    if (state === 'active') return;
+    // 2. Attendi la risoluzione dello stato push iniziale per evitare comparse/scomparse tardive
+    if (state === 'checking') return;
 
-    // 3. Se l'utente ha già scelto "Non ora" in precedenza, rispetta la scelta
+    // 3. Se la registrazione push è già attiva e confermata dal server, nascondi il banner
+    if (state === 'active') {
+      setIsVisible(false);
+      return;
+    }
+
+    // 4. Se l'utente ha già scelto "Non ora" in precedenza, rispetta la scelta
     const dismissed = localStorage.getItem(PROMPT_STORAGE_KEY);
-    if (dismissed === 'true') return;
+    if (dismissed === 'true') {
+      setIsVisible(false);
+      return;
+    }
 
-    // 4. Rilevamento iPhone / iOS e modalità Standalone (Home Screen)
+    // Non iniettare un banner in cima mentre l'utente ha già iniziato a scorrere la giornata
+    if (typeof window !== 'undefined' && window.scrollY > 40) return;
+
+    // 5. Rilevamento iPhone / iOS e modalità Standalone (Home Screen)
     const isIos = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     const isStandalone = typeof window !== 'undefined' && (
       window.matchMedia('(display-mode: standalone)').matches ||
@@ -33,7 +48,7 @@ export default function PushOnboardingBanner() {
       setIsIosNonStandalone(true);
     }
 
-    // 5. Mostra il prompt al primo accesso utile
+    // 6. Mostra il prompt al primo accesso utile
     setIsVisible(true);
   }, [isSupported, permission, state]);
 

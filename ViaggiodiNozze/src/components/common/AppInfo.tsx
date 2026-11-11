@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Info } from 'lucide-react';
 import Modal from './Modal';
 import releaseHistory from '../../data/releaseHistory.json';
@@ -7,6 +7,12 @@ import {
   APP_UPDATE_STATE_EVENT,
   isAppUpdateAvailable,
 } from '../../utils/appUpdateState';
+import {
+  disableUiDebugSession,
+  enableUiDebugSession,
+  isUiDebugEnabled,
+  UI_DEBUG_CHANGED_EVENT,
+} from '../dev/UiScrollDebugOverlay';
 
 export const OPEN_APP_INFO_EVENT = 'open_hounigo_app_info';
 
@@ -52,6 +58,9 @@ export function AppInfoButton() {
 export default function AppInfoModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(isAppUpdateAvailable);
+  const [debugActive, setDebugActive] = useState<boolean>(() => isUiDebugEnabled());
+  const [debugHint, setDebugHint] = useState<string | null>(null);
+  const versionTapRef = useRef<{ count: number; lastTapAt: number }>({ count: 0, lastTapAt: 0 });
   const releases = useMemo(
     () => (releaseHistory.releases as ReleaseEntry[]).slice(0, 10),
     []
@@ -62,18 +71,46 @@ export default function AppInfoModal() {
     : '';
 
   useEffect(() => {
-    const handleOpen = () => setIsOpen(true);
+    const handleOpen = () => {
+      setIsOpen(true);
+      setDebugActive(isUiDebugEnabled());
+      setDebugHint(null);
+    };
     const handleUpdateState = (event: Event) => {
       const detail = (event as CustomEvent<{ available?: boolean }>).detail;
       setUpdateAvailable(Boolean(detail?.available));
     };
+    const handleDebugChanged = () => {
+      setDebugActive(isUiDebugEnabled());
+    };
     window.addEventListener(OPEN_APP_INFO_EVENT, handleOpen);
     window.addEventListener(APP_UPDATE_STATE_EVENT, handleUpdateState);
+    window.addEventListener(UI_DEBUG_CHANGED_EVENT, handleDebugChanged);
     return () => {
       window.removeEventListener(OPEN_APP_INFO_EVENT, handleOpen);
       window.removeEventListener(APP_UPDATE_STATE_EVENT, handleUpdateState);
+      window.removeEventListener(UI_DEBUG_CHANGED_EVENT, handleDebugChanged);
     };
   }, []);
+
+  const handleVersionTap = () => {
+    const now = Date.now();
+    const withinWindow = now - versionTapRef.current.lastTapAt < 2500;
+    const nextCount = withinWindow ? versionTapRef.current.count + 1 : 1;
+    versionTapRef.current = { count: nextCount, lastTapAt: now };
+    if (nextCount < 5) return;
+
+    versionTapRef.current = { count: 0, lastTapAt: 0 };
+    if (isUiDebugEnabled()) {
+      disableUiDebugSession();
+      setDebugActive(false);
+      setDebugHint('Diagnostica scroll disattivata.');
+    } else {
+      enableUiDebugSession();
+      setDebugActive(true);
+      setDebugHint('Diagnostica scroll attivata: chiudi questa finestra per usarla.');
+    }
+  };
 
   return (
     <Modal
@@ -87,7 +124,18 @@ export default function AppInfoModal() {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Versione installata</p>
-            <p className="mt-1 text-xl font-black text-[#172033] dark:text-white">HOUNIGO v{APP_VERSION}</p>
+            <p
+              onClick={handleVersionTap}
+              data-testid="app-version-label"
+              className="mt-1 text-xl font-black text-[#172033] dark:text-white select-none cursor-default"
+            >
+              HOUNIGO v{APP_VERSION}
+            </p>
+            {(debugHint || debugActive) && (
+              <p className="mt-1 text-[11px] font-semibold text-sky-600 dark:text-sky-400">
+                {debugHint || 'Diagnostica iPhone attiva per questa sessione.'}
+              </p>
+            )}
             <div className="mt-2 space-y-0.5 text-xs text-slate-500 dark:text-slate-400">
               <p>
                 <span className="font-semibold text-slate-700 dark:text-slate-300">Data di pubblicazione:</span>{' '}

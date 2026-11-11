@@ -23,6 +23,7 @@ import AlloggioCard from '../components/cards/AlloggioCard';
 import RistoranteCard from '../components/cards/RistoranteCard';
 import TappaCard from '../components/cards/TappaCard';
 import ShoppingCard from '../components/cards/ShoppingCard';
+import { bumpUiDebugCounter } from '../components/dev/UiScrollDebugOverlay';
 import DayMapsCard from '../components/cards/DayMapsCard';
 import PreDeparturePhotoCard from '../components/cards/PreDeparturePhotoCard';
 import type { DayMapsRoutes } from '../types';
@@ -102,6 +103,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return getDefaultSelectedDate(tripConfig?.startDate, tripConfig?.endDate, tripConfig?.id);
   });
+
+  bumpUiDebugCounter('oggiRenders');
+  useEffect(() => {
+    bumpUiDebugCounter('oggiMounts');
+  }, []);
+  useEffect(() => {
+    bumpUiDebugCounter('dayChanges', selectedDate);
+  }, [selectedDate]);
   const [accommodations, setAccommodations] = useState<Alloggio[]>([]);
   const [deadlines, setDeadlines] = useState<Scadenza[]>([]);
   const [daysData, setDaysData] = useState<Giorno[]>([]);
@@ -404,7 +413,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     // sono già stati riconciliati con tombstone dal manifest 0000.)
     const filteredItems = items;
 
-    setTimeline(filteredItems);
+    setTimeline(prev => (JSON.stringify(prev) === JSON.stringify(filteredItems) ? prev : filteredItems));
 
     // Rilevamento collisioni orarie (2 o più eventi allo stesso orario non fittizio)
     try {
@@ -451,22 +460,22 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           }
         }
       }
-      setActiveCollision(foundCollision);
+      setActiveCollision(prev => (JSON.stringify(prev) === JSON.stringify(foundCollision) ? prev : foundCollision));
     } catch (collErr) {
       console.warn('[OggiView] Collision check error:', collErr);
     }
     
     // Day maps routes (Auto & Piedi con retrocompatibilità)
     const routes = await storageService.getDayMapsRoutes(target);
-    setDayMapsRoutes(routes);
+    setDayMapsRoutes(prev => (JSON.stringify(prev) === JSON.stringify(routes) ? prev : routes));
 
     // Carica anche la timeline di domani
     const tomorrowStr = getTomorrowDateStr(target);
     if (tomorrowStr) {
       const tItems = await storageService.getTimelineForDate(tomorrowStr);
-      setTomorrowTimeline(tItems);
+      setTomorrowTimeline(prev => (JSON.stringify(prev) === JSON.stringify(tItems) ? prev : tItems));
     } else {
-      setTomorrowTimeline([]);
+      setTomorrowTimeline(prev => (prev.length === 0 ? prev : []));
     }
   }, [selectedDate]);
 
@@ -543,8 +552,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       }
       if (heroMode) setHeroTitleMode(heroMode as 'custom' | 'auto');
 
-      setAccommodations(accs || []);
-      setDaysData(days || []);
+      const nextAccs = accs || [];
+      const nextDays = days || [];
+      setAccommodations(prev => (JSON.stringify(prev) === JSON.stringify(nextAccs) ? prev : nextAccs));
+      setDaysData(prev => (JSON.stringify(prev) === JSON.stringify(nextDays) ? prev : nextDays));
 
       // Calcolo dinamico paesi visitati: eseguito ESCLUSIVAMENTE per il viaggio storico Nuova Zelanda (0000)
       if (isMasterTrip) {
@@ -2014,7 +2025,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                         key={item.id}
                         id={`timeline-card-${item.id}`}
                         ref={(el) => { timelineItemRefs.current[item.id] = el; }}
-                        className={`hounigo-timeline-item transition-all duration-300 ${highlightedCardId === item.id ? 'hounigo-card-highlighted' : ''}`}
+                        className={`hounigo-timeline-item transition-colors duration-200 ${highlightedCardId === item.id ? 'hounigo-card-highlighted' : ''}`}
                         style={{ animationDelay: `${Math.min(idx * 28, 168)}ms` }}
                       >
                         {isCheckinCallout ? (

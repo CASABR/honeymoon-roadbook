@@ -28,6 +28,7 @@ import { withTimeout } from './utils/withTimeout';
 import { storageService } from './storage/storageService';
 import { useAuthIdentity } from './utils/useAuthIdentity';
 import { auth } from './firebase';
+import UiScrollDebugOverlay, { bumpUiDebugCounter, isUiDebugEnabled, UI_DEBUG_CHANGED_EVENT } from './components/dev/UiScrollDebugOverlay';
 import { signInAnonymously, onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
@@ -130,6 +131,15 @@ export default function App() {
 
   const [tripConfig, setTripConfig] = useState<TripConfig | null>(getInitialTripConfig);
   const { isSimulated, simulatedRole, setSimulatedRole } = useAuthIdentity();
+  const [uiDebugActive, setUiDebugActive] = useState<boolean>(() => isUiDebugEnabled());
+
+  if (uiDebugActive) bumpUiDebugCounter('appRenders');
+  useEffect(() => {
+    bumpUiDebugCounter('appMounts');
+    const syncDebugFlag = () => setUiDebugActive(isUiDebugEnabled());
+    window.addEventListener(UI_DEBUG_CHANGED_EVENT, syncDebugFlag);
+    return () => window.removeEventListener(UI_DEBUG_CHANGED_EVENT, syncDebugFlag);
+  }, []);
 
   const [isInitializing, setIsInitializing] = useState(() => {
     if (typeof localStorage === 'undefined') return false;
@@ -462,6 +472,9 @@ export default function App() {
   }, []);
 
   const [activeTab, setActiveTab] = useState<SectionTab>('oggi');
+  useEffect(() => {
+    bumpUiDebugCounter('tabChanges', activeTab);
+  }, [activeTab]);
   const [activeCategoria, setActiveCategoria] = useState<CategoriaTab | null>(null);
   const [altroSubView, setAltroSubView] = useState<'live' | 'assicurazione' | 'documenti' | 'emergenza' | 'info' | 'spese' | 'bagagli' | 'note' | 'scadenze' | 'galleria' | null>(null);
   const [isCategorieOpen, setIsCategorieOpen] = useState(false);
@@ -847,7 +860,7 @@ export default function App() {
       <div
         ref={mainScrollContainerRef}
         data-main-scroll-container="true"
-        className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative app-forced-mobile' : 'min-h-[100dvh] overflow-x-clip md:h-[100dvh] md:overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}
+        className={`flex-1 flex flex-col min-w-0 ${isForcedMobileView ? 'w-full max-w-md min-h-screen shadow-2xl border-x border-slate-200/80 dark:border-slate-800 bg-[#F8F7F3] dark:bg-[#172033] relative app-forced-mobile' : 'min-h-[100svh] overflow-x-clip md:h-[100dvh] md:overflow-y-auto bg-[#F8F7F3] dark:bg-[#172033]'}`}
       >
         
         {/* Top Header Mobile / Tablet Header (o sempre in modalità mobile forzata) */}
@@ -1003,6 +1016,7 @@ export default function App() {
 
       {/* PWA Install Button */}
       <InstallPWA />
+      {uiDebugActive && <UiScrollDebugOverlay />}
       </div>
     </div>
   );
