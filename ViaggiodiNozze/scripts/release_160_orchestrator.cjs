@@ -30,6 +30,26 @@ const GH_PAGES_URL = 'https://casabr.github.io/honeymoon-roadbook/';
 
 const NPM_BIN = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const NPX_BIN = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+const FIREBASE_CLI_JS = path.join(process.env.APPDATA || '', 'npm', 'node_modules', 'firebase-tools', 'lib', 'bin', 'firebase.js');
+
+function runNpm(args, cwd) {
+  return execFileSync(NPM_BIN, args, {
+    cwd,
+    stdio: 'pipe',
+    shell: process.platform === 'win32',
+  });
+}
+
+function runFirebase(args, cwd) {
+  if (fs.existsSync(FIREBASE_CLI_JS)) {
+    return execFileSync(process.execPath, [FIREBASE_CLI_JS, ...args], { cwd, stdio: 'pipe' });
+  }
+  return execFileSync(NPX_BIN, ['firebase', ...args], {
+    cwd,
+    stdio: 'pipe',
+    shell: process.platform === 'win32',
+  });
+}
 
 function loadTs(relative, deps = {}) {
   const exports = {};
@@ -505,19 +525,13 @@ async function deployRulesProfile(opts, rulesFile, client) {
     fs.copyFileSync(rootRules, tmpBackup);
     try {
       fs.copyFileSync(rulesFile, rootRules);
-      execFileSync(NPX_BIN, ['firebase', 'deploy', '--only', 'firestore:rules', '--project', opts.project], {
-        cwd: REPO_ROOT,
-        stdio: 'pipe',
-      });
+      runFirebase(['deploy', '--only', 'firestore:rules', '--project', opts.project], REPO_ROOT);
     } finally {
       fs.copyFileSync(tmpBackup, rootRules);
       fs.unlinkSync(tmpBackup);
     }
   } else {
-    execFileSync(NPX_BIN, ['firebase', 'deploy', '--only', 'firestore:rules', '--project', opts.project], {
-      cwd: REPO_ROOT,
-      stdio: 'pipe',
-    });
+    runFirebase(['deploy', '--only', 'firestore:rules', '--project', opts.project], REPO_ROOT);
   }
 }
 
@@ -728,9 +742,9 @@ async function waitForIndexesReady(project, token) {
 }
 
 async function deployAndVerifyFrontend160() {
-  execFileSync(NPM_BIN, ['run', 'build'], { cwd: APP_ROOT, stdio: 'pipe' });
-  execFileSync('node', [path.join(__dirname, 'test_public_bundle_privacy.cjs')], { cwd: APP_ROOT, stdio: 'pipe' });
-  execFileSync('node', [path.join(__dirname, 'test_release_versioning.cjs')], { cwd: APP_ROOT, stdio: 'pipe' });
+  runNpm(['run', 'build'], APP_ROOT);
+  execFileSync(process.execPath, [path.join(__dirname, 'test_public_bundle_privacy.cjs')], { cwd: APP_ROOT, stdio: 'pipe' });
+  execFileSync(process.execPath, [path.join(__dirname, 'test_release_versioning.cjs')], { cwd: APP_ROOT, stdio: 'pipe' });
 
   const builtHtml = fs.readFileSync(path.join(APP_ROOT, 'dist', 'index.html'), 'utf8');
   const scriptMatch = /(assets\/index-[A-Za-z0-9_-]+\.js)/.exec(builtHtml);
@@ -738,7 +752,7 @@ async function deployAndVerifyFrontend160() {
   const assetRelPath = scriptMatch[1];
   const expectedAssetSha = sha256File(path.join(APP_ROOT, 'dist', assetRelPath));
 
-  execFileSync(NPM_BIN, ['run', 'deploy'], { cwd: APP_ROOT, stdio: 'pipe' });
+  runNpm(['run', 'deploy'], APP_ROOT);
 
   const deadline = Date.now() + 180000;
   while (true) {
@@ -821,10 +835,7 @@ async function main() {
     // 3. Indexes READY check
     if (state.steps.indexes !== 'PASSED') {
       if (opts.mode === 'production') {
-        execFileSync(NPX_BIN, ['firebase', 'deploy', '--only', 'firestore:indexes', '--project', opts.project], {
-          cwd: REPO_ROOT,
-          stdio: 'pipe',
-        });
+        runFirebase(['deploy', '--only', 'firestore:indexes', '--project', opts.project], REPO_ROOT);
         state.indexesVerified = await waitForIndexesReady(opts.project, token);
       }
       state.steps.indexes = 'PASSED';
@@ -923,10 +934,7 @@ async function main() {
         )).json();
         const buckets = Array.isArray(bRes?.items) ? bRes.items : [];
         if (buckets.length > 0) {
-          execFileSync(NPX_BIN, ['firebase', 'deploy', '--only', 'storage', '--project', opts.project], {
-            cwd: REPO_ROOT,
-            stdio: 'pipe',
-          });
+          runFirebase(['deploy', '--only', 'storage', '--project', opts.project], REPO_ROOT);
           const relList = await (await fetch(
             `https://firebaserules.googleapis.com/v1/projects/${opts.project}/releases`,
             { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20000) }
