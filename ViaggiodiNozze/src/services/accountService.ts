@@ -631,36 +631,47 @@ export async function loginWithEmailPassword(
   }
 }
 
-/**
- * Controlla se vi è un risultato OAuth pendente da redirect (es. PWA o Safari senza popup).
- */
-export async function checkPendingRedirectResult(): Promise<{
+type RedirectCheckResult = {
   success: boolean;
   user?: User;
   error?: string;
   code?: string;
-}> {
+};
+
+let cachedRedirectCheckPromise: Promise<RedirectCheckResult> | null = null;
+
+/**
+ * Controlla se vi è un risultato OAuth pendente da redirect (es. PWA o Safari senza popup).
+ * Coalesce su un'unica Promise per evitare doppie chiamate concorrenti a getRedirectResult().
+ */
+export async function checkPendingRedirectResult(): Promise<RedirectCheckResult> {
   if (!auth) return { success: false };
-  try {
-    const result = await getRedirectResult(auth);
+  if (cachedRedirectCheckPromise) return cachedRedirectCheckPromise;
+
+  cachedRedirectCheckPromise = (async () => {
     try {
-      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('houni_oauth_redirect_pending');
-    } catch {}
-    if (result && result.user) {
-      return { success: true, user: result.user };
+      const result = await getRedirectResult(auth);
+      try {
+        if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('houni_oauth_redirect_pending');
+      } catch {}
+      if (result && result.user) {
+        return { success: true, user: result.user };
+      }
+      return { success: false };
+    } catch (err: any) {
+      try {
+        if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('houni_oauth_redirect_pending');
+      } catch {}
+      const code = err?.code || 'auth/unknown';
+      return {
+        success: false,
+        code,
+        error: err?.message || 'Errore durante il recupero del login da reindirizzamento.'
+      };
     }
-    return { success: false };
-  } catch (err: any) {
-    try {
-      if (typeof sessionStorage !== 'undefined') sessionStorage.removeItem('houni_oauth_redirect_pending');
-    } catch {}
-    const code = err?.code || 'auth/unknown';
-    return {
-      success: false,
-      code,
-      error: err?.message || 'Errore durante il recupero del login da reindirizzamento.'
-    };
-  }
+  })();
+
+  return cachedRedirectCheckPromise;
 }
 
 /**
@@ -713,6 +724,7 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
         try {
           if (typeof sessionStorage !== 'undefined') sessionStorage.setItem('houni_oauth_redirect_pending', '1');
         } catch {}
+        cachedRedirectCheckPromise = null;
         const { signInWithRedirect } = await import('firebase/auth');
         await signInWithRedirect(auth, provider);
         return { success: false, code: 'auth/redirect-started', error: 'Reindirizzamento verso Google in corso...' };
