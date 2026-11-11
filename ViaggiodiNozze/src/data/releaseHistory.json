@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.5",
+      "publishedAt": "2026-11-11",
+      "sourceCommit": "32e9449",
+      "changes": [
+        "Pagine pubbliche di presentazione, Privacy Policy GDPR e Termini di utilizzo su GitHub Pages",
+        "Collegamenti pubblici in onboarding, modale Informazioni ed esclusione PWA per i documenti statici"
+      ],
+      "publishedAtIso": "2026-11-11T18:53:58+01:00"
+    },
+    {
       "version": "1.6.4",
       "publishedAt": "2026-11-11",
       "sourceCommit": "44ba9a2",
@@ -91,16 +101,6 @@
       "sourceCommit": "884baaf5d8a00126f9acd610e48488634239081b",
       "changes": [
         "Integrazione collegamenti Google Drive nella cartella Documenti con apertura protetta e selettore categorie"
-      ]
-    },
-    {
-      "version": "1.5.12",
-      "publishedAt": "2026-11-09",
-      "sourceCommit": "ef2916d33c7b3565db7f43448f6e7003c2828303",
-      "changes": [
-        "UX LIVE desktop panoramica per ospiti con banner discreto e riordino schermata Altro con accesso rapido Google Drive",
-        "Ricerca rapida con badge sezioni, parita logo chiaro e scuro e safe area migliorata per notch e home indicator iPhone",
-        "Sottocategoria Task per tappe con data orario link e note persistiti offline e sincronizzabili"
       ]
     }
   ]
