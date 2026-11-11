@@ -746,13 +746,16 @@ async function deployAndVerifyFrontend160() {
   execFileSync(process.execPath, [path.join(__dirname, 'test_public_bundle_privacy.cjs')], { cwd: APP_ROOT, stdio: 'pipe' });
   execFileSync(process.execPath, [path.join(__dirname, 'test_release_versioning.cjs')], { cwd: APP_ROOT, stdio: 'pipe' });
 
+  // npm run deploy triggers predeploy (npm run build) before pushing dist/ to gh-pages,
+  // so verify privacy & extract the exact pushed bundle hash AFTER predeploy+deploy complete.
+  runNpm(['run', 'deploy'], APP_ROOT);
+  execFileSync(process.execPath, [path.join(__dirname, 'test_public_bundle_privacy.cjs')], { cwd: APP_ROOT, stdio: 'pipe' });
+
   const builtHtml = fs.readFileSync(path.join(APP_ROOT, 'dist', 'index.html'), 'utf8');
   const scriptMatch = /(assets\/index-[A-Za-z0-9_-]+\.js)/.exec(builtHtml);
   assert.ok(scriptMatch, 'Built dist/index.html missing main index-*.js asset');
   const assetRelPath = scriptMatch[1];
   const expectedAssetSha = sha256File(path.join(APP_ROOT, 'dist', assetRelPath));
-
-  runNpm(['run', 'deploy'], APP_ROOT);
 
   const deadline = Date.now() + 180000;
   while (true) {
