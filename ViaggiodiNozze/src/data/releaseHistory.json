@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.2",
+      "publishedAt": "2026-11-11",
+      "sourceCommit": "d2a7215",
+      "changes": [
+        "Stabilizzazione scroll timeline e coalescenza verifiche ruoli e listener cloud",
+        "Rimosso manifest duplicato per estensione Dynamic Island su nuova icona PWA iPhone",
+        "Diagnostica iPhone discreta con 5 tocchi sulla versione in Informazioni (Avvia/Ferma/Copia)"
+      ],
+      "publishedAtIso": "2026-11-11T15:34:44+01:00"
+    },
+    {
       "version": "1.6.1",
       "publishedAt": "2026-11-11",
       "sourceCommit": "a709d4a",
@@ -88,15 +99,6 @@
       "changes": [
         "Condivisione GPS LIVE in tempo reale con delega guida, protezione batteria e rate-limiting 15s.",
         "Ricezione automatica posizioni su Copilota e protezione privacy su pagina pubblica ospiti."
-      ]
-    },
-    {
-      "version": "1.5.9",
-      "publishedAt": "2026-11-08",
-      "sourceCommit": "469c3ab",
-      "changes": [
-        "Sincronizzazione automatica bidirezionale in tempo reale tra Owner e Copilota.",
-        "Scritture atomiche batch per cassaforte e dati pubblici con isolamento safe per documenti non versionati."
       ]
     }
   ]

@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.6.2 — 2026-11-11
+
+- Stabilizzazione scroll timeline e coalescenza verifiche ruoli e listener cloud
+- Rimosso manifest duplicato per estensione Dynamic Island su nuova icona PWA iPhone
+- Diagnostica iPhone discreta con 5 tocchi sulla versione in Informazioni (Avvia/Ferma/Copia)
+
 ## 1.6.1 — 2026-11-11
 
 - Copertura Dynamic Island iPhone in PWA/Safari e contrasto barra di stato
@@ -48,8 +54,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Condivisione GPS LIVE in tempo reale con delega guida, protezione batteria e rate-limiting 15s.
 - Ricezione automatica posizioni su Copilota e protezione privacy su pagina pubblica ospiti.
-
-## 1.5.9 — 2026-11-08
-
-- Sincronizzazione automatica bidirezionale in tempo reale tra Owner e Copilota.
-- Scritture atomiche batch per cassaforte e dati pubblici con isolamento safe per documenti non versionati.
