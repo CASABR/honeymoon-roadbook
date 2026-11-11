@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.6.3 — 2026-11-11
+
+- Risolto blocco primo avvio PWA iPhone con card onboarding visibile sopra la piega
+- Aggiunto test automatico di primo accesso con storage vuoto e controllo anti-regressione
+
 ## 1.6.2 — 2026-11-11
 
 - Stabilizzazione scroll timeline e coalescenza verifiche ruoli e listener cloud
@@ -49,8 +54,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 
 - Invito e adesione Copilota nativa: convalida crittografica token, onboarding e sync automatico in tempo reale.
 - Share sheet di sistema con fallback appunti, note copilota con badge visivo e handover guida GPS reattivo.
-
-## 1.5.10 — 2026-11-08
-
-- Condivisione GPS LIVE in tempo reale con delega guida, protezione batteria e rate-limiting 15s.
-- Ricezione automatica posizioni su Copilota e protezione privacy su pagina pubblica ospiti.

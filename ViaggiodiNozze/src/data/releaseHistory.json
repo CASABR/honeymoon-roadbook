@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.3",
+      "publishedAt": "2026-11-11",
+      "sourceCommit": "d8db2a0",
+      "changes": [
+        "Risolto blocco primo avvio PWA iPhone con card onboarding visibile sopra la piega",
+        "Aggiunto test automatico di primo accesso con storage vuoto e controllo anti-regressione"
+      ],
+      "publishedAtIso": "2026-11-11T16:04:15+01:00"
+    },
+    {
       "version": "1.6.2",
       "publishedAt": "2026-11-11",
       "sourceCommit": "d2a7215",
@@ -90,15 +100,6 @@
       "changes": [
         "Invito e adesione Copilota nativa: convalida crittografica token, onboarding e sync automatico in tempo reale.",
         "Share sheet di sistema con fallback appunti, note copilota con badge visivo e handover guida GPS reattivo."
-      ]
-    },
-    {
-      "version": "1.5.10",
-      "publishedAt": "2026-11-08",
-      "sourceCommit": "7f3bfab",
-      "changes": [
-        "Condivisione GPS LIVE in tempo reale con delega guida, protezione batteria e rate-limiting 15s.",
-        "Ricezione automatica posizioni su Copilota e protezione privacy su pagina pubblica ospiti."
       ]
     }
   ]
