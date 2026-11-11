@@ -164,7 +164,7 @@ button, a, input, select {
 }
 
 .app-mobile-header > *,
-.app-onboarding-shell > * {
+.app-onboarding-shell > :not(.absolute) {
   position: relative;
   z-index: 1;
 }

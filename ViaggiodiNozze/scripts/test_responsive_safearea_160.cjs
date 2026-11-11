@@ -39,9 +39,16 @@ fs.mkdirSync(outDir, { recursive: true });
       const res = await page.evaluate(() => ({
         overflow: document.documentElement.scrollWidth > window.innerWidth,
         cardRect: document.querySelector('.rounded-3xl')?.getBoundingClientRect() || null,
+        ctaRect: Array.from(document.querySelectorAll('button')).find(b => b.textContent?.includes('Crea il tuo viaggio'))?.getBoundingClientRect() || null,
       }));
       assert.equal(res.overflow, false, `Onboarding horizontal overflow at ${w}px`);
-      if (res.cardRect && h > 650) assert.ok(res.cardRect.top >= insets[0] - 1, `Onboarding card overlapped top safe area at ${w}px`);
+      if (res.cardRect && h > 650) {
+        assert.ok(res.cardRect.top >= insets[0] - 1, `Onboarding card overlapped top safe area at ${w}px`);
+        assert.ok(res.cardRect.top < h * 0.45, `Onboarding card pushed too far down at ${w}px (top=${res.cardRect.top})`);
+      }
+      if (res.ctaRect && h >= 800) {
+        assert.ok(res.ctaRect.bottom <= h, `Primary onboarding CTA pushed below viewport at ${w}px (bottom=${res.ctaRect.bottom} > ${h})`);
+      }
     }
     await page.screenshot({ path: path.join(outDir, 'onboarding-393-island.png') });
 
