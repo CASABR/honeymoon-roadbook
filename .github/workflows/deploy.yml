@@ -1,0 +1,84 @@
+name: Deploy HOUNIGO su GitHub Pages
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, commit SHA o tag da compilare e distribuire'
+        required: true
+        default: 'main'
+      dry_run:
+        description: 'Compilazione di prova senza pubblicazione (seleziona per test non distruttivo)'
+        type: boolean
+        required: false
+        default: false
+      confirm:
+        description: 'Digita CONFERMA per autorizzare il deploy reale su gh-pages'
+        required: false
+        default: 'CONFERMA'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: deploy-gh-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build & Deploy PWA
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Verifica autorizzazione esplicita
+        if: ${{ !inputs.dry_run && inputs.confirm != 'CONFERMA' }}
+        run: |
+          echo "::error::Deploy bloccato: per pubblicare su gh-pages è necessario impostare confirm='CONFERMA' oppure abilitare dry_run."
+          exit 1
+
+      - name: Checkout repository (${{ inputs.ref }})
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: 'ViaggiodiNozze/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ViaggiodiNozze
+        run: npm ci
+
+      - name: Esegui Lint (Oxlint)
+        working-directory: ViaggiodiNozze
+        run: npm run lint
+
+      - name: Test pre-volo - Versionamento
+        working-directory: ViaggiodiNozze
+        run: node scripts/test_release_versioning.cjs
+
+      - name: Compilazione PWA (Production Build)
+        working-directory: ViaggiodiNozze
+        run: npm run build
+
+      - name: Notifica completamento prova (Dry Run)
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "================================================================="
+          echo "PROVA DI COMPILAZIONE COMPLETATA CON SUCCESSO! (DRY-RUN)"
+          echo "La build PWA e i test sono passati."
+          echo "Nessuna modifica è stata apportata al branch gh-pages."
+          echo "================================================================="
+
+      - name: Pubblica su GitHub Pages (gh-pages)
+        if: ${{ !inputs.dry_run && inputs.confirm == 'CONFERMA' }}
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: ViaggiodiNozze/dist
+          clean: true
+          commit-message: "deploy: HOUNIGO release da commit ${{ github.sha }} (ref: ${{ inputs.ref }})"

@@ -1,0 +1,65 @@
+name: CI - Verifica & Test HOUNIGO
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - 'work/**'
+      - 'feat/**'
+      - 'fix/**'
+      - 'hotfix/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verifica, Lint & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: 'ViaggiodiNozze/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ViaggiodiNozze
+        run: npm ci
+
+      - name: Esegui Lint (Oxlint)
+        working-directory: ViaggiodiNozze
+        run: npm run lint
+
+      - name: Esegui Compilazione PWA (Production Build)
+        working-directory: ViaggiodiNozze
+        run: npm run build
+
+      - name: Test - Versionamento & Release Consistency
+        working-directory: ViaggiodiNozze
+        run: node scripts/test_release_versioning.cjs
+
+      - name: Test - Google Drive & Duplica
+        working-directory: ViaggiodiNozze
+        run: node scripts/test_release_166_drive_and_duplica.cjs
+
+      - name: Test - Restyling LIVE & Auto GPS
+        working-directory: ViaggiodiNozze
+        run: node scripts/test_live_restyling_gps_auto.cjs
+
+      - name: Test - Menu Altro 2x2 & UI Safe Guards
+        working-directory: ViaggiodiNozze
+        run: node scripts/test_ui_micro_intervention.cjs
+
+      - name: Test - Architettura Gratuita
+        working-directory: ViaggiodiNozze
+        run: node scripts/test_free_architecture.cjs
