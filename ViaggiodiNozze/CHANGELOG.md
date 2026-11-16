@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.6.6 — 2026-11-16
+
+- Cartella preferita e selezione documenti Google Drive con scope minimo drive.file
+- Card compatte, orari a due campi, piattaforma e tasto Duplica desktop con retro mobile
+- Restyling LIVE con hero map, ripresa automatica GPS Owner e menu Altro riorganizzato in griglia 2x2
+
 ## 1.6.5 — 2026-11-11
 
 - Pagine pubbliche di presentazione, Privacy Policy GDPR e Termini di utilizzo su GitHub Pages
@@ -49,7 +55,3 @@ Questo file contiene esclusivamente versioni di cui è verificabile la pubblicaz
 - Correzione overflow orizzontale Documenti su iPhone e layout responsive pulsanti
 - Distinzione comandi Google Drive esterno e collegamento protetto documenti con categorie
 - Card foto pre-partenza compatta e orario effettivo di pubblicazione nel fuso locale utente
-
-## 1.5.13 — 2026-11-09
-
-- Integrazione collegamenti Google Drive nella cartella Documenti con apertura protetta e selettore categorie

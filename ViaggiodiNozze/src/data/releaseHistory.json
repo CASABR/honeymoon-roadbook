@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.6",
+      "publishedAt": "2026-11-16",
+      "sourceCommit": "91b28fc",
+      "changes": [
+        "Cartella preferita e selezione documenti Google Drive con scope minimo drive.file",
+        "Card compatte, orari a due campi, piattaforma e tasto Duplica desktop con retro mobile",
+        "Restyling LIVE con hero map, ripresa automatica GPS Owner e menu Altro riorganizzato in griglia 2x2"
+      ],
+      "publishedAtIso": "2026-11-16T12:54:56.442Z"
+    },
+    {
       "version": "1.6.5",
       "publishedAt": "2026-11-11",
       "sourceCommit": "32e9449",
@@ -93,15 +104,6 @@
         "Card foto pre-partenza compatta e orario effettivo di pubblicazione nel fuso locale utente"
       ],
       "publishedAtIso": "2026-11-09T12:03:00+01:00"
-    },
-    {
-      "version": "1.5.13",
-      "publishedAt": "2026-11-09",
-      "publishedAtIso": "2026-11-09T11:19:16+01:00",
-      "sourceCommit": "884baaf5d8a00126f9acd610e48488634239081b",
-      "changes": [
-        "Integrazione collegamenti Google Drive nella cartella Documenti con apertura protetta e selettore categorie"
-      ]
     }
   ]
 }
