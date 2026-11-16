@@ -4,18 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Branch, commit SHA o tag da compilare e distribuire'
+        description: 'Branch, commit SHA o tag da compilare (default: main)'
         required: true
         default: 'main'
       dry_run:
-        description: 'Compilazione di prova senza pubblicazione (seleziona per test non distruttivo)'
+        description: 'Compilazione di prova senza pubblicazione (default: ATTIVO per sicurezza)'
         type: boolean
-        required: false
-        default: false
+        required: true
+        default: true
       confirm:
-        description: 'Digita CONFERMA per autorizzare il deploy reale su gh-pages'
+        description: 'Digita CONFERMA per autorizzare il deploy reale su gh-pages (lascia vuoto se dry_run)'
         required: false
-        default: 'CONFERMA'
+        default: ''
 
 permissions:
   contents: write
@@ -30,11 +30,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Verifica autorizzazione esplicita
-        if: ${{ !inputs.dry_run && inputs.confirm != 'CONFERMA' }}
+      - name: Verifica parametri e blocco di sicurezza
         run: |
-          echo "::error::Deploy bloccato: per pubblicare su gh-pages è necessario impostare confirm='CONFERMA' oppure abilitare dry_run."
-          exit 1
+          echo "================================================================="
+          echo "VERIFICA SICUREZZA WORKFLOW"
+          echo "Parametri: ref='${{ inputs.ref }}', dry_run='${{ inputs.dry_run }}', confirm='${{ inputs.confirm }}'"
+          echo "================================================================="
+          if [ "${{ inputs.dry_run }}" = "false" ] && [ "${{ inputs.confirm }}" != "CONFERMA" ]; then
+            echo "::error::DEPLOY BLOCCATO: Per effettuare un deploy reale su gh-pages devi disattivare la casella dry_run E digitare esattamente CONFERMA."
+            exit 1
+          fi
 
       - name: Checkout repository (${{ inputs.ref }})
         uses: actions/checkout@v4
@@ -66,16 +71,16 @@ jobs:
         run: npm run build
 
       - name: Notifica completamento prova (Dry Run)
-        if: ${{ inputs.dry_run }}
+        if: ${{ inputs.dry_run == true }}
         run: |
           echo "================================================================="
           echo "PROVA DI COMPILAZIONE COMPLETATA CON SUCCESSO! (DRY-RUN)"
-          echo "La build PWA e i test sono passati."
-          echo "Nessuna modifica è stata apportata al branch gh-pages."
+          echo "Tutti i controlli lint, build PWA e test di versionamento sono passati."
+          echo "MODALITÀ SICURA: Nessuna modifica è stata apportata al branch gh-pages."
           echo "================================================================="
 
       - name: Pubblica su GitHub Pages (gh-pages)
-        if: ${{ !inputs.dry_run && inputs.confirm == 'CONFERMA' }}
+        if: ${{ inputs.dry_run == false && inputs.confirm == 'CONFERMA' }}
         uses: JamesIves/github-pages-deploy-action@v4
         with:
           branch: gh-pages

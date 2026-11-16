@@ -40,13 +40,14 @@ Quando la modifica è approvata e unita in `main`:
 1. Su iPhone, apri Safari su:
    `https://github.com/CASABR/honeymoon-roadbook/actions/workflows/deploy.yml`
 2. Tocca il pulsante **"Run workflow"** (in alto a destra).
-3. Compila i due campi:
-   - **Branch / Commit**: lascia `main` (oppure digita il branch da pubblicare).
-   - **Prova senza pubblicare (Dry run)**:
-     - Se vuoi fare solo una prova di compilazione cloud: seleziona la casella ✅ *dry_run*.
-     - Se vuoi pubblicare davvero online: lascia la casella non selezionata e lascia scritto `CONFERMA`.
+3. Compila i campi (protetti da blocco di sicurezza predefinito):
+   - **Branch / Commit**: lascia `main` (oppure digita il branch da verificare/pubblicare).
+   - **dry_run**: è **attivo per impostazione predefinita** (✅). Se tocchi subito "Run workflow", eseguirà solo una prova cloud senza toccare il sito online.
+   - **Per pubblicare realmente**:
+     1. Disattiva la casella **`dry_run`** (toglile la spunta).
+     2. Nel campo **confirm**, digita esattamente la parola `CONFERMA`.
 4. Tocca il pulsante verde **"Run workflow"**.
-5. In circa **1 minuto**, GitHub Actions compilerà l'app in cloud e la pubblicherà automaticamente su GitHub Pages (`gh-pages`).
+5. Se `dry_run` era attivo, verificherà la compilazione in cloud. Se hai digitato `CONFERMA` e disattivato `dry_run`, in circa **1 minuto** compilerà e pubblicherà la nuova versione su GitHub Pages (`gh-pages`).
 
 ---
 
