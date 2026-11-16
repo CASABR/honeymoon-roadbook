@@ -40,7 +40,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
     exchangeRateSource: (ristorante as any).exchangeRateSource
   });
 
-  const { isFree, isPaid, costNum } = paymentInfo;
+  const { isFree, isPaid, costNum, paidNum, remainingNum, compactPaymentText } = paymentInfo;
 
   const handleTogglePayment = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -134,27 +134,27 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
 
       {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO & AZIONI OPERATIVE */}
       <div className="hounigo-ds-card-footer">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {isFree ? (
             <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Gratuito
             </span>
           ) : costNum > 0 ? (
-            <>
-              <span className="font-mono text-sm font-extrabold text-slate-900 dark:text-white tabular-nums">
-                {costNum.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}
-              </span>
-              <button
-                type="button"
-                onClick={handleTogglePayment}
-                className={`hounigo-ds-pay-badge ${
-                  isPaid ? 'hounigo-ds-pay-saldato' : 'hounigo-ds-pay-dasaldare'
-                }`}
-                title="Clicca per invertire stato: Saldato / Da saldare"
-              >
-                {isPaid ? '✓ Saldato' : 'Da saldare'}
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={handleTogglePayment}
+              className={`hounigo-ds-pay-badge font-mono ${
+                isPaid
+                  ? 'hounigo-ds-pay-saldato'
+                  : (paidNum > 0 && remainingNum > 0)
+                  ? 'hounigo-ds-pay-acconto'
+                  : 'hounigo-ds-pay-dasaldare'
+              }`}
+              title="Clicca per invertire stato: Saldato / Da saldare"
+              aria-label="Stato pagamento ristorante"
+            >
+              {compactPaymentText}
+            </button>
           ) : null}
         </div>
 
@@ -219,12 +219,11 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
               <span className="hounigo-ds-btn-text">Voucher</span>
             </button>
           )}
-
           {onDuplicate && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
-              className="hounigo-ds-action-btn"
+              className="hounigo-ds-action-btn hidden md:inline-flex"
               title="Duplica questo ristorante"
               aria-label="Duplica ristorante"
             >

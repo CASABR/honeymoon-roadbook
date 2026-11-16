@@ -136,6 +136,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
   const [cost, setCost] = useState('');
   const [acconto, setAcconto] = useState('');
   const [paymentStatus, setPaymentStatus] = useState<'saldato' | 'da_saldare'>('saldato');
+  const [platform, setPlatform] = useState(() => initialData?.platform || '');
   const [link, setLink] = useState(''); 
   const [qrCode, setQrCode] = useState('');
   const [noteCopilota, setNoteCopilota] = useState('');
@@ -203,6 +204,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setCost(initialData.cost || '');
       setAcconto(initialData.acconto || '');
       setPaymentStatus(initialData.paymentStatus || 'saldato');
+      setPlatform(initialData.platform || '');
       setLink(initialData.link || '');
       setQrCode(initialData.qrCode || '');
       const existingNotes = [initialData.noteCopilota, initialData.notes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n\n');
@@ -259,6 +261,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setCost('');
       setAcconto('');
       setPaymentStatus('da_saldare');
+      setPlatform('');
       setLink('');
       setQrCode('');
       setNoteCopilota('');
@@ -433,7 +436,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       copilota: Boolean(noteCopilota.trim()) || initialData?.copilota || undefined,
       status: paymentStatus === 'saldato' ? 'prenotato' : status,
       attachments: attachments.length > 0 ? attachments : undefined,
-      platform: initialData?.platform,
+      platform: platform.trim() || undefined,
       openingHours
     } as any);
   };
@@ -963,7 +966,20 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+            Piattaforma di prenotazione
+          </label>
+          <input
+            type="text"
+            placeholder="es. GetYourGuide, Klook, Tiqets, sito ufficiale"
+            value={platform}
+            onChange={(e) => setPlatform(e.target.value)}
+            aria-label="Piattaforma di prenotazione"
+            className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F]"
+          />
+        </div>
         <div>
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Pass / Voucher URL

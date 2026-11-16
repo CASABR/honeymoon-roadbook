@@ -13,6 +13,8 @@ interface GoogleDriveDocModalProps {
   onClose: () => void;
   onSave: (doc: TravelDocument) => void;
   documentToEdit?: TravelDocument | null;
+  parentFolderId?: string;
+  parentFolderName?: string;
 }
 
 type DriveCategory = 'attivita' | 'alloggi' | 'assicurazione' | 'passaporto' | 'altro';
@@ -67,7 +69,9 @@ export default function GoogleDriveDocModal({
   isOpen,
   onClose,
   onSave,
-  documentToEdit
+  documentToEdit,
+  parentFolderId,
+  parentFolderName
 }: GoogleDriveDocModalProps) {
   const [title, setTitle] = useState('');
   const [driveUrl, setDriveUrl] = useState('');
@@ -116,6 +120,7 @@ export default function GoogleDriveDocModal({
     setErrorMessage('');
     setIsPickerLoading(true);
     await openGooglePicker({
+      parentFolderId,
       onSelect: (item: GooglePickerSelectedItem) => {
         setIsPickerLoading(false);
         setDriveUrl(item.url);
@@ -201,6 +206,12 @@ export default function GoogleDriveDocModal({
         {/* FASE 1: SELEZIONE METODO QUANDO NUOVO DOCUMENTO E FILE NON ANCORA SCELTO */}
         {!documentToEdit && !isFileSelected && (
           <div className="space-y-3">
+            {parentFolderName && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-50/80 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 text-[11px] text-blue-800 dark:text-blue-200">
+                <span className="text-sm">📁</span>
+                <span>Punto di partenza: <strong>{parentFolderName}</strong></span>
+              </div>
+            )}
             {pickerStatus.isConfigured ? (
               <div className="space-y-2.5">
                 {/* COMANDO PRINCIPALE: SCEGLI DA GOOGLE DRIVE */}

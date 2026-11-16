@@ -63,5 +63,8 @@ const currentRelease = (releaseHistory.releases as ReleaseHistoryItem[]).find(
   (r) => r.version === APP_VERSION
 ) || (releaseHistory.releases as ReleaseHistoryItem[])[0];
 
+export const LAST_PUBLISHED_VERSION = (releaseHistory.releases as ReleaseHistoryItem[])[0]?.version || '1.6.5';
+export const IS_RELEASE_DRAFT = APP_VERSION !== LAST_PUBLISHED_VERSION;
+
 export const RELEASE_TIMESTAMP_ISO = currentRelease?.publishedAtIso || currentRelease?.publishedAt || '';
 export const FORMATTED_RELEASE_TIME = formatReleaseTimestamp(RELEASE_TIMESTAMP_ISO);

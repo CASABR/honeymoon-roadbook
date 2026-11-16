@@ -30,6 +30,59 @@ export interface GooglePickerSelectedItem {
   url: string;
   mimeType?: string;
   sizeBytes?: number;
+  isFolder?: boolean;
+}
+
+export interface GoogleDriveFavoriteFolder {
+  id: string;
+  name: string;
+  url: string;
+  selectedAt: number;
+}
+
+export interface GooglePickerOptions {
+  onSelect: (item: GooglePickerSelectedItem) => void;
+  onError: (error: Error) => void;
+  onCancel?: () => void;
+  parentFolderId?: string;
+  mode?: 'files' | 'folders';
+  title?: string;
+}
+
+/**
+ * Recupera la cartella Google Drive preferita salvata per uno specifico viaggio e utente.
+ */
+export function getFavoriteDriveFolder(tripId?: string, uid?: string): GoogleDriveFavoriteFolder | null {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return null;
+  const key = `hounigo_drive_fav_folder_${tripId || '0000'}_${uid || 'anon'}`;
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Salva o rimuove la cartella Google Drive preferita per uno specifico viaggio e utente.
+ */
+export function setFavoriteDriveFolder(
+  folder: GoogleDriveFavoriteFolder | null,
+  tripId?: string,
+  uid?: string
+): void {
+  if (typeof window === 'undefined' || typeof localStorage === 'undefined') return;
+  const key = `hounigo_drive_fav_folder_${tripId || '0000'}_${uid || 'anon'}`;
+  try {
+    if (!folder) {
+      localStorage.removeItem(key);
+    } else {
+      localStorage.setItem(key, JSON.stringify(folder));
+    }
+  } catch (err) {
+    console.error('Errore salvataggio cartella preferita Drive:', err);
+  }
 }
 
 /**
@@ -151,13 +204,10 @@ function loadScript(src: string): Promise<void> {
 
 /**
  * Avvia Google Picker con scope minimale `drive.file` se configurato.
+ * Supporta la modalità selezione file o cartelle e l'impostazione di una cartella di partenza.
  * Se non configurato o fallito, solleva un errore esplicito consentendo il fallback su inserimento URL.
  */
-export async function openGooglePicker(options: {
-  onSelect: (item: GooglePickerSelectedItem) => void;
-  onError: (error: Error) => void;
-  onCancel?: () => void;
-}): Promise<void> {
+export async function openGooglePicker(options: GooglePickerOptions): Promise<void> {
   const status = getGooglePickerConfigStatus();
   if (!status.isConfigured) {
     options.onError(new Error(
@@ -205,15 +255,39 @@ export async function openGooglePicker(options: {
 
         // 3. Costruzione e visualizzazione del Picker
         try {
-          const view = new google.picker.View(google.picker.ViewId.DOCS);
-          view.setMimeTypes('application/pdf,image/png,image/jpeg,application/vnd.google-apps.document,application/vnd.google-apps.spreadsheet');
-
+          const isFolderMode = options.mode === 'folders';
           const builder = new google.picker.PickerBuilder()
-            .addView(view)
-            .addView(new google.picker.DocsUploadView())
             .setOAuthToken(accessToken)
             .setDeveloperKey(status.apiKey);
 
+          if (isFolderMode) {
+            // Modalità selezione cartella
+            const folderView = new google.picker.DocsView()
+              .setIncludeFolders(true)
+              .setSelectFolderEnabled(true)
+              .setMimeTypes('application/vnd.google-apps.folder');
+
+            if (options.parentFolderId) {
+              folderView.setParent(options.parentFolderId);
+            }
+            builder.addView(folderView);
+          } else {
+            // Modalità selezione file (con navigazione cartelle abilitata)
+            const fileView = new google.picker.DocsView(google.picker.ViewId.DOCS);
+            fileView.setIncludeFolders(true);
+            fileView.setMimeTypes('application/pdf,image/png,image/jpeg,application/vnd.google-apps.document,application/vnd.google-apps.spreadsheet');
+
+            if (options.parentFolderId) {
+              fileView.setParent(options.parentFolderId);
+            }
+
+            builder.addView(fileView);
+            builder.addView(new google.picker.DocsUploadView());
+          }
+
+          if (options.title) {
+            builder.setTitle(options.title);
+          }
           if (status.appId) {
             builder.setAppId(status.appId);
           }
@@ -226,12 +300,13 @@ export async function openGooglePicker(options: {
               if (data[google.picker.Response.ACTION] === google.picker.Action.PICKED) {
                 const doc = data[google.picker.Response.DOCUMENTS][0];
                 const fileId = doc[google.picker.Document.ID];
-                const name = doc[google.picker.Document.NAME] || 'Documento Google Drive';
-                const url = doc[google.picker.Document.URL] || `https://drive.google.com/file/d/${fileId}/view`;
+                const name = doc[google.picker.Document.NAME] || (isFolderMode ? 'Cartella Google Drive' : 'Documento Google Drive');
+                const isFolder = isFolderMode || doc[google.picker.Document.MIME_TYPE] === 'application/vnd.google-apps.folder' || doc.type === 'folder';
+                const url = doc[google.picker.Document.URL] || (isFolder ? `https://drive.google.com/drive/folders/${fileId}` : `https://drive.google.com/file/d/${fileId}/view`);
                 const mimeType = doc[google.picker.Document.MIME_TYPE];
                 const sizeBytes = doc[google.picker.Document.SIZE_BYTES];
 
-                options.onSelect({ id: fileId, name, url, mimeType, sizeBytes });
+                options.onSelect({ id: fileId, name, url, mimeType, sizeBytes, isFolder });
               } else if (data[google.picker.Response.ACTION] === google.picker.Action.CANCEL) {
                 options.onCancel?.();
               }
@@ -249,5 +324,31 @@ export async function openGooglePicker(options: {
   } catch (err: any) {
     options.onError(err instanceof Error ? err : new Error(String(err)));
   }
+}
+
+/**
+ * Avvia Google Picker appositamente configurato per selezionare una cartella da Google Drive.
+ */
+export async function openGoogleFolderPicker(options: {
+  onSelect: (folder: GoogleDriveFavoriteFolder) => void;
+  onError: (error: Error) => void;
+  onCancel?: () => void;
+  parentFolderId?: string;
+}): Promise<void> {
+  return openGooglePicker({
+    mode: 'folders',
+    title: 'Seleziona cartella Google Drive',
+    parentFolderId: options.parentFolderId,
+    onSelect: (item) => {
+      options.onSelect({
+        id: item.id,
+        name: item.name,
+        url: item.url || `https://drive.google.com/drive/folders/${item.id}`,
+        selectedAt: Date.now()
+      });
+    },
+    onError: options.onError,
+    onCancel: options.onCancel
+  });
 }
 

@@ -19,7 +19,8 @@ import TappaForm from '../../components/forms/TappaForm';
 import TappaCard from '../../components/cards/TappaCard';
 import DocumentValidityModal from '../../components/modals/DocumentValidityModal';
 import { storageService } from '../../storage/storageService';
-import type { Trasporto, Alloggio, Attivita, Ristorante, Shopping, Tappa, TravelDocument } from '../../types';
+import type { Trasporto, Alloggio, Attivita, Ristorante, Shopping, Tappa, TravelDocument, TimelineItem } from '../../types';
+import { prepareDuplicateItem } from '../../utils/cardDuplication';
 import { formatDateIT, normalizeDateToISO } from '../../utils/tripDates';
 
 interface PrenotazioniWorkspaceViewProps {
@@ -92,6 +93,31 @@ export default function PrenotazioniWorkspaceView({
       case 'tappa':
         setEditingTappaItem(booking.rawItem as Tappa);
         break;
+    }
+  }, []);
+
+  const handleDuplicateBooking = useCallback((booking: UnifiedBookingItem) => {
+    setSelectedBookingForDetail(null);
+    if (booking.rawType === 'documento') return;
+    try {
+      const item: TimelineItem = {
+        id: booking.rawItem.id,
+        type: booking.rawType as TimelineItem['type'],
+        time: booking.time || '',
+        title: booking.title,
+        location: booking.location || '',
+        categoryOrType: booking.category,
+        originalData: booking.rawItem
+      };
+      const prepared = prepareDuplicateItem(item);
+      if (prepared.type === 'trasporto') setEditingTransportItem(prepared.data as Trasporto);
+      else if (prepared.type === 'alloggio') setEditingAccommodationItem(prepared.data as Alloggio);
+      else if (prepared.type === 'attivita') setEditingActivityItem(prepared.data as Attivita);
+      else if (prepared.type === 'ristorante') setEditingRestaurantItem(prepared.data as Ristorante);
+      else if (prepared.type === 'shopping') setEditingShoppingItem(prepared.data as Shopping);
+      else if (prepared.type === 'tappa') setEditingTappaItem(prepared.data as Tappa);
+    } catch (e) {
+      console.error('Errore duplicazione prenotazione desktop:', e);
     }
   }, []);
 
@@ -711,22 +737,6 @@ export default function PrenotazioniWorkspaceView({
                               📎 {item.attachmentsCount}
                             </span>
                           )}
-
-                          {/* Pulsante Modifica Rapida Card Desktop */}
-                          {canEdit && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenEditBooking(item);
-                              }}
-                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-amber-800 dark:bg-slate-800 dark:hover:bg-amber-950/40 dark:text-slate-400 dark:hover:text-amber-300 flex items-center justify-center text-xs font-bold transition-all shadow-2xs border border-slate-200/60 dark:border-slate-700 cursor-pointer"
-                              title="Modifica prenotazione"
-                              aria-label="Modifica prenotazione"
-                            >
-                              ✏️
-                            </button>
-                          )}
                         </div>
                       </div>
 
@@ -812,7 +822,19 @@ export default function PrenotazioniWorkspaceView({
                     {items.map((tappa) => (
                       <div key={tappa.id} className="relative">
                         {bookedTappaIds.has(tappa.id) && <span className="absolute right-3 top-3 z-10 rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-extrabold uppercase text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">Prenotazione collegata</span>}
-                        <TappaCard tappa={tappa} onEdit={() => { if (canEdit) setEditingTappaItem(tappa); }} />
+                        <TappaCard
+                          tappa={tappa}
+                          onEdit={() => { if (canEdit) setEditingTappaItem(tappa); }}
+                          onDuplicate={canEdit ? () => handleDuplicateBooking({
+                            id: tappa.id,
+                            title: tappa.titolo,
+                            type: 'tappa',
+                            rawType: 'tappa',
+                            date: tappa.data || tappa.date || '',
+                            status: 'confermato',
+                            rawItem: tappa
+                          } as any) : undefined}
+                        />
                       </div>
                     ))}
                   </div>
@@ -841,6 +863,7 @@ export default function PrenotazioniWorkspaceView({
           setSelectedBookingForDetail(null);
         }}
         onEdit={handleOpenEditBooking}
+        onDuplicate={handleDuplicateBooking}
         canEdit={canEdit}
       />
 

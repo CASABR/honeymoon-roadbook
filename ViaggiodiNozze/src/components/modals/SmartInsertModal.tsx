@@ -18,6 +18,7 @@ import {
   hasCloudflareAiConsent,
 } from '../../config/freeArchitecture';
 import TimePickerInput from '../common/TimePickerInput';
+import { buildOpeningHoursFromTimes } from '../../utils/openingHours';
 import {
   getStoredHouniAiQuota,
   formatQuotaCountdown,
@@ -401,6 +402,10 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       initial.address = d.location || '';
       initial.dateStart = d.date || '';
       initial.time = d.time || '';
+      initial.orarioRitrovo = d.orarioRitrovo || '';
+      initial.openingTime = d.openingTime || '';
+      initial.closingTime = d.closingTime || '';
+      initial.platform = d.platform || '';
       initial.cost = d.cost || '';
       initial.bookingCode = d.bookingCode || '';
       initial.notes = d.notes || '';
@@ -714,12 +719,18 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
         } else if (cat === 'attivita') {
           const existingAtts = existingData.attachments || [];
           const updatedAtts = att ? [...existingAtts.filter((a: any) => a.id !== att.id), att] : existingAtts;
+          const actDate = editData.dateStart || existingData.date;
           const updated = {
             ...existingData,
             title: editData.title || existingData.title,
             location: editData.location || existingData.location,
-            date: editData.dateStart || existingData.date,
+            date: actDate,
             time: editData.time || existingData.time,
+            orarioRitrovo: (editData.orarioRitrovo || '').trim() || existingData.orarioRitrovo,
+            platform: (editData.platform || '').trim() || existingData.platform,
+            openingHours: (editData.openingTime || editData.closingTime)
+              ? buildOpeningHoursFromTimes(editData.openingTime || '', editData.closingTime || '', existingData.openingHours, actDate, 'verified')
+              : existingData.openingHours,
             cost: editData.cost || existingData.cost,
             qrCode: editData.bookingCode || existingData.qrCode,
             notes: editData.notes || existingData.notes,
@@ -832,14 +843,20 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
           notifyDataChanged('trasporti', 'save', newTr);
           window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'trasporti', data: newTr } }));
         } else if (cat === 'attivita') {
+          const actDate = editData.dateStart || '';
           const newAct = {
             id: generateId('attivita'),
-            dayId: editData.dateStart ? `day_${editData.dateStart}` : 'day_1',
-            date: editData.dateStart || '',
+            dayId: actDate ? `day_${actDate}` : 'day_1',
+            date: actDate,
             title: editData.title,
             location: editData.location || '',
             cost: editData.cost || '',
             time: editData.time || '',
+            orarioRitrovo: (editData.orarioRitrovo || '').trim() || undefined,
+            platform: (editData.platform || '').trim() || undefined,
+            openingHours: (editData.openingTime || editData.closingTime)
+              ? buildOpeningHoursFromTimes(editData.openingTime || '', editData.closingTime || '', undefined, actDate, 'verified')
+              : undefined,
             qrCode: editData.bookingCode || '',
             category: 'visita',
             status: 'prenotato',
@@ -940,14 +957,20 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'tappe', data: newTappa } }));
     } else if (cat === 'attivita') {
       const act = entity as any;
+      const actDate = act.date || '';
       const newAct = {
         id: generateId('attivita'),
-        dayId: act.date ? `day_${act.date}` : 'day_1',
-        date: act.date || '',
+        dayId: actDate ? `day_${actDate}` : 'day_1',
+        date: actDate,
         title: act.title,
         location: act.location || '',
         cost: act.cost || '',
         time: act.time || '',
+        orarioRitrovo: (act.orarioRitrovo || '').trim() || undefined,
+        platform: (act.platform || '').trim() || undefined,
+        openingHours: (act.openingTime || act.closingTime)
+          ? buildOpeningHoursFromTimes(act.openingTime || '', act.closingTime || '', undefined, actDate, 'verified')
+          : undefined,
         timeStatus: act.time ? 'confermato' : 'non_specificato',
         qrCode: act.bookingCode || '',
         category: 'visita',
@@ -1721,6 +1744,37 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                       </div>
                     )}
                   </div>
+
+                  {editData.category === 'attivita' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-0">
+                      <div>
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">Piattaforma di prenotazione</label>
+                        <input
+                          type="text"
+                          value={editData.platform || ''}
+                          onChange={(e) => setEditData({ ...editData, platform: e.target.value })}
+                          placeholder="es. GetYourGuide, Klook, Tiqets, sito ufficiale"
+                          className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">Orario di apertura</label>
+                        <TimePickerInput
+                          value={editData.openingTime || ''}
+                          onChange={(openingTime) => setEditData({ ...editData, openingTime })}
+                          ariaLabel="Orario di apertura"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-slate-600 mb-1 block">Orario di chiusura</label>
+                        <TimePickerInput
+                          value={editData.closingTime || ''}
+                          onChange={(closingTime) => setEditData({ ...editData, closingTime })}
+                          ariaLabel="Orario di chiusura"
+                        />
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <label className="text-xs font-semibold text-slate-600 mb-1 block">🧭 Note per il Copilota</label>

@@ -519,6 +519,12 @@ export default function TimelineItemDetailModal({
             {/* ATTIVITÀ & SPOT FOTOGRAFICO */}
             {isAttivita && (
               <>
+                {data.platform && (
+                  <div>
+                    <span className="text-slate-400 text-[10px] uppercase font-bold block">Piattaforma di prenotazione</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{data.platform}</span>
+                  </div>
+                )}
                 {data.orarioRitrovo && (
                   <div>
                     <span className="text-slate-400 text-[10px] uppercase font-bold block">Orario Ritrovo</span>
@@ -553,10 +559,10 @@ export default function TimelineItemDetailModal({
                     {data.photoSubject && <p>Soggetto: <strong>{data.photoSubject}</strong></p>}
                   </div>
                 )}
-                {data.openingHours?.note && (
+                {(data.openingHours?.notes || data.openingHours?.note) && (
                   <div className="sm:col-span-2">
                     <span className="text-slate-400 text-[10px] uppercase font-bold block">Orari di Apertura</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">{data.openingHours.note}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{data.openingHours.notes || data.openingHours.note}</span>
                   </div>
                 )}
               </>
@@ -577,10 +583,10 @@ export default function TimelineItemDetailModal({
                     <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{data.bookingCode}</span>
                   </div>
                 )}
-                {data.openingHours?.note && (
+                {(data.openingHours?.notes || data.openingHours?.note) && (
                   <div>
                     <span className="text-slate-400 text-[10px] uppercase font-bold block">Orari Apertura</span>
-                    <span className="font-semibold text-slate-800 dark:text-slate-200">{data.openingHours.note}</span>
+                    <span className="font-semibold text-slate-800 dark:text-slate-200">{data.openingHours.notes || data.openingHours.note}</span>
                   </div>
                 )}
               </>

@@ -108,6 +108,8 @@ export function prepareDuplicateItem(item: TimelineItem): PreparedDuplicate {
         notes: orig.notes,
         noteCopilota: orig.noteCopilota,
         copilota: orig.copilota,
+        platform: orig.platform,
+        openingHours: orig.openingHours,
         cost: orig.cost, // Stima prezzo utile come riferimento
         createdAt: now,
         updatedAt: now,

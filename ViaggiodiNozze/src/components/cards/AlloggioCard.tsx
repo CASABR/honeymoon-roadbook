@@ -19,7 +19,7 @@ interface AlloggioCardProps {
   onDuplicate?: () => void;
 }
 
-export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail }: AlloggioCardProps) {
+export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail, onDuplicate }: AlloggioCardProps) {
   const { canEdit, canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
   const isExternalLiveView = typeof window !== 'undefined' && (
     new URLSearchParams(window.location.search).get('live') === '1' ||
@@ -352,7 +352,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             onClick={handleToggleCheckIn}
             disabled={!canEdit}
             data-testid={`accommodation-checkin-toggle-${accommodation.id}`}
-            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-extrabold border transition-all ${
+            className={`inline-flex items-center gap-1 px-2 py-0.5 min-h-[1.5rem] rounded-md text-[11px] font-extrabold border transition-all ${
               accommodation.checkInDone
                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700'
                 : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
@@ -369,7 +369,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               onClick={handleToggleCheckOut}
               disabled={!canEdit}
               data-testid={`accommodation-checkout-toggle-${accommodation.id}`}
-              className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-extrabold border transition-all ${
+              className={`inline-flex items-center gap-1 px-2 py-0.5 min-h-[1.5rem] rounded-md text-[11px] font-extrabold border transition-all ${
                 accommodation.checkOutDone
                   ? 'bg-indigo-50 text-indigo-800 border-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-200 dark:border-indigo-700'
                   : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
@@ -426,6 +426,19 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             <span aria-hidden="true">🎟️</span>
             <span className="hounigo-ds-btn-text">Voucher</span>
           </button>
+
+          {onDuplicate && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+              className="hounigo-ds-action-btn hidden md:inline-flex"
+              title="Duplica questo alloggio"
+              aria-label="Duplica alloggio"
+            >
+              <span aria-hidden="true">📄</span>
+              <span className="hounigo-ds-btn-text">Duplica</span>
+            </button>
+          )}
 
           {mapTarget && (
             <a

@@ -1,0 +1,177 @@
+import { hashIdentity, readFirestoreFields, validateTripId } from './core.js';
+
+export const PHOTO_MAX_BYTES = 512000;
+export const PHOTO_TOTAL_LIMIT = 400; // Lifetime reservations, including failed/deleted uploads: <= 205 MB.
+export const PHOTO_DAY_LIMIT = 80;
+export const PHOTO_UID_DAY_LIMIT = 20;
+export const PHOTO_UID_MINUTE_LIMIT = 3;
+const ID = /^[a-f0-9]{48}$/;
+const error = (status, message) => Object.assign(new Error(message), { status });
+
+// Only baseline JPEG from the client canvas. Strip ALL APP and comment segments
+// again on the server; reject malformed/trailing data, progressive images and huge dimensions.
+export function sanitizeJpeg(input) {
+  const b = new Uint8Array(input);
+  if (b.length < 20 || b.length > PHOTO_MAX_BYTES || b[0] !== 255 || b[1] !== 216) throw error(415, 'Immagine JPEG non valida.');
+  let p = 2, dimensions = false;
+  const parts = [b.subarray(0, 2)];
+  while (p < b.length) {
+    const start = p;
+    if (b[p++] !== 255) throw error(415, 'Struttura JPEG non valida.');
+    const marker = b[p++];
+    if (![0xe0,0xe1,0xe2,0xe3,0xe4,0xe5,0xe6,0xe7,0xe8,0xe9,0xea,0xeb,0xec,0xed,0xee,0xef,0xfe,0xc0,0xc4,0xdb,0xdd,0xda].includes(marker)) throw error(415, 'Formato JPEG non supportato.');
+    const length = (b[p] << 8) | b[p + 1];
+    if (length < 2 || p + length > b.length) throw error(415, 'Immagine incompleta.');
+    if (marker === 0xc0) {
+      const height = (b[p + 3] << 8) | b[p + 4], width = (b[p + 5] << 8) | b[p + 6];
+      const channels = b[p + 7];
+      if (dimensions || length !== 8 + channels * 3 || ![1,3].includes(channels) || b[p + 2] !== 8
+          || !width || !height || width > 2000 || height > 2000 || width * height > 4_000_000) throw error(415, 'Dimensioni immagine non supportate.');
+      dimensions = true;
+    }
+    p += length;
+    if (marker === 0xda) {
+      if (!dimensions) throw error(415, 'Dimensioni JPEG mancanti.');
+      while (p < b.length) {
+        if (b[p++] !== 255) continue;
+        const next = b[p++];
+        if (next === 0 || (next >= 0xd0 && next <= 0xd7)) continue;
+        if (next === 0xd9 && p === b.length) {
+          parts.push(b.subarray(start, p));
+          const result = new Uint8Array(parts.reduce((n, v) => n + v.length, 0));
+          let offset = 0; for (const part of parts) { result.set(part, offset); offset += part.length; }
+          return result;
+        }
+        throw error(415, 'Dati JPEG non validi.');
+      }
+      throw error(415, 'Immagine incompleta.');
+    }
+    if (marker < 0xe0 || marker > 0xef) { if (marker !== 0xfe) parts.push(b.subarray(start, p)); }
+  }
+  throw error(415, 'Immagine incompleta.');
+}
+
+async function boundedBody(request) {
+  if (Number(request.headers.get('Content-Length')) > PHOTO_MAX_BYTES) throw error(413, 'Foto troppo grande: massimo 500 KB.');
+  const reader = request.body?.getReader();
+  if (!reader) throw error(400, 'Foto mancante.');
+  const chunks = []; let size = 0;
+  while (true) {
+    const { done, value } = await reader.read(); if (done) break;
+    size += value.length;
+    if (size > PHOTO_MAX_BYTES) { await reader.cancel(); throw error(413, 'Foto troppo grande: massimo 500 KB.'); }
+    chunks.push(value);
+  }
+  const all = new Uint8Array(size); let offset = 0;
+  for (const chunk of chunks) { all.set(chunk, offset); offset += chunk.length; }
+  return all;
+}
+
+async function gate(database, bucket, limit, expiry) {
+  const row = await database.prepare(`INSERT INTO live_photo_requests(bucket,count,expires_at) VALUES (?1,1,?3)
+    ON CONFLICT(bucket) DO UPDATE SET count=count+1 WHERE count < ?2 RETURNING count`)
+    .bind(bucket, limit, expiry).first();
+  if (!row) throw error(429, 'Limite foto gratuito raggiunto. Riprova più tardi; la foto resta sul dispositivo.');
+  return Number(row.count);
+}
+
+export async function handleLivePhotoRequest(request, env, security) {
+  const origin = request.headers.get('Origin') || '';
+  const headers = { 'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN, 'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS', 'Vary': 'Origin', 'Cache-Control': 'no-store, max-age=0',
+    'X-Content-Type-Options': 'nosniff', 'Referrer-Policy': 'no-referrer' };
+  const reply = (status, body) => Response.json(body, { status, headers });
+  try {
+    if (env.LIVE_PHOTOS_ENABLED !== 'true' || env.LIVE_PHOTOS_FREE_PLAN_CONFIRMED !== 'true' || !env.LIVE_PHOTOS || !env.RATE_LIMITS) {
+      throw error(503, 'Foto LIVE non ancora attivate. La foto resta sul dispositivo.');
+    }
+    const url = new URL(request.url), segments = url.pathname.split('/').filter(Boolean);
+    const tripId = validateTripId(segments[2]), id = segments[3], action = segments[4];
+    if (!tripId || (id && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish')) throw error(404, 'Foto non disponibile.');
+    if (request.method === 'OPTIONS') {
+      if (origin !== env.ALLOWED_ORIGIN) throw error(403, 'Origine non autorizzata.');
+      return new Response(null, { status: 204, headers });
+    }
+    const read = request.method === 'GET' && id && !action;
+    if (!read && origin !== env.ALLOWED_ORIGIN) throw error(403, 'Origine non autorizzata.');
+    if (!read && !['POST','DELETE'].includes(request.method)) throw error(405, 'Operazione non supportata.');
+    // Always start at D1 primary. A stale KV replica must never bypass a revocation.
+    const database = env.RATE_LIMITS.withSession('first-primary');
+    const now = Date.now(), day = new Date(now).toISOString().slice(0, 10);
+    const ip = await hashIdentity(request.headers.get('CF-Connecting-IP') || 'unknown');
+    const dailyCount = await gate(database, `${read ? 'read' : 'mutation'}:${day}`, read ? 20000 : 1000, now + 172800000);
+    if (dailyCount % 100 === 0) {
+      // Bounded cleanup of THIS module's counters only, even after the upload
+      // budget is full. Never touch AI/push counters or scan their tables.
+      await database.prepare('DELETE FROM live_photo_requests WHERE bucket IN (SELECT bucket FROM live_photo_requests WHERE expires_at < ?1 LIMIT 1000)').bind(now).run();
+    }
+    await gate(database, `ip:${Math.floor(now / 60000)}:${ip}`, 120, now + 120000);
+    const key = id ? `photo:${tripId}:${id}` : null;
+    if (read) {
+      const row = await database.prepare('SELECT status FROM live_photo_objects WHERE id=?1 AND trip_id=?2').bind(id, tripId).first();
+      if (row?.status !== 'published') throw error(404, 'Foto non disponibile.');
+      const data = await env.LIVE_PHOTOS.get(key, { type: 'arrayBuffer' });
+      if (!data) throw error(404, 'Foto in propagazione o non disponibile. Riprova tra poco.');
+      const current = await database.prepare('SELECT status FROM live_photo_objects WHERE id=?1 AND trip_id=?2').bind(id, tripId).first();
+      if (current?.status !== 'published') throw error(404, 'Foto non disponibile.');
+      return new Response(data, { headers: { ...headers, 'Content-Type': 'image/jpeg' } });
+    }
+    const token = (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
+    if (!token || token.length > 8192) throw error(401, 'Sessione Firebase non valida.');
+    await gate(database, `auth:${Math.floor(now / 60000)}:${ip}`, 12, now + 120000);
+    const uid = await security.verifyFirebaseIdentity(token, env);
+    if (!uid) throw error(401, 'Accedi con il tuo account per pubblicare foto.');
+    try {
+      const part = token.split('.')[1];
+      const claims = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')));
+      if (claims.sub !== uid || claims.aud !== env.FIREBASE_PROJECT_ID
+          || claims.iss !== `https://securetoken.google.com/${env.FIREBASE_PROJECT_ID}`
+          || !claims.firebase?.sign_in_provider || claims.firebase.sign_in_provider === 'anonymous') throw new Error();
+    } catch { throw error(401, 'Sessione Firebase non valida o anonima.'); }
+    await gate(database, `mutation:${Math.floor(now / 60000)}:${await hashIdentity(uid)}`, 10, now + 120000);
+    if (!await security.assertEditor(uid, tripId, token, env)) throw error(403, 'Solo Owner e Copilota possono pubblicare o rimuovere foto.');
+    if (request.method === 'POST' && !id) {
+      if (request.headers.get('Content-Type') !== 'image/jpeg') throw error(415, 'Formato richiesto: JPEG.');
+      const image = sanitizeJpeg(await boundedBody(request));
+      const photoId = [...crypto.getRandomValues(new Uint8Array(24))].map(x => x.toString(16).padStart(2, '0')).join('');
+      // One atomic conditional insert: no eventually-consistent KV counters.
+      // Reservations are NEVER refunded, including failed uploads or deletion.
+      const reserved = await database.prepare(`INSERT INTO live_photo_objects(id,trip_id,owner_hash,bytes,status,created_at)
+        SELECT ?1,?2,?3,?4,'pending',?5 WHERE
+        (SELECT COUNT(*) FROM live_photo_objects) < 400 AND
+        (SELECT COUNT(*) FROM live_photo_objects WHERE created_at >= ?6) < 80 AND
+        (SELECT COUNT(*) FROM live_photo_objects WHERE owner_hash=?3 AND created_at >= ?6) < 20 AND
+        (SELECT COUNT(*) FROM live_photo_objects WHERE owner_hash=?3 AND created_at >= ?7) < 3 RETURNING id`)
+        .bind(photoId, tripId, await hashIdentity(uid), image.length, now, Date.parse(day + 'T00:00:00Z'), now - 60000).first();
+      if (!reserved) throw error(429, 'Spazio o quota foto gratuita esauriti (massimo 400 caricamenti). La foto resta sul dispositivo.');
+      try { await env.LIVE_PHOTOS.put(`photo:${tripId}:${photoId}`, image, { expirationTtl: 90 * 86400 }); }
+      catch { await database.prepare("UPDATE live_photo_objects SET status='failed' WHERE id=?1").bind(photoId).run(); throw error(503, 'Archivio foto gratuito non disponibile o esaurito. La foto resta sul dispositivo.'); }
+      await database.prepare('DELETE FROM live_photo_requests WHERE expires_at < ?1').bind(now).run();
+      return reply(201, { photoId, downloadUrl: `${url.origin}/v1/live-photos/${tripId}/${photoId}`, path: `photo:${tripId}:${photoId}` });
+    }
+    if (!id) throw error(404, 'Foto non disponibile.');
+    const row = await database.prepare('SELECT status,post_id,owner_hash FROM live_photo_objects WHERE id=?1 AND trip_id=?2').bind(id, tripId).first();
+    if (!row) throw error(404, 'Foto non disponibile.');
+    if (request.method === 'DELETE' && !action) {
+      await database.prepare("UPDATE live_photo_objects SET status='deleted' WHERE id=?1 AND trip_id=?2").bind(id, tripId).run();
+      let storageCleanupPending = false;
+      try { await env.LIVE_PHOTOS.delete(key); } catch { storageCleanupPending = true; }
+      return reply(200, { revoked: true, storageCleanupPending });
+    }
+    if (request.method === 'POST' && action === 'publish') {
+      if (row.owner_hash !== await hashIdentity(uid)) throw error(403, 'Solo chi ha caricato la foto può confermarne la pubblicazione.');
+      const postId = validateTripId(url.searchParams.get('postId'));
+      if (!postId || row.status === 'deleted' || row.status === 'failed') throw error(409, 'Foto non pubblicabile.');
+      const post = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(postId)}`, token, env);
+      const data = readFirestoreFields(post?.fields || {});
+      if (data.publicSchemaVersion !== 2 || data.deleted === true || data.photoUrl !== `${url.origin}/v1/live-photos/${tripId}/${id}`) throw error(409, 'Pubblicazione LIVE non confermata. La foto resta privata.');
+      const published = await database.prepare("UPDATE live_photo_objects SET status='published',post_id=?3 WHERE id=?1 AND trip_id=?2 AND status IN ('pending','published') RETURNING id")
+        .bind(id, tripId, postId).first();
+      if (!published) throw error(409, 'Foto rimossa o non pubblicabile.');
+      return reply(200, { published: true });
+    }
+    throw error(405, 'Operazione non supportata.');
+  } catch (err) {
+    return reply(err.status || 503, { error: err.status ? err.message : 'Servizio foto gratuito temporaneamente non disponibile. La foto resta sul dispositivo.' });
+  }
+}

@@ -8,7 +8,16 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import SwipeToDelete from '../../components/common/SwipeToDelete';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { formatDateIT } from '../../utils/tripDates';
-import { openDriveUrlSafely, getGooglePickerConfigStatus } from '../../services/googlePickerService';
+import {
+  openDriveUrlSafely,
+  getGooglePickerConfigStatus,
+  getFavoriteDriveFolder,
+  setFavoriteDriveFolder,
+  type GoogleDriveFavoriteFolder
+} from '../../services/googlePickerService';
+import GoogleDriveFolderModal from '../../components/modals/GoogleDriveFolderModal';
+import { useAuthIdentity } from '../../utils/useAuthIdentity';
+import { getTripConfig } from '../../utils/tripConfig';
 
 interface DocumentiViewProps {
   onBack: () => void;
@@ -87,11 +96,35 @@ const CATEGORY_PRESETS: CategoryPreset[] = [
 
 export default function DocumentiView({ onBack, initialOpenDriveModal = false }: DocumentiViewProps) {
   const { canEdit } = useDeviceRole();
+  const { currentUid, tripId: authTripId } = useAuthIdentity();
+  const tripConfig = getTripConfig();
+  const activeTripId = authTripId || tripConfig?.id || '0000';
+
   const pickerStatus = getGooglePickerConfigStatus();
   const [documents, setDocuments] = useState<TravelDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState<DocCategory | 'tutti'>('tutti');
   
+  // Cartella Preferita Google Drive
+  const [favoriteFolder, setFavoriteFolder] = useState<GoogleDriveFavoriteFolder | null>(() =>
+    getFavoriteDriveFolder(activeTripId, currentUid || undefined)
+  );
+  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
+
+  useEffect(() => {
+    setFavoriteFolder(getFavoriteDriveFolder(activeTripId, currentUid || undefined));
+  }, [activeTripId, currentUid]);
+
+  const handleSaveFavoriteFolder = (folder: GoogleDriveFavoriteFolder) => {
+    setFavoriteDriveFolder(folder, activeTripId, currentUid || undefined);
+    setFavoriteFolder(folder);
+  };
+
+  const handleDisconnectFavoriteFolder = () => {
+    setFavoriteDriveFolder(null, activeTripId, currentUid || undefined);
+    setFavoriteFolder(null);
+  };
+
   // Modale Dettaglio/Modifica
   const [validityModalDoc, setValidityModalDoc] = useState<TravelDocument | null>(null);
 
@@ -318,6 +351,83 @@ export default function DocumentiView({ onBack, initialOpenDriveModal = false }:
           </div>
         )}
       </header>
+
+      {/* SEZIONE CARTELLA PREFERITA GOOGLE DRIVE */}
+      {favoriteFolder ? (
+        <div className="w-full bg-gradient-to-r from-blue-50/90 via-sky-50/60 to-indigo-50/90 dark:from-blue-950/40 dark:via-sky-950/30 dark:to-indigo-950/40 rounded-3xl p-3.5 sm:p-4 border border-blue-200/90 dark:border-blue-800/80 shadow-2xs">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              <span className="w-9 h-9 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-lg shrink-0 shadow-xs">
+                📁
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider bg-blue-100 dark:bg-blue-900/80 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
+                    Cartella Preferita Drive
+                  </span>
+                </div>
+                <h3 className="font-extrabold text-slate-900 dark:text-white text-sm leading-snug truncate mt-0.5" title={favoriteFolder.name}>
+                  {favoriteFolder.name}
+                </h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-2 mt-3 pt-2.5 border-t border-blue-200/60 dark:border-blue-800/60">
+            <button
+              type="button"
+              onClick={() => openDriveUrlSafely(favoriteFolder.url)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 shrink-0"
+              title="Apri la cartella in Google Drive in una nuova scheda"
+            >
+              <span>Apri in Drive</span>
+              <span>↗</span>
+            </button>
+
+            {canEdit && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setIsFolderModalOpen(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700 transition-colors cursor-pointer"
+                  title="Cambia la cartella Google Drive preferita"
+                >
+                  Cambia
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDisconnectFavoriteFolder}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 text-xs font-semibold border border-slate-200 dark:border-slate-700 hover:border-rose-200 dark:hover:border-rose-800 transition-colors cursor-pointer"
+                  title="Scollega la cartella da questo viaggio"
+                >
+                  Scollega
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : canEdit ? (
+        <div className="w-full bg-slate-50/80 dark:bg-slate-800/40 rounded-2xl p-3 border border-dashed border-slate-300 dark:border-slate-700 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="text-xl shrink-0">📁</span>
+            <div className="min-w-0">
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
+                Nessuna cartella Drive preferita
+              </p>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
+                Collega la cartella principale per voucher e ricevute
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsFolderModalOpen(true)}
+            className="px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 text-xs font-bold border border-blue-200 dark:border-blue-800 shadow-2xs transition-all cursor-pointer shrink-0"
+          >
+            + Collega cartella
+          </button>
+        </div>
+      ) : null}
 
       {/* FILTRI A PILLOLE PER CATEGORIA */}
       <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-0.5 px-0.5 -mx-0.5 w-full max-w-full min-w-0">
@@ -646,6 +756,19 @@ export default function DocumentiView({ onBack, initialOpenDriveModal = false }:
           }}
           onSave={handleSaveDriveDocument}
           documentToEdit={editingDriveDoc}
+          parentFolderId={favoriteFolder?.id}
+          parentFolderName={favoriteFolder?.name}
+        />
+      )}
+
+      {/* MODALE CARTELLA PREFERITA GOOGLE DRIVE */}
+      {isFolderModalOpen && (
+        <GoogleDriveFolderModal
+          isOpen={isFolderModalOpen}
+          onClose={() => setIsFolderModalOpen(false)}
+          onSave={handleSaveFavoriteFolder}
+          onDisconnect={handleDisconnectFavoriteFolder}
+          currentFolder={favoriteFolder}
         />
       )}
     </div>

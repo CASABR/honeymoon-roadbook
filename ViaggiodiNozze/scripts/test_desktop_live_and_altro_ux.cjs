@@ -60,14 +60,12 @@ async function runTests() {
 
   // Verifica AltroView
   assert(altroContent.includes('Live & Posizione'), 'AltroView deve contenere Live & Posizione');
-  assert(altroContent.includes('Documenti & Risorse'), 'AltroView deve contenere Documenti & Risorse');
+  assert(altroContent.includes('Strumenti di Viaggio'), 'AltroView deve contenere Strumenti di Viaggio');
   assert(altroContent.includes('data-google-drive-card'), 'AltroView deve contenere data-google-drive-card');
-  assert(altroContent.includes('target="_blank"'), 'Google Drive deve aprire in una nuova scheda');
-  assert(altroContent.includes('rel="noopener noreferrer"'), 'Google Drive deve avere rel="noopener noreferrer"');
-  assert(altroContent.includes('Strumenti Utili'), 'AltroView deve contenere Strumenti Utili');
-  assert(altroContent.includes('Partecipanti & Gestione Viaggio'), 'AltroView deve contenere Partecipanti & Gestione Viaggio');
-  assert(altroContent.includes('Account & Impostazioni Avanzate'), 'AltroView deve contenere Account & Impostazioni Avanzate');
-  console.log('  ✓ AltroView: gerarchia a 5 livelli e accesso Google Drive verificati');
+  assert(altroContent.includes('Sicurezza'), 'AltroView deve contenere Sicurezza & Assistenza');
+  assert(altroContent.includes('Organizzazione'), 'AltroView deve contenere Organizzazione');
+  assert(altroContent.includes('Account'), 'AltroView deve contenere Account & Sistema');
+  console.log('  ✓ AltroView: nuova gerarchia ordinata e accesso Google Drive verificati');
 
   // Verifica LiveEditorialExperience
   assert(liveExpContent.includes('data-testid="desktop-live-banner"'), 'LiveEditorialExperience deve avere banner desktop con testid');

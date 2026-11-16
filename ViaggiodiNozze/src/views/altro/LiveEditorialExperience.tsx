@@ -37,6 +37,7 @@ export interface LiveEditorialExperienceProps {
   onDetectGps?: () => void;
   remoteGpsLease?: LiveGpsLease | null;
   remoteGpsLocation?: LiveGpsLocation | null;
+  lastKnownLocation?: LiveGpsLocation | null;
   isGpsHolder?: boolean;
   isDesignatedGuide?: boolean;
   isOwner?: boolean;
@@ -146,8 +147,18 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     ? 'Diario di viaggio'
     : tripConfig?.title || props.location?.city || 'Il nostro viaggio';
   const isOnline = props.isOnline ?? (typeof navigator === 'undefined' || navigator.onLine);
-  const lastDetectedDate = props.remoteGpsLocation?.updatedAt
-    ? parseSafeDate(props.remoteGpsLocation.updatedAt)
+  // Rispetta la scelta dell'utente: se la condivisione è interrotta manualmente (stopped), non mostrare alcuna posizione
+  const isStopped = Boolean(
+    props.remoteGpsLease?.status === 'stopped' ||
+    props.remoteGpsLocation?.status === 'stopped' ||
+    props.lastKnownLocation?.status === 'stopped'
+  );
+
+  // Posizione da visualizzare: se interrotta manualmente è null, altrimenti usa la posizione remota o l'ultima nota autorizzata
+  const displayLocation = isStopped ? null : (props.remoteGpsLocation || props.lastKnownLocation || null);
+
+  const lastDetectedDate = displayLocation?.updatedAt
+    ? parseSafeDate(displayLocation.updatedAt)
     : null;
   const ageMs = lastDetectedDate ? Math.max(0, Date.now() - lastDetectedDate.getTime()) : Number.POSITIVE_INFINITY;
 
@@ -155,28 +166,32 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   // ma la presenza di remoteGpsLocation attiva certifica che la lease è valida lato server.
   const rawLeaseActive = props.remoteGpsLease
     ? props.remoteGpsLease.status === 'active'
-    : (props.remoteGpsLocation?.status === 'active');
+    : (displayLocation?.status === 'active');
   const isLeaseExpired = props.remoteGpsLease
     ? Boolean(props.remoteGpsLease.expiresAt.getTime() <= Date.now())
     : (ageMs >= GPS_STALE_THRESHOLD_MS);
   const isLeaseActive = Boolean(rawLeaseActive && !isLeaseExpired);
   const isLeasePaused = props.remoteGpsLease?.status === 'paused';
-  const isLeaseStopped = props.remoteGpsLease
-    ? props.remoteGpsLease.status === 'stopped'
-    : (!props.remoteGpsLocation || props.remoteGpsLocation.status === 'stopped');
+  const isLeaseStopped = isStopped;
 
+  // GPS LIVE: lease attiva, segnale recente (< 15 min), stato active
   const isFreshGps = Boolean(
     isLeaseActive &&
     lastDetectedDate &&
     ageMs < GPS_STALE_THRESHOLD_MS &&
-    props.remoteGpsLocation?.status === 'active'
+    displayLocation?.status === 'active'
   );
+
+  // ULTIMA POSIZIONE CONOSCIUTA: posizione autorizzata presente ma aggiornamenti non recenti (>= 15 min o disconnessione), non interrotta manualmente
   const isStaleGps = Boolean(
+    !isStopped &&
     lastDetectedDate &&
-    ageMs >= GPS_STALE_THRESHOLD_MS
+    displayLocation &&
+    (ageMs >= GPS_STALE_THRESHOLD_MS || !isLeaseActive)
   );
-  // Protezione privacy: mai mostrare coordinate a ospiti se il GPS è scaduto, fermato o in pausa
-  const hasRealLocation = Boolean(isFreshGps && props.remoteGpsLocation);
+
+  // Mostra coordinate reali se live o come ultima posizione nota
+  const hasRealLocation = Boolean((isFreshGps || isStaleGps) && displayLocation);
   const plannedLocation = props.liveIntelligence?.plannedLocation || null;
   const hasPlannedLocation = Boolean(!props.isExternal && plannedLocation?.coords);
   const showRealMarker = hasRealLocation && props.mapCenterMode !== 'planned';
@@ -195,22 +210,22 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
       return { label: 'Rilevamento posizione…', tone: 'text-sky-700 dark:text-sky-300', dot: 'bg-sky-500 motion-safe:animate-pulse' };
     }
     if (isFreshGps) {
-      return { label: 'GPS attivo', tone: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500' };
+      return { label: 'GPS LIVE attivo', tone: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-500 animate-pulse' };
+    }
+    if (isStaleGps) {
+      return { label: 'Ultima posizione conosciuta', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
+    }
+    if (isLeasePaused) {
+      return { label: 'Condivisione in pausa', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
+    }
+    if (isStopped || isLeaseStopped) {
+      return { label: 'Condivisione non attiva', tone: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-400' };
     }
     if (props.isExternal) {
       return { label: 'Posizione non condivisa al momento', tone: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-400' };
     }
-    if (isStaleGps && (isLeaseActive || hasRealLocation)) {
-      return { label: 'Ultima posizione aggiornata', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
-    }
-    if (isLeasePaused || isLeaseStopped || isLeaseExpired || props.remoteGpsLease?.status === 'stopped') {
-      return { label: 'Condivisione interrotta', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
-    }
-    if (isLeaseActive && !hasRealLocation) {
-      return { label: 'GPS non disponibile', tone: 'text-amber-700 dark:text-amber-300', dot: 'bg-amber-500' };
-    }
-    return { label: 'Condivisione interrotta', tone: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-400' };
-  }, [isOnline, permissionDenied, props.isDetectingGps, isFreshGps, isStaleGps, isLeaseActive, hasRealLocation, isLeasePaused, isLeaseStopped, isLeaseExpired, props.remoteGpsLease?.status, props.isExternal]);
+    return { label: 'Condivisione non attiva', tone: 'text-slate-600 dark:text-slate-400', dot: 'bg-slate-400' };
+  }, [isOnline, permissionDenied, props.isDetectingGps, isFreshGps, isStaleGps, isLeasePaused, isStopped, isLeaseStopped, props.isExternal]);
 
   const currentGuideName = useMemo(() => {
     const holderUid = props.remoteGpsLease?.holderUid;
@@ -667,52 +682,102 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
           {showRealMarker && (
             <div className={`pointer-events-none absolute left-1/2 top-1/2 z-10 flex flex-col items-center ${shouldSmoothRealMarker ? 'hounigo-live-marker-transition' : ''}`} style={{ transform: props.realMarkerOffset ? `translate(calc(-50% + ${props.realMarkerOffset.dx}px), calc(-50% + ${props.realMarkerOffset.dy}px))` : 'translate(-50%, -50%)' }}>
-              <span key={lastDetectedDate?.getTime()} className="hounigo-live-gps-confirmed absolute h-12 w-12 rounded-full bg-[#FF6B5F]/30" />
-              <span className="relative h-5 w-5 rounded-full border-4 border-white bg-[#FF6B5F] shadow-lg" />
-              <span className="mt-2 whitespace-nowrap rounded-full bg-[#FF6B5F] px-2.5 py-1 text-[10px] font-bold text-white">Dove siamo</span>
+              {isFreshGps ? (
+                <>
+                  <span key={lastDetectedDate?.getTime()} className="hounigo-live-gps-confirmed absolute h-14 w-14 rounded-full bg-[#FF6B5F]/30" />
+                  <span className="relative h-5 w-5 rounded-full border-3 border-white bg-[#FF6B5F] shadow-lg" />
+                  <span className="mt-2 flex items-center gap-1.5 whitespace-nowrap rounded-full bg-[#FF6B5F] px-2.5 py-0.5 text-[10px] font-black text-white shadow-lg tracking-wide uppercase">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
+                    Dove siamo · LIVE
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="relative h-5 w-5 rounded-full border-3 border-white bg-amber-500 shadow-lg" />
+                  <span className="mt-2 flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-600 px-2.5 py-0.5 text-[10px] font-bold text-white shadow-lg">
+                    <span>⏱️</span> Ultima posizione nota
+                  </span>
+                </>
+              )}
             </div>
           )}
 
           {showPlannedMarker && (
             <div className="pointer-events-none absolute left-1/2 top-1/2 z-10 flex flex-col items-center" style={{ transform: props.plannedMarkerOffset ? `translate(calc(-50% + ${props.plannedMarkerOffset.dx}px), calc(-50% + ${props.plannedMarkerOffset.dy}px))` : 'translate(-50%, -50%)' }}>
               <span className="h-5 w-5 rotate-45 rounded-[4px] border-2 border-white bg-[#172033] shadow-lg" />
-              <span className="mt-2 whitespace-nowrap rounded-full bg-[#172033] px-2.5 py-1 text-[10px] font-bold text-white">Programma</span>
+              <span className="mt-2 whitespace-nowrap rounded-full bg-[#172033] px-2.5 py-1 text-[10px] font-bold text-white shadow-lg border border-white/20">Programma</span>
             </div>
           )}
 
-          <div className="absolute bottom-0 left-0 right-0 z-10 flex items-end justify-between gap-3 p-4 text-white">
+          <div className="absolute bottom-3 left-3 right-3 z-10 flex items-center justify-between gap-3 rounded-2xl bg-slate-950/80 p-3 sm:p-4 text-white backdrop-blur-md border border-white/15 shadow-xl">
             <div className="min-w-0">
-              <p className="text-[11px] font-semibold text-white/70">{props.mapCenterMode === 'planned' ? 'Dove dovremmo essere' : props.mapCenterMode === 'both' ? 'Posizione e programma' : 'Dove siamo'}</p>
-              <p className="mt-0.5 truncate text-lg font-black">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                {props.mapCenterMode === 'planned' ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-500/30 text-slate-200 text-[10px] font-bold uppercase tracking-wider">
+                    Programma Roadbook
+                  </span>
+                ) : isFreshGps ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/25 text-emerald-300 text-[10px] font-black uppercase tracking-wider">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    GPS LIVE
+                  </span>
+                ) : isStaleGps ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/25 text-amber-300 text-[10px] font-bold uppercase tracking-wider">
+                    <span>⏱️</span> Ultima posizione nota
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-slate-500/20 text-slate-300 text-[10px] font-bold uppercase tracking-wider">
+                    Programma Roadbook
+                  </span>
+                )}
+              </div>
+              <p className="truncate text-base sm:text-lg font-black tracking-tight text-white">
                 {props.mapCenterMode === 'planned'
                   ? plannedLocation?.title || 'Programma non disponibile'
                   : hasRealLocation
-                    ? props.remoteGpsLocation?.city || 'Posizione condivisa'
-                    : 'GPS non condiviso'}
+                    ? displayLocation?.city || 'Posizione condivisa'
+                    : plannedLocation?.title || 'GPS non condiviso'}
               </p>
             </div>
-            {(hasRealLocation || hasPlannedLocation) && <a href={props.mapSearchUrl} target="_blank" rel="noreferrer" className="min-h-10 shrink-0 border-b border-white/60 py-2 text-xs font-bold">Apri mappa ↗</a>}
+            {(hasRealLocation || hasPlannedLocation) && (
+              <a
+                href={props.mapSearchUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="min-h-9 shrink-0 flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-white/15 hover:bg-white/25 text-xs font-bold text-white transition backdrop-blur-sm border border-white/20 cursor-pointer"
+              >
+                <span>Apri mappa</span>
+                <span className="text-[10px]">↗</span>
+              </a>
+            )}
           </div>
         </div>
 
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div className="border-l-2 border-[#FF6B5F] pl-3">
-            <p className="text-[11px] font-bold text-slate-400">
-              {hasRealLocation ? 'Posizione attuale (GPS Live)' : 'Posizione in tempo reale'}
+          <div className={`border-l-3 pl-3.5 py-0.5 rounded-r-xl transition ${isFreshGps ? 'border-[#FF6B5F] bg-[#FFF0ED]/20 dark:bg-slate-900/40' : isStaleGps ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/10' : 'border-slate-300 dark:border-slate-700'}`}>
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              {isFreshGps ? 'Posizione attuale (GPS Live)' : isStaleGps ? 'Ultima posizione conosciuta' : 'Posizione in tempo reale'}
             </p>
             <p className="mt-1 text-sm font-extrabold text-[#172033] dark:text-white">
-              {hasRealLocation ? (props.remoteGpsLocation?.city || 'Posizione GPS attiva') : 'Posizione non condivisa al momento'}
+              {hasRealLocation ? (displayLocation?.city || 'Posizione registrata') : 'Posizione non condivisa al momento'}
             </p>
             <p className="mt-1 text-xs text-slate-500">
-              {hasRealLocation && lastDetectedDate
-                ? `Ultimo aggiornamento: ${formatRelativeTime(lastDetectedDate)} (${formatLastDetectedTimestamp(lastDetectedDate)})`
-                : (props.isExternal ? 'Posizione non condivisa al momento' : gpsVisualState.label)}
+              {isFreshGps && lastDetectedDate
+                ? `In trasmissione diretta · Aggiornato: ${formatRelativeTime(lastDetectedDate)} (${formatLastDetectedTimestamp(lastDetectedDate)})`
+                : isStaleGps && lastDetectedDate
+                  ? `Non in diretta · Ultimo segnale: ${formatLastDetectedTimestamp(lastDetectedDate)} (${formatRelativeTime(lastDetectedDate)})`
+                  : (props.isExternal ? 'Posizione non condivisa al momento' : gpsVisualState.label)}
             </p>
+            {isStaleGps && (
+              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+                ℹ️ Segnale GPS al momento non attivo. Mostrata l'ultima posizione confermata.
+              </p>
+            )}
           </div>
-          <div className="border-l-2 border-[#172033] pl-3 dark:border-slate-500">
-            <p className="text-[11px] font-bold text-slate-400">Itinerario programmato (Destinazione)</p>
+          <div className="border-l-3 border-[#172033] pl-3.5 py-0.5 rounded-r-xl bg-slate-50/50 dark:bg-slate-900/40 dark:border-slate-600">
+            <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Itinerario programmato (Destinazione)</p>
             <p className="mt-1 text-sm font-extrabold text-[#172033] dark:text-white">{plannedLocation?.title || 'Nessun luogo previsto ora'}</p>
-            <p className="mt-1 text-xs text-slate-500">{plannedLocation?.coords ? 'Destinazione da programma (non GPS)' : 'Coordinate non disponibili'}</p>
+            <p className="mt-1 text-xs text-slate-500">{plannedLocation?.coords ? 'Destinazione da programma roadbook (fuso locale)' : 'Coordinate da programma non disponibili'}</p>
           </div>
         </div>
 
@@ -919,7 +984,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           <div className="mt-4 border-y border-dashed border-slate-300 py-7 text-center dark:border-slate-700"><p className="text-sm font-bold">Il primo scatto deve ancora arrivare.</p>{props.canPublish && <p className="mt-1 text-xs text-slate-500">Puoi aggiungerlo quando vuoi.</p>}</div>
         )}
 
-        {props.canPublish && !props.isExternal && <p className="mt-3 text-[11px] text-slate-500">Le foto restano su questo dispositivo. Le cartoline LIVE sono separate.</p>}
+        {props.canPublish && !props.isExternal && (
+          <div className="mt-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+            📷 <strong>Nota fotografie:</strong> Gli scatti del diario sono conservati sul dispositivo locale. La condivisione su cloud storage non è attiva in questa versione.
+          </div>
+        )}
 
         <div className="mt-9 border-t border-slate-200 dark:border-slate-800">
           {sortedUpdates.length === 0 ? (
@@ -947,11 +1016,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         {/* Guestbook / Messaggi dagli Ospiti */}
         <div className="mt-6 space-y-5">
           <div>
-            <h3 className="text-base font-extrabold text-[#172033] dark:text-white">Lascia un pensiero agli sposi</h3>
-            <p className="mt-0.5 text-xs text-slate-500">I messaggi compaiono nel diario pubblico del viaggio.</p>
+            <h3 className="text-base font-extrabold text-[#172033] dark:text-white">Pensieri dal pubblico</h3>
+            <p className="mt-0.5 text-xs text-slate-500">I messaggi e gli auguri approvati compaiono nel diario pubblico del viaggio.</p>
           </div>
 
-          {props.onSendGuestMessage && (FEATURE_FLAGS.LIVE_GUEST_MESSAGES_PUBLIC_WRITE || props.isOwner || props.isCopilota) ? (
+          {props.onSendGuestMessage && !props.isExternal && (FEATURE_FLAGS.LIVE_GUEST_MESSAGES_PUBLIC_WRITE || props.isOwner || props.isCopilota) ? (
             <form onSubmit={handleGuestMessageSubmit} className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
@@ -962,7 +1031,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                     required
                     value={guestAuthorInput}
                     onChange={(e) => setGuestAuthorInput(e.target.value)}
-                    placeholder="Es. Zia Maria, Marco..."
+                    placeholder="Es. Nunzio, Lucia..."
                     className="mt-1 min-h-10 w-full rounded-xl border border-slate-200 bg-[#F8F7F3] px-3 text-xs text-[#172033] focus:border-[#FF6B5F] focus:outline-none dark:border-slate-700 dark:bg-[#172033] dark:text-white"
                   />
                 </div>
@@ -977,7 +1046,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                     required
                     value={guestMessageInput}
                     onChange={(e) => setGuestMessageInput(e.target.value)}
-                    placeholder="Scrivi un saluto o un augurio per il viaggio…"
+                    placeholder="Scrivi un pensiero per il diario pubblico…"
                     className="mt-1 min-h-10 w-full rounded-xl border border-slate-200 bg-[#F8F7F3] px-3 text-xs text-[#172033] focus:border-[#FF6B5F] focus:outline-none dark:border-slate-700 dark:bg-[#172033] dark:text-white"
                   />
                 </div>
@@ -985,7 +1054,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
               {guestMsgError && <p className="text-xs font-semibold text-rose-600 dark:text-rose-400" role="alert">{guestMsgError}</p>}
               {guestMsgSuccess && <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400" role="status">{guestMsgSuccess}</p>}
               <div className="flex items-center justify-between gap-2 pt-1">
-                <span className="text-[10px] text-slate-400">Visibile nel diario pubblico · Moderato dagli organizzatori</span>
+                <span className="text-[10px] text-slate-400">Visibile nel diario pubblico</span>
                 <button
                   type="submit"
                   disabled={isSendingGuestMsg || !isOnline || !guestAuthorInput.trim() || !guestMessageInput.trim()}
@@ -999,10 +1068,10 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-4 text-xs text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
               <div className="flex items-center gap-2 font-bold text-slate-700 dark:text-slate-200">
                 <span>🛡️</span>
-                <span>Bacheca Pensieri dal Pubblico</span>
+                <span>Bacheca Pensieri dal Pubblico (Sola Lettura)</span>
               </div>
               <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
-                I pensieri pubblicati dagli organizzatori sono visibili qui sotto. L'invio pubblico diretto dal browser è temporaneamente disattivato in modalità lettura per la sicurezza del viaggio.
+                L'invio diretto di messaggi pubblici dal browser non è attualmente attivo per motivi di sicurezza anti-abuso. I pensieri e gli auguri approvati dagli sposi sono consultabili qui sotto.
               </p>
             </div>
           )}

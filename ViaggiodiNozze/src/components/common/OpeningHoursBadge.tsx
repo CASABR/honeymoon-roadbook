@@ -1,16 +1,24 @@
 import type { OpeningHoursInfo } from '../../types';
-import { getOpeningHoursText, openingHoursMessage } from '../../utils/openingHours';
+import { extractOpeningClosingTimes, getOpeningHoursText, openingHoursMessage } from '../../utils/openingHours';
 
 export default function OpeningHoursBadge({ info, date, time }: { info?: OpeningHoursInfo; date?: string; time?: string }) {
   if (!info) return null;
   const message = openingHoursMessage(info, date, time);
-  const hoursText = getOpeningHoursText(info, date);
-  const conciseLabel = hoursText && info.verifiedAt && info.status !== 'unverified'
+  const rawHoursText = getOpeningHoursText(info, date);
+  const { openTime, closeTime } = extractOpeningClosingTimes(info, date);
+  const formattedHours = openTime && closeTime
+    ? `${openTime} – ${closeTime}`
+    : openTime
+    ? `Apertura ${openTime}`
+    : closeTime
+    ? `Chiusura ${closeTime}`
+    : rawHoursText;
+  const conciseLabel = formattedHours && info.verifiedAt && info.status !== 'unverified'
     ? message.tone === 'warning'
-      ? `${hoursText} · ${message.text}`
+      ? `${formattedHours} · ${message.text}`
       : info.accessType === 'outdoor'
-      ? `${hoursText} · Accesso all'aperto`
-      : `${hoursText}`
+      ? `${formattedHours} · Accesso all'aperto`
+      : `${formattedHours}`
     : message.text;
 
   return (
@@ -21,7 +29,7 @@ export default function OpeningHoursBadge({ info, date, time }: { info?: Opening
           : ''
       }`}>
         <span className="hounigo-ds-spec-label">
-          {message.tone === 'warning' ? 'Attenzione orari apertura' : 'Orari apertura verificati'}
+          {message.tone === 'warning' ? 'Attenzione orari apertura' : 'Orari apertura'}
         </span>
         <span className={`hounigo-ds-spec-value font-mono ${
           message.tone === 'warning'

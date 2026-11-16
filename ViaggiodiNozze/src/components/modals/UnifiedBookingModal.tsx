@@ -790,13 +790,13 @@ export default function UnifiedBookingModal({
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Fornitore / Piattaforma
+                    Piattaforma di prenotazione
                   </label>
                   <input
                     type="text"
                     value={attivitaProvider}
                     onChange={e => setAttivitaProvider(e.target.value)}
-                    placeholder="Es. GetYourGuide, Headout, Diretto"
+                    placeholder="Es. GetYourGuide, Klook, Tiqets, sito ufficiale"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-900 font-semibold"
                   />
                 </div>

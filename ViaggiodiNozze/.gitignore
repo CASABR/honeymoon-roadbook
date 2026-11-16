@@ -27,6 +27,7 @@ dist-ssr
 *.sw?
 
 # Backup & Archivi locali
+release-draft.json
 honeymoon-roadbookzip/
 .git_BACKUP_OLD/
 backups/

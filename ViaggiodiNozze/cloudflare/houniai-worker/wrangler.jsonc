@@ -17,6 +17,8 @@
     }
   ],
   "vars": {
+    "LIVE_PHOTOS_ENABLED": "false",
+    "LIVE_PHOTOS_FREE_PLAN_CONFIRMED": "false",
     "ALLOWED_ORIGIN": "https://casabr.github.io",
     "FIREBASE_PROJECT_ID": "app-viaggio-di-nozze"
   },

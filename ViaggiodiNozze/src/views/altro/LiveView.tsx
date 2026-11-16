@@ -1,3 +1,4 @@
+import { compressLivePhotoToDataUrl } from '../../utils/livePhotoImage';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { storageService } from '../../storage/storageService';
@@ -77,7 +78,7 @@ import { liveService, type LiveUpdate, type LiveGuestMessage } from '../../servi
 import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
 import LiveEditorialExperience, { type LiveGalleryPhotoItem } from './LiveEditorialExperience';
-import { describeLiveGpsStartError, GPS_STALE_THRESHOLD_MS, liveGpsService, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation, type TripMemberInfo } from '../../services/liveGpsService';
+import { describeLiveGpsStartError, liveGpsService, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation, type TripMemberInfo } from '../../services/liveGpsService';
 import { registerDeviceOnFirestore } from '../../utils/deviceSession';
 
 export default function LiveView({ onBack, isStandaloneExternal = false, tripId }: LiveViewProps) {
@@ -189,6 +190,24 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [gpsFeedback, setGpsFeedback] = useState<string | null>(null);
   const [remoteGpsLease, setRemoteGpsLease] = useState<LiveGpsLease | null>(null);
   const [remoteGpsLocation, setRemoteGpsLocation] = useState<LiveGpsLocation | null>(null);
+  // Conservazione ultima posizione conosciuta autorizzata (persistita localmente)
+  const [lastKnownLocation, setLastKnownLocation] = useState<LiveGpsLocation | null>(() => {
+    if (typeof window !== 'undefined' && activeTripId) {
+      try {
+        const cached = localStorage.getItem(`hounigo_live_last_known_loc_${activeTripId}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && typeof parsed.lat === 'number' && typeof parsed.lng === 'number' && parsed.status === 'active') {
+            return {
+              ...parsed,
+              updatedAt: new Date(parsed.updatedAt)
+            };
+          }
+        }
+      } catch {}
+    }
+    return null;
+  });
   const [gpsDevices, setGpsDevices] = useState<LiveGpsDevice[]>([]);
   const [tripMembers, setTripMembers] = useState<TripMemberInfo[]>([]);
   const gpsWatchRef = useRef<number | null>(null);
@@ -230,16 +249,23 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     const unsubscribeLocation = liveGpsService.subscribeLocation(
       activeTripId,
       isPrivileged,
-      (location) => setRemoteGpsLocation(location)
-    );
-    const staleTimer = window.setInterval(() => {
-      if (!isPrivileged) {
-        setRemoteGpsLocation(current => current && Date.now() - current.updatedAt.getTime() < GPS_STALE_THRESHOLD_MS ? current : null);
+      (location) => {
+        setRemoteGpsLocation(location);
+        if (location && location.status === 'active') {
+          setLastKnownLocation(location);
+          try {
+            localStorage.setItem(`hounigo_live_last_known_loc_${activeTripId}`, JSON.stringify(location));
+          } catch {}
+        } else if (location?.status === 'stopped') {
+          setLastKnownLocation(null);
+          try {
+            localStorage.removeItem(`hounigo_live_last_known_loc_${activeTripId}`);
+          } catch {}
+        }
       }
-    }, 15_000);
+    );
     return () => {
       unsubscribeLocation();
-      window.clearInterval(staleTimer);
     };
   }, [activeTripId, cloudRole]);
 
@@ -406,6 +432,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       startGpsWatcher();
       try {
         localStorage.setItem(`hounigo_live_sharing_enabled_${activeTripId}`, 'true');
+        localStorage.removeItem(`hounigo_live_sharing_stopped_${activeTripId}`);
       } catch {}
       setGpsFeedback('Posizione condivisa e confermata dal server.');
     } catch (error) {
@@ -423,35 +450,119 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     }
   }, [activeTripId, cloudRole, currentUid, remoteGpsLease, startGpsWatcher]);
 
-  // Rinnovo automatico posizione alla riapertura della PWA su iPhone (foreground / visibilitychange)
+  // GPS AUTOMATICO OWNER & DELEGA COPILOTA
+  // Quando l'Owner riapre HOUNIGO o torna nell'app (foreground / visibilitychange / focus):
+  // 1. Se ha autorizzato la posizione e attivato esplicitamente la condivisione LIVE, riprendi automaticamente gli aggiornamenti GPS.
+  // 2. Non richiede continuamente autorizzazioni già concesse.
+  // 3. Rispetta la delega GPS al Copilota (se il copilota detiene la guida, non trasmette).
+  // 4. Non attiva due dispositivi trasmittenti contemporaneamente.
+  // 5. Se la condivisione è stata interrotta manualmente (status stopped), NON la riattiva.
+  // 6. Rispetta i limiti di iOS (aggiornamenti regolari quando la PWA è aperta o riaperta).
+  const autoResumeGpsIfEligible = useCallback(async () => {
+    if (typeof document === 'undefined' || typeof navigator === 'undefined') return;
+    if (document.visibilityState !== 'visible' || !navigator.onLine || !navigator.geolocation) return;
+    if (!activeTripId || !currentUid) return;
+
+    // Solo Owner o Copilota designato possono trasmettere
+    const isOwner = cloudRole === 'owner' || isTripOwner;
+    const isCopilota = cloudRole === 'copilota';
+    if (!isOwner && !isCopilota) return;
+
+    // Throttle per evitare chiamate ripetute su focus rapidi (minimo 12s)
+    const nowTs = Date.now();
+    if (nowTs - lastGpsPublishRef.current < 12_000) return;
+
+    // Verifica se la condivisione era stata attivata esplicitamente
+    let isSharingEnabled = false;
+    try {
+      isSharingEnabled = localStorage.getItem(`hounigo_live_sharing_enabled_${activeTripId}`) === 'true';
+    } catch {}
+    if (!isSharingEnabled) return;
+
+    // Se l'utente ha interrotto manualmente la condivisione, NON riattivarla
+    if (remoteGpsLease?.status === 'stopped') return;
+
+    const deviceId = liveGpsService.getDeviceId();
+    const leaseNotExpired = Boolean(remoteGpsLease && remoteGpsLease.expiresAt.getTime() > nowTs);
+    const leaseIsActive = Boolean(remoteGpsLease?.status === 'active' && leaseNotExpired);
+
+    // DELEGA: se la lease attiva appartiene a un altro utente (es. Copilota), RISPETTA LA DELEGA
+    if (leaseIsActive && remoteGpsLease?.holderUid && remoteGpsLease.holderUid !== currentUid) {
+      return;
+    }
+
+    // MULTI-DISPOSITIVO: se la lease attiva appartiene a un altro device di questo utente, non attivare contemporaneamente
+    if (leaseIsActive && remoteGpsLease?.holderUid === currentUid && remoteGpsLease.holderDeviceId !== deviceId) {
+      return;
+    }
+
+    // Se siamo Copilota, possiamo riprendere SOLO se la lease è stata assegnata a noi
+    if (isCopilota && (!remoteGpsLease || remoteGpsLease.holderUid !== currentUid)) {
+      return;
+    }
+
+    try {
+      // Verifica permessi browser se API permissions disponibile (evita pop-up se negato)
+      if (navigator.permissions && navigator.permissions.query) {
+        try {
+          const perm = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
+          if (perm.state === 'denied') return;
+        } catch {}
+      }
+
+      // Se Owner e lease scaduta/non attiva ma sharing era abilitato, rinnova lease
+      if (isOwner && (!leaseIsActive || remoteGpsLease?.holderDeviceId !== deviceId)) {
+        await liveGpsService.assignGuide(activeTripId, currentUid, deviceId);
+        persistDeviceSession(activeTripId, 'guida').catch(() => {});
+      }
+
+      // Acquisisci posizione in silenzio
+      const detected = await updateRealLocation({
+        enableHighAccuracy: true,
+        timeout: 10_000,
+        maximumAge: 15_000
+      });
+      setLiveGpsState(detected);
+
+      // Pubblica posizione
+      await liveGpsService.publishLocation(activeTripId, {
+        lat: detected.coords.lat,
+        lng: detected.coords.lng,
+        accuracy: detected.accuracy,
+        city: detected.city,
+        country: detected.country
+      });
+      lastGpsPublishRef.current = Date.now();
+
+      // Assicurati che il continuous watcher sia attivo
+      if (gpsWatchRef.current === null) {
+        startGpsWatcher();
+      }
+    } catch (err) {
+      console.warn('[LiveView] Auto-resume GPS non riuscito (silenzioso):', err);
+    }
+  }, [activeTripId, currentUid, cloudRole, isTripOwner, remoteGpsLease, startGpsWatcher]);
+
+  // Listener visibilitychange e focus per riattivazione automatica
   useEffect(() => {
-    if (typeof document === 'undefined' || !activeTripId || !currentUid) return;
-    const handleVisibilityChange = () => {
-      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
-      const deviceId = liveGpsService.getDeviceId();
-      const ownsActiveLease = Boolean(
-        remoteGpsLease?.status === 'active' &&
-        remoteGpsLease.holderUid === currentUid &&
-        remoteGpsLease.holderDeviceId === deviceId &&
-        remoteGpsLease.expiresAt.getTime() > Date.now()
-      );
-      if (!ownsActiveLease) return;
-      updateRealLocation({ enableHighAccuracy: true, timeout: 10_000, maximumAge: 15_000 })
-        .then(detected => {
-          setLiveGpsState(detected);
-          return liveGpsService.publishLocation(activeTripId, {
-            lat: detected.coords.lat,
-            lng: detected.coords.lng,
-            accuracy: detected.accuracy,
-            city: detected.city,
-            country: detected.country
-          });
-        })
-        .catch(() => {});
+    if (typeof document === 'undefined') return;
+    const onVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        autoResumeGpsIfEligible();
+      }
     };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [activeTripId, currentUid, remoteGpsLease]);
+    document.addEventListener('visibilitychange', onVisibilityOrFocus);
+    window.addEventListener('focus', onVisibilityOrFocus);
+    const initialTimer = setTimeout(() => {
+      onVisibilityOrFocus();
+    }, 1200);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityOrFocus);
+      window.removeEventListener('focus', onVisibilityOrFocus);
+      clearTimeout(initialTimer);
+    };
+  }, [autoResumeGpsIfEligible]);
 
   const handlePauseOrStopGps = useCallback(async (status: 'paused' | 'stopped') => {
     if (!activeTripId) return;
@@ -464,8 +575,11 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       if (status === 'stopped') {
         try {
           localStorage.removeItem(`hounigo_live_sharing_enabled_${activeTripId}`);
+          localStorage.setItem(`hounigo_live_sharing_stopped_${activeTripId}`, 'true');
+          localStorage.removeItem(`hounigo_live_last_known_loc_${activeTripId}`);
         } catch {}
         setRemoteGpsLocation(null);
+        setLastKnownLocation(null);
         setLiveGpsState(null);
       }
       setGpsFeedback(status === 'paused' ? 'Condivisione in pausa.' : 'Condivisione interrotta.');
@@ -687,7 +801,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     }
 
     return Array.from(map.values()).sort((a, b) => b.timestamp - a.timestamp);
-  }, [liveUpdates, galleryCustomPhotos, customPhoto, activeTripId, currentUid, cloudRole, localGalleryRole, isStandaloneExternal]);
+  }, [liveUpdates, galleryCustomPhotos, customPhoto, activeTripId, currentUid, cloudRole, localGalleryRole, isStandaloneExternal, isOnline]);
 
   // Backward compatibility per vecchio portal viewer
   const publishedLivePhotos = useMemo(() => {
@@ -715,42 +829,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeViewerIndex, publishedLivePhotos.length]);
-  const compressImage = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const maxDim = 1200;
-          let { width, height } = img;
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            reject(new Error('Canvas context non disponibile'));
-            return;
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.75);
-          resolve(compressed);
-        };
-        img.onerror = () => reject(new Error('Errore nel caricamento immagine'));
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = () => reject(new Error('Errore lettura file'));
-      reader.readAsDataURL(file);
-    });
-  };
+  const compressImage = (file: File): Promise<string> => compressLivePhotoToDataUrl(file);
 
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -794,71 +873,51 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     }
   };
 
-  // Caricamento e compressione foto per la Galleria Live
+  // Persist the private copy BEFORE any network operation. A failed upload is never success.
   const handleUploadPhoto = async (file: File, caption?: string) => {
     if (!file) return;
-    if (!hasPrivateGalleryAccess) throw new Error('Accedi come Owner o Copilota per caricare foto.');
+    if (!hasPrivateGalleryAccess || !activeTripId || !currentUid) throw new Error('Accedi come Owner o Copilota per caricare foto.');
     const compressedDataUrl = await compressImage(file);
-    const photoId = `photo_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-
-    let publicPhotoUrl: string | null = null;
-    // Se l'organizzatore o il copilota pubblicano nel viaggio, carichiamo su Firebase Storage
-    if (activeTripId && (cloudRole === 'owner' || cloudRole === 'copilota')) {
-      try {
-        const { uploadLivePhoto } = await import('../../services/liveStorageService');
-        const uploadRes = await uploadLivePhoto(activeTripId, compressedDataUrl, photoId);
-        publicPhotoUrl = uploadRes.downloadUrl;
-      } catch (uploadErr) {
-        console.error('Errore caricamento foto su Storage:', uploadErr);
-        throw new Error(uploadErr instanceof Error ? uploadErr.message : 'Caricamento foto su Storage non riuscito. Verifica la connessione.');
-      }
-    }
-
-    // Se autorizzati e foto caricata online, sincronizziamo l'aggiornamento LIVE per gli ospiti
-    if (activeTripId && (cloudRole === 'owner' || cloudRole === 'copilota') && publicPhotoUrl) {
-      try {
-        await liveService.publishToLive(activeTripId, {
-          title: caption || 'Nuovo scatto dal vivo 📸',
-          text: '',
-          photoUrl: publicPhotoUrl,
-          locationName: currentLocation?.city || undefined
-        });
-      } catch (err) {
-        console.warn('Errore sync aggiornamento con foto:', err);
-        throw new Error('Foto caricata, ma pubblicazione nel feed LIVE non riuscita. Riprova.');
-      }
-    }
-
-    const newPhoto: LiveGalleryPhotoItem = {
-      tripId: activeTripId || undefined,
-      userId: currentUid || undefined,
-      id: photoId,
-      url: publicPhotoUrl || compressedDataUrl,
-      caption: caption || 'Foto dal viaggio ❤️',
-      location: currentLocation?.city || 'In viaggio',
-      timestamp: Date.now(),
-      isCustom: !publicPhotoUrl,
-      pendingSync: !publicPhotoUrl
+    const photoId = crypto.randomUUID();
+    const localPhoto: LiveGalleryPhotoItem = {
+      id: photoId, tripId: activeTripId, userId: currentUid, url: compressedDataUrl,
+      caption: caption || 'Foto dal viaggio',
+      location: currentLocation?.city || 'In viaggio', timestamp: Date.now(), isCustom: true, pendingSync: true
     };
-
-    setGalleryCustomPhotos(prev => {
-      const updated = [newPhoto, ...prev];
-      if (typeof window !== 'undefined') {
-        try {
-          localStorage.setItem('hounigo_live_gallery', JSON.stringify(updated.slice(0, 30)));
-          localStorage.setItem(LAST_PHOTO_KEY, JSON.stringify({
-            tripId: activeTripId,
-            userId: currentUid,
-            dataUrl: compressedDataUrl,
-            caption: newPhoto.caption,
-            timestamp: new Date().toISOString()
-          }));
-        } catch (e) {
-          console.warn('Spazio di memorizzazione galleria limitato:', e);
-        }
+    syncingOfflinePhotoIdsRef.current.add(photoId);
+    try {
+      const stored = JSON.parse(localStorage.getItem('hounigo_live_gallery') || '[]');
+      const saved = [localPhoto, ...(Array.isArray(stored) ? stored : [])].slice(0, 30);
+      try {
+        localStorage.setItem('hounigo_live_gallery', JSON.stringify(saved));
+        localStorage.setItem(LAST_PHOTO_KEY, JSON.stringify({ tripId: activeTripId, userId: currentUid,
+          dataUrl: compressedDataUrl, caption: localPhoto.caption, timestamp: new Date().toISOString() }));
+      } catch { throw new Error('Foto non pubblicata: spazio sul dispositivo esaurito. Conserva l’originale nel rullino e libera spazio.'); }
+      setGalleryCustomPhotos(saved);
+      if (!isOnline || (cloudRole !== 'owner' && cloudRole !== 'copilota')) {
+        throw new Error('Foto salvata sul dispositivo. Sarà pubblicata al ritorno online con una sessione autorizzata.');
       }
-      return updated;
-    });
+      const { uploadLivePhoto } = await import('../../services/liveStorageService');
+      const uploadRes = await uploadLivePhoto(activeTripId, compressedDataUrl, undefined, currentUid);
+      const stillQueued = () => auth.currentUser?.uid === currentUid && !isTripAuthRevoked(activeTripId)
+        && JSON.parse(localStorage.getItem('hounigo_live_gallery') || '[]').some((p: LiveGalleryPhotoItem) => p.id === photoId);
+      if (!stillQueued()) {
+        const { deleteLivePhoto } = await import('../../services/liveStorageService');
+        await deleteLivePhoto(activeTripId, uploadRes.downloadUrl);
+        throw new Error('Pubblicazione annullata o sessione cambiata.');
+      }
+      const postId = await liveService.publishToLive(activeTripId, { title: localPhoto.caption || 'Nuovo scatto', text: '',
+        photoUrl: uploadRes.downloadUrl, locationName: currentLocation?.city || undefined });
+      if (!stillQueued()) {
+        await liveService.deleteLiveUpdate(activeTripId, postId);
+        throw new Error('Pubblicazione annullata o sessione cambiata.');
+      }
+      setGalleryCustomPhotos(prev => {
+        const updated = prev.map(p => p.id === photoId ? { ...p, url: uploadRes.downloadUrl, isCustom: false, pendingSync: false } : p);
+        localStorage.setItem('hounigo_live_gallery', JSON.stringify(updated.slice(0, 30)));
+        return updated;
+      });
+    } finally { syncingOfflinePhotoIdsRef.current.delete(photoId); }
   };
 
   // Sincronizzazione automatica al ritorno online per le sole foto scattate offline (pendingSync === true)
@@ -884,7 +943,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         if (cancelled || isTripAuthRevoked(activeTripId)) break;
         syncingOfflinePhotoIdsRef.current.add(p.id);
         try {
-          const uploadRes = await uploadLivePhoto(activeTripId, p.url, p.id);
+          const uploadRes = await uploadLivePhoto(activeTripId, p.url, p.id, p.userId);
           await liveService.publishToLive(activeTripId, {
             title: p.caption || 'Nuovo scatto dal vivo 📸',
             text: '',
@@ -1846,7 +1905,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       isExternal={isStandaloneExternal}
       onBack={onBack}
       location={currentLocation}
-      realLocation={remoteGpsLocation}
+      realLocation={remoteGpsLocation || lastKnownLocation}
       mapSearchUrl={
         mapCenterMode === 'planned' && liveIntelligence?.plannedLocation?.coords
           ? `https://www.google.com/maps/search/?api=1&query=${liveIntelligence.plannedLocation.coords.lat},${liveIntelligence.plannedLocation.coords.lng}`
@@ -1865,7 +1924,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       deviceLabel={liveDeviceLabel}
       onDetectGps={() => handleDetectGps(false)}
       remoteGpsLease={remoteGpsLease}
-      remoteGpsLocation={remoteGpsLocation}
+      remoteGpsLocation={remoteGpsLocation || lastKnownLocation}
+      lastKnownLocation={lastKnownLocation}
       isGpsHolder={isGpsHolder}
       isDesignatedGuide={isDesignatedGuide}
       isOwner={cloudRole === 'owner' || (Boolean(currentUid) && currentUid === activeTripCfg?.ownerUid)}

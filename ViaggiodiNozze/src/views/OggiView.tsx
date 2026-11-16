@@ -2066,48 +2066,51 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                                 else setEditingTransportItem(item.originalData as Trasporto);
                               }}
                               onEdit={() => setEditingTransportItem(item.originalData as Trasporto)}
+                              onDuplicate={canEdit ? () => handleDuplicateItem(item as TimelineItem) : undefined}
                               onDelete={async () => {
                                 await storageService.deleteTransport(item.originalData?.id || '');
                                 await fetchTimeline();
                               }}
                               onUpdate={() => fetchTimeline()}
-                              onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                             />
                           )
                         ) : isAttivita ? (
                           <AttivitaCard
                             activity={item.originalData as Attivita}
                             variant="compact"
+                            onDetail={() => setDetailItem(item as TimelineItem)}
                             onEdit={() => setEditingActivityItem(item.originalData as Attivita)}
+                            onDuplicate={canEdit ? () => handleDuplicateItem(item as TimelineItem) : undefined}
                             onDelete={async () => {
                               await storageService.deleteActivity(item.originalData?.id || '');
                               await fetchTimeline();
                             }}
                             onUpdate={() => fetchTimeline()}
-                            onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                           />
                         ) : isRistorante ? (
                           <RistoranteCard
                             ristorante={item.originalData}
                             variant="compact"
+                            onDetail={() => setDetailItem(item as TimelineItem)}
                             onEdit={() => setEditingRistoranteItem(item.originalData)}
+                            onDuplicate={canEdit ? () => handleDuplicateItem(item as TimelineItem) : undefined}
                             onDelete={async () => {
                               await storageService.deleteRistorante(item.originalData?.id || '');
                               await fetchTimeline();
                             }}
                             onUpdate={() => fetchTimeline()}
-                            onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                           />
                         ) : isShopping ? (
                           <ShoppingCard
                             shopping={item.originalData}
+                            onDetail={() => setDetailItem(item as TimelineItem)}
                             onEdit={() => setEditingShoppingItem(item.originalData)}
+                            onDuplicate={canEdit ? () => handleDuplicateItem(item as TimelineItem) : undefined}
                             onDelete={async () => {
                               await storageService.deleteShopping(item.originalData?.id || '');
                               await fetchTimeline();
                             }}
                             onUpdate={() => fetchTimeline()}
-                            onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                           />
                         ) : isTappa ? (
                           <>
@@ -2115,13 +2118,14 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               tappa={item.originalData}
                               variant="compact"
                               sequenceInfo={passeggiataSequences.get(item.id)}
+                              onDetail={() => setDetailItem(item as TimelineItem)}
                               onEdit={() => setEditingTappaItem(item.originalData as Tappa)}
+                              onDuplicate={canEdit ? () => handleDuplicateItem(item as TimelineItem) : undefined}
                               onDelete={async () => {
                                 await storageService.deleteTappa(item.originalData?.id || '');
                                 await fetchTimeline();
                               }}
                               onUpdate={() => fetchTimeline()}
-                              onDuplicate={() => handleDuplicateItem(item as TimelineItem)}
                             />
                             {(() => {
                               const seq = passeggiataSequences.get(item.id);
@@ -2295,18 +2299,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                       onUpdate={() => {
                         fetchTimeline();
                         loadData(false);
-                      }}
-                      onDuplicate={() => {
-                        const acc = tonightsAccommodation;
-                        handleDuplicateItem({
-                          id: acc.id,
-                          type: 'alloggio',
-                          time: acc.checkIn || '15:00',
-                          title: acc.name,
-                          location: acc.address || '',
-                          categoryOrType: 'alloggio',
-                          originalData: acc
-                        });
                       }}
                     />
                   </div>

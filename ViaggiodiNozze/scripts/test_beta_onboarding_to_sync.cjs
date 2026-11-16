@@ -109,7 +109,8 @@ async function waitHttp(url, timeoutMs = 40000) {
 
     // Utente A è sulla schermata iniziale Onboarding
     const isWelcomeVisible = await pageA.evaluate(() => {
-      return document.body.innerText.includes('Il Roadbook per organizzare e condividere') ||
+      return document.body.innerText.includes('Organizza il tuo viaggio') ||
+             document.body.innerText.includes('Crea il tuo viaggio') ||
              document.body.innerText.includes('Crea un viaggio');
     });
     assert.equal(isWelcomeVisible, true, 'Schermata iniziale di onboarding visibile per nuovo utente');
@@ -123,9 +124,9 @@ async function waitHttp(url, timeoutMs = 40000) {
     });
     console.log('✓ Utente A ha creato l\'account marco@alpi2027.it');
 
-    // Clicca "Crea un viaggio"
+    // Clicca "Crea il tuo viaggio"
     await pageA.evaluate(() => {
-      const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent && b.textContent.includes('Crea un viaggio'));
+      const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent && (b.textContent.includes('Crea il tuo viaggio') || b.textContent.includes('Crea un viaggio')));
       if (btn) btn.click();
     });
     await pageA.waitForTimeout(1000);
@@ -171,11 +172,11 @@ async function waitHttp(url, timeoutMs = 40000) {
     console.log(`✓ Link d'invito generato e copiato: ${inviteUrl}`);
     assert.equal(Boolean(inviteUrl && inviteUrl.includes('join=')), true, 'Link d\'invito crittografico generato e copiato');
 
-    // Utente A entra nel roadbook cliccando "Entra nel Roadbook" e poi "Salta, crea itinerario a mano"
-    await pageA.waitForSelector('button:has-text("Entra nel Roadbook")', { timeout: 8000 });
-    await pageA.click('button:has-text("Entra nel Roadbook")');
-    await pageA.waitForSelector('button:has-text("Salta, crea itinerario a mano")', { timeout: 8000 });
-    await pageA.click('button:has-text("Salta, crea itinerario a mano")');
+    // Utente A entra nel roadbook cliccando "Aggiungi la prima tappa"
+    const enterBtn = await pageA.waitForSelector('button:has-text("Aggiungi la prima tappa"), button:has-text("Entra nel Roadbook")', { timeout: 8000 });
+    await enterBtn.click();
+    const skipBtn = await pageA.$('button:has-text("Salta, crea itinerario a mano")');
+    if (skipBtn) await skipBtn.click();
     await pageA.waitForTimeout(2500);
 
     // Utente A inserisce una tappa "Partenza Rifugio" per il giorno 2027-04-01

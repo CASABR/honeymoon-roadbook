@@ -25,13 +25,14 @@ test('Swipe orizzontale sincronizza activeTab e rispetta i margini',
 test('Scroll verticale e componenti interattivi non vengono intercettati',
   app.includes('Math.abs(deltaX) <= Math.abs(deltaY) * 1.35') &&
   ['.leaflet-container', '[role="dialog"]', '[role="slider"]', 'overflow-x-auto', '[data-carousel]'].every(value => navigation.includes(value)));
-test('Le sei card storiche sono le sole card quadrate',
-  (altro.match(/data-square-tool-card/g) || []).length === 6 &&
-  (altro.match(/aspect-square/g) || []).length === 6 &&
-  ['Spese & Budget', 'Note di Viaggio', 'Lista Bagagli', 'Assicurazione', 'Emergenze', 'Travel Toolkit'].every(label => altro.includes(label)) &&
-  altro.includes('grid grid-cols-2 gap-3'));
-test('Le card quadrate proteggono testo e icone sui viewport stretti',
-  altro.includes('min-w-0 overflow-hidden') && altro.includes('break-words') && altro.includes('line-clamp-3'));
+test('Strumenti di viaggio è configurato in griglia compatta 2x2',
+  altro.includes('Strumenti di Viaggio') &&
+  altro.includes('grid grid-cols-2') &&
+  ['Documenti', 'Spese', 'Lista Bagagli', 'Scadenze'].every(label => altro.includes(label)));
+test('Tutte le sezioni e funzioni chiave sono presenti nel nuovo menu',
+  ['Sicurezza', 'Emergenze e numeri utili', 'Assicurazione e assistenza H24', 'Travel Toolkit',
+   'Organizzazione', 'Partecipanti &amp; Copiloti', 'Note di Viaggio', 'Esporta Itinerario PDF',
+   'Account &amp; Sistema', 'Account e accesso Cloud', 'Ruolo Dispositivo', 'Stato Sincronizzazione'].every(label => altro.includes(label)));
 test('Iconografia HOUNIGO e relativo collegamento UI sono assenti',
   !altro.includes('Iconografia Hounigo') && !altro.includes('TrailIconsShowcaseModal') && !altro.includes('showIconsShowcase'));
 test('La card Admin è visibile solo sul viaggio 0000',

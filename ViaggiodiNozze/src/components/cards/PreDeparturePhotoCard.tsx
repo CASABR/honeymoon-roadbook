@@ -25,6 +25,7 @@ function localDate(): string {
 }
 
 export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate, canEdit, onOpenLive }: PreDeparturePhotoCardProps) {
+  const journalUserId = getJournalUserId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isVisible, setIsVisible] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -46,7 +47,7 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
     const isFutureOrDepartureDay = localDate() <= startDate;
     if (!isDayOneSelected || !isFutureOrDepartureDay) return;
 
-    const userId = getJournalUserId();
+    const userId = journalUserId;
     if (isPredeparturePromptDismissed(tripId, userId)) return;
 
     const existingPhoto = getPredeparturePhoto(tripId, userId);
@@ -63,7 +64,7 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
     return () => {
       cancelled = true;
     };
-  }, [canEdit, startDate, selectedDate, tripId]);
+  }, [canEdit, startDate, selectedDate, tripId, journalUserId]);
 
   if (!isVisible) return null;
 
@@ -76,20 +77,22 @@ export default function PreDeparturePhotoCard({ tripId, startDate, selectedDate,
     if (currentPhoto.liveUpdateId) return;
     setIsSharing(true);
     try {
+      if (currentPhoto.userId !== getJournalUserId()) throw new Error('Sessione cambiata: riapri la tua foto prima di condividerla.');
       const { liveService } = await import('../../services/liveService');
       const { uploadLivePhoto } = await import('../../services/liveStorageService');
       const photoId = `predeparture_${Date.now()}`;
-      const uploadRes = await uploadLivePhoto(tripId, currentPhoto.url, photoId);
+      const uploadRes = await uploadLivePhoto(tripId, currentPhoto.url, photoId, currentPhoto.userId);
       const updateId = await liveService.publishToLive(tripId, {
         title: 'Si parte! 📸',
         text: 'La foto ricordo pre-partenza è stata aggiunta al diario di viaggio.',
         photoUrl: uploadRes.downloadUrl
       });
-      const updated = setPredepartureLiveUpdate(tripId, updateId);
+      const updated = setPredepartureLiveUpdate(tripId, updateId, currentPhoto.userId);
       if (updated) setPhoto(updated);
       setMessage('Foto salvata (senza dati EXIF) e condivisa in LIVE.');
-    } catch {
-      setMessage('Foto salvata sul dispositivo. Condivisione LIVE rimandata (verifica connessione).');
+    } catch (err) {
+      setShareOnLiveToggle(false);
+      setMessage(err instanceof Error ? `Foto salvata sul dispositivo. ${err.message}` : 'Foto salvata sul dispositivo. Condivisione LIVE non riuscita.');
     } finally {
       setIsSharing(false);
     }

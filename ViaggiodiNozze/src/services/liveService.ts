@@ -218,6 +218,20 @@ export const liveService = {
     batch.set(feedRef, headerPatch, { merge: true });
     await batch.commit();
 
+    if (safe.photoUrl) {
+      const { isManagedLivePhoto, confirmLivePhotoPublication, deleteLivePhoto } = await import('./liveStorageService');
+      if (isManagedLivePhoto(safe.photoUrl)) {
+        try { await confirmLivePhotoPublication(tripId, safe.photoUrl, updateRef.id); }
+        catch (err) {
+          // Also handle a lost publish acknowledgement: revoke any possibly
+          // activated URL before hiding the failed postcard reference.
+          await deleteLivePhoto(tripId, safe.photoUrl).catch(() => {});
+          await updateDoc(updateRef, { deleted: true, photoUrl: '', title: '[Eliminato]', deletedAt: Date.now(), deletedBy: user.uid }).catch(() => {});
+          throw err;
+        }
+      }
+    }
+
     console.log('[LiveService] Pubblicato aggiornamento:', updateRef.id);
     return updateRef.id;
   },

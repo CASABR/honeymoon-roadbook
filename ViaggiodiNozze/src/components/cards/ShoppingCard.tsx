@@ -147,7 +147,7 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
 
       {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO & AZIONI DISPONIBILI */}
       <div className="hounigo-ds-card-footer">
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {paymentInfo.isFree ? (
             <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600 dark:text-slate-300">
               Gratuito
@@ -223,12 +223,11 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
               <span className="hounigo-ds-btn-text">Ricevuta</span>
             </button>
           )}
-
           {onDuplicate && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
-              className="hounigo-ds-action-btn"
+              className="hounigo-ds-action-btn hidden md:inline-flex"
               title="Duplica questo shopping"
               aria-label="Duplica shopping"
             >

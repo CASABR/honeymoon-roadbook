@@ -55,7 +55,7 @@ function getTrekkingDistanceKm(activity: Attivita): number | null {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: AttivitaCardProps) {
+export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, onUpdate }: AttivitaCardProps) {
   const { canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
   const isExternalLiveView = typeof window !== 'undefined' && (
     new URLSearchParams(window.location.search).get('live') === '1' ||
@@ -243,6 +243,14 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                   </span>
                 </>
               )}
+              {activity.platform && (
+                <>
+                  <span className="opacity-45">·</span>
+                  <span className="font-bold tracking-wide truncate">
+                    {activity.platform}
+                  </span>
+                </>
+              )}
             </div>
 
             {headerTimeSummary && (
@@ -418,7 +426,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
           )}
 
           {!isTrekking && !isPhotoSpot && (hasDistinctMeetingTime || activity.duration || activity.endDate) && (
-            <div className="flex items-center gap-2 flex-wrap text-xs text-slate-700 dark:text-slate-300 py-1.5 px-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 font-mono">
+            <div className="flex items-center gap-2 flex-wrap text-xs text-slate-700 dark:text-slate-300 py-0.5 px-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 font-mono">
               {hasDistinctMeetingTime && (
                 <span className="inline-flex items-center gap-1">
                   <span className="text-[10px] font-sans font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Ritrovo</span>
@@ -519,7 +527,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
 
         {/* 3. FOOTER: TAGLIANDO STATO ECONOMICO & AZIONI OPERATIVE */}
         <div className="hounigo-ds-card-footer">
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {isPhotoSpot ? null : isFree ? (
               <span className="text-xs font-extrabold uppercase tracking-wide text-slate-600 dark:text-slate-300">
                 Gratuito
@@ -596,6 +604,19 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onUpdate }: A
                 <span className="hounigo-ds-btn-text">{isTrekking ? 'Traccia' : 'Sito'}</span>
                 <span className="hounigo-ds-btn-arrow text-[10px] opacity-70">↗</span>
               </a>
+            )}
+
+            {onDuplicate && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
+                className="hounigo-ds-action-btn hidden md:inline-flex"
+                title="Duplica questa attività"
+                aria-label="Duplica attività"
+              >
+                <span aria-hidden="true">📄</span>
+                <span className="hounigo-ds-btn-text">Duplica</span>
+              </button>
             )}
 
             {mapLink && (

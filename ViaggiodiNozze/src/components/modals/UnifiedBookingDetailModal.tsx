@@ -18,6 +18,7 @@ interface UnifiedBookingDetailModalProps {
   onClose: () => void;
   onUpdated: () => void;
   onEdit?: (booking: UnifiedBookingItem) => void;
+  onDuplicate?: (booking: UnifiedBookingItem) => void;
   canEdit?: boolean;
 }
 
@@ -27,6 +28,7 @@ export default function UnifiedBookingDetailModal({
   onClose,
   onUpdated,
   onEdit,
+  onDuplicate,
   canEdit = true
 }: UnifiedBookingDetailModalProps) {
   const [activeTab, setActiveTab] = useState<'info' | 'allegati' | 'note'>('info');
@@ -568,6 +570,20 @@ export default function UnifiedBookingDetailModal({
             )}
           </div>
           <div className="flex items-center gap-2">
+            {canEdit && onDuplicate && booking.rawType !== 'documento' && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onDuplicate(booking);
+                }}
+                className="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs shadow-sm cursor-pointer flex items-center gap-1.5 transition-all active:scale-95"
+                title="Duplica prenotazione"
+              >
+                <span>📄</span>
+                <span>Duplica</span>
+              </button>
+            )}
             {canEdit && onEdit && (
               <button
                 type="button"

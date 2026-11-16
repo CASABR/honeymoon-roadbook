@@ -153,7 +153,6 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
   };
 
   const handleBack = () => setActiveSubView(null);
-  const driveUrl = (currentTripConfig as any)?.infoAltro?.driveUrl || (currentTripConfig as any)?.driveUrl || 'https://drive.google.com';
 
   if (activeSubView === 'live') {
     return (
@@ -273,94 +272,230 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
       </button>
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* 2. DOCUMENTI & RISORSE */}
+      {/* 2. STRUMENTI DI VIAGGIO — Griglia compatta 2x2               */}
       {/* ───────────────────────────────────────────────────────────── */}
       <div className="space-y-1.5">
         <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 font-brand-title">
-          Documenti & Risorse
+          Strumenti di Viaggio
         </h3>
-        <div className="hounigo-route-group bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden font-sans">
-          
-          {/* Documenti del Viaggio */}
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+          {/* 1. Documenti & Google Drive */}
           <button
             type="button"
+            data-google-drive-card
+            data-square-tool-card
             onClick={() => setActiveSubView('documenti')}
+            className="hounigo-touch-feedback min-w-0 min-h-[92px] sm:min-h-[98px] overflow-hidden rounded-2xl border border-indigo-100/90 dark:border-indigo-950/40 bg-gradient-to-b from-indigo-50/50 to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-1.5"
+          >
+            <div className="flex items-center justify-between w-full">
+              <div className="w-8 h-8 rounded-xl bg-indigo-500/10 dark:bg-indigo-400/20 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0 border border-indigo-200/50 dark:border-indigo-800/40">
+                <TrailPrenotazioni size={18} />
+              </div>
+              <span className="text-[9px] font-extrabold text-indigo-700 dark:text-indigo-300 bg-indigo-100/70 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded-md">Voucher</span>
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Documenti &amp; Drive</h4>
+              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">Voucher, passaporti e cloud</p>
+            </div>
+          </button>
+
+          {/* 2. Spese & Budget */}
+          <button
+            type="button"
+            data-square-tool-card
+            onClick={() => setActiveSubView('spese')}
+            className="hounigo-touch-feedback min-w-0 min-h-[92px] sm:min-h-[98px] overflow-hidden rounded-2xl border border-rose-100/90 dark:border-rose-950/40 bg-gradient-to-b from-[#FFF5F3] to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-1.5"
+          >
+            <div className="flex items-center justify-between w-full">
+              <div className="w-8 h-8 rounded-xl bg-[#FF6B5F]/10 dark:bg-[#FF6B5F]/20 text-[#FF6B5F] flex items-center justify-center shrink-0 border border-[#FF6B5F]/20">
+                <TrailSpese size={18} active />
+              </div>
+              <span className="text-[9px] font-bold text-[#FF6B5F] bg-[#FF6B5F]/10 px-1.5 py-0.5 rounded-md">Budget</span>
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Spese &amp; Budget</h4>
+              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">Costi, pagamenti e valute</p>
+            </div>
+          </button>
+
+          {/* 3. Lista Bagagli */}
+          <button
+            type="button"
+            data-square-tool-card
+            onClick={() => setActiveSubView('bagagli')}
+            className="hounigo-touch-feedback min-w-0 min-h-[92px] sm:min-h-[98px] overflow-hidden rounded-2xl border border-amber-100/90 dark:border-amber-950/40 bg-gradient-to-b from-amber-50/50 to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-1.5"
+          >
+            <div className="flex items-center justify-between w-full">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/10 dark:bg-amber-400/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-300/40 dark:border-amber-700/40">
+                <TrailBagagli size={18} active />
+              </div>
+              <span className="text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/50 px-1.5 py-0.5 rounded-md">Checklist</span>
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Lista Bagagli</h4>
+              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">Valigie per partecipante</p>
+            </div>
+          </button>
+
+          {/* 4. Scadenze & Check-in */}
+          <button
+            type="button"
+            data-square-tool-card
+            onClick={() => setActiveSubView('scadenze')}
+            className="hounigo-touch-feedback min-w-0 min-h-[92px] sm:min-h-[98px] overflow-hidden rounded-2xl border border-purple-100/90 dark:border-purple-950/40 bg-gradient-to-b from-purple-50/50 to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-1.5"
+          >
+            <div className="flex items-center justify-between w-full">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/10 dark:bg-purple-400/20 text-purple-600 dark:text-purple-400 flex items-center justify-center shrink-0 border border-purple-300/40 dark:border-purple-700/40">
+                <CalendarClock size={18} />
+              </div>
+              <span className="text-[9px] font-bold text-purple-700 dark:text-purple-300 bg-purple-100/70 dark:bg-purple-950/50 px-1.5 py-0.5 rounded-md">Promemoria</span>
+            </div>
+            <div className="min-w-0">
+              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Scadenze &amp; Check-in</h4>
+              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">Voli, documenti e pagamenti</p>
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 3. SICUREZZA & ASSISTENZA                                     */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="space-y-1.5">
+        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 font-brand-title">
+          Sicurezza &amp; Assistenza
+        </h3>
+        <div className="hounigo-route-group bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden font-sans">
+          {/* Emergenze e numeri utili */}
+          <button
+            type="button"
+            data-square-tool-card
+            onClick={() => setActiveSubView('emergenza')}
             className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-[#F8F7F3] dark:bg-slate-800 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700">
-                <TrailPrenotazioni size={20} />
+              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-300/40 dark:border-rose-800/40">
+                <TrailEmergenze size={20} active />
               </div>
               <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
-                  Documenti & Voucher
-                </h4>
+                <div className="flex items-center gap-1.5">
+                  <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
+                    Emergenze e numeri utili
+                  </h4>
+                  <span className="text-[9px] font-black tracking-wide text-rose-600 dark:text-rose-400 bg-rose-100/80 dark:bg-rose-950/60 px-1.5 py-0.5 rounded-md">SOS</span>
+                </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Voucher, biglietti e prenotazioni offline
+                  Polizia locale, soccorso e numeri consolari
                 </p>
               </div>
             </div>
             <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
-          {/* Accesso Rapido Google Drive (Esterno) */}
-          <a
-            href={driveUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-google-drive-card
+          {/* Assicurazione e assistenza H24 */}
+          <button
+            type="button"
+            data-square-tool-card
+            onClick={() => setActiveSubView('assicurazione')}
             className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-white dark:bg-slate-800 flex items-center justify-center shrink-0 border border-slate-200/60 dark:border-slate-700 shadow-2xs">
-                <svg className="w-5 h-5" viewBox="0 0 87.3 78" xmlns="http://www.w3.org/2000/svg">
-                  <path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/>
-                  <path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44c-.8 1.4-1.2 2.95-1.2 4.5h27.5z" fill="#00ac47"/>
-                  <path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/>
-                  <path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/>
-                  <path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#26842a"/>
-                  <path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/>
-                </svg>
+              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-emerald-500/10 dark:bg-emerald-400/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-300/40 dark:border-emerald-700/40">
+                <TrailSicurezza size={20} active />
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
-                    Apri Google Drive
+                    Assicurazione e assistenza H24
                   </h4>
-                  <span className="text-[10px] text-slate-400 font-semibold">↗</span>
+                  <span className="text-[9px] font-black tracking-wide text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-md">H24</span>
                 </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Cartella cloud condivisa o drive.google.com
+                  Polizza sanitaria, massimali e centrale medica
                 </p>
               </div>
             </div>
-            <span className="text-slate-400 text-xs ml-2 font-bold px-2 py-1 rounded-lg bg-slate-100 dark:bg-slate-800">Apri ↗</span>
-          </a>
+            <span className="text-slate-400 text-sm ml-2">›</span>
+          </button>
 
-          {/* Collega Documento Drive (Funzione Interna HOUNIGO) */}
+          {/* Travel Toolkit */}
           <button
             type="button"
-            data-google-drive-connect-card
-            onClick={() => {
-              setOpenDriveOnDocumenti(true);
-              setActiveSubView('documenti');
-            }}
+            data-square-tool-card
+            onClick={() => setActiveSubView('info')}
             className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0 border border-blue-200/80 dark:border-blue-800">
-                <span className="text-base">📎</span>
+              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-sky-500/10 dark:bg-sky-400/20 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 border border-sky-300/40 dark:border-sky-700/40">
+                <TrailToolkit size={20} active />
               </div>
               <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
-                  Collega documento Drive
-                </h4>
+                <div className="flex items-center gap-1.5">
+                  <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
+                    Travel Toolkit
+                  </h4>
+                  <span className="text-[9px] font-bold text-sky-700 dark:text-sky-300 bg-sky-100/80 dark:bg-sky-950/60 px-1.5 py-0.5 rounded-md">Guide</span>
+                </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Associa voucher o file Google Drive a questo viaggio
+                  Meteo, frasario, fusi orari e prese elettriche
                 </p>
               </div>
             </div>
-            <span className="text-indigo-600 dark:text-indigo-400 text-xs ml-2 font-bold px-2 py-1 rounded-lg bg-indigo-50 dark:bg-indigo-950/60">Collega +</span>
+            <span className="text-slate-400 text-sm ml-2">›</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 4. ORGANIZZAZIONE                                             */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <div className="space-y-1.5">
+        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 font-brand-title">
+          Organizzazione
+        </h3>
+        <div className="hounigo-route-group bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden font-sans">
+          {/* Partecipanti & Copiloti */}
+          <button
+            type="button"
+            onClick={() => setActiveSubView('gestione')}
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0">
+                <TrailCopiloti size={20} active />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
+                  Partecipanti &amp; Copiloti
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Inviti copilota, ruoli e permessi condivisi
+                </p>
+              </div>
+            </div>
+            <span className="text-slate-400 text-sm ml-2">›</span>
+          </button>
+
+          {/* Note di Viaggio */}
+          <button
+            type="button"
+            onClick={() => setActiveSubView('note')}
+            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-[#172033]/8 dark:bg-slate-700/60 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/70 dark:border-slate-700">
+                <TrailNote size={20} active />
+              </div>
+              <div className="min-w-0">
+                <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
+                  Note di Viaggio
+                </h4>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                  Idee, note libere e promemoria
+                </p>
+              </div>
+            </div>
+            <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
           {/* Esporta Itinerario PDF */}
@@ -384,181 +519,44 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             </div>
             <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
-
-          {/* Scadenze & Promemoria */}
-          <button
-            type="button"
-            onClick={() => setActiveSubView('scadenze')}
-            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-amber-500/10 dark:bg-amber-400/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-300/40 dark:border-amber-700/40">
-                <CalendarClock size={20} />
-              </div>
-              <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-extrabold text-[#172033] dark:text-white leading-tight">
-                  Scadenze & Promemoria
-                </h4>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Check-in voli, scadenze documenti e pagamenti
-                </p>
-              </div>
-            </div>
-            <span className="text-slate-400 text-sm ml-2">›</span>
-          </button>
-
         </div>
       </div>
 
       {/* ───────────────────────────────────────────────────────────── */}
-      {/* 3. STRUMENTI UTILI DURANTE IL VIAGGIO */}
+      {/* 5. ACCOUNT & SISTEMA — Sezione discreta                       */}
       {/* ───────────────────────────────────────────────────────────── */}
       <div className="space-y-1.5">
         <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 font-brand-title">
-          Strumenti Utili
-        </h3>
-        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
-          {/* Emergenze & Soccorso (kept prominent and accessible!) */}
-          <button
-            type="button"
-            data-square-tool-card
-            onClick={() => setActiveSubView('emergenza')}
-            className="hounigo-touch-feedback min-w-0 min-h-[108px] sm:min-h-[114px] overflow-hidden rounded-2xl border border-rose-200/90 dark:border-rose-950/50 bg-gradient-to-b from-rose-50/60 to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-2"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="w-9 h-9 rounded-xl bg-rose-500/10 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center justify-center shrink-0 border border-rose-300/40 dark:border-rose-800/40">
-                <TrailEmergenze size={20} active />
-              </div>
-              <span className="text-[9px] font-black tracking-wide text-rose-600 dark:text-rose-400 bg-rose-100/80 dark:bg-rose-950/60 px-1.5 py-0.5 rounded-md">SOS</span>
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Emergenze</h4>
-              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-2">Numeri locali e soccorso</p>
-            </div>
-          </button>
-
-          {/* Assicurazione Sanitaria */}
-          <button
-            type="button"
-            data-square-tool-card
-            onClick={() => setActiveSubView('assicurazione')}
-            className="hounigo-touch-feedback min-w-0 min-h-[108px] sm:min-h-[114px] overflow-hidden rounded-2xl border border-emerald-100/90 dark:border-emerald-950/40 bg-gradient-to-b from-emerald-50/50 to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-2"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 dark:bg-emerald-400/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-300/40 dark:border-emerald-700/40">
-                <TrailSicurezza size={20} active />
-              </div>
-              <span className="text-[9px] font-black tracking-wide text-emerald-700 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded-md">H24</span>
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Assicurazione</h4>
-              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-2">Polizza e assistenza H24</p>
-            </div>
-          </button>
-
-          {/* Travel Toolkit (Meteo, Frasario, Fusi, Prese) */}
-          <button
-            type="button"
-            data-square-tool-card
-            onClick={() => setActiveSubView('info')}
-            className="hounigo-touch-feedback min-w-0 min-h-[108px] sm:min-h-[114px] overflow-hidden rounded-2xl border border-sky-100/90 dark:border-sky-950/40 bg-gradient-to-b from-sky-50/50 to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-2"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="w-9 h-9 rounded-xl bg-sky-500/10 dark:bg-sky-400/20 text-sky-600 dark:text-sky-400 flex items-center justify-center shrink-0 border border-sky-300/40 dark:border-sky-700/40">
-                <TrailToolkit size={20} active />
-              </div>
-              <span className="text-[9px] font-bold text-sky-700 dark:text-sky-300 bg-sky-100/80 dark:bg-sky-950/60 px-1.5 py-0.5 rounded-md">Guide</span>
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Travel Toolkit</h4>
-              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-2">Meteo, frasario e fusi</p>
-            </div>
-          </button>
-
-          {/* Lista Bagagli (Checklist) */}
-          <button
-            type="button"
-            data-square-tool-card
-            onClick={() => setActiveSubView('bagagli')}
-            className="hounigo-touch-feedback min-w-0 min-h-[108px] sm:min-h-[114px] overflow-hidden rounded-2xl border border-amber-100/90 dark:border-amber-950/40 bg-gradient-to-b from-amber-50/50 to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-2"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="w-9 h-9 rounded-xl bg-amber-500/10 dark:bg-amber-400/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 border border-amber-300/40 dark:border-amber-700/40">
-                <TrailBagagli size={20} active />
-              </div>
-              <span className="text-[9px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100/70 dark:bg-amber-950/50 px-1.5 py-0.5 rounded-md">Checklist</span>
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Lista Bagagli</h4>
-              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-2">Valigie per partecipante</p>
-            </div>
-          </button>
-
-          {/* Spese & Budget */}
-          <button
-            type="button"
-            data-square-tool-card
-            onClick={() => setActiveSubView('spese')}
-            className="hounigo-touch-feedback min-w-0 min-h-[108px] sm:min-h-[114px] overflow-hidden rounded-2xl border border-rose-100/90 dark:border-rose-950/40 bg-gradient-to-b from-[#FFF5F3] to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-2"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="w-9 h-9 rounded-xl bg-[#FF6B5F]/10 dark:bg-[#FF6B5F]/20 text-[#FF6B5F] flex items-center justify-center shrink-0 border border-[#FF6B5F]/20">
-                <TrailSpese size={20} active />
-              </div>
-              <span className="text-[9px] font-bold text-[#FF6B5F] bg-[#FF6B5F]/10 px-1.5 py-0.5 rounded-md">Budget</span>
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Spese & Budget</h4>
-              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-2">Costi, pagamenti e valute</p>
-            </div>
-          </button>
-
-          {/* Note di Viaggio */}
-          <button
-            type="button"
-            data-square-tool-card
-            onClick={() => setActiveSubView('note')}
-            className="hounigo-touch-feedback min-w-0 min-h-[108px] sm:min-h-[114px] overflow-hidden rounded-2xl border border-slate-200/90 dark:border-slate-700/60 bg-gradient-to-b from-[#F8F7F3] to-white dark:from-[#172033] dark:to-[#172033] p-3 sm:p-3.5 text-left shadow-xs hover:shadow-sm transition-all cursor-pointer flex flex-col justify-between gap-2"
-          >
-            <div className="flex items-center justify-between w-full">
-              <div className="w-9 h-9 rounded-xl bg-[#172033]/8 dark:bg-slate-700/60 text-[#172033] dark:text-slate-200 flex items-center justify-center shrink-0 border border-slate-200/70 dark:border-slate-700">
-                <TrailNote size={20} active />
-              </div>
-              <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded-md">Appunti</span>
-            </div>
-            <div className="min-w-0">
-              <h4 className="text-xs sm:text-[13px] font-extrabold text-[#172033] dark:text-white leading-tight break-words">Note di Viaggio</h4>
-              <p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1 sm:line-clamp-2">Idee, note e promemoria</p>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      {/* ───────────────────────────────────────────────────────────── */}
-      {/* 4. PARTECIPANTI & GESTIONE DEL VIAGGIO */}
-      {/* ───────────────────────────────────────────────────────────── */}
-      <div className="space-y-1.5">
-        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 font-brand-title">
-          Partecipanti & Gestione Viaggio
+          Account &amp; Sistema
         </h3>
         <div className="hounigo-route-group bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden font-sans">
-          
-          {/* Partecipanti e Invito Co-pilota */}
+          {/* Account e accesso Cloud */}
           <button
             type="button"
-            onClick={() => setActiveSubView('gestione')}
+            onClick={() => setShowAccountModal(true)}
             className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
           >
             <div className="flex items-center gap-3 min-w-0">
-              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0">
-                <TrailCopiloti size={20} active />
+              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 shrink-0">
+                <span className="text-base">👤</span>
               </div>
               <div className="min-w-0">
-                <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
-                  Partecipanti & Inviti
-                </h4>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
+                    Account e accesso Cloud
+                  </h4>
+                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
+                    isCloudAuthorized
+                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
+                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
+                  }`}>
+                    {isCloudAuthorized ? (cloudRole === 'owner' ? 'Organizzatore Verificato' : 'Copilota Verificato') : 'Non Autenticato'}
+                  </span>
+                </div>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  Inviti copilota, ruoli e permessi condivisi
+                  {currentUser && !isAnonymous
+                    ? (currentUser.email || currentUser.displayName || 'Account collegato')
+                    : 'Accedi con Google per sbloccare PIN, PNR e voucher'}
                 </p>
               </div>
             </div>
@@ -602,52 +600,7 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
-        </div>
-      </div>
-
-      {/* ───────────────────────────────────────────────────────────── */}
-      {/* 5. ACCOUNT, SINCRONIZZAZIONE & IMPOSTAZIONI AVANZATE */}
-      {/* ───────────────────────────────────────────────────────────── */}
-      <div className="space-y-1.5">
-        <h3 className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400 dark:text-slate-500 px-2 font-brand-title">
-          Account & Impostazioni Avanzate
-        </h3>
-        <div className="hounigo-route-group bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-xs divide-y divide-slate-100 dark:divide-slate-800 overflow-hidden font-sans">
-          
-          {/* Account & Autenticazione Cloud */}
-          <button
-            type="button"
-            onClick={() => setShowAccountModal(true)}
-            className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left hover:bg-[#F8F7F3] dark:hover:bg-slate-800/80 transition-colors cursor-pointer active:bg-slate-100"
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-200 shrink-0">
-                <span className="text-base">👤</span>
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 dark:text-white leading-tight">
-                    Account &amp; Accesso Cloud
-                  </h4>
-                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${
-                    isCloudAuthorized
-                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300'
-                      : 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300'
-                  }`}>
-                    {isCloudAuthorized ? (cloudRole === 'owner' ? 'Organizzatore Verificato' : 'Copilota Verificato') : 'Non Autenticato'}
-                  </span>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
-                  {currentUser && !isAnonymous
-                    ? (currentUser.email || currentUser.displayName || 'Account collegato')
-                    : 'Accedi con Google per sbloccare PIN, PNR e voucher'}
-                </p>
-              </div>
-            </div>
-            <span className="text-slate-400 text-sm ml-2">›</span>
-          </button>
-
-          {/* Diagnostica Pre-Attivazione e Sincronizzazione */}
+          {/* Stato Sincronizzazione */}
           <button
             type="button"
             data-preactivation-diagnostic-card
@@ -705,23 +658,27 @@ export default function AltroView({ initialSubView = null }: AltroViewProps) {
             <span className="text-slate-400 text-sm ml-2">›</span>
           </button>
 
+          {/* Console Admin (solo se autorizzato su viaggio 0000) */}
           {currentTripConfig?.id === '0000' && globalAdminAccess === 'authorized' && (
             <button
               type="button"
               data-admin-console-card
               onClick={() => window.dispatchEvent(new CustomEvent('open_admin_console'))}
-              className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3.5 flex items-center justify-between text-left bg-slate-900 hover:bg-slate-800 text-white transition-colors cursor-pointer"
+              className="hounigo-route-item hounigo-touch-feedback w-full px-4 py-3 flex items-center justify-between text-left bg-slate-50/70 hover:bg-slate-100 dark:bg-slate-800/40 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="hounigo-route-icon w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center shrink-0 border border-white/15">
-                  <TrailSicurezza size={20} active />
+                <div className="hounigo-route-icon w-8 h-8 rounded-xl bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center shrink-0">
+                  <TrailSicurezza size={16} active />
                 </div>
                 <div className="min-w-0">
-                  <h4 className="text-xs sm:text-sm font-extrabold leading-tight">Console Admin</h4>
-                  <p className="text-[11px] text-slate-300 truncate mt-0.5">Accesso soggetto ad autorizzazione globale</p>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-xs font-bold leading-tight">Console Amministratore</h4>
+                    <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">Admin</span>
+                  </div>
+                  <p className="text-[10px] text-slate-400 truncate mt-0.5">Accesso soggetto ad autorizzazione globale</p>
                 </div>
               </div>
-              <span className="text-slate-400 text-sm ml-2">›</span>
+              <span className="text-slate-400 text-xs ml-2 font-bold">Apri ›</span>
             </button>
           )}
         </div>

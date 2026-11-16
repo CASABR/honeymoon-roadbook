@@ -76,7 +76,11 @@ export interface ExtractedAttivita {
   title: string;
   location: string;
   date?: string;          // YYYY-MM-DD
-  time?: string;          // HH:mm
+  time?: string;          // HH:mm (orario prenotato dell'attività)
+  orarioRitrovo?: string; // HH:mm (orario di ritrovo se distinto)
+  openingTime?: string;   // HH:mm (orario di apertura della struttura/attrazione, solo se noto)
+  closingTime?: string;   // HH:mm (orario di chiusura della struttura/attrazione, solo se noto)
+  platform?: string;      // Piattaforma di prenotazione (es. GetYourGuide, Klook, Tiqets, sito ufficiale)
   cost?: string;
   bookingCode?: string;
   notes?: string;
@@ -214,8 +218,12 @@ const SINGLE_BOOKING_PROPERTIES = {
     properties: {
       title: { type: "string", description: "Nome dell'attività o fornitore" },
       location: { type: "string", description: "Indirizzo o città dell'attività" },
-      date: { type: "string", description: "Data attività nel formato YYYY-MM-DD" },
-      time: { type: "string", description: "Ora di inizio / ritrovo nel formato HH:mm" },
+      date: { type: "string", description: "Data attività YYYY-MM-DD" },
+      time: { type: "string", description: "Ora prenotata attività HH:mm" },
+      orarioRitrovo: { type: "string", description: "Ora ritrovo HH:mm se distinta" },
+      openingTime: { type: "string", description: "Orario apertura struttura HH:mm (solo se noto)" },
+      closingTime: { type: "string", description: "Orario chiusura struttura HH:mm (solo se noto)" },
+      platform: { type: "string", description: "Piattaforma prenotazione (es. GetYourGuide, Klook, Tiqets, sito ufficiale)" },
       cost: { type: "string", description: "Costo totale dell'attività" },
       bookingCode: { type: "string", description: "Codice prenotazione, voucher o numero biglietto" },
       notes: { type: "string", description: "Note aggiuntive, istruzioni accesso, fornitore" }
@@ -339,7 +347,8 @@ Il tuo compito:
 7. REGOLE PER WAYPOINT E PERCORSI STRADALI:
 - Distingui rigorosamente i waypoint intermedi o puramente stradali di navigazione (es. transiti su autostrade come Playford Hwy o Western Hwy, bivi, rotonde) dalle VERE TAPPE turistiche.
 - I waypoint puramente stradali NON devono essere trasformati in tappe autonome dell'itinerario a meno che l'utente non lo richieda esplicitamente come fermata programmata con orario.
-- Non estrarre MAI fermate o incroci omonimi geograficamente incompatibili (es. Stawell in Victoria) se il contesto del percorso o del giorno è su un'altra isola o regione (es. Kangaroo Island).`;
+- Non estrarre MAI fermate o incroci omonimi geograficamente incompatibili (es. Stawell in Victoria) se il contesto del percorso o del giorno è su un'altra isola o regione (es. Kangaroo Island).
+8. ATTIVITÀ: distingui "time" (orario prenotato), "orarioRitrovo", "openingTime" (apertura struttura) e "closingTime" (chiusura struttura). Compila openingTime, closingTime e platform (es. GetYourGuide, Klook, Tiqets, sito ufficiale) SOLO se esplicitamente noti nel testo, altrimenti lasciali vuoti.`;
 
 const CHAT_PROMPT = `Sei Houni AI, il Concierge di viaggio di una coppia in luna di miele.
 Rispondi in italiano, in modo caldo ma sintetico (max ~120 parole), a domande su cibo, meteo, tappe, orari, trasporti e consigli pratici.

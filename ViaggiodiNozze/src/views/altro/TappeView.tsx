@@ -8,6 +8,7 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import TimeCollisionModal, { type TimeCollision } from '../../components/modals/TimeCollisionModal';
 import type { TimelineItem } from '../../types';
+import { prepareDuplicateItem } from '../../utils/cardDuplication';
 
 import DayPickerStrip from '../../components/common/DayPickerStrip';
 import RouteBadge from '../../components/common/RouteBadge';
@@ -162,6 +163,21 @@ export default function TappeView({ onBack }: TappeViewProps) {
 
   const handleOpenEdit = (tappa: Tappa) => {
     setEditingTappa(tappa);
+    setIsModalOpen(true);
+  };
+
+  const handleDuplicateTappa = (tappa: Tappa) => {
+    const pseudoItem: TimelineItem = {
+      id: tappa.id,
+      type: 'tappa',
+      title: tappa.titolo,
+      time: tappa.orario || '',
+      location: tappa.indirizzo || '',
+      categoryOrType: tappa.sottocategoria || 'Tappa',
+      originalData: tappa
+    };
+    const prepared = prepareDuplicateItem(pseudoItem);
+    setEditingTappa(prepared.data);
     setIsModalOpen(true);
   };
 
@@ -374,6 +390,7 @@ export default function TappeView({ onBack }: TappeViewProps) {
                                 tappa={tappa}
                                 onEdit={() => handleOpenEdit(tappa)}
                                 onDelete={() => setDeleteTarget(tappa)}
+                                onDuplicate={canEdit ? () => handleDuplicateTappa(tappa) : undefined}
                               />
                             </SwipeToDelete>
 

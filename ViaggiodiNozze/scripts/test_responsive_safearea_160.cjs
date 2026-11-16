@@ -90,15 +90,15 @@ fs.mkdirSync(outDir, { recursive: true });
       if (w === 393) await page.screenshot({ path: path.join(outDir, 'app-393-island.png') });
     }
 
-    // 3. Verify installed PWA status-bar meta & scroll stability at iPhone 15 Pro width (393x852)
+    // 3. Verify standard PWA theme-color / safe-area meta (without deprecated black-translucent) & scroll stability at iPhone 15 Pro width (393x852)
     await page.setViewportSize({ width: 393, height: 852 });
     await page.evaluate(() => ['top', 'right', 'bottom', 'left'].forEach((e, i) => document.documentElement.style.setProperty('--app-safe-' + e, [59, 0, 34, 0][i] + 'px')));
     const metaChecks = await page.evaluate(() => ({
-      statusBar: document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')?.getAttribute('content'),
+      statusBar: document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')?.getAttribute('content') ?? null,
       themeColor: document.querySelector('meta[name="theme-color"]')?.getAttribute('content'),
       viewport: document.querySelector('meta[name="viewport"]')?.getAttribute('content'),
     }));
-    assert.equal(metaChecks.statusBar, 'black-translucent');
+    assert.equal(metaChecks.statusBar, null);
     assert.equal(metaChecks.themeColor, '#F8F7F3');
     assert.ok(metaChecks.viewport?.includes('viewport-fit=cover'));
 
