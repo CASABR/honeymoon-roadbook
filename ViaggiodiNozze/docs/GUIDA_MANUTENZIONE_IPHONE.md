@@ -47,22 +47,25 @@ Quando la modifica è approvata e unita in `main`:
      1. Disattiva la casella **`dry_run`** (toglile la spunta).
      2. Nel campo **confirm**, digita esattamente la parola `CONFERMA`.
 4. Tocca il pulsante verde **"Run workflow"**.
-5. Se `dry_run` era attivo, verificherà la compilazione in cloud. Se hai digitato `CONFERMA` e disattivato `dry_run`, in circa **1 minuto** compilerà e pubblicherà la nuova versione su GitHub Pages (`gh-pages`).
+5. **Cosa vedi a schermo**:
+   - Se `dry_run` era attivo (prova): vedrai il job **Verifica, Compilazione & Pacchetto PWA** completarsi in verde ✅, mentre il job **Pubblicazione Nativa** risulterà saltato (grigio). Nessuna modifica sarà apportata al sito online.
+   - Se hai disattivato `dry_run` e digitato `CONFERMA`: il primo job compila e prepara l'artefatto, poi il secondo job distribuisce direttamente l'artefatto sul server CDN di GitHub Pages in circa **90 secondi**.
 
 ---
 
 ## 4. Come ripristinare una versione precedente (Rollback d'emergenza)
 
-Se dopo una modifica l'app mostra un errore o un comportamento indesiderato:
+Se dopo una modifica l'app mostra un errore o un comportamento indesiderato durante il viaggio:
 
 1. Apri Safari su:
    `https://github.com/CASABR/honeymoon-roadbook/actions/workflows/deploy.yml`
 2. Tocca **"Run workflow"**.
-3. Nel campo **Branch, commit SHA o tag**, inserisci lo SHA dell'ultima versione sicuramente funzionante:
-   - Esempio versione 1.6.6: `17606cb`
-   - Esempio versione 1.6.5: `3136582`
-4. Digita `CONFERMA` e tocca **"Run workflow"**.
-5. GitHub Actions prenderà immediatamente quella vecchia versione, la ricompilerà e la rimetterà online, annullando il problema in meno di 2 minuti.
+3. Nel campo **Branch, commit SHA o tag**, inserisci il riferimento della versione stabile:
+   - **Versione 1.6.6 stabile**: `a3207aa` (o tag `v1.6.6`)
+   - **Versione 1.6.5 precedente**: `32e9449` (o tag `v1.6.5`)
+4. Disattiva la casella **`dry_run`** e digita `CONFERMA`.
+5. Tocca **"Run workflow"**.
+6. GitHub Actions prenderà quella versione, inietterà automaticamente la compatibilità di compilazione se il vecchio commit non conteneva `react-router-dom`, compilerà la PWA e la rimetterà online in meno di 2 minuti.
 
 ---
 
@@ -73,5 +76,5 @@ Se dopo una modifica l'app mostra un errore o un comportamento indesiderato:
 | Scrivere il codice e preparare il branch | **ChatGPT** | Connessione GitHub automatica |
 | Compilare, eseguire lint e test automatici | **GitHub Actions** (cloud gratuito) | Tab `Actions` su GitHub |
 | Verificare l'esito dei test | **Tu dall'iPhone** | Notifica GitHub o pagina `Actions` |
-| Autorizzare il deploy in produzione | **Tu dall'iPhone** | Pulsante `Run workflow` su `deploy.yml` |
-| Ripristino rapido (Rollback) | **Tu dall'iPhone** | `Run workflow` inserendo lo SHA precedente |
+| Autorizzare il deploy in produzione | **Tu dall'iPhone** | Pulsante `Run workflow` con `CONFERMA` |
+| Ripristino rapido (Rollback) | **Tu dall'iPhone** | `Run workflow` con SHA stabile (es. `a3207aa` o `32e9449`) |

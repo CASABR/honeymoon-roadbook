@@ -13,20 +13,22 @@ on:
         required: true
         default: true
       confirm:
-        description: 'Digita CONFERMA per autorizzare il deploy reale su gh-pages (lascia vuoto se dry_run)'
+        description: 'Digita CONFERMA per autorizzare il deploy reale su GitHub Pages (lascia vuoto se dry_run)'
         required: false
         default: ''
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
-  group: deploy-gh-pages
+  group: deploy-github-pages
   cancel-in-progress: false
 
 jobs:
-  deploy:
-    name: Build & Deploy PWA
+  build:
+    name: Verifica, Compilazione & Pacchetto PWA
     runs-on: ubuntu-latest
 
     steps:
@@ -37,7 +39,7 @@ jobs:
           echo "Parametri: ref='${{ inputs.ref }}', dry_run='${{ inputs.dry_run }}', confirm='${{ inputs.confirm }}'"
           echo "================================================================="
           if [ "${{ inputs.dry_run }}" = "false" ] && [ "${{ inputs.confirm }}" != "CONFERMA" ]; then
-            echo "::error::DEPLOY BLOCCATO: Per effettuare un deploy reale su gh-pages devi disattivare la casella dry_run E digitare esattamente CONFERMA."
+            echo "::error::DEPLOY BLOCCATO: Per effettuare un deploy reale su GitHub Pages devi disattivare la casella dry_run E digitare esattamente CONFERMA."
             exit 1
           fi
 
@@ -56,7 +58,14 @@ jobs:
 
       - name: Install dependencies
         working-directory: ViaggiodiNozze
-        run: npm ci
+        run: |
+          npm ci
+          # Sicurezza Rollback: Se il commit storico non conteneva react-router-dom nel manifest locale,
+          # lo installa al volo senza modificare il manifest per consentire la compilazione cloud
+          if ! npm list react-router-dom >/dev/null 2>&1; then
+            echo "[Rollback Safety] Rilevato commit storico senza react-router-dom nel manifest: iniezione versione compatibile per la build..."
+            npm install react-router-dom@^7.18.5 --no-save
+          fi
 
       - name: Esegui Lint (Oxlint)
         working-directory: ViaggiodiNozze
@@ -76,14 +85,28 @@ jobs:
           echo "================================================================="
           echo "PROVA DI COMPILAZIONE COMPLETATA CON SUCCESSO! (DRY-RUN)"
           echo "Tutti i controlli lint, build PWA e test di versionamento sono passati."
-          echo "MODALITÀ SICURA: Nessuna modifica è stata apportata al branch gh-pages."
+          echo "MODALITÀ SICURA: Nessun artefatto caricato e nessuna pubblicazione eseguita."
           echo "================================================================="
 
-      - name: Pubblica su GitHub Pages (gh-pages)
+      - name: Configura GitHub Pages
         if: ${{ inputs.dry_run == false && inputs.confirm == 'CONFERMA' }}
-        uses: JamesIves/github-pages-deploy-action@v4
+        uses: actions/configure-pages@v5
+
+      - name: Prepara e carica artefatto Pages
+        if: ${{ inputs.dry_run == false && inputs.confirm == 'CONFERMA' }}
+        uses: actions/upload-pages-artifact@v4
         with:
-          branch: gh-pages
-          folder: ViaggiodiNozze/dist
-          clean: true
-          commit-message: "deploy: HOUNIGO release da commit ${{ github.sha }} (ref: ${{ inputs.ref }})"
+          path: ViaggiodiNozze/dist
+
+  deploy:
+    name: Pubblicazione Nativa su GitHub Pages
+    needs: build
+    if: ${{ inputs.dry_run == false && inputs.confirm == 'CONFERMA' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Distribuisci su GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
