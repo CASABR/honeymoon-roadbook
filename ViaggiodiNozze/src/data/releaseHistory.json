@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.18",
+      "publishedAt": "2026-11-17",
+      "sourceCommit": "f7dc794",
+      "changes": [
+        "Diagnostica Sincronizzazione: classificazione chiara dei 4 stati (non autenticato, non autorizzato, errore rete, conflitto dati)",
+        "Traduzione amichevole dei conflitti timestamp/tombstone e indicazione dell'azione richiesta senza esporre credenziali"
+      ],
+      "publishedAtIso": "2026-11-17T19:15:00.000Z"
+    },
+    {
       "version": "1.6.17",
       "publishedAt": "2026-11-17",
       "sourceCommit": "b289d24",

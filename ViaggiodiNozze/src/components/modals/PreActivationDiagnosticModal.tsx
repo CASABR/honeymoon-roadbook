@@ -61,6 +61,64 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
   const copilotName = currentUser?.displayName || (tripId === '0000' ? 'Giusy' : '');
   const copilotSuffix = copilotName ? ` (${copilotName})` : '';
 
+  // Diagnostica differenziata dei 4 stati operativi (senza esporre credenziali)
+  const isOnline = typeof navigator === 'undefined' ? true : Boolean(navigator.onLine);
+  const isPermissionError = Boolean(
+    report?.lastSyncError &&
+    (report.lastSyncError.includes('Missing or insufficient permissions') ||
+     report.lastSyncError.includes('permission-denied') ||
+     report.lastSyncError.includes('insufficient permissions'))
+  );
+  const isNetworkError = !isOnline || Boolean(
+    report?.lastSyncError &&
+    (report.lastSyncError.includes('network') ||
+     report.lastSyncError.includes('unavailable') ||
+     report.lastSyncError.includes('offline') ||
+     report.lastSyncError.includes('timeout'))
+  );
+  const hasUnresolvedConflict = Boolean(
+    (report?.conflictsCount ?? 0) > 0 ||
+    report?.items?.some(i => i.hasPotentialConflict && !i.isAlreadySynchronized)
+  );
+
+  let diagnosisBadge = '';
+  let diagnosisBadgeClass = '';
+  let diagnosisTitle = '';
+  let diagnosisExplanation = '';
+  let diagnosisAction = '';
+
+  if (isNetworkError) {
+    diagnosisBadge = 'Rete non disponibile';
+    diagnosisBadgeClass = 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+    diagnosisTitle = 'Connessione di Rete Assente o Instabile';
+    diagnosisExplanation = 'Il dispositivo non riesce a raggiungere i server Cloud. I salvataggi e le cancellazioni rimangono protetti nella memoria locale.';
+    diagnosisAction = 'Verifica la connessione Wi-Fi o dati cellulari. La sincronizzazione si riattiverà automaticamente.';
+  } else if (!currentUser || currentUser.isAnonymous) {
+    diagnosisBadge = 'Accesso non effettuato';
+    diagnosisBadgeClass = 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-800';
+    diagnosisTitle = 'Sessione Anonima / Non Autenticata';
+    diagnosisExplanation = 'Le scritture sul viaggio 0000 richiedono l\'accesso con account Google. Attualmente il dispositivo opera senza credenziali autenticate.';
+    diagnosisAction = 'Apri Impostazioni > Account ed effettua l\'accesso con l\'account Google autorizzato (Owner o Copilota).';
+  } else if (!isOwner && !isCopilota) {
+    diagnosisBadge = 'Account non autorizzato';
+    diagnosisBadgeClass = 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800';
+    diagnosisTitle = 'Account Connesso Privo di Autorizzazione';
+    diagnosisExplanation = 'L\'account Google connesso non risulta abilitato con ruolo di scrittura (Owner o Copilota) sul viaggio 0000.';
+    diagnosisAction = 'Accedi con l\'account Google associato al viaggio oppure richiedi l\'invito Copilota all\'Owner.';
+  } else if (hasUnresolvedConflict) {
+    diagnosisBadge = 'Conflitto dati';
+    diagnosisBadgeClass = 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800';
+    diagnosisTitle = 'Conflitto Dati o Timestamp Discordante';
+    diagnosisExplanation = 'Sono presenti elementi in coda con timestamp non allineati o modifiche concorrenti registrate nel Cloud.';
+    diagnosisAction = 'Verifica gli elementi nella sezione "Risoluzione Conflitti" per allinearli in sicurezza.';
+  } else {
+    diagnosisBadge = 'Autorizzato';
+    diagnosisBadgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-200 dark:border-emerald-800';
+    diagnosisTitle = 'Stato Regolare e Autorizzato';
+    diagnosisExplanation = 'Dispositivo connesso e riconosciuto dal Cloud. La sincronizzazione bidirezionale è operativa.';
+    diagnosisAction = '';
+  }
+
   const reloadReport = useCallback((silent = false) => {
     const currentCfg = getTripConfig();
     setTripConfigState(currentCfg);
@@ -338,6 +396,17 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                 <div className="p-2.5 rounded-xl bg-white/80 dark:bg-slate-900/80 border border-rose-200 dark:border-rose-800 text-[11px] text-rose-800 dark:text-rose-200 space-y-1.5">
                   <p className="font-bold">⚠️ Errore rilevato durante l&apos;ultimo invio:</p>
                   <p className="font-mono text-[10px] break-words">{report.lastSyncError}</p>
+                  <p className="text-[11px] font-medium text-rose-700 dark:text-rose-300">
+                    {isPermissionError
+                      ? (!currentUser || currentUser.isAnonymous
+                          ? 'Causa verificata: sessione non autenticata. Firestore respinge le scritture sul Cloud senza un account Google verificato.'
+                          : (!isOwner && !isCopilota
+                              ? 'Causa verificata: account connesso ma non autorizzato a scrivere sul viaggio 0000.'
+                              : 'Causa: token di sessione scaduto o verifica permessi in corso.'))
+                      : isNetworkError
+                        ? 'Causa verificata: mancata risposta di rete dai server Cloud.'
+                        : 'Causa: anomalia durante la trasmissione del payload.'}
+                  </p>
                   <button
                     type="button"
                     disabled={reconciling}
@@ -348,6 +417,31 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                   </button>
                 </div>
               )}
+            </div>
+
+            {/* Box Diagnostica Chiara: Distinzione dei 4 stati operativi */}
+            <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                  Diagnostica Autorizzazione &amp; Sincronizzazione
+                </span>
+                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${diagnosisBadgeClass}`}>
+                  {diagnosisBadge}
+                </span>
+              </div>
+              <div className="text-[11px] space-y-1">
+                <p className="font-extrabold text-slate-800 dark:text-slate-200">
+                  {diagnosisTitle}
+                </p>
+                <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {diagnosisExplanation}
+                </p>
+                {diagnosisAction && (
+                  <p className="text-indigo-600 dark:text-indigo-400 font-semibold pt-0.5">
+                    💡 Azione richiesta: {diagnosisAction}
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Sezione Dettagli Tecnici Avanzati (Espandibile) */}
@@ -417,7 +511,15 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                               </span>
                             ) : item.hasPotentialConflict ? (
                               <span className="text-rose-600 dark:text-rose-400 font-bold">
-                                ⚠️ Conflitto ({item.conflictReason})
+                                ⚠️ Conflitto ({
+                                  item.conflictReason === 'unreliable_timestamp_conflict'
+                                    ? 'timestamp discordante'
+                                    : item.conflictReason === 'remote_tombstone_present'
+                                    ? 'record cancellato su Cloud'
+                                    : item.conflictReason === 'server_newer'
+                                    ? 'versione Cloud più recente'
+                                    : item.conflictReason
+                                })
                               </span>
                             ) : (
                               <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
