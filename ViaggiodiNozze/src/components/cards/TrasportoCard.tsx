@@ -414,7 +414,7 @@ export default function TrasportoCard({
   return (
     <>
       <div
-        onClick={onDetail || onEdit}
+        onClick={canEdit ? onEdit : (onDetail || onEdit)}
         data-transport-type={transport.type}
         className="hounigo-ds-card hounigo-ds-cat-trasporto cursor-pointer"
       >

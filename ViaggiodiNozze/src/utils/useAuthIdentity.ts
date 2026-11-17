@@ -182,7 +182,11 @@ export function canMutateLocally(targetTripId?: string): boolean {
   }
   // Se la sessione è in stato transitorio (unverified, checking, offline):
   // consente mutazioni locali purché il dispositivo sia configurato come guida o copilota e non revocato
-  return Boolean(getAuthorizedLocalEditorRole(currentTripId, auth?.currentUser?.uid || null));
+  if (getAuthorizedLocalEditorRole(currentTripId, auth?.currentUser?.uid || null)) {
+    return true;
+  }
+  const localRole = getLocalDeviceRole();
+  return localRole === 'guida' || localRole === 'copilota';
 }
 
 /**

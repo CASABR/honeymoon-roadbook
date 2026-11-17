@@ -56,7 +56,7 @@ function getTrekkingDistanceKm(activity: Attivita): number | null {
 }
 
 export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, onUpdate }: AttivitaCardProps) {
-  const { canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
+  const { canEdit, canSeePrivateInfo: deviceCanSeePrivate } = useDeviceRole();
   const isExternalLiveView = typeof window !== 'undefined' && (
     new URLSearchParams(window.location.search).get('live') === '1' ||
     new URLSearchParams(window.location.search).get('live') === 'true' ||
@@ -225,7 +225,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
   return (
     <>
       <div
-        onClick={onDetail || onEdit}
+        onClick={canEdit ? onEdit : (onDetail || onEdit)}
         data-trekking-card={isTrekking ? 'true' : undefined}
         className="hounigo-ds-card hounigo-ds-cat-attivita cursor-pointer"
       >

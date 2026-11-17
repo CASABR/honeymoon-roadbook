@@ -2287,7 +2287,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   >
                     <AlloggioCard
                       accommodation={tonightsAccommodation}
-                      onEdit={() => {
+                      onEdit={() => setEditingAlloggioItem(tonightsAccommodation)}
+                      onDetail={() => {
                         const found = timeline.find(t => t.id === `lodging_${tonightsAccommodation.id}` || t.id === tonightsAccommodation.id);
                         if (found) setDetailItem(found);
                         else setEditingAlloggioItem(tonightsAccommodation);

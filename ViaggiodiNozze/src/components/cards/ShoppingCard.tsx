@@ -8,6 +8,7 @@ import { storageService, notifyDataChanged } from '../../storage/storageService'
 import { resolveMapUrl } from '../../utils/mapsHelper';
 import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
+import { useDeviceRole } from '../../utils/useDeviceRole';
 
 interface ShoppingCardProps {
   shopping: Shopping;
@@ -19,6 +20,7 @@ interface ShoppingCardProps {
 }
 
 export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, onUpdate }: ShoppingCardProps) {
+  const { canEdit } = useDeviceRole();
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isAttachmentOpen, setIsAttachmentOpen] = useState(false);
   const copilotData = (shopping as any).noteCopilota || (shopping as any).nota || (shopping as any).notes || '';
@@ -80,7 +82,7 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
 
   return (
     <div
-      onClick={onDetail || onEdit}
+      onClick={canEdit ? onEdit : (onDetail || onEdit)}
       className="hounigo-ds-card hounigo-ds-cat-shopping cursor-pointer"
     >
       {/* 1. HEADER: TARGA CATEGORIA VERDE BOSCO E CARTELLINO ORARIO PROGRAMMATO */}

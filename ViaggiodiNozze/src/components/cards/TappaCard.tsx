@@ -11,6 +11,7 @@ import { formatDateIT } from '../../utils/tripDates';
 import OpeningHoursBadge from '../common/OpeningHoursBadge';
 import { PHOTO_LIGHT_LABELS } from '../../utils/activityType';
 import { processFileForAttachment } from '../../utils/fileAttachment';
+import { useDeviceRole } from '../../utils/useDeviceRole';
 
 interface TappaCardProps {
   tappa: Tappa;
@@ -24,6 +25,7 @@ interface TappaCardProps {
 }
 
 export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpdate, variant = 'full', sequenceInfo }: TappaCardProps) {
+  const { canEdit } = useDeviceRole();
   const isTask = isTaskTappa(tappa);
   const [isTaskDetailOpen, setIsTaskDetailOpen] = useState(false);
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
@@ -96,7 +98,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
 
   return (
     <div
-      onClick={isTask ? () => setIsTaskDetailOpen(true) : (onDetail || onEdit)}
+      onClick={canEdit ? onEdit : (isTask ? () => setIsTaskDetailOpen(true) : (onDetail || onEdit))}
       data-task-card={isTask ? tappa.id : undefined}
       className="hounigo-ds-card hounigo-ds-cat-tappa cursor-pointer"
     >

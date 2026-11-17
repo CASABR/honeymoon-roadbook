@@ -711,7 +711,10 @@ export default function PrenotazioniWorkspaceView({
                   return (
                     <div
                       key={item.id}
-                      onClick={() => setSelectedBookingForDetail(item)}
+                      onClick={() => {
+                        if (canEdit) handleOpenEditBooking(item);
+                        else setSelectedBookingForDetail(item);
+                      }}
                       className="group bg-white dark:bg-slate-900 rounded-3xl p-4.5 border border-slate-200/90 dark:border-slate-800 shadow-2xs hover:shadow-md hover:border-[#FF6B5F]/40 transition-all cursor-pointer flex flex-col justify-between gap-3 relative overflow-hidden"
                     >
                       {/* Bordo colorato superiore di categoria */}
@@ -736,6 +739,22 @@ export default function PrenotazioniWorkspaceView({
                             <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/40 text-[10px] font-bold" title="Voucher / Documento allegato">
                               📎 {item.attachmentsCount}
                             </span>
+                          )}
+
+                          {/* Pulsante Modifica Rapida Card Desktop */}
+                          {canEdit && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEditBooking(item);
+                              }}
+                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-amber-800 dark:bg-slate-800 dark:hover:bg-amber-950/40 dark:text-slate-400 dark:hover:text-amber-300 flex items-center justify-center text-xs font-bold transition-all shadow-2xs border border-slate-200/60 dark:border-slate-700 cursor-pointer"
+                              title="Modifica prenotazione"
+                              aria-label="Modifica prenotazione"
+                            >
+                              ✏️
+                            </button>
                           )}
                         </div>
                       </div>

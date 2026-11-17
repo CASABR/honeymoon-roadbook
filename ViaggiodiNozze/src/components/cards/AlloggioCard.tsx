@@ -191,7 +191,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
 
   return (
     <div
-      onClick={onDetail || onEdit}
+      onClick={canEdit ? onEdit : (onDetail || onEdit)}
       className="hounigo-ds-card hounigo-ds-cat-alloggio cursor-pointer"
     >
       {/* 1. HEADER: TARGA CATEGORIA VIOLA/INDACO E CARTELLINO ORARI CHECK-IN/OUT */}

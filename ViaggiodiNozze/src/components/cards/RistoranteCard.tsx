@@ -8,6 +8,7 @@ import { storageService } from '../../storage/storageService';
 import { resolveMapUrl } from '../../utils/mapsHelper';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
+import { useDeviceRole } from '../../utils/useDeviceRole';
 
 interface RistoranteCardProps {
   ristorante: Ristorante;
@@ -20,6 +21,7 @@ interface RistoranteCardProps {
 }
 
 export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplicate, onUpdate, variant = 'full' }: RistoranteCardProps) {
+  const { canEdit } = useDeviceRole();
   const [isCopilotOpen, setIsCopilotOpen] = useState(false);
   const [isAttachmentOpen, setIsAttachmentOpen] = useState(false);
   const copilotData = (ristorante as any).noteCopilota || (ristorante as any).nota || (ristorante as any).notes || '';
@@ -76,7 +78,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
 
   return (
     <div
-      onClick={onDetail || onEdit}
+      onClick={canEdit ? onEdit : (onDetail || onEdit)}
       className="hounigo-ds-card hounigo-ds-cat-ristorante cursor-pointer"
     >
       {/* 1. HEADER: TARGA CATEGORIA OCRA/AMBRA E CARTELLINO ORARIO PRENOTAZIONE */}
