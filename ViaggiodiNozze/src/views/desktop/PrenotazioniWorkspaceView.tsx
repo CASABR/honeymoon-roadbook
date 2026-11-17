@@ -740,22 +740,6 @@ export default function PrenotazioniWorkspaceView({
                               📎 {item.attachmentsCount}
                             </span>
                           )}
-
-                          {/* Pulsante Modifica Rapida Card Desktop */}
-                          {canEdit && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleOpenEditBooking(item);
-                              }}
-                              className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-amber-100 text-slate-500 hover:text-amber-800 dark:bg-slate-800 dark:hover:bg-amber-950/40 dark:text-slate-400 dark:hover:text-amber-300 flex items-center justify-center text-xs font-bold transition-all shadow-2xs border border-slate-200/60 dark:border-slate-700 cursor-pointer"
-                              title="Modifica prenotazione"
-                              aria-label="Modifica prenotazione"
-                            >
-                              ✏️
-                            </button>
-                          )}
                         </div>
                       </div>
 

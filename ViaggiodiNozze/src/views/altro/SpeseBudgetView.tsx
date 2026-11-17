@@ -795,21 +795,19 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             </div>
             {canEdit && (
               <div className="flex items-center gap-1">
-                <button 
-                  type="button"
-                  onClick={(ev) => {
-                    ev.stopPropagation();
-                    if (isEditingThis) {
+                {isEditingThis && (
+                  <button 
+                    type="button"
+                    onClick={(ev) => {
+                      ev.stopPropagation();
                       setEditingItemId(null);
-                    } else {
-                      openItemEdit(item);
-                    }
-                  }}
-                  className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs transition-colors cursor-pointer" 
-                  title={isEditingThis ? "Chiudi" : "Modifica"}
-                >
-                  {isEditingThis ? "✕" : "✏️"}
-                </button>
+                    }}
+                    className="w-7 h-7 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center text-xs transition-colors cursor-pointer" 
+                    title="Chiudi"
+                  >
+                    ✕
+                  </button>
+                )}
                 <button 
                   type="button" 
                   onClick={(ev) => handleDeleteExpense(item, ev)} 

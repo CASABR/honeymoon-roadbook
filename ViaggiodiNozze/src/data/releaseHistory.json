@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.16",
+      "publishedAt": "2026-11-17",
+      "sourceCommit": "b1a5874",
+      "changes": [
+        "Card Prenotazioni e Spese: rimossa icona a matita ridondante dal fronte delle card cliccabili",
+        "Preservata apertura immediata in modifica su tocco della card per Owner/Copilota e vista dettaglio per Viewer"
+      ],
+      "publishedAtIso": "2026-11-17T17:48:00.000Z"
+    },
+    {
       "version": "1.6.15",
       "publishedAt": "2026-11-17",
       "sourceCommit": "68afac5",
