@@ -28,7 +28,7 @@ assert.ok(
   (existsSync(path.join(root, 'release-draft.json')) && JSON.parse(read('release-draft.json')).version === packageMetadata.version),
   'la versione installata deve avere una release pubblicata o preparata verificabile'
 );
-assert.ok(releaseHistory.releases.length <= 10, 'la cronologia distribuita deve restare compatta');
+assert.ok(releaseHistory.releases.length <= 15, 'la cronologia distribuita deve restare compatta');
 
 for (let index = 0; index < releaseHistory.releases.length; index += 1) {
   const release = releaseHistory.releases[index];

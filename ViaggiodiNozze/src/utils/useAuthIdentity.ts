@@ -180,33 +180,45 @@ export function canMutateLocally(targetTripId?: string): boolean {
   if (authoritativeCloudRole === 'owner' || authoritativeCloudRole === 'copilota') {
     return true;
   }
-  // Modifiche offline per membri precedentemente verificati e non revocati
-  if (getAuthorizedLocalEditorRole(currentTripId, auth?.currentUser?.uid || null)) {
-    return true;
-  }
+  // Modifiche offline per membri precedentemente verificati e non revocati:
+  // richiede tassativamente un utente autenticato non anonimo con lo stesso UID e per lo stesso viaggio
   const isOfflineOrChecking = authoritativeCloudRole === 'offline' ||
     authoritativeCloudRole === 'checking' ||
     (typeof navigator !== 'undefined' && !navigator.onLine);
   if (isOfflineOrChecking) {
-    const verified = getVerifiedTripAuth(currentTripId);
-    if (verified && ['owner', 'copilota'].includes(verified.role) && !isTripAuthRevoked(currentTripId)) {
-      if (!auth?.currentUser || auth.currentUser.isAnonymous || auth.currentUser.uid === verified.uid) {
+    const user = auth?.currentUser;
+    if (user && !user.isAnonymous) {
+      const verified = getVerifiedTripAuth(currentTripId);
+      if (verified &&
+          verified.uid === user.uid &&
+          verified.tripId === currentTripId &&
+          (verified.role === 'owner' || verified.role === 'copilota') &&
+          !isTripAuthRevoked(currentTripId)) {
         return true;
       }
     }
   }
 
-  // Viaggi condivisi (incluso tassativamente il viaggio master '0000' o viaggi con sincronizzazione/owner cloud):
-  // VIETATO concedere permessi di scrittura basati sul solo ruolo locale del dispositivo.
-  const isSharedCloudTrip = currentTripId === '0000' || currentTripId === 'default' || Boolean(config?.ownerUid);
-  if (isSharedCloudTrip) {
-    return false;
+  // Viaggi secondari esplicitamente identificati come locali e isolati dalla sincronizzazione:
+  // (l'assenza di ownerUid da sola NON è sufficiente a concedere permessi)
+  const isExplicitLocalDemoTrip = currentTripId !== '0000' &&
+    currentTripId !== 'default' &&
+    !config?.ownerUid &&
+    (
+      currentTripId.startsWith('demo_') ||
+      currentTripId.startsWith('local_') ||
+      Boolean((config as any)?.isLocalDemo) ||
+      Boolean((config as any)?.isLocalOnly)
+    );
+
+  if (isExplicitLocalDemoTrip) {
+    const localRole = getLocalDeviceRole();
+    return localRole === 'guida' || localRole === 'copilota';
   }
 
-  // Viaggi secondari locali realmente isolati (senza cloud sync né ownerUid):
-  // consente modifiche sul dispositivo per ruoli guida o copilota
-  const localRole = getLocalDeviceRole();
-  return localRole === 'guida' || localRole === 'copilota';
+  // Per tutti i viaggi condivisi (incluso tassativamente '0000') e viaggi cloud:
+  // nessun permesso di modifica accordato sulla base del solo ruolo locale
+  return false;
 }
 
 /**

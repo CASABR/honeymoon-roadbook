@@ -11,17 +11,14 @@ const authIdPath = path.join(__dirname, '../src/utils/useAuthIdentity.ts');
 const authIdSource = fs.readFileSync(authIdPath, 'utf8');
 
 assert.ok(
-  authIdSource.includes("const isSharedCloudTrip = currentTripId === '0000' || currentTripId === 'default' || Boolean(config?.ownerUid);"),
-  'useAuthIdentity deve identificare con rigore i viaggi cloud condivisi (0000 o con ownerUid)'
+  authIdSource.includes("const isExplicitLocalDemoTrip = currentTripId !== '0000'") &&
+  authIdSource.includes("!config?.ownerUid"),
+  'useAuthIdentity deve verificare che il viaggio demo sia esplicitamente identificato come locale e senza ownerUid'
 );
 assert.ok(
-  authIdSource.includes("if (isSharedCloudTrip)") && authIdSource.includes("return false;"),
-  'useAuthIdentity deve bloccare mutazioni non autorizzate su viaggi condivisi, specialmente 0000'
-);
-assert.ok(
-  authIdSource.includes("const localRole = getLocalDeviceRole();") &&
-  authIdSource.includes("return localRole === 'guida' || localRole === 'copilota';"),
-  'useAuthIdentity deve consentire test e collaudi con ruolo locale solo su viaggi dimostrativi isolati'
+  authIdSource.includes("user && !user.isAnonymous") &&
+  authIdSource.includes("verified.uid === user.uid"),
+  'useAuthIdentity deve richiedere un utente autenticato non anonimo corrispondente allo stesso UID per modifiche offline'
 );
 
 console.log('✓ 1. Logica di sicurezza in useAuthIdentity.ts verificata con successo.');
@@ -33,6 +30,7 @@ function simulateCanMutateLocally({
   tripConfig = { id: '0000' },
   authoritativeCloudRole = 'unverified',
   localDeviceRole = 'viewer',
+  currentUser = null,
   verifiedTripAuth = null,
   isRevoked = false,
   isOnline = true,
@@ -50,20 +48,33 @@ function simulateCanMutateLocally({
     authoritativeCloudRole === 'checking' ||
     !isOnline;
 
-  if (isOfflineOrChecking && verifiedTripAuth) {
-    if (verifiedTripAuth.tripId === currentTripId &&
-        ['owner', 'copilota'].includes(verifiedTripAuth.role) &&
-        !isRevoked) {
-      return true;
+  if (isOfflineOrChecking) {
+    if (currentUser && !currentUser.isAnonymous) {
+      if (verifiedTripAuth &&
+          verifiedTripAuth.uid === currentUser.uid &&
+          verifiedTripAuth.tripId === currentTripId &&
+          ['owner', 'copilota'].includes(verifiedTripAuth.role) &&
+          !isRevoked) {
+        return true;
+      }
     }
   }
 
-  const isSharedCloudTrip = currentTripId === '0000' || currentTripId === 'default' || Boolean(tripConfig?.ownerUid);
-  if (isSharedCloudTrip) {
-    return false;
+  const isExplicitLocalDemoTrip = currentTripId !== '0000' &&
+    currentTripId !== 'default' &&
+    !tripConfig?.ownerUid &&
+    (
+      currentTripId.startsWith('demo_') ||
+      currentTripId.startsWith('local_') ||
+      Boolean(tripConfig?.isLocalDemo) ||
+      Boolean(tripConfig?.isLocalOnly)
+    );
+
+  if (isExplicitLocalDemoTrip) {
+    return localDeviceRole === 'guida' || localDeviceRole === 'copilota';
   }
 
-  return localDeviceRole === 'guida' || localDeviceRole === 'copilota';
+  return false;
 }
 
 // TEST CASES PERMESSI:
@@ -89,20 +100,63 @@ assert.equal(
   'Copilota verificato su 0000 deve poter modificare'
 );
 
-// C) Membro offline precedentemente verificato su 0000 -> OK
+// C) Membro offline precedentemente verificato con UID autenticato non anonimo su 0000 -> OK
 assert.equal(
   simulateCanMutateLocally({
     currentTripId: '0000',
     authoritativeCloudRole: 'offline',
     isOnline: false,
+    currentUser: { uid: 'user_123', isAnonymous: false },
     verifiedTripAuth: { tripId: '0000', uid: 'user_123', role: 'copilota' },
     localDeviceRole: 'copilota'
   }),
   true,
-  'Membro offline precedentemente verificato deve poter modificare su 0000'
+  'Membro offline precedentemente verificato con UID non anonimo deve poter modificare su 0000'
 );
 
-// D) Utente non verificato / tester anonimo su 0000 con ruolo locale "guida" -> BLOCCATO!
+// D.1) Offline con UID assente (null) -> BLOCCATO!
+assert.equal(
+  simulateCanMutateLocally({
+    currentTripId: '0000',
+    authoritativeCloudRole: 'offline',
+    isOnline: false,
+    currentUser: null,
+    verifiedTripAuth: { tripId: '0000', uid: 'user_123', role: 'copilota' },
+    localDeviceRole: 'copilota'
+  }),
+  false,
+  'SICUREZZA: Offline con utente assente (null) deve essere BLOCCATO'
+);
+
+// D.2) Offline con utente anonimo -> BLOCCATO!
+assert.equal(
+  simulateCanMutateLocally({
+    currentTripId: '0000',
+    authoritativeCloudRole: 'offline',
+    isOnline: false,
+    currentUser: { uid: 'anon_999', isAnonymous: true },
+    verifiedTripAuth: { tripId: '0000', uid: 'user_123', role: 'copilota' },
+    localDeviceRole: 'copilota'
+  }),
+  false,
+  'SICUREZZA: Offline con utente anonimo deve essere BLOCCATO'
+);
+
+// D.3) Offline con UID diverso da quello verificato -> BLOCCATO!
+assert.equal(
+  simulateCanMutateLocally({
+    currentTripId: '0000',
+    authoritativeCloudRole: 'offline',
+    isOnline: false,
+    currentUser: { uid: 'user_wrong', isAnonymous: false },
+    verifiedTripAuth: { tripId: '0000', uid: 'user_123', role: 'copilota' },
+    localDeviceRole: 'copilota'
+  }),
+  false,
+  'SICUREZZA: Offline con UID diverso dalla verifica deve essere BLOCCATO'
+);
+
+// D.4) Utente non verificato online su 0000 con ruolo locale "guida" -> BLOCCATO!
 assert.equal(
   simulateCanMutateLocally({
     currentTripId: '0000',
@@ -131,22 +185,57 @@ assert.equal(
     currentTripId: '0000',
     authoritativeCloudRole: 'offline',
     isRevoked: true,
+    currentUser: { uid: 'user_123', isAnonymous: false },
     verifiedTripAuth: { tripId: '0000', uid: 'user_123', role: 'owner' }
   }),
   false,
   'Utente revocato deve essere categoricamente bloccato'
 );
 
-// G) Viaggio dimostrativo locale realmente isolato (es. demo_viaggio) -> TESTER ABILITATO!
+// G.1) Viaggio che manca solo di ownerUid ma NON è esplicitamente demo/local -> BLOCCATO!
+assert.equal(
+  simulateCanMutateLocally({
+    currentTripId: 'random_trip_999',
+    tripConfig: { id: 'random_trip_999' }, // senza ownerUid ma non demo
+    authoritativeCloudRole: 'unverified',
+    localDeviceRole: 'guida'
+  }),
+  false,
+  'SICUREZZA: Assenza di ownerUid da sola NON è sufficiente a considerare un viaggio come demo'
+);
+
+// G.2) Viaggio demo esplicitamente isolato (es. demo_viaggio) -> ABILITATO!
 assert.equal(
   simulateCanMutateLocally({
     currentTripId: 'demo_viaggio',
-    tripConfig: { id: 'demo_viaggio' }, // Nessun ownerUid
+    tripConfig: { id: 'demo_viaggio' },
     authoritativeCloudRole: 'unverified',
     localDeviceRole: 'guida'
   }),
   true,
-  'Tester su viaggio dimostrativo locale isolato deve poter modificare con ruolo guida'
+  'Viaggio esplicitamente demo_viaggio isolato consente modifiche con ruolo guida'
+);
+
+assert.equal(
+  simulateCanMutateLocally({
+    currentTripId: 'local_test',
+    tripConfig: { id: 'local_test' },
+    authoritativeCloudRole: 'unverified',
+    localDeviceRole: 'copilota'
+  }),
+  true,
+  'Viaggio esplicitamente local_test isolato consente modifiche con ruolo copilota'
+);
+
+assert.equal(
+  simulateCanMutateLocally({
+    currentTripId: 'demo_viaggio',
+    tripConfig: { id: 'demo_viaggio' },
+    authoritativeCloudRole: 'unverified',
+    localDeviceRole: 'viewer'
+  }),
+  false,
+  'Viaggio demo con ruolo viewer resta bloccato in lettura'
 );
 
 assert.equal(
