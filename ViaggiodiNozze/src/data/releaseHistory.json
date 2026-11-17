@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.15",
+      "publishedAt": "2026-11-17",
+      "sourceCommit": "68afac5",
+      "changes": [
+        "Sincronizzazione: risoluzione conflitto timestamp sui tombstone con estrazione da deletedAt/timestamp annidati",
+        "Allineamento equivalenza settings/tombstone (ignorato flag locale pending) e risoluzione conflitti residui",
+        "Sincronizzazione cancellazioni pendenti autorizzate preservando la coda locale senza perdita di dati"
+      ],
+      "publishedAtIso": "2026-11-17T17:20:00.000Z"
+    },
+    {
       "version": "1.6.14",
       "publishedAt": "2026-11-17",
       "sourceCommit": "b5aed85",

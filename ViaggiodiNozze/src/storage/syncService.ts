@@ -228,15 +228,34 @@ export function compareCandidateWithRemote(
     : { publicDoc: localData };
 
   const differences: Array<{ field: string; localVal: any; remoteVal: any }> = [];
-  const ignoredKeys = new Set(['updatedAt', 'lastSanitizedAt', 'lastMigratedAt', 'createdAt', 'publicSchemaVersion']);
+  const ignoredKeys = new Set(['updatedAt', 'lastSanitizedAt', 'lastMigratedAt', 'createdAt', 'publicSchemaVersion', 'pending']);
 
-  for (const [k, v] of Object.entries(candidatePublic)) {
+  let localPayload: any = candidatePublic;
+  let remotePayload: any = remoteData;
+  if (normType === 'settings' || normType === 'setting') {
+    if (localPayload && typeof localPayload === 'object' && localPayload.value && typeof localPayload.value === 'object') {
+      localPayload = { id: localPayload.id, ...localPayload.value };
+    }
+    if (remotePayload && typeof remotePayload === 'object' && remotePayload.value && typeof remotePayload.value === 'object') {
+      remotePayload = { id: remotePayload.id, ...remotePayload.value };
+    }
+    const isLocalTombstone = (typeof localPayload?.id === 'string' && localPayload.id.startsWith('tombstone_')) || Boolean(localPayload?.deletedId || localPayload?.deletedAt);
+    const isRemoteTombstone = (typeof remotePayload?.id === 'string' && remotePayload.id.startsWith('tombstone_')) || Boolean(remotePayload?.deletedId || remotePayload?.deletedAt || remotePayload?.timestamp);
+    if (isLocalTombstone && isRemoteTombstone) {
+      if (!localPayload.id || !remotePayload.id || localPayload.id === remotePayload.id) {
+        return { isEquivalent: true, differences: [] };
+      }
+    }
+  }
+
+  for (const [k, v] of Object.entries(localPayload)) {
     if (ignoredKeys.has(k)) continue;
     if (v === undefined) continue;
 
-    const rv = remoteData[k];
+    const rv = remotePayload[k];
     if (rv === undefined) {
       if (v === '' || (Array.isArray(v) && v.length === 0) || v === false) continue;
+      if (k === 'id' && (normType === 'settings' || normType === 'setting')) continue;
       differences.push({
         field: k,
         localVal: typeof v === 'object' && v !== null ? JSON.stringify(v) : v,
@@ -290,15 +309,12 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
   const pendingByType: Record<string, number> = {};
   const conflictsByType: Record<string, number> = {};
 
-  for (const c of pendingConflicts) {
-    conflictsByType[c.conflictType] = (conflictsByType[c.conflictType] || 0) + 1;
-  }
-
   const conflictItems: ConflictReportItem[] = [];
   for (const c of pendingConflicts) {
     const cNormType = normalizeQueueEntityType(c.entityType);
     let isEquivalent = false;
     let differences: Array<{ field: string; localVal: any; remoteVal: any }> = [];
+    let checkedRemote = false;
 
     if (typeof navigator !== 'undefined' && navigator.onLine && db) {
       try {
@@ -310,13 +326,22 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
           const comp = compareCandidateWithRemote(cNormType, tripId, c.localData, remoteData);
           isEquivalent = comp.isEquivalent;
           differences = comp.differences;
+          checkedRemote = true;
         }
       } catch {}
-    } else if (c.serverData) {
+    }
+    if (!checkedRemote && c.serverData) {
       const comp = compareCandidateWithRemote(cNormType, tripId, c.localData, c.serverData);
       isEquivalent = comp.isEquivalent;
       differences = comp.differences;
     }
+
+    if (isEquivalent && (cNormType === 'settings' || cNormType === 'setting') && typeof c.dataId === 'string' && c.dataId.startsWith('tombstone_')) {
+      await updateConflictStatus(c.id, 'resolved_already_synced', 'Tombstone già allineato').catch(() => {});
+      continue;
+    }
+
+    conflictsByType[c.conflictType] = (conflictsByType[c.conflictType] || 0) + 1;
 
     const rawTitle = c.localData?.titolo || c.localData?.title || c.localData?.nome || c.localData?.name || '';
     const previewTitle = typeof rawTitle === 'string' && rawTitle.trim().length > 0
@@ -372,8 +397,14 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
         const remoteSnap = await getDoc(remoteDocRef).catch(() => null);
         if (remoteSnap && remoteSnap.exists()) {
           const remoteData = remoteSnap.data();
-          const remoteUpdated = normalizeTimestamp(remoteData?.updatedAt);
-          const localUpdated = normalizeTimestamp(q.data?.updatedAt || q.timestamp);
+          const remoteUpdated = normalizeTimestamp(
+            remoteData?.updatedAt || remoteData?.deletedAt || remoteData?.timestamp ||
+            remoteData?.value?.deletedAt || remoteData?.value?.timestamp || remoteData?.value?.updatedAt
+          );
+          const localUpdated = normalizeTimestamp(
+            q.data?.updatedAt || q.data?.deletedAt || q.data?.timestamp ||
+            q.data?.value?.deletedAt || q.data?.value?.timestamp || q.data?.value?.updatedAt || q.timestamp
+          );
 
           const { isEquivalent } = compareCandidateWithRemote(normType, tripId, q.data, remoteData);
           if (isEquivalent) {
@@ -413,7 +444,7 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
   const isOnline = typeof navigator === 'undefined' ? true : Boolean(navigator.onLine);
   const lastSyncAt = getLastSyncTimestamp(tripId);
   const lastSyncError = getLastSyncError(tripId);
-  const hasUnresolvedConflict = pendingConflicts.length > 0 || items.some(i => i.hasPotentialConflict && !i.isAlreadySynchronized);
+  const hasUnresolvedConflict = conflictItems.length > 0 || items.some(i => i.hasPotentialConflict && !i.isAlreadySynchronized);
 
   let userFriendlyStatus: UserFriendlySyncStatus = 'Sincronizzazione attiva';
   if (!isOnline) {
@@ -439,7 +470,7 @@ export async function getPreActivationSyncReport(tripId: string): Promise<PreAct
     isQueueFlushAuthorized: isAllowed,
     pendingCount: queue.length,
     pendingByType,
-    conflictsCount: pendingConflicts.length,
+    conflictsCount: conflictItems.length,
     conflictsByType,
     archivedLocalOnlyCount,
     isOnline,
@@ -488,7 +519,18 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
 
   // 4. Controllo conflitti attivi pendenti nell'archivio
   const conflictBackups = await getConflictBackups(tripId);
-  const activeConflicts = conflictBackups.filter(isBlockingConflict);
+  const activeConflicts = [];
+  for (const c of conflictBackups.filter(isBlockingConflict)) {
+    const cNormType = normalizeQueueEntityType(c.entityType);
+    if ((cNormType === 'settings' || cNormType === 'setting') && typeof c.dataId === 'string' && c.dataId.startsWith('tombstone_') && c.serverData) {
+      const comp = compareCandidateWithRemote(cNormType, tripId, c.localData, c.serverData);
+      if (comp.isEquivalent) {
+        await updateConflictStatus(c.id, 'resolved_already_synced', 'Tombstone già allineato').catch(() => {});
+        continue;
+      }
+    }
+    activeConflicts.push(c);
+  }
   if (activeConflicts.length > 0) {
     throw new Error(`Operazione bloccata: presenti ${activeConflicts.length} conflitti da risolvere prima di attivare le scritture.`);
   }
@@ -527,8 +569,14 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
         const remoteSnap = await getDoc(remoteDocRef).catch(() => null);
         if (remoteSnap && remoteSnap.exists()) {
           const remoteData = remoteSnap.data();
-          const remoteUpdated = normalizeTimestamp(remoteData?.updatedAt);
-          const localUpdated = normalizeTimestamp(q.data?.updatedAt || q.timestamp);
+          const remoteUpdated = normalizeTimestamp(
+            remoteData?.updatedAt || remoteData?.deletedAt || remoteData?.timestamp ||
+            remoteData?.value?.deletedAt || remoteData?.value?.timestamp || remoteData?.value?.updatedAt
+          );
+          const localUpdated = normalizeTimestamp(
+            q.data?.updatedAt || q.data?.deletedAt || q.data?.timestamp ||
+            q.data?.value?.deletedAt || q.data?.value?.timestamp || q.data?.value?.updatedAt || q.timestamp
+          );
 
           // VERIFICA DI EQUIVALENZA PREVENTIVA (P0):
           // Se la mutazione pendente è già presente in modo equivalente su Firestore,
@@ -1132,12 +1180,12 @@ export class SyncService {
 
     for (const s of localSettings) {
       if (s && s.id && s.id.startsWith('tombstone_')) {
-        if (this.tripId === '0000') {
-          // SICUREZZA 0000: I tombstone locali storici NON devono mai essere pubblicati massivamente su Firestore!
-          // I tombstone rimangono isolati in IndexedDB locale.
+        const isExplicitPending = s.value?.pending === true;
+        if (this.tripId === '0000' && !isExplicitPending) {
+          // SICUREZZA 0000: I tombstone storici non pendenti rimangono isolati in IndexedDB locale.
           continue;
         }
-        const isPending = !serverDocIds.has(s.id) || s.value?.pending === true;
+        const isPending = !serverDocIds.has(s.id) || isExplicitPending;
         if (isPending) {
           if (!this.canWriteToCloud()) {
             // In modalità pre-attivazione (o offline) i tombstone locali restano memorizzati senza causare errore bloccante
@@ -2019,8 +2067,14 @@ export class SyncService {
           const serverSnap = await getDoc(docRef);
           if (serverSnap.exists()) {
             const serverData = serverSnap.data();
-            const serverUpdated = normalizeTimestamp(serverData?.updatedAt);
-            const localUpdated = normalizeTimestamp(data?.updatedAt);
+            const serverUpdated = normalizeTimestamp(
+              serverData?.updatedAt || serverData?.deletedAt || serverData?.timestamp ||
+              serverData?.value?.deletedAt || serverData?.value?.timestamp || serverData?.value?.updatedAt
+            );
+            const localUpdated = normalizeTimestamp(
+              data?.updatedAt || data?.deletedAt || data?.timestamp ||
+              data?.value?.deletedAt || data?.value?.timestamp || data?.value?.updatedAt
+            );
 
             // --- REQUISITI P0 CHECKPOINT 5: Riconoscimento idempotente e conservazione cassaforte ---
             // 1. Una modifica esclusivamente pubblica NON deve mai cancellare private_credentials.
@@ -2073,6 +2127,12 @@ export class SyncService {
               console.log(`[SyncService] Documento remoto ${collectionName}/${data.id} contiene già esattamente la modifica pendente: rimuovo dalla coda senza riscritture.`);
               assertAuthorized();
               await this.removePendingPushFromStore(collectionName, data.id, { action, data, mutationId: options.mutationId });
+              const activeConflicts = await getConflictBackups(this.tripId).catch(() => []);
+              for (const c of activeConflicts) {
+                if (c.dataId === data.id && normalizeQueueEntityType(c.entityType) === normalizeQueueEntityType(collectionName) && isBlockingConflict(c)) {
+                  await updateConflictStatus(c.id, 'resolved_already_synced', 'Allineamento verificato con documento remoto').catch(() => {});
+                }
+              }
               return;
             }
 
