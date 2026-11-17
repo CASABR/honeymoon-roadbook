@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.6.7 — 2026-11-17
+
+- Apertura immediata del form di modifica al clic sulle card per ruoli autorizzati
+- Rafforzata sicurezza permessi: blocco modifiche non autorizzate su viaggio condiviso 0000
+- Preservata scheda informativa per visualizzatori ed editing isolato su viaggi locali
+
 ## 1.6.6 — 2026-11-16
 
 - Cartella preferita e selezione documenti Google Drive con scope minimo drive.file

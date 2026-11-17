@@ -82,7 +82,7 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
 
   return (
     <div
-      onClick={canEdit ? onEdit : (onDetail || onEdit)}
+      onClick={canEdit ? onEdit : onDetail}
       className="hounigo-ds-card hounigo-ds-cat-shopping cursor-pointer"
     >
       {/* 1. HEADER: TARGA CATEGORIA VERDE BOSCO E CARTELLINO ORARIO PROGRAMMATO */}

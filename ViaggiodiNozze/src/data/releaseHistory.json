@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.7",
+      "publishedAt": "2026-11-17",
+      "sourceCommit": "d80d178",
+      "changes": [
+        "Apertura immediata del form di modifica al clic sulle card per ruoli autorizzati",
+        "Rafforzata sicurezza permessi: blocco modifiche non autorizzate su viaggio condiviso 0000",
+        "Preservata scheda informativa per visualizzatori ed editing isolato su viaggi locali"
+      ],
+      "publishedAtIso": "2026-11-17T11:15:00.000Z"
+    },
+    {
       "version": "1.6.6",
       "publishedAt": "2026-11-16",
       "sourceCommit": "91b28fc",
@@ -93,17 +104,6 @@
         "Percorso dedicato per accesso con account e credenziali preesistenti"
       ],
       "publishedAtIso": "2026-11-09T13:25:00+01:00"
-    },
-    {
-      "version": "1.5.14",
-      "publishedAt": "2026-11-09",
-      "sourceCommit": "c04a8af",
-      "changes": [
-        "Correzione overflow orizzontale Documenti su iPhone e layout responsive pulsanti",
-        "Distinzione comandi Google Drive esterno e collegamento protetto documenti con categorie",
-        "Card foto pre-partenza compatta e orario effettivo di pubblicazione nel fuso locale utente"
-      ],
-      "publishedAtIso": "2026-11-09T12:03:00+01:00"
     }
   ]
 }

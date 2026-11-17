@@ -2063,7 +2063,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                               onDetail={() => {
                                 const found = timeline.find(t => t.id === item.id);
                                 if (found) setDetailItem(found);
-                                else setEditingTransportItem(item.originalData as Trasporto);
                               }}
                               onEdit={() => setEditingTransportItem(item.originalData as Trasporto)}
                               onDuplicate={canEdit ? () => handleDuplicateItem(item as TimelineItem) : undefined}
@@ -2291,7 +2290,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                       onDetail={() => {
                         const found = timeline.find(t => t.id === `lodging_${tonightsAccommodation.id}` || t.id === tonightsAccommodation.id);
                         if (found) setDetailItem(found);
-                        else setEditingAlloggioItem(tonightsAccommodation);
                       }}
                       onDelete={async () => {
                         await storageService.deleteAccommodation(tonightsAccommodation.id);

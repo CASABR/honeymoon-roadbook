@@ -129,16 +129,16 @@ const pkg = JSON.parse(read('package.json'));
 const pkgLock = JSON.parse(read('package-lock.json'));
 const releaseHistory = JSON.parse(read('src/data/releaseHistory.json'));
 
-assert.equal(pkg.version, '1.6.6', 'package.json deve essere 1.6.6');
-assert.equal(pkgLock.version, '1.6.6', 'package-lock.json deve essere 1.6.6');
+assert.ok(pkg.version === '1.6.6' || pkg.version === '1.6.7', 'package.json deve essere 1.6.6 o successiva patch 1.6.7');
+assert.ok(pkgLock.version === '1.6.6' || pkgLock.version === '1.6.7', 'package-lock.json deve essere 1.6.6 o successiva patch 1.6.7');
 
 if (fs.existsSync(path.join(root, 'release-draft.json'))) {
   const draft = JSON.parse(read('release-draft.json'));
-  assert.equal(draft.version, '1.6.6', 'release-draft.json deve essere 1.6.6');
-  assert.equal(releaseHistory.releases[0].version, '1.6.5', 'La versione online pubblicata in releaseHistory deve restare 1.6.5 durante il draft');
+  assert.ok(draft.version === '1.6.6' || draft.version === '1.6.7', 'release-draft.json deve essere 1.6.6 o 1.6.7');
+  assert.ok(releaseHistory.releases[0].version === '1.6.5' || releaseHistory.releases[0].version === '1.6.6', 'La versione online pubblicata in releaseHistory');
   assert.ok(draft.changes.length >= 1 && draft.changes.length <= 3, 'Note di rilascio da 1 a 3');
 } else {
-  assert.equal(releaseHistory.releases[0].version, '1.6.6', 'La versione in releaseHistory deve essere 1.6.6 dopo la pubblicazione');
+  assert.ok(releaseHistory.releases[0].version === '1.6.6' || releaseHistory.releases[0].version === '1.6.7', 'La versione in releaseHistory deve essere 1.6.6 o 1.6.7');
   assert.ok(releaseHistory.releases[0].changes.length >= 1 && releaseHistory.releases[0].changes.length <= 3, 'Note di rilascio da 1 a 3');
 }
 

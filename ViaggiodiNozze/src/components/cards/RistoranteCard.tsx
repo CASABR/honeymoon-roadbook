@@ -78,7 +78,7 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
 
   return (
     <div
-      onClick={canEdit ? onEdit : (onDetail || onEdit)}
+      onClick={canEdit ? onEdit : onDetail}
       className="hounigo-ds-card hounigo-ds-cat-ristorante cursor-pointer"
     >
       {/* 1. HEADER: TARGA CATEGORIA OCRA/AMBRA E CARTELLINO ORARIO PRENOTAZIONE */}

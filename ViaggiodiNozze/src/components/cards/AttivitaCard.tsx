@@ -225,7 +225,7 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
   return (
     <>
       <div
-        onClick={canEdit ? onEdit : (onDetail || onEdit)}
+        onClick={canEdit ? onEdit : onDetail}
         data-trekking-card={isTrekking ? 'true' : undefined}
         className="hounigo-ds-card hounigo-ds-cat-attivita cursor-pointer"
       >

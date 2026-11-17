@@ -98,7 +98,7 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
 
   return (
     <div
-      onClick={canEdit ? onEdit : (isTask ? () => setIsTaskDetailOpen(true) : (onDetail || onEdit))}
+      onClick={canEdit ? onEdit : (isTask ? () => setIsTaskDetailOpen(true) : onDetail)}
       data-task-card={isTask ? tappa.id : undefined}
       className="hounigo-ds-card hounigo-ds-cat-tappa cursor-pointer"
     >
