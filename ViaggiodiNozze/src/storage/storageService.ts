@@ -299,9 +299,11 @@ class StorageService {
   async recordTombstone(entityType: string, id: string): Promise<void> {
     if (!id) return;
     const now = Date.now();
-    const currentUid = auth?.currentUser?.uid || 'authorized_user';
+    const user = auth?.currentUser;
+    const verifiedUid = (user && !user.isAnonymous && user.uid) ? user.uid : undefined;
+
     const tombstoneKey = `tombstone_${entityType}_${id}`;
-    const tombstoneData = {
+    const tombstoneData: any = {
       id: tombstoneKey,
       value: {
         entityType,
@@ -309,7 +311,7 @@ class StorageService {
         timestamp: now,
         deletedAt: now,
         pending: true,
-        explicitDeleteBy: currentUid
+        ...(verifiedUid ? { explicitDeleteBy: verifiedUid } : {})
       }
     };
     await idbPut(STORES.SETTINGS, tombstoneData);

@@ -1066,8 +1066,10 @@ export class SyncService {
               continue;
             } else {
               // Cancellazione remota
+              const rawDeleteBy = serverData?.explicitDeleteBy || serverData?.value?.explicitDeleteBy;
               const isExplicitAuthorizedDelete = Boolean(
-                serverData?.explicitDeleteBy || serverData?.value?.explicitDeleteBy
+                rawDeleteBy && typeof rawDeleteBy === 'string' && rawDeleteBy.trim().length > 0 &&
+                rawDeleteBy !== 'authorized_user' && rawDeleteBy !== 'anonymous'
               );
               if (this.tripId === '0000') {
                 // SICUREZZA 0000: Archivia SEMPRE una copia di sicurezza prima di qualsiasi operazione
@@ -2249,11 +2251,20 @@ export class SyncService {
           await safeSet(docRef, cleanPublic, { merge: true });
         }
       } else {
+        if (collectionName === 'settings' && typeof payloadToSync?.id === 'string' && payloadToSync.id.startsWith('tombstone_') && initiatingUid && !auth?.currentUser?.isAnonymous) {
+          payloadToSync.value = {
+            ...(payloadToSync.value || {}),
+            pending: false,
+            explicitDeleteBy: (payloadToSync.value?.explicitDeleteBy && payloadToSync.value.explicitDeleteBy !== 'authorized_user' && payloadToSync.value.explicitDeleteBy !== 'anonymous')
+              ? payloadToSync.value.explicitDeleteBy
+              : initiatingUid
+          };
+        }
         const cleanPayload = this.cleanUndefinedValues(stampPublicDocument(collectionName, payloadToSync));
         await safeSet(docRef, cleanPayload, { merge: true });
       }
       if (entityType === 'settings' && typeof data?.id === 'string' && data.id.startsWith('tombstone_')) {
-        await idbPut(STORES.SETTINGS, { ...data, value: { ...(data.value || {}), pending: false } }).catch(() => {});
+        await idbPut(STORES.SETTINGS, { ...data, value: { ...(payloadToSync.value || data.value || {}), pending: false } }).catch(() => {});
       }
       console.log(`[Cloud Sync] Salvato ${entityType} ${data.id}`);
     }
@@ -2476,7 +2487,12 @@ export class SyncService {
                   } catch {}
                 }
                 if (fb === 'settings' && docId.startsWith('tombstone_')) {
-                  const isAuthorizedTombstone = Boolean(itemToStore?.value?.explicitDeleteBy || itemToStore?.explicitDeleteBy || this.tripId !== '0000');
+                  const rawTsUid = itemToStore?.value?.explicitDeleteBy || itemToStore?.explicitDeleteBy;
+                  const isAuthorizedTsUid = Boolean(
+                    rawTsUid && typeof rawTsUid === 'string' && rawTsUid.trim().length > 0 &&
+                    rawTsUid !== 'authorized_user' && rawTsUid !== 'anonymous'
+                  );
+                  const isAuthorizedTombstone = Boolean(isAuthorizedTsUid || this.tripId !== '0000');
                   if (isAuthorizedTombstone) {
                     const parts = docId.split('_');
                     if (parts.length >= 3) {
@@ -2540,8 +2556,9 @@ export class SyncService {
                     }
                   } catch {}
                 }
+                const rawTombstoneUid = tombstoneSetting?.value?.explicitDeleteBy || tombstoneSetting?.explicitDeleteBy;
                 const isExplicitTombstone = this.tripId === '0000'
-                  ? Boolean(tombstoneSetting?.value?.explicitDeleteBy || tombstoneSetting?.explicitDeleteBy)
+                  ? Boolean(rawTombstoneUid && typeof rawTombstoneUid === 'string' && rawTombstoneUid.trim().length > 0 && rawTombstoneUid !== 'authorized_user' && rawTombstoneUid !== 'anonymous')
                   : Boolean(tombstoneSetting?.value);
 
                 // Se l'elemento esiste localmente e non ha tombstone esplicito, la rimozione remota

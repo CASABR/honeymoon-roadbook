@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.12",
+      "publishedAt": "2026-11-17",
+      "sourceCommit": "8a8bb69",
+      "changes": [
+        "Fase 2 Sicurezza Tombstone: rimosso fallback authorized_user e attribuzione strettamente vincolata a sessione Firebase reale verificata",
+        "Fase 2 Sovrapposizioni: isolamento decisioni per tripId, compatibilita storica e rivalutazione automatica dopo modifica di date o orari",
+        "LIVE & Foto: vista mappa combinata reale/programmata, bacheca ospiti esterna protetta in sola lettura e limiti di spazio localStorage per le foto locali"
+      ],
+      "publishedAtIso": "2026-11-17T13:55:00.000Z"
+    },
+    {
       "version": "1.6.11",
       "publishedAt": "2026-11-17",
       "sourceCommit": "ce91afa",

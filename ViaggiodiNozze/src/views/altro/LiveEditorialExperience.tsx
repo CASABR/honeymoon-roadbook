@@ -416,7 +416,12 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
       clearPendingPhotos();
       setPhotoRevealVersion(version => version + 1);
     } catch (error) {
-      setUploadError(error instanceof Error ? error.message : 'Foto non salvata. Riprova.');
+      const errMsg = error instanceof Error ? error.message : 'Foto non salvata. Riprova.';
+      if (errMsg.includes('dispositivo') || errMsg.includes('galleria locale')) {
+        clearPendingPhotos();
+        setPhotoRevealVersion(version => version + 1);
+      }
+      setUploadError(errMsg);
     } finally {
       setIsUploadingPhoto(false);
     }

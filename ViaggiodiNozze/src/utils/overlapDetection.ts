@@ -219,10 +219,19 @@ export function areIntervalsOverlapping(intA: TimeInterval, intB: TimeInterval):
 
 /**
  * Genera una chiave stabile e deterministica per la coppia di elementi,
- * rigorosamente INDIPENDENTE dall'ordine di chiamata.
+ * rigorosamente INDIPENDENTE dall'ordine di chiamata e isolata per viaggio (tripId).
  * pairKey(A, B) === pairKey(B, A)
  */
-export function getCollisionPairKey(idA: string, idB: string, category = 'collision'): string {
+export function getCollisionPairKey(idA: string, idB: string, category = 'collision', tripId?: string): string {
+  const [first, second] = [String(idA), String(idB)].sort();
+  const currentTripId = tripId || (typeof localStorage !== 'undefined' ? localStorage.getItem('houni_active_trip_id') || localStorage.getItem('last_active_trip_id') : '') || '';
+  return currentTripId ? `${currentTripId}_${category}_${first}_${second}` : `${category}_${first}_${second}`;
+}
+
+/**
+ * Chiave legacy retrocompatibile priva del prefisso tripId
+ */
+export function getLegacyCollisionPairKey(idA: string, idB: string, category = 'collision'): string {
   const [first, second] = [String(idA), String(idB)].sort();
   return `${category}_${first}_${second}`;
 }
@@ -242,9 +251,12 @@ const memoryDecisionCache = new Map<string, CollisionDecisionRecord>();
 /**
  * Inizializza o aggiorna la cache in memoria a partire da localStorage
  */
-function readDecisionFromStorage(pairKey: string): CollisionDecisionRecord | null {
+function readDecisionFromStorage(pairKey: string, legacyPairKey?: string): CollisionDecisionRecord | null {
   if (memoryDecisionCache.has(pairKey)) {
     return memoryDecisionCache.get(pairKey)!;
+  }
+  if (legacyPairKey && memoryDecisionCache.has(legacyPairKey)) {
+    return memoryDecisionCache.get(legacyPairKey)!;
   }
 
   if (typeof localStorage === 'undefined') return null;
@@ -260,8 +272,21 @@ function readDecisionFromStorage(pairKey: string): CollisionDecisionRecord | nul
       }
     }
 
+    // Fallback: se esiste una decisione salvata con la chiave storica (senza prefisso tripId)
+    if (legacyPairKey && legacyPairKey !== pairKey) {
+      const legacySettingKey = `collision_decision_${legacyPairKey}`;
+      const legacyRaw = localStorage.getItem(legacySettingKey);
+      if (legacyRaw) {
+        const parsed = JSON.parse(legacyRaw);
+        if (parsed && parsed.decision) {
+          memoryDecisionCache.set(pairKey, parsed);
+          return parsed;
+        }
+      }
+    }
+
     // Fallback: controllo chiave semplificata
-    const simpleVal = localStorage.getItem(pairKey);
+    const simpleVal = localStorage.getItem(pairKey) || (legacyPairKey ? localStorage.getItem(legacyPairKey) : null);
     if (simpleVal === 'keep' || simpleVal === 'resolved' || simpleVal === 'dismissed') {
       const legacyRecord: CollisionDecisionRecord = {
         id: `collision_decision_${pairKey}`,
@@ -291,12 +316,14 @@ export function isCollisionDismissedOrResolved(
   idA: string,
   idB: string,
   currentPairSignature: string,
-  category = 'collision'
+  category = 'collision',
+  tripId?: string
 ): boolean {
   if (!idA || !idB) return false;
 
-  const pairKey = getCollisionPairKey(idA, idB, category);
-  const stored = readDecisionFromStorage(pairKey);
+  const pairKey = getCollisionPairKey(idA, idB, category, tripId);
+  const legacyPairKey = getLegacyCollisionPairKey(idA, idB, category);
+  const stored = readDecisionFromStorage(pairKey, legacyPairKey);
 
   if (stored) {
     // Se la decisione salvata aveva una firma temporale registrata:
@@ -305,25 +332,33 @@ export function isCollisionDismissedOrResolved(
         // La situazione temporale è identica a quella confermata dall'utente: rispetta la scelta
         return true;
       }
-      // Se la firma temporale è cambiata (es. orario modificato), la vecchia soppressione scade
+      // Se la firma temporale è cambiata (es. orario o data modificati), la vecchia soppressione scade
       return false;
     }
-    // Firma assente (decisione storica retrocompatibile): sopprimi
+    // Firma assente nel record (decisione storica senza signature):
+    // Se la coppia attuale ha orari definiti e validi, non permettere che una vecchia decisione senza firma nasconda un conflitto nuovo/modificato
+    if (currentPairSignature && !currentPairSignature.includes('_none_none_none_')) {
+      return false;
+    }
     return true;
   }
 
-  // Controllo fallback retrocompatibile sui vecchi formati di localStorage/sessionStorage
-  if (typeof sessionStorage !== 'undefined') {
-    const sessVal = sessionStorage.getItem(pairKey) ||
-                    sessionStorage.getItem(`collision_dismissed_${idA}_${idB}`) ||
-                    sessionStorage.getItem(`collision_dismissed_${idB}_${idA}`);
-    if (sessVal === 'keep' || sessVal === 'resolved' || sessVal === 'dismissed') return true;
-  }
+  // Controllo fallback retrocompatibile su vecchi flag senza firma:
+  // NON sopprimere se la coppia ha orari specifici e non è stata esplicitamente firmata
+  if (!currentPairSignature || currentPairSignature.includes('_none_none_none_')) {
+    if (typeof sessionStorage !== 'undefined') {
+      const sessVal = sessionStorage.getItem(pairKey) ||
+                      (legacyPairKey ? sessionStorage.getItem(legacyPairKey) : null) ||
+                      sessionStorage.getItem(`collision_dismissed_${idA}_${idB}`) ||
+                      sessionStorage.getItem(`collision_dismissed_${idB}_${idA}`);
+      if (sessVal === 'keep' || sessVal === 'resolved' || sessVal === 'dismissed') return true;
+    }
 
-  if (typeof localStorage !== 'undefined') {
-    const locVal = localStorage.getItem(`collision_dismissed_${idA}_${idB}`) ||
-                   localStorage.getItem(`collision_dismissed_${idB}_${idA}`);
-    if (locVal === 'keep' || locVal === 'resolved' || locVal === 'dismissed') return true;
+    if (typeof localStorage !== 'undefined') {
+      const locVal = localStorage.getItem(`collision_dismissed_${idA}_${idB}`) ||
+                     localStorage.getItem(`collision_dismissed_${idB}_${idA}`);
+      if (locVal === 'keep' || locVal === 'resolved' || locVal === 'dismissed') return true;
+    }
   }
 
   return false;
@@ -338,11 +373,13 @@ export async function persistCollisionDecision(
   idB: string,
   decision: 'keep' | 'resolved' | 'dismissed',
   pairSignature: string,
-  category = 'collision'
+  category = 'collision',
+  tripId?: string
 ): Promise<void> {
   if (!idA || !idB) return;
 
-  const pairKey = getCollisionPairKey(idA, idB, category);
+  const pairKey = getCollisionPairKey(idA, idB, category, tripId);
+  const legacyPairKey = getLegacyCollisionPairKey(idA, idB, category);
   const settingKey = `collision_decision_${pairKey}`;
   const now = Date.now();
 
@@ -359,6 +396,7 @@ export async function persistCollisionDecision(
 
   // 1. Aggiorna memoria
   memoryDecisionCache.set(pairKey, record);
+  if (legacyPairKey) memoryDecisionCache.set(legacyPairKey, record);
 
   // 2. Aggiorna localStorage sincrono
   if (typeof localStorage !== 'undefined') {

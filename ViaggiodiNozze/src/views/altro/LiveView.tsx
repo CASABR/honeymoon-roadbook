@@ -94,7 +94,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [transports, setTransports] = useState<Trasporto[]>([]);
   const [tappe, setTappe] = useState<Tappa[]>([]);
   const [activities, setActivities] = useState<Attivita[]>([]);
-  const [mapCenterMode, setMapCenterMode] = useState<'both' | 'real' | 'planned'>('real');
+  const [mapCenterMode, setMapCenterMode] = useState<'both' | 'real' | 'planned'>('both');
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
 
@@ -878,6 +878,9 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     if (!file) return;
     if (!hasPrivateGalleryAccess || !activeTripId || !currentUid) throw new Error('Accedi come Owner o Copilota per caricare foto.');
     const compressedDataUrl = await compressImage(file);
+    if (compressedDataUrl.length > 700_000) {
+      throw new Error('Foto troppo grande per la cache locale del dispositivo. Conserva l’originale nel rullino del telefono.');
+    }
     const photoId = crypto.randomUUID();
     const localPhoto: LiveGalleryPhotoItem = {
       id: photoId, tripId: activeTripId, userId: currentUid, url: compressedDataUrl,
@@ -887,7 +890,16 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     syncingOfflinePhotoIdsRef.current.add(photoId);
     try {
       const stored = JSON.parse(localStorage.getItem('hounigo_live_gallery') || '[]');
-      const saved = [localPhoto, ...(Array.isArray(stored) ? stored : [])].slice(0, 30);
+      const MAX_GALLERY_CHARS = 1_800_000;
+      const candidateList = [localPhoto, ...(Array.isArray(stored) ? stored : [])].slice(0, 12);
+      const saved: LiveGalleryPhotoItem[] = [];
+      let totalChars = 2;
+      for (const item of candidateList) {
+        const itemJsonLen = JSON.stringify(item).length + 1;
+        if (saved.length > 0 && totalChars + itemJsonLen > MAX_GALLERY_CHARS) break;
+        saved.push(item);
+        totalChars += itemJsonLen;
+      }
       try {
         localStorage.setItem('hounigo_live_gallery', JSON.stringify(saved));
         localStorage.setItem(LAST_PHOTO_KEY, JSON.stringify({ tripId: activeTripId, userId: currentUid,
