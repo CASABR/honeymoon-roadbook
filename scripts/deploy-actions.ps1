@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     HOUNIGO — Script di automazione Deploy GitHub Actions (Antigravity & Terminale)
 .DESCRIPTION

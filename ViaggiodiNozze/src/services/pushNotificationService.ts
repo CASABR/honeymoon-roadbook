@@ -1,3 +1,4 @@
+import type { User } from 'firebase/auth';
 import { auth } from '../firebase';
 import { getOrCreateDeviceId } from '../utils/deviceSession';
 import { getTripConfig } from '../utils/tripConfig';
@@ -39,49 +40,63 @@ const COLLABORATION_ENTITIES = new Set([
 ]);
 
 /**
- * Garantisce la presenza di un utente Firebase per le notifiche push.
- * Attende sempre il ripristino della sessione persistente (Google, email, anonima)
- * e NON sostituisce mai un'identità esistente.
+ * Garantisce la presenza di un utente Firebase autenticato per le notifiche push.
+ * Attende sempre il ripristino della sessione persistente (Google, email, token)
+ * e NON sostituisce mai un'identità esistente con un accesso anonimo effimero.
  */
 async function ensurePushAuthUser() {
-  if (auth.currentUser) return auth.currentUser;
+  if (auth.currentUser && !auth.currentUser.isAnonymous) {
+    return auth.currentUser;
+  }
 
-  // 1. Attendi il completamento del ripristino auth locale se disponibile
+  // 1. Attendi il completamento del ripristino auth locale da IndexedDB (PWA / iOS WebKit)
   if (typeof (auth as any)?.authStateReady === 'function') {
     try {
       await (auth as any).authStateReady();
     } catch {}
-  } else {
-    await new Promise<void>((resolve) => {
-      let resolved = false;
-      const unsub = auth.onAuthStateChanged(() => {
-        if (!resolved) {
-          resolved = true;
-          unsub();
-          resolve();
-        }
-      });
-      setTimeout(() => {
-        if (!resolved) {
-          resolved = true;
-          unsub();
-          resolve();
-        }
-      }, 2000);
+  }
+
+  if (auth.currentUser && !auth.currentUser.isAnonymous) {
+    return auth.currentUser;
+  }
+
+  // 2. Attesa non distruttiva del listener onAuthStateChanged
+  await new Promise<void>((resolve) => {
+    let resolved = false;
+    const unsub = auth.onAuthStateChanged((user: User | null) => {
+      if (!resolved && user && !user.isAnonymous) {
+        resolved = true;
+        unsub();
+        resolve();
+      }
     });
+    setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        unsub();
+        resolve();
+      }
+    }, 3000);
+  });
+
+  if (auth.currentUser && !auth.currentUser.isAnonymous) {
+    return auth.currentUser;
   }
 
-  // 2. Se una sessione utente è già presente / ripristinata, non creare mai una nuova identità
-  if (auth.currentUser) return auth.currentUser;
-
-  // 3. Solo se non esiste alcuna sessione locale attiva, crea un accesso anonimo per consentire la ricezione push
-  try {
-    const { signInAnonymously } = await import('firebase/auth');
-    const cred = await signInAnonymously(auth);
-    return cred.user;
-  } catch {
-    throw new Error('Connessione o accesso richiesto per completare la registrazione notifiche.');
+  // 3. Se è presente un utente la cui identità coincide con l'autorizzazione verificata locale del viaggio:
+  if (auth.currentUser) {
+    const tripConfig = getTripConfig();
+    const tripId = tripConfig?.id?.trim() || '0000';
+    const verified = (await import('../utils/useAuthIdentity')).getVerifiedTripAuth(tripId);
+    if (verified && verified.uid === auth.currentUser.uid && ['owner', 'copilota'].includes(verified.role)) {
+      return auth.currentUser;
+    }
   }
+
+  // 4. REGOLA DI SICUREZZA ASSOLUTA: MAI chiamare signInAnonymously() forzato!
+  // Chiamare signInAnonymously sovrascrive IndexedDB, cancella la sessione Owner persistente
+  // e genera un UID casuale privo di permessi sul viaggio 0000.
+  throw new Error('Accesso come Owner o Copilota richiesto per attivare le notifiche del viaggio.');
 }
 
 const PUSH_TEST_COOLDOWN_MS = 30_000;

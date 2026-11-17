@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import { doc, getDocFromServer as getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { getTripConfig } from './tripConfig';
 import type { DeviceRole } from '../types';
@@ -180,20 +180,22 @@ export function canMutateLocally(targetTripId?: string): boolean {
   if (authoritativeCloudRole === 'owner' || authoritativeCloudRole === 'copilota') {
     return true;
   }
-  // Modifiche offline per membri precedentemente verificati e non revocati:
-  // richiede tassativamente un utente autenticato non anonimo con lo stesso UID e per lo stesso viaggio
-  const isOfflineOrChecking = authoritativeCloudRole === 'offline' ||
-    authoritativeCloudRole === 'checking' ||
-    (typeof navigator !== 'undefined' && !navigator.onLine);
-  if (isOfflineOrChecking) {
-    const user = auth?.currentUser;
-    if (user && !user.isAnonymous) {
-      const verified = getVerifiedTripAuth(currentTripId);
-      if (verified &&
-          verified.uid === user.uid &&
-          verified.tripId === currentTripId &&
-          (verified.role === 'owner' || verified.role === 'copilota') &&
-          !isTripAuthRevoked(currentTripId)) {
+  // Membri precedentemente verificati e non revocati (offline, in verifica o transitori):
+  // richiede tassativamente un utente autenticato non anonimo con lo stesso UID e per lo stesso viaggio.
+  // Nel transitorio di avvio (checking o offline), se il dispositivo dispone di verifica valida,
+  // consente l'accesso locale in attesa del completamento del restore auth asincrono.
+  if (!isTripAuthRevoked(currentTripId)) {
+    const verified = getVerifiedTripAuth(currentTripId);
+    if (verified &&
+        verified.tripId === currentTripId &&
+        (verified.role === 'owner' || verified.role === 'copilota') &&
+        !isTripAuthRevoked(currentTripId)) {
+      const user = auth?.currentUser;
+      if (user && !user.isAnonymous) {
+        if (verified.uid === user.uid) {
+          return true;
+        }
+      } else if (!user && (authoritativeCloudRole === 'checking' || authoritativeCloudRole === 'offline')) {
         return true;
       }
     }
@@ -392,11 +394,19 @@ export function useAuthIdentity(): AuthIdentityState {
         } catch { }
       }
       const activeUser = auth?.currentUser || currentUser;
-      // 2. Utente non autenticato o anonimo -> sessione non verificata sul backend Cloud
-      // Nessuna promozione a Owner o Copilota basata su localStorage: l'accesso ai dati privati richiede login verificato
-      if (!activeUser || (activeUser as any).isAnonymous) {
+      // 2. Utente non autenticato -> sessione non verificata sul backend Cloud
+      if (!activeUser) {
         updateRole('unverified');
         return;
+      }
+      // Se l'utente è anonimo e non ha alcuna corrispondenza come creatore/membro verificato del viaggio, è un ospite non verificato
+      if ((activeUser as any).isAnonymous) {
+        const verified = getVerifiedTripAuth(tripId);
+        const isCandidate = (config?.ownerUid && config.ownerUid === activeUser.uid) || (verified && verified.uid === activeUser.uid);
+        if (!isCandidate) {
+          updateRole('unverified');
+          return;
+        }
       }
 
       // I privilegi globali sono verificati esclusivamente dalle Firestore Rules
@@ -445,7 +455,7 @@ export function useAuthIdentity(): AuthIdentityState {
             }
 
             const tripData = tripSnap.data();
-            const remoteOwnerUid = tripData?.ownerUid || null;
+            const remoteOwnerUid = tripData?.ownerUid || tripData?.ownerId || null;
             const remoteOwnerName = tripData?.ownerName || (tripId === '0000' ? 'Owner' : undefined);
 
             if (remoteOwnerUid && activeUser.uid === remoteOwnerUid) {
@@ -499,10 +509,13 @@ export function useAuthIdentity(): AuthIdentityState {
         if (result.ownerUid) setAuthoritativeOwnerUid(result.ownerUid);
         if (result.ownerName) setAuthoritativeOwnerName(result.ownerName);
         updateRole(result.role);
-      } catch (err) {
+      } catch (err: any) {
         console.warn('[useAuthIdentity] Errore lettura remota autorizzazioni:', err);
-        const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-        updateRole(isOffline ? 'offline' : (isAdmin ? 'admin' : 'unverified'));
+        const isOffline = (typeof navigator !== 'undefined' && !navigator.onLine) ||
+          err?.code === 'unavailable' ||
+          err?.code === 'failed-precondition' ||
+          err?.name === 'FirebaseError';
+        updateRole(isOffline ? 'offline' : (isAdmin ? 'admin' : 'offline'));
       }
     }
 

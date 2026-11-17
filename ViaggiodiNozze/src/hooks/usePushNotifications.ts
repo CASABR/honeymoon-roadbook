@@ -111,8 +111,14 @@ export function usePushNotifications() {
         setDiagnostic('Il server non riconosce più questa subscription. Riattivala.');
       }
     } catch (error) {
-      setState('server-unavailable');
-      setDiagnostic(error instanceof Error ? error.message : 'Server push non raggiungibile.');
+      const msg = error instanceof Error ? error.message : 'Server push non raggiungibile.';
+      if (msg.includes('Accesso come Owner') || msg.includes('autorizzato') || msg.includes('Sessione')) {
+        setState('browser-only');
+        setDiagnostic(msg);
+      } else {
+        setState('server-unavailable');
+        setDiagnostic(msg);
+      }
     }
   }, [isSupported]);
 
@@ -156,8 +162,15 @@ export function usePushNotifications() {
       return subscription;
     } catch (error) {
       if (createdSubscription) await createdSubscription.unsubscribe().catch(() => false);
-      setBrowserSubscription(null);
-      setState(Notification.permission === 'denied' ? 'permission-denied' : 'error');
+      try {
+        const reg = await getReadyRegistration(2000).catch(() => null);
+        const existingSub = reg ? await reg.pushManager.getSubscription().catch(() => null) : null;
+        setBrowserSubscription(existingSub);
+      } catch {
+        setBrowserSubscription(null);
+      }
+      const isDenied = typeof Notification !== 'undefined' && Notification.permission === 'denied';
+      setState(isDenied ? 'permission-denied' : 'error');
       setDiagnostic(error instanceof Error ? error.message : 'Attivazione push fallita.');
       throw error;
     } finally {
@@ -169,10 +182,14 @@ export function usePushNotifications() {
     setIsSubscribing(true);
     try {
       const stored = readStoredPushRegistration();
-      if (stored) await unregisterPushOnServer(stored.subscriberId);
-      const registration = isSupported ? await getReadyRegistration() : null;
-      const subscription = registration ? await registration.pushManager.getSubscription() : null;
-      if (subscription) await subscription.unsubscribe();
+      if (stored) {
+        await unregisterPushOnServer(stored.subscriberId).catch((err) => {
+          console.warn('[Push] Errore unregister server non bloccante:', err);
+        });
+      }
+      const registration = isSupported ? await getReadyRegistration().catch(() => null) : null;
+      const subscription = registration ? await registration.pushManager.getSubscription().catch(() => null) : null;
+      if (subscription) await subscription.unsubscribe().catch(() => false);
       clearStoredPushRegistration();
       setBrowserSubscription(null);
       setState('inactive');
