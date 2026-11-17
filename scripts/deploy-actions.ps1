@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     HOUNIGO — Script di automazione Deploy GitHub Actions (Antigravity & Terminale)
 .DESCRIPTION
@@ -127,16 +127,17 @@ if ($latestRun -and $latestRun.Count -gt 0) {
     if ($finalStatus.conclusion -eq 'success') {
         if ($dryRun -eq 'false') {
             Write-Host "`n========================================================" -ForegroundColor Green
-            Write-Host "🎉 PUBBLICAZIONE COMPLETATA CON SUCCESSO SU GITHUB PAGES!" -ForegroundColor Green
+            Write-Host "[SUCCESS] PUBBLICAZIONE COMPLETATA CON SUCCESSO SU GITHUB PAGES!" -ForegroundColor Green
             Write-Host "Sito: https://casabr.github.io/honeymoon-roadbook/" -ForegroundColor Green
             Write-Host "========================================================`n" -ForegroundColor Green
         } else {
             Write-Host "`n========================================================" -ForegroundColor Yellow
-            Write-Host "✓ DRY-RUN COMPLETATO CON SUCCESSO! Nessun deploy eseguito." -ForegroundColor Yellow
+            Write-Host "[OK] DRY-RUN COMPLETATO CON SUCCESSO! Nessun deploy eseguito." -ForegroundColor Yellow
             Write-Host "========================================================`n" -ForegroundColor Yellow
         }
     } else {
-        Write-Error "Pipeline terminata con esito: $($finalStatus.conclusion). Dettagli: $runUrl"
+        $msg = "Pipeline terminata con esito: " + $finalStatus.conclusion + ". Dettagli: " + $runUrl
+        Write-Error $msg
         exit 1
     }
 }
