@@ -26,7 +26,7 @@ const BASE = `https://firestore.googleapis.com/v1/projects/${PROJECT}/databases/
 const DOC_PREFIX = `projects/${PROJECT}/databases/(default)/documents/`;
 const PROTECTED_IDS = new Set(['0000']);
 const OUT_DIR = 'docs/audit/trip-deletion/private';
-const RELATED_COLLECTIONS = ['invite_tokens', 'push_subscribers', 'push_jobs', 'push_dispatches'];
+const RELATED_COLLECTIONS = ['invite_tokens', 'invites', 'push_subscribers', 'push_jobs', 'push_dispatches'];
 
 const arg = (name) => process.argv.find(a => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=');
 const tripId = (arg('trip-id') || '').trim();

@@ -1327,6 +1327,13 @@ html.dark .hounigo-ds-card-footer {
   display: inline;
 }
 
+/* Risoluzione conflitto responsive: nasconde su mobile (<768px) i pulsanti con classe .hidden (es. Duplica) */
+@media (max-width: 767px) {
+  .hounigo-ds-action-btn.hidden {
+    display: none;
+  }
+}
+
 /* 
  * Collasso selettivo a sole icone su mobile:
  * I pulsanti mostrano icona + testo di default.

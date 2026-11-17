@@ -117,7 +117,24 @@ export async function calculateDetailedTripStorage(
   }
 
   // 2. Scansione delle sottocollezioni note del viaggio
+  const CORE_OPERATIONAL_SUBCOLLECTIONS = new Set([
+    'tappe',
+    'attivita',
+    'alloggi',
+    'trasporti',
+    'ristoranti',
+    'shopping',
+    'spese',
+    'documenti',
+    'note',
+    'bagagli',
+    'giorni',
+    'settings'
+  ]);
+  let coreSubcollectionsBlocked = 0;
+
   for (const subcol of KNOWN_ADMIN_DELETION_SUBCOLLECTIONS) {
+    if (cleanId === '0000' && subcol === 'inviteTokens') continue;
     try {
       const colRef = collection(firestoreDb, 'trips', cleanId, subcol);
       const snap = await getDocs(colRef);
@@ -143,6 +160,9 @@ export async function calculateDetailedTripStorage(
         }
       }
     } catch (err) {
+      if (CORE_OPERATIONAL_SUBCOLLECTIONS.has(subcol)) {
+        coreSubcollectionsBlocked++;
+      }
       // Ignora sottocollezioni opzionali non presenti o inaccessibili
       console.warn(`[tripStorageService] Sottocollezione ${subcol} per ${cleanId} saltata:`, err);
     }
@@ -163,24 +183,31 @@ export async function calculateDetailedTripStorage(
       }
     }
 
-    const updatesRef = collection(firestoreDb, 'live_feeds', cleanId, 'updates');
-    const updatesSnap = await getDocs(updatesRef);
-    if (!updatesSnap.empty) {
-      let updatesBytes = 0;
-      let updatesCount = 0;
-      updatesSnap.docs.forEach(d => {
-        const uPath = `live_feeds/${cleanId}/updates/${d.id}`;
-        if (!countedDocPaths.has(uPath)) {
-          countedDocPaths.add(uPath);
-          const uBytes = calculateFirestoreDocSize(uPath, d.data());
-          updatesBytes += uBytes;
-          updatesCount += 1;
+    for (const liveSubcol of ['updates', 'guest_messages', 'gps_control', 'locations'] as const) {
+      try {
+        const subRef = collection(firestoreDb, 'live_feeds', cleanId, liveSubcol);
+        const subSnap = await getDocs(subRef);
+        if (!subSnap.empty) {
+          let subBytes = 0;
+          let subCount = 0;
+          subSnap.docs.forEach(d => {
+            const uPath = `live_feeds/${cleanId}/${liveSubcol}/${d.id}`;
+            if (!countedDocPaths.has(uPath)) {
+              countedDocPaths.add(uPath);
+              const uBytes = calculateFirestoreDocSize(uPath, d.data());
+              subBytes += uBytes;
+              subCount += 1;
+            }
+          });
+          if (subCount > 0) {
+            totalBytes += subBytes;
+            totalDocs += subCount;
+            const breakdownKey = liveSubcol === 'updates' ? 'live_feed_updates' : `live_${liveSubcol}`;
+            breakdown[breakdownKey] = { docsCount: subCount, bytes: subBytes };
+          }
         }
-      });
-      if (updatesCount > 0) {
-        totalBytes += updatesBytes;
-        totalDocs += updatesCount;
-        breakdown['live_feed_updates'] = { docsCount: updatesCount, bytes: updatesBytes };
+      } catch {
+        // sottocollezione live opzionale
       }
     }
   } catch (feedErr) {
@@ -191,7 +218,7 @@ export async function calculateDetailedTripStorage(
     tripId: cleanId,
     totalBytes,
     docsCount: totalDocs,
-    status: 'calcolata',
+    status: coreSubcollectionsBlocked > 0 ? 'parziale' : 'calcolata',
     quotaPercentage: calculateQuotaPercentage(totalBytes),
     subcollectionsBreakdown: breakdown,
     calculatedAt: Date.now()

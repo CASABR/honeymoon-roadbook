@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.17",
+      "publishedAt": "2026-11-17",
+      "sourceCommit": "b289d24",
+      "changes": [
+        "Console Admin: audit storage con rilevamento live feed, normalizzazione timestamp e inclusione inviti",
+        "Card: rimozione pulsante Duplica su smartphone con visibilita conservata su layout desktop"
+      ],
+      "publishedAtIso": "2026-11-17T18:25:00.000Z"
+    },
+    {
       "version": "1.6.16",
       "publishedAt": "2026-11-17",
       "sourceCommit": "b1a5874",

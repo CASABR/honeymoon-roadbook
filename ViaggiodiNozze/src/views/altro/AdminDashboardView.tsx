@@ -19,7 +19,7 @@ import {
 } from 'firebase/auth';
 import { db, auth } from '../../firebase';
 import { getTripConfig } from '../../utils/tripConfig';
-import { formatDateIT, formatDateTimeIT, formatDateRangeIT } from '../../utils/tripDates';
+import { formatDateIT, formatDateTimeIT, formatDateRangeIT, normalizeTimestamp } from '../../utils/tripDates';
 import { fetchUsersAccessPage, formatUserDisplayName, type UserAccessEntry } from '../../services/userAccessService';
 import {
   formatStorageBytes,
@@ -53,7 +53,10 @@ export const KNOWN_ADMIN_DELETION_SUBCOLLECTIONS = [
   'giorni',
   'settings',
   'locks',
+  'devices',
+  'private_credentials',
   'members',
+  'invites',
   'inviteTokens'
 ] as const;
 
@@ -385,15 +388,15 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
         const d = docSnap.data();
         const id = docSnap.id;
         const title = d.title || d.name || `Viaggio ${id}`;
-        const startDate = d.startDate || undefined;
-        const endDate = d.endDate || undefined;
+        const startDate = d.startDate || d.dataInizio || undefined;
+        const endDate = d.endDate || d.dataFine || undefined;
         const totalDays = typeof d.totalDays === 'number' ? d.totalDays : undefined;
-        const ownerUid = d.ownerUid || undefined;
+        const ownerUid = d.ownerUid || d.ownerId || undefined;
         const membersList = Array.isArray(d.members) ? d.members : [];
         const membersCount = membersList.length;
-        const createdAt = typeof d.createdAt === 'number' ? d.createdAt : undefined;
-        const updatedAt = typeof d.updatedAt === 'number' ? d.updatedAt : undefined;
-        const lastActiveAt = typeof d.lastActiveAt === 'number' ? d.lastActiveAt : (updatedAt || createdAt || undefined);
+        const createdAt = normalizeTimestamp(d.createdAt) || undefined;
+        const updatedAt = normalizeTimestamp(d.updatedAt) || undefined;
+        const lastActiveAt = normalizeTimestamp(d.lastActiveAt) || updatedAt || createdAt || undefined;
         const headerImageUrl = d.headerImageUrl || null;
 
         // 1. Stato Temporale
@@ -762,7 +765,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
     } catch (err: any) {
       console.error('[AdminDashboard] Errore salvataggio nome copilota:', err);
       if (err?.code === 'permission-denied') {
-        setCopilotActionError('Permesso negato: verifica che la sessione Admin globale sia attiva (nunzio114@gmail.com).');
+        setCopilotActionError('Permesso negato: verifica che la sessione Admin globale sia attiva.');
       } else {
         setCopilotActionError(err?.message || 'Errore durante il salvataggio del nome copilota.');
       }
