@@ -118,6 +118,22 @@ export function revokeTripAuth(tripId: string): void {
 
 export function isTripAuthRevoked(tripId: string): boolean {
   if (typeof window === 'undefined') return false;
+  // Se il backend cloud conferma owner o copilota, l'autorizzazione NON è revocata
+  if (authoritativeCloudRole === 'owner' || authoritativeCloudRole === 'copilota') {
+    try {
+      localStorage.removeItem(`houni_revoked_trip_${tripId}`);
+    } catch {}
+    return false;
+  }
+  // Se è presente una verifica locale valida per l'utente attivo non anonimo, ripulisce la revoca
+  const verified = getVerifiedTripAuth(tripId);
+  const user = auth?.currentUser;
+  if (verified && user && !user.isAnonymous && verified.uid === user.uid && ['owner', 'copilota'].includes(verified.role)) {
+    try {
+      localStorage.removeItem(`houni_revoked_trip_${tripId}`);
+    } catch {}
+    return false;
+  }
   try {
     return localStorage.getItem(`houni_revoked_trip_${tripId}`) === 'true';
   } catch {
@@ -187,9 +203,9 @@ export function canMutateLocally(targetTripId?: string): boolean {
   if (!isTripAuthRevoked(currentTripId)) {
     const verified = getVerifiedTripAuth(currentTripId);
     if (verified &&
-        verified.tripId === currentTripId &&
-        (verified.role === 'owner' || verified.role === 'copilota') &&
-        !isTripAuthRevoked(currentTripId)) {
+      verified.tripId === currentTripId &&
+      (verified.role === 'owner' || verified.role === 'copilota') &&
+      !isTripAuthRevoked(currentTripId)) {
       const user = auth?.currentUser;
       if (user && !user.isAnonymous) {
         if (verified.uid === user.uid) {
@@ -464,7 +480,15 @@ export function useAuthIdentity(): AuthIdentityState {
             }
 
             const memRef = doc(firestoreDb, 'trips', tripId, 'members', activeUser.uid);
-            const memSnap = await getDoc(memRef).catch(() => null);
+            let memSnap = null;
+            try {
+              memSnap = await getDoc(memRef);
+            } catch (memErr) {
+              console.warn('[useAuthIdentity] Errore lettura membro (transitorio):', memErr);
+              // NON interpretare errori temporanei come revoche definitive: mantieni offline
+              return { key: verifyKey, role: 'offline', ownerUid: remoteOwnerUid, ownerName: remoteOwnerName, timestamp: Date.now() };
+            }
+
             if (auth?.currentUser?.uid !== activeUser.uid) {
               return { key: verifyKey, role: 'unverified', ownerUid: remoteOwnerUid, ownerName: remoteOwnerName, timestamp: Date.now() };
             }
@@ -478,11 +502,6 @@ export function useAuthIdentity(): AuthIdentityState {
               return { key: verifyKey, role: 'admin', ownerUid: remoteOwnerUid, ownerName: remoteOwnerName, timestamp: Date.now() };
             }
 
-            const verified = getVerifiedTripAuth(tripId);
-            if (verified && verified.uid === activeUser.uid && !(activeUser as any).isAnonymous) {
-              console.warn(`[useAuthIdentity] Revoca confermata dal backend per utente ${activeUser.uid} su viaggio ${tripId}`);
-              revokeTripAuth(tripId);
-            }
             return { key: verifyKey, role: 'viewer', ownerUid: remoteOwnerUid, ownerName: remoteOwnerName, timestamp: Date.now() };
           };
 

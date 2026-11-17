@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.9",
+      "publishedAt": "2026-11-17",
+      "sourceCommit": "d19e5b3",
+      "changes": [
+        "Rimosso completamente signInAnonymously da App.tsx e ripristino sicuro della sessione persistente",
+        "Separazione definitiva permessi Cloud dal ruolo locale: un click immediato per Owner e Copilota",
+        "Risoluzione blocco Google OAuth su iPhone PWA con gestione popup sincrono ed errore diagnostico push"
+      ],
+      "publishedAtIso": "2026-11-17T12:35:00.000Z"
+    },
+    {
       "version": "1.6.8",
       "publishedAt": "2026-11-17",
       "sourceCommit": "615b57d",

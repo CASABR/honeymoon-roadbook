@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { DeviceRole } from '../types';
 import { storageService } from '../storage/storageService';
-import { getSimulatedRole, type SimulatedRole, useAuthIdentity, type CloudRole, isTripAuthRevoked, canMutateLocally } from './useAuthIdentity';
+import { getSimulatedRole, type SimulatedRole, useAuthIdentity, type CloudRole, getVerifiedTripAuth, canMutateLocally } from './useAuthIdentity';
 import { getTripConfig } from './tripConfig';
 
 export function useDeviceRole(): {
@@ -35,27 +35,18 @@ export function useDeviceRole(): {
     }).catch(() => {});
   }, []);
 
-  // Inizializzazione non distruttiva del ruolo da cloud verificato verso storage locale:
-  // NON sovrascrive mai la scelta esplicita già fatta dall'utente sul telefono!
-  // Se viewer confermato con revoca, riporta a viewer per sicurezza.
+  // Inizializzazione coerente del ruolo da cloud verificato:
+  // Se l'utente è Owner o Copilota verificato, allinea il dispositivo e garantisce i permessi.
   useEffect(() => {
-    const hasExplicitChoice = storageService.hasExplicitDeviceRole();
-    if (!hasExplicitChoice) {
-      if (cloudRole === 'owner' && role !== 'guida') {
-        storageService.setDeviceRole('guida', false);
-        setRole('guida');
-      } else if (cloudRole === 'copilota' && role !== 'copilota') {
-        storageService.setDeviceRole('copilota', false);
-        setRole('copilota');
-      }
-    }
-    if (cloudRole === 'viewer' && role !== 'viewer') {
-      const tripConfig = getTripConfig();
-      const currentTripId = tripConfig?.id || '0000';
-      if (isTripAuthRevoked(currentTripId)) {
-        storageService.setDeviceRole('viewer', false);
-        setRole('viewer');
-      }
+    if (cloudRole === 'owner' && role !== 'guida') {
+      storageService.setDeviceRole('guida', false);
+      setRole('guida');
+    } else if (cloudRole === 'copilota' && role !== 'copilota') {
+      storageService.setDeviceRole('copilota', false);
+      setRole('copilota');
+    } else if (cloudRole === 'viewer' && role !== 'viewer') {
+      storageService.setDeviceRole('viewer', false);
+      setRole('viewer');
     }
   }, [cloudRole, role]);
 
@@ -89,9 +80,9 @@ export function useDeviceRole(): {
     };
   }, []);
 
-  // L'autorizzazione alle modifiche richiede obbligatoriamente che l'identità
-  // sia verificata e autorizzata dal backend Cloud (owner o copilota).
-  // Il ruolo del dispositivo ('guida' | 'copilota' | 'viewer') rimane strettamente per-dispositivo.
+  // Separazione netta: il ruolo per l'interfaccia rispecchia l'autorizzazione Cloud/verificata.
+  // Il ruolo locale 'viewer' non deve bloccare un Owner o Copilota autorizzato.
+  // Il ruolo locale 'guida' non deve autorizzare un ospite.
   const effectiveRole: DeviceRole = (() => {
     if (import.meta.env.DEV) {
       const sim = getSimulatedRole();
@@ -99,21 +90,34 @@ export function useDeviceRole(): {
       if (sim === 'copilota') return 'copilota';
       if (sim === 'viewer') return 'viewer';
     }
-    if (cloudRole === 'viewer') return 'viewer';
-    if (storageService.hasExplicitDeviceRole()) {
-      return role;
-    }
     if (cloudRole === 'owner') return 'guida';
     if (cloudRole === 'copilota') return 'copilota';
+    if (cloudRole === 'viewer') return 'viewer';
+
+    // Se offline o in fase di verifica, controlla le credenziali verificate salvate per questo viaggio
+    const tripConfig = getTripConfig();
+    const currentTripId = tripConfig?.id || '0000';
+    const verified = getVerifiedTripAuth(currentTripId);
+    if (verified && (verified.role === 'owner' || verified.role === 'copilota')) {
+      return verified.role === 'owner' ? 'guida' : 'copilota';
+    }
+
     return role;
   })();
 
-  const canEdit = canMutateLocally() && (effectiveRole === 'guida' || effectiveRole === 'copilota');
-  // Visibilità credenziali, PIN, PNR e voucher: RIGOROSAMENTE vincolata all'autorizzazione cloud effettiva (mai a ruolo locale)
-  const canSeePrivateInfo = isCloudAuthorized && (effectiveRole === 'guida' || effectiveRole === 'copilota');
-  const isGuida = isCloudAuthorized && effectiveRole === 'guida';
-  const isCopilota = isCloudAuthorized && effectiveRole === 'copilota';
-  const isViewer = !isCloudAuthorized || effectiveRole === 'viewer';
+  // L'autorizzazione alle modifiche è RIGOROSAMENTE determinata da canMutateLocally():
+  // - Owner e Copilota autorizzati possono sempre modificare le card con un clic.
+  // - Il ruolo locale 'viewer' non blocca un Owner o Copilota autorizzato.
+  // - Il ruolo locale 'guida' non autorizza un ospite.
+  const canEdit = canMutateLocally() && (
+    import.meta.env.DEV && simulatedRole === 'viewer' ? false : true
+  );
+
+  // Visibilità dati sensibili (PIN, credenziali, note private) vincolata a canEdit o autorizzazione cloud
+  const canSeePrivateInfo = isCloudAuthorized || canEdit;
+  const isGuida = effectiveRole === 'guida' && canEdit;
+  const isCopilota = effectiveRole === 'copilota' && canEdit;
+  const isViewer = !canEdit;
   const isSimulated = !!simulatedRole;
 
   return { role: effectiveRole, canEdit, canSeePrivateInfo, isGuida, isCopilota, isViewer, isSimulated, simulatedRole, cloudRole, isCloudAuthorized };

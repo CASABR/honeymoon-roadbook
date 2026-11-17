@@ -53,7 +53,7 @@ async function ensurePushAuthUser() {
   if (typeof (auth as any)?.authStateReady === 'function') {
     try {
       await (auth as any).authStateReady();
-    } catch {}
+    } catch { }
   }
 
   if (auth.currentUser && !auth.currentUser.isAnonymous) {
@@ -93,10 +93,11 @@ async function ensurePushAuthUser() {
     }
   }
 
-  // 4. REGOLA DI SICUREZZA ASSOLUTA: MAI chiamare signInAnonymously() forzato!
-  // Chiamare signInAnonymously sovrascrive IndexedDB, cancella la sessione Owner persistente
-  // e genera un UID casuale privo di permessi sul viaggio 0000.
-  throw new Error('Accesso come Owner o Copilota richiesto per attivare le notifiche del viaggio.');
+  // 4. Se nessun account autorizzato è presente, solleva errore diagnostico dettagliato
+  if (!auth.currentUser) {
+    throw new Error('Accedi con il tuo account Organizzatore o Copilota (Google o Email) per attivare le notifiche del viaggio.');
+  }
+  throw new Error('La sessione attiva non è autorizzata come Organizzatore o Copilota del viaggio sul server push.');
 }
 
 const PUSH_TEST_COOLDOWN_MS = 30_000;

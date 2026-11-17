@@ -695,7 +695,6 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
     return { success: true, user: mockUser, preExistingAccount: false };
   }
   try {
-    onProgress?.('Apertura finestra di autenticazione…');
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({ prompt: 'select_account' });
 
@@ -710,14 +709,19 @@ export async function loginWithGoogle(onProgress?: (stage: string) => void): Pro
     let targetUser: User | null = null;
     let isLinked = false;
 
-    // Accesso esplicito con Google: recupera direttamente l'account Firebase registrato per l'identità Google.
-    // SICUREZZA: non collega automaticamente l'account Google al nuovo UID anonimo del dispositivo,
-    // garantendo il recupero dell'UID storico autentico (ownerUid).
-    onProgress?.('Autenticazione con Google…');
+    // Apertura immediata del popup sincrono per non perdere il gesto utente su iOS Safari
     try {
       const res = await signInWithPopup(auth, provider);
       targetUser = res.user;
     } catch (popupErr: any) {
+      const isStandalonePWA = typeof window !== 'undefined' && Boolean((window.navigator as any)?.standalone);
+      if (isStandalonePWA && (popupErr?.code === 'auth/popup-blocked' || popupErr?.code === 'auth/cancelled-popup-request' || popupErr?.code === 'auth/popup-closed-by-user')) {
+        return {
+          success: false,
+          code: 'auth/pwa-standalone-restriction',
+          error: 'Su iPhone PWA (Schermata Home) i popup Google sono limitati da iOS. Per accedere nella PWA usa "Accedi con Email e Password" (oppure apri l\'app da Safari per l\'accesso Google).'
+        };
+      }
       if ((popupErr?.code === 'auth/popup-blocked' || popupErr?.code === 'auth/cancelled-popup-request') && typeof window !== 'undefined') {
         console.warn('[accountService] Popup bloccato dal browser (iOS Safari / PWA): avvio reindirizzamento Google.');
         onProgress?.('Reindirizzamento verso Google…');

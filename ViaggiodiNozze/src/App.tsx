@@ -29,7 +29,7 @@ import { storageService } from './storage/storageService';
 import { useAuthIdentity } from './utils/useAuthIdentity';
 import { auth } from './firebase';
 import UiScrollDebugOverlay, { bumpUiDebugCounter, isUiDebugEnabled, UI_DEBUG_CHANGED_EVENT } from './components/dev/UiScrollDebugOverlay';
-import { signInAnonymously, onAuthStateChanged, type User } from 'firebase/auth';
+import { onAuthStateChanged, type User } from 'firebase/auth';
 import { doc, getDoc, setDoc, writeBatch } from 'firebase/firestore';
 import { db } from './firebase';
 import { recordUserAccess, recordUserActivity } from './services/userAccessService';
@@ -308,41 +308,25 @@ export default function App() {
       return;
     }
     let isCancelled = false;
-    let redirectCheckResolved = false;
 
-    // Gestione rientro da redirect OAuth (PWA Standalone iOS / browser con blocco popup):
-    // attende il completamento di getRedirectResult prima di consentire qualsiasi fallback anonimo.
+    // Gestione rientro da redirect OAuth (PWA Standalone iOS / browser con blocco popup)
     import('./services/accountService').then(async ({ checkPendingRedirectResult }) => {
       try {
         if (typeof (auth as any).authStateReady === 'function') {
           await (auth as any).authStateReady();
         }
         const redirectRes = await checkPendingRedirectResult();
-        redirectCheckResolved = true;
         if (!isCancelled && redirectRes.success && redirectRes.user) {
           setAuthUser(redirectRes.user);
           console.log('[Auth] Rientro da redirect OAuth completato per UID:', redirectRes.user.uid);
           return;
         }
-      } catch {
-        redirectCheckResolved = true;
-      }
-      if (!isCancelled && !auth.currentUser) {
-        signInAnonymously(auth).catch((error) => {
-          console.error('[Auth] Errore signInAnonymously:', error);
-        });
-      }
+      } catch {}
     });
 
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setAuthUser(user);
-      if (!user) {
-        if (!redirectCheckResolved) return;
-        // Se non è autenticato e non c'è redirect OAuth pendente, proviamo l'accesso anonimo automatico
-        signInAnonymously(auth).catch((error) => {
-          console.error('[Auth] Errore signInAnonymously:', error);
-        });
-      } else {
+      if (user) {
         // Registrazione ultimo accesso utente compatibile Firebase Spark
         recordUserAccess(user, tripConfig?.id);
       }
