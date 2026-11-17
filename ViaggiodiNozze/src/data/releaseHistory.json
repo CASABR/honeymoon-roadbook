@@ -4,6 +4,7 @@
     {
       "version": "1.6.20",
       "publishedAt": "2026-11-17",
+      "sourceCommit": "aea1b7b",
       "changes": [
         "Account: visualizzazione dinamica e corretta del ruolo Owner/Copilota nel badge profilo attivo",
         "Diagnostica di sincronizzazione: ispezione sicura della struttura schema delle mutazioni in coda (solo nomi e tipi campi, zero valori esposti)",
