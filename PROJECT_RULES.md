@@ -4,6 +4,9 @@
 Companion app personale per il viaggio di nozze (NZ · AU · PH).
 Utilità pratica durante il viaggio, non un prodotto commerciale.
 
+## Memoria permanente e baseline di stabilità
+- Prima di ogni modifica, consultare docs/HOUNIGO_BASELINE_STABILE.md. Preservare le funzionalità consolidate, distinguere test automatici da verifiche su dispositivi reali e aggiornare la baseline dopo ogni risultato confermato. Non considerare risolto un problema sulla base di sole ipotesi.
+
 ## Vincoli fissi
 - Solo mobile (max-width 430px, mobile-first reale)
 - Offline-first: i dati devono funzionare senza rete

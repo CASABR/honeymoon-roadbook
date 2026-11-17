@@ -555,6 +555,43 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                               </span>
                             )}
                           </div>
+
+                          {item.schemaSummary && (
+                            <details className="mt-2 text-[10px] text-slate-500 dark:text-slate-400 group">
+                              <summary className="cursor-pointer font-bold select-none text-indigo-600 dark:text-indigo-400 hover:underline flex items-center justify-between">
+                                <span>🔍 Diagnostica Schema (solo nomi &amp; tipi)</span>
+                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${
+                                  item.schemaSummary.publicSchemaVersion === 2
+                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
+                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
+                                }`}>
+                                  v{item.schemaSummary.publicSchemaVersion}
+                                </span>
+                              </summary>
+                              <div className="mt-1.5 p-2 rounded-xl bg-slate-50 dark:bg-slate-950/70 border border-slate-200 dark:border-slate-800 font-mono text-[9px] space-y-1.5">
+                                <div>
+                                  <p className="font-bold text-slate-500 uppercase tracking-wider text-[8px]">Campi Payload Locale ({item.schemaSummary.fieldNames.length}):</p>
+                                  <p className="text-slate-700 dark:text-slate-300 break-words">
+                                    {item.schemaSummary.fieldNames.map(k => `${k} (${item.schemaSummary!.fieldTypes[k]})`).join(', ')}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider text-[8px]">Doc Pubblico ({item.schemaSummary.publicKeys.length}):</p>
+                                  <p className="text-slate-700 dark:text-slate-300 break-words">
+                                    {item.schemaSummary.publicKeys.join(', ')}
+                                  </p>
+                                </div>
+                                {item.schemaSummary.privateKeys.length > 0 && (
+                                  <div>
+                                    <p className="font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider text-[8px]">Cassaforte Privata ({item.schemaSummary.privateKeys.length}):</p>
+                                    <p className="text-slate-700 dark:text-slate-300 break-words">
+                                      {item.schemaSummary.privateKeys.join(', ')}
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          )}
                         </div>
                       ))}
                     </div>

@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.20",
+      "publishedAt": "2026-11-17",
+      "changes": [
+        "Account: visualizzazione dinamica e corretta del ruolo Owner/Copilota nel badge profilo attivo",
+        "Diagnostica di sincronizzazione: ispezione sicura della struttura schema delle mutazioni in coda (solo nomi e tipi campi, zero valori esposti)",
+        "Integrita dati: salvaguardia totale di batch atomico, coda locale, regole Firestore e dati del viaggio 0000"
+      ],
+      "publishedAtIso": "2026-11-17T22:15:00.000Z"
+    },
+    {
       "version": "1.6.19",
       "publishedAt": "2026-11-17",
       "sourceCommit": "5b62e11",

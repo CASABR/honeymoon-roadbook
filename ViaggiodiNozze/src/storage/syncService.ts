@@ -40,6 +40,14 @@ export interface PreActivationSyncReportItem {
   hasPotentialConflict: boolean;
   conflictReason?: string;
   isAlreadySynchronized?: boolean;
+  schemaSummary?: {
+    fieldNames: string[];
+    fieldTypes: Record<string, string>;
+    publicKeys: string[];
+    privateKeys: string[];
+    publicSchemaVersion: number;
+    hasPrivateCredentials: boolean;
+  };
 }
 
 export interface ConflictReportItem {
@@ -511,6 +519,32 @@ export async function getPreActivationSyncReport(
           }
         }
 
+        let schemaSummary: PreActivationSyncReportItem['schemaSummary'];
+        if (q.data && typeof q.data === 'object') {
+          const isOperationalWithCreds = ['alloggio', 'trasporto', 'attivita', 'tappa', 'ristorante', 'shopping', 'documento'].includes(normType);
+          const split = isOperationalWithCreds
+            ? splitEntitySecurityData(normType as any, tripId, q.data)
+            : { publicDoc: q.data, privateCredentialsDoc: null };
+
+          const fieldTypes: Record<string, string> = {};
+          for (const [k, v] of Object.entries(q.data)) {
+            fieldTypes[k] = Array.isArray(v)
+              ? `array[${v.length}]`
+              : v === null
+              ? 'null'
+              : typeof v;
+          }
+
+          schemaSummary = {
+            fieldNames: Object.keys(q.data).sort(),
+            fieldTypes,
+            publicKeys: Object.keys(split.publicDoc || {}).sort(),
+            privateKeys: split.privateCredentialsDoc ? Object.keys(split.privateCredentialsDoc).sort() : [],
+            publicSchemaVersion: typeof split.publicDoc?.publicSchemaVersion === 'number' ? split.publicDoc.publicSchemaVersion : 0,
+            hasPrivateCredentials: Boolean(split.publicDoc?.hasPrivateCredentials)
+          };
+        }
+
         return {
           normType,
           item: {
@@ -521,7 +555,8 @@ export async function getPreActivationSyncReport(
             previewTitle,
             hasPotentialConflict,
             conflictReason,
-            isAlreadySynchronized
+            isAlreadySynchronized,
+            schemaSummary
           }
         };
       })

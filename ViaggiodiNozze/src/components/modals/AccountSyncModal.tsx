@@ -14,6 +14,7 @@ import {
   saveCustomUserDisplayName,
   formatUserDisplayName
 } from '../../services/userAccessService';
+import { getTripConfig } from '../../utils/tripConfig';
 
 interface AccountSyncModalProps {
   isOpen: boolean;
@@ -321,7 +322,13 @@ export default function AccountSyncModal({ isOpen, onClose, onSuccess }: Account
               Profilo Attivo
             </span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
-              {formatUserDisplayName(status.displayName, status.isAnonymous ? 'viewer' : 'copilota', status.uid)}
+              {(() => {
+                const activeCfg = getTripConfig();
+                const resolvedRole = (activeCfg?.ownerUid && status.uid && activeCfg.ownerUid === status.uid)
+                  ? 'owner'
+                  : (status.isAnonymous ? 'viewer' : 'copilota');
+                return formatUserDisplayName(status.displayName, resolvedRole, status.uid);
+              })()}
             </span>
           </div>
           <div className="flex items-center gap-2">
