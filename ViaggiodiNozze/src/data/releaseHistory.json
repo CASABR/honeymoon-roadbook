@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.10",
+      "publishedAt": "2026-11-17",
+      "sourceCommit": "9bcc833",
+      "changes": [
+        "Iniezione sicura delle variabili Firebase di produzione tramite GitHub Actions Secrets",
+        "Controllo pre-build bloccante contro build prive di configurazione cloud essenziale",
+        "Ripristino operativo completo Firebase Auth, card modificabili e notifiche push in produzione"
+      ],
+      "publishedAtIso": "2026-11-17T12:50:00.000Z"
+    },
+    {
       "version": "1.6.9",
       "publishedAt": "2026-11-17",
       "sourceCommit": "d19e5b3",

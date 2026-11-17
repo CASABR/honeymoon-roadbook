@@ -170,8 +170,24 @@ jobs:
         working-directory: ViaggiodiNozze
         run: node scripts/test_release_versioning.cjs
 
+      - name: Verifica configurazione Firebase essenziale
+        run: |
+          echo "Verifica presenza Secret Firebase per il build di produzione..."
+          if [ -z "${{ secrets.VITE_FIREBASE_API_KEY }}" ] || [ -z "${{ secrets.VITE_FIREBASE_PROJECT_ID }}" ] || [ -z "${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}" ] || [ -z "${{ secrets.VITE_FIREBASE_APP_ID }}" ]; then
+            echo "::error::CONFIGURAZIONE FIREBASE INCOMPLETA: Uno o piu Secret GitHub VITE_FIREBASE_* mancano nel repository."
+            exit 1
+          fi
+          echo "Configurazione Firebase confermata per il progetto: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}"
+
       - name: Compilazione PWA (Production Build)
         working-directory: ViaggiodiNozze
+        env:
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
         run: npm run build
 
       - name: Notifica completamento prova (Dry Run)
