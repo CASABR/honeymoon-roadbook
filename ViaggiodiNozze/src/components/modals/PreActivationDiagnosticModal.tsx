@@ -64,10 +64,11 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
   // Diagnostica differenziata dei 4 stati operativi (senza esporre credenziali)
   const isOnline = typeof navigator === 'undefined' ? true : Boolean(navigator.onLine);
   const isPermissionError = Boolean(
-    report?.lastSyncError &&
-    (report.lastSyncError.includes('Missing or insufficient permissions') ||
-     report.lastSyncError.includes('permission-denied') ||
-     report.lastSyncError.includes('insufficient permissions'))
+    report?.lastSyncFailure?.isPermissionError ||
+    (report?.lastSyncError &&
+     (report.lastSyncError.includes('Missing or insufficient permissions') ||
+      report.lastSyncError.includes('permission-denied') ||
+      report.lastSyncError.includes('insufficient permissions')))
   );
   const isNetworkError = !isOnline || Boolean(
     report?.lastSyncError &&
@@ -105,6 +106,27 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
     diagnosisTitle = 'Account Connesso Privo di Autorizzazione';
     diagnosisExplanation = 'L\'account Google connesso non risulta abilitato con ruolo di scrittura (Owner o Copilota) sul viaggio 0000.';
     diagnosisAction = 'Accedi con l\'account Google associato al viaggio oppure richiedi l\'invito Copilota all\'Owner.';
+  } else if (isPermissionError) {
+    diagnosisBadge = 'Permessi non sufficienti';
+    diagnosisBadgeClass = 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-800';
+    diagnosisTitle = 'Scrittura Rifiutata da Firestore (Regole di Sicurezza)';
+    const fail = report?.lastSyncFailure;
+    if (fail?.phase === 'batch_credentials_public' && fail.batchIndistinguishable) {
+      diagnosisExplanation = `Fase fallita: Batch atomico ("${fail.entityType}" + private_credentials). Firestore ha respinto la transazione: l'errore del batch atomico non permette di distinguere se il rifiuto riguarda la cassaforte privata o il documento pubblico. Il ruolo Owner mostrato nell'interfaccia non garantisce che ogni scrittura sia consentita dalle regole Cloud.`;
+    } else if (fail?.phase === 'tombstone_setting') {
+      diagnosisExplanation = `Fase fallita: Salvataggio impostazioni/tombstone su Firestore (settings/${fail.dataId || ''}). Scrittura rifiutata dalle Security Rules.`;
+    } else if (fail?.phase === 'public_document') {
+      diagnosisExplanation = `Fase fallita: Salvataggio documento pubblico "${fail.entityType}". Scrittura rifiutata dalle Security Rules.`;
+    } else {
+      diagnosisExplanation = 'La scrittura verso Firestore è stata respinta per permessi non sufficienti. Il ruolo Owner mostrato nella UI non garantisce che le regole Cloud consentano questa operazione.';
+    }
+    diagnosisAction = 'Verifica che l\'account Google connesso corrisponda all\'ownerUid sul documento Firestore /trips/0000 e che i dati rispettino lo schema protetto.';
+  } else if (report?.lastSyncError) {
+    diagnosisBadge = 'Errore sincronizzazione';
+    diagnosisBadgeClass = 'bg-rose-100 text-rose-800 border-rose-300 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-800';
+    diagnosisTitle = 'Errore Attivo Durante il Push';
+    diagnosisExplanation = `Operazione cloud interrotta: ${report.lastSyncError}`;
+    diagnosisAction = 'Controlla la coda pendente e riprova la sincronizzazione.';
   } else if (hasUnresolvedConflict) {
     diagnosisBadge = 'Conflitto dati';
     diagnosisBadgeClass = 'bg-amber-100 text-amber-900 border-amber-300 dark:bg-amber-950 dark:text-amber-200 dark:border-amber-800';
@@ -119,12 +141,12 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
     diagnosisAction = '';
   }
 
-  const reloadReport = useCallback((silent = false) => {
+  const reloadReport = useCallback((silent = false, forceFresh = false) => {
     const currentCfg = getTripConfig();
     setTripConfigState(currentCfg);
     const activeId = currentCfg?.id || '0000';
     if (!silent) setLoading(true);
-    getPreActivationSyncReport(activeId)
+    getPreActivationSyncReport(activeId, { forceFresh })
       .then((rep) => {
         setReport(rep);
         setLoading(false);
@@ -176,7 +198,7 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
         await svc.flushPendingQueue();
         await svc.syncBidirectional();
       }
-      const rep = await getPreActivationSyncReport(tripId);
+      const rep = await getPreActivationSyncReport(tripId, { forceFresh: true });
       setReport(rep);
       if (!rep.hasActiveErrors && rep.pendingCount === 0) {
         setActionFeedback({ type: 'success', message: '✓ Sincronizzazione completata con successo.' });
@@ -402,7 +424,13 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                           ? 'Causa verificata: sessione non autenticata. Firestore respinge le scritture sul Cloud senza un account Google verificato.'
                           : (!isOwner && !isCopilota
                               ? 'Causa verificata: account connesso ma non autorizzato a scrivere sul viaggio 0000.'
-                              : 'Causa: token di sessione scaduto o verifica permessi in corso.'))
+                              : (report.lastSyncFailure?.phase === 'batch_credentials_public'
+                                  ? 'Causa: Rifiuto scrittura atomica batch (entità + private_credentials). Firestore non specifica quale dei due documenti ha violato le regole di sicurezza.'
+                                  : report.lastSyncFailure?.phase === 'tombstone_setting'
+                                  ? 'Causa: Rifiuto scrittura tombstone/impostazioni da parte delle regole di sicurezza Firestore.'
+                                  : report.lastSyncFailure?.phase === 'public_document'
+                                  ? `Causa: Rifiuto scrittura documento pubblico "${report.lastSyncFailure.entityType}" da parte delle regole di sicurezza Firestore.`
+                                  : 'Causa: Scrittura rifiutata da Firestore Security Rules. Il ruolo Owner mostrato nell\'interfaccia non garantisce che i permessi Cloud consentano questa operazione.')))
                       : isNetworkError
                         ? 'Causa verificata: mancata risposta di rete dai server Cloud.'
                         : 'Causa: anomalia durante la trasmissione del payload.'}
@@ -703,15 +731,29 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                   ) : null}
 
                   {report?.isCloudWriteAllowed ? (
-                    <div className="p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200 space-y-1">
-                      <div className="flex items-center gap-1.5 font-extrabold text-xs">
-                        <span>✓</span>
-                        <span>Sincronizzazione Cloud ATTIVA ed Operativa</span>
+                    (report.hasActiveErrors || isPermissionError || Boolean(report.lastSyncError)) ? (
+                      <div className="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 space-y-1">
+                        <div className="flex items-center gap-1.5 font-extrabold text-xs">
+                          <span>⚠️</span>
+                          <span>Sincronizzazione Cloud Sospesa da Errore</span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed opacity-90">
+                          {isPermissionError
+                            ? 'Scritture abilitate ma bloccate da Firestore (permessi non sufficienti o rifiuto transazione atomica). Le modifiche rimangono protette in locale.'
+                            : 'Scritture abilitate ma interrotte da un errore attivo. I dati locali rimangono al sicuro in attesa di allineamento.'}
+                        </p>
                       </div>
-                      <p className="text-[11px] leading-relaxed opacity-90">
-                        Il tuo iPhone Owner sta sincronizzando in tempo reale bidirezionale con Firestore.
-                      </p>
-                    </div>
+                    ) : (
+                      <div className="p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200 space-y-1">
+                        <div className="flex items-center gap-1.5 font-extrabold text-xs">
+                          <span>✓</span>
+                          <span>Sincronizzazione Cloud ATTIVA ed Operativa</span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed opacity-90">
+                          Il tuo iPhone Owner sta sincronizzando in tempo reale bidirezionale con Firestore.
+                        </p>
+                      </div>
+                    )
                   ) : (
                     <div className="p-2.5 rounded-xl bg-white/70 dark:bg-slate-900/60 text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
                       {report?.pendingCount === 0 ? (
@@ -774,15 +816,29 @@ export default function PreActivationDiagnosticModal({ isOpen, onClose }: PreAct
                   ) : null}
 
                   {report?.isCloudWriteAllowed ? (
-                    <div className="p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200 space-y-1">
-                      <div className="flex items-center gap-1.5 font-extrabold text-xs">
-                        <span>✓</span>
-                        <span>Sincronizzazione Copilota ATTIVA ed Operativa</span>
+                    (report.hasActiveErrors || isPermissionError || Boolean(report.lastSyncError)) ? (
+                      <div className="p-3 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 space-y-1">
+                        <div className="flex items-center gap-1.5 font-extrabold text-xs">
+                          <span>⚠️</span>
+                          <span>Sincronizzazione Copilota Sospesa da Errore</span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed opacity-90">
+                          {isPermissionError
+                            ? 'Scrittura Copilota bloccata da Firestore (permessi non sufficienti). I dati rimangono protetti nella memoria locale.'
+                            : 'Scrittura Copilota abilitata ma interrotta da un errore attivo. I dati locali sono protetti in attesa di risoluzione.'}
+                        </p>
                       </div>
-                      <p className="text-[11px] leading-relaxed opacity-90">
-                        Il dispositivo invia e riceve aggiornamenti in tempo reale con i soli permessi del ruolo Copilota (cassaforte privata protetta).
-                      </p>
-                    </div>
+                    ) : (
+                      <div className="p-3 rounded-2xl bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-900 dark:text-emerald-200 space-y-1">
+                        <div className="flex items-center gap-1.5 font-extrabold text-xs">
+                          <span>✓</span>
+                          <span>Sincronizzazione Copilota ATTIVA ed Operativa</span>
+                        </div>
+                        <p className="text-[11px] leading-relaxed opacity-90">
+                          Il dispositivo invia e riceve aggiornamenti in tempo reale con i soli permessi del ruolo Copilota (cassaforte privata protetta).
+                        </p>
+                      </div>
+                    )
                   ) : (
                     <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
                       In qualità di Copilota verificato{copilotSuffix}, puoi abilitare la sincronizzazione bidirezionale protetta separata dall'Owner. Nessuna elevazione di privilegi: le modifiche restano rigorosamente conformi al ruolo Copilota (zero accesso né sovrascrittura di credenziali private).

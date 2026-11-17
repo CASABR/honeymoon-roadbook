@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.19",
+      "publishedAt": "2026-11-17",
+      "changes": [
+        "Sincronizzazione Firestore P0: tracciamento dettagliato fasi di errore per batch atomico, cassaforte e documenti pubblici",
+        "Diagnostica: eliminata falsa segnalazione di sincronizzazione operativa in presenza di errori attivi o permessi insufficienti",
+        "Integrita coda e performance: rimozione sicura da coda solo su equivalenza confermata, caching in-flight e parallelizzazione letture"
+      ],
+      "publishedAtIso": "2026-11-17T21:15:00.000Z"
+    },
+    {
       "version": "1.6.18",
       "publishedAt": "2026-11-17",
       "sourceCommit": "f7dc794",

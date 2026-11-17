@@ -81,9 +81,35 @@ export function getLastSyncTimestamp(tripId: string): number | null {
   return null;
 }
 
+export interface LastSyncFailureDetails {
+  entityType?: string;
+  dataId?: string;
+  phase: 'batch_credentials_public' | 'public_document' | 'tombstone_setting' | 'remote_check' | 'generic';
+  errorMessage: string;
+  isPermissionError: boolean;
+  batchIndistinguishable?: boolean;
+}
+
+const lastSyncFailuresByTrip = new Map<string, LastSyncFailureDetails>();
+
+export function setLastSyncFailure(tripId: string, failure: LastSyncFailureDetails | null): void {
+  if (!failure) {
+    lastSyncFailuresByTrip.delete(tripId);
+  } else {
+    lastSyncFailuresByTrip.set(tripId, failure);
+  }
+  invalidateSyncReportCache();
+}
+
+export function getLastSyncFailure(tripId: string): LastSyncFailureDetails | null {
+  return lastSyncFailuresByTrip.get(tripId) || null;
+}
+
 export function setLastSyncTimestamp(tripId: string, ts: number = Date.now()): void {
   lastSyncTimestampsByTrip.set(tripId, ts);
   lastSyncErrorsByTrip.delete(tripId);
+  lastSyncFailuresByTrip.delete(tripId);
+  invalidateSyncReportCache();
   if (typeof localStorage !== 'undefined') {
     try {
       localStorage.setItem(`hounigo_last_sync_at_${tripId}`, String(ts));
@@ -98,9 +124,11 @@ export function getLastSyncError(tripId: string): string | null {
 export function setLastSyncError(tripId: string, errMessage: string | null): void {
   if (!errMessage) {
     lastSyncErrorsByTrip.delete(tripId);
+    lastSyncFailuresByTrip.delete(tripId);
   } else {
     lastSyncErrorsByTrip.set(tripId, errMessage);
   }
+  invalidateSyncReportCache();
 }
 
 export interface PreActivationSyncReport {
@@ -116,6 +144,7 @@ export interface PreActivationSyncReport {
   isOnline?: boolean;
   lastSyncAt?: number | null;
   lastSyncError?: string | null;
+  lastSyncFailure?: LastSyncFailureDetails | null;
   userFriendlyStatus?: UserFriendlySyncStatus;
   hasActiveErrors?: boolean;
   items: PreActivationSyncReportItem[];
@@ -132,6 +161,7 @@ export function allowCloudWriteForTrip0000(allow: boolean = true): void {
     localStorage.setItem('hounigo_allow_cloud_write_0000', allow ? 'true' : 'false');
     localStorage.setItem('hounigo_allow_queue_flush_0000', allow ? 'true' : 'false');
   }
+  invalidateSyncReportCache();
 }
 
 export function isQueueFlushAllowedForTrip0000(): boolean {
@@ -300,187 +330,269 @@ export function compareCandidateWithRemote(
   return { isEquivalent: differences.length === 0, differences };
 }
 
-export async function getPreActivationSyncReport(tripId: string): Promise<PreActivationSyncReport> {
-  const isAllowed = tripId === '0000' ? isTrip0000CloudWriteAllowed() : true;
-  const queue = await getPendingMutations(tripId);
-  const allConflictBackups = await getConflictBackups(tripId);
-  const pendingConflicts = allConflictBackups.filter(isBlockingConflict);
+interface SyncReportCacheEntry {
+  tripId: string;
+  report: PreActivationSyncReport;
+  timestamp: number;
+}
 
-  const pendingByType: Record<string, number> = {};
-  const conflictsByType: Record<string, number> = {};
+let syncReportCache: SyncReportCacheEntry | null = null;
+let inFlightSyncReportPromise: Promise<PreActivationSyncReport> | null = null;
+let inFlightSyncReportTripId: string | null = null;
 
-  const conflictItems: ConflictReportItem[] = [];
-  for (const c of pendingConflicts) {
-    const cNormType = normalizeQueueEntityType(c.entityType);
-    let isEquivalent = false;
-    let differences: Array<{ field: string; localVal: any; remoteVal: any }> = [];
-    let checkedRemote = false;
+export function invalidateSyncReportCache(): void {
+  syncReportCache = null;
+  inFlightSyncReportPromise = null;
+  inFlightSyncReportTripId = null;
+}
 
-    if (typeof navigator !== 'undefined' && navigator.onLine && db) {
-      try {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const remoteDocRef = doc(db, 'trips', tripId, cNormType, c.dataId);
-        const remoteSnap = await getDoc(remoteDocRef).catch(() => null);
-        if (remoteSnap && remoteSnap.exists()) {
-          const remoteData = remoteSnap.data();
-          const comp = compareCandidateWithRemote(cNormType, tripId, c.localData, remoteData);
+export async function getPreActivationSyncReport(
+  tripId: string,
+  options: { forceFresh?: boolean } = {}
+): Promise<PreActivationSyncReport> {
+  const now = Date.now();
+  if (!options.forceFresh && syncReportCache && syncReportCache.tripId === tripId && (now - syncReportCache.timestamp < 3500)) {
+    return syncReportCache.report;
+  }
+  if (!options.forceFresh && inFlightSyncReportPromise && inFlightSyncReportTripId === tripId) {
+    return inFlightSyncReportPromise;
+  }
+
+  const runCalculation = async (): Promise<PreActivationSyncReport> => {
+    const isAllowed = tripId === '0000' ? isTrip0000CloudWriteAllowed() : true;
+    const queue = await getPendingMutations(tripId);
+    const allConflictBackups = await getConflictBackups(tripId);
+    const pendingConflicts = allConflictBackups.filter(isBlockingConflict);
+
+    const pendingByType: Record<string, number> = {};
+    const conflictsByType: Record<string, number> = {};
+    const conflictItems: ConflictReportItem[] = [];
+
+    // Parallelizza la verifica dei conflitti pendenti (riduce drasticamente latenza su mobile)
+    const processedConflicts = await Promise.all(
+      pendingConflicts.map(async (c) => {
+        const cNormType = normalizeQueueEntityType(c.entityType);
+        let isEquivalent = false;
+        let differences: Array<{ field: string; localVal: any; remoteVal: any }> = [];
+        let checkedRemote = false;
+
+        if (typeof navigator !== 'undefined' && navigator.onLine && db) {
+          try {
+            const { doc, getDoc } = await import('firebase/firestore');
+            const remoteDocRef = doc(db, 'trips', tripId, cNormType, c.dataId);
+            const remoteSnap = await getDoc(remoteDocRef).catch(() => null);
+            if (remoteSnap && remoteSnap.exists()) {
+              const remoteData = remoteSnap.data();
+              const comp = compareCandidateWithRemote(cNormType, tripId, c.localData, remoteData);
+              isEquivalent = comp.isEquivalent;
+              differences = comp.differences;
+              checkedRemote = true;
+            }
+          } catch {}
+        }
+        if (!checkedRemote && c.serverData) {
+          const comp = compareCandidateWithRemote(cNormType, tripId, c.localData, c.serverData);
           isEquivalent = comp.isEquivalent;
           differences = comp.differences;
-          checkedRemote = true;
         }
-      } catch {}
-    }
-    if (!checkedRemote && c.serverData) {
-      const comp = compareCandidateWithRemote(cNormType, tripId, c.localData, c.serverData);
-      isEquivalent = comp.isEquivalent;
-      differences = comp.differences;
-    }
 
-    if (isEquivalent && (cNormType === 'settings' || cNormType === 'setting') && typeof c.dataId === 'string' && c.dataId.startsWith('tombstone_')) {
-      await updateConflictStatus(c.id, 'resolved_already_synced', 'Tombstone già allineato').catch(() => {});
-      continue;
-    }
+        if (isEquivalent && (cNormType === 'settings' || cNormType === 'setting') && typeof c.dataId === 'string' && c.dataId.startsWith('tombstone_')) {
+          await updateConflictStatus(c.id, 'resolved_already_synced', 'Tombstone già allineato').catch(() => {});
+          return null;
+        }
 
-    conflictsByType[c.conflictType] = (conflictsByType[c.conflictType] || 0) + 1;
+        const rawTitle = c.localData?.titolo || c.localData?.title || c.localData?.nome || c.localData?.name || '';
+        const previewTitle = typeof rawTitle === 'string' && rawTitle.trim().length > 0
+          ? (rawTitle.length > 45 ? rawTitle.substring(0, 45) + '…' : rawTitle)
+          : c.dataId;
 
-    const rawTitle = c.localData?.titolo || c.localData?.title || c.localData?.nome || c.localData?.name || '';
-    const previewTitle = typeof rawTitle === 'string' && rawTitle.trim().length > 0
-      ? (rawTitle.length > 45 ? rawTitle.substring(0, 45) + '…' : rawTitle)
-      : c.dataId;
+        return {
+          conflictType: c.conflictType,
+          item: {
+            id: c.id,
+            tripId: c.tripId,
+            entityType: cNormType,
+            dataId: c.dataId,
+            previewTitle,
+            conflictType: c.conflictType,
+            status: c.status,
+            savedAt: c.savedAt,
+            serverUpdated: c.serverUpdated,
+            localUpdated: c.localUpdated,
+            isEquivalent,
+            differences
+          }
+        };
+      })
+    );
 
-    conflictItems.push({
-      id: c.id,
-      tripId: c.tripId,
-      entityType: cNormType,
-      dataId: c.dataId,
-      previewTitle,
-      conflictType: c.conflictType,
-      status: c.status,
-      savedAt: c.savedAt,
-      serverUpdated: c.serverUpdated,
-      localUpdated: c.localUpdated,
-      isEquivalent,
-      differences
-    });
-  }
-
-  const items: PreActivationSyncReport['items'] = [];
-  for (const q of queue) {
-    const normType = normalizeQueueEntityType(q.entityType);
-    pendingByType[normType] = (pendingByType[normType] || 0) + 1;
-
-    let hasPotentialConflict = false;
-    let conflictReason: string | undefined;
-    let isAlreadySynchronized = false;
-
-    const dataId = q.data?.id;
-    if (dataId) {
-      const tombstoneKey = `tombstone_${normType}_${dataId}`;
-      const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, tombstoneKey).catch(() => null);
-      if (tombstoneSetting && tombstoneSetting.value) {
-        hasPotentialConflict = true;
-        conflictReason = 'remote_tombstone_present';
-      }
+    for (const res of processedConflicts) {
+      if (!res) continue;
+      conflictsByType[res.conflictType] = (conflictsByType[res.conflictType] || 0) + 1;
+      conflictItems.push(res.item);
     }
 
-    // Includi SOLO metadati non sensibili (nessun PIN, PNR, note private, prezzi o allegati)
-    const rawTitle = q.data?.titolo || q.data?.title || q.data?.nome || q.data?.name || q.data?.label || '';
-    const previewTitle = typeof rawTitle === 'string' && rawTitle.trim().length > 0
-      ? (rawTitle.length > 45 ? rawTitle.substring(0, 45) + '…' : rawTitle)
-      : (dataId || q.id);
+    // Parallelizza il controllo preliminare elementi in coda
+    const processedQueue = await Promise.all(
+      queue.map(async (q) => {
+        const normType = normalizeQueueEntityType(q.entityType);
+        let hasPotentialConflict = false;
+        let conflictReason: string | undefined;
+        let isAlreadySynchronized = false;
 
-    // Controllo preventivo versioni remote sul cloud in sola lettura (se online)
-    if (dataId && !hasPotentialConflict && typeof navigator !== 'undefined' && navigator.onLine && db) {
-      try {
-        const { doc, getDoc } = await import('firebase/firestore');
-        const remoteDocRef = doc(db, 'trips', tripId, normType, dataId);
-        const remoteSnap = await getDoc(remoteDocRef).catch(() => null);
-        if (remoteSnap && remoteSnap.exists()) {
-          const remoteData = remoteSnap.data();
-          const remoteUpdated = normalizeTimestamp(
-            remoteData?.updatedAt || remoteData?.deletedAt || remoteData?.timestamp ||
-            remoteData?.value?.deletedAt || remoteData?.value?.timestamp || remoteData?.value?.updatedAt
-          );
-          const localUpdated = normalizeTimestamp(
-            q.data?.updatedAt || q.data?.deletedAt || q.data?.timestamp ||
-            q.data?.value?.deletedAt || q.data?.value?.timestamp || q.data?.value?.updatedAt || q.timestamp
-          );
-
-          const { isEquivalent } = compareCandidateWithRemote(normType, tripId, q.data, remoteData);
-          if (isEquivalent) {
-            isAlreadySynchronized = true;
-            hasPotentialConflict = false;
-            conflictReason = undefined;
-          } else if (remoteUpdated <= 0 || localUpdated <= 0) {
+        const dataId = q.data?.id;
+        if (dataId) {
+          const tombstoneKey = `tombstone_${normType}_${dataId}`;
+          const tombstoneSetting = await idbGet<any>(STORES.SETTINGS, tombstoneKey).catch(() => null);
+          if (tombstoneSetting && tombstoneSetting.value) {
             hasPotentialConflict = true;
-            conflictReason = 'unreliable_timestamp_conflict';
-          } else if (remoteUpdated > localUpdated) {
-            hasPotentialConflict = true;
-            conflictReason = 'server_newer';
+            conflictReason = 'remote_tombstone_present';
           }
         }
-      } catch {
-        // Nessun blocco diagnostico in sola lettura se la connessione è instabile
-      }
+
+        const rawTitle = q.data?.titolo || q.data?.title || q.data?.nome || q.data?.name || q.data?.label || '';
+        const previewTitle = typeof rawTitle === 'string' && rawTitle.trim().length > 0
+          ? (rawTitle.length > 45 ? rawTitle.substring(0, 45) + '…' : rawTitle)
+          : (dataId || q.id);
+
+        // Controllo preventivo versioni remote sul cloud in sola lettura (se online)
+        if (dataId && !hasPotentialConflict && typeof navigator !== 'undefined' && navigator.onLine && db) {
+          try {
+            const { doc, getDoc } = await import('firebase/firestore');
+            const remoteDocRef = doc(db, 'trips', tripId, normType, dataId);
+            const remoteSnap = await getDoc(remoteDocRef).catch(() => null);
+            if (remoteSnap && remoteSnap.exists()) {
+              const remoteData = remoteSnap.data();
+              const remoteUpdated = normalizeTimestamp(
+                remoteData?.updatedAt || remoteData?.deletedAt || remoteData?.timestamp ||
+                remoteData?.value?.deletedAt || remoteData?.value?.timestamp || remoteData?.value?.updatedAt
+              );
+              const localUpdated = normalizeTimestamp(
+                q.data?.updatedAt || q.data?.deletedAt || q.data?.timestamp ||
+                q.data?.value?.deletedAt || q.data?.value?.timestamp || q.data?.value?.updatedAt || q.timestamp
+              );
+
+              const { isEquivalent } = compareCandidateWithRemote(normType, tripId, q.data, remoteData);
+              if (isEquivalent) {
+                isAlreadySynchronized = true;
+                hasPotentialConflict = false;
+                conflictReason = undefined;
+
+                // REQUISITO 8: Rimuovi dalla coda un tombstone già sincronizzato soltanto dopo verifica affidabile dell'equivalenza remota
+                if (normType === 'settings' || normType === 'setting' || (typeof dataId === 'string' && dataId.startsWith('tombstone_'))) {
+                  await removePendingMutation(tripId, q.entityType, dataId).catch(() => {});
+                  await removePendingMutation(tripId, normType, dataId).catch(() => {});
+                  const activeConflicts = await getConflictBackups(tripId).catch(() => []);
+                  for (const c of activeConflicts) {
+                    if (c.dataId === dataId && isBlockingConflict(c)) {
+                      await updateConflictStatus(c.id, 'resolved_already_synced', 'Tombstone già allineato').catch(() => {});
+                    }
+                  }
+                  return null;
+                }
+              } else if (remoteUpdated <= 0 || localUpdated <= 0) {
+                hasPotentialConflict = true;
+                conflictReason = 'unreliable_timestamp_conflict';
+              } else if (remoteUpdated > localUpdated) {
+                hasPotentialConflict = true;
+                conflictReason = 'server_newer';
+              }
+            } else if (q.action === 'delete') {
+              const tsDocRef = doc(db, 'trips', tripId, 'settings', `tombstone_${normType}_${dataId}`);
+              const tsSnap = await getDoc(tsDocRef).catch(() => null);
+              if (tsSnap && tsSnap.exists()) {
+                await removePendingMutation(tripId, q.entityType, dataId).catch(() => {});
+                await removePendingMutation(tripId, normType, dataId).catch(() => {});
+                return null;
+              }
+            }
+          } catch {
+            // Nessun blocco diagnostico in sola lettura se la connessione è instabile
+          }
+        }
+
+        return {
+          normType,
+          item: {
+            id: dataId || q.id,
+            entityType: normType,
+            action: q.action,
+            timestamp: q.timestamp,
+            previewTitle,
+            hasPotentialConflict,
+            conflictReason,
+            isAlreadySynchronized
+          }
+        };
+      })
+    );
+
+    const items: PreActivationSyncReport['items'] = [];
+    for (const res of processedQueue) {
+      if (!res) continue;
+      pendingByType[res.normType] = (pendingByType[res.normType] || 0) + 1;
+      items.push(res.item);
     }
 
-    items.push({
-      id: dataId || q.id,
-      entityType: normType,
-      action: q.action,
-      timestamp: q.timestamp,
-      previewTitle,
-      hasPotentialConflict,
-      conflictReason,
-      isAlreadySynchronized
-    });
-  }
+    const currentConfig = getTripConfig();
+    const tripTitle = currentConfig?.id === tripId
+      ? (currentConfig?.title || (tripId === '0000' ? 'Viaggio di Nozze (0000)' : `Viaggio ${tripId}`))
+      : (tripId === '0000' ? 'Viaggio di Nozze (0000)' : `Viaggio ${tripId}`);
+    const archivedLocalOnlyCount = allConflictBackups.filter(c => c.conflictType === 'local_only_record' || c.status === 'archived_local_only').length;
+    const isOnline = typeof navigator === 'undefined' ? true : Boolean(navigator.onLine);
+    const lastSyncAt = getLastSyncTimestamp(tripId);
+    const lastSyncError = getLastSyncError(tripId);
+    const lastSyncFailure = getLastSyncFailure(tripId);
+    const hasUnresolvedConflict = conflictItems.length > 0 || items.some(i => i.hasPotentialConflict && !i.isAlreadySynchronized);
 
-  const currentConfig = getTripConfig();
-  const tripTitle = currentConfig?.id === tripId
-    ? (currentConfig?.title || (tripId === '0000' ? 'Viaggio di Nozze (0000)' : `Viaggio ${tripId}`))
-    : (tripId === '0000' ? 'Viaggio di Nozze (0000)' : `Viaggio ${tripId}`);
-  const archivedLocalOnlyCount = allConflictBackups.filter(c => c.conflictType === 'local_only_record' || c.status === 'archived_local_only').length;
-  const isOnline = typeof navigator === 'undefined' ? true : Boolean(navigator.onLine);
-  const lastSyncAt = getLastSyncTimestamp(tripId);
-  const lastSyncError = getLastSyncError(tripId);
-  const hasUnresolvedConflict = conflictItems.length > 0 || items.some(i => i.hasPotentialConflict && !i.isAlreadySynchronized);
+    let userFriendlyStatus: UserFriendlySyncStatus = 'Sincronizzazione attiva';
+    if (!isOnline) {
+      userFriendlyStatus = 'Nessuna connessione';
+    } else if (hasUnresolvedConflict) {
+      userFriendlyStatus = 'Conflitto da verificare';
+    } else if (lastSyncError) {
+      userFriendlyStatus = 'Errore di sincronizzazione';
+    } else if (!isAllowed) {
+      userFriendlyStatus = 'In attesa di attivazione';
+    } else if (items.length > 0) {
+      userFriendlyStatus = 'Modifiche in attesa';
+    } else {
+      userFriendlyStatus = 'Sincronizzazione attiva';
+    }
 
-  let userFriendlyStatus: UserFriendlySyncStatus = 'Sincronizzazione attiva';
-  if (!isOnline) {
-    userFriendlyStatus = 'Nessuna connessione';
-  } else if (hasUnresolvedConflict) {
-    userFriendlyStatus = 'Conflitto da verificare';
-  } else if (lastSyncError) {
-    userFriendlyStatus = 'Errore di sincronizzazione';
-  } else if (!isAllowed) {
-    userFriendlyStatus = 'In attesa di attivazione';
-  } else if (queue.length > 0) {
-    userFriendlyStatus = 'Modifiche in attesa';
-  } else {
-    userFriendlyStatus = 'Sincronizzazione attiva';
-  }
+    const hasActiveErrors = !isOnline || hasUnresolvedConflict || Boolean(lastSyncError);
 
-  const hasActiveErrors = !isOnline || hasUnresolvedConflict || Boolean(lastSyncError);
+    const finalReport: PreActivationSyncReport = {
+      tripId,
+      tripTitle,
+      isCloudWriteAllowed: isAllowed,
+      isQueueFlushAuthorized: isAllowed,
+      pendingCount: items.length,
+      pendingByType,
+      conflictsCount: conflictItems.length,
+      conflictsByType,
+      archivedLocalOnlyCount,
+      isOnline,
+      lastSyncAt,
+      lastSyncError,
+      lastSyncFailure,
+      userFriendlyStatus,
+      hasActiveErrors,
+      items,
+      conflictItems
+    };
 
-  return {
-    tripId,
-    tripTitle,
-    isCloudWriteAllowed: isAllowed,
-    isQueueFlushAuthorized: isAllowed,
-    pendingCount: queue.length,
-    pendingByType,
-    conflictsCount: conflictItems.length,
-    conflictsByType,
-    archivedLocalOnlyCount,
-    isOnline,
-    lastSyncAt,
-    lastSyncError,
-    userFriendlyStatus,
-    hasActiveErrors,
-    items,
-    conflictItems
+    syncReportCache = { tripId, report: finalReport, timestamp: Date.now() };
+    return finalReport;
   };
+
+  inFlightSyncReportTripId = tripId;
+  inFlightSyncReportPromise = runCalculation().finally(() => {
+    inFlightSyncReportPromise = null;
+    inFlightSyncReportTripId = null;
+  });
+
+  return inFlightSyncReportPromise;
 }
 
 let activeSyncService: SyncService | null = null;
@@ -884,7 +996,10 @@ if (typeof window !== 'undefined') {
     getLastSyncTimestamp,
     setLastSyncTimestamp,
     getLastSyncError,
-    setLastSyncError
+    setLastSyncError,
+    getLastSyncFailure,
+    setLastSyncFailure,
+    invalidateSyncReportCache
   };
 }
 
@@ -2060,6 +2175,26 @@ export class SyncService {
         }
       }
 
+      // Controllo preventivo tombstone già allineato (P0 - Requisito 8)
+      if ((collectionName === 'settings' || (typeof data?.id === 'string' && data.id.startsWith('tombstone_'))) && this.canWriteToCloud()) {
+        try {
+          const { getDoc } = await import('firebase/firestore');
+          const serverSnap = await getDoc(docRef);
+          if (serverSnap && serverSnap.exists()) {
+            const comp = compareCandidateWithRemote('settings', this.tripId, data, serverSnap.data());
+            if (comp.isEquivalent) {
+              console.log(`[SyncService] Tombstone ${data.id} già presente ed allineato su Firestore: rimozione sicura dalla coda.`);
+              assertAuthorized();
+              await this.removePendingPushFromStore(collectionName, data.id, { action, data, mutationId: options.mutationId });
+              invalidateSyncReportCache();
+              return;
+            }
+          }
+        } catch (tsCheckErr) {
+          console.warn(`[SyncService] Verifica preventiva tombstone ${data.id} fallita:`, tsCheckErr);
+        }
+      }
+
       // Rilevamento e risoluzione conflitti (P0): verifica se il server possiede una versione più recente
       if (this.canWriteToCloud()) {
         try {
@@ -2291,16 +2426,51 @@ export class SyncService {
             const batch = writeBatch(db);
             batch.set(privDocRef, cleanPrivate, { merge: true });
             batch.set(docRef, cleanPublic, { merge: true });
-            await batch.commit();
+            try {
+              await batch.commit();
+            } catch (batchErr: any) {
+              const isPerm = batchErr?.code === 'permission-denied' || batchErr?.message?.includes('Missing or insufficient permissions');
+              setLastSyncFailure(this.tripId, {
+                entityType,
+                dataId: data.id,
+                phase: 'batch_credentials_public',
+                errorMessage: batchErr?.message || String(batchErr),
+                isPermissionError: isPerm,
+                batchIndistinguishable: true
+              });
+              throw batchErr;
+            }
           } else {
             // Fallback verificabile e sicuro per ambienti privi di writeBatch:
             // Scrivi cassaforte prima del documento pubblico; se il documento pubblico fallisce, rilancia per mantenere in coda
             assertAuthorized();
-            await safeSet(privDocRef, cleanPrivate, { merge: true });
+            try {
+              await safeSet(privDocRef, cleanPrivate, { merge: true });
+            } catch (privErr: any) {
+              const isPerm = privErr?.code === 'permission-denied' || privErr?.message?.includes('Missing or insufficient permissions');
+              setLastSyncFailure(this.tripId, {
+                entityType: 'private_credentials',
+                dataId: vaultId,
+                phase: 'batch_credentials_public',
+                errorMessage: privErr?.message || String(privErr),
+                isPermissionError: isPerm,
+                batchIndistinguishable: false
+              });
+              throw privErr;
+            }
             try {
               assertAuthorized();
               await safeSet(docRef, cleanPublic, { merge: true });
-            } catch (pubErr) {
+            } catch (pubErr: any) {
+              const isPerm = pubErr?.code === 'permission-denied' || pubErr?.message?.includes('Missing or insufficient permissions');
+              setLastSyncFailure(this.tripId, {
+                entityType,
+                dataId: data.id,
+                phase: 'public_document',
+                errorMessage: pubErr?.message || String(pubErr),
+                isPermissionError: isPerm,
+                batchIndistinguishable: false
+              });
               console.error(`[SyncService] Fallimento scrittura documento pubblico dopo cassaforte per ${collectionName}/${data.id}: rilancio per conservare in coda.`, pubErr);
               throw pubErr;
             }
@@ -2308,7 +2478,20 @@ export class SyncService {
         } else {
           // Modifica SOLO pubblica: NON tocca la cassaforte private_credentials
           const cleanPublic = this.cleanUndefinedValues(publicDoc);
-          await safeSet(docRef, cleanPublic, { merge: true });
+          try {
+            await safeSet(docRef, cleanPublic, { merge: true });
+          } catch (pubErr: any) {
+            const isPerm = pubErr?.code === 'permission-denied' || pubErr?.message?.includes('Missing or insufficient permissions');
+            setLastSyncFailure(this.tripId, {
+              entityType,
+              dataId: data.id,
+              phase: 'public_document',
+              errorMessage: pubErr?.message || String(pubErr),
+              isPermissionError: isPerm,
+              batchIndistinguishable: false
+            });
+            throw pubErr;
+          }
         }
       } else {
         if (collectionName === 'settings' && typeof payloadToSync?.id === 'string' && payloadToSync.id.startsWith('tombstone_') && initiatingUid && !auth?.currentUser?.isAnonymous) {
@@ -2321,7 +2504,20 @@ export class SyncService {
           };
         }
         const cleanPayload = this.cleanUndefinedValues(stampPublicDocument(collectionName, payloadToSync));
-        await safeSet(docRef, cleanPayload, { merge: true });
+        try {
+          await safeSet(docRef, cleanPayload, { merge: true });
+        } catch (settingsErr: any) {
+          const isPerm = settingsErr?.code === 'permission-denied' || settingsErr?.message?.includes('Missing or insufficient permissions');
+          setLastSyncFailure(this.tripId, {
+            entityType: 'settings',
+            dataId: data?.id,
+            phase: 'tombstone_setting',
+            errorMessage: settingsErr?.message || String(settingsErr),
+            isPermissionError: isPerm,
+            batchIndistinguishable: false
+          });
+          throw settingsErr;
+        }
       }
       if (entityType === 'settings' && typeof data?.id === 'string' && data.id.startsWith('tombstone_')) {
         await idbPut(STORES.SETTINGS, { ...data, value: { ...(payloadToSync.value || data.value || {}), pending: false } }).catch(() => {});
@@ -2332,10 +2528,22 @@ export class SyncService {
       await this.removePendingPushFromStore(collectionName, data.id, { action, data, mutationId: options.mutationId });
       setLastSyncTimestamp(this.tripId, Date.now());
       setLastSyncError(this.tripId, null);
+      setLastSyncFailure(this.tripId, null);
+      invalidateSyncReportCache();
       this.emitSyncStatus();
     } catch (pushErr: any) {
       const errMsg = pushErr?.message || String(pushErr);
+      const isPerm = errMsg.includes('Missing or insufficient permissions') || pushErr?.code === 'permission-denied';
       setLastSyncError(this.tripId, errMsg);
+      if (!getLastSyncFailure(this.tripId)) {
+        setLastSyncFailure(this.tripId, {
+          entityType,
+          dataId: data?.id,
+          phase: 'generic',
+          errorMessage: errMsg,
+          isPermissionError: isPerm
+        });
+      }
       this.emitSyncStatus();
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('roadbook_cloud_sync_error', {
