@@ -8,6 +8,7 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import SwipeToDelete from '../../components/common/SwipeToDelete';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { formatDateIT } from '../../utils/tripDates';
+import { openAttachmentInNewTab } from '../../utils/fileAttachment';
 import {
   openDriveUrlSafely,
   getGooglePickerConfigStatus,
@@ -164,6 +165,11 @@ export default function DocumentiView({ onBack, initialOpenDriveModal = false }:
 
   useEffect(() => {
     loadDocs();
+    const handleDataMutated = () => {
+      loadDocs();
+    };
+    window.addEventListener('roadbook_data_mutated', handleDataMutated);
+    return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
   }, [loadDocs]);
 
   const handleSelectPresetClick = (preset: CategoryPreset) => {
@@ -235,14 +241,24 @@ export default function DocumentiView({ onBack, initialOpenDriveModal = false }:
 
   const [showEmptyPlaceholders, setShowEmptyPlaceholders] = useState(true);
 
-  // Identifica i segnaposto predefiniti senza allegati
-  const emptyPlaceholdersCount = documents.filter(d => (!d.attachments || d.attachments.length === 0) && d.id.startsWith('doc_')).length;
+  // Un documento è un segnaposto vuoto solo se privo sia di allegati che di link Drive, validità, scadenza o descrizione
+  const isDocEmptyPlaceholder = (d: TravelDocument) => {
+    const hasAttachments = Boolean(d.attachments && d.attachments.length > 0);
+    const hasDrive = Boolean(d.driveUrl || d.source === 'google_drive');
+    const hasValidity = Boolean(d.validity?.trim());
+    const hasExpiry = Boolean(d.expiresAt?.trim());
+    const hasDesc = Boolean(d.description?.trim());
+    const hasPolicy = Boolean(d.policyNumber?.trim() || d.company?.trim());
+    return !hasAttachments && !hasDrive && !hasValidity && !hasExpiry && !hasDesc && !hasPolicy;
+  };
+
+  const emptyPlaceholdersCount = documents.filter(isDocEmptyPlaceholder).length;
 
   const filteredDocs = documents.filter(d => {
     // Non mostrare frammenti o chunk errati
     if (typeof d.id === 'string' && d.id.startsWith('att_chunk_')) return false;
     if (!d.title?.trim() && !d.category) return false;
-    if (!showEmptyPlaceholders && (!d.attachments || d.attachments.length === 0) && d.id.startsWith('doc_')) {
+    if (!showEmptyPlaceholders && isDocEmptyPlaceholder(d)) {
       return false;
     }
     if (selectedFilter === 'tutti') return true;
@@ -530,6 +546,26 @@ export default function DocumentiView({ onBack, initialOpenDriveModal = false }:
                   <p className="min-w-0 break-words text-xs text-slate-600 dark:text-slate-300 leading-relaxed line-clamp-2 pl-0.5">
                     {doc.description || 'Nessuna descrizione.'}
                   </p>
+
+                  {doc.attachments && doc.attachments.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      {doc.attachments.map((att) => (
+                        <button
+                          key={att.id}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openAttachmentInNewTab(att.dataUrl, att.name || 'documento.pdf');
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-[11px] font-bold cursor-pointer transition-colors active:scale-95"
+                          title="Apri allegato"
+                        >
+                          <span>{att.type === 'pdf' ? '📄' : '🖼️'}</span>
+                          <span className="truncate max-w-[160px]">{att.name || 'Apri allegato'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800 text-[11px] gap-2">
                     <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-medium truncate min-w-0 flex-1">

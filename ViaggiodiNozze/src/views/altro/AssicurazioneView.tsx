@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { TravelDocument } from '../../types';
 import { storageService } from '../../storage/storageService';
 import DocumentValidityModal from '../../components/modals/DocumentValidityModal';
 import { getTripConfig } from '../../utils/tripConfig';
 import { openAttachmentInNewTab } from '../../utils/fileAttachment';
+import { openDriveUrlSafely } from '../../services/googlePickerService';
 
 interface AssicurazioneViewProps {
   onBack: () => void;
@@ -18,21 +19,35 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
   const isLegacyTrip = getTripConfig()?.id === '0000';
   const policyNumber = doc?.policyNumber || (doc as any)?.bookingCode || (isLegacyTrip ? 'EA-2026-NOSTOP' : '');
   
-  const loadDoc = async () => {
+  const loadDoc = useCallback(async () => {
     try {
       setLoading(true);
       const loaded = await storageService.getDocuments();
-      setDoc(loaded.find(d => d.category === 'assicurazione') || null);
+      let found = loaded.find(d => 
+        d.id === 'doc_assicurazione' || 
+        d.category === 'assicurazione' || 
+        d.category?.toLowerCase() === 'polizza' ||
+        (d.title && (d.title.toLowerCase().includes('assicura') || d.title.toLowerCase().includes('polizza')))
+      ) || null;
+      if (!found && isLegacyTrip) {
+        found = (await storageService.getDocumentById('doc_assicurazione')) || null;
+      }
+      setDoc(found);
     } catch (err) {
       console.error('Errore caricamento assicurazione:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [isLegacyTrip]);
 
   useEffect(() => {
     loadDoc();
-  }, []);
+    const handleDataMutated = () => {
+      loadDoc();
+    };
+    window.addEventListener('roadbook_data_mutated', handleDataMutated);
+    return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
+  }, [loadDoc]);
 
   const handleSaveDocument = async (updated: TravelDocument) => {
     try {
@@ -185,6 +200,20 @@ export default function AssicurazioneView({ onBack }: AssicurazioneViewProps) {
                     </button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {doc?.driveUrl && (
+              <div className="pt-3 mt-3 border-t border-slate-100 space-y-1.5">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Documento Google Drive</span>
+                <button
+                  type="button"
+                  onClick={() => openDriveUrlSafely(doc.driveUrl!)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold cursor-pointer transition-colors"
+                >
+                  <span>📁</span>
+                  <span className="truncate max-w-[220px]">Apri polizza su Google Drive ↗</span>
+                </button>
               </div>
             )}
           </div>

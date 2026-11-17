@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import type { TravelDocument } from '../../types';
 import { storageService } from '../../storage/storageService';
+import { openAttachmentInNewTab } from '../../utils/fileAttachment';
 
 interface DocumentiGalleriaViewProps {
   onBack: () => void;
@@ -23,6 +24,11 @@ export default function DocumentiGalleriaView({ onBack }: DocumentiGalleriaViewP
       }
     }
     loadDocs();
+    const handleDataMutated = () => {
+      loadDocs();
+    };
+    window.addEventListener('roadbook_data_mutated', handleDataMutated);
+    return () => window.removeEventListener('roadbook_data_mutated', handleDataMutated);
   }, []);
 
   // Raccogliamo tutti gli allegati con il riferimento al documento genitore
@@ -58,7 +64,11 @@ export default function DocumentiGalleriaView({ onBack }: DocumentiGalleriaViewP
       ) : (
         <div className="grid grid-cols-2 gap-3 px-1">
           {allAttachments.map((file, idx) => (
-            <div key={idx} className="bg-white border border-slate-200/60 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group cursor-pointer relative flex flex-col">
+            <div
+              key={idx}
+              onClick={() => openAttachmentInNewTab(file.dataUrl, file.name)}
+              className="bg-white border border-slate-200/60 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow group cursor-pointer relative flex flex-col active:scale-[0.98]"
+            >
               <div className="aspect-[4/3] bg-slate-100 flex items-center justify-center relative overflow-hidden">
                 {file.type === 'image' ? (
                   <img src={file.dataUrl} alt={file.name} className="object-cover w-full h-full" />
@@ -71,16 +81,20 @@ export default function DocumentiGalleriaView({ onBack }: DocumentiGalleriaViewP
                   </div>
                 )}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <a
-                    href={file.dataUrl}
-                    download={file.name}
-                    className="bg-white/90 text-slate-900 p-2 rounded-full transform scale-90 group-hover:scale-100 transition-transform shadow-lg"
-                    onClick={(e) => e.stopPropagation()}
+                  <button
+                    type="button"
+                    className="bg-white/90 text-slate-900 p-2 rounded-full transform scale-90 group-hover:scale-100 transition-transform shadow-lg cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openAttachmentInNewTab(file.dataUrl, file.name);
+                    }}
+                    title="Visualizza allegato"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
-                  </a>
+                  </button>
                 </div>
               </div>
               <div className="p-3">
