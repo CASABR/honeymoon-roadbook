@@ -16,6 +16,9 @@ on:
         description: 'Digita CONFERMA per autorizzare il deploy reale su GitHub Pages (lascia vuoto se dry_run)'
         required: false
         default: ''
+  push:
+    paths:
+      - '.github/hounigo-deploy-request.json'
 
 permissions:
   contents: read
@@ -30,23 +33,115 @@ jobs:
   build:
     name: Verifica, Compilazione & Pacchetto PWA
     runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.params.outputs.should_deploy }}
+      target_ref: ${{ steps.params.outputs.target_ref }}
+      dry_run: ${{ steps.params.outputs.dry_run }}
+      action_type: ${{ steps.params.outputs.action_type }}
 
     steps:
+      - name: Checkout repository iniziale per lettura configurazione
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: Verifica parametri e blocco di sicurezza
+        id: params
         run: |
           echo "================================================================="
-          echo "VERIFICA SICUREZZA WORKFLOW"
-          echo "Parametri: ref='${{ inputs.ref }}', dry_run='${{ inputs.dry_run }}', confirm='${{ inputs.confirm }}'"
+          echo "VERIFICA SICUREZZA WORKFLOW & SORGENTE EVENTO"
+          echo "Event Name: '${{ github.event_name }}'"
+          echo "Actor: '${{ github.actor }}'"
           echo "================================================================="
-          if [ "${{ inputs.dry_run }}" = "false" ] && [ "${{ inputs.confirm }}" != "CONFERMA" ]; then
-            echo "::error::DEPLOY BLOCCATO: Per effettuare un deploy reale su GitHub Pages devi disattivare la casella dry_run E digitare esattamente CONFERMA."
+
+          TARGET_REF="main"
+          DRY_RUN="true"
+          CONFIRM_VAL=""
+          ACTION_TYPE="dry-run"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TARGET_REF="${{ inputs.ref }}"
+            DRY_RUN="${{ inputs.dry_run }}"
+            CONFIRM_VAL="${{ inputs.confirm }}"
+            if [ "$DRY_RUN" = "false" ]; then
+              ACTION_TYPE="deploy"
+            else
+              ACTION_TYPE="dry-run"
+            fi
+          elif [ "${{ github.event_name }}" = "push" ]; then
+            echo "Rilevata richiesta via file di controllo .github/hounigo-deploy-request.json"
+
+            # 1. Verifica che l'attore sia autorizzato (CASABR o proprietario repo)
+            if [ "${{ github.actor }}" != "CASABR" ] && [ "${{ github.repository_owner }}" != "${{ github.actor }}" ]; then
+              echo "::error::ACCESSO NEGATO: L'attore '${{ github.actor }}' non è autorizzato ad avviare la pipeline."
+              exit 1
+            fi
+
+            REQ_FILE=".github/hounigo-deploy-request.json"
+            if [ ! -f "$REQ_FILE" ]; then
+              echo "::error::FILE MANCANTE: File di richiesta $REQ_FILE non trovato."
+              exit 1
+            fi
+
+            REQ_ACTION=$(jq -r '.action // empty' "$REQ_FILE")
+            REQ_REF=$(jq -r '.ref // empty' "$REQ_FILE")
+            REQ_CONFIRM=$(jq -r '.confirm // empty' "$REQ_FILE")
+            REQ_ID=$(jq -r '.requestId // empty' "$REQ_FILE")
+            REQ_BY=$(jq -r '.requestedBy // empty' "$REQ_FILE")
+
+            echo "Richiesta ricevuta - ID: '$REQ_ID', Azione: '$REQ_ACTION', Ref: '$REQ_REF', By: '$REQ_BY'"
+
+            if [ -z "$REQ_ID" ] || [ -z "$REQ_ACTION" ]; then
+              echo "::error::FORMATO NON VALIDO: requestId e action sono campi obbligatori."
+              exit 1
+            fi
+
+            TARGET_REF="${REQ_REF:-main}"
+
+            if [ "$REQ_ACTION" = "dry-run" ]; then
+              DRY_RUN="true"
+              CONFIRM_VAL=""
+              ACTION_TYPE="dry-run"
+            elif [ "$REQ_ACTION" = "deploy" ] || [ "$REQ_ACTION" = "rollback" ]; then
+              DRY_RUN="false"
+              CONFIRM_VAL="$REQ_CONFIRM"
+              ACTION_TYPE="$REQ_ACTION"
+            else
+              echo "::error::AZIONE NON RICONOSCIUTA: action deve essere 'dry-run', 'deploy' o 'rollback'."
+              exit 1
+            fi
+          else
+            echo "::error::Tipo evento non supportato: ${{ github.event_name }}"
             exit 1
           fi
 
-      - name: Checkout repository (${{ inputs.ref }})
+          echo "Parametri finali determinati:"
+          echo "  Action: $ACTION_TYPE"
+          echo "  Target Ref: $TARGET_REF"
+          echo "  Dry Run: $DRY_RUN"
+          echo "  Confirm: $CONFIRM_VAL"
+
+          # Controllo di sicurezza deploy reale
+          if [ "$DRY_RUN" = "false" ] && [ "$CONFIRM_VAL" != "CONFERMA" ]; then
+            echo "::error::DEPLOY BLOCCATO: Per effettuare un deploy reale su GitHub Pages devi specificare dry_run=false E digitare esattamente CONFERMA."
+            exit 1
+          fi
+
+          SHOULD_DEPLOY="false"
+          if [ "$DRY_RUN" = "false" ] && [ "$CONFIRM_VAL" = "CONFERMA" ]; then
+            SHOULD_DEPLOY="true"
+          fi
+
+          echo "target_ref=$TARGET_REF" >> "$GITHUB_OUTPUT"
+          echo "dry_run=$DRY_RUN" >> "$GITHUB_OUTPUT"
+          echo "confirm=$CONFIRM_VAL" >> "$GITHUB_OUTPUT"
+          echo "should_deploy=$SHOULD_DEPLOY" >> "$GITHUB_OUTPUT"
+          echo "action_type=$ACTION_TYPE" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout target ref (${{ steps.params.outputs.target_ref }})
         uses: actions/checkout@v4
         with:
-          ref: ${{ inputs.ref }}
+          ref: ${{ steps.params.outputs.target_ref }}
           fetch-depth: 0
 
       - name: Setup Node.js 22
@@ -80,20 +175,22 @@ jobs:
         run: npm run build
 
       - name: Notifica completamento prova (Dry Run)
-        if: ${{ inputs.dry_run == true }}
+        if: ${{ steps.params.outputs.should_deploy == 'false' }}
         run: |
           echo "================================================================="
-          echo "PROVA DI COMPILAZIONE COMPLETATA CON SUCCESSO! (DRY-RUN)"
+          echo "PROVA DI COMPILAZIONE COMPLETATA CON SUCCESSO! (DRY-RUN / VERIFICA)"
+          echo "Action: ${{ steps.params.outputs.action_type }}"
+          echo "Ref compilato: ${{ steps.params.outputs.target_ref }}"
           echo "Tutti i controlli lint, build PWA e test di versionamento sono passati."
           echo "MODALITÀ SICURA: Nessun artefatto caricato e nessuna pubblicazione eseguita."
           echo "================================================================="
 
       - name: Configura GitHub Pages
-        if: ${{ inputs.dry_run == false && inputs.confirm == 'CONFERMA' }}
+        if: ${{ steps.params.outputs.should_deploy == 'true' }}
         uses: actions/configure-pages@v5
 
       - name: Prepara e carica artefatto Pages
-        if: ${{ inputs.dry_run == false && inputs.confirm == 'CONFERMA' }}
+        if: ${{ steps.params.outputs.should_deploy == 'true' }}
         uses: actions/upload-pages-artifact@v4
         with:
           path: ViaggiodiNozze/dist
@@ -101,7 +198,7 @@ jobs:
   deploy:
     name: Pubblicazione Nativa su GitHub Pages
     needs: build
-    if: ${{ inputs.dry_run == false && inputs.confirm == 'CONFERMA' }}
+    if: ${{ needs.build.outputs.should_deploy == 'true' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages

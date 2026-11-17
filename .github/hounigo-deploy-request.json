@@ -1,0 +1,10 @@
+{
+  "$schema": "./hounigo-deploy-request.schema.json",
+  "requestId": "req-init-20261117-001",
+  "requestedAt": "2026-11-17T10:30:00Z",
+  "requestedBy": "CASABR",
+  "action": "dry-run",
+  "ref": "main",
+  "confirm": "",
+  "note": "Configurazione iniziale pipeline trigger per richieste da ChatGPT"
+}

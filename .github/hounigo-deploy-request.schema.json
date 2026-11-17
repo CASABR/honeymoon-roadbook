@@ -1,0 +1,43 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "HounigoDeployRequest",
+  "description": "Schema di validazione per le richieste di deploy HOUNIGO via GitHub / ChatGPT",
+  "type": "object",
+  "required": ["requestId", "requestedAt", "requestedBy", "action", "ref"],
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "requestId": {
+      "type": "string",
+      "description": "Identificativo univoco della richiesta (es. deploy-20261117-113000)"
+    },
+    "requestedAt": {
+      "type": "string",
+      "description": "Timestamp ISO 8601 della richiesta"
+    },
+    "requestedBy": {
+      "type": "string",
+      "enum": ["CASABR"],
+      "description": "Username GitHub autorizzato alla richiesta"
+    },
+    "action": {
+      "type": "string",
+      "enum": ["dry-run", "deploy", "rollback"],
+      "description": "Tipo di operazione richiesta"
+    },
+    "ref": {
+      "type": "string",
+      "description": "Branch, tag o commit SHA su cui eseguire la compilazione (default: main)"
+    },
+    "confirm": {
+      "type": "string",
+      "description": "Stringa di sicurezza: deve essere 'CONFERMA' per autorizzare un deploy o rollback reale"
+    },
+    "note": {
+      "type": "string",
+      "description": "Nota opzionale che descrive la motivazione della richiesta"
+    }
+  },
+  "additionalProperties": false
+}
