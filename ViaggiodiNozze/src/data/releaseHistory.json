@@ -4,7 +4,7 @@
     {
       "version": "1.6.11",
       "publishedAt": "2026-11-17",
-      "sourceCommit": "HEAD",
+      "sourceCommit": "ce91afa",
       "changes": [
         "Fase 1 Affidabilita Dati: rilevamento sovrapposizioni basato su intervalli temporali effettivi (nessun falso conflitto per orari diversi nello stesso giorno)",
         "Persistenza sincronizzata e deterministica della scelta 'Mantieni entrambe' (chiavi indipendenti dall'ordine, cache locale e sincronizzazione Cloud)",
