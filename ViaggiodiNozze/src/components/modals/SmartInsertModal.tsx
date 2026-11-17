@@ -146,7 +146,9 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [existingData, setExistingData] = useState<any>(null);
   const [editData, setEditData] = useState<any>({});
-  const [attachedFile, setAttachedFile] = useState<TransportAttachment | null>(null);
+  const [attachedFiles, setAttachedFiles] = useState<TransportAttachment[]>([]);
+  const attachedFile = attachedFiles[0] || null;
+  const setAttachedFile = (val: TransportAttachment | null) => setAttachedFiles(val ? [val] : []);
   const [isProcessingFile, setIsProcessingFile] = useState(false);
   const [importQueue, setImportQueue] = useState<ImportQueueItem[]>([]);
   const [activeQueueId, setActiveQueueId] = useState<string | null>(null);
@@ -344,26 +346,46 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
   if (!isOpen) return null;
 
-  // Caricamento allegato utente (PDF, Immagine o Email .eml)
+  // Caricamento allegato/i utente (PDF, Immagine o Email .eml, anche multipli)
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const selectedFiles = e.target.files ? Array.from(e.target.files) : [];
+    if (selectedFiles.length === 0) return;
 
     setIsProcessingFile(true);
     setErrorMsg('');
     try {
-      const isEml = file.name.toLowerCase().endsWith('.eml') || file.type === 'message/rfc822';
-      if (isEml) {
-        const rawText = await file.text();
-        const parsed = parseEmlContent(rawText);
-        if (!parsed.trim()) {
-          throw new Error('Il file .eml selezionato non contiene testo leggibile.');
+      const newAttachments: TransportAttachment[] = [];
+      const emlChunks: string[] = [];
+
+      for (const file of selectedFiles) {
+        const isEml = file.name.toLowerCase().endsWith('.eml') || file.type === 'message/rfc822';
+        if (isEml) {
+          const rawText = await file.text();
+          const parsed = parseEmlContent(rawText);
+          if (!parsed.trim()) {
+            throw new Error(`Il file "${file.name}" non contiene testo leggibile.`);
+          }
+          emlChunks.push(parsed);
+        } else {
+          const processed = await processFileForAttachment(file);
+          newAttachments.push(processed);
         }
-        setText(prev => (prev.trim() ? `${prev}\n\n${parsed}` : parsed));
-        setAttachedFile(null);
-      } else {
-        const processed = await processFileForAttachment(file);
-        setAttachedFile(processed);
+      }
+
+      if (emlChunks.length > 0) {
+        const combinedEml = emlChunks.join('\n\n');
+        setText(prev => (prev.trim() ? `${prev}\n\n${combinedEml}` : combinedEml));
+      }
+
+      if (newAttachments.length > 0) {
+        setAttachedFiles(prev => {
+          const merged = [...prev];
+          for (const att of newAttachments) {
+            const alreadyAdded = merged.some(m => m.name === att.name && m.size === att.size);
+            if (!alreadyAdded) merged.push(att);
+          }
+          return merged.slice(0, 6);
+        });
       }
     } catch (err: any) {
       console.error('Errore elaborazione file:', err);
@@ -372,6 +394,73 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       setIsProcessingFile(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  // Chiave deterministica di deduplicazione per evitare doppioni nello stesso batch multi-file
+  const getEntityDedupKey = (entity: ExtractedEntity): string => {
+    const d: any = entity;
+    const cat = String(entity.type || '').toLowerCase();
+    const code = String(d.bookingCode || '').trim().toLowerCase();
+    const title = String(d.name || d.title || d.titolo || d.nome || `${d.departureLocation || ''}->${d.arrivalLocation || ''}`).trim().toLowerCase();
+    const date = String(d.checkIn || d.date || d.data || '').trim();
+    const time = String(d.time || d.orario || d.departureTime || d.checkInTime || '').trim();
+    if (code) return `${cat}_code_${code}_${date}`;
+    return `${cat}_${title}_${date}_${time}`;
+  };
+
+  // Ricerca di record già presenti nell'itinerario per evitare duplicazioni
+  const findExistingForEntity = async (entity: ExtractedEntity): Promise<any | null> => {
+    const d: any = entity;
+    const cat = entity.type;
+    if (cat === 'alloggio') {
+      const title = (d.name || '').trim().toLowerCase();
+      const code = (d.bookingCode || '').trim().toLowerCase();
+      const dateStart = d.checkIn || '';
+      const all = await storageService.getAccommodations();
+      return all.find(a => (
+        (code && a.bookingCode && a.bookingCode.trim().toLowerCase() === code) ||
+        (title && a.name.toLowerCase().includes(title) && a.checkIn === dateStart)
+      )) || null;
+    }
+    if (cat === 'attivita') {
+      const title = (d.title || '').trim().toLowerCase();
+      const code = (d.bookingCode || '').trim().toLowerCase();
+      const dateStart = d.date || '';
+      const all = await storageService.getActivities();
+      return all.find(a => (
+        (code && a.qrCode && a.qrCode.trim().toLowerCase() === code) ||
+        (title && a.title.toLowerCase().includes(title) && a.date === dateStart)
+      )) || null;
+    }
+    if (cat === 'ristorante') {
+      const title = (d.name || '').trim().toLowerCase();
+      const dateStart = d.date || '';
+      const all = await storageService.getRistoranti();
+      return all.find(a => title && a.nome.toLowerCase().includes(title) && (a.data === dateStart || a.date === dateStart)) || null;
+    }
+    if (cat === 'tappa') {
+      const title = (d.titolo || '').trim().toLowerCase();
+      const dateStart = d.data || '';
+      const all = await storageService.getTappe();
+      return all.find(a => title && a.titolo.toLowerCase().includes(title) && (a.data === dateStart || a.date === dateStart)) || null;
+    }
+    if (cat === 'trasporto') {
+      const code = (d.bookingCode || '').trim().toLowerCase();
+      const dateStart = d.date || '';
+      const depLoc = (d.departureLocation || '').trim().toLowerCase();
+      const all = await storageService.getTransports();
+      return all.find(a => (
+        (code && a.bookingCode && a.bookingCode.trim().toLowerCase() === code) ||
+        (dateStart && depLoc && a.date === dateStart && a.departureLocation?.toLowerCase() === depLoc)
+      )) || null;
+    }
+    if (cat === 'shopping') {
+      const title = (d.nome || '').trim().toLowerCase();
+      const dateStart = d.data || '';
+      const all = await storageService.getShopping();
+      return all.find(s => title && s.nome.toLowerCase().includes(title) && (s.data === dateStart || s.date === dateStart)) || null;
+    }
+    return null;
   };
 
   // Prepara la scheda di revisione per una data entità estratta
@@ -598,8 +687,65 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
     let res: any = null;
 
-    // Se l'utente ha allegato un file, usa l'estrazione visiva/documentale multimodale
-    if (attachedFile) {
+    if (attachedFiles.length > 1 && inputMode === 'import') {
+      const collectedBatch: Array<{ entity: ExtractedEntity; attachment: TransportAttachment | null }> = [];
+      const seenKeys = new Set<string>();
+      let lastFileError = '';
+
+      for (const att of attachedFiles) {
+        const fileRes = await extractFromAttachment(att, contextStr);
+        if (fileRes.success) {
+          const candidates = (fileRes.multipleItems && fileRes.multipleItems.length > 0)
+            ? fileRes.multipleItems
+            : (fileRes.data && fileRes.entityType !== 'info' ? [fileRes.data] : []);
+          for (const ent of candidates) {
+            const key = getEntityDedupKey(ent);
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              collectedBatch.push({ entity: ent, attachment: att });
+            }
+          }
+        } else if (fileRes.error) {
+          lastFileError = fileRes.error;
+        }
+      }
+
+      if (currentUserText) {
+        const textRes = await extractFromText(currentUserText, contextStr, 'import');
+        if (textRes.success) {
+          const textCandidates = (textRes.multipleItems && textRes.multipleItems.length > 0)
+            ? textRes.multipleItems
+            : (textRes.data && textRes.entityType !== 'info' ? [textRes.data] : []);
+          for (const ent of textCandidates) {
+            const key = getEntityDedupKey(ent);
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              collectedBatch.push({ entity: ent, attachment: null });
+            }
+          }
+        }
+      }
+
+      if (collectedBatch.length > 1) {
+        setImportQueue(collectedBatch.map((item, index) => ({
+          id: `queue_${Date.now()}_${index}`,
+          entity: item.entity,
+          status: 'pending',
+          attachment: item.attachment
+        })));
+        setActiveQueueId(null);
+        setStep('queue');
+        return;
+      }
+
+      if (collectedBatch.length === 1) {
+        await prepareReviewForEntity(collectedBatch[0].entity, collectedBatch[0].attachment);
+        return;
+      }
+
+      res = { success: false, error: lastFileError || 'Nessuna prenotazione valida trovata nei file allegati.' };
+    } else if (attachedFile) {
+      // Se l'utente ha allegato un file, usa l'estrazione visiva/documentale multimodale
       res = await extractFromAttachment(attachedFile, contextStr);
     } else {
       res = await extractFromText(currentUserText, contextStr, inputMode);
@@ -623,15 +769,28 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
       // Se sono state rilevate più prenotazioni distinte (es. Volo andata + ritorno)
       if (res.multipleItems && res.multipleItems.length > 1) {
-        setImportQueue(res.multipleItems.map((entity: ExtractedEntity, index: number) => ({
-          id: `queue_${Date.now()}_${index}`,
-          entity,
-          status: 'pending',
-          attachment: attachedFile
-        })));
-        setActiveQueueId(null);
-        setStep('queue');
-        return;
+        const seenKeys = new Set<string>();
+        const dedupedItems = res.multipleItems.filter((entity: ExtractedEntity) => {
+          const k = getEntityDedupKey(entity);
+          if (seenKeys.has(k)) return false;
+          seenKeys.add(k);
+          return true;
+        });
+        if (dedupedItems.length > 1) {
+          setImportQueue(dedupedItems.map((entity: ExtractedEntity, index: number) => ({
+            id: `queue_${Date.now()}_${index}`,
+            entity,
+            status: 'pending',
+            attachment: attachedFile
+          })));
+          setActiveQueueId(null);
+          setStep('queue');
+          return;
+        }
+        if (dedupedItems.length === 1) {
+          await prepareReviewForEntity(dedupedItems[0], attachedFile);
+          return;
+        }
       }
 
       // Singola prenotazione estratta
@@ -934,11 +1093,33 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
   const saveEntityDirectly = async (entity: ExtractedEntity, att?: TransportAttachment | null) => {
     const cat = entity.type;
     const now = Date.now();
+    const existingItem = await findExistingForEntity(entity);
+    const mergeAtts = (existingAtts: any[] = []) => {
+      if (!att) return existingAtts;
+      const filtered = existingAtts.filter((a: any) => a.id !== att.id && !(a.name === att.name && a.size === att.size));
+      return [...filtered, att];
+    };
 
     if (cat === 'tappa') {
       const t = entity as ExtractedTappa;
       const dateStart = t.data;
       const orario = t.orario || t.time;
+      if (existingItem) {
+        await storageService.updateTappa(existingItem.id, {
+          titolo: t.titolo || existingItem.titolo,
+          data: dateStart || existingItem.data,
+          date: dateStart || existingItem.date,
+          orario: orario || existingItem.orario,
+          time: orario || existingItem.time,
+          indirizzo: t.indirizzo || existingItem.indirizzo,
+          mapsUrl: t.mapsUrl || existingItem.mapsUrl,
+          sottocategoria: t.sottocategoria || existingItem.sottocategoria || 'Tappa',
+          nota: t.nota || existingItem.nota
+        });
+        notifyDataChanged('tappe', 'save', { id: existingItem.id, titolo: t.titolo || existingItem.titolo });
+        window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'update', entityType: 'tappe', data: { id: existingItem.id } } }));
+        return;
+      }
       const newTappa = {
         titolo: t.titolo || 'Tappa',
         data: dateStart,
@@ -957,96 +1138,129 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'tappe', data: newTappa } }));
     } else if (cat === 'attivita') {
       const act = entity as any;
-      const actDate = act.date || '';
-      const newAct = {
-        id: generateId('attivita'),
-        dayId: actDate ? `day_${actDate}` : 'day_1',
+      const actDate = act.date || existingItem?.date || '';
+      const updatedOrNewAct = {
+        ...(existingItem || {}),
+        id: existingItem?.id || generateId('attivita'),
+        dayId: actDate ? `day_${actDate}` : (existingItem?.dayId || 'day_1'),
         date: actDate,
-        title: act.title,
-        location: act.location || '',
-        cost: act.cost || '',
-        time: act.time || '',
-        orarioRitrovo: (act.orarioRitrovo || '').trim() || undefined,
-        platform: (act.platform || '').trim() || undefined,
+        title: act.title || existingItem?.title,
+        location: act.location || existingItem?.location || '',
+        cost: act.cost || existingItem?.cost || '',
+        time: act.time || existingItem?.time || '',
+        orarioRitrovo: (act.orarioRitrovo || '').trim() || existingItem?.orarioRitrovo,
+        platform: (act.platform || '').trim() || existingItem?.platform,
         openingHours: (act.openingTime || act.closingTime)
-          ? buildOpeningHoursFromTimes(act.openingTime || '', act.closingTime || '', undefined, actDate, 'verified')
-          : undefined,
-        timeStatus: act.time ? 'confermato' : 'non_specificato',
-        qrCode: act.bookingCode || '',
-        category: 'visita',
-        status: 'prenotato',
-        notes: act.notes || '',
-        attachments: att ? [att] : [],
-        createdAt: now,
+          ? buildOpeningHoursFromTimes(act.openingTime || '', act.closingTime || '', existingItem?.openingHours, actDate, 'verified')
+          : existingItem?.openingHours,
+        timeStatus: (act.time || existingItem?.time) ? 'confermato' : 'non_specificato',
+        qrCode: act.bookingCode || existingItem?.qrCode || '',
+        category: existingItem?.category || 'visita',
+        status: existingItem?.status || 'prenotato',
+        notes: act.notes || existingItem?.notes || '',
+        attachments: mergeAtts(existingItem?.attachments),
+        createdAt: existingItem?.createdAt || now,
         updatedAt: now
       };
-      await storageService.saveActivity(newAct as any);
-      notifyDataChanged('attivita', 'save', newAct);
-      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'attivita', data: newAct } }));
+      await storageService.saveActivity(updatedOrNewAct as any);
+      notifyDataChanged('attivita', 'save', updatedOrNewAct);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: existingItem ? 'update' : 'create', entityType: 'attivita', data: updatedOrNewAct } }));
     } else if (cat === 'alloggio') {
       const a = entity as any;
-      const newAlloggio = {
-        id: generateId('alloggio'),
-        name: a.name,
-        location: a.location || '',
-        checkIn: a.checkIn || '',
-        checkOut: a.checkOut || a.checkIn || '',
-        checkInTime: a.checkInTime || '',
-        address: a.address || a.location || '',
-        cost: a.cost || '',
-        bookingCode: a.bookingCode || '',
-        notes: a.notes || '',
-        status: 'prenotato',
-        attachments: att ? [att] : [],
-        createdAt: now,
+      const updatedOrNewAlloggio = {
+        ...(existingItem || {}),
+        id: existingItem?.id || generateId('alloggio'),
+        name: a.name || existingItem?.name,
+        location: a.location || existingItem?.location || '',
+        checkIn: a.checkIn || existingItem?.checkIn || '',
+        checkOut: a.checkOut || existingItem?.checkOut || a.checkIn || '',
+        checkInTime: a.checkInTime || existingItem?.checkInTime || '',
+        address: a.address || a.location || existingItem?.address || '',
+        cost: a.cost || existingItem?.cost || '',
+        bookingCode: a.bookingCode || existingItem?.bookingCode || '',
+        notes: a.notes || existingItem?.notes || '',
+        status: existingItem?.status || 'prenotato',
+        attachments: mergeAtts(existingItem?.attachments),
+        createdAt: existingItem?.createdAt || now,
         updatedAt: now
       };
-      await storageService.saveAccommodation(newAlloggio as any);
-      notifyDataChanged('alloggi', 'save', newAlloggio);
-      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'alloggi', data: newAlloggio } }));
+      await storageService.saveAccommodation(updatedOrNewAlloggio as any);
+      notifyDataChanged('alloggi', 'save', updatedOrNewAlloggio);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: existingItem ? 'update' : 'create', entityType: 'alloggi', data: updatedOrNewAlloggio } }));
     } else if (cat === 'ristorante') {
       const r = entity as any;
-      const newRist = {
-        id: generateId('rist'),
-        nome: r.name,
-        data: r.date || '',
-        date: r.date || '',
-        dayId: r.date ? `day_${r.date}` : 'day_1',
-        indirizzo: r.location || '',
-        budget: r.cost || '',
-        orario: r.time || '',
-        timeStatus: r.time ? 'confermato' : 'non_specificato',
-        nota: r.notes || '',
-        attachments: att ? [att] : [],
-        createdAt: now,
+      const rDate = r.date || existingItem?.date || existingItem?.data || '';
+      const updatedOrNewRist = {
+        ...(existingItem || {}),
+        id: existingItem?.id || generateId('rist'),
+        nome: r.name || existingItem?.nome,
+        data: rDate,
+        date: rDate,
+        dayId: rDate ? `day_${rDate}` : (existingItem?.dayId || 'day_1'),
+        indirizzo: r.location || existingItem?.indirizzo || '',
+        budget: r.cost || existingItem?.budget || '',
+        orario: r.time || existingItem?.orario || '',
+        timeStatus: (r.time || existingItem?.orario) ? 'confermato' : 'non_specificato',
+        nota: r.notes || existingItem?.nota || '',
+        attachments: mergeAtts(existingItem?.attachments),
+        createdAt: existingItem?.createdAt || now,
         updatedAt: now
       };
-      await storageService.saveRistorante(newRist as any);
-      notifyDataChanged('ristoranti', 'save', newRist);
-      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'ristoranti', data: newRist } }));
+      if (existingItem) {
+        await storageService.updateRistorante(existingItem.id, updatedOrNewRist as any);
+      } else {
+        await storageService.saveRistorante(updatedOrNewRist as any);
+      }
+      notifyDataChanged('ristoranti', 'save', updatedOrNewRist);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: existingItem ? 'update' : 'create', entityType: 'ristoranti', data: updatedOrNewRist } }));
     } else if (cat === 'trasporto') {
       const tr = entity as any;
-      const newTr = {
-        id: generateId('trasporto'),
-        type: (tr.tipoTrasporto || 'volo') as any,
-        carrier: tr.carrier || '',
-        date: tr.date || '',
-        arrivalDate: tr.arrivalDate || tr.date || '',
-        departureLocation: tr.departureLocation || '',
-        arrivalLocation: tr.arrivalLocation || '',
-        cost: tr.cost || '',
-        departureTime: tr.departureTime || '',
-        arrivalTime: tr.arrivalTime || '',
-        bookingCode: tr.bookingCode || '',
-        notes: tr.notes || '',
-        status: 'prenotato',
-        attachments: att ? [att] : [],
-        createdAt: now,
+      const trDate = tr.date || existingItem?.date || '';
+      const updatedOrNewTr = {
+        ...(existingItem || {}),
+        id: existingItem?.id || generateId('trasporto'),
+        type: (tr.tipoTrasporto || existingItem?.type || 'volo') as any,
+        carrier: tr.carrier || existingItem?.carrier || '',
+        date: trDate,
+        arrivalDate: tr.arrivalDate || existingItem?.arrivalDate || trDate,
+        departureLocation: tr.departureLocation || existingItem?.departureLocation || '',
+        arrivalLocation: tr.arrivalLocation || existingItem?.arrivalLocation || '',
+        cost: tr.cost || existingItem?.cost || '',
+        departureTime: tr.departureTime || existingItem?.departureTime || '',
+        arrivalTime: tr.arrivalTime || existingItem?.arrivalTime || '',
+        bookingCode: tr.bookingCode || existingItem?.bookingCode || '',
+        notes: tr.notes || existingItem?.notes || '',
+        status: existingItem?.status || 'prenotato',
+        attachments: mergeAtts(existingItem?.attachments),
+        createdAt: existingItem?.createdAt || now,
         updatedAt: now
       };
-      await storageService.saveTransport(newTr as any);
-      notifyDataChanged('trasporti', 'save', newTr);
-      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: 'create', entityType: 'trasporti', data: newTr } }));
+      await storageService.saveTransport(updatedOrNewTr as any);
+      notifyDataChanged('trasporti', 'save', updatedOrNewTr);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: existingItem ? 'update' : 'create', entityType: 'trasporti', data: updatedOrNewTr } }));
+    } else if (cat === 'shopping') {
+      const s = entity as any;
+      const sDate = s.data || existingItem?.data || existingItem?.date || '';
+      const updatedOrNewShop = {
+        ...(existingItem || {}),
+        id: existingItem?.id || generateId('shop'),
+        nome: s.nome || existingItem?.nome,
+        data: sDate,
+        date: sDate,
+        dayId: sDate ? `day_${sDate}` : (existingItem?.dayId || 'day_1'),
+        indirizzo: s.indirizzo || existingItem?.indirizzo || '',
+        budget: s.budget || existingItem?.budget || '',
+        cost: s.budget || existingItem?.cost || '',
+        orario: s.orario || existingItem?.orario || '',
+        sottocategoria: s.sottocategoria || existingItem?.sottocategoria || 'Altro',
+        nota: s.nota || existingItem?.nota || '',
+        attachments: mergeAtts(existingItem?.attachments),
+        createdAt: existingItem?.createdAt || now,
+        updatedAt: now
+      };
+      await storageService.saveShopping(updatedOrNewShop as any);
+      notifyDataChanged('shopping', 'save', updatedOrNewShop);
+      window.dispatchEvent(new CustomEvent('roadbook_data_mutated', { detail: { action: existingItem ? 'update' : 'create', entityType: 'shopping', data: updatedOrNewShop } }));
     }
   };
 
@@ -1088,9 +1302,10 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
   const modalContent = (
     <>
-      {/* Hidden file input per 'Allega prenotazione' */}
+      {/* Hidden file input per 'Allega prenotazione' (supporta selezione multipla di PDF e screenshot) */}
       <input
         type="file"
+        multiple
         ref={fileInputRef}
         onChange={handleFileSelect}
         accept={`${IMAGE_OR_PDF_FILE_ACCEPT},.eml,message/rfc822`}
@@ -1254,38 +1469,42 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                 </div>
               )}
 
-              {/* Box Allegato Caricato (se presente) */}
-              {attachedFile && (
-                <div className="p-3 bg-[#F8F7F3] border border-slate-200 rounded-2xl flex items-center justify-between gap-3 shrink-0">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-[#FF6B5F]/15 text-[#FF6B5F] flex items-center justify-center text-lg shrink-0">
-                      {attachedFile.type === 'pdf' ? '📄' : '🖼️'}
+              {/* Box Allegati Caricati (uno o più PDF / screenshot) */}
+              {attachedFiles.length > 0 && (
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-0.5 shrink-0 custom-scrollbar">
+                  {attachedFiles.map((fileItem, idx) => (
+                    <div key={`${fileItem.name}_${idx}`} className="p-2.5 bg-[#F8F7F3] border border-slate-200 rounded-2xl flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-8 h-8 rounded-xl bg-[#FF6B5F]/15 text-[#FF6B5F] flex items-center justify-center text-base shrink-0">
+                          {fileItem.type === 'pdf' ? '📄' : '🖼️'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-[#172033] text-xs font-bold truncate">{fileItem.name}</p>
+                          <p className="text-slate-500 text-[10px]">{formatFileSize(fileItem.size)} • Pronto per analisi</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {fileItem.type === 'pdf' && (
+                          <button
+                            type="button"
+                            onClick={() => openAttachmentInNewTab(fileItem.dataUrl, fileItem.name)}
+                            className="px-2 py-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 rounded-lg transition"
+                            title="Anteprima PDF"
+                          >
+                            Apri ↗
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setAttachedFiles(prev => prev.filter((_, i) => i !== idx))}
+                          className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center text-xs font-bold transition cursor-pointer"
+                          title="Rimuovi allegato"
+                        >
+                          ✕
+                        </button>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-[#172033] text-xs font-bold truncate">{attachedFile.name}</p>
-                      <p className="text-slate-500 text-[10px]">{formatFileSize(attachedFile.size)} • Pronto per analisi</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {attachedFile.type === 'pdf' && (
-                      <button
-                        type="button"
-                        onClick={() => openAttachmentInNewTab(attachedFile.dataUrl, attachedFile.name)}
-                        className="px-2 py-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 rounded-lg transition"
-                        title="Anteprima PDF"
-                      >
-                        Apri ↗
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setAttachedFile(null)}
-                      className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 flex items-center justify-center text-xs font-bold transition cursor-pointer"
-                      title="Rimuovi allegato"
-                    >
-                      ✕
-                    </button>
-                  </div>
+                  ))}
                 </div>
               )}
 
@@ -1360,14 +1579,14 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   <svg className="w-4 h-4 text-[#FF6B5F] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                   </svg>
-                  <span className="truncate">{attachedFile ? 'Sostituisci File' : '📎 Allega prenotazione'}</span>
+                  <span className="truncate">{attachedFiles.length > 0 ? `+ Aggiungi file (${attachedFiles.length})` : '📎 Allega prenotazione'}</span>
                 </button>
 
                 {inputMode === 'import' && (
                   <button
                     type="button"
                     onClick={handleExtract}
-                    disabled={!EXTERNAL_AI_ENABLED || (!text.trim() && !attachedFile)}
+                    disabled={!EXTERNAL_AI_ENABLED || (!text.trim() && attachedFiles.length === 0)}
                     className="flex-1 py-3 px-4 rounded-xl font-bold bg-[#FF6B5F] text-white shadow-md shadow-rose-500/20 hover:bg-[#e85c50] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1399,7 +1618,11 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
               <div className="text-center">
                 <p className="font-bold text-[#172033] text-sm">L'AI sta analizzando la prenotazione...</p>
                 <p className="text-xs text-slate-500 mt-1">
-                  {attachedFile ? `Lettura del file "${attachedFile.name}"` : 'Strutturazione campi in corso'}
+                  {attachedFiles.length > 1
+                    ? `Lettura di ${attachedFiles.length} file (${attachedFiles.map(f => f.name).join(', ')})`
+                    : attachedFile
+                      ? `Lettura del file "${attachedFile.name}"`
+                      : 'Strutturazione campi in corso'}
                 </p>
               </div>
             </div>

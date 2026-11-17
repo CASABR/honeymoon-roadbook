@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.13",
+      "publishedAt": "2026-11-17",
+      "sourceCommit": "3b4c085",
+      "changes": [
+        "HouniAI: importazione multipla simultanea di PDF, screenshot e conferme con supporto fino a 6 file",
+        "Deduplicazione intelligente nel batch e anteprima sequenziale con salvataggio confermato per card",
+        "Supporto unificato categorie con integrazione acquisti shopping e arricchimento allegati"
+      ],
+      "publishedAtIso": "2026-11-17T15:10:00.000Z"
+    },
+    {
       "version": "1.6.12",
       "publishedAt": "2026-11-17",
       "sourceCommit": "8a8bb69",
