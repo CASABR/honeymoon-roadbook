@@ -4,6 +4,7 @@
     {
       "version": "1.6.19",
       "publishedAt": "2026-11-17",
+      "sourceCommit": "5b62e11",
       "changes": [
         "Sincronizzazione Firestore P0: tracciamento dettagliato fasi di errore per batch atomico, cassaforte e documenti pubblici",
         "Diagnostica: eliminata falsa segnalazione di sincronizzazione operativa in presenza di errori attivi o permessi insufficienti",
