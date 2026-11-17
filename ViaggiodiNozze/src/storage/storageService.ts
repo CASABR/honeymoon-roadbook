@@ -11,6 +11,7 @@ import {
 } from './indexedDB';
 import { formatDateIT, normalizeTimestamp } from '../utils/tripDates';
 import { assertCanMutate } from '../utils/useAuthIdentity';
+import { auth } from '../firebase';
 import { compareTimelineItems } from '../utils/timelineOrdering';
 import { sortDeadlines } from '../utils/deadlines';
 import { lookupKnownCoordinate } from '../utils/geoCoordinatesHelper';
@@ -276,12 +277,29 @@ class StorageService {
   }
 
   /**
+   * Verifica sincrona ultrarapida dello stato tombstone per impedire che
+   * record eliminati riaffiorino durante i cicli di rendering o prima del completamento del pull cloud.
+   */
+  isTombstoneActiveSync(entityType: string, id: string): boolean {
+    if (!id) return false;
+    if (typeof localStorage !== 'undefined') {
+      try {
+        if (localStorage.getItem(`tombstone_${entityType}_${id}`) === 'true') {
+          return true;
+        }
+      } catch {}
+    }
+    return false;
+  }
+
+  /**
    * Registra una pietra tombale (tombstone) per un elemento eliminato intenzionalmente dall'utente.
    * Evita che seed o sinc reintroducano l'elemento cancellato.
    */
   async recordTombstone(entityType: string, id: string): Promise<void> {
     if (!id) return;
     const now = Date.now();
+    const currentUid = auth?.currentUser?.uid || 'authorized_user';
     const tombstoneKey = `tombstone_${entityType}_${id}`;
     const tombstoneData = {
       id: tombstoneKey,
@@ -290,7 +308,8 @@ class StorageService {
         deletedId: id,
         timestamp: now,
         deletedAt: now,
-        pending: true
+        pending: true,
+        explicitDeleteBy: currentUid
       }
     };
     await idbPut(STORES.SETTINGS, tombstoneData);
@@ -472,7 +491,8 @@ class StorageService {
         items = await idbGetAll<Attivita>(STORES.ATTIVITA);
         this.memoryCache.set(STORES.ATTIVITA, items);
       }
-      const filtered = dayId ? items.filter(a => a.dayId === dayId) : items;
+      const activeItems = items.filter(a => !this.isTombstoneActiveSync('attivita', a.id));
+      const filtered = dayId ? activeItems.filter(a => a.dayId === dayId) : activeItems;
       return [...filtered].map(a => {
         const cleanCopilot = (a.noteCopilota || '').trim() || undefined;
         const cleanNotes = (a.notes || (a as any).nota || '').trim() || undefined;
@@ -568,10 +588,11 @@ class StorageService {
   async getAccommodations(): Promise<Alloggio[]> {
     try {
       if (this.memoryCache.has(STORES.ALLOGGI)) {
-        return [...this.memoryCache.get(STORES.ALLOGGI)!];
+        return this.memoryCache.get(STORES.ALLOGGI)!.filter(acc => !this.isTombstoneActiveSync('alloggi', acc.id));
       }
       const items = await idbGetAll<Alloggio>(STORES.ALLOGGI);
-      const normalized = items.map(acc => {
+      const activeItems = items.filter(acc => !this.isTombstoneActiveSync('alloggi', acc.id));
+      const normalized = activeItems.map(acc => {
         const cleanCopilot = (acc.noteCopilota || '').trim() || undefined;
       const cleanNotes = (acc.notes || (acc as any).nota || '').trim() || undefined;
       return {
@@ -652,10 +673,11 @@ class StorageService {
   async getTransports(): Promise<Trasporto[]> {
     try {
       if (this.memoryCache.has(STORES.TRASPORTI)) {
-        return [...this.memoryCache.get(STORES.TRASPORTI)!];
+        return this.memoryCache.get(STORES.TRASPORTI)!.filter(tr => !this.isTombstoneActiveSync('trasporti', tr.id));
       }
       const items = await idbGetAll<Trasporto>(STORES.TRASPORTI);
-      const normalized = items.map(tr => {
+      const activeItems = items.filter(tr => !this.isTombstoneActiveSync('trasporti', tr.id));
+      const normalized = activeItems.map(tr => {
         const cleanCopilot = (tr.noteCopilota || '').trim() || undefined;
       const cleanNotes = ((tr as any).notes || (tr as any).nota || '').trim() || undefined;
       return {
@@ -733,6 +755,9 @@ class StorageService {
         // Purge proattivo di vecchi chunk scaricati erroneamente nello store documenti
         if (typeof doc.id === 'string' && doc.id.startsWith('att_chunk_')) {
           await idbDelete(STORES.DOCUMENTI, doc.id).catch(() => {});
+          continue;
+        }
+        if (this.isTombstoneActiveSync('documenti', doc.id)) {
           continue;
         }
         validItems.push(doc as TravelDocument);
@@ -837,10 +862,11 @@ class StorageService {
   async getTappe(): Promise<Tappa[]> {
     try {
       if (this.memoryCache.has(STORES.TAPPE)) {
-        return [...this.memoryCache.get(STORES.TAPPE)!];
+        return this.memoryCache.get(STORES.TAPPE)!.filter(t => !this.isTombstoneActiveSync('tappe', t.id));
       }
       const items = await idbGetAll<Tappa>(STORES.TAPPE);
-      const normalized = items.map(t => {
+      const activeItems = items.filter(t => !this.isTombstoneActiveSync('tappe', t.id));
+      const normalized = activeItems.map(t => {
         const cleanCopilot = (t.noteCopilota || '').trim() || undefined;
       const cleanNotes = ((t as any).notes || t.nota || '').trim() || undefined;
       return {
@@ -1011,10 +1037,11 @@ class StorageService {
   async getRistoranti(): Promise<Ristorante[]> {
     try {
       if (this.memoryCache.has(STORES.RISTORANTI)) {
-        return [...this.memoryCache.get(STORES.RISTORANTI)!];
+        return this.memoryCache.get(STORES.RISTORANTI)!.filter(r => !this.isTombstoneActiveSync('ristoranti', r.id));
       }
       const items = await idbGetAll<Ristorante>(STORES.RISTORANTI);
-      const normalized = items.map(r => {
+      const activeItems = items.filter(r => !this.isTombstoneActiveSync('ristoranti', r.id));
+      const normalized = activeItems.map(r => {
         const cleanCopilot = (r.noteCopilota || '').trim() || undefined;
       const cleanNotes = ((r as any).notes || r.nota || '').trim() || undefined;
       return {
@@ -1170,10 +1197,11 @@ class StorageService {
   async getShopping(): Promise<Shopping[]> {
     try {
       if (this.memoryCache.has(STORES.SHOPPING)) {
-        return [...this.memoryCache.get(STORES.SHOPPING)!];
+        return this.memoryCache.get(STORES.SHOPPING)!.filter(s => !this.isTombstoneActiveSync('shopping', s.id));
       }
       const items = await idbGetAll<Shopping>(STORES.SHOPPING);
-      const normalized = items.map(s => {
+      const activeItems = items.filter(s => !this.isTombstoneActiveSync('shopping', s.id));
+      const normalized = activeItems.map(s => {
         const cleanCopilot = (s.noteCopilota || '').trim() || undefined;
       const cleanNotes = ((s as any).notes || s.nota || '').trim() || undefined;
       return {
@@ -1335,7 +1363,8 @@ class StorageService {
   async getSpese(): Promise<Spesa[]> {
     try {
       const items = await idbGetAll<Spesa>(STORES.SPESE);
-      return items.sort((a, b) => ((b.date || '').split('-').length === 3 && (b.date || '').split('-')[0].length === 2 ? (b.date || '').split('-').reverse().join('-') : (b.date || '')).localeCompare(((a.date || '').split('-').length === 3 && (a.date || '').split('-')[0].length === 2 ? (a.date || '').split('-').reverse().join('-') : (a.date || ''))));
+      const activeItems = items.filter(s => !this.isTombstoneActiveSync('spese', s.id));
+      return activeItems.sort((a, b) => ((b.date || '').split('-').length === 3 && (b.date || '').split('-')[0].length === 2 ? (b.date || '').split('-').reverse().join('-') : (b.date || '')).localeCompare(((a.date || '').split('-').length === 3 && (a.date || '').split('-')[0].length === 2 ? (a.date || '').split('-').reverse().join('-') : (a.date || ''))));
     } catch (err) {
       console.error('[StorageService] Errore lettura spese:', err);
       return [];
@@ -2079,7 +2108,8 @@ class StorageService {
   async getBagagli(): Promise<Bagaglio[]> {
     try {
       const items = await idbGetAll<Bagaglio>(STORES.BAGAGLI);
-      return items.sort((a, b) => normalizeTimestamp(b.createdAt) - normalizeTimestamp(a.createdAt));
+      const activeItems = items.filter(b => !this.isTombstoneActiveSync('bagagli', b.id));
+      return activeItems.sort((a, b) => normalizeTimestamp(b.createdAt) - normalizeTimestamp(a.createdAt));
     } catch (err) {
       console.error('[StorageService] Errore lettura bagagli:', err);
       return [];

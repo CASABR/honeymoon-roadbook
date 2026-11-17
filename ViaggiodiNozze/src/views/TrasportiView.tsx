@@ -10,6 +10,14 @@ import SwipeToDelete from '../components/common/SwipeToDelete';
 import { useDeviceRole } from '../utils/useDeviceRole';
 
 import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
+import {
+  extractTimeInterval,
+  areIntervalsOverlapping,
+  getCollisionPairKey,
+  getPairSignature,
+  isCollisionDismissedOrResolved,
+  persistCollisionDecision
+} from '../utils/overlapDetection';
 import type { TimelineItem } from '../types';
 import DayPickerStrip from '../components/common/DayPickerStrip';
 import { getTripDateRange, type TripDayItem } from '../utils/tripDates';
@@ -88,27 +96,6 @@ export default function TrasportiView() {
       return;
     }
 
-    const normalizeStr = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-
-    const isSimilarTransport = (t1: Trasporto, t2: Trasporto) => {
-      if (t1.bookingCode && t2.bookingCode && t1.bookingCode === t2.bookingCode && t1.type === 'volo' && t2.type === 'volo') {
-        // Stesso PNR di volo con segmenti diversi non è una collisione
-        if (t1.departureLocation !== t2.departureLocation || t1.arrivalLocation !== t2.arrivalLocation) {
-          return false;
-        }
-      }
-      const dep1 = normalizeStr(t1.departureLocation);
-      const dep2 = normalizeStr(t2.departureLocation);
-      const arr1 = normalizeStr(t1.arrivalLocation);
-      const arr2 = normalizeStr(t2.arrivalLocation);
-
-      if (dep1 && dep2 && arr1 && arr2) {
-        if (dep1 === dep2 && arr1 === arr2) return true;
-        if ((dep1.includes(dep2) || dep2.includes(dep1)) && (arr1.includes(arr2) || arr2.includes(arr1))) return true;
-      }
-      return false;
-    };
-
     // Ordina cronologicamente
     const sorted = [...transports].sort((a, b) => {
       const dateA = a.date || '';
@@ -122,35 +109,47 @@ export default function TrasportiView() {
     let nextCollision: TimeCollision | null = null;
     for (let i = 0; i < sorted.length; i++) {
       const tA = sorted[i];
+      const intA = extractTimeInterval(tA, 'trasporto');
+
       for (let j = i + 1; j < sorted.length; j++) {
         const tB = sorted[j];
-        if (tA.date && tB.date && tA.date === tB.date) {
-          const sameDepTime = (tA.departureTime && tB.departureTime && tA.departureTime === tB.departureTime);
-          const similar = isSimilarTransport(tA, tB);
+        if (tA.id === tB.id) continue;
 
-          if (sameDepTime || similar) {
-            const collisionKey = `transport_collision_${tA.id}_${tB.id}`;
-            const isDismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey);
-            if (!isDismissed) {
-              const toTimelineItem = (t: Trasporto): TimelineItem => ({
-                id: t.id,
-                type: 'trasporto',
-                time: t.departureTime || '00:00',
-                title: `${t.type.toUpperCase()}: ${t.departureLocation} ➔ ${t.arrivalLocation}`,
-                location: `${t.departureLocation} → ${t.arrivalLocation}`,
-                categoryOrType: t.type,
-                completed: t.completed,
-                originalData: t
-              });
+        // Se entrambi hanno lo stesso bookingCode / PNR, sono segmenti dello stesso viaggio
+        if (tA.bookingCode && tB.bookingCode && tA.bookingCode === tB.bookingCode) {
+          continue;
+        }
 
-              nextCollision = {
-                id: collisionKey,
-                time: `${tA.date} alle ${tA.departureTime || 'Partenza'}`,
-                itemA: toTimelineItem(tA),
-                itemB: toTimelineItem(tB)
-              };
-              break;
-            }
+        const intB = extractTimeInterval(tB, 'trasporto');
+
+        if (areIntervalsOverlapping(intA, intB)) {
+          const pairKey = getCollisionPairKey(tA.id, tB.id, 'transport');
+          const sig = getPairSignature(intA.signature, intB.signature);
+          const isDismissed = isCollisionDismissedOrResolved(tA.id, tB.id, sig, 'transport');
+
+          if (!isDismissed) {
+            const toTimelineItem = (t: Trasporto): TimelineItem => ({
+              id: t.id,
+              type: 'trasporto',
+              time: t.departureTime || '00:00',
+              title: `${t.type.toUpperCase()}: ${t.departureLocation} ➔ ${t.arrivalLocation}`,
+              location: `${t.departureLocation} → ${t.arrivalLocation}`,
+              categoryOrType: t.type,
+              completed: t.completed,
+              originalData: t
+            });
+
+            const displayTime = tA.departureTime === tB.departureTime
+              ? `${intA.date} alle ${tA.departureTime || 'Partenza'}`
+              : `${intA.date} (${tA.departureTime || 'N/D'} vs ${tB.departureTime || 'N/D'})`;
+
+            nextCollision = {
+              id: pairKey,
+              time: displayTime,
+              itemA: toTimelineItem(tA),
+              itemB: toTimelineItem(tB)
+            };
+            break;
           }
         }
       }
@@ -488,8 +487,13 @@ export default function TrasportiView() {
       <TimeCollisionModal
         collision={activeCollision}
         onKeepBoth={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'keep');
+          if (activeCollision) {
+            const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+            const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+            const intA = extractTimeInterval(rawA, 'trasporto');
+            const intB = extractTimeInterval(rawB, 'trasporto');
+            const sig = getPairSignature(intA.signature, intB.signature);
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'keep', sig, 'transport');
           }
           setActiveCollision(null);
         }}
@@ -497,8 +501,13 @@ export default function TrasportiView() {
           try {
             await storageService.deleteTransport(itemId);
             setTransports(prev => prev.filter(t => t.id !== itemId));
-            if (activeCollision && typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'resolved');
+            if (activeCollision) {
+              const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+              const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+              const intA = extractTimeInterval(rawA, 'trasporto');
+              const intB = extractTimeInterval(rawB, 'trasporto');
+              const sig = getPairSignature(intA.signature, intB.signature);
+              persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'resolved', sig, 'transport');
             }
           } catch (e) {
             console.error('Errore durante eliminazione trasporto duplicato:', e);
@@ -547,8 +556,13 @@ export default function TrasportiView() {
               await storageService.saveTransport(updated);
               setTransports(prev => prev.map(t => t.id === itemId ? updated : t));
             }
-            if (activeCollision && typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'resolved');
+            if (activeCollision) {
+              const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+              const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+              const intA = extractTimeInterval(rawA, 'trasporto');
+              const intB = extractTimeInterval(rawB, 'trasporto');
+              const sig = getPairSignature(intA.signature, intB.signature);
+              persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'resolved', sig, 'transport');
             }
           } finally {
             setActiveCollision(null);
@@ -560,8 +574,13 @@ export default function TrasportiView() {
           setActiveCollision(null);
         }}
         onDismiss={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'dismissed');
+          if (activeCollision) {
+            const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+            const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+            const intA = extractTimeInterval(rawA, 'trasporto');
+            const intB = extractTimeInterval(rawB, 'trasporto');
+            const sig = getPairSignature(intA.signature, intB.signature);
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'dismissed', sig, 'transport');
           }
           setActiveCollision(null);
         }}

@@ -12,6 +12,14 @@ import { getTripDateRange, formatDate, type TripDayItem } from '../utils/tripDat
 import { useDeviceRole } from '../utils/useDeviceRole';
 import AttivitaCard from '../components/cards/AttivitaCard';
 import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
+import {
+  extractTimeInterval,
+  areIntervalsOverlapping,
+  getCollisionPairKey,
+  getPairSignature,
+  isCollisionDismissedOrResolved,
+  persistCollisionDecision
+} from '../utils/overlapDetection';
 import type { TimelineItem } from '../types';
 import DesktopEconomySummary from '../components/common/DesktopEconomySummary';
 
@@ -93,25 +101,6 @@ export default function AttivitaView() {
       return;
     }
 
-    // Normalizzazione stringa per confronto somiglianza nome
-    const normalizeStr = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-
-    const isSimilarTitle = (t1?: string, t2?: string) => {
-      const n1 = normalizeStr(t1);
-      const n2 = normalizeStr(t2);
-      if (!n1 || !n2) return false;
-      if (n1 === n2) return true;
-      if (n1.includes(n2) || n2.includes(n1)) return true;
-      // Confronto per parole chiave significative
-      const words1 = n1.split(' ').filter(w => w.length > 2);
-      const words2 = n2.split(' ').filter(w => w.length > 2);
-      if (words1.length > 0 && words2.length > 0) {
-        const common = words1.filter(w => words2.includes(w));
-        if (common.length >= Math.min(words1.length, words2.length, 2)) return true;
-      }
-      return false;
-    };
-
     // Ordina tutte le attività in ordine cronologico rigoroso (data + orario)
     const sorted = [...activities].sort((a, b) => {
       const dateA = a.date || (a.dayId.startsWith('day_') ? a.dayId.replace('day_', '') : '');
@@ -126,48 +115,44 @@ export default function AttivitaView() {
 
     let nextCollision: TimeCollision | null = null;
 
-    // Scansiona a coppie in ordine cronologico
+    // Scansiona a coppie in ordine cronologico con intervalli temporali
     for (let i = 0; i < sorted.length; i++) {
       const actA = sorted[i];
-      const dateA = actA.date || (actA.dayId.startsWith('day_') ? actA.dayId.replace('day_', '') : '');
-      const timeA = actA.time || '23:59';
+      const intA = extractTimeInterval(actA, 'attivita');
 
       for (let j = i + 1; j < sorted.length; j++) {
         const actB = sorted[j];
-        const dateB = actB.date || (actB.dayId.startsWith('day_') ? actB.dayId.replace('day_', '') : '');
-        const timeB = actB.time || '23:59';
+        const intB = extractTimeInterval(actB, 'attivita');
 
-        // Solo se stesso giorno
-        if (dateA && dateB && dateA === dateB) {
-          const sameTime = (timeA !== '23:59' && timeA === timeB);
-          const similar = isSimilarTitle(actA.title, actB.title);
+        // Solo se sovrapposizione temporale effettiva (stesso giorno + orari sovrapposti)
+        if (areIntervalsOverlapping(intA, intB)) {
+          const pairKey = getCollisionPairKey(actA.id, actB.id, 'activity');
+          const sig = getPairSignature(intA.signature, intB.signature);
+          const isDismissed = isCollisionDismissedOrResolved(actA.id, actB.id, sig, 'activity');
 
-          // Criterio utente: uguali/simili = stesso giorno AND (stesso orario OR nome simile)
-          if (sameTime || similar) {
-            const collisionKey = `activity_collision_${actA.id}_${actB.id}`;
-            const isDismissed = (typeof localStorage !== 'undefined' && localStorage.getItem(collisionKey)) ||
-                                (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey));
+          if (!isDismissed) {
+            const toTimelineItem = (act: Attivita): TimelineItem => ({
+              id: act.id,
+              type: 'attivita',
+              time: act.time || '23:59',
+              title: act.title,
+              location: act.location || act.address || 'Attività',
+              categoryOrType: act.category || 'Attività',
+              completed: act.completed,
+              originalData: act
+            });
 
-            if (!isDismissed) {
-              const toTimelineItem = (act: Attivita): TimelineItem => ({
-                id: act.id,
-                type: 'attivita',
-                time: act.time || '23:59',
-                title: act.title,
-                location: act.location || act.address || 'Attività',
-                categoryOrType: act.category || 'Attività',
-                completed: act.completed,
-                originalData: act
-              });
+            const displayTime = actA.time === actB.time
+              ? `${intA.date} alle ${actA.time || 'Orario non specificato'}`
+              : `${intA.date} (${actA.time || 'N/D'} vs ${actB.time || 'N/D'})`;
 
-              nextCollision = {
-                id: collisionKey,
-                time: `${dateA} alle ${actA.time || 'Orario non specificato'}`,
-                itemA: toTimelineItem(actA),
-                itemB: toTimelineItem(actB)
-              };
-              break;
-            }
+            nextCollision = {
+              id: pairKey,
+              time: displayTime,
+              itemA: toTimelineItem(actA),
+              itemB: toTimelineItem(actB)
+            };
+            break;
           }
         }
       }
@@ -537,12 +522,12 @@ export default function AttivitaView() {
         collision={activeCollision}
         onKeepBoth={() => {
           if (activeCollision) {
-            if (typeof localStorage !== 'undefined') {
-              try { localStorage.setItem(activeCollision.id, 'keep'); } catch {}
-            }
-            if (typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'keep');
-            }
+            const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+            const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+            const intA = extractTimeInterval(rawA, 'attivita');
+            const intB = extractTimeInterval(rawB, 'attivita');
+            const sig = getPairSignature(intA.signature, intB.signature);
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'keep', sig, 'activity');
           }
           setActiveCollision(null);
         }}
@@ -551,12 +536,12 @@ export default function AttivitaView() {
             await storageService.deleteActivity(itemId);
             setActivities(prev => prev.filter(a => a.id !== itemId));
             if (activeCollision) {
-              if (typeof localStorage !== 'undefined') {
-                try { localStorage.setItem(activeCollision.id, 'resolved'); } catch {}
-              }
-              if (typeof sessionStorage !== 'undefined') {
-                sessionStorage.setItem(activeCollision.id, 'resolved');
-              }
+              const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+              const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+              const intA = extractTimeInterval(rawA, 'attivita');
+              const intB = extractTimeInterval(rawB, 'attivita');
+              const sig = getPairSignature(intA.signature, intB.signature);
+              persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'resolved', sig, 'activity');
             }
           } catch (e) {
             console.error('Errore durante eliminazione attività duplicata:', e);
@@ -590,12 +575,12 @@ export default function AttivitaView() {
               setActivities(prev => prev.map(a => a.id === itemId ? updated : a));
             }
             if (activeCollision) {
-              if (typeof localStorage !== 'undefined') {
-                try { localStorage.setItem(activeCollision.id, 'resolved'); } catch {}
-              }
-              if (typeof sessionStorage !== 'undefined') {
-                sessionStorage.setItem(activeCollision.id, 'resolved');
-              }
+              const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+              const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+              const intA = extractTimeInterval(rawA, 'attivita');
+              const intB = extractTimeInterval(rawB, 'attivita');
+              const sig = getPairSignature(intA.signature, intB.signature);
+              persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'resolved', sig, 'activity');
             }
           } finally {
             setActiveCollision(null);
@@ -612,12 +597,12 @@ export default function AttivitaView() {
         }}
         onDismiss={() => {
           if (activeCollision) {
-            if (typeof localStorage !== 'undefined') {
-              try { localStorage.setItem(activeCollision.id, 'dismissed'); } catch {}
-            }
-            if (typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'dismissed');
-            }
+            const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+            const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+            const intA = extractTimeInterval(rawA, 'attivita');
+            const intB = extractTimeInterval(rawB, 'attivita');
+            const sig = getPairSignature(intA.signature, intB.signature);
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'dismissed', sig, 'activity');
           }
           setActiveCollision(null);
         }}

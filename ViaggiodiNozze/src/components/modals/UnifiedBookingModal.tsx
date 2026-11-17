@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { BookingCategory } from '../../services/unifiedBookingService';
 import { BOOKING_CATEGORY_META } from '../../services/unifiedBookingService';
-import { storageService, notifyDataChanged } from '../../storage/storageService';
+import { storageService } from '../../storage/storageService';
 import { processFileForAttachment, formatFileSize } from '../../utils/fileAttachment';
 import type { TransportAttachment, Attivita, Tappa, Alloggio, Ristorante, Trasporto } from '../../types';
 import { formatDateIT } from '../../utils/tripDates';
@@ -391,10 +391,6 @@ export default function UnifiedBookingModal({
         };
 
         await storageService.saveTransport(transportPayload);
-        notifyDataChanged('trasporti', 'save', transportPayload);
-        window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-          detail: { entityType: 'trasporti', action: 'save', data: transportPayload }
-        }));
       } else if (category === 'alloggio') {
         if (!title.trim()) {
           setFormError('Inserisci il nome della struttura');
@@ -424,10 +420,6 @@ export default function UnifiedBookingModal({
         };
 
         await storageService.saveAccommodation(accommodationPayload);
-        notifyDataChanged('alloggi', 'save', accommodationPayload);
-        window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-          detail: { entityType: 'alloggi', action: 'save', data: accommodationPayload }
-        }));
       } else if (category === 'attivita') {
         if (!title.trim()) {
           setFormError('Inserisci il titolo dell\'attività o tour');
@@ -458,10 +450,6 @@ export default function UnifiedBookingModal({
         };
 
         await storageService.saveActivity(activityPayload);
-        notifyDataChanged('attivita', 'save', activityPayload);
-        window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-          detail: { entityType: 'attivita', action: 'save', data: activityPayload }
-        }));
       } else if (category === 'ristorante') {
         if (!title.trim()) {
           setFormError('Inserisci il nome del ristorante');
@@ -488,10 +476,6 @@ export default function UnifiedBookingModal({
         };
 
         await storageService.saveRistorante(restaurantPayload);
-        notifyDataChanged('ristoranti', 'save', restaurantPayload);
-        window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
-          detail: { entityType: 'ristoranti', action: 'save', data: restaurantPayload }
-        }));
       }
 
       onSaved();

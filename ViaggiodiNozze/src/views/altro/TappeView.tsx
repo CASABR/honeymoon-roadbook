@@ -7,6 +7,14 @@ import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import TimeCollisionModal, { type TimeCollision } from '../../components/modals/TimeCollisionModal';
+import {
+  extractTimeInterval,
+  areIntervalsOverlapping,
+  getCollisionPairKey,
+  getPairSignature,
+  isCollisionDismissedOrResolved,
+  persistCollisionDecision
+} from '../../utils/overlapDetection';
 import type { TimelineItem } from '../../types';
 import { prepareDuplicateItem } from '../../utils/cardDuplication';
 
@@ -94,17 +102,6 @@ export default function TappeView({ onBack }: TappeViewProps) {
       return;
     }
 
-    const normalizeStr = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-
-    const isSimilarTappa = (t1: Tappa, t2: Tappa) => {
-      const n1 = normalizeStr(t1.titolo);
-      const n2 = normalizeStr(t2.titolo);
-      if (!n1 || !n2) return false;
-      if (n1 === n2) return true;
-      if (n1.length > 3 && n2.length > 3 && (n1.includes(n2) || n2.includes(n1))) return true;
-      return false;
-    };
-
     // Ordina cronologicamente
     const sorted = [...tappe].sort((a, b) => {
       const dateA = a.data || '';
@@ -118,35 +115,42 @@ export default function TappeView({ onBack }: TappeViewProps) {
     let nextCollision: TimeCollision | null = null;
     for (let i = 0; i < sorted.length; i++) {
       const tA = sorted[i];
+      const intA = extractTimeInterval(tA, 'tappa');
+
       for (let j = i + 1; j < sorted.length; j++) {
         const tB = sorted[j];
-        if (tA.data && tB.data && tA.data === tB.data) {
-          const sameTime = (tA.orario && tB.orario && tA.orario === tB.orario);
-          const similar = isSimilarTappa(tA, tB);
+        if (tA.id === tB.id) continue;
 
-          if (sameTime || similar) {
-            const collisionKey = `tappa_collision_${tA.id}_${tB.id}`;
-            const isDismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey);
-            if (!isDismissed) {
-              const toTimelineItem = (t: Tappa): TimelineItem => ({
-                id: t.id,
-                type: 'tappa',
-                time: t.orario || 'Orario non specificato',
-                title: t.titolo,
-                location: t.indirizzo || 'Luogo non specificato',
-                categoryOrType: t.sottocategoria || 'Tappa Itinerario',
-                completed: t.completed,
-                originalData: t
-              });
+        const intB = extractTimeInterval(tB, 'tappa');
 
-              nextCollision = {
-                id: collisionKey,
-                time: `${tA.data}${tA.orario ? ' alle ' + tA.orario : ''}`,
-                itemA: toTimelineItem(tA),
-                itemB: toTimelineItem(tB)
-              };
-              break;
-            }
+        if (areIntervalsOverlapping(intA, intB)) {
+          const pairKey = getCollisionPairKey(tA.id, tB.id, 'tappa');
+          const sig = getPairSignature(intA.signature, intB.signature);
+          const isDismissed = isCollisionDismissedOrResolved(tA.id, tB.id, sig, 'tappa');
+
+          if (!isDismissed) {
+            const toTimelineItem = (t: Tappa): TimelineItem => ({
+              id: t.id,
+              type: 'tappa',
+              time: t.orario || 'Orario non specificato',
+              title: t.titolo,
+              location: t.indirizzo || 'Luogo non specificato',
+              categoryOrType: t.sottocategoria || 'Tappa Itinerario',
+              completed: t.completed,
+              originalData: t
+            });
+
+            const displayTime = tA.orario === tB.orario
+              ? `${intA.date}${tA.orario ? ' alle ' + tA.orario : ''}`
+              : `${intA.date} (${tA.orario || 'N/D'} vs ${tB.orario || 'N/D'})`;
+
+            nextCollision = {
+              id: pairKey,
+              time: displayTime,
+              itemA: toTimelineItem(tA),
+              itemB: toTimelineItem(tB)
+            };
+            break;
           }
         }
       }
@@ -455,8 +459,13 @@ export default function TappeView({ onBack }: TappeViewProps) {
       <TimeCollisionModal
         collision={activeCollision}
         onKeepBoth={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'keep');
+          if (activeCollision) {
+            const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+            const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+            const intA = extractTimeInterval(rawA, 'tappa');
+            const intB = extractTimeInterval(rawB, 'tappa');
+            const sig = getPairSignature(intA.signature, intB.signature);
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'keep', sig, 'tappa');
           }
           setActiveCollision(null);
         }}
@@ -464,8 +473,13 @@ export default function TappeView({ onBack }: TappeViewProps) {
           try {
             await storageService.deleteTappa(itemId);
             setTappe(prev => prev.filter(t => t.id !== itemId));
-            if (activeCollision && typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'resolved');
+            if (activeCollision) {
+              const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+              const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+              const intA = extractTimeInterval(rawA, 'tappa');
+              const intB = extractTimeInterval(rawB, 'tappa');
+              const sig = getPairSignature(intA.signature, intB.signature);
+              persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'resolved', sig, 'tappa');
             }
           } catch (e) {
             console.error('Errore durante eliminazione tappa duplicata:', e);
@@ -474,8 +488,13 @@ export default function TappeView({ onBack }: TappeViewProps) {
           }
         }}
         onDismiss={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'dismissed');
+          if (activeCollision) {
+            const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+            const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+            const intA = extractTimeInterval(rawA, 'tappa');
+            const intB = extractTimeInterval(rawB, 'tappa');
+            const sig = getPairSignature(intA.signature, intB.signature);
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'dismissed', sig, 'tappa');
           }
           setActiveCollision(null);
         }}

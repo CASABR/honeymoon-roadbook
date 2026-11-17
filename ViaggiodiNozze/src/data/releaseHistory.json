@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.11",
+      "publishedAt": "2026-11-17",
+      "sourceCommit": "HEAD",
+      "changes": [
+        "Fase 1 Affidabilita Dati: rilevamento sovrapposizioni basato su intervalli temporali effettivi (nessun falso conflitto per orari diversi nello stesso giorno)",
+        "Persistenza sincronizzata e deterministica della scelta 'Mantieni entrambe' (chiavi indipendenti dall'ordine, cache locale e sincronizzazione Cloud)",
+        "Protezione integrita dati e tombstones: eliminato il rischio di resurrezione di record cancellati tramite firma esplicita e filtro reattivo"
+      ],
+      "publishedAtIso": "2026-11-17T13:20:00.000Z"
+    },
+    {
       "version": "1.6.10",
       "publishedAt": "2026-11-17",
       "sourceCommit": "9bcc833",

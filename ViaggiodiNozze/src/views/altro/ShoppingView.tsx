@@ -6,6 +6,14 @@ import Modal from '../../components/common/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import EmptyState from '../../components/EmptyState';
 import TimeCollisionModal, { type TimeCollision } from '../../components/modals/TimeCollisionModal';
+import {
+  extractTimeInterval,
+  areIntervalsOverlapping,
+  getCollisionPairKey,
+  getPairSignature,
+  isCollisionDismissedOrResolved,
+  persistCollisionDecision
+} from '../../utils/overlapDetection';
 import type { TimelineItem } from '../../types';
 
 import DayPickerStrip from '../../components/common/DayPickerStrip';
@@ -86,17 +94,6 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
       return;
     }
 
-    const normalizeStr = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-
-    const isSimilarShopping = (s1: Shopping, s2: Shopping) => {
-      const n1 = normalizeStr(s1.nome);
-      const n2 = normalizeStr(s2.nome);
-      if (!n1 || !n2) return false;
-      if (n1 === n2) return true;
-      if (n1.length > 3 && n2.length > 3 && (n1.includes(n2) || n2.includes(n1))) return true;
-      return false;
-    };
-
     // Ordina cronologicamente
     const sorted = [...shoppingList].sort((a, b) => {
       const dateA = a.data || '';
@@ -110,35 +107,42 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
     let nextCollision: TimeCollision | null = null;
     for (let i = 0; i < sorted.length; i++) {
       const sA = sorted[i];
+      const intA = extractTimeInterval(sA, 'shopping');
+
       for (let j = i + 1; j < sorted.length; j++) {
         const sB = sorted[j];
-        if (sA.data && sB.data && sA.data === sB.data) {
-          const sameTime = (sA.orario && sB.orario && sA.orario === sB.orario);
-          const similar = isSimilarShopping(sA, sB);
+        if (sA.id === sB.id) continue;
 
-          if (sameTime || similar) {
-            const collisionKey = `shopping_collision_${sA.id}_${sB.id}`;
-            const isDismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey);
-            if (!isDismissed) {
-              const toTimelineItem = (s: Shopping): TimelineItem => ({
-                id: s.id,
-                type: 'shopping',
-                time: s.orario || 'Orario non specificato',
-                title: s.nome,
-                location: s.indirizzo || 'Indirizzo non specificato',
-                categoryOrType: s.sottocategoria || 'Shopping',
-                completed: s.completed,
-                originalData: s
-              });
+        const intB = extractTimeInterval(sB, 'shopping');
 
-              nextCollision = {
-                id: collisionKey,
-                time: `${sA.data}${sA.orario ? ' alle ' + sA.orario : ''}`,
-                itemA: toTimelineItem(sA),
-                itemB: toTimelineItem(sB)
-              };
-              break;
-            }
+        if (areIntervalsOverlapping(intA, intB)) {
+          const pairKey = getCollisionPairKey(sA.id, sB.id, 'shopping');
+          const sig = getPairSignature(intA.signature, intB.signature);
+          const isDismissed = isCollisionDismissedOrResolved(sA.id, sB.id, sig, 'shopping');
+
+          if (!isDismissed) {
+            const toTimelineItem = (s: Shopping): TimelineItem => ({
+              id: s.id,
+              type: 'shopping',
+              time: s.orario || 'Orario non specificato',
+              title: s.nome,
+              location: s.indirizzo || 'Indirizzo non specificato',
+              categoryOrType: s.sottocategoria || 'Shopping',
+              completed: s.completed,
+              originalData: s
+            });
+
+            const displayTime = sA.orario === sB.orario
+              ? `${intA.date}${sA.orario ? ' alle ' + sA.orario : ''}`
+              : `${intA.date} (${sA.orario || 'N/D'} vs ${sB.orario || 'N/D'})`;
+
+            nextCollision = {
+              id: pairKey,
+              time: displayTime,
+              itemA: toTimelineItem(sA),
+              itemB: toTimelineItem(sB)
+            };
+            break;
           }
         }
       }
@@ -407,8 +411,13 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
       <TimeCollisionModal
         collision={activeCollision}
         onKeepBoth={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'keep');
+          if (activeCollision) {
+            const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+            const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+            const intA = extractTimeInterval(rawA, 'shopping');
+            const intB = extractTimeInterval(rawB, 'shopping');
+            const sig = getPairSignature(intA.signature, intB.signature);
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'keep', sig, 'shopping');
           }
           setActiveCollision(null);
         }}
@@ -416,8 +425,13 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
           try {
             await storageService.deleteShopping(itemId);
             setShoppingList(prev => prev.filter(s => s.id !== itemId));
-            if (activeCollision && typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'resolved');
+            if (activeCollision) {
+              const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+              const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+              const intA = extractTimeInterval(rawA, 'shopping');
+              const intB = extractTimeInterval(rawB, 'shopping');
+              const sig = getPairSignature(intA.signature, intB.signature);
+              persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'resolved', sig, 'shopping');
             }
           } catch (e) {
             console.error('Errore durante eliminazione shopping duplicato:', e);
@@ -426,8 +440,13 @@ export default function ShoppingView({ onBack }: ShoppingViewProps) {
           }
         }}
         onDismiss={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'dismissed');
+          if (activeCollision) {
+            const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+            const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+            const intA = extractTimeInterval(rawA, 'shopping');
+            const intB = extractTimeInterval(rawB, 'shopping');
+            const sig = getPairSignature(intA.signature, intB.signature);
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'dismissed', sig, 'shopping');
           }
           setActiveCollision(null);
         }}

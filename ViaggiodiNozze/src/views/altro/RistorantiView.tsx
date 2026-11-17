@@ -11,6 +11,14 @@ import RistoranteCard from '../../components/cards/RistoranteCard';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { getTripDateRange, formatDate, type TripDayItem } from '../../utils/tripDates';
 import TimeCollisionModal, { type TimeCollision } from '../../components/modals/TimeCollisionModal';
+import {
+  extractTimeInterval,
+  areIntervalsOverlapping,
+  getCollisionPairKey,
+  getPairSignature,
+  isCollisionDismissedOrResolved,
+  persistCollisionDecision
+} from '../../utils/overlapDetection';
 import type { TimelineItem } from '../../types';
 import DesktopEconomySummary from '../../components/common/DesktopEconomySummary';
 
@@ -84,17 +92,6 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
       return;
     }
 
-    const normalizeStr = (s?: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-
-    const isSimilarRestaurant = (r1: Ristorante, r2: Ristorante) => {
-      const n1 = normalizeStr(r1.nome);
-      const n2 = normalizeStr(r2.nome);
-      if (!n1 || !n2) return false;
-      if (n1 === n2) return true;
-      if (n1.length > 3 && n2.length > 3 && (n1.includes(n2) || n2.includes(n1))) return true;
-      return false;
-    };
-
     // Ordina cronologicamente
     const sorted = [...ristoranti].sort((a, b) => {
       const dateA = a.data || '';
@@ -108,35 +105,42 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
     let nextCollision: TimeCollision | null = null;
     for (let i = 0; i < sorted.length; i++) {
       const rA = sorted[i];
+      const intA = extractTimeInterval(rA, 'ristorante');
+
       for (let j = i + 1; j < sorted.length; j++) {
         const rB = sorted[j];
-        if (rA.data && rB.data && rA.data === rB.data) {
-          const sameTime = (rA.orario && rB.orario && rA.orario === rB.orario);
-          const similar = isSimilarRestaurant(rA, rB);
+        if (rA.id === rB.id) continue;
 
-          if (sameTime || similar) {
-            const collisionKey = `restaurant_collision_${rA.id}_${rB.id}`;
-            const isDismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey);
-            if (!isDismissed) {
-              const toTimelineItem = (r: Ristorante): TimelineItem => ({
-                id: r.id,
-                type: 'ristorante',
-                time: r.orario || 'Orario non specificato',
-                title: r.nome,
-                location: r.indirizzo || 'Indirizzo non specificato',
-                categoryOrType: r.sottocategoria || 'Ristorante',
-                completed: r.completed,
-                originalData: r
-              });
+        const intB = extractTimeInterval(rB, 'ristorante');
 
-              nextCollision = {
-                id: collisionKey,
-                time: `${rA.data}${rA.orario ? ' alle ' + rA.orario : ''}`,
-                itemA: toTimelineItem(rA),
-                itemB: toTimelineItem(rB)
-              };
-              break;
-            }
+        if (areIntervalsOverlapping(intA, intB)) {
+          const pairKey = getCollisionPairKey(rA.id, rB.id, 'restaurant');
+          const sig = getPairSignature(intA.signature, intB.signature);
+          const isDismissed = isCollisionDismissedOrResolved(rA.id, rB.id, sig, 'restaurant');
+
+          if (!isDismissed) {
+            const toTimelineItem = (r: Ristorante): TimelineItem => ({
+              id: r.id,
+              type: 'ristorante',
+              time: r.orario || 'Orario non specificato',
+              title: r.nome,
+              location: r.indirizzo || 'Indirizzo non specificato',
+              categoryOrType: r.sottocategoria || 'Ristorante',
+              completed: r.completed,
+              originalData: r
+            });
+
+            const displayTime = rA.orario === rB.orario
+              ? `${intA.date}${rA.orario ? ' alle ' + rA.orario : ''}`
+              : `${intA.date} (${rA.orario || 'N/D'} vs ${rB.orario || 'N/D'})`;
+
+            nextCollision = {
+              id: pairKey,
+              time: displayTime,
+              itemA: toTimelineItem(rA),
+              itemB: toTimelineItem(rB)
+            };
+            break;
           }
         }
       }
@@ -392,8 +396,13 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
       <TimeCollisionModal
         collision={activeCollision}
         onKeepBoth={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'keep');
+          if (activeCollision) {
+            const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+            const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+            const intA = extractTimeInterval(rawA, 'ristorante');
+            const intB = extractTimeInterval(rawB, 'ristorante');
+            const sig = getPairSignature(intA.signature, intB.signature);
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'keep', sig, 'restaurant');
           }
           setActiveCollision(null);
         }}
@@ -401,8 +410,13 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
           try {
             await storageService.deleteRistorante(itemId);
             setRistoranti(prev => prev.filter(r => r.id !== itemId));
-            if (activeCollision && typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'resolved');
+            if (activeCollision) {
+              const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+              const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+              const intA = extractTimeInterval(rawA, 'ristorante');
+              const intB = extractTimeInterval(rawB, 'ristorante');
+              const sig = getPairSignature(intA.signature, intB.signature);
+              persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'resolved', sig, 'restaurant');
             }
           } catch (e) {
             console.error('Errore durante eliminazione ristorante duplicato:', e);
@@ -411,8 +425,13 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
           }
         }}
         onDismiss={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'dismissed');
+          if (activeCollision) {
+            const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+            const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+            const intA = extractTimeInterval(rawA, 'ristorante');
+            const intB = extractTimeInterval(rawB, 'ristorante');
+            const sig = getPairSignature(intA.signature, intB.signature);
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'dismissed', sig, 'restaurant');
           }
           setActiveCollision(null);
         }}

@@ -30,6 +30,14 @@ import type { DayMapsRoutes } from '../types';
 import InTransitBanner from '../components/common/InTransitBanner';
 import UniversalCopilotaModal from '../components/modals/UniversalCopilotaModal';
 import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
+import {
+  extractTimeInterval,
+  areIntervalsOverlapping,
+  getCollisionPairKey,
+  getPairSignature,
+  isCollisionDismissedOrResolved,
+  persistCollisionDecision
+} from '../utils/overlapDetection';
 import { useDeviceRole } from '../utils/useDeviceRole';
 import { formatDateIT } from '../utils/tripDates';
 import { compareTimelineItems, isPhysicalTimelineItem, timelineMinutes } from '../utils/timelineOrdering';
@@ -415,50 +423,58 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
     setTimeline(prev => (JSON.stringify(prev) === JSON.stringify(filteredItems) ? prev : filteredItems));
 
-    // Rilevamento collisioni orarie (2 o più eventi allo stesso orario non fittizio)
+    // Rilevamento collisioni orarie mediante motore intervalli temporali
     try {
-      const byTime: { [time: string]: TimelineItem[] } = {};
-      filteredItems.forEach(item => {
-        if (!item.time) return;
+      const validItems = filteredItems.filter(item => {
+        if (!item.time) return false;
         // Orari predefiniti/indicativi e promemoria alloggio non sono dati certi: mai collisioni
-        if (item.timeIsDefault || item.type === 'alloggio') return;
+        if (item.timeIsDefault || item.type === 'alloggio') return false;
         // Non considerare segmenti di transito o arrivo collegati dello stesso volo
-        if (item.id.endsWith('_arrival') || item.id.endsWith('_state')) return;
-        if (!byTime[item.time]) byTime[item.time] = [];
-        byTime[item.time].push(item);
+        if (item.id.endsWith('_arrival') || item.id.endsWith('_state')) return false;
+        return true;
       });
 
       let foundCollision: TimeCollision | null = null;
-      for (const [tStr, tList] of Object.entries(byTime)) {
-        if (tList.length > 1) {
-          // Filtra coppie note: stesso id base, alloggio su più giorni, o segmenti dello stesso volo
-          const first = tList[0];
-          const second = tList[1];
-          if (first.id === second.id) continue;
-          if (first.originalData?.id && first.originalData.id === second.originalData?.id) continue;
-          
-          // Se entrambi sono segmenti dello stesso itinerario di volo (es. CA950 e CA783)
-          if (first.type === 'trasporto' && second.type === 'trasporto') {
-            const tr1 = first.originalData as Trasporto;
-            const tr2 = second.originalData as Trasporto;
-            if (tr1.bookingCode && tr2.bookingCode && tr1.bookingCode === tr2.bookingCode) {
-              continue; // stesso PNR / codice prenotazione legittima
+      for (let i = 0; i < validItems.length; i++) {
+        const itemA = validItems[i];
+        const rawA = itemA.originalData || itemA;
+        const intA = extractTimeInterval({ ...rawA, date: selectedDate, time: itemA.time, timeIsDefault: itemA.timeIsDefault }, itemA.type);
+
+        for (let j = i + 1; j < validItems.length; j++) {
+          const itemB = validItems[j];
+          if (itemA.id === itemB.id) continue;
+          if (itemA.originalData?.id && itemA.originalData.id === itemB.originalData?.id) continue;
+
+          // Se entrambi sono segmenti dello stesso itinerario di volo (es. CA950 e CA783 con stesso PNR)
+          if (itemA.type === 'trasporto' && itemB.type === 'trasporto') {
+            const tr1 = itemA.originalData as Trasporto;
+            const tr2 = itemB.originalData as Trasporto;
+            if (tr1?.bookingCode && tr2?.bookingCode && tr1.bookingCode === tr2.bookingCode) {
+              continue;
             }
           }
 
-          const collisionKey = `collision_dismissed_${first.id}_${second.id}`;
-          const isDismissed = (typeof localStorage !== 'undefined' && localStorage.getItem(collisionKey)) ||
-                              (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey));
-          if (!isDismissed) {
-            foundCollision = {
-              id: collisionKey,
-              time: tStr,
-              itemA: first,
-              itemB: second
-            };
-            break;
+          const rawB = itemB.originalData || itemB;
+          const intB = extractTimeInterval({ ...rawB, date: selectedDate, time: itemB.time, timeIsDefault: itemB.timeIsDefault }, itemB.type);
+
+          if (areIntervalsOverlapping(intA, intB)) {
+            const pairKey = getCollisionPairKey(itemA.id, itemB.id, 'oggi');
+            const sig = getPairSignature(intA.signature, intB.signature);
+            const isDismissed = isCollisionDismissedOrResolved(itemA.id, itemB.id, sig, 'oggi');
+
+            if (!isDismissed) {
+              const displayTime = itemA.time === itemB.time ? itemA.time : `${itemA.time} / ${itemB.time}`;
+              foundCollision = {
+                id: pairKey,
+                time: displayTime,
+                itemA,
+                itemB
+              };
+              break;
+            }
           }
         }
+        if (foundCollision) break;
       }
       setActiveCollision(prev => (JSON.stringify(prev) === JSON.stringify(foundCollision) ? prev : foundCollision));
     } catch (collErr) {
@@ -2603,12 +2619,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         collision={activeCollision}
         onKeepBoth={() => {
           if (activeCollision) {
-            if (typeof localStorage !== 'undefined') {
-              try { localStorage.setItem(activeCollision.id, 'keep'); } catch {}
-            }
-            if (typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'keep');
-            }
+            const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+            const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+            const intA = extractTimeInterval(rawA, activeCollision.itemA.type);
+            const intB = extractTimeInterval(rawB, activeCollision.itemB.type);
+            const sig = getPairSignature(intA.signature, intB.signature);
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'keep', sig, 'oggi');
           }
           setActiveCollision(null);
         }}
@@ -2622,12 +2638,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             else if (itemType === 'alloggio') await storageService.deleteAccommodation(itemId);
             
             if (activeCollision) {
-              if (typeof localStorage !== 'undefined') {
-                try { localStorage.setItem(activeCollision.id, 'resolved'); } catch {}
-              }
-              if (typeof sessionStorage !== 'undefined') {
-                sessionStorage.setItem(activeCollision.id, 'resolved');
-              }
+              const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+              const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+              const intA = extractTimeInterval(rawA, activeCollision.itemA.type);
+              const intB = extractTimeInterval(rawB, activeCollision.itemB.type);
+              const sig = getPairSignature(intA.signature, intB.signature);
+              persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'resolved', sig, 'oggi');
             }
             setActiveCollision(null);
             await fetchTimeline();
@@ -2740,12 +2756,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
             }
 
             if (activeCollision) {
-              if (typeof localStorage !== 'undefined') {
-                try { localStorage.setItem(activeCollision.id, 'resolved'); } catch {}
-              }
-              if (typeof sessionStorage !== 'undefined') {
-                sessionStorage.setItem(activeCollision.id, 'resolved');
-              }
+              const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+              const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+              const intA = extractTimeInterval(rawA, activeCollision.itemA.type);
+              const intB = extractTimeInterval(rawB, activeCollision.itemB.type);
+              const sig = getPairSignature(intA.signature, intB.signature);
+              persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'resolved', sig, 'oggi');
             }
             setActiveCollision(null);
             await fetchTimeline();
@@ -2771,12 +2787,12 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         }}
         onDismiss={() => {
           if (activeCollision) {
-            if (typeof localStorage !== 'undefined') {
-              try { localStorage.setItem(activeCollision.id, 'dismissed'); } catch {}
-            }
-            if (typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'dismissed');
-            }
+            const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
+            const rawB = activeCollision.itemB.originalData || activeCollision.itemB;
+            const intA = extractTimeInterval(rawA, activeCollision.itemA.type);
+            const intB = extractTimeInterval(rawB, activeCollision.itemB.type);
+            const sig = getPairSignature(intA.signature, intB.signature);
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'dismissed', sig, 'oggi');
           }
           setActiveCollision(null);
         }}

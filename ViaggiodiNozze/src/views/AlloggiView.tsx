@@ -9,6 +9,11 @@ import DayPickerStrip from '../components/common/DayPickerStrip';
 import SwipeToDelete from '../components/common/SwipeToDelete';
 import AlloggioCard from '../components/cards/AlloggioCard';
 import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
+import {
+  getCollisionPairKey,
+  isCollisionDismissedOrResolved,
+  persistCollisionDecision
+} from '../utils/overlapDetection';
 import { useDeviceRole } from '../utils/useDeviceRole';
 import { getTripDateRange, formatDate, type TripDayItem } from '../utils/tripDates';
 
@@ -117,8 +122,9 @@ export default function AlloggiView() {
         const second = list[1];
         if (first.id === second.id) continue;
 
-        const collisionKey = `hotel_collision_${first.id}_${second.id}_${nightStr}`;
-        const isDismissed = typeof sessionStorage !== 'undefined' && sessionStorage.getItem(collisionKey);
+        const pairKey = getCollisionPairKey(first.id, second.id, 'hotel');
+        const sig = `${nightStr}_${first.checkInTime || '15:00'}_${second.checkInTime || '15:00'}`;
+        const isDismissed = isCollisionDismissedOrResolved(first.id, second.id, sig, 'hotel');
         if (!isDismissed) {
           const toTimelineItem = (acc: Alloggio): TimelineItem => ({
             id: acc.id,
@@ -132,7 +138,7 @@ export default function AlloggiView() {
           });
 
           foundCollision = {
-            id: collisionKey,
+            id: pairKey,
             time: `Notte del ${nightStr}`,
             itemA: toTimelineItem(first),
             itemB: toTimelineItem(second)
@@ -484,8 +490,8 @@ export default function AlloggiView() {
       <TimeCollisionModal
         collision={activeCollision}
         onKeepBoth={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'keep');
+          if (activeCollision) {
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'keep', activeCollision.time, 'hotel');
           }
           setActiveCollision(null);
         }}
@@ -493,8 +499,8 @@ export default function AlloggiView() {
           try {
             await storageService.deleteAccommodation(itemId);
             setAccommodations(prev => prev.filter(a => a.id !== itemId));
-            if (activeCollision && typeof sessionStorage !== 'undefined') {
-              sessionStorage.setItem(activeCollision.id, 'resolved');
+            if (activeCollision) {
+              persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'resolved', activeCollision.time, 'hotel');
             }
           } catch (e) {
             console.error('Errore eliminazione alloggio sovrapposto:', e);
@@ -503,8 +509,8 @@ export default function AlloggiView() {
           }
         }}
         onDismiss={() => {
-          if (activeCollision && typeof sessionStorage !== 'undefined') {
-            sessionStorage.setItem(activeCollision.id, 'dismissed');
+          if (activeCollision) {
+            persistCollisionDecision(activeCollision.itemA.id, activeCollision.itemB.id, 'dismissed', activeCollision.time, 'hotel');
           }
           setActiveCollision(null);
         }}

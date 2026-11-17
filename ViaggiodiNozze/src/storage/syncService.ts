@@ -1116,6 +1116,12 @@ export class SyncService {
           await idbPut(STORES.SETTINGS, nextSetting);
           pulledCount++;
         }
+        if (docId.startsWith('collision_decision_')) {
+          try {
+            const { syncIncomingCollisionDecision } = await import('../utils/overlapDetection');
+            syncIncomingCollisionDecision(nextSetting);
+          } catch {}
+        }
       }
     }
 
@@ -1238,6 +1244,8 @@ export class SyncService {
               if (this.tripId === '0000') {
                 // SICUREZZA 0000: VIETATO cancellare automaticamente documenti su Firestore da tombstone locali!
                 // Le cancellazioni su 0000 possono avvenire SOLO da azioni utente esplicite in coda.
+                // Manteniamo comunque pulita la copia locale per non resuscitare il dato eliminato.
+                await idbDelete(store, docId).catch(() => {});
                 console.warn(`[SyncService] Sospesa cancellazione cloud per ${fb}/${docId} sul viaggio 0000: cancellazioni automatiche disabilitate.`);
                 continue;
               }
@@ -2348,6 +2356,8 @@ export class SyncService {
                     console.log(`[Cloud Sync] Ignorato Pull per ${fb}/${docId} - Elemento contrassegnato da tombstone (eliminato)`);
                     if (this.tripId === '0000') {
                       // SICUREZZA 0000: VIETATO cancellare automaticamente documenti su Firestore!
+                      // Puliamo la copia locale per non resuscitare il dato rimosso dall'utente.
+                      await idbDelete(store, docId).catch(() => {});
                       console.warn(`[Cloud Sync] Sospesa cancellazione remota per ${fb}/${docId} sul viaggio 0000: cancellazioni automatiche disabilitate.`);
                       return;
                     }
@@ -2459,6 +2469,12 @@ export class SyncService {
                 }
                 
                 await idbPut(store, itemToStore);
+                if (fb === 'settings' && docId.startsWith('collision_decision_')) {
+                  try {
+                    const { syncIncomingCollisionDecision } = await import('../utils/overlapDetection');
+                    syncIncomingCollisionDecision(itemToStore);
+                  } catch {}
+                }
                 if (fb === 'settings' && docId.startsWith('tombstone_')) {
                   const isAuthorizedTombstone = Boolean(itemToStore?.value?.explicitDeleteBy || itemToStore?.explicitDeleteBy || this.tripId !== '0000');
                   if (isAuthorizedTombstone) {
