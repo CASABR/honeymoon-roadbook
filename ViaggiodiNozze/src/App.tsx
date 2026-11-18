@@ -614,7 +614,7 @@ export default function App() {
   const mainSwipeStartRef = useRef<{ x: number; y: number } | null>(null);
 
   const handleMainSwipeStart = (event: ReactTouchEvent<HTMLElement>) => {
-    if (event.touches.length !== 1 || blocksMainNavigationSwipe(event.target)) {
+    if (activeTab === 'oggi' || event.touches.length !== 1 || blocksMainNavigationSwipe(event.target)) {
       mainSwipeStartRef.current = null;
       return;
     }
@@ -627,7 +627,7 @@ export default function App() {
   const handleMainSwipeEnd = (event: ReactTouchEvent<HTMLElement>) => {
     const start = mainSwipeStartRef.current;
     mainSwipeStartRef.current = null;
-    if (!start || event.changedTouches.length !== 1) return;
+    if (activeTab === 'oggi' || !start || event.changedTouches.length !== 1) return;
 
     const deltaX = event.changedTouches[0].clientX - start.x;
     const deltaY = event.changedTouches[0].clientY - start.y;

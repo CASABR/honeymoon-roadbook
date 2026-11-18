@@ -30,6 +30,7 @@ import type { DayMapsRoutes } from '../types';
 import InTransitBanner from '../components/common/InTransitBanner';
 import UniversalCopilotaModal from '../components/modals/UniversalCopilotaModal';
 import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
+import { blocksDayNavigationSwipe, resolveHorizontalSwipeDirection } from '../utils/mainNavigation';
 import {
   extractTimeInterval,
   areIntervalsOverlapping,
@@ -1085,8 +1086,99 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     return { active: active.length, reminders: reminders.length, next: active[0] || null };
   }, [deadlines]);
 
+  const daySwipeStartRef = useRef<{ x: number; y: number; axis: 'x' | 'y' | null } | null>(null);
+  const suppressNextSwipeClickUntilRef = useRef<number>(0);
+
+  const hasOpenDayOverlay = () => Boolean(
+    isHeroEditOpen ||
+    copilotPopoverActivity ||
+    isGlobalCopilotOpen ||
+    isQuickExpenseOpen ||
+    detailItem ||
+    editingActivityItem ||
+    editingTransportItem ||
+    editingTappaItem ||
+    editingAlloggioItem ||
+    editingRistoranteItem ||
+    editingShoppingItem ||
+    isCategoryPickerOpen ||
+    creatingCategory ||
+    insertMenuAfterId ||
+    activeCollision ||
+    (typeof document !== 'undefined' && document.querySelector('[role="dialog"][aria-modal="true"], .modal-backdrop-layer'))
+  );
+
+  const handleDaySwipeStart = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length !== 1 || hasOpenDayOverlay()) {
+      daySwipeStartRef.current = null;
+      return;
+    }
+    const touch = event.touches[0];
+    const viewportWidth = typeof window !== 'undefined' ? window.innerWidth : undefined;
+    if (blocksDayNavigationSwipe(event.target, touch.clientX, viewportWidth)) {
+      daySwipeStartRef.current = null;
+      return;
+    }
+    daySwipeStartRef.current = { x: touch.clientX, y: touch.clientY, axis: null };
+  };
+
+  const handleDaySwipeMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    const start = daySwipeStartRef.current;
+    if (!start || event.touches.length !== 1) {
+      daySwipeStartRef.current = null;
+      return;
+    }
+    if (start.axis === 'x') return;
+    const touch = event.touches[0];
+    const dx = Math.abs(touch.clientX - start.x);
+    const dy = Math.abs(touch.clientY - start.y);
+    if (dx < 10 && dy < 10) return;
+    if (dy >= dx) {
+      // Abbandona il tracciamento quando l'utente scorre in verticale
+      daySwipeStartRef.current = null;
+      return;
+    }
+    start.axis = 'x';
+  };
+
+  const handleDaySwipeEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const start = daySwipeStartRef.current;
+    daySwipeStartRef.current = null;
+    if (!start || event.changedTouches.length !== 1 || hasOpenDayOverlay()) return;
+
+    const touch = event.changedTouches[0];
+    const direction = resolveHorizontalSwipeDirection(start, touch.clientX, touch.clientY);
+    if (!direction) return;
+
+    // Assorbe un eventuale click residuo su card dopo uno swipe orizzontale riuscito
+    suppressNextSwipeClickUntilRef.current = Date.now() + 400;
+
+    if (direction === 'right') {
+      if (currentIndex > 0) {
+        setSelectedDate(tripDays[currentIndex - 1].dateStr);
+      }
+      return;
+    }
+    if (currentIndex >= 0 && currentIndex < tripDays.length - 1) {
+      setSelectedDate(tripDays[currentIndex + 1].dateStr);
+    }
+  };
+
   return (
-    <div className="space-y-4 pt-1 animate-fade-in pb-6 sm:pb-8">
+    <div
+      className="space-y-4 pt-1 animate-fade-in pb-6 sm:pb-8"
+      onTouchStart={handleDaySwipeStart}
+      onTouchMove={handleDaySwipeMove}
+      onTouchEnd={handleDaySwipeEnd}
+      onTouchCancel={() => { daySwipeStartRef.current = null; }}
+      onClickCapture={(e) => {
+        if (Date.now() < suppressNextSwipeClickUntilRef.current) {
+          suppressNextSwipeClickUntilRef.current = 0;
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }}
+    >
       {/* Banner di Onboarding Notifiche al primo accesso */}
       <PushOnboardingBanner />
 
