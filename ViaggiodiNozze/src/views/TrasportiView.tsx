@@ -422,7 +422,7 @@ export default function TrasportiView() {
             
             return (
               <div key={country} className="space-y-4">
-                <div className="sticky top-0 z-10 py-2 bg-slate-50/95 backdrop-blur-md border-b border-slate-200">
+                <div className="sticky app-sticky-subheader z-10 py-2 bg-slate-50/95 backdrop-blur-md border-b border-slate-200">
                   <h2 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
                     {country}
                   </h2>

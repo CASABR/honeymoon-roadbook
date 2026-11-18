@@ -412,7 +412,7 @@ export default function AlloggiView() {
 
               return (
                 <div key={country} className="space-y-4">
-                  <div className="sticky top-0 z-10 py-1.5 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                  <div className="sticky app-sticky-subheader z-10 py-1.5 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                     <h2 className="text-sm font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                       {country}
                     </h2>

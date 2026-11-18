@@ -3456,7 +3456,7 @@ export default function AdminDashboardView({ onBack }: { onBack: () => void }) {
 
       {/* Banner Notifica Successo Eliminazione */}
       {deleteSuccessMsg && (
-        <div className="fixed bottom-5 right-5 z-50 bg-emerald-600 text-white p-4 rounded-2xl shadow-xl max-w-md text-xs font-bold flex items-center justify-between gap-3 animate-fade-in">
+        <div className="fixed app-fixed-bottom-safe z-50 bg-emerald-600 text-white p-4 rounded-2xl shadow-xl max-w-md text-xs font-bold flex items-center justify-between gap-3 animate-fade-in">
           <span>✅ {deleteSuccessMsg}</span>
           <button
             type="button"

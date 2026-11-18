@@ -203,7 +203,7 @@ export default function NoteViaggioView({ onBack }: NoteViaggioViewProps) {
     <div className="flex flex-col h-full animate-fade-in pb-20">
       {/* Toast Notifica */}
       {toastMsg && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#172033] text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg border border-slate-700 animate-slide-up">
+        <div className="fixed app-fixed-top-toast left-1/2 -translate-x-1/2 z-50 bg-[#172033] text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg border border-slate-700 animate-slide-up">
           {toastMsg}
         </div>
       )}
@@ -349,9 +349,9 @@ export default function NoteViaggioView({ onBack }: NoteViaggioViewProps) {
 
       {/* Modale Creazione / Modifica Post-it */}
       {isModalOpen && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}>
+        <div className="app-modal-overlay fixed inset-0 z-[9998] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setIsModalOpen(false)}>
           <div
-            className="w-full max-w-sm bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4 text-slate-900 dark:text-white"
+            className="app-modal-panel overflow-y-auto w-full max-w-sm bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4 text-slate-900 dark:text-white"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between">

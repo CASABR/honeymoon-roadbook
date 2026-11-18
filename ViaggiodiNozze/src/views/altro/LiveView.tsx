@@ -2921,8 +2921,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
       {/* MODAL PIN SPOSI */}
       {showPinModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl p-6 max-w-xs w-full shadow-2xl border border-slate-100 text-center animate-in fade-in zoom-in-95 duration-200">
+        <div className="app-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs">
+          <div className="app-modal-panel overflow-y-auto bg-white rounded-3xl p-6 max-w-xs w-full shadow-2xl border border-slate-100 text-center animate-in fade-in zoom-in-95 duration-200">
             <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center text-2xl mx-auto mb-3">
               🔒
             </div>
@@ -2969,8 +2969,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
       {/* MODAL DIDASCALIA FOTO */}
       {showCaptionModal && pendingPhotoUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
-          <div className="bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+        <div className="app-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs">
+          <div className="app-modal-panel overflow-y-auto bg-white rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 space-y-4 animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between">
               <h3 className="font-extrabold text-slate-800 text-sm flex items-center gap-2">
                 <span>📷</span> Conferma Nuova Foto
@@ -3034,7 +3034,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       {/* ─── FULLSCREEN LIVE PHOTO GALLERY VIEWER (Portal) ─── */}
       {activeViewerIndex !== null && publishedLivePhotos[activeViewerIndex] && createPortal(
         <div 
-          className="fixed inset-0 z-[120] bg-black/95 backdrop-blur-md flex flex-col justify-between p-3 sm:p-6 animate-fade-in select-none"
+          className="app-lightbox-overlay fixed inset-0 z-[120] bg-black/95 backdrop-blur-md flex flex-col justify-between animate-fade-in select-none"
           onClick={() => setActiveViewerIndex(null)}
         >
           {/* Top Bar: Contatore & Pulsante Chiudi */}
@@ -3065,7 +3065,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
           </div>
 
           {/* Area Centrale: Immagine e Frecce di Navigazione */}
-          <div className="flex-1 flex items-center justify-between gap-2 sm:gap-4 my-auto relative max-h-[82vh]">
+          <div className="flex-1 min-h-0 flex items-center justify-between gap-2 sm:gap-4 my-auto relative max-h-[calc(100dvh-var(--app-safe-top)-var(--app-safe-bottom)-7rem)]">
             {/* Freccia Sinistra (Precedente) */}
             <button
               type="button"
@@ -3092,7 +3092,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
               <img
                 src={publishedLivePhotos[activeViewerIndex].url}
                 alt={publishedLivePhotos[activeViewerIndex].caption}
-                className="max-h-[72vh] max-w-full object-contain rounded-2xl shadow-2xl transition-transform duration-200"
+                className="max-h-[calc(100dvh-var(--app-safe-top)-var(--app-safe-bottom)-11rem)] max-w-full object-contain rounded-2xl shadow-2xl transition-transform duration-200"
               />
               {publishedLivePhotos[activeViewerIndex].caption && (
                 <p className="text-white/90 text-center text-xs sm:text-sm font-medium mt-3 px-4 max-w-xl line-clamp-2">

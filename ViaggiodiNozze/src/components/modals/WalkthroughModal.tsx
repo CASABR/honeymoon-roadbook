@@ -83,7 +83,7 @@ export default function WalkthroughModal({ isOpen, onClose }: WalkthroughModalPr
   const current = slides[currentSlide];
 
   const modalNode = (
-    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6">
+    <div className="app-modal-overlay fixed inset-0 z-[99999] flex items-center justify-center">
       {/* Backdrop */}
       <div 
         className="absolute inset-0 bg-slate-900/40 dark:bg-slate-950/70 backdrop-blur-sm transition-opacity" 
@@ -92,7 +92,7 @@ export default function WalkthroughModal({ isOpen, onClose }: WalkthroughModalPr
       
       {/* Modal Container Glassmorphism (Light & Dark Support) */}
       <div 
-        className="relative w-full max-w-lg mx-auto max-h-[85dvh] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-y-auto animate-slide-up"
+        className="app-modal-panel relative w-full max-w-lg mx-auto bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200 dark:border-white/10 rounded-3xl shadow-2xl flex flex-col overflow-y-auto animate-slide-up"
         onClick={e => e.stopPropagation()}
       >
         {/* Header pulito con X */}

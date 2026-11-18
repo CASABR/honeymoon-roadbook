@@ -167,6 +167,7 @@ button, a, input, select {
   height: 100dvh;
   padding-top: var(--app-safe-top);
   padding-bottom: var(--app-safe-bottom);
+  padding-left: var(--app-safe-left);
 }
 .app-bottom-nav {
   padding-left: max(1rem, var(--app-safe-left));
@@ -178,6 +179,49 @@ button, a, input, select {
   .app-workspace { padding-bottom: calc(6rem + var(--app-safe-bottom)); }
 }
 
+.app-sticky-subheader {
+  top: var(--app-safe-top);
+}
+@media (max-width: 767px) {
+  .app-workspace .app-sticky-subheader {
+    top: calc(var(--app-safe-top) + 3.8125rem);
+  }
+}
+.app-forced-mobile .app-workspace .app-sticky-subheader {
+  top: 3.8125rem;
+}
+
+.app-fixed-top-toast {
+  top: calc(var(--app-safe-top) + 1rem);
+  max-width: calc(100vw - max(2rem, var(--app-safe-left) + var(--app-safe-right) + 1rem));
+}
+
+.app-above-bottom-nav {
+  bottom: calc(max(0.75rem, var(--app-safe-bottom)) + 5.25rem);
+  left: max(1rem, var(--app-safe-left));
+  right: max(1rem, var(--app-safe-right));
+  max-height: calc(100dvh - var(--app-safe-top) - max(0.75rem, var(--app-safe-bottom)) - 6.25rem);
+  overflow-y: auto;
+}
+
+.app-fixed-bottom-floating {
+  bottom: calc(max(0.75rem, var(--app-safe-bottom)) + 5.25rem);
+}
+@media (min-width: 768px) {
+  .app-fixed-bottom-floating {
+    bottom: max(1.5rem, var(--app-safe-bottom));
+  }
+  .app-safe-shell:has(.app-forced-mobile) .app-fixed-bottom-floating {
+    bottom: calc(max(0.75rem, var(--app-safe-bottom)) + 5.25rem);
+  }
+}
+
+.app-fixed-bottom-safe {
+  bottom: max(1.25rem, var(--app-safe-bottom));
+  right: max(1.25rem, var(--app-safe-right));
+  max-width: calc(100vw - max(2.5rem, var(--app-safe-left) + var(--app-safe-right) + 1rem));
+}
+
 .app-search-overlay {
   --search-gutter: 0.75rem;
   padding: max(var(--search-gutter), var(--app-safe-top)) max(var(--search-gutter), var(--app-safe-right)) max(var(--search-gutter), var(--app-safe-bottom)) max(var(--search-gutter), var(--app-safe-left));
@@ -187,6 +231,43 @@ button, a, input, select {
 }
 @media (min-width: 640px) {
   .app-search-overlay { --search-gutter: 1.5rem; }
+}
+
+.app-modal-overlay {
+  padding: max(0.75rem, var(--app-safe-top)) max(0.75rem, var(--app-safe-right)) max(0.75rem, var(--app-safe-bottom)) max(0.75rem, var(--app-safe-left));
+}
+
+.app-modal-panel {
+  max-height: min(90dvh, calc(100dvh - max(0.75rem, var(--app-safe-top)) - max(0.75rem, var(--app-safe-bottom))));
+}
+
+.app-sheet-overlay {
+  padding: var(--app-safe-top) var(--app-safe-right) 0 var(--app-safe-left);
+}
+@media (min-width: 640px) {
+  .app-sheet-overlay {
+    padding: max(1rem, var(--app-safe-top)) max(1rem, var(--app-safe-right)) max(1rem, var(--app-safe-bottom)) max(1rem, var(--app-safe-left));
+  }
+}
+
+.app-sheet-panel {
+  max-height: min(88dvh, calc(100dvh - var(--app-safe-top) - 0.75rem));
+  padding-bottom: max(1.25rem, var(--app-safe-bottom));
+}
+@media (min-width: 640px) {
+  .app-sheet-panel {
+    max-height: min(88dvh, calc(100dvh - max(1rem, var(--app-safe-top)) - max(1rem, var(--app-safe-bottom))));
+    padding-bottom: 1.5rem;
+  }
+}
+
+.app-lightbox-overlay {
+  padding: max(0.75rem, var(--app-safe-top)) max(0.75rem, var(--app-safe-right)) max(0.75rem, var(--app-safe-bottom)) max(0.75rem, var(--app-safe-left));
+}
+@media (min-width: 640px) {
+  .app-lightbox-overlay {
+    padding: max(1.5rem, var(--app-safe-top)) max(1.5rem, var(--app-safe-right)) max(1.5rem, var(--app-safe-bottom)) max(1.5rem, var(--app-safe-left));
+  }
 }
 
 /* ============================================================================
@@ -580,8 +661,14 @@ input[type="password"] {
   padding-right: var(--app-safe-right) !important;
 }
 
+.modal-backdrop-layer.modal-backdrop-layer--centered {
+  align-items: center !important;
+  padding: max(0.75rem, var(--app-safe-top)) max(0.75rem, var(--app-safe-right)) max(0.75rem, var(--app-safe-bottom)) max(0.75rem, var(--app-safe-left)) !important;
+}
+
 @media (min-width: 640px) {
-  .modal-backdrop-layer {
+  .modal-backdrop-layer,
+  .modal-backdrop-layer.modal-backdrop-layer--centered {
     align-items: center !important;
     padding: max(1rem, var(--app-safe-top)) max(1rem, var(--app-safe-right)) max(1rem, var(--app-safe-bottom)) max(1rem, var(--app-safe-left)) !important;
   }
@@ -610,6 +697,16 @@ input[type="password"] {
   overscroll-behavior: contain !important;
   -webkit-overflow-scrolling: touch !important;
   padding: 1.25rem 1.5rem max(1.5rem, var(--app-safe-bottom)) 1.5rem !important;
+}
+
+.modal-backdrop-layer--centered .modal-sheet-body {
+  padding-bottom: 1.5rem !important;
+}
+
+@media (min-width: 640px) {
+  .modal-sheet-body {
+    padding-bottom: 1.5rem !important;
+  }
 }
 
 /* ============================================================================

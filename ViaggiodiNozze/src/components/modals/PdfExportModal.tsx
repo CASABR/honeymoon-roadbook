@@ -135,12 +135,12 @@ export default function PdfExportModal({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-fade-in font-sans"
+      className="app-modal-overlay fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm animate-fade-in font-sans"
       onClick={(e) => {
         if (e.target === e.currentTarget && !isGenerating) onClose();
       }}
     >
-      <div className="w-full max-w-lg bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-2xl p-5 sm:p-6 overflow-hidden flex flex-col max-h-[92vh] space-y-4">
+      <div className="app-modal-panel w-full max-w-lg bg-white dark:bg-[#172033] rounded-3xl border border-slate-200/90 dark:border-slate-800 shadow-2xl p-5 sm:p-6 overflow-hidden flex flex-col space-y-4">
         
         {/* Intestazione */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/80">

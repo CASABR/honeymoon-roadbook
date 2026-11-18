@@ -365,7 +365,7 @@ export default function TappeView({ onBack }: TappeViewProps) {
         <div className="space-y-8">
           {groupedTappeByCountry.map(({ country, dates }) => (
             <div key={country} className="space-y-4">
-              <div className="sticky top-14 z-10 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-xs py-1.5 px-2 rounded-lg border-b border-slate-200/60 dark:border-slate-800/60 flex items-center gap-2">
+              <div className="sticky app-sticky-subheader z-10 bg-slate-50/90 dark:bg-slate-900/90 backdrop-blur-xs py-1.5 px-2 rounded-lg border-b border-slate-200/60 dark:border-slate-800/60 flex items-center gap-2">
                 <span className="text-sm font-bold text-slate-800 dark:text-slate-100 tracking-tight">
                   {country}
                 </span>

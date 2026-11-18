@@ -1114,7 +1114,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       )}
       {/* Toast Feedback Operazioni */}
       {feedbackBanner && (
-        <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50 animate-bounce-subtle pointer-events-none">
+        <div className="fixed app-fixed-top-toast left-1/2 -translate-x-1/2 z-50 animate-bounce-subtle pointer-events-none">
           <div className="px-4 py-2.5 rounded-2xl bg-emerald-600 text-white font-extrabold text-xs shadow-xl shadow-emerald-600/30 flex items-center gap-2 border border-emerald-400/40">
             <span>✓</span>
             <span>{feedbackBanner}</span>

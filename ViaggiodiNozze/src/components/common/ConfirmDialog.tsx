@@ -24,8 +24,8 @@ export default function ConfirmDialog({
   if (!isOpen) return null;
 
   const dialogNode = (
-    <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-      <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 shadow-2xl">
+    <div className="app-modal-overlay fixed inset-0 z-[100000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+      <div className="app-modal-panel overflow-y-auto w-full max-w-sm rounded-3xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-6 shadow-2xl">
         <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-2">{title}</h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-6">{message}</p>
         

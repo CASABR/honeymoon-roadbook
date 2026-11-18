@@ -757,11 +757,11 @@ export default function TrasportoCard({
 
       {isPNROpen && transport.bookingCode && canSeePrivateInfo && typeof document !== 'undefined' && document.body && createPortal(
         <div
-          className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in"
+          className="app-modal-overlay fixed inset-0 z-[100000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm animate-fade-in"
           onClick={(e) => { e.stopPropagation(); setIsPNROpen(false); }}
         >
           <div
-            className="w-full max-w-sm bg-white dark:bg-[#172033] rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-center relative"
+            className="app-modal-panel overflow-y-auto w-full max-w-sm bg-white dark:bg-[#172033] rounded-3xl p-5 shadow-2xl border border-slate-200 dark:border-slate-800 text-center relative"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100 dark:border-indigo-800 text-indigo-600 dark:text-indigo-400 flex items-center justify-center text-2xl mx-auto mb-3 shadow-2xs">

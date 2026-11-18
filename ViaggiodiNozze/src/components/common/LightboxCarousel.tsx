@@ -119,7 +119,7 @@ export default function LightboxCarousel({
 
   const lightboxNode = (
     <div
-      className="fixed inset-0 flex flex-col items-center justify-between bg-black/95 p-3 sm:p-6 backdrop-blur-md select-none animate-fade-in"
+      className="app-lightbox-overlay fixed inset-0 flex flex-col items-center justify-between bg-black/95 backdrop-blur-md select-none animate-fade-in"
       style={{
         position: 'fixed',
         inset: 0,
@@ -187,7 +187,7 @@ export default function LightboxCarousel({
 
       {/* Main Container with navigation arrows */}
       <div
-        className="relative w-full max-w-4xl flex-1 flex items-center justify-center my-auto py-2"
+        className="relative w-full max-w-4xl flex-1 min-h-0 flex items-center justify-center my-auto py-2"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Freccia Sinistra */}
@@ -203,7 +203,7 @@ export default function LightboxCarousel({
         )}
 
         {/* Visualizzatore: PDF incorporato o Immagine ad alta risoluzione */}
-        <div className="w-full h-full max-h-[76vh] bg-slate-900/90 rounded-2xl sm:rounded-3xl shadow-2xl flex items-center justify-center overflow-hidden border border-white/10 p-1 sm:p-2">
+        <div className="w-full h-full max-h-[calc(100dvh-var(--app-safe-top)-var(--app-safe-bottom)-10rem)] bg-slate-900/90 rounded-2xl sm:rounded-3xl shadow-2xl flex items-center justify-center overflow-hidden border border-white/10 p-1 sm:p-2">
           {isPdf ? (
             <div className="w-full h-full flex flex-col items-center justify-center relative">
               <iframe
@@ -229,7 +229,7 @@ export default function LightboxCarousel({
                 key={currentItem.id}
                 src={currentItem.dataUrl}
                 alt={currentItem.name}
-                className="w-full h-auto max-h-[72vh] object-contain rounded-lg transition-all duration-200"
+                className="w-full h-auto max-h-[calc(100dvh-var(--app-safe-top)-var(--app-safe-bottom)-11rem)] object-contain rounded-lg transition-all duration-200"
               />
             </div>
           )}

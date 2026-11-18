@@ -171,11 +171,11 @@ export default function DayMapsCard({
       {/* Modale Compatto Unificato con entrambi i campi Auto e A piedi */}
       {isModalOpen && typeof document !== 'undefined' && document.body && createPortal(
         <div 
-          className="fixed inset-0 z-[100000] flex items-center justify-center p-3 bg-slate-950/60 backdrop-blur-xs animate-fade-in"
+          className="app-modal-overlay fixed inset-0 z-[100000] flex items-center justify-center bg-slate-950/60 backdrop-blur-xs animate-fade-in"
           onClick={() => setIsModalOpen(false)}
         >
           <div 
-            className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-4 space-y-3"
+            className="app-modal-panel overflow-y-auto w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl p-4 space-y-3"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">

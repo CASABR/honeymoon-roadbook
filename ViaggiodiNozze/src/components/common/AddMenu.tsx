@@ -20,7 +20,7 @@ export default function AddMenu({ onClose, onOpenSmartInsert, onOpenManual }: Ad
     <>
       <div className="fixed inset-0 z-40 bg-black/25 backdrop-blur-xs animate-fade-in" onClick={onClose} />
       
-      <div className="fixed bottom-24 left-4 right-4 max-w-sm mx-auto z-50 animate-slide-up">
+      <div className="fixed app-above-bottom-nav max-w-sm mx-auto z-50 animate-slide-up">
         <div className="hounigo-panel backdrop-blur-xl rounded-3xl p-4">
           <div className="flex items-center justify-between mb-4 pb-2 border-b border-[#e5e3dd]">
             <span className="hounigo-section-kicker">

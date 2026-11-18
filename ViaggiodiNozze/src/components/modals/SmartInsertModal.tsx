@@ -1319,8 +1319,8 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       />
 
       {/* Sheet Light */}
-      <div className="fixed bottom-0 sm:inset-0 sm:items-center sm:justify-center left-0 right-0 z-[90] flex justify-center">
-        <div className="w-full max-w-lg mx-auto bg-white border border-slate-200/90 sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-y-auto max-h-[88dvh] p-4 sm:p-6 animate-slide-up text-slate-800">
+      <div className="app-sheet-overlay fixed inset-0 z-[90] flex items-end sm:items-center justify-center pointer-events-none">
+        <div className="app-sheet-panel pointer-events-auto w-full max-w-lg mx-auto bg-white border border-slate-200/90 sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-y-auto pt-4 px-4 sm:pt-6 sm:px-6 animate-slide-up text-slate-800">
 
           {/* ─── Header HouniAI Light ─── */}
           <div className="flex items-center justify-between mb-3">
@@ -2083,8 +2083,8 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
       {/* Mini-Modal Quando vuoi andare? */}
       {showCloudflareConsent && (
-        <div className="fixed inset-0 z-[1000000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div role="dialog" aria-modal="true" aria-labelledby="cloudflare-ai-consent-title" className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
+        <div className="app-modal-overlay fixed inset-0 z-[1000000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" aria-labelledby="cloudflare-ai-consent-title" className="app-modal-panel overflow-y-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900">
             <h3 id="cloudflare-ai-consent-title" className="text-lg font-extrabold text-slate-900 dark:text-white">Prima di usare HouniAI</h3>
             <div className="mt-3 space-y-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
               <p>Il testo o l’immagine scelti saranno inviati a Cloudflare Workers AI solo dopo questa conferma.</p>
@@ -2105,8 +2105,8 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       )}
 
       {pendingSuggestion && (
-        <div className="fixed inset-0 z-[1000000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white dark:bg-[#1E293B] rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700 animate-scale-up">
+        <div className="app-modal-overlay fixed inset-0 z-[1000000] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm">
+          <div className="app-modal-panel overflow-y-auto bg-white dark:bg-[#1E293B] rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-slate-200 dark:border-slate-700 animate-scale-up">
             <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4 text-center">Quando vuoi andare?</h3>
             
             <div className="space-y-4">

@@ -32,12 +32,12 @@ export default function DeviceRoleModal({
       role="dialog"
       aria-modal="true"
       onClick={onClose}
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="app-modal-overlay fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
     >
       <div
         onClick={(e) => e.stopPropagation()}
         tabIndex={-1}
-        className="relative bg-white dark:bg-slate-900 rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 z-10 animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto outline-none"
+        className="app-modal-panel relative bg-white dark:bg-slate-900 rounded-3xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4 z-10 animate-in zoom-in-95 duration-200 overflow-y-auto outline-none"
       >
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2">

@@ -154,8 +154,8 @@ export default function DestinationSearchModal({
   if (!isOpen) return null;
 
   const modalNode = (
-    <div className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+    <div className="app-modal-overlay fixed inset-0 z-[100000] flex items-center justify-center bg-slate-950/70 backdrop-blur-xs animate-fade-in">
+      <div className="app-modal-panel bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-xl w-full flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2">

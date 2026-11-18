@@ -329,7 +329,7 @@ export default function RistorantiView({ onBack }: RistorantiViewProps) {
         <div className="space-y-8">
           {groupedRistorantiByCountry.map(({ country, dates }) => (
             <div key={country} className="space-y-4">
-              <div className="sticky top-0 z-10 py-1.5 bg-slate-50/95 backdrop-blur-md border-b border-slate-200 flex items-center justify-between">
+              <div className="sticky app-sticky-subheader z-10 py-1.5 bg-slate-50/95 backdrop-blur-md border-b border-slate-200 flex items-center justify-between">
                 <h2 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
                   {country}
                 </h2>

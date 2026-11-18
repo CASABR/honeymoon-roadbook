@@ -6,7 +6,7 @@ export const InstallPWA: React.FC = () => {
 
   if (isIOSPrompt) {
     return (
-      <div className="fixed bottom-4 left-4 right-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 animate-in slide-in-from-bottom-5">
+      <div className="fixed app-fixed-bottom-floating left-[max(1rem,var(--app-safe-left))] right-[max(1rem,var(--app-safe-right))] max-w-md mx-auto bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 z-50 animate-in slide-in-from-bottom-5">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
             <h4 className="font-bold text-slate-900 dark:text-white mb-1">
@@ -36,7 +36,7 @@ export const InstallPWA: React.FC = () => {
   return (
     <button
       onClick={promptInstall}
-      className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-50 flex items-center gap-2 font-medium"
+      className="fixed app-fixed-bottom-floating left-1/2 -translate-x-1/2 max-w-[calc(100vw-max(2rem,var(--app-safe-left)+var(--app-safe-right)))] bg-blue-600 text-white px-4 py-2 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-50 flex items-center gap-2 font-medium"
       aria-label="Installa l'app"
     >
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

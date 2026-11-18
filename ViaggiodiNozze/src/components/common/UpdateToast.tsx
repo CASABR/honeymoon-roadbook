@@ -32,7 +32,7 @@ export default function UpdateToast() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2.5rem)] max-w-sm"
+      className="fixed app-fixed-bottom-floating left-1/2 -translate-x-1/2 z-50 w-[calc(100%-max(2.5rem,var(--app-safe-left)+var(--app-safe-right)+1rem))] max-w-sm"
     >
       <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-slate-800 border border-slate-700/60 shadow-2xl shadow-black/40 backdrop-blur-md">
         <div className="flex items-center gap-2.5 min-w-0">

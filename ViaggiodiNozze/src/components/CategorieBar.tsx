@@ -78,7 +78,7 @@ export default function CategorieBar({
       />
 
       {/* Dock popup a 2 file da 3 icone */}
-      <div className="fixed bottom-20 left-4 right-4 max-w-sm mx-auto z-50 animate-slide-up">
+      <div className="fixed app-above-bottom-nav max-w-sm mx-auto z-50 animate-slide-up">
         <div className="bg-[#F8F7F3] dark:bg-[#172033] border border-slate-200/90 dark:border-slate-800 backdrop-blur-xl rounded-3xl p-3.5 shadow-2xl">
           <div className="flex items-center justify-between px-2 mb-2 pb-1.5 border-b border-slate-200/80 dark:border-slate-800">
             <span className="text-[11px] font-extrabold uppercase tracking-wider text-[#172033] dark:text-slate-200 flex items-center gap-1.5 font-sans">

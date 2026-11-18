@@ -1053,8 +1053,8 @@ export default function GestioneViaggioView({ onBack }: { onBack: () => void }) 
 
       {/* Modal di Conferma Espulsione */}
       {memberToKick && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+        <div className="app-modal-overlay fixed inset-0 z-[9998] flex items-center justify-center bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="app-modal-panel overflow-y-auto bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="w-12 h-12 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center text-2xl">
               ⚠️
             </div>

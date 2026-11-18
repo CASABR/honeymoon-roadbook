@@ -269,12 +269,12 @@ export default function AccountSyncModal({ isOpen, onClose, onSuccess }: Account
       role="dialog"
       aria-modal="true"
       onClick={onClose}
-      className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
+      className="app-modal-overlay fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs animate-in fade-in duration-200"
     >
       <div
         tabIndex={-1}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden p-6 space-y-4 max-h-[90vh] overflow-y-auto outline-none"
+        className="app-modal-panel w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden p-6 space-y-4 overflow-y-auto outline-none"
       >
         {/* Header pulito */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">

@@ -126,11 +126,11 @@ export default function TripSelectorModal({
 
   const modalNode = (
     <div
-      className="fixed inset-0 z-[100] flex justify-center bg-slate-950/70 backdrop-blur-sm animate-fade-in items-end sm:items-center p-0 sm:p-4"
+      className="app-sheet-overlay fixed inset-0 z-[100] flex justify-center bg-slate-950/70 backdrop-blur-sm animate-fade-in items-end sm:items-center"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border-t sm:border border-slate-200 dark:border-slate-800 shadow-2xl p-5 sm:p-6 overflow-hidden flex flex-col max-h-[90dvh] sm:max-h-[85vh] pb-[max(1.25rem,env(safe-area-inset-bottom,1.25rem))] sm:pb-6"
+        className="app-sheet-panel w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl border-t sm:border border-slate-200 dark:border-slate-800 shadow-2xl pt-5 px-5 sm:pt-6 sm:px-6 overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
 

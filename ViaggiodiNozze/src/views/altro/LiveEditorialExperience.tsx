@@ -626,7 +626,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         </div>
       )}
 
-      <nav className="sticky top-0 z-30 -mx-3 grid grid-cols-3 border-b border-slate-200 bg-[#F8F7F3]/95 px-3 py-2 backdrop-blur dark:border-slate-800 dark:bg-[#172033]/95 sm:-mx-6 sm:px-6" aria-label="Sezioni LIVE">
+      <nav className="sticky app-sticky-subheader z-20 -mx-3 grid grid-cols-3 border-b border-slate-200 bg-[#F8F7F3]/95 px-3 py-2 backdrop-blur dark:border-slate-800 dark:bg-[#172033]/95 sm:-mx-6 sm:px-6" aria-label="Sezioni LIVE">
         <a href="#live-position" className="min-h-10 rounded-full px-2 py-2 text-center text-xs font-bold hover:bg-white dark:hover:bg-slate-800">Posizione</a>
         <a href="#live-diary" className="min-h-10 rounded-full px-2 py-2 text-center text-xs font-bold hover:bg-white dark:hover:bg-slate-800">Diario</a>
         <a href="#live-interactions" className="min-h-10 rounded-full px-2 py-2 text-center text-xs font-bold hover:bg-white dark:hover:bg-slate-800">Interazioni</a>
@@ -1163,7 +1163,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
       {activeLightboxIndex !== null && displayPhotos[activeLightboxIndex] && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex flex-col justify-between bg-black/95 backdrop-blur-md p-3 sm:p-6 pt-[max(0.75rem,env(safe-area-inset-top,0.75rem))] pb-[max(0.75rem,env(safe-area-inset-bottom,0.75rem))] text-white select-none"
+          className="app-lightbox-overlay fixed inset-0 z-[9999] flex flex-col justify-between bg-black/95 backdrop-blur-md text-white select-none"
           role="dialog"
           aria-modal="true"
           aria-label="Foto a schermo intero"

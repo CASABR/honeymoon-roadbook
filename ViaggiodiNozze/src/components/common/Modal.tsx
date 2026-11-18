@@ -96,7 +96,7 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
 
   const modalNode = (
     <div 
-        className={`modal-backdrop-layer fixed inset-0 z-[99999] flex justify-center bg-slate-900/65 backdrop-blur-sm ${centered ? 'items-center p-4' : 'items-end sm:items-center p-0 sm:p-4'}`}
+        className={`modal-backdrop-layer fixed inset-0 z-[99999] flex justify-center bg-slate-900/65 backdrop-blur-sm${centered ? ' modal-backdrop-layer--centered' : ''}`}
     >
       {/* Click outside to close */}
       <div 
@@ -143,7 +143,6 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
             minHeight: 0,
             overflowY: 'auto',
             WebkitOverflowScrolling: 'touch',
-            padding: '1.25rem 1.5rem max(1.5rem, env(safe-area-inset-bottom, 1.5rem)) 1.5rem',
           }}
         >
           {children}

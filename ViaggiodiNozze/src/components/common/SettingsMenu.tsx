@@ -37,20 +37,31 @@ export default function SettingsMenu() {
     const updatePosition = () => {
       if (!triggerRef.current) return;
       const rect = triggerRef.current.getBoundingClientRect();
-      const menuWidth = Math.min(300, window.innerWidth - 24);
+      const rootStyle = getComputedStyle(document.documentElement);
+      const safeTop = parseFloat(rootStyle.getPropertyValue('--app-safe-top')) || 0;
+      const safeRight = parseFloat(rootStyle.getPropertyValue('--app-safe-right')) || 0;
+      const safeBottom = parseFloat(rootStyle.getPropertyValue('--app-safe-bottom')) || 0;
+      const safeLeft = parseFloat(rootStyle.getPropertyValue('--app-safe-left')) || 0;
+
+      const minLeft = safeLeft + 12;
+      const maxWidth = Math.max(200, window.innerWidth - safeLeft - safeRight - 24);
+      const menuWidth = Math.min(300, maxWidth);
 
       let left: number;
       if (rect.left < window.innerWidth / 2) {
-        left = Math.max(12, Math.min(rect.left, window.innerWidth - menuWidth - 12));
+        left = Math.max(minLeft, Math.min(rect.left, window.innerWidth - safeRight - menuWidth - 12));
       } else {
-        left = Math.max(12, rect.right - menuWidth);
+        left = Math.max(minLeft, Math.min(rect.right - menuWidth, window.innerWidth - safeRight - menuWidth - 12));
       }
 
+      const maxTop = Math.max(safeTop + 8, window.innerHeight - safeBottom - 168);
+      const top = Math.max(safeTop + 8, Math.min(rect.bottom + 8, maxTop));
+
       setMenuCoords({
-        top: Math.min(rect.bottom + 8, window.innerHeight - 200),
+        top,
         left,
         width: menuWidth,
-        maxHeight: Math.max(250, window.innerHeight - (rect.bottom + 24))
+        maxHeight: Math.max(140, window.innerHeight - safeBottom - 16 - top)
       });
     };
 
@@ -410,7 +421,7 @@ export default function SettingsMenu() {
 
       {/* Toast Feedback */}
       {toast && (
-        <div className="fixed bottom-6 right-6 z-[9999] px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold shadow-xl border border-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-150 flex items-center gap-2">
+        <div className="fixed app-fixed-bottom-floating right-[max(1rem,var(--app-safe-right))] md:right-[max(1.5rem,var(--app-safe-right))] max-w-[calc(100vw-max(2rem,var(--app-safe-left)+var(--app-safe-right)))] z-[9999] px-4 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-semibold shadow-xl border border-slate-800 animate-in fade-in slide-in-from-bottom-2 duration-150 flex items-center gap-2">
           <span>{toast.type === 'ok' ? '✓' : '⚠️'}</span>
           <span>{toast.msg}</span>
         </div>
