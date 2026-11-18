@@ -4,7 +4,7 @@
     {
       "version": "1.6.24",
       "publishedAt": "2026-11-18",
-      "sourceCommit": "02baeab",
+      "sourceCommit": "a56ba87",
       "changes": [
         "Card Alloggi: nascosto sul fronte il pulsante check-in quando non ancora effettuato, preservando «✓ Check-in fatto», orari e retro invariati"
       ],
