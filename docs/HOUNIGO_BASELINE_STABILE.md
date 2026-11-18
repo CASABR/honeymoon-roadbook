@@ -2,7 +2,7 @@
 
 **Aggiornato:** 18 novembre 2026  
 **Repository:** `CASABR/honeymoon-roadbook` • **App:** `ViaggiodiNozze/`  
-**Produzione:** GitHub Pages + GitHub Actions su `main` • **Versione:** `1.6.20`  
+**Produzione:** GitHub Pages + GitHub Actions su `main` • **Versione:** `1.6.21`  
 **Firebase:** `app-viaggio-di-nozze` (produzione ufficiale, ruleset live verificato byte-for-byte con `firestore.rules`).
 
 ## Regola fondamentale
@@ -57,18 +57,25 @@ Distinguere SEMPRE **implementato**, **test automatici superati**, **pubblicato*
 1. **P0 — UID reale vs Firestore:** completato lato verifica identità e consolidamento/deploy Rules (`a7ce904`, `751660ea-5478-4534-b79b-30a5254a9b3d`).
 2. **P0 — Sblocco Hobbiton (iPhone Owner):** **RISOLTO sul dispositivo Owner (18/11/2026 alle 11:35:37)** — Owner autorizzato, sync attiva, coda `0`, conflitti `0`, nessun errore visibile.
 3. **P1 — Due telefoni (Copilota / verifica bidirezionale):** **ancora da eseguire** il test bidirezionale su secondo telefono con Copilota (oltre ad aggiunta/rimozione Copilota, modalità aereo e riconciliazione, GPS Owner verso Copilota, push su iPhone).
-4. **P1 — UX iPhone (Safe Area & Dynamic Island):** **correzioni tecniche completate su v1.6.21 (testate localmente in build/Playwright, in pubblicazione su GitHub Pages)** — verificati e corretti overlay superiori/inferiori (`CategorieBar`, `AddMenu`, `UpdateToast`, `InstallPWA`, toast in `OggiView`/`NoteViaggioView`/`SettingsMenu`/`AdminDashboardView`), subheader `sticky` nelle viste categoria e `LIVE` (`.app-sticky-subheader` per evitare copertura sotto `.app-mobile-header`), `DesktopNavigation` in landscape (`--app-safe-left`), `Modal` centrati/bottom-sheet senza doppio padding (`.modal-backdrop-layer--centered`, `SmartInsertModal`, `TripSelectorModal`), modali custom (`WalkthroughModal`, `AccountSyncModal`, `PreActivationDiagnosticModal`, `PdfExportModal`, `UnifiedBooking*`, `DestinationSearchModal`, `DeviceRoleModal`, `ConfirmDialog`, `DayMapsCard`, `TrasportoCard`, `LiveView`, `GestioneViaggioView`) con `dvh` + `--app-safe-*` per schermi piccoli/tastiera e lightbox fullscreen (`LightboxCarousel`, `LiveView`, `LiveEditorialExperience`). Restano P1 aperti: apertura card/Duplica mobile, allegati Documenti/Polizze e **verifica visiva reale su iPhone (Safari + PWA standalone)** di Dynamic Island/safe-area e tastiera iOS.
+4. **P1 — UX iPhone (Safe Area & Dynamic Island):** **pubblicato v1.6.21 su GitHub Pages (`959545b` / `1735f81`, run `#44293157761`) — test automatici superati; verifica visiva reale su iPhone ancora necessaria.** Corretti overlay superiori/inferiori (`CategorieBar`, `AddMenu`, `UpdateToast`, `InstallPWA`, toast in `OggiView`/`NoteViaggioView`/`SettingsMenu`/`AdminDashboardView`), subheader `sticky` nelle viste categoria e `LIVE` (`.app-sticky-subheader` sotto `.app-mobile-header`), `DesktopNavigation` in landscape (`--app-safe-left`), `Modal` centrati/bottom-sheet senza doppio padding (`.modal-backdrop-layer--centered`, `SmartInsertModal`, `TripSelectorModal`), modali custom (`WalkthroughModal`, `AccountSyncModal`, `PreActivationDiagnosticModal`, `PdfExportModal`, `UnifiedBooking*`, `DestinationSearchModal`, `DeviceRoleModal`, `ConfirmDialog`, `DayMapsCard`, `TrasportoCard`, `LiveView`, `GestioneViaggioView`) con `dvh` + `--app-safe-*` per schermi piccoli/tastiera e lightbox fullscreen (`LightboxCarousel`, `LiveView`, `LiveEditorialExperience`). Restano P1 aperti: apertura card/Duplica mobile, allegati Documenti/Polizze e **verifica visiva reale su iPhone (Safari + PWA standalone)** di Dynamic Island/safe-area e tastiera iOS.
 5. **P2 — LIVE:** foto pre-partenza, foto cloud e messaggi ospiti protetti, senza accessi Firestore pubblici insicuri.
 6. **P2 — Manutenzione:** valutare suite statiche datate (`test_unified_identity_cases.cjs`, `test_release_160_rules.cjs` check 9).
 
-## Verifiche Safe Area iPhone / Dynamic Island (18/11/2026 — v1.6.21)
+## Verifiche Safe Area iPhone / Dynamic Island (18/11/2026 — v1.6.21 pubblicata)
 
-- **Verifiche tecniche superate:**
-  - `npm --prefix ViaggiodiNozze run build` (`tsc -b && vite build`) e `oxlint` senza errori sulle viste/componenti modificati.
-  - `ViaggiodiNozze/scripts/test_responsive_safearea_160.cjs` (`PASS` su `320`, `375`, `393`, `430`, `1440px`, meta PWA e stabilità scroll).
-  - Suite Playwright headless con inset simulati Dynamic Island PWA (`393x852` `[59,0,34,0]`), Safari (`[0,0,0,0]`), iPhone SE (`320x568` `[44,0,34,0]`), tastiera virtuale (`393x390`), landscape (`852x393` `[0,59,21,59]`), desktop (`1280x800`) e vista mobile forzata: verificati gap `CategorieBar` sopra `NavBar` (`+12.4px`), subheader sticky sotto header mobile (`120px` PWA / `61px` Safari), modali centrati senza doppio padding bottom (`layer 34px`, `body 24px`) vs bottom sheet (`layer 0px`, `body 34px`), scroll interno su altezza ridotta e invariant desktop (`320px` sidebar + `960px` main).
-- **Ancora da verificare su hardware iPhone reale:**
-  - Comportamento effettivo in **Safari iOS** (con barra URL inferiore espansa/compatta) e nella **PWA installata** con Dynamic Island fisica (`env(safe-area-inset-*)` reali, tastiera nativa iOS/scroll focus sugli input, lightboxes e modali lunghi).
+- **Test automatici e verifiche online superate:**
+  - `node ViaggiodiNozze/scripts/test_release_versioning.cjs` (`24` controlli superati con `sourceCommit: 959545b`), `npm --prefix ViaggiodiNozze run lint` (`oxlint`, `0` errori) e `npm --prefix ViaggiodiNozze run build` (`tsc -b && vite build`).
+  - `ViaggiodiNozze/scripts/test_responsive_safearea_160.cjs` (`PASS` su `320`, `375`, `393`, `430`, `1440px`, meta PWA e stabilità scroll) e suite Playwright headless con inset simulati Dynamic Island PWA (`393x852` `[59,0,34,0]`), Safari (`[0,0,0,0]`), iPhone SE (`320x568` `[44,0,34,0]`), tastiera virtuale (`393x390`), landscape (`852x393` `[0,59,21,59]`), desktop (`1280x800` `320px`/`960px` invariato) e vista mobile forzata.
+  - Deploy GitHub Actions `#44293157761` (`success`): job `Verifica, Compilazione & Pacchetto PWA` (`57s`) e `Pubblicazione Nativa su GitHub Pages` (`11s`).
+  - Verifica online su `https://casabr.github.io/honeymoon-roadbook/`: `index.html`, `sw.js`, `index-PNXcrQVa.js` (`1.6.21`, `959545b`, `1735f81`) e `index-VUNGmwLu.css` (`app-sticky-subheader`, `modal-backdrop-layer--centered`) serviti con HTTP `200`; avvio browser headless senza `pageErrors`.
+- **Verifiche reali su iPhone ancora necessarie:**
+  - Controllo visivo e interattivo su hardware iPhone fisico in **Safari iOS** (barra URL inferiore espansa/compatta) e nella **PWA installata** (Dynamic Island fisica, `env(safe-area-inset-*)` reali, tastiera nativa iOS con focus sugli input nei modali/bottom-sheet, lightbox foto/PDF e modali lunghi).
+
+## Rifinitura Card Pre-Partenza (18/11/2026 — modifiche locali post-1.6.21, non committate)
+
+- **Intervento UI (`PreDeparturePhotoCard.tsx`):** spostato «Non mostrare più» con icona `×` inline su una barra utility inferiore dedicata in riga unica (`whitespace-nowrap`, `min-h-8`), rimosso troncamento (`line-clamp`) sul testo, ampliata la spaziatura e allineati «Scatta o carica foto», «Condividi nel LIVE» (`min-h-10`) e «Cos’è il LIVE?» senza toccare archiviazione offline, strip EXIF, condivisione LIVE o preferenza di chiusura.
+- **Test automatici superati (dopo ultima modifica):** suite Playwright `PreDeparturePhotoCard` su `393x852` (iPhone 15 Pro), `320x568` (iPhone SE, front e retro flippato), `1280x800` desktop (`dismissTextLines: 1`, `descTruncated: false`, `footerGap >= 60.8px`, persistenza chiusura dopo reload), `test_live_kv_free.cjs` (`18/18` isolati), `oxlint` (`0` errori), `tsc -b && vite build` e `test_responsive_safearea_160.cjs`; in `test_block_a_predeparture_and_checkin.cjs` check preesistente 4 fallisce sulla stringa legacy `"Condividi anche nel LIVE"` (la UI mantiene `"Condividi nel LIVE"` come richiesto).
+- **Ancora da verificare su hardware iPhone reale:** controllo visivo della card su iPhone fisico (stato vuoto, foto caricata e vista retro LIVE).
 
 ## Checklist di rilascio P0 (solo Firestore Rules)
 

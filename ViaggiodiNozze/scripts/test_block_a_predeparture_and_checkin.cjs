@@ -4,7 +4,7 @@
  * 1. PreDeparturePhotoCard compare SOLO nel Giorno 1 (selectedDate === startDate) e mai sugli altri giorni.
  * 2. PreDeparturePhotoCard può essere nascosta definitivamente (localStorage + IndexedDB) e non ricompare.
  * 3. PreDeparturePhotoCard non crea attività automatiche ("Foto pre partenza") nel roadbook.
- * 4. PreDeparturePhotoCard forza stripExif: true tramite processFileForAttachment e presenta la vista retro informativa sul LIVE e il toggle "Condividi anche nel LIVE".
+ * 4. PreDeparturePhotoCard forza stripExif: true tramite processFileForAttachment e presenta la vista retro informativa sul LIVE e il toggle "Condividi nel LIVE".
  * 5. Check-in Trasporti e Alloggi è indipendente dallo stato pagamento (paymentStatus, cost, acconto).
  * 6. Modificare checkInDone / checkOutDone / dropoffDone su Trasporto o Alloggio mantiene intatti i campi in private_credentials (bookingCode, pinCode, attachments, noteCopilota).
  */
@@ -69,10 +69,11 @@ check('3. PreDeparturePhotoCard NON crea alcuna attività nel roadbook e rimuove
   assert(fileAttachmentCode.includes('!options?.stripExif'), 'fileAttachment deve forzare ricodifica Canvas quando stripExif è true');
 });
 
-check('4. PreDeparturePhotoCard include vista retro informativa sul LIVE e toggle esplicito "Condividi anche nel LIVE"', () => {
+check('4. PreDeparturePhotoCard include vista retro informativa sul LIVE e toggle esplicito "Condividi nel LIVE"', () => {
   assert(preDepCardCode.includes('Cos’è il LIVE?'), 'Pulsante info retro presente');
   assert(preDepCardCode.includes('Come funziona il diario LIVE durante il viaggio'), 'Spiegazione retro LIVE presente');
-  assert(preDepCardCode.includes('Condividi anche nel LIVE'), 'Toggle esplicito "Condividi anche nel LIVE" presente');
+  assert(preDepCardCode.includes('Condividi nel LIVE'), 'Toggle esplicito "Condividi nel LIVE" presente');
+  assert(preDepCardCode.includes('handleToggleShareLive'), 'Handler del toggle LIVE collegato');
 });
 
 check('5. TrasportoCard e AlloggioCard espongono stato e toggle rapido di Check-in indipendente dal pagamento', () => {
