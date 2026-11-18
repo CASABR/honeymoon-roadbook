@@ -31,6 +31,24 @@ import {
 const isBlockingConflict = (c: { status?: string; conflictType?: string } | null | undefined): boolean =>
   Boolean(c && c.status === 'pending_review' && c.conflictType !== 'local_only_record' && c.conflictType !== 'private_cache_copy');
 
+const AUTO_SYNC_COOLDOWN_MS = 10 * 60 * 1000;
+const INITIAL_ROLE_DEFER_MS = 1500;
+const QUOTA_BACKOFF_BASE_MS = 30_000;
+const QUOTA_BACKOFF_MAX_MS = 15 * 60 * 1000;
+const OPERATIONAL_ENTITIES_WITH_VAULT = new Set([
+  'alloggio', 'trasporto', 'attivita', 'tappa', 'ristorante', 'shopping', 'documento'
+]);
+
+/** Rileva errori di quota o rate-limit Firestore (429 / resource-exhausted). */
+export function isFirestoreQuotaError(error: unknown): boolean {
+  const candidate = error as { code?: unknown; status?: unknown; message?: unknown } | null;
+  if (!candidate) return false;
+  const code = typeof candidate.code === 'string' ? candidate.code.toLowerCase() : '';
+  if (code === 'resource-exhausted' || Number(candidate.status) === 429) return true;
+  const msg = typeof candidate.message === 'string' ? candidate.message : String(error || '');
+  return /resource[-_ ]exhausted|quota exceeded|too many requests|\b429\b/i.test(msg);
+}
+
 export interface PreActivationSyncReportItem {
   id: string;
   entityType: string;
@@ -260,7 +278,7 @@ export function compareCandidateWithRemote(
     return { isEquivalent: false, differences: [{ field: '_root', localVal: localData, remoteVal: remoteData }] };
   }
 
-  const isOperationalWithCreds = ['alloggio', 'trasporto', 'attivita', 'tappa', 'ristorante', 'shopping', 'documento'].includes(normType);
+  const isOperationalWithCreds = OPERATIONAL_ENTITIES_WITH_VAULT.has(normType);
   const { publicDoc: candidatePublic } = isOperationalWithCreds
     ? splitEntitySecurityData(normType as any, tripId, localData)
     : { publicDoc: localData };
@@ -521,7 +539,7 @@ export async function getPreActivationSyncReport(
 
         let schemaSummary: PreActivationSyncReportItem['schemaSummary'];
         if (q.data && typeof q.data === 'object') {
-          const isOperationalWithCreds = ['alloggio', 'trasporto', 'attivita', 'tappa', 'ristorante', 'shopping', 'documento'].includes(normType);
+          const isOperationalWithCreds = OPERATIONAL_ENTITIES_WITH_VAULT.has(normType);
           const split = isOperationalWithCreds
             ? splitEntitySecurityData(normType as any, tripId, q.data)
             : { publicDoc: q.data, privateCredentialsDoc: null };
@@ -690,7 +708,7 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
     // sono superati. L'Owner verificato abilita esplicitamente le scritture cloud per il viaggio!
     allowCloudWriteForTrip0000(true);
     if (activeSyncService && activeSyncService.getTripId() === tripId) {
-      activeSyncService.triggerAutomaticSync('owner_activation_unlocked');
+      activeSyncService.triggerAutomaticSync('owner_activation_unlocked', { force: true });
     }
     return { success: true, pushedCount: 0, remainingCount: 0, conflictsCount: 0, errors: [] };
   }
@@ -781,7 +799,7 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
   if (remainingBeforeFlush.length === 0) {
     allowCloudWriteForTrip0000(true);
     if (activeSyncService && activeSyncService.getTripId() === tripId) {
-      activeSyncService.triggerAutomaticSync('owner_activation_unlocked');
+      activeSyncService.triggerAutomaticSync('owner_activation_unlocked', { force: true });
     }
     return {
       success: true,
@@ -825,7 +843,7 @@ export async function executeControlledReconciliation(tripId: string): Promise<{
     allowCloudWriteForTrip0000(false);
     console.warn(`[SyncService] Riconciliazione incompleta o fallita (${remainingCount} pendenti, ${errors.length} errori): flag cloud-write reimpostato su BLOCCATO.`);
   } else if (activeSyncService && activeSyncService.getTripId() === tripId) {
-    activeSyncService.triggerAutomaticSync('owner_activation_reconciled');
+    activeSyncService.triggerAutomaticSync('owner_activation_reconciled', { force: true });
   }
 
   return {
@@ -1000,7 +1018,7 @@ export async function enableCopilotBidirectionalSync(tripId: string): Promise<{
   allowCloudWriteForTrip0000(true);
 
   if (activeSyncService && activeSyncService.getTripId() === tripId) {
-    activeSyncService.triggerAutomaticSync('copilot_activation_unlocked');
+    activeSyncService.triggerAutomaticSync('copilot_activation_unlocked', { force: true });
     if (queue.length > 0) {
       activeSyncService.flushPendingQueue().catch((err) => {
         console.warn('[SyncService] Flush iniziale Copilota differito:', err);
@@ -1040,16 +1058,20 @@ if (typeof window !== 'undefined') {
 
 export class SyncService {
   private unsubscribes: (() => void)[] = [];
-  private lastAppliedCloudRoleKey: string | null = null;
   private domListeners: { target: EventTarget; type: string; listener: EventListener }[] = [];
   private tripId: string;
-  private isSyncing = false;
-  private pendingSyncRequest = false;
-    private autoSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private inFlightSyncPromise: Promise<void> | null = null;
+  private inFlightFlushPromise: Promise<string[]> | null = null;
+  private autoSyncDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private deferredListenerTimer: ReturnType<typeof setTimeout> | null = null;
   private isDestroyed = false;
-  private pendingSyncTimeout: ReturnType<typeof setTimeout> | null = null;
   private initialSyncRequested = false;
-  private isFlushingPending = false;
+  private hasAttachedCloudListeners = false;
+  private currentListenerTier: 'privileged' | 'viewer' | null = null;
+  private listenerUid = '';
+  private lastSuccessfulFullSyncAt = 0;
+  private quotaBackoffUntil = 0;
+  private quotaBackoffAttempt = 0;
 
   constructor(tripId: string) {
     this.tripId = tripId;
@@ -1057,13 +1079,61 @@ export class SyncService {
     this.cleanupLegacySettingsQueue().catch(() => {});
     this.cleanupLegacyConflictBackupsFromSettings().catch(() => {});
     this.setupLocalListeners();
-    this.setupCloudListeners();
+
+    const initialRole = getAuthoritativeCloudRole();
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    if (initialRole !== 'checking' || isOffline) {
+      this.syncCloudListenersForCurrentAuth();
+    } else {
+      // Attende brevemente la risoluzione del ruolo iniziale per evitare doppia sottoscrizione checking -> owner/copilota.
+      this.deferredListenerTimer = setTimeout(() => {
+        this.deferredListenerTimer = null;
+        if (!this.isDestroyed && !this.hasAttachedCloudListeners) {
+          this.syncCloudListenersForCurrentAuth();
+        }
+      }, INITIAL_ROLE_DEFER_MS);
+    }
+
     // Avvia sincronizzazione iniziale solo se già autorizzati, altrimenti il listener houni_cloud_role_changed la avvierà non appena confermato
     if (isCloudAuthorized(this.tripId)) {
       this.requestInitialSync('constructor');
     } else {
       console.log('[SyncService] Avvio sync iniziale posticipato: in attesa di autorizzazione cloud.');
     }
+  }
+
+  private isInQuotaBackoff(): boolean {
+    return Date.now() < (this.quotaBackoffUntil || 0);
+  }
+
+  private recordQuotaBackoff(error?: unknown): void {
+    const attempt = Math.min(this.quotaBackoffAttempt || 0, 5);
+    const delayMs = Math.min(QUOTA_BACKOFF_MAX_MS, QUOTA_BACKOFF_BASE_MS * (2 ** attempt));
+    this.quotaBackoffAttempt = attempt + 1;
+    this.quotaBackoffUntil = Date.now() + delayMs;
+    console.warn(`[SyncService] Quota Firestore esaurita (429): sync automatica sospesa per ${Math.round(delayMs / 1000)}s.`, error);
+    setLastSyncError(this.tripId, 'Quota Firestore temporaneamente esaurita: le modifiche locali restano protette in coda.');
+    this.emitSyncStatus();
+  }
+
+  private resetQuotaBackoff(): void {
+    this.quotaBackoffUntil = 0;
+    this.quotaBackoffAttempt = 0;
+  }
+
+  private syncCloudListenersForCurrentAuth(forceReattach = false): void {
+    if (this.isDestroyed) return;
+    const nextTier: 'privileged' | 'viewer' = isCloudAuthorized(this.tripId) ? 'privileged' : 'viewer';
+    const currentUid = auth?.currentUser?.uid || '';
+    if (!forceReattach && this.hasAttachedCloudListeners && this.currentListenerTier === nextTier && this.listenerUid === currentUid) {
+      return;
+    }
+    this.unsubscribes.forEach(unsub => unsub());
+    this.unsubscribes = [];
+    this.setupCloudListeners();
+    this.hasAttachedCloudListeners = true;
+    this.currentListenerTier = nextTier;
+    this.listenerUid = currentUid;
   }
 
   public canWriteToCloud(): boolean {
@@ -1077,12 +1147,12 @@ export class SyncService {
   }
 
   private requestInitialSync(reason: string): void {
-    if (this.isDestroyed || this.initialSyncRequested) return;
+    if (this.isDestroyed || this.initialSyncRequested || this.isInQuotaBackoff()) return;
     this.initialSyncRequested = true;
-    this.syncBidirectional().catch(err => console.warn(`[SyncService] Errore sync iniziale (${reason}):`, err));
+    this.syncBidirectional({ force: true, reason }).catch(err => console.warn(`[SyncService] Errore sync iniziale (${reason}):`, err));
   }
 
-  public triggerAutomaticSync(reason: string): void {
+  public triggerAutomaticSync(reason: string, options: { force?: boolean } = {}): void {
     if (this.isDestroyed || typeof window === 'undefined') return;
     if (this.autoSyncDebounceTimer) {
       clearTimeout(this.autoSyncDebounceTimer);
@@ -1094,34 +1164,45 @@ export class SyncService {
         console.log(`[SyncService] Sincronizzazione automatica sospesa (${reason}): sessione non autorizzata.`);
         return;
       }
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        return;
+      }
+      const force = Boolean(options.force);
+      if (!force) {
+        if (this.isInQuotaBackoff()) {
+          console.log(`[SyncService] Sincronizzazione automatica rimandata (${reason}): backoff quota 429 attivo.`);
+          return;
+        }
+        if ((this.lastSuccessfulFullSyncAt || 0) > 0 && (Date.now() - (this.lastSuccessfulFullSyncAt || 0)) < AUTO_SYNC_COOLDOWN_MS) {
+          console.log(`[SyncService] Sync completa saltata (${reason}): cooldown attivo (onSnapshot in ascolto).`);
+          return;
+        }
+      }
       console.log(`[SyncService] Esecuzione sincronizzazione automatica (${reason})...`);
-      this.syncBidirectional().catch(err => console.warn(`[SyncService] Errore sync (${reason}):`, err));
+      this.syncBidirectional({ force, reason }).catch(err => console.warn(`[SyncService] Errore sync (${reason}):`, err));
     }, 300);
   }
 
-  public async syncBidirectional(): Promise<void> {
+  public async syncBidirectional(options: { force?: boolean; reason?: string } = {}): Promise<void> {
     if (this.isDestroyed) return;
-    if (this.isSyncing) {
-      this.pendingSyncRequest = true;
-      console.log('[SyncService] Sync già in corso: richiesta successiva accodata.');
+    if (this.inFlightSyncPromise) {
+      console.log('[SyncService] Sync già in corso: riuso richiesta single-flight attiva.');
+      return this.inFlightSyncPromise;
+    }
+    const force = options.force !== false;
+    if (!force && this.isInQuotaBackoff()) {
+      console.log('[SyncService] Sync saltata: backoff quota 429 attivo.');
       return;
     }
-    this.isSyncing = true;
-    try {
-      await this.executeSyncBidirectional();
-    } finally {
-      this.isSyncing = false;
-      if (this.pendingSyncRequest && !this.isDestroyed) {
-        this.pendingSyncRequest = false;
-        if (this.pendingSyncTimeout) clearTimeout(this.pendingSyncTimeout);
-        this.pendingSyncTimeout = setTimeout(() => {
-          this.pendingSyncTimeout = null;
-          if (!this.isDestroyed) {
-            this.triggerAutomaticSync('pending_queued');
-          }
-        }, 100);
+    const runPromise = (async () => {
+      try {
+        await this.executeSyncBidirectional();
+      } finally {
+        this.inFlightSyncPromise = null;
       }
-    }
+    })();
+    this.inFlightSyncPromise = runPromise;
+    return runPromise;
   }
 
   private async executeSyncBidirectional(): Promise<void> {
@@ -1130,6 +1211,7 @@ export class SyncService {
     let pushedCount = 0;
     let deletedCount = 0;
     let failedCount = 0;
+    let quotaErrorHit = false;
 
     // --- FASE 1: RICONCILIAZIONE PRELIMINARE SETTINGS E TOMBSTONES (FAIL-FAST) ---
     // I tombstone remoti devono essere acquisiti e applicati PRIMA di qualsiasi push.
@@ -1142,9 +1224,13 @@ export class SyncService {
     } catch (phase1Err) {
       console.warn('[SyncService] FASE 1 FALLITA (impossibile riconciliare settings/tombstone): push entità operative bloccato per prevenire resurrezioni!', phase1Err);
       failedCount++;
+      if (isFirestoreQuotaError(phase1Err)) {
+        quotaErrorHit = true;
+        this.recordQuotaBackoff(phase1Err);
+      }
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('roadbook_cloud_sync_error', {
-          detail: { failedCount, reason: 'phase1_tombstones_failed', remainingPending: true }
+          detail: { failedCount, reason: 'phase1_tombstones_failed', remainingPending: true, quotaExhausted: quotaErrorHit }
         }));
       }
       return; // BLOCCO FAIL-FAST: nessuna entità operativa viene sincronizzata!
@@ -1160,20 +1246,28 @@ export class SyncService {
     } catch (phase2Err) {
       console.warn('[SyncService] Errore durante la sincronizzazione delle entità operative:', phase2Err);
       failedCount++;
+      if (isFirestoreQuotaError(phase2Err)) {
+        quotaErrorHit = true;
+        this.recordQuotaBackoff(phase2Err);
+      }
     }
 
     // --- FASE 3: EMISSIONE DEGLI EVENTI DI STATO ---
-    if (failedCount > 0) {
-      setLastSyncError(this.tripId, `Rilevati ${failedCount} errori durante la sincronizzazione cloud.`);
+    if (failedCount > 0 || quotaErrorHit) {
+      if (!quotaErrorHit) {
+        setLastSyncError(this.tripId, `Rilevati ${failedCount} errori durante la sincronizzazione cloud.`);
+      }
     } else {
-      setLastSyncTimestamp(this.tripId, Date.now());
+      this.resetQuotaBackoff();
+      this.lastSuccessfulFullSyncAt = Date.now();
+      setLastSyncTimestamp(this.tripId, this.lastSuccessfulFullSyncAt);
     }
     this.emitSyncStatus();
 
     if (typeof window !== 'undefined') {
-      if (failedCount > 0) {
+      if (failedCount > 0 || quotaErrorHit) {
         window.dispatchEvent(new CustomEvent('roadbook_cloud_sync_error', {
-          detail: { failedCount, remainingPending: true }
+          detail: { failedCount, remainingPending: true, quotaExhausted: quotaErrorHit }
         }));
       } else if (pushedCount > 0 || pulledCount > 0 || deletedCount > 0) {
         window.dispatchEvent(new CustomEvent('roadbook_cloud_synced', {
@@ -1382,6 +1476,7 @@ export class SyncService {
           }
         }
       } catch (err) {
+        if (isFirestoreQuotaError(err)) throw err;
         console.warn('[SyncService] Lettura private_credentials non autorizzata o non disponibile:', err);
       }
     }
@@ -1719,6 +1814,7 @@ export class SyncService {
           }
         }
       } catch (colErr) {
+        if (isFirestoreQuotaError(colErr)) throw colErr;
         console.warn(`[SyncService] Errore sync collection ${fb}:`, colErr);
         failedCount++;
       }
@@ -1873,23 +1969,34 @@ export class SyncService {
     // Ripresa automatica al cambio di ruolo cloud verificato (owner / copilota)
     this.addDomListener(window, 'houni_cloud_role_changed', (async (e: Event) => {
       const role = (e as CustomEvent)?.detail?.cloudRole;
-      const roleKey = `${String(role || '')}:${auth?.currentUser?.uid || ''}:${this.tripId}`;
-      if (this.lastAppliedCloudRoleKey === roleKey) {
+      if (this.deferredListenerTimer) {
+        clearTimeout(this.deferredListenerTimer);
+        this.deferredListenerTimer = null;
+      }
+      if (role === 'checking') {
         return;
       }
-      this.lastAppliedCloudRoleKey = roleKey;
-      this.unsubscribes.forEach(unsub => unsub());
-      this.unsubscribes = [];
+      if (role === 'offline') {
+        if (!this.hasAttachedCloudListeners) {
+          this.syncCloudListenersForCurrentAuth();
+        }
+        return;
+      }
+      const prevTier = this.currentListenerTier;
       if (role === 'viewer') await this.purgeSensitiveLocalCache();
-      this.setupCloudListeners();
+      this.syncCloudListenersForCurrentAuth();
       if (role === 'owner' || role === 'copilota') {
         console.log(`[SyncService] Rilevato ruolo autorizzato (${role}): verifica sincronizzazione.`);
-        if (this.canWriteToCloud()) {
+        if (this.canWriteToCloud() && !this.isInQuotaBackoff()) {
           this.flushPendingPushes().catch(() => {});
-        } else {
+        } else if (!this.canWriteToCloud()) {
           console.log('[SyncService] Replay automatico coda sospeso per viaggio 0000 (modalità pre-attivazione protetta).');
         }
-        this.requestInitialSync('cloud_role_authorized');
+        if (!this.initialSyncRequested) {
+          this.requestInitialSync('cloud_role_authorized');
+        } else if (prevTier === 'viewer' && this.currentListenerTier === 'privileged') {
+          this.triggerAutomaticSync('cloud_role_authorized', { force: true });
+        }
       }
     }) as EventListener);
 
@@ -2067,40 +2174,52 @@ export class SyncService {
     }).catch(() => {});
   }
 
-  public async flushPendingQueue(): Promise<void> {
-    const pushErrors = await this.flushPendingPushes();
+  public async flushPendingQueue(options: { force?: boolean } = {}): Promise<void> {
+    const pushErrors = await this.flushPendingPushes({ force: options.force !== false });
     if (Array.isArray(pushErrors) && pushErrors.length > 0) {
       throw new Error(`Push non riuscito per: ${pushErrors.join(' | ')}`);
     }
   }
 
-  private async flushPendingPushes(): Promise<string[]> {
-    if (!this.canWriteToCloud() || this.isFlushingPending || this.isDestroyed) return [];
-    this.isFlushingPending = true;
-    const pushErrors: string[] = [];
-    try {
-      const queue = await this.getPendingPushesFromStore();
-      if (queue.length === 0) return [];
-      console.log(`[SyncService] Svuotamento coda push persistente (${queue.length} elementi in attesa)...`);
-      for (const item of queue) {
-        if (item.ownerUid && item.ownerUid !== auth.currentUser?.uid) continue;
-        try {
-          await this.pushToCloud(item.entityType, item.action, item.data, {
-            notifyCollaborators: item.notifyCollaborators,
-            mutationId: item.mutationId,
-            fromQueue: true,
-          });
-        } catch (err: any) {
-          const errMsg = `${item.entityType}/${item.data?.id}: ${err?.message || String(err)}`;
-          pushErrors.push(errMsg);
-          console.warn(`[SyncService] Errore riprova push persistente per ${item.entityType}/${item.data?.id}:`, err);
+  private async flushPendingPushes(options: { force?: boolean } = {}): Promise<string[]> {
+    if (!this.canWriteToCloud() || this.isDestroyed) return [];
+    if (!options.force && this.isInQuotaBackoff()) return [];
+    if (this.inFlightFlushPromise) return this.inFlightFlushPromise;
+
+    const flushPromise = (async () => {
+      const pushErrors: string[] = [];
+      try {
+        const queue = await this.getPendingPushesFromStore();
+        if (queue.length === 0) return [];
+        console.log(`[SyncService] Svuotamento coda push persistente (${queue.length} elementi in attesa)...`);
+        for (const item of queue) {
+          if (item.ownerUid && item.ownerUid !== auth.currentUser?.uid) continue;
+          if (!options.force && this.isInQuotaBackoff()) break;
+          try {
+            await this.pushToCloud(item.entityType, item.action, item.data, {
+              notifyCollaborators: item.notifyCollaborators,
+              mutationId: item.mutationId,
+              fromQueue: true,
+            });
+          } catch (err: any) {
+            const errMsg = `${item.entityType}/${item.data?.id}: ${err?.message || String(err)}`;
+            pushErrors.push(errMsg);
+            console.warn(`[SyncService] Errore riprova push persistente per ${item.entityType}/${item.data?.id}:`, err);
+            if (isFirestoreQuotaError(err)) {
+              this.recordQuotaBackoff(err);
+              break;
+            }
+          }
         }
+      } finally {
+        this.inFlightFlushPromise = null;
+        this.emitSyncStatus();
       }
-    } finally {
-      this.isFlushingPending = false;
-      this.emitSyncStatus();
-    }
-    return pushErrors;
+      return pushErrors;
+    })();
+
+    this.inFlightFlushPromise = flushPromise;
+    return flushPromise;
   }
 
   private async pushToCloud(
@@ -2253,7 +2372,7 @@ export class SyncService {
             //    senza riscrivere inutilmente né il documento né la cassaforte.
             // 3. Se i dati non coincidono o la verifica fallisce, preserva la mutazione in coda.
             const normType = normalizeEntityType(collectionName);
-            const isOperationalWithCreds = ['alloggio', 'trasporto', 'attivita', 'tappa', 'ristorante', 'shopping', 'documento'].includes(normType);
+            const isOperationalWithCreds = OPERATIONAL_ENTITIES_WITH_VAULT.has(normType);
             const { privateCredentialsDoc: candidatePriv } = isOperationalWithCreds
               ? splitEntitySecurityData(normType as any, this.tripId, data)
               : { privateCredentialsDoc: null };
@@ -2375,7 +2494,10 @@ export class SyncService {
             }
           }
         } catch (conflictCheckErr: any) {
-          if (conflictCheckErr?.message?.includes('Cloud authorization changed')) {
+          if (conflictCheckErr?.message?.includes('Cloud authorization changed') || isFirestoreQuotaError(conflictCheckErr)) {
+            if (isFirestoreQuotaError(conflictCheckErr)) {
+              this.recordQuotaBackoff(conflictCheckErr);
+            }
             throw conflictCheckErr;
           }
           console.warn(`[SyncService] Verifica remota non riuscita per ${collectionName}/${data.id}:`, conflictCheckErr?.message || conflictCheckErr);
@@ -2438,7 +2560,7 @@ export class SyncService {
       }
 
       const normType = normalizeEntityType(collectionName);
-      const isOperationalWithCreds = ['alloggio', 'trasporto', 'attivita', 'tappa', 'ristorante', 'shopping', 'documento'].includes(normType);
+      const isOperationalWithCreds = OPERATIONAL_ENTITIES_WITH_VAULT.has(normType);
 
       if (isOperationalWithCreds) {
         const { publicDoc, privateCredentialsDoc } = splitEntitySecurityData(
@@ -2735,15 +2857,17 @@ export class SyncService {
                 let mergedPrivate = false;
                 if (isCloudAuthorized(this.tripId)) {
                   const normType = normalizeEntityType(fb);
-                  const vaultId = getVaultDocId(normType, docId);
-                  try {
-                    const { getDoc } = await import('firebase/firestore');
-                    const privDocSnap = await getDoc(doc(db, 'trips', this.tripId, 'private_credentials', vaultId)).catch(() => null);
-                    if (privDocSnap && privDocSnap.exists()) {
-                      itemToStore = mergeEntitySecurityData(itemToStore, privDocSnap.data() as any);
-                      mergedPrivate = true;
-                    }
-                  } catch (e) {}
+                  if (OPERATIONAL_ENTITIES_WITH_VAULT.has(normType)) {
+                    const vaultId = getVaultDocId(normType, docId);
+                    try {
+                      const { getDoc } = await import('firebase/firestore');
+                      const privDocSnap = await getDoc(doc(db, 'trips', this.tripId, 'private_credentials', vaultId)).catch(() => null);
+                      if (privDocSnap && privDocSnap.exists()) {
+                        itemToStore = mergeEntitySecurityData(itemToStore, privDocSnap.data() as any);
+                        mergedPrivate = true;
+                      }
+                    } catch (e) {}
+                  }
                 }
                 if (!mergedPrivate && localData && isCloudAuthorized(this.tripId)) {
                   // Preserva sempre i dati economici e sensibili locali già presenti in IndexedDB
@@ -2899,6 +3023,9 @@ export class SyncService {
 
         await Promise.all(promises);
       }, (error: any) => {
+        if (isFirestoreQuotaError(error)) {
+          this.recordQuotaBackoff(error);
+        }
         if (!this.isDestroyed && !privileged && !useStrictV2Query && error?.code === 'permission-denied') {
           try { this.unsubscribes[unsubSlot]?.(); } catch {}
           attachListener(true);
@@ -2923,13 +3050,13 @@ export class SyncService {
     if (activeSyncService === this) {
       activeSyncService = null;
     }
+    if (this.deferredListenerTimer) {
+      clearTimeout(this.deferredListenerTimer);
+      this.deferredListenerTimer = null;
+    }
     if (this.autoSyncDebounceTimer) {
       clearTimeout(this.autoSyncDebounceTimer);
       this.autoSyncDebounceTimer = null;
-    }
-    if (this.pendingSyncTimeout) {
-      clearTimeout(this.pendingSyncTimeout);
-      this.pendingSyncTimeout = null;
     }
     this.unsubscribes.forEach(unsub => unsub());
     this.unsubscribes = [];

@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.27",
+      "publishedAt": "2026-11-18",
+      "sourceCommit": "9146cb5",
+      "changes": [
+        "Ridotte drasticamente le letture Firestore con single-flight, cooldown di 10 minuti su resume PWA ed eliminazione del doppio aggancio listener al boot",
+        "Introdotto backoff esponenziale su errori di quota 429 preservando integralmente la coda locale e i listener realtime tra Owner e Copilota"
+      ],
+      "publishedAtIso": "2026-11-18T20:10:00.000Z"
+    },
+    {
       "version": "1.6.26",
       "publishedAt": "2026-11-18",
       "sourceCommit": "ab056db",
@@ -252,17 +262,6 @@
         "Aggiunto test automatico di primo accesso con storage vuoto e controllo anti-regressione"
       ],
       "publishedAtIso": "2026-11-11T16:04:15+01:00"
-    },
-    {
-      "version": "1.6.2",
-      "publishedAt": "2026-11-11",
-      "sourceCommit": "d2a7215",
-      "changes": [
-        "Stabilizzazione scroll timeline e coalescenza verifiche ruoli e listener cloud",
-        "Rimosso manifest duplicato per estensione Dynamic Island su nuova icona PWA iPhone",
-        "Diagnostica iPhone discreta con 5 tocchi sulla versione in Informazioni (Avvia/Ferma/Copia)"
-      ],
-      "publishedAtIso": "2026-11-11T15:34:44+01:00"
     }
   ]
 }
