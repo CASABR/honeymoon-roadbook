@@ -4,7 +4,7 @@
     {
       "version": "1.6.27",
       "publishedAt": "2026-11-18",
-      "sourceCommit": "9146cb5",
+      "sourceCommit": "ab98bb4",
       "changes": [
         "Ridotte drasticamente le letture Firestore con single-flight, cooldown di 10 minuti su resume PWA ed eliminazione del doppio aggancio listener al boot",
         "Introdotto backoff esponenziale su errori di quota 429 preservando integralmente la coda locale e i listener realtime tra Owner e Copilota"
