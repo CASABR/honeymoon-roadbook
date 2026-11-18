@@ -4,7 +4,7 @@
     {
       "version": "1.6.23",
       "publishedAt": "2026-11-18",
-      "sourceCommit": "7cff714",
+      "sourceCommit": "36575ae",
       "changes": [
         "Fronte card itinerario: orario mostrato subito dopo il titolo su tutte le categorie con leggibilità iPhone",
         "Card Alloggi: eliminata la dicitura «Check-in da fare» mantenendo comando discreto «Segna check-in», «✓ Check-in fatto» e Check-out"
