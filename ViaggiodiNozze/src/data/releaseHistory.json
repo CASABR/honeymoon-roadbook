@@ -4,7 +4,7 @@
     {
       "version": "1.6.25",
       "publishedAt": "2026-11-18",
-      "sourceCommit": "aa9d507",
+      "sourceCommit": "34193d3",
       "changes": [
         "Schermata Oggi: swipe orizzontale per passare al giorno precedente (destra) o successivo (sinistra) entro i limiti del viaggio",
         "Navigazione iPhone: swipe giorno isolato da cambio sezione, calendario orizzontale, card, pulsanti, modali e bordi Safari"
