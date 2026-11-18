@@ -4,7 +4,7 @@
     {
       "version": "1.6.26",
       "publishedAt": "2026-11-18",
-      "sourceCommit": "6f1ac2c",
+      "sourceCommit": "ab056db",
       "changes": [
         "LIVE GPS continuo tra tutte le sezioni dell'app con un solo watchPosition condiviso e nessuna interruzione cambiando schermata",
         "Ripresa automatica alla riapertura della PWA solo con consenso attivo e permesso già concesso, nel pieno rispetto di Pausa/Stop e delega Copilota"
