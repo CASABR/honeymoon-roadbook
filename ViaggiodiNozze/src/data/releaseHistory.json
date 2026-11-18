@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.26",
+      "publishedAt": "2026-11-18",
+      "sourceCommit": "6f1ac2c",
+      "changes": [
+        "LIVE GPS continuo tra tutte le sezioni dell'app con un solo watchPosition condiviso e nessuna interruzione cambiando schermata",
+        "Ripresa automatica alla riapertura della PWA solo con consenso attivo e permesso già concesso, nel pieno rispetto di Pausa/Stop e delega Copilota"
+      ],
+      "publishedAtIso": "2026-11-18T18:10:00.000Z"
+    },
+    {
       "version": "1.6.25",
       "publishedAt": "2026-11-18",
       "sourceCommit": "34193d3",
@@ -253,16 +263,6 @@
         "Diagnostica iPhone discreta con 5 tocchi sulla versione in Informazioni (Avvia/Ferma/Copia)"
       ],
       "publishedAtIso": "2026-11-11T15:34:44+01:00"
-    },
-    {
-      "version": "1.6.1",
-      "publishedAt": "2026-11-11",
-      "sourceCommit": "a709d4a",
-      "changes": [
-        "Copertura Dynamic Island iPhone in PWA/Safari e contrasto barra di stato",
-        "Eliminato ritorno involontario verso l'alto durante scroll e sync cloud"
-      ],
-      "publishedAtIso": "2026-11-11T13:03:47+01:00"
     }
   ]
 }

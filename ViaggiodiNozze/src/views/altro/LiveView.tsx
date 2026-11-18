@@ -79,11 +79,38 @@ import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
 import LiveEditorialExperience, { type LiveGalleryPhotoItem } from './LiveEditorialExperience';
 import { describeLiveGpsStartError, liveGpsService, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation, type TripMemberInfo } from '../../services/liveGpsService';
+import {
+  clearSingleGpsWatcher,
+  markSharingOptedIn,
+  markSharingPaused,
+  markSharingStopped,
+  resumeLiveGpsIfEligible,
+  setContinuityGpsError,
+  setContinuityGpsFeedback,
+  setContinuityLiveGpsState,
+  setTripLocationContext,
+  startSingleGpsWatcher,
+  syncPublishedGpsTimestamp,
+  useLiveGpsContinuity
+} from '../../services/liveGpsContinuity';
 import { registerDeviceOnFirestore } from '../../utils/deviceSession';
 
 export default function LiveView({ onBack, isStandaloneExternal = false, tripId }: LiveViewProps) {
   const activeTripId = tripId || getTripConfig()?.id || null;
   const { cloudRole, currentUid } = useAuthIdentity();
+  const isContinuityManaged = Boolean(
+    activeTripId &&
+    !isStandaloneExternal &&
+    currentUid &&
+    (cloudRole === 'owner' || cloudRole === 'copilota')
+  );
+  const continuity = useLiveGpsContinuity({
+    enabled: isContinuityManaged,
+    tripId: activeTripId,
+    currentUid,
+    cloudRole,
+    isExternalLive: isStandaloneExternal
+  });
   const localGalleryRole = getAuthorizedLocalEditorRole(activeTripId, currentUid);
   const hasPrivateGalleryAccess = !isStandaloneExternal && Boolean(localGalleryRole);
 
@@ -188,7 +215,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [isDetectingGps, setIsDetectingGps] = useState(false);
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [gpsFeedback, setGpsFeedback] = useState<string | null>(null);
-  const [remoteGpsLease, setRemoteGpsLease] = useState<LiveGpsLease | null>(null);
+  const [fallbackRemoteGpsLease, setFallbackRemoteGpsLease] = useState<LiveGpsLease | null>(null);
+  const remoteGpsLease = isContinuityManaged ? continuity.remoteGpsLease : fallbackRemoteGpsLease;
   const [remoteGpsLocation, setRemoteGpsLocation] = useState<LiveGpsLocation | null>(null);
   // Conservazione ultima posizione conosciuta autorizzata (persistita localmente)
   const [lastKnownLocation, setLastKnownLocation] = useState<LiveGpsLocation | null>(() => {
@@ -210,8 +238,6 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   });
   const [gpsDevices, setGpsDevices] = useState<LiveGpsDevice[]>([]);
   const [tripMembers, setTripMembers] = useState<TripMemberInfo[]>([]);
-  const gpsWatchRef = useRef<number | null>(null);
-  const lastGpsPublishRef = useRef(0);
   const remoteLocationRef = useRef<LiveGpsLocation | null>(null);
   // Toggle chiara visualizzazione: 'reale' (Dove siamo ora) vs 'programmato' (Dove dovremmo essere)
   const [mapLocationMode, setMapLocationMode] = useState<'reale' | 'programmato'>('reale');
@@ -232,7 +258,25 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   useEffect(() => {
     remoteLocationRef.current = remoteGpsLocation;
-  }, [remoteGpsLocation]);
+    if (activeTripId && remoteGpsLocation) {
+      setTripLocationContext(activeTripId, {
+        city: remoteGpsLocation.city,
+        country: remoteGpsLocation.country
+      });
+    }
+  }, [activeTripId, remoteGpsLocation]);
+
+  useEffect(() => {
+    if (continuity.liveGpsState) {
+      setLiveGpsState(continuity.liveGpsState);
+    }
+  }, [continuity.liveGpsState]);
+
+  useEffect(() => {
+    if (continuity.gpsError) {
+      setGpsError(continuity.gpsError);
+    }
+  }, [continuity.gpsError]);
 
   useEffect(() => {
     if (!activeTripId) return;
@@ -275,12 +319,14 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   useEffect(() => {
     if (!activeTripId || !isOwnerOrCopilota) {
-      setRemoteGpsLease(null);
+      setFallbackRemoteGpsLease(null);
       setGpsDevices([]);
       return;
     }
     registerDeviceOnFirestore(activeTripId, deviceRole).catch(() => {});
-    const unsubscribeLease = liveGpsService.subscribeLease(activeTripId, setRemoteGpsLease, (err) => setGpsError(err.message));
+    const unsubscribeLease = isContinuityManaged
+      ? () => {}
+      : liveGpsService.subscribeLease(activeTripId, setFallbackRemoteGpsLease, (err) => setGpsError(err.message));
     const unsubscribeDevices = (cloudRole === 'owner' || isTripOwner)
       ? liveGpsService.subscribeDevices(activeTripId, setGpsDevices)
       : () => {};
@@ -290,7 +336,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       unsubscribeDevices();
       unsubscribeMembers();
     };
-  }, [activeTripId, cloudRole, deviceRole, isOwnerOrCopilota, isTripOwner]);
+  }, [activeTripId, cloudRole, deviceRole, isContinuityManaged, isOwnerOrCopilota, isTripOwner]);
   const membersMap = useMemo(() => {
     const map: Record<string, string> = {};
     if (activeTripCfg?.ownerUid) {
@@ -301,21 +347,6 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     });
     return map;
   }, [activeTripCfg?.ownerUid, activeTripCfg?.ownerName, tripMembers]);
-
-  useEffect(() => {
-    const ownsActiveLease = remoteGpsLease?.status === 'active'
-      && remoteGpsLease.holderUid === currentUid
-      && remoteGpsLease.holderDeviceId === liveGpsService.getDeviceId()
-      && remoteGpsLease.expiresAt.getTime() > Date.now();
-    if (!ownsActiveLease && gpsWatchRef.current !== null) {
-      navigator.geolocation?.clearWatch(gpsWatchRef.current);
-      gpsWatchRef.current = null;
-    }
-  }, [remoteGpsLease, currentUid]);
-
-  useEffect(() => () => {
-    if (gpsWatchRef.current !== null) navigator.geolocation?.clearWatch(gpsWatchRef.current);
-  }, []);
 
   // Rileva posizione GPS reale su richiesta o automaticamente all'apertura
   const handleDetectGps = useCallback(async (isSilent = false) => {
@@ -348,43 +379,22 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     }
   }, []);
 
-  const publishBrowserPosition = useCallback(async (position: GeolocationPosition) => {
-    if (!activeTripId || Date.now() - lastGpsPublishRef.current < 16_000) return;
-    lastGpsPublishRef.current = Date.now();
-    try {
-      await liveGpsService.publishLocation(activeTripId, {
-        lat: position.coords.latitude,
-        lng: position.coords.longitude,
-        accuracy: position.coords.accuracy,
-        city: remoteLocationRef.current?.city || '',
-        country: remoteLocationRef.current?.country || ''
-      });
-    } catch (err: any) {
-      console.warn('[LiveView] Errore pubblicazione periodica GPS:', err);
-    }
-  }, [activeTripId]);
-
   const startGpsWatcher = useCallback(() => {
-    if (!navigator.geolocation) {
+    if (!activeTripId) return;
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
       setGpsError('GPS non disponibile su questo browser.');
       return;
     }
-    if (gpsWatchRef.current !== null) {
-      navigator.geolocation.clearWatch(gpsWatchRef.current);
-      gpsWatchRef.current = null;
-    }
-    gpsWatchRef.current = navigator.geolocation.watchPosition(
-      position => publishBrowserPosition(position),
-      error => setGpsError(describeLiveGpsStartError(error)),
-      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 10_000 }
-    );
-  }, [publishBrowserPosition]);
+    startSingleGpsWatcher(activeTripId);
+  }, [activeTripId]);
 
   const handleStartGps = useCallback(async () => {
     if (!activeTripId || !currentUid || (cloudRole !== 'owner' && cloudRole !== 'copilota')) return;
     setIsDetectingGps(true);
     setGpsError(null);
     setGpsFeedback(null);
+    setContinuityGpsError(null);
+    setContinuityGpsFeedback(null);
     try {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
         throw new Error('Connessione assente.');
@@ -407,6 +417,11 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
       const detected = await updateRealLocation({ enableHighAccuracy: true, timeout: 12_000, maximumAge: 10_000 });
       setLiveGpsState(detected);
+      setContinuityLiveGpsState(detected);
+      setTripLocationContext(activeTripId, {
+        city: detected.city,
+        country: detected.country
+      });
 
       if (cloudRole === 'owner') {
         if (!ownsLease || remoteGpsLease?.status !== 'active' || remoteGpsLease?.holderDeviceId !== deviceId) {
@@ -420,7 +435,6 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       } else {
         throw new Error('L’Organizzatore deve prima delegare la Guida GPS a questo profilo Copilota.');
       }
-      lastGpsPublishRef.current = 0;
       await liveGpsService.publishLocation(activeTripId, {
         lat: detected.coords.lat,
         lng: detected.coords.lng,
@@ -428,12 +442,9 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         city: detected.city,
         country: detected.country
       }, { force: true });
-      lastGpsPublishRef.current = Date.now();
+      syncPublishedGpsTimestamp(Date.now());
+      markSharingOptedIn(activeTripId);
       startGpsWatcher();
-      try {
-        localStorage.setItem(`hounigo_live_sharing_enabled_${activeTripId}`, 'true');
-        localStorage.removeItem(`hounigo_live_sharing_stopped_${activeTripId}`);
-      } catch {}
       setGpsFeedback('Posizione condivisa e confermata dal server.');
     } catch (error) {
       const candidate = error as { message?: string; name?: string };
@@ -451,137 +462,58 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   }, [activeTripId, cloudRole, currentUid, remoteGpsLease, startGpsWatcher]);
 
   // GPS AUTOMATICO OWNER & DELEGA COPILOTA
-  // Quando l'Owner riapre HOUNIGO o torna nell'app (foreground / visibilitychange / focus):
-  // 1. Se ha autorizzato la posizione e attivato esplicitamente la condivisione LIVE, riprendi automaticamente gli aggiornamenti GPS.
-  // 2. Non richiede continuamente autorizzazioni già concesse.
-  // 3. Rispetta la delega GPS al Copilota (se il copilota detiene la guida, non trasmette).
-  // 4. Non attiva due dispositivi trasmittenti contemporaneamente.
-  // 5. Se la condivisione è stata interrotta manualmente (status stopped), NON la riattiva.
-  // 6. Rispetta i limiti di iOS (aggiornamenti regolari quando la PWA è aperta o riaperta).
+  // La continuità tra schermate e il listener globale di visibilitychange / focus vivono in liveGpsContinuity.ts (montato in App.tsx)
+  // così navigator.geolocation.watchPosition resta unico e non si interrompe cambiando sezione.
   const autoResumeGpsIfEligible = useCallback(async () => {
-    if (typeof document === 'undefined' || typeof navigator === 'undefined') return;
-    if (document.visibilityState !== 'visible' || !navigator.onLine || !navigator.geolocation) return;
-    if (!activeTripId || !currentUid) return;
-
-    // Solo Owner o Copilota designato possono trasmettere
-    const isOwner = cloudRole === 'owner' || isTripOwner;
-    const isCopilota = cloudRole === 'copilota';
-    if (!isOwner && !isCopilota) return;
-
-    // Throttle per evitare chiamate ripetute su focus rapidi (minimo 12s)
-    const nowTs = Date.now();
-    if (nowTs - lastGpsPublishRef.current < 12_000) return;
-
-    // Verifica se la condivisione era stata attivata esplicitamente
+    if (!activeTripId || !currentUid || isStandaloneExternal) return false;
     let isSharingEnabled = false;
     try {
       isSharingEnabled = localStorage.getItem(`hounigo_live_sharing_enabled_${activeTripId}`) === 'true';
     } catch {}
-    if (!isSharingEnabled) return;
-
-    // Se l'utente ha interrotto manualmente la condivisione, NON riattivarla
-    if (remoteGpsLease?.status === 'stopped') return;
+    if (!isSharingEnabled) return false;
+    if (remoteGpsLease?.status === 'stopped' || remoteGpsLease?.status === 'paused') return false;
 
     const deviceId = liveGpsService.getDeviceId();
-    const leaseNotExpired = Boolean(remoteGpsLease && remoteGpsLease.expiresAt.getTime() > nowTs);
-    const leaseIsActive = Boolean(remoteGpsLease?.status === 'active' && leaseNotExpired);
-
-    // DELEGA: se la lease attiva appartiene a un altro utente (es. Copilota), RISPETTA LA DELEGA
-    if (leaseIsActive && remoteGpsLease?.holderUid && remoteGpsLease.holderUid !== currentUid) {
-      return;
+    if (remoteGpsLease && remoteGpsLease.holderUid && remoteGpsLease.holderUid !== currentUid) {
+      return false;
+    }
+    if (remoteGpsLease && remoteGpsLease.holderUid === currentUid && remoteGpsLease.holderDeviceId && remoteGpsLease.holderDeviceId !== deviceId) {
+      return false;
     }
 
-    // MULTI-DISPOSITIVO: se la lease attiva appartiene a un altro device di questo utente, non attivare contemporaneamente
-    if (leaseIsActive && remoteGpsLease?.holderUid === currentUid && remoteGpsLease.holderDeviceId !== deviceId) {
-      return;
-    }
+    return resumeLiveGpsIfEligible({
+      tripId: activeTripId,
+      currentUid,
+      cloudRole,
+      isExternalLive: isStandaloneExternal,
+      remoteGpsLease,
+      leaseLoaded: isContinuityManaged ? continuity.leaseLoaded : true
+    });
+  }, [activeTripId, currentUid, cloudRole, isStandaloneExternal, remoteGpsLease, isContinuityManaged, continuity.leaseLoaded]);
 
-    // Se siamo Copilota, possiamo riprendere SOLO se la lease è stata assegnata a noi
-    if (isCopilota && (!remoteGpsLease || remoteGpsLease.holderUid !== currentUid)) {
-      return;
-    }
-
-    try {
-      // Verifica permessi browser se API permissions disponibile (evita pop-up se negato)
-      if (navigator.permissions && navigator.permissions.query) {
-        try {
-          const perm = await navigator.permissions.query({ name: 'geolocation' as PermissionName });
-          if (perm.state === 'denied') return;
-        } catch {}
-      }
-
-      // Se Owner e lease scaduta/non attiva ma sharing era abilitato, rinnova lease
-      if (isOwner && (!leaseIsActive || remoteGpsLease?.holderDeviceId !== deviceId)) {
-        await liveGpsService.assignGuide(activeTripId, currentUid, deviceId);
-        persistDeviceSession(activeTripId, 'guida').catch(() => {});
-      }
-
-      // Acquisisci posizione in silenzio
-      const detected = await updateRealLocation({
-        enableHighAccuracy: true,
-        timeout: 10_000,
-        maximumAge: 15_000
-      });
-      setLiveGpsState(detected);
-
-      // Pubblica posizione
-      await liveGpsService.publishLocation(activeTripId, {
-        lat: detected.coords.lat,
-        lng: detected.coords.lng,
-        accuracy: detected.accuracy,
-        city: detected.city,
-        country: detected.country
-      });
-      lastGpsPublishRef.current = Date.now();
-
-      // Assicurati che il continuous watcher sia attivo
-      if (gpsWatchRef.current === null) {
-        startGpsWatcher();
-      }
-    } catch (err) {
-      console.warn('[LiveView] Auto-resume GPS non riuscito (silenzioso):', err);
-    }
-  }, [activeTripId, currentUid, cloudRole, isTripOwner, remoteGpsLease, startGpsWatcher]);
-
-  // Listener visibilitychange e focus per riattivazione automatica
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const onVisibilityOrFocus = () => {
-      if (document.visibilityState === 'visible') {
-        autoResumeGpsIfEligible();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibilityOrFocus);
-    window.addEventListener('focus', onVisibilityOrFocus);
-    const initialTimer = setTimeout(() => {
-      onVisibilityOrFocus();
-    }, 1200);
-
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibilityOrFocus);
-      window.removeEventListener('focus', onVisibilityOrFocus);
-      clearTimeout(initialTimer);
-    };
-  }, [autoResumeGpsIfEligible]);
+    if (!isStandaloneExternal) {
+      void autoResumeGpsIfEligible();
+    }
+  }, [autoResumeGpsIfEligible, isStandaloneExternal]);
 
   const handlePauseOrStopGps = useCallback(async (status: 'paused' | 'stopped') => {
     if (!activeTripId) return;
     setIsDetectingGps(true);
     setGpsError(null);
+    setContinuityGpsError(null);
+    clearSingleGpsWatcher(activeTripId);
+    if (status === 'paused') {
+      markSharingPaused(activeTripId);
+    } else {
+      markSharingStopped(activeTripId);
+      setContinuityLiveGpsState(null);
+      setRemoteGpsLocation(null);
+      setLastKnownLocation(null);
+      setLiveGpsState(null);
+    }
     try {
       await liveGpsService.pauseOrStop(activeTripId, status);
-      if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
-      gpsWatchRef.current = null;
-      if (status === 'stopped') {
-        try {
-          localStorage.removeItem(`hounigo_live_sharing_enabled_${activeTripId}`);
-          localStorage.setItem(`hounigo_live_sharing_stopped_${activeTripId}`, 'true');
-          localStorage.removeItem(`hounigo_live_last_known_loc_${activeTripId}`);
-        } catch {}
-        setRemoteGpsLocation(null);
-        setLastKnownLocation(null);
-        setLiveGpsState(null);
-      }
       setGpsFeedback(status === 'paused' ? 'Condivisione in pausa.' : 'Condivisione interrotta.');
     } catch (error) {
       setGpsError((error as Error)?.message || 'Impossibile aggiornare la condivisione.');
@@ -594,10 +526,13 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     if (!activeTripId || cloudRole !== 'owner') return;
     setIsDetectingGps(true);
     setGpsError(null);
+    setContinuityGpsError(null);
     try {
       await liveGpsService.assignGuide(activeTripId, uid, deviceId);
-      if (gpsWatchRef.current !== null) navigator.geolocation.clearWatch(gpsWatchRef.current);
-      gpsWatchRef.current = null;
+      const myDeviceId = liveGpsService.getDeviceId();
+      if (uid !== currentUid || (deviceId && deviceId !== myDeviceId)) {
+        clearSingleGpsWatcher(activeTripId);
+      }
       setGpsFeedback(uid === currentUid ? 'Guida GPS riportata all’Organizzatore.' : 'Delega Guida GPS assegnata. Il Copilota può ora trasmettere la posizione.');
     } catch (error) {
       setGpsError((error as Error)?.message || 'Trasferimento guida non riuscito.');

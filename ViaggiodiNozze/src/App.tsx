@@ -27,6 +27,7 @@ import { getPersistedSession, registerDeviceOnFirestore } from './utils/deviceSe
 import { withTimeout } from './utils/withTimeout';
 import { storageService } from './storage/storageService';
 import { useAuthIdentity } from './utils/useAuthIdentity';
+import { useLiveGpsContinuity } from './services/liveGpsContinuity';
 import { auth } from './firebase';
 import UiScrollDebugOverlay, { bumpUiDebugCounter, isUiDebugEnabled, UI_DEBUG_CHANGED_EVENT } from './components/dev/UiScrollDebugOverlay';
 import { onAuthStateChanged, type User } from 'firebase/auth';
@@ -130,7 +131,21 @@ export default function App() {
   });
 
   const [tripConfig, setTripConfig] = useState<TripConfig | null>(getInitialTripConfig);
-  const { isSimulated, simulatedRole, setSimulatedRole } = useAuthIdentity();
+  const { cloudRole, currentUid, isSimulated, simulatedRole, setSimulatedRole } = useAuthIdentity();
+  useLiveGpsContinuity({
+    enabled: Boolean(
+      isAuthenticated &&
+      tripConfig?.id &&
+      currentUid &&
+      !isExternalLive &&
+      !isAdminRoute &&
+      (cloudRole === 'owner' || cloudRole === 'copilota')
+    ),
+    tripId: tripConfig?.id || null,
+    currentUid,
+    cloudRole,
+    isExternalLive
+  });
   const [uiDebugActive, setUiDebugActive] = useState<boolean>(() => isUiDebugEnabled());
 
   if (uiDebugActive) bumpUiDebugCounter('appRenders');
