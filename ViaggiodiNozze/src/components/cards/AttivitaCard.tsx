@@ -13,6 +13,7 @@ import { processFileForAttachment } from '../../utils/fileAttachment';
 import { formatHikingDuration, isPhotoSpotActivity, isTrekkingActivity, isPasseggiataActivity, getDisplaySubcategory, PHOTO_LIGHT_LABELS, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
 import OpeningHoursBadge from '../common/OpeningHoursBadge';
 import { useDeviceRole } from '../../utils/useDeviceRole';
+import CardTitleWithTime from './CardTitleWithTime';
 
 interface AttivitaCardProps {
   activity: Attivita;
@@ -252,17 +253,6 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
                 </>
               )}
             </div>
-
-            {headerTimeSummary && (
-              <span
-                data-time-status={isConfirmed ? 'confermato' : 'indicativo'}
-                className={`hounigo-ds-time-stamp ${isConfirmed ? 'hounigo-ds-time-stamp-confirmed text-[#E11D48] dark:text-[#FF6B5F] font-black border-[#E11D48]/40 bg-rose-50 dark:bg-rose-950/40' : ''}`}
-                title={isConfirmed ? 'Orario confermato' : 'Orario indicativo'}
-              >
-                {isConfirmed && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#E11D48] dark:bg-[#FF6B5F] mr-1" aria-hidden="true" />}
-                {headerTimeSummary}
-              </span>
-            )}
           </div>
 
           {isMeetingDiscrepancy && (
@@ -274,11 +264,14 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
           )}
         </div>
 
-        {/* 2. BODY: TITOLO, TRACCIATO LUOGO/RITROVO E CASELLARIO OPERATIVO */}
+        {/* 2. BODY: TITOLO + ORARIO, TRACCIATO LUOGO/RITROVO E CASELLARIO OPERATIVO */}
         <div className="hounigo-ds-card-body">
-          <h3 className="font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
-            {activity.title}
-          </h3>
+          <CardTitleWithTime
+            title={activity.title}
+            timeLabel={headerTimeSummary}
+            timeStatus={displayTime ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
+            timeTitle={displayTime ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
+          />
 
           {(displayLocation || (activity.originLocation && activity.destinationLocation)) && (
             <div className="hounigo-ds-route-track">

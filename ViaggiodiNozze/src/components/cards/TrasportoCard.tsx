@@ -11,6 +11,7 @@ import { getTransportMapTargets } from '../../utils/mapsHelper';
 import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
+import CardTitleWithTime from './CardTitleWithTime';
 
 export interface TrasportoCardProps {
   transport: Trasporto;
@@ -376,15 +377,16 @@ export default function TrasportoCard({
       : `Ritiro ${transport.type === 'camper' ? 'camper' : 'auto'}`
     : currentType.label;
 
-  const headerTimeSummary = isRental && isPickupDay
-    ? (transport.departureTime ? `Ritiro ore ${transport.departureTime}` : formatDateIT(displayDateStr))
+  const inlineTimeSummary = isRental && isPickupDay
+    ? (transport.departureTime ? `Ritiro ore ${transport.departureTime}` : '')
     : isRental && isDropoffDay
-    ? ((transport.dropoffTime || transport.arrivalTime) ? `Entro ore ${transport.dropoffTime || transport.arrivalTime}` : formatDateIT(displayDateStr))
+    ? ((transport.dropoffTime || transport.arrivalTime) ? `Entro ore ${transport.dropoffTime || transport.arrivalTime}` : '')
     : transport.departureTime && (transport.arrivalTime || transport.dropoffTime)
     ? `${transport.departureTime} → ${transport.arrivalTime || transport.dropoffTime}${isNextDayArrival ? ' (+1)' : ''}`
     : transport.departureTime
     ? `Ore ${transport.departureTime}`
-    : formatDateIT(displayDateStr);
+    : '';
+  const headerDateFallback = !inlineTimeSummary ? formatDateIT(displayDateStr) : '';
 
   const hasHeaderNotice = Boolean(checkinInfo.cutoffTime || (transport.type === 'volo' && transport.layover));
   const hasSpecCells = Boolean(
@@ -430,9 +432,9 @@ export default function TrasportoCard({
               </span>
             </div>
 
-            {headerTimeSummary && (
+            {headerDateFallback && (
               <span className="hounigo-ds-time-stamp">
-                {headerTimeSummary}
+                {headerDateFallback}
               </span>
             )}
           </div>
@@ -456,11 +458,13 @@ export default function TrasportoCard({
           )}
         </div>
 
-        {/* 2. BODY: OPERATORE, TRACCIATO PARTENZA/ARRIVO E CASELLARIO OPERATIVO */}
+        {/* 2. BODY: OPERATORE + ORARIO, TRACCIATO PARTENZA/ARRIVO E CASELLARIO OPERATIVO */}
         <div className="hounigo-ds-card-body">
-          <h3 className="font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
-            {transport.carrier || currentType.label}
-          </h3>
+          <CardTitleWithTime
+            title={transport.carrier || currentType.label}
+            timeLabel={inlineTimeSummary}
+            timeTitle={inlineTimeSummary ? 'Orario trasporto' : undefined}
+          />
 
           {/* Tracciato di tratta (Segnaletica Partenza → Arrivo) */}
           {isRental && (isPickupDay || isDropoffDay) ? (

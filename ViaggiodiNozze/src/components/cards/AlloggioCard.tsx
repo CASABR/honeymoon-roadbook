@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Handshake } from 'lucide-react';
+import { Handshake, LogIn } from 'lucide-react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import UniversalAttachmentModal from '../modals/UniversalAttachmentModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
@@ -9,6 +9,7 @@ import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
+import CardTitleWithTime from './CardTitleWithTime';
 
 interface AlloggioCardProps {
   accommodation: Alloggio;
@@ -194,7 +195,7 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
       onClick={canEdit ? onEdit : onDetail}
       className="hounigo-ds-card hounigo-ds-cat-alloggio cursor-pointer"
     >
-      {/* 1. HEADER: TARGA CATEGORIA VIOLA/INDACO E CARTELLINO ORARI CHECK-IN/OUT */}
+      {/* 1. HEADER: TARGA CATEGORIA VIOLA/INDACO */}
       <div className="hounigo-ds-card-header hounigo-ds-header-alloggio">
         <div className="flex items-center justify-between gap-2">
           <div className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider min-w-0 truncate">
@@ -209,20 +210,16 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
               </>
             )}
           </div>
-
-          {headerTimeSummary && (
-            <span className="hounigo-ds-time-stamp">
-              {headerTimeSummary}
-            </span>
-          )}
         </div>
       </div>
 
-      {/* 2. BODY: NOME STRUTTURA, PERIODO SOGGIORNO, INDIRIZZO E CASELLARIO OPERATIVO */}
+      {/* 2. BODY: NOME STRUTTURA + ORARIO, PERIODO SOGGIORNO, INDIRIZZO E CASELLARIO OPERATIVO */}
       <div className="hounigo-ds-card-body">
-        <h3 className="font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
-          {accommodation.name}
-        </h3>
+        <CardTitleWithTime
+          title={accommodation.name}
+          timeLabel={headerTimeSummary}
+          timeTitle={headerTimeSummary ? 'Orario check-in / check-out' : undefined}
+        />
 
         <div className="hounigo-ds-route-track">
           {numNights > 1 && accommodation.checkIn && accommodation.checkOut && (
@@ -347,21 +344,31 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             </button>
           ) : null}
 
-          <button
-            type="button"
-            onClick={handleToggleCheckIn}
-            disabled={!canEdit}
-            data-testid={`accommodation-checkin-toggle-${accommodation.id}`}
-            className={`inline-flex items-center gap-1 px-2 py-0.5 min-h-[1.5rem] rounded-md text-[11px] font-extrabold border transition-all ${
-              accommodation.checkInDone
-                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700'
-                : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200/70 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-            } ${canEdit ? 'cursor-pointer active:scale-95' : 'cursor-default opacity-80'}`}
-            title={canEdit ? 'Tocca per aggiornare lo stato di check-in' : 'Stato check-in alloggio'}
-            aria-label={accommodation.checkInDone ? 'Check-in effettuato' : 'Check-in da fare'}
-          >
-            <span>{accommodation.checkInDone ? '✓ Check-in fatto' : 'Check-in da fare'}</span>
-          </button>
+          {accommodation.checkInDone ? (
+            <button
+              type="button"
+              onClick={handleToggleCheckIn}
+              disabled={!canEdit}
+              data-testid={`accommodation-checkin-toggle-${accommodation.id}`}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 min-h-[1.75rem] rounded-md text-[11px] font-extrabold border transition-all bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700 ${canEdit ? 'cursor-pointer active:scale-95' : 'cursor-default opacity-80'}`}
+              title={canEdit ? 'Tocca per aggiornare lo stato di check-in' : 'Stato check-in alloggio'}
+              aria-label="Check-in effettuato"
+            >
+              <span>✓ Check-in fatto</span>
+            </button>
+          ) : canEdit ? (
+            <button
+              type="button"
+              onClick={handleToggleCheckIn}
+              data-testid={`accommodation-checkin-toggle-${accommodation.id}`}
+              className="inline-flex items-center gap-1 px-2 py-0.5 min-h-[1.75rem] rounded-md text-[11px] font-semibold border border-slate-200/90 text-slate-600 bg-white/80 hover:bg-slate-100 dark:bg-slate-900/50 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-800 cursor-pointer active:scale-95 transition-all"
+              title="Tocca per segnare il check-in effettuato"
+              aria-label="Segna check-in"
+            >
+              <LogIn className="w-3 h-3 shrink-0 opacity-75" aria-hidden="true" />
+              <span>Segna check-in</span>
+            </button>
+          ) : null}
 
           {(accommodation.checkInDone || accommodation.checkOutDone) && (
             <button

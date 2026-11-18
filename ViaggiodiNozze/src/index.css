@@ -1176,6 +1176,21 @@ html.dark .hounigo-ds-header-shopping {
   flex-shrink: 0;
 }
 
+.hounigo-ds-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.45rem;
+  min-width: 0;
+}
+
+.hounigo-ds-time-stamp.hounigo-ds-time-stamp--inline {
+  margin-left: 0;
+  max-width: 100%;
+  white-space: normal;
+  line-height: 1.15;
+}
+
 html.dark .hounigo-ds-time-stamp {
   background-color: rgba(15, 23, 42, 0.85);
   color: #F8FAFC;

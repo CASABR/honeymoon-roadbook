@@ -9,6 +9,7 @@ import { resolveMapUrl } from '../../utils/mapsHelper';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
+import CardTitleWithTime from './CardTitleWithTime';
 
 interface RistoranteCardProps {
   ristorante: Ristorante;
@@ -72,9 +73,12 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
   );
 
   const isConfirmed = Boolean(time) && ristorante.timeStatus === 'confermato';
-  const headerTimeSummary = time
+  const inlineTimeSummary = time
     ? `Ore ${time}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
-    : (!isCompact && (ristorante.data || ristorante.date) ? formatDateIT((ristorante.data || ristorante.date)!) : '');
+    : '';
+  const headerDateFallback = !time && !isCompact && (ristorante.data || ristorante.date)
+    ? formatDateIT((ristorante.data || ristorante.date)!)
+    : '';
 
   return (
     <div
@@ -97,24 +101,22 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
             )}
           </div>
 
-          {headerTimeSummary && (
-            <span
-              data-time-status={time ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
-              className={`hounigo-ds-time-stamp ${isConfirmed ? 'hounigo-ds-time-stamp-confirmed text-[#E11D48] dark:text-[#FF6B5F] font-black border-[#E11D48]/40 bg-rose-50 dark:bg-rose-950/40' : ''}`}
-              title={time ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
-            >
-              {isConfirmed && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#E11D48] dark:bg-[#FF6B5F] mr-1" aria-hidden="true" />}
-              {headerTimeSummary}
+          {headerDateFallback && (
+            <span className="hounigo-ds-time-stamp">
+              {headerDateFallback}
             </span>
           )}
         </div>
       </div>
 
-      {/* 2. BODY: NOME LOCALE, TRACCIATO INDIRIZZO E NOTA PRENOTAZIONE */}
+      {/* 2. BODY: NOME LOCALE + ORARIO, TRACCIATO INDIRIZZO E NOTA PRENOTAZIONE */}
       <div className="hounigo-ds-card-body">
-        <h3 className="text-base sm:text-[17px] font-extrabold text-slate-900 dark:text-white leading-snug tracking-tight break-words">
-          {ristorante.nome}
-        </h3>
+        <CardTitleWithTime
+          title={ristorante.nome}
+          timeLabel={inlineTimeSummary}
+          timeStatus={time ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
+          timeTitle={time ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
+        />
 
         {displayAddress && (
           <div className="hounigo-ds-route-track">

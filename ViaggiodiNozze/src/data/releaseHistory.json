@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.23",
+      "publishedAt": "2026-11-18",
+      "sourceCommit": "7cff714",
+      "changes": [
+        "Fronte card itinerario: orario mostrato subito dopo il titolo su tutte le categorie con leggibilità iPhone",
+        "Card Alloggi: eliminata la dicitura «Check-in da fare» mantenendo comando discreto «Segna check-in», «✓ Check-in fatto» e Check-out"
+      ],
+      "publishedAtIso": "2026-11-18T15:30:00.000Z"
+    },
+    {
       "version": "1.6.22",
       "publishedAt": "2026-11-18",
       "sourceCommit": "202310d",
@@ -255,16 +265,6 @@
         "Distinzione esplicita invio simulato dry-run rispetto a broadcast reale in Admin"
       ],
       "publishedAtIso": "2026-11-09T13:52:33+01:00"
-    },
-    {
-      "version": "1.5.15",
-      "publishedAt": "2026-11-09",
-      "sourceCommit": "9db3e09",
-      "changes": [
-        "Onboarding con accesso Google in evidenza nella schermata iniziale",
-        "Percorso dedicato per accesso con account e credenziali preesistenti"
-      ],
-      "publishedAtIso": "2026-11-09T13:25:00+01:00"
     }
   ]
 }

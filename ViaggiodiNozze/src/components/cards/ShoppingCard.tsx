@@ -9,6 +9,7 @@ import { resolveMapUrl } from '../../utils/mapsHelper';
 import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
+import CardTitleWithTime from './CardTitleWithTime';
 
 interface ShoppingCardProps {
   shopping: Shopping;
@@ -76,9 +77,12 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
 
   const displayTime = (shopping.orario || (shopping as any).time || '').trim();
   const isConfirmed = Boolean(displayTime) && shopping.timeStatus === 'confermato';
-  const headerTimeSummary = displayTime
+  const inlineTimeSummary = displayTime
     ? `Ore ${displayTime}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
-    : ((shopping.data || shopping.date) ? formatDateIT((shopping.data || shopping.date)!) : '');
+    : '';
+  const headerDateFallback = !displayTime && (shopping.data || shopping.date)
+    ? formatDateIT((shopping.data || shopping.date)!)
+    : '';
 
   return (
     <div
@@ -101,24 +105,22 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
             )}
           </div>
 
-          {headerTimeSummary && (
-            <span
-              data-time-status={displayTime ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
-              className={`hounigo-ds-time-stamp ${isConfirmed ? 'hounigo-ds-time-stamp-confirmed text-[#E11D48] dark:text-[#FF6B5F] font-black border-[#E11D48]/40 bg-rose-50 dark:bg-rose-950/40' : ''}`}
-              title={displayTime ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
-            >
-              {isConfirmed && <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#E11D48] dark:bg-[#FF6B5F] mr-1" aria-hidden="true" />}
-              {headerTimeSummary}
+          {headerDateFallback && (
+            <span className="hounigo-ds-time-stamp">
+              {headerDateFallback}
             </span>
           )}
         </div>
       </div>
 
-      {/* 2. BODY: NOME NEGOZIO, TRACCIATO LUOGO E CASELLARIO ACQUISTO */}
+      {/* 2. BODY: NOME NEGOZIO + ORARIO, TRACCIATO LUOGO E CASELLARIO ACQUISTO */}
       <div className="hounigo-ds-card-body">
-        <h3 className="text-base sm:text-[17px] font-extrabold text-slate-900 dark:text-white leading-snug tracking-tight break-words">
-          {shopping.nome}
-        </h3>
+        <CardTitleWithTime
+          title={shopping.nome}
+          timeLabel={inlineTimeSummary}
+          timeStatus={displayTime ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
+          timeTitle={displayTime ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
+        />
 
         {displayAddress && (
           <div className="hounigo-ds-route-track">
