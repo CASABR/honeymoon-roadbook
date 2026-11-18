@@ -4,7 +4,7 @@
     {
       "version": "1.6.21",
       "publishedAt": "2026-11-18",
-      "sourceCommit": "a7ce904",
+      "sourceCommit": "959545b",
       "changes": [
         "Safe area iPhone e Dynamic Island: adeguati toast, dock categorie, menu azioni e barra laterale landscape con inset di sistema",
         "Header sticky e viste itinerario: posizionamento corretto dei titoli paese e navigazione LIVE sotto la testata mobile",
