@@ -4,7 +4,7 @@
     {
       "version": "1.6.22",
       "publishedAt": "2026-11-18",
-      "sourceCommit": "1735f81",
+      "sourceCommit": "202310d",
       "changes": [
         "Card pre-partenza iPhone: controllo «Non mostrare più» allineato su riga unica nel footer con spaziature e gerarchia migliorate",
         "Leggibilità mobile e iPhone SE: rimosso troncamento testi, pulsanti ad alta accessibilità e visibilità completa azioni LIVE"
