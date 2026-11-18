@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.24",
+      "publishedAt": "2026-11-18",
+      "sourceCommit": "02baeab",
+      "changes": [
+        "Card Alloggi: nascosto sul fronte il pulsante check-in quando non ancora effettuato, preservando «✓ Check-in fatto», orari e retro invariati"
+      ],
+      "publishedAtIso": "2026-11-18T16:00:00.000Z"
+    },
+    {
       "version": "1.6.23",
       "publishedAt": "2026-11-18",
       "sourceCommit": "36575ae",
@@ -255,16 +264,6 @@
         "Separazione dati riservati schema v2, regole Firestore/Storage potenziate e sincronizzazione offline/LIVE sicura"
       ],
       "publishedAtIso": "2026-11-11T11:53:05+01:00"
-    },
-    {
-      "version": "1.5.16",
-      "publishedAt": "2026-11-09",
-      "sourceCommit": "303ff24",
-      "changes": [
-        "Gestione rate-limit notifiche push con countdown e protezione invii multipli",
-        "Distinzione esplicita invio simulato dry-run rispetto a broadcast reale in Admin"
-      ],
-      "publishedAtIso": "2026-11-09T13:52:33+01:00"
     }
   ]
 }

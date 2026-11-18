@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Handshake, LogIn } from 'lucide-react';
+import { Handshake } from 'lucide-react';
 import UniversalCopilotaModal from '../modals/UniversalCopilotaModal';
 import UniversalAttachmentModal from '../modals/UniversalAttachmentModal';
 import { storageService, notifyDataChanged } from '../../storage/storageService';
@@ -344,31 +344,19 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
             </button>
           ) : null}
 
-          {accommodation.checkInDone ? (
+          {accommodation.checkInDone && (
             <button
               type="button"
               onClick={handleToggleCheckIn}
               disabled={!canEdit}
               data-testid={`accommodation-checkin-toggle-${accommodation.id}`}
-              className={`inline-flex items-center gap-1 px-2 py-0.5 min-h-[1.75rem] rounded-md text-[11px] font-extrabold border transition-all bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700 ${canEdit ? 'cursor-pointer active:scale-95' : 'cursor-default opacity-80'}`}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 min-h-[1.5rem] rounded-md text-[11px] font-extrabold border transition-all bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-700 ${canEdit ? 'cursor-pointer active:scale-95' : 'cursor-default opacity-80'}`}
               title={canEdit ? 'Tocca per aggiornare lo stato di check-in' : 'Stato check-in alloggio'}
               aria-label="Check-in effettuato"
             >
               <span>✓ Check-in fatto</span>
             </button>
-          ) : canEdit ? (
-            <button
-              type="button"
-              onClick={handleToggleCheckIn}
-              data-testid={`accommodation-checkin-toggle-${accommodation.id}`}
-              className="inline-flex items-center gap-1 px-2 py-0.5 min-h-[1.75rem] rounded-md text-[11px] font-semibold border border-slate-200/90 text-slate-600 bg-white/80 hover:bg-slate-100 dark:bg-slate-900/50 dark:text-slate-300 dark:border-slate-700 dark:hover:bg-slate-800 cursor-pointer active:scale-95 transition-all"
-              title="Tocca per segnare il check-in effettuato"
-              aria-label="Segna check-in"
-            >
-              <LogIn className="w-3 h-3 shrink-0 opacity-75" aria-hidden="true" />
-              <span>Segna check-in</span>
-            </button>
-          ) : null}
+          )}
 
           {(accommodation.checkInDone || accommodation.checkOutDone) && (
             <button
