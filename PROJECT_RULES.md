@@ -45,6 +45,15 @@ Utilità pratica durante il viaggio, non un prodotto commerciale.
 - **Modali centrati / media viewer:** Per visualizzatori d'immagini o modali a schermo intero non allineati in basso, usare `.fixed.inset-0.items-center` e `z-index` elevati (es. `z-[100]`), senza toccare le classi del bottom-sheet.
 - **Contenimento Overflow Timeline:** Le card flessibili (`flex-1`) all'interno di timeline row orizzontali che supportano la modalità modifica (editMode) devono avere sempre la classe `min-w-0` abilitata. Questo garantisce che il browser possa restringere la card e troncare con ellisse i titoli lunghi, salvaguardando lo spazio a destra per l'action block dei controlli (`✏️`, `🗑️`, `↑`, `↓`) ed evitando l'overflow orizzontale.
 
+## Vincoli permanenti di interfaccia e regressione (approvati il 19/11/2026)
+Considerare le seguenti regole **invarianti non derogabili** in ogni intervento futuro (non modificarle senza richiesta esplicita dell'utente):
+- **Orari delle 6 categorie sempre nell'header superiore:** Su `AlloggioCard`, `AttivitaCard`, `RistoranteCard`, `ShoppingCard`, `TappaCard` e `TrasportoCard`, gli orari (inclusi orari multipli/`+1`, `IN/OUT`, indicatori `Confermato`/`indicativo` e date di fallback già previste) devono stare **esclusivamente** nell'header superiore (`.hounigo-ds-card-header` → `.hounigo-ds-header-top`, componente `CardHeaderTimeBadge`) a destra della categoria (`.hounigo-ds-header-cat`). È **vietato** spostarli accanto al titolo `<h3>` nel body (`CardTitleWithTime`, `.hounigo-ds-title-row`, `.hounigo-ds-time-stamp--inline`).
+- **Nessuna duplicazione degli orari:** Ogni card espone un solo cartellino orario in header; il titolo `<h3>` e il body della card non devono replicare o affiancare badge orari.
+- **Fronte Alloggi senza inviti al check-in:** Sul fronte di `AlloggioCard` (`.hounigo-ds-card-footer`) non devono comparire pulsanti o inviti proattivi al check-in quando `accommodation.checkInDone` è falso; il badge interattivo `✓ Check-in fatto` compare solo a check-in già effettuato.
+- **Swipe in `Oggi` dedicato al cambio giorno:** Lo swipe orizzontale in `OggiView` (`handleDaySwipeStart`/`Move`/`End`) è riservato esclusivamente al cambio giorno (`setSelectedDate`), mentre `App.tsx` disabilita lo swipe globale cambio tab su `activeTab === 'oggi'`.
+- **Preservare moduli critici già verificati:** Non alterare, senza richiesta esplicita, la sincronizzazione Firestore (`1.6.27`, `syncService.ts`), le notifiche push/Worker (`1.6.28`, `usePushNotifications.ts`, `pushNotificationService.ts`, `NotificationBellButton.tsx`, `cloudflare/houniai-worker/src/index.js` & `push.js`) e la ripresa GPS LIVE (`1.6.29`, `liveGpsContinuity.ts`, `LiveView.tsx`).
+- **Verifica anti-regressione:** Dopo modifiche a card, stili `.hounigo-ds-*` o vista `Oggi`, eseguire `node ViaggiodiNozze/scripts/test_card_ui_invariants.cjs`.
+
 ## Cose da NON fare
 - Refactor speculativi
 - Toccare file non richiesti

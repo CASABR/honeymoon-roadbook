@@ -1158,37 +1158,55 @@ html.dark .hounigo-ds-header-shopping {
 }
 
 /* Cartellino Orario stile Tabellone Partenze */
+.hounigo-ds-header-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.5rem;
+  min-width: 0;
+}
+
+.hounigo-ds-header-cat {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.12rem 0.35rem;
+  flex: 1 1 8.5rem;
+  min-width: 0;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
 .hounigo-ds-time-stamp {
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-variant-numeric: tabular-nums;
   font-size: 0.72rem;
   font-weight: 800;
   letter-spacing: -0.015em;
-  line-height: 1.05;
-  padding: 0.12rem 0.36rem;
+  line-height: 1.15;
+  padding: 0.14rem 0.4rem;
   border-radius: 0.35rem;
   background-color: #172033;
   color: #FFFFFF;
   display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
+  gap: 0.25rem;
   margin-left: auto;
   flex-shrink: 0;
-}
-
-.hounigo-ds-title-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem 0.45rem;
-  min-width: 0;
-}
-
-.hounigo-ds-time-stamp.hounigo-ds-time-stamp--inline {
-  margin-left: 0;
   max-width: 100%;
-  white-space: normal;
-  line-height: 1.15;
+  white-space: nowrap;
+}
+
+@media (max-width: 360px) {
+  .hounigo-ds-time-stamp {
+    white-space: normal;
+    text-align: right;
+  }
 }
 
 html.dark .hounigo-ds-time-stamp {

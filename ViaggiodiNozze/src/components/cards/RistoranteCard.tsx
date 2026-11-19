@@ -9,7 +9,7 @@ import { resolveMapUrl } from '../../utils/mapsHelper';
 import { resolvePaymentInfo } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
-import CardTitleWithTime from './CardTitleWithTime';
+import CardHeaderTimeBadge from './CardHeaderTimeBadge';
 
 interface RistoranteCardProps {
   ristorante: Ristorante;
@@ -73,12 +73,9 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
   );
 
   const isConfirmed = Boolean(time) && ristorante.timeStatus === 'confermato';
-  const inlineTimeSummary = time
+  const headerTimeSummary = time
     ? `Ore ${time}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
-    : '';
-  const headerDateFallback = !time && !isCompact && (ristorante.data || ristorante.date)
-    ? formatDateIT((ristorante.data || ristorante.date)!)
-    : '';
+    : (!isCompact && (ristorante.data || ristorante.date) ? formatDateIT((ristorante.data || ristorante.date)!) : '');
 
   return (
     <div
@@ -87,36 +84,33 @@ export default function RistoranteCard({ ristorante, onEdit, onDetail, onDuplica
     >
       {/* 1. HEADER: TARGA CATEGORIA OCRA/AMBRA E CARTELLINO ORARIO PRENOTAZIONE */}
       <div className="hounigo-ds-card-header hounigo-ds-header-ristorante">
-        <div className="flex items-center justify-between gap-2">
-          <div className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider min-w-0 truncate">
+        <div className="hounigo-ds-header-top">
+          <div className="hounigo-ds-header-cat">
             <span aria-hidden="true" className="text-xs">🍽️</span>
             <span>Ristorante</span>
             {ristorante.sottocategoria && (
               <>
                 <span className="opacity-45">·</span>
-                <span className="font-bold tracking-wide truncate">
+                <span className="font-bold tracking-wide break-words">
                   {ristorante.sottocategoria}
                 </span>
               </>
             )}
           </div>
 
-          {headerDateFallback && (
-            <span className="hounigo-ds-time-stamp">
-              {headerDateFallback}
-            </span>
-          )}
+          <CardHeaderTimeBadge
+            label={headerTimeSummary}
+            status={time ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
+            title={time ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
+          />
         </div>
       </div>
 
-      {/* 2. BODY: NOME LOCALE + ORARIO, TRACCIATO INDIRIZZO E NOTA PRENOTAZIONE */}
+      {/* 2. BODY: NOME LOCALE, TRACCIATO INDIRIZZO E NOTA PRENOTAZIONE */}
       <div className="hounigo-ds-card-body">
-        <CardTitleWithTime
-          title={ristorante.nome}
-          timeLabel={inlineTimeSummary}
-          timeStatus={time ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
-          timeTitle={time ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
-        />
+        <h3 className="text-base sm:text-[17px] font-extrabold text-slate-900 dark:text-white leading-snug tracking-tight break-words">
+          {ristorante.nome}
+        </h3>
 
         {displayAddress && (
           <div className="hounigo-ds-route-track">

@@ -11,7 +11,7 @@ import { getTransportMapTargets } from '../../utils/mapsHelper';
 import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
-import CardTitleWithTime from './CardTitleWithTime';
+import CardHeaderTimeBadge from './CardHeaderTimeBadge';
 
 export interface TrasportoCardProps {
   transport: Trasporto;
@@ -377,7 +377,7 @@ export default function TrasportoCard({
       : `Ritiro ${transport.type === 'camper' ? 'camper' : 'auto'}`
     : currentType.label;
 
-  const inlineTimeSummary = isRental && isPickupDay
+  const resolvedTimeSummary = isRental && isPickupDay
     ? (transport.departureTime ? `Ritiro ore ${transport.departureTime}` : '')
     : isRental && isDropoffDay
     ? ((transport.dropoffTime || transport.arrivalTime) ? `Entro ore ${transport.dropoffTime || transport.arrivalTime}` : '')
@@ -386,7 +386,7 @@ export default function TrasportoCard({
     : transport.departureTime
     ? `Ore ${transport.departureTime}`
     : '';
-  const headerDateFallback = !inlineTimeSummary ? formatDateIT(displayDateStr) : '';
+  const headerTimeSummary = resolvedTimeSummary || formatDateIT(displayDateStr);
 
   const hasHeaderNotice = Boolean(checkinInfo.cutoffTime || (transport.type === 'volo' && transport.layover));
   const hasSpecCells = Boolean(
@@ -422,21 +422,20 @@ export default function TrasportoCard({
       >
         {/* 1. HEADER: TARGA CATEGORIA E CARTELLINO ORARIO DA TABELLONE */}
         <div className="hounigo-ds-card-header hounigo-ds-header-trasporto">
-          <div className="flex items-center justify-between gap-2">
-            <div className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider min-w-0 truncate">
+          <div className="hounigo-ds-header-top">
+            <div className="hounigo-ds-header-cat">
               <span aria-hidden="true" className="text-xs">{currentType.icon}</span>
               <span>Trasporto</span>
               <span className="opacity-45">·</span>
-              <span className="font-bold tracking-wide truncate">
+              <span className="font-bold tracking-wide break-words">
                 {headerSubType}
               </span>
             </div>
 
-            {headerDateFallback && (
-              <span className="hounigo-ds-time-stamp">
-                {headerDateFallback}
-              </span>
-            )}
+            <CardHeaderTimeBadge
+              label={headerTimeSummary}
+              title={resolvedTimeSummary ? 'Orario trasporto' : undefined}
+            />
           </div>
 
           {hasHeaderNotice && (
@@ -458,13 +457,11 @@ export default function TrasportoCard({
           )}
         </div>
 
-        {/* 2. BODY: OPERATORE + ORARIO, TRACCIATO PARTENZA/ARRIVO E CASELLARIO OPERATIVO */}
+        {/* 2. BODY: OPERATORE, TRACCIATO PARTENZA/ARRIVO E CASELLARIO OPERATIVO */}
         <div className="hounigo-ds-card-body">
-          <CardTitleWithTime
-            title={transport.carrier || currentType.label}
-            timeLabel={inlineTimeSummary}
-            timeTitle={inlineTimeSummary ? 'Orario trasporto' : undefined}
-          />
+          <h3 className="font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
+            {transport.carrier || currentType.label}
+          </h3>
 
           {/* Tracciato di tratta (Segnaletica Partenza → Arrivo) */}
           {isRental && (isPickupDay || isDropoffDay) ? (

@@ -9,7 +9,7 @@ import GoogleMapsIcon from '../icons/GoogleMapsIcon';
 import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
-import CardTitleWithTime from './CardTitleWithTime';
+import CardHeaderTimeBadge from './CardHeaderTimeBadge';
 
 interface AlloggioCardProps {
   accommodation: Alloggio;
@@ -195,31 +195,34 @@ export default function AlloggioCard({ accommodation, onEdit, onUpdate, onDetail
       onClick={canEdit ? onEdit : onDetail}
       className="hounigo-ds-card hounigo-ds-cat-alloggio cursor-pointer"
     >
-      {/* 1. HEADER: TARGA CATEGORIA VIOLA/INDACO */}
+      {/* 1. HEADER: TARGA CATEGORIA VIOLA/INDACO E CARTELLINO ORARI CHECK-IN/OUT */}
       <div className="hounigo-ds-card-header hounigo-ds-header-alloggio">
-        <div className="flex items-center justify-between gap-2">
-          <div className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider min-w-0 truncate">
+        <div className="hounigo-ds-header-top">
+          <div className="hounigo-ds-header-cat">
             <span aria-hidden="true" className="text-xs">🛏️</span>
             <span>Alloggio</span>
             {accommodation.sottocategoria && (
               <>
                 <span className="opacity-45">·</span>
-                <span className="font-bold tracking-wide truncate">
+                <span className="font-bold tracking-wide break-words">
                   {accommodation.sottocategoria}
                 </span>
               </>
             )}
           </div>
+
+          <CardHeaderTimeBadge
+            label={headerTimeSummary}
+            title={headerTimeSummary ? 'Orario check-in / check-out' : undefined}
+          />
         </div>
       </div>
 
-      {/* 2. BODY: NOME STRUTTURA + ORARIO, PERIODO SOGGIORNO, INDIRIZZO E CASELLARIO OPERATIVO */}
+      {/* 2. BODY: NOME STRUTTURA, PERIODO SOGGIORNO, INDIRIZZO E CASELLARIO OPERATIVO */}
       <div className="hounigo-ds-card-body">
-        <CardTitleWithTime
-          title={accommodation.name}
-          timeLabel={headerTimeSummary}
-          timeTitle={headerTimeSummary ? 'Orario check-in / check-out' : undefined}
-        />
+        <h3 className="font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
+          {accommodation.name}
+        </h3>
 
         <div className="hounigo-ds-route-track">
           {numNights > 1 && accommodation.checkIn && accommodation.checkOut && (

@@ -12,7 +12,7 @@ import OpeningHoursBadge from '../common/OpeningHoursBadge';
 import { PHOTO_LIGHT_LABELS } from '../../utils/activityType';
 import { processFileForAttachment } from '../../utils/fileAttachment';
 import { useDeviceRole } from '../../utils/useDeviceRole';
-import CardTitleWithTime from './CardTitleWithTime';
+import CardHeaderTimeBadge from './CardHeaderTimeBadge';
 
 interface TappaCardProps {
   tappa: Tappa;
@@ -93,10 +93,9 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
   const isWalking = (tappa.sottocategoria || '').toLowerCase() === 'passeggiata' || Boolean(sequenceInfo?.inSequence);
   const travelMode = isWalking ? 'walking' : undefined;
 
-  const inlineTimeSummary = orario
+  const headerTimeSummary = orario
     ? `Ore ${orario}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
-    : '';
-  const headerDateFallback = !orario && !isCompact && tappa.data ? formatDateIT(tappa.data) : '';
+    : (!isCompact && tappa.data ? formatDateIT(tappa.data) : '');
 
   return (
     <div
@@ -106,18 +105,18 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
     >
       {/* 1. HEADER: TARGA CATEGORIA ROSA E CARTELLINO ORARIO CONFERMATO/INDICATIVO */}
       <div className="hounigo-ds-card-header hounigo-ds-header-tappa">
-        <div className="flex items-center justify-between gap-2">
-          <div className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider min-w-0 truncate">
+        <div className="hounigo-ds-header-top">
+          <div className="hounigo-ds-header-cat">
             <span aria-hidden="true" className="text-xs">📍</span>
             <span>Tappa</span>
             {hasSubcategory && (
               <>
                 <span className="opacity-45">·</span>
-                <span className="font-bold tracking-wide truncate">
+                <span className="font-bold tracking-wide break-words">
                   {tappa.sottocategoria}
                 </span>
             {sequenceInfo?.inSequence && (
-              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shrink-0 ml-1.5">
+              <span className="px-1.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-100 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-200 border border-emerald-300 dark:border-emerald-800 shrink-0 ml-1">
                 Tappa {sequenceInfo.sequenceIndex}/{sequenceInfo.sequenceTotal}
               </span>
             )}
@@ -125,27 +124,20 @@ export default function TappaCard({ tappa, onEdit, onDetail, onDuplicate, onUpda
             )}
           </div>
 
-          {headerDateFallback && (
-            <span className="hounigo-ds-time-stamp">
-              {headerDateFallback}
-            </span>
-          )}
+          <CardHeaderTimeBadge
+            label={headerTimeSummary}
+            status={orario ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
+            title={orario ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
+          />
         </div>
       </div>
 
-      {/* 2. BODY: TITOLO + ORARIO, TRACCIATO LUOGO ED EVENTUALI ORARI/NOTE */}
+      {/* 2. BODY: TITOLO, TRACCIATO LUOGO ED EVENTUALI ORARI/NOTE */}
       <div className="hounigo-ds-card-body">
-        <CardTitleWithTime
-          title={
-            <>
-              {isTask && <ListChecks className="inline-block w-4 h-4 mr-1.5 text-[#FF6B5F]" aria-label="Task" />}
-              {tappa.titolo}
-            </>
-          }
-          timeLabel={inlineTimeSummary}
-          timeStatus={orario ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
-          timeTitle={orario ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
-        />
+        <h3 className="font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
+          {isTask && <ListChecks className="inline-block w-4 h-4 mr-1.5 text-[#FF6B5F]" aria-label="Task" />}
+          {tappa.titolo}
+        </h3>
         {isTask && <span className={`inline-flex text-[10px] font-bold rounded-full px-2 py-0.5 mt-1 ${tappa.completed ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-300'}`}>{tappa.completed ? 'Completato' : 'Da fare'}</span>}
 
         {tappa.indirizzo && (

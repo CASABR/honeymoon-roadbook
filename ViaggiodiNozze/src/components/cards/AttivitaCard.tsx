@@ -13,7 +13,7 @@ import { processFileForAttachment } from '../../utils/fileAttachment';
 import { formatHikingDuration, isPhotoSpotActivity, isTrekkingActivity, isPasseggiataActivity, getDisplaySubcategory, PHOTO_LIGHT_LABELS, TREKKING_ROUTE_LABELS } from '../../utils/activityType';
 import OpeningHoursBadge from '../common/OpeningHoursBadge';
 import { useDeviceRole } from '../../utils/useDeviceRole';
-import CardTitleWithTime from './CardTitleWithTime';
+import CardHeaderTimeBadge from './CardHeaderTimeBadge';
 
 interface AttivitaCardProps {
   activity: Attivita;
@@ -232,14 +232,14 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
       >
         {/* 1. HEADER: TARGA CATEGORIA OTTANIO/TURCHESE E CARTELLINO ORARIO */}
         <div className="hounigo-ds-card-header hounigo-ds-header-attivita">
-          <div className="flex items-center justify-between gap-2">
-            <div className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider min-w-0 truncate">
+          <div className="hounigo-ds-header-top">
+            <div className="hounigo-ds-header-cat">
               <span aria-hidden="true" className="text-xs">{headerIcon}</span>
               <span>Attività</span>
               {subcategoryLabel && (
                 <>
                   <span className="opacity-45">·</span>
-                  <span className="font-bold tracking-wide truncate">
+                  <span className="font-bold tracking-wide break-words">
                     {subcategoryLabel}
                   </span>
                 </>
@@ -247,12 +247,18 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
               {activity.platform && (
                 <>
                   <span className="opacity-45">·</span>
-                  <span className="font-bold tracking-wide truncate">
+                  <span className="font-bold tracking-wide break-words">
                     {activity.platform}
                   </span>
                 </>
               )}
             </div>
+
+            <CardHeaderTimeBadge
+              label={headerTimeSummary}
+              status={displayTime ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
+              title={displayTime ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
+            />
           </div>
 
           {isMeetingDiscrepancy && (
@@ -264,14 +270,11 @@ export default function AttivitaCard({ activity, onEdit, onDetail, onDuplicate, 
           )}
         </div>
 
-        {/* 2. BODY: TITOLO + ORARIO, TRACCIATO LUOGO/RITROVO E CASELLARIO OPERATIVO */}
+        {/* 2. BODY: TITOLO, TRACCIATO LUOGO/RITROVO E CASELLARIO OPERATIVO */}
         <div className="hounigo-ds-card-body">
-          <CardTitleWithTime
-            title={activity.title}
-            timeLabel={headerTimeSummary}
-            timeStatus={displayTime ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
-            timeTitle={displayTime ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
-          />
+          <h3 className="font-extrabold text-base sm:text-[17px] leading-snug tracking-tight text-slate-900 dark:text-white break-words">
+            {activity.title}
+          </h3>
 
           {(displayLocation || (activity.originLocation && activity.destinationLocation)) && (
             <div className="hounigo-ds-route-track">

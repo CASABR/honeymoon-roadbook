@@ -9,7 +9,7 @@ import { resolveMapUrl } from '../../utils/mapsHelper';
 import { resolvePaymentInfo, formatCompactEuro } from '../../utils/priceHelper';
 import { formatDateIT } from '../../utils/tripDates';
 import { useDeviceRole } from '../../utils/useDeviceRole';
-import CardTitleWithTime from './CardTitleWithTime';
+import CardHeaderTimeBadge from './CardHeaderTimeBadge';
 
 interface ShoppingCardProps {
   shopping: Shopping;
@@ -77,12 +77,9 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
 
   const displayTime = (shopping.orario || (shopping as any).time || '').trim();
   const isConfirmed = Boolean(displayTime) && shopping.timeStatus === 'confermato';
-  const inlineTimeSummary = displayTime
+  const headerTimeSummary = displayTime
     ? `Ore ${displayTime}${isConfirmed ? ' · Confermato' : ' · indicativo'}`
-    : '';
-  const headerDateFallback = !displayTime && (shopping.data || shopping.date)
-    ? formatDateIT((shopping.data || shopping.date)!)
-    : '';
+    : ((shopping.data || shopping.date) ? formatDateIT((shopping.data || shopping.date)!) : '');
 
   return (
     <div
@@ -91,36 +88,33 @@ export default function ShoppingCard({ shopping, onEdit, onDetail, onDuplicate, 
     >
       {/* 1. HEADER: TARGA CATEGORIA VERDE BOSCO E CARTELLINO ORARIO PROGRAMMATO */}
       <div className="hounigo-ds-card-header hounigo-ds-header-shopping">
-        <div className="flex items-center justify-between gap-2">
-          <div className="inline-flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-wider min-w-0 truncate">
+        <div className="hounigo-ds-header-top">
+          <div className="hounigo-ds-header-cat">
             <span aria-hidden="true" className="text-xs">🛍️</span>
             <span>Shopping</span>
             {shopping.sottocategoria && (
               <>
                 <span className="opacity-45">·</span>
-                <span className="font-bold tracking-wide truncate">
+                <span className="font-bold tracking-wide break-words">
                   {shopping.sottocategoria}
                 </span>
               </>
             )}
           </div>
 
-          {headerDateFallback && (
-            <span className="hounigo-ds-time-stamp">
-              {headerDateFallback}
-            </span>
-          )}
+          <CardHeaderTimeBadge
+            label={headerTimeSummary}
+            status={displayTime ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
+            title={displayTime ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
+          />
         </div>
       </div>
 
-      {/* 2. BODY: NOME NEGOZIO + ORARIO, TRACCIATO LUOGO E CASELLARIO ACQUISTO */}
+      {/* 2. BODY: NOME NEGOZIO, TRACCIATO LUOGO E CASELLARIO ACQUISTO */}
       <div className="hounigo-ds-card-body">
-        <CardTitleWithTime
-          title={shopping.nome}
-          timeLabel={inlineTimeSummary}
-          timeStatus={displayTime ? (isConfirmed ? 'confermato' : 'indicativo') : undefined}
-          timeTitle={displayTime ? (isConfirmed ? 'Orario confermato' : 'Orario indicativo') : undefined}
-        />
+        <h3 className="text-base sm:text-[17px] font-extrabold text-slate-900 dark:text-white leading-snug tracking-tight break-words">
+          {shopping.nome}
+        </h3>
 
         {displayAddress && (
           <div className="hounigo-ds-route-track">

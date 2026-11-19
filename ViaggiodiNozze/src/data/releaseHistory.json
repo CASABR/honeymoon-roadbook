@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.30",
+      "publishedAt": "2026-11-19",
+      "sourceCommit": "e37bc70",
+      "changes": [
+        "Riportati gli orari di tutte e 6 le categorie nell'header superiore delle card, rimuovendo la duplicazione accanto al titolo",
+        "Migliorata la leggibilità degli header lunghi su iPhone e iPad e consolidati i vincoli anti-regressione su card, Alloggi e swipe Oggi"
+      ],
+      "publishedAtIso": "2026-11-19T10:23:20.660Z"
+    },
+    {
       "version": "1.6.29",
       "publishedAt": "2026-11-19",
       "sourceCommit": "a86470d",
@@ -252,16 +262,6 @@
         "Restyling LIVE con hero map, ripresa automatica GPS Owner e menu Altro riorganizzato in griglia 2x2"
       ],
       "publishedAtIso": "2026-11-16T12:54:56.442Z"
-    },
-    {
-      "version": "1.6.5",
-      "publishedAt": "2026-11-11",
-      "sourceCommit": "32e9449",
-      "changes": [
-        "Pagine pubbliche di presentazione, Privacy Policy GDPR e Termini di utilizzo su GitHub Pages",
-        "Collegamenti pubblici in onboarding, modale Informazioni ed esclusione PWA per i documenti statici"
-      ],
-      "publishedAtIso": "2026-11-11T18:53:58+01:00"
     }
   ]
 }

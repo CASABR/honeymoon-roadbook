@@ -1,8 +1,8 @@
 # HOUNIGO — BASELINE STABILE
 
-**Aggiornato:** 18 novembre 2026  
+**Aggiornato:** 19 novembre 2026  
 **Repository:** `CASABR/honeymoon-roadbook` • **App:** `ViaggiodiNozze/`  
-**Produzione:** GitHub Pages + GitHub Actions su `main` • **Versione:** `1.6.21`  
+**Produzione:** GitHub Pages + GitHub Actions su `main` • **Versione:** `1.6.30`  
 **Firebase:** `app-viaggio-di-nozze` (produzione ufficiale, ruleset live verificato byte-for-byte con `firestore.rules`).
 
 ## Regola fondamentale
@@ -25,6 +25,10 @@ Distinguere SEMPRE **implementato**, **test automatici superati**, **pubblicato*
 | Diagnostica sync | **Pubblicata e visibile su iPhone** v1.6.19; estesa in v1.6.20 con ispezione sicura di soli nomi e tipi dei campi in coda, public/private keys e versione schema. | Non esporre dati sensibili. Zero modifiche automatiche alla coda. |
 | Deploy & Preflight | **Verificato localmente (17/11):** Preflight obbligatorio in `deploy-actions.ps1` blocca i deploy con `sourceCommit` mancante/invalido o versionamento errato prima di GitHub Actions. Rollback e `-Confirm CONFERMA` preservati. | Non avviare workflow remoti senza versionamento valido. |
 | LIVE / GPS / Push | Funzioni già implementate con test precedenti, ma verifica end-to-end su telefoni ancora da completare. | Non dichiarare collaudo reale completato. |
+| Sync Firestore (`1.6.27`) | **Pubblicato in produzione + verificato (6/6 Emulator):** single-flight, cooldown automatico 10 minuti, protezione 429 senza perdita modifiche locali, listener realtime e coda offline preservati (`syncService.ts`). | Non alterare senza richiesta esplicita. |
+| Notifiche Push (`1.6.28`) | **Pubblicato su PWA + Worker (`index.js`):** stato push deduplicato (`usePushNotifications.ts`, `pushNotificationService.ts`, `NotificationBellButton.tsx`, `SettingsMenu.tsx`) e risposte 429/5xx Firestore distinte in `503` (non falsi 403). | Non alterare senza richiesta esplicita. |
+| GPS LIVE (`1.6.29`) | **Pubblicato (`e37bc70`):** ripresa automatica LIVE al rientro/riapertura tramite `liveGpsContinuity.ts` + `LiveView.tsx`, rispettando Pausa/Stop manuale, consenso iOS, singolo `watchPosition` e delega Copilota (test automatici superati; verifica iPhone reale in uso). | Non alterare senza richiesta esplicita. |
+| UI Card & Swipe Oggi (`1.6.30`) | **Rilasciato in v1.6.30 (superati 13/13 invarianti, 24/24 versionamento, build e Playwright 5 viewport):** orari delle 6 categorie in `.hounigo-ds-header-top` (`CardHeaderTimeBadge.tsx`), nessuna duplicazione accanto al titolo `<h3>`, fronte `AlloggioCard` senza inviti al check-in, swipe `OggiView` dedicato al cambio giorno (`test_card_ui_invariants.cjs`). | Vincolo permanente di regressione: vietato modificare senza richiesta esplicita. |
 
 ## P0 Hobbiton Movie Set Tour — Risolto su dispositivo Owner (18/11/2026)
 
@@ -76,6 +80,16 @@ Distinguere SEMPRE **implementato**, **test automatici superati**, **pubblicato*
 - **Intervento UI (`PreDeparturePhotoCard.tsx`):** spostato «Non mostrare più» con icona `×` inline su una barra utility inferiore dedicata in riga unica (`whitespace-nowrap`, `min-h-8`), rimosso troncamento (`line-clamp`) sul testo, ampliata la spaziatura e allineati «Scatta o carica foto», «Condividi nel LIVE» (`min-h-10`) e «Cos’è il LIVE?» senza toccare archiviazione offline, strip EXIF, condivisione LIVE o preferenza di chiusura.
 - **Test automatici superati (dopo ultima modifica):** suite Playwright `PreDeparturePhotoCard` su `393x852` (iPhone 15 Pro), `320x568` (iPhone SE, front e retro flippato), `1280x800` desktop (`dismissTextLines: 1`, `descTruncated: false`, `footerGap >= 60.8px`, persistenza chiusura dopo reload), `test_live_kv_free.cjs` (`18/18` isolati), `oxlint` (`0` errori), `tsc -b && vite build` e `test_responsive_safearea_160.cjs`; in `test_block_a_predeparture_and_checkin.cjs` check preesistente 4 fallisce sulla stringa legacy `"Condividi anche nel LIVE"` (la UI mantiene `"Condividi nel LIVE"` come richiesto).
 - **Ancora da verificare su hardware iPhone reale:** controllo visivo della card su iPhone fisico (stato vuoto, foto caricata e vista retro LIVE).
+
+## Regole permanenti di interfaccia e anti-regressione (v1.6.30 — 19/11/2026)
+
+Vincoli permanenti non modificabili in interventi futuri senza richiesta esplicita dell'utente:
+- **Orari delle 6 card sempre nell'header superiore:** su `AlloggioCard`, `AttivitaCard`, `RistoranteCard`, `ShoppingCard`, `TappaCard` e `TrasportoCard`, `CardHeaderTimeBadge.tsx` rende gli orari (inclusi orari multipli/`+1`, `IN/OUT`, `Confermato`/`indicativo` e date di fallback previste) dentro `.hounigo-ds-header-top` a destra di `.hounigo-ds-header-cat` (`ViaggiodiNozze/src/index.css`). Nessun file in `src/` importa `CardTitleWithTime.tsx`.
+- **Nessuna duplicazione degli orari:** nel body `.hounigo-ds-card-body` resta il solo titolo `<h3>`, privo di badge orari o classi `.hounigo-ds-title-row` / `.hounigo-ds-time-stamp--inline`.
+- **Fronte Alloggi senza inviti al check-in:** `AlloggioCard.tsx` non mostra pulsanti/inviti proattivi al check-in quando `!accommodation.checkInDone` (solo badge `✓ Check-in fatto` se attivo).
+- **Swipe in `Oggi` dedicato al cambio giorno:** `OggiView.tsx` (`handleDaySwipeStart`/`Move`/`End`) gestisce il cambio giorno; `App.tsx` disattiva lo swipe globale cambio tab su `activeTab === 'oggi'`.
+- **Moduli critici già verificati da preservare:** Sync Firestore (`1.6.27`), Notifiche Push + Worker (`1.6.28`), Ripresa GPS LIVE (`1.6.29`).
+- **Verifiche automatiche eseguite (19/11/2026):** `node ViaggiodiNozze/scripts/test_card_ui_invariants.cjs` (`13/13`), `node ViaggiodiNozze/scripts/test_release_versioning.cjs` (`24`), `oxlint` (`0` errori), `tsc -b && vite build`, `test_user_feedback_suite.cjs` (`11/11`), `test_ux_consistency_desktop.cjs` (`11/11`), `test_ux_chronology_import.cjs` (`12/12`), `test_block_a_predeparture_and_checkin.cjs` (`6/6`), `test_responsive_safearea_160.cjs` (`PASS`) e Playwright headless isolato (13 card `OggiView` + `AlloggiView`/`TappeView`/`RistorantiView`) su `320×568`, `393×852`, `744×1133`, `1133×744`, `1280×800` con `0` sovrapposizioni, `0` tagli e `0` overflow; verifica visiva reale su iPhone/iPad fisici da confermare.
 
 ## Checklist di rilascio P0 (solo Firestore Rules)
 
