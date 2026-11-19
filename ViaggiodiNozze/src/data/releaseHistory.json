@@ -4,7 +4,7 @@
     {
       "version": "1.6.33",
       "publishedAt": "2026-11-19",
-      "sourceCommit": "cc26bf6",
+      "sourceCommit": "f39c20d",
       "changes": [
         "Evitata la sovrapposizione tra la freccia sinistra e la pillola TUTTI in DayPickerStrip mostrando le frecce solo in presenza di scorrimento",
         "Aggiunti indicatori di scorrimento laterale con sfumatura e pulsanti sulle barre filtri orizzontali di TrasportiView su iPad, iPhone e desktop"
