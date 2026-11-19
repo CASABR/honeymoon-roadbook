@@ -35,13 +35,28 @@ function bearerToken(request) {
   return authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
 }
 
+function createHttpError(code, status, retryAfter) {
+  const error = new Error(code);
+  error.status = status;
+  if (retryAfter) error.retryAfter = retryAfter;
+  return error;
+}
+
 async function verifyFirebaseIdentity(idToken, env) {
   if (!idToken || !env.FIREBASE_WEB_API_KEY) return null;
-  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(env.FIREBASE_WEB_API_KEY)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken }),
-  });
+  let response;
+  try {
+    response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(env.FIREBASE_WEB_API_KEY)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken }),
+    });
+  } catch {
+    throw createHttpError('IDENTITY_UNAVAILABLE', 503);
+  }
+  if (response.status === 429 || response.status >= 500) {
+    throw createHttpError('IDENTITY_UNAVAILABLE', 503, response.status === 429 ? 30 : undefined);
+  }
   if (!response.ok) return null;
   const payload = await response.json();
   const user = payload?.users?.[0];
@@ -49,12 +64,28 @@ async function verifyFirebaseIdentity(idToken, env) {
 }
 
 async function getFirestoreDocument(path, idToken, env) {
-  const response = await fetch(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/${path}`, {
-    headers: { Authorization: `Bearer ${idToken}` },
-  });
+  let response;
+  try {
+    response = await fetch(`https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/${path}`, {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+  } catch {
+    throw createHttpError('FIRESTORE_UNAVAILABLE', 503);
+  }
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error('FIRESTORE_DENIED');
+  if (response.status === 401) throw createHttpError('FIRESTORE_UNAUTHORIZED', 401);
+  if (response.status === 403) throw createHttpError('FIRESTORE_DENIED', 403);
+  if (response.status === 429 || response.status >= 500 || !response.ok) {
+    throw createHttpError('FIRESTORE_UNAVAILABLE', 503, response.status === 429 ? 30 : undefined);
+  }
   return response.json();
+}
+
+function resolveSettledFirestoreDoc(result) {
+  if (result.status === 'fulfilled') return result.value;
+  const status = result.reason?.status;
+  if (status === 401 || status === 503) throw result.reason;
+  return null;
 }
 
 async function assertGlobalAdmin(uid, idToken, env) {
@@ -85,30 +116,33 @@ async function assertGlobalAdmin(uid, idToken, env) {
 }
 
 async function assertTripMember(uid, tripId, idToken, env) {
-  try {
-    const encodedTripId = encodeURIComponent(tripId);
-    const [trip, member] = await Promise.all([
-      getFirestoreDocument(`trips/${encodedTripId}`, idToken, env).catch(() => null),
-      getFirestoreDocument(`trips/${encodedTripId}/members/${encodeURIComponent(uid)}`, idToken, env).catch(() => null),
-    ]);
-    if (!trip) return false;
-    const tripFields = readFirestoreFields(trip.fields || {});
-    if (tripFields.ownerUid === uid || tripFields.ownerId === uid) return true;
-    const memberFields = readFirestoreFields(member?.fields || {});
-    const role = memberFields.role || '';
-    return role === 'owner' || role === 'copilota' || role === 'viewer';
-  } catch {
-    return false;
-  }
+  const encodedTripId = encodeURIComponent(tripId);
+  const [tripResult, memberResult] = await Promise.allSettled([
+    getFirestoreDocument(`trips/${encodedTripId}`, idToken, env),
+    getFirestoreDocument(`trips/${encodedTripId}/members/${encodeURIComponent(uid)}`, idToken, env),
+  ]);
+  const trip = resolveSettledFirestoreDoc(tripResult);
+  if (!trip) return false;
+  const tripFields = readFirestoreFields(trip.fields || {});
+  if (tripFields.ownerUid === uid || tripFields.ownerId === uid) return true;
+  const member = resolveSettledFirestoreDoc(memberResult);
+  if (!member) return false;
+  const memberFields = readFirestoreFields(member.fields || {});
+  const role = memberFields.role || '';
+  return role === 'owner' || role === 'copilota' || role === 'viewer';
 }
 
 async function assertEditor(uid, tripId, idToken, env) {
   const encodedTripId = encodeURIComponent(tripId);
-  const [trip, member] = await Promise.all([
+  const [tripResult, memberResult] = await Promise.allSettled([
     getFirestoreDocument(`trips/${encodedTripId}`, idToken, env),
-    getFirestoreDocument(`trips/${encodedTripId}/members/${encodeURIComponent(uid)}`, idToken, env).catch(() => null),
+    getFirestoreDocument(`trips/${encodedTripId}/members/${encodeURIComponent(uid)}`, idToken, env),
   ]);
-  return Boolean(trip && isAuthorizedEditor(uid, trip, member));
+  const trip = resolveSettledFirestoreDoc(tripResult);
+  if (!trip) return false;
+  if (isAuthorizedEditor(uid, trip, null)) return true;
+  const member = resolveSettledFirestoreDoc(memberResult);
+  return Boolean(isAuthorizedEditor(uid, trip, member));
 }
 
 function getMidnightUtcIso() {
@@ -177,7 +211,15 @@ export async function handleRequest(request, env) {
   if (contentLength > MAX_BODY_BYTES) return json(origin, env, 413, { error: 'Contenuto troppo grande.' });
 
   const idToken = bearerToken(request);
-  const uid = await verifyFirebaseIdentity(idToken, env);
+  let uid = null;
+  try {
+    uid = await verifyFirebaseIdentity(idToken, env);
+  } catch (authError) {
+    return json(origin, env, 503, {
+      error: 'Verifica sessione Firebase temporaneamente non disponibile. Riprova tra poco.',
+      ...(authError?.retryAfter ? { retryAfter: authError.retryAfter } : {}),
+    });
+  }
   if (!uid) return json(origin, env, 401, { error: 'Sessione Firebase non valida.' });
 
   let payload;
@@ -202,12 +244,37 @@ export async function handleRequest(request, env) {
       return json(origin, env, 403, { error: 'Operazione riservata esclusivamente agli amministratori globali (system_admins).' });
     }
   } else if (isPushRequest) {
-    const isMember = await assertTripMember(uid, tripId, idToken, env);
+    let isMember = false;
+    try {
+      isMember = await assertTripMember(uid, tripId, idToken, env);
+    } catch (authError) {
+      if (authError?.status === 401) {
+        return json(origin, env, 401, { error: 'Sessione Firebase non valida.' });
+      }
+      return json(origin, env, 503, {
+        error: 'Verifica autorizzazioni temporaneamente non disponibile. Riprova tra poco.',
+        ...(authError?.retryAfter ? { retryAfter: authError.retryAfter } : {}),
+      });
+    }
     if (!isMember) {
       return json(origin, env, 403, { error: 'Non sei autorizzato per le notifiche di questo viaggio.' });
     }
-  } else if (!(await assertEditor(uid, tripId, idToken, env))) {
-    return json(origin, env, 403, { error: 'HouniAI e le modifiche al viaggio sono riservate a Owner e Copilota autorizzati.' });
+  } else {
+    let canEdit = false;
+    try {
+      canEdit = await assertEditor(uid, tripId, idToken, env);
+    } catch (authError) {
+      if (authError?.status === 401) {
+        return json(origin, env, 401, { error: 'Sessione Firebase non valida.' });
+      }
+      return json(origin, env, 503, {
+        error: 'Verifica autorizzazioni temporaneamente non disponibile. Riprova tra poco.',
+        ...(authError?.retryAfter ? { retryAfter: authError.retryAfter } : {}),
+      });
+    }
+    if (!canEdit) {
+      return json(origin, env, 403, { error: 'HouniAI e le modifiche al viaggio sono riservate a Owner e Copilota autorizzati.' });
+    }
   }
 
   if (isPushRequest) {

@@ -15,6 +15,7 @@ const COLLABORATION_ENTITIES = new Set([
 const REMINDER_MINUTES = new Set([15, 30, 60, 120, 360, 720, 1440]);
 let firebaseAccessToken = null;
 let firebaseAccessTokenExpiresAt = 0;
+let firebaseAccessTokenEmail = '';
 
 function base64Url(value) {
   const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
@@ -87,24 +88,68 @@ async function expectedSubscriberId(uid, tripId, deviceId) {
   return (await sha256(`${uid}\n${tripId}\n${deviceId}`)).slice(0, 48);
 }
 
-async function getServiceAccountToken(env) {
-  if (firebaseAccessToken && firebaseAccessTokenExpiresAt > Date.now() + 60_000) return firebaseAccessToken;
-  if (!env.FIREBASE_SERVICE_ACCOUNT_EMAIL || !env.FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY) {
+function parseServiceAccountConfig(env) {
+  let email = String(env?.FIREBASE_SERVICE_ACCOUNT_EMAIL || '').trim().replace(/^["']|["']$/g, '');
+  let rawKey = String(env?.FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY || '').trim();
+  if (rawKey.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(rawKey);
+      if (typeof parsed?.private_key === 'string') rawKey = parsed.private_key.trim();
+      if (!email && typeof parsed?.client_email === 'string') email = parsed.client_email.trim();
+    } catch {
+      throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY_INVALID');
+    }
+  }
+  if (!email || !rawKey) {
     throw new Error('FIREBASE_SERVICE_ACCOUNT_NOT_CONFIGURED');
+  }
+  const pem = rawKey
+    .replace(/^["']|["']$/g, '')
+    .replace(/\\\\n/g, '\n')
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\r');
+  const b64 = pem.replace(/-----[^-]+-----/g, '').replace(/\s/g, '');
+  if (!b64 || !/^[A-Za-z0-9+/=]+$/.test(b64)) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY_INVALID');
+  }
+  try {
+    const der = Uint8Array.from(atob(b64), char => char.charCodeAt(0));
+    return { email, der };
+  } catch {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY_INVALID');
+  }
+}
+
+function safeCronErrorReason(error) {
+  const msg = String(error?.message || '');
+  if (/^(FIREBASE_SERVICE_ACCOUNT_[A-Z0-9_]+|FIRESTORE_MEMBERSHIP_CHECK_FAILED|VAPID_NOT_CONFIGURED|PUSH_QUOTA_EXHAUSTED)(:[A-Za-z0-9_.-]{1,40})?$/.test(msg)) {
+    return msg;
+  }
+  if (Number.isInteger(error?.statusCode)) return `PUSH_HTTP_${error.statusCode}`;
+  return String(error?.name || 'CRON_ERROR').slice(0, 40);
+}
+
+async function getServiceAccountToken(env) {
+  const { email, der } = parseServiceAccountConfig(env);
+  if (firebaseAccessToken && firebaseAccessTokenEmail === email && firebaseAccessTokenExpiresAt > Date.now() + 60_000) {
+    return firebaseAccessToken;
   }
   const now = Math.floor(Date.now() / 1000);
   const header = base64Url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
   const claims = base64Url(JSON.stringify({
-    iss: env.FIREBASE_SERVICE_ACCOUNT_EMAIL,
-    sub: env.FIREBASE_SERVICE_ACCOUNT_EMAIL,
+    iss: email,
+    sub: email,
     aud: 'https://oauth2.googleapis.com/token',
     scope: 'https://www.googleapis.com/auth/datastore',
     iat: now,
     exp: now + 3600,
   }));
-  const pem = env.FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY.replace(/\\n/g, '\n');
-  const der = Uint8Array.from(atob(pem.replace(/-----[^-]+-----/g, '').replace(/\s/g, '')), char => char.charCodeAt(0));
-  const key = await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+  let key;
+  try {
+    key = await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
+  } catch {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_KEY_INVALID');
+  }
   const input = `${header}.${claims}`;
   const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(input));
   const assertion = `${input}.${base64Url(new Uint8Array(signature))}`;
@@ -113,8 +158,16 @@ async function getServiceAccountToken(env) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }),
   });
-  if (!response.ok) throw new Error('FIREBASE_SERVICE_ACCOUNT_DENIED');
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => null);
+    const oauthErr = typeof errBody?.error === 'string' ? errBody.error.replace(/[^A-Za-z0-9_.-]/g, '').slice(0, 32) : '';
+    throw new Error(`FIREBASE_SERVICE_ACCOUNT_DENIED:${oauthErr || response.status}`);
+  }
   const data = await response.json();
+  if (typeof data?.access_token !== 'string' || !data.access_token) {
+    throw new Error('FIREBASE_SERVICE_ACCOUNT_DENIED:EMPTY_TOKEN');
+  }
+  firebaseAccessTokenEmail = email;
   firebaseAccessToken = data.access_token;
   firebaseAccessTokenExpiresAt = Date.now() + Math.min(Number(data.expires_in || 3600), 3600) * 1000;
   return firebaseAccessToken;
@@ -125,7 +178,7 @@ async function firestoreDocument(path, token, env) {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error('FIRESTORE_MEMBERSHIP_CHECK_FAILED');
+  if (!response.ok) throw new Error(`FIRESTORE_MEMBERSHIP_CHECK_FAILED:${response.status}`);
   return response.json();
 }
 
@@ -153,7 +206,7 @@ async function sendPush(subscription, payload, env) {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) throw new Error('VAPID_NOT_CONFIGURED');
   await reserveSendQuota(env);
   webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
-  return webpush.sendNotification(subscription, JSON.stringify(payload), { TTL: 3600, urgency: 'normal' });
+  return webpush.sendNotification(subscription, JSON.stringify(payload), { TTL: 3600, urgency: 'high' });
 }
 
 async function scheduleMutationJobs(uid, tripId, payload, env) {
@@ -346,7 +399,7 @@ export async function handlePushRequest(path, uid, tripId, payload, env) {
     }
     await sendPush(JSON.parse(registration.subscription_json), {
       title: 'Notifica di prova HOUNIGO', body: 'Il dispositivo è registrato per le notifiche del viaggio.',
-      url: `${BASE_PATH}?pushView=oggi`, tag: `hounigo-test-${subscriberId}`, type: 'test',
+      url: `${BASE_PATH}?pushView=oggi`, tag: `hounigo-test-${subscriberId}-${Date.now()}`, type: 'test',
     }, env);
     await env.RATE_LIMITS.prepare('INSERT OR REPLACE INTO push_dispatches (dispatch_key, trip_id, created_at) VALUES (?1, ?2, ?3)')
       .bind(rateKey, tripId, Date.now()).run();
@@ -393,8 +446,13 @@ export async function dispatchDuePushJobs(env) {
     try {
       await processJob(job, env, membershipCache);
       await env.RATE_LIMITS.prepare('DELETE FROM push_jobs WHERE job_id = ?1').bind(job.job_id).run();
-    } catch {
+    } catch (error) {
       const attempts = Number(job.attempts || 0) + 1;
+      console.warn('[push-cron] job deferred', {
+        kind: job.kind,
+        attempts,
+        reason: safeCronErrorReason(error),
+      });
       if (attempts >= 3) await env.RATE_LIMITS.prepare('DELETE FROM push_jobs WHERE job_id = ?1').bind(job.job_id).run();
       else await env.RATE_LIMITS.prepare('UPDATE push_jobs SET attempts = ?2, due_at = ?3 WHERE job_id = ?1')
         .bind(job.job_id, attempts, Date.now() + 5 * 60_000).run();
@@ -402,4 +460,13 @@ export async function dispatchDuePushJobs(env) {
   }
 }
 
-export const pushTestHelpers = { normalizePreferences, preferenceAllows, validSubscription, validReminder, genericPayload };
+export const pushTestHelpers = {
+  normalizePreferences,
+  preferenceAllows,
+  validSubscription,
+  validReminder,
+  genericPayload,
+  parseServiceAccountConfig,
+  safeCronErrorReason,
+  stillAuthorized,
+};
