@@ -639,9 +639,9 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
       )}
 
       {/* Wrapper panoramico Desktop (2 colonne affiancate su lg:, flusso verticale su mobile/tablet) */}
-      <div className="lg:grid lg:grid-cols-12 lg:gap-8 lg:items-start mt-2">
+      <div className="lg:grid lg:grid-cols-12 lg:gap-5 xl:gap-8 lg:items-start mt-2">
         {/* Colonna Sinistra Desktop: Mappa in evidenza & Info Posizione */}
-        <div className="lg:col-span-7 space-y-6 lg:sticky lg:top-14">
+        <div className="lg:col-span-7 min-w-0 space-y-6 lg:sticky lg:top-14">
           <section id="live-position" aria-labelledby="live-position-title" className="scroll-mt-16 py-6 lg:py-2">
         <div className="mb-4 flex items-end justify-between gap-3">
           <div>
@@ -758,7 +758,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-4">
           <div className={`border-l-3 pl-3.5 py-0.5 rounded-r-xl transition ${isFreshGps ? 'border-[#FF6B5F] bg-[#FFF0ED]/20 dark:bg-slate-900/40' : isStaleGps ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/10' : 'border-slate-300 dark:border-slate-700'}`}>
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               {isFreshGps ? 'Posizione attuale (GPS Live)' : isStaleGps ? 'Ultima posizione conosciuta' : 'Posizione in tempo reale'}
@@ -787,7 +787,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         </div>
 
         {!props.isExternal && props.liveIntelligence && (
-          <div className="mt-5 grid gap-3 border-y border-slate-200 py-4 dark:border-slate-800 sm:grid-cols-2">
+          <div className="mt-5 grid gap-3 border-y border-slate-200 py-4 dark:border-slate-800 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
             <div>
               <p className="text-[11px] font-bold text-[#FF6B5F]">Adesso</p>
               <p className="mt-1 text-sm font-extrabold">{props.liveIntelligence.currentEvent?.title || (props.liveIntelligence.tripStatus === 'pre_trip' ? 'In attesa della partenza' : props.liveIntelligence.tripStatus === 'post_trip' ? 'Viaggio concluso' : 'Tempo libero')}</p>
@@ -916,7 +916,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     </div>
 
     {/* Colonna Destra Desktop: Diario, Fotografie, Interazioni */}
-    <div className="lg:col-span-5 space-y-8">
+    <div className="lg:col-span-5 min-w-0 space-y-8">
       <section id="live-diary" aria-labelledby="live-diary-title" className="scroll-mt-16 border-t border-slate-200 py-7 dark:border-slate-800 lg:border-t-0 lg:py-2">
         <div className="flex items-end justify-between gap-3">
           <div>
@@ -971,7 +971,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
         {displayPhotos.length ? (
           <div className="mt-4">
-            <div key={`photo-grid-${photoRevealVersion}`} className={`grid grid-cols-2 gap-2.5 sm:grid-cols-3 ${photoRevealVersion > 0 ? 'hounigo-photo-saved-reveal' : ''}`}>
+            <div key={`photo-grid-${photoRevealVersion}`} className={`grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 ${photoRevealVersion > 0 ? 'hounigo-photo-saved-reveal' : ''}`}>
               {visiblePhotos.map((photo, index) => {
                 const fullIndex = displayPhotos.findIndex(item => item.id === photo.id);
                 return (
@@ -1012,10 +1012,10 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
       <section id="live-interactions" aria-labelledby="live-interactions-title" className="scroll-mt-16 border-t border-slate-200 py-7 dark:border-slate-800">
         <p className="text-xs font-bold text-[#FF6B5F]">Interazioni</p>
         <h2 id="live-interactions-title" className="text-2xl font-black tracking-tight text-[#172033] dark:text-white">Vicini, anche da lontano</h2>
-        <div className="mt-5 grid grid-cols-3 gap-4 border-y border-slate-200 py-4 dark:border-slate-800">
-          <div><p className="text-2xl font-black">{reactionTotal}</p><p className="text-xs text-slate-500">Reazioni ricevute</p></div>
-          <div><p className="text-2xl font-black">{sortedUpdates.length}</p><p className="text-xs text-slate-500">Ricordi pubblici</p></div>
-          <div><p className="text-2xl font-black">{(props.guestMessages || []).filter(m => !m.hidden).length}</p><p className="text-xs text-slate-500">Messaggi ospiti</p></div>
+        <div className="mt-5 grid grid-cols-3 gap-2.5 xl:gap-4 border-y border-slate-200 py-4 dark:border-slate-800">
+          <div className="min-w-0"><p className="text-xl xl:text-2xl font-black">{reactionTotal}</p><p className="text-xs text-slate-500">Reazioni ricevute</p></div>
+          <div className="min-w-0"><p className="text-xl xl:text-2xl font-black">{sortedUpdates.length}</p><p className="text-xs text-slate-500">Ricordi pubblici</p></div>
+          <div className="min-w-0"><p className="text-xl xl:text-2xl font-black">{(props.guestMessages || []).filter(m => !m.hidden).length}</p><p className="text-xs text-slate-500">Messaggi ospiti</p></div>
         </div>
 
         {/* Guestbook / Messaggi dagli Ospiti */}
@@ -1027,7 +1027,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
           {props.onSendGuestMessage && !props.isExternal && (FEATURE_FLAGS.LIVE_GUEST_MESSAGES_PUBLIC_WRITE || props.isOwner || props.isCopilota) ? (
             <form onSubmit={handleGuestMessageSubmit} className="space-y-3 rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">Il tuo nome</label>
                   <input
@@ -1040,7 +1040,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                     className="mt-1 min-h-10 w-full rounded-xl border border-slate-200 bg-[#F8F7F3] px-3 text-xs text-[#172033] focus:border-[#FF6B5F] focus:outline-none dark:border-slate-700 dark:bg-[#172033] dark:text-white"
                   />
                 </div>
-                <div className="sm:col-span-2">
+                <div className="sm:col-span-2 lg:col-span-1 xl:col-span-2">
                   <div className="flex items-center justify-between">
                     <label className="block text-[11px] font-bold text-slate-600 dark:text-slate-300">Messaggio o augurio</label>
                     <span className="text-[10px] text-slate-400">{guestMessageInput.length}/280</span>

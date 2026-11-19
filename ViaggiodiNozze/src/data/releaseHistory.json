@@ -2,6 +2,15 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.34",
+      "publishedAt": "2026-11-19",
+      "sourceCommit": "0a2b8da",
+      "changes": [
+        "Ottimizzato il layout responsive della vista LIVE su iPad mini 6 orizzontale evitando colonne interne troppo strette senza modificare GPS, dati o vista iPhone"
+      ],
+      "publishedAtIso": "2026-11-19T13:07:34.771Z"
+    },
+    {
       "version": "1.6.33",
       "publishedAt": "2026-11-19",
       "sourceCommit": "f39c20d",
@@ -248,17 +257,6 @@
         "Ripristino operativo completo Firebase Auth, card modificabili e notifiche push in produzione"
       ],
       "publishedAtIso": "2026-11-17T12:50:00.000Z"
-    },
-    {
-      "version": "1.6.9",
-      "publishedAt": "2026-11-17",
-      "sourceCommit": "d19e5b3",
-      "changes": [
-        "Rimosso completamente signInAnonymously da App.tsx e ripristino sicuro della sessione persistente",
-        "Separazione definitiva permessi Cloud dal ruolo locale: un click immediato per Owner e Copilota",
-        "Risoluzione blocco Google OAuth su iPhone PWA con gestione popup sincrono ed errore diagnostico push"
-      ],
-      "publishedAtIso": "2026-11-17T12:35:00.000Z"
     }
   ]
 }
