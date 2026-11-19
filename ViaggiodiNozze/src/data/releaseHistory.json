@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.32",
+      "publishedAt": "2026-11-19",
+      "sourceCommit": "9b101d2",
+      "changes": [
+        "Resi accessibili su iPad mini 6 campo di testo, allegati e pulsanti di SmartInsertModal anche con tastiera aperta",
+        "Ottimizzati Modal e fogli informativi con layout flex/dvh, adattamento visualViewport e scroll interno sopra la tastiera senza alterare iPhone e desktop"
+      ],
+      "publishedAtIso": "2026-11-19T12:33:58.682Z"
+    },
+    {
       "version": "1.6.31",
       "publishedAt": "2026-11-19",
       "sourceCommit": "adc9803",
@@ -250,17 +260,6 @@
         "Pieno supporto schema ownerId/ownerUid e tolleranza disconnessioni transitorie mobile"
       ],
       "publishedAtIso": "2026-11-17T11:45:00.000Z"
-    },
-    {
-      "version": "1.6.7",
-      "publishedAt": "2026-11-17",
-      "sourceCommit": "70fe1b2",
-      "changes": [
-        "Apertura immediata del form di modifica al clic sulle card per ruoli autorizzati",
-        "Rafforzata sicurezza permessi: blocco modifiche non autorizzate su viaggio condiviso 0000",
-        "Preservata scheda informativa per visualizzatori ed editing isolato su viaggi locali"
-      ],
-      "publishedAtIso": "2026-11-17T11:15:00.000Z"
     }
   ]
 }

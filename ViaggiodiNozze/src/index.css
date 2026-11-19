@@ -261,6 +261,17 @@ button, a, input, select {
   }
 }
 
+@media (max-height: 640px) {
+  .app-sheet-overlay {
+    padding: max(0.35rem, var(--app-safe-top)) max(0.75rem, var(--app-safe-right)) 0.35rem max(0.75rem, var(--app-safe-left));
+  }
+
+  .app-sheet-panel {
+    max-height: min(94dvh, calc(100dvh - var(--app-safe-top) - 0.75rem));
+    padding-bottom: max(0.65rem, var(--app-safe-bottom));
+  }
+}
+
 .app-lightbox-overlay {
   padding: max(0.75rem, var(--app-safe-top)) max(0.75rem, var(--app-safe-right)) max(0.75rem, var(--app-safe-bottom)) max(0.75rem, var(--app-safe-left));
 }
@@ -706,6 +717,26 @@ input[type="password"] {
 @media (min-width: 640px) {
   .modal-sheet-body {
     padding-bottom: 1.5rem !important;
+  }
+}
+
+@media (max-height: 640px) {
+  .modal-backdrop-layer,
+  .modal-backdrop-layer.modal-backdrop-layer--centered {
+    align-items: center !important;
+    padding: max(0.35rem, var(--app-safe-top)) max(0.75rem, var(--app-safe-right)) 0.35rem max(0.75rem, var(--app-safe-left)) !important;
+  }
+
+  .modal-sheet-container {
+    max-height: min(94dvh, calc(100dvh - var(--app-safe-top) - 0.75rem)) !important;
+  }
+
+  .modal-sheet-header {
+    padding: 0.65rem 1.25rem !important;
+  }
+
+  .modal-sheet-body {
+    padding: 0.75rem 1.25rem 0.9rem 1.25rem !important;
   }
 }
 

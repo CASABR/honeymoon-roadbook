@@ -25,6 +25,7 @@ import {
   formatLocalResetTime,
   type HouniAiQuotaState
 } from '../../services/houniAiGateway';
+import { useVisualViewportBox } from '../../hooks/useVisualViewportBox';
 
 interface SmartInsertModalProps {
   isOpen: boolean;
@@ -136,6 +137,7 @@ function defaultSuggestionDate(): string {
 
 // ─── Modal principale ─────────────────────────────────────────────────────────
 export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'manual' }: SmartInsertModalProps) {
+  const viewportBox = useVisualViewportBox(isOpen);
   const [step, setStep] = useState<Step>('input');
   const [text, setText] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -1300,6 +1302,14 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
     sconosciuto: '❓ Sconosciuto',
   };
 
+  const isInputStep = step === 'input' || (step === 'extracting' && inputMode === 'chat');
+  const sheetOverlayStyle: React.CSSProperties | undefined = viewportBox
+    ? { top: `${viewportBox.offsetTop}px`, height: `${viewportBox.height}px`, bottom: 'auto', paddingBottom: '0.35rem' }
+    : undefined;
+  const sheetPanelStyle: React.CSSProperties | undefined = viewportBox
+    ? { maxHeight: `${Math.max(240, viewportBox.height - 12)}px` }
+    : undefined;
+
   const modalContent = (
     <>
       {/* Hidden file input per 'Allega prenotazione' (supporta selezione multipla di PDF e screenshot) */}
@@ -1319,25 +1329,32 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
       />
 
       {/* Sheet Light */}
-      <div className="app-sheet-overlay fixed inset-0 z-[90] flex items-end sm:items-center justify-center pointer-events-none">
-        <div className="app-sheet-panel pointer-events-auto w-full max-w-lg mx-auto bg-white border border-slate-200/90 sm:rounded-3xl rounded-t-3xl shadow-2xl overflow-y-auto pt-4 px-4 sm:pt-6 sm:px-6 animate-slide-up text-slate-800">
+      <div
+        className="app-sheet-overlay fixed inset-0 z-[90] flex items-end sm:items-center justify-center pointer-events-none"
+        style={sheetOverlayStyle}
+      >
+        <div
+          style={sheetPanelStyle}
+          className={`app-sheet-panel pointer-events-auto w-full max-w-lg mx-auto bg-white border border-slate-200/90 sm:rounded-3xl rounded-t-3xl shadow-2xl flex flex-col ${isInputStep ? 'overflow-hidden' : 'overflow-y-auto'} pt-4 px-4 sm:pt-6 sm:px-6 [@media(max-height:640px)]:pt-3 animate-slide-up text-slate-800`}
+        >
 
           {/* ─── Header HouniAI Light ─── */}
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 [@media(max-height:640px)]:mb-1.5 shrink-0">
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 shrink-0 rounded-2xl bg-[#FF6B5F] text-white flex items-center justify-center shadow-md shadow-[#FF6B5F]/20">
+              <div className="w-10 h-10 [@media(max-height:520px)]:w-8 [@media(max-height:520px)]:h-8 shrink-0 rounded-2xl bg-[#FF6B5F] text-white flex items-center justify-center shadow-md shadow-[#FF6B5F]/20">
                 <TrailAi size={22} active />
               </div>
               <div className="min-w-0">
-                <h2 className="text-[#172033] font-extrabold text-lg leading-tight truncate break-words font-brand-title">HouniAI</h2>
-                <p className="text-slate-500 text-xs mt-0.5 truncate break-words font-brand-body">L'assistente di viaggio per il tuo itinerario</p>
+                <h2 className="text-[#172033] font-extrabold text-lg [@media(max-height:520px)]:text-base leading-tight truncate break-words font-brand-title">HouniAI</h2>
+                <p className="text-slate-500 text-xs mt-0.5 truncate break-words font-brand-body [@media(max-height:520px)]:hidden">L'assistente di viaggio per il tuo itinerario</p>
               </div>
             </div>
             {step !== 'extracting' && step !== 'saving' && (
               <button
                 type="button"
                 onClick={onClose}
-                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-[#172033] transition-colors cursor-pointer"
+                aria-label="Chiudi HouniAI"
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 hover:text-[#172033] transition-colors cursor-pointer shrink-0"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
@@ -1366,7 +1383,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
             }
 
             return (
-              <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs mb-3 shadow-2xs">
+              <div className="flex items-center justify-between px-3 py-1.5 [@media(max-height:520px)]:py-1 rounded-xl bg-slate-50 border border-slate-200/80 text-xs mb-3 [@media(max-height:640px)]:mb-1.5 shadow-2xs shrink-0">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${dotColor}`} />
                   <span className="font-semibold text-slate-700 truncate">
@@ -1394,12 +1411,12 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
 
           {/* ─── Step: INPUT ─── */}
           {(step === 'input' || (step === 'extracting' && inputMode === 'chat')) && (
-            <div className="space-y-3 flex flex-col h-[70vh] max-h-[620px]">
+            <div className="flex-1 min-h-0 flex flex-col gap-2.5 sm:gap-3 sm:min-h-[min(56dvh,480px)] [@media(max-height:640px)]:min-h-0 [@media(max-height:640px)]:gap-1.5">
               <div className="flex gap-2 p-1 bg-[#F8F7F3] rounded-xl shrink-0 border border-slate-200/80">
                 <button
                   type="button"
                   onClick={() => setInputMode('import')}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${inputMode === 'import' ? 'bg-[#172033] text-white shadow-xs' : 'text-slate-600 hover:text-[#172033]'}`}
+                  className={`flex-1 py-2 [@media(max-height:520px)]:py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${inputMode === 'import' ? 'bg-[#172033] text-white shadow-xs' : 'text-slate-600 hover:text-[#172033]'}`}
                 >
                   Importa Prenotazioni
                 </button>
@@ -1407,14 +1424,15 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   type="button"
                   onClick={() => setInputMode('chat')}
                   disabled={!EXTERNAL_AI_ENABLED}
-                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all ${EXTERNAL_AI_ENABLED ? 'cursor-pointer' : 'cursor-not-allowed opacity-45'} ${inputMode === 'chat' ? 'bg-[#172033] text-white shadow-xs' : 'text-slate-600 hover:text-[#172033]'}`}
+                  className={`flex-1 py-2 [@media(max-height:520px)]:py-1.5 text-xs font-bold rounded-lg transition-all ${EXTERNAL_AI_ENABLED ? 'cursor-pointer' : 'cursor-not-allowed opacity-45'} ${inputMode === 'chat' ? 'bg-[#172033] text-white shadow-xs' : 'text-slate-600 hover:text-[#172033]'}`}
                 >
                   {EXTERNAL_AI_ENABLED ? 'Chiedi al Concierge' : 'Concierge non attivo'}
                 </button>
               </div>
 
+              <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 space-y-2.5 [@media(max-height:640px)]:space-y-2 custom-scrollbar overscroll-contain">
               {inputMode === 'chat' && (
-                <div id="chat-scroll-container" className="flex-1 overflow-y-auto mb-2 space-y-4 pr-1 custom-scrollbar min-h-[200px] max-h-[380px]">
+                <div id="chat-scroll-container" className="overflow-y-auto space-y-4 pr-1 custom-scrollbar min-h-[84px] sm:min-h-[160px] [@media(max-height:640px)]:min-h-[60px] max-h-[380px]">
                   {chatMessages.length === 0 && (
                      <div className="text-center text-slate-500 text-sm py-10">
                        Chiedi consigli al tuo Concierge di viaggio...
@@ -1535,11 +1553,12 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
               
 
               {/* Area Input Testo */}
-              <div className="shrink-0 relative">
+              <div className="relative">
                 <textarea
                   ref={textAreaRef}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
+                  onFocus={(e) => e.currentTarget.scrollIntoView({ block: 'nearest', behavior: 'smooth' })}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey && inputMode === 'chat') {
                       e.preventDefault();
@@ -1553,7 +1572,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                         : "Puoi consultare qui testo, PDF o immagini senza inviarli a servizi AI esterni."
                       : "Scrivi un messaggio o chiedi un consiglio al Concierge..."
                   }
-                  className={`w-full p-4 bg-[#F8F7F3] border border-slate-200 text-[#172033] text-sm resize-none focus:outline-none focus:border-[#FF6B5F] focus:ring-1 focus:ring-[#FF6B5F]/30 placeholder:text-slate-400 ${inputMode === 'chat' ? 'h-20 rounded-2xl pr-14' : 'h-32 rounded-2xl leading-relaxed'}`}
+                  className={`w-full p-3.5 sm:p-4 bg-[#F8F7F3] border border-slate-200 text-[#172033] text-sm resize-none focus:outline-none focus:border-[#FF6B5F] focus:ring-1 focus:ring-[#FF6B5F]/30 placeholder:text-slate-400 ${inputMode === 'chat' ? 'h-20 [@media(max-height:640px)]:h-16 rounded-2xl pr-14' : 'h-24 sm:h-32 [@media(max-height:640px)]:h-20 rounded-2xl leading-relaxed'}`}
                 />
                 {inputMode === 'chat' && (
                   <button
@@ -1566,14 +1585,15 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   </button>
                 )}
               </div>
+              </div>
 
-              {/* Pulsanti Azione (Allega prenotazione sempre in evidenza + Estrai) */}
-              <div className="flex flex-wrap sm:flex-nowrap gap-2 shrink-0 pt-1">
+              {/* Pulsanti Azione fissi in basso dentro il foglio anche con tastiera aperta */}
+              <div className="flex flex-wrap sm:flex-nowrap gap-2 shrink-0 pt-2 [@media(max-height:640px)]:pt-1.5 border-t border-slate-100/80 bg-white">
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isProcessingFile}
-                  className="flex-1 sm:flex-none px-4 py-3 rounded-xl font-bold bg-[#F8F7F3] hover:bg-slate-100 border border-slate-200 text-[#172033] text-xs flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer shadow-2xs hover:border-slate-300"
+                  className="flex-1 sm:flex-none px-4 py-3 [@media(max-height:640px)]:py-2 rounded-xl font-bold bg-[#F8F7F3] hover:bg-slate-100 border border-slate-200 text-[#172033] text-xs flex items-center justify-center gap-2 transition active:scale-[0.98] cursor-pointer shadow-2xs hover:border-slate-300"
                   title="Carica documento PDF, biglietto o screenshot di prenotazione"
                 >
                   <svg className="w-4 h-4 text-[#FF6B5F] shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1587,7 +1607,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                     type="button"
                     onClick={handleExtract}
                     disabled={!EXTERNAL_AI_ENABLED || (!text.trim() && attachedFiles.length === 0)}
-                    className="flex-1 py-3 px-4 rounded-xl font-bold bg-[#FF6B5F] text-white shadow-md shadow-rose-500/20 hover:bg-[#e85c50] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+                    className="flex-1 py-3 [@media(max-height:640px)]:py-2 px-4 rounded-xl font-bold bg-[#FF6B5F] text-white shadow-md shadow-rose-500/20 hover:bg-[#e85c50] active:scale-[0.98] transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -1599,7 +1619,7 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                   <button
                     type="button"
                     onClick={onClose}
-                    className="flex-1 rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
+                    className="flex-1 rounded-xl border border-slate-300 px-4 py-3 [@media(max-height:640px)]:py-2 text-sm font-bold text-slate-700 transition hover:bg-slate-50"
                   >
                     Inserisci manualmente
                   </button>

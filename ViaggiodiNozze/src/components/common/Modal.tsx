@@ -1,18 +1,21 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useVisualViewportBox } from '../../hooks/useVisualViewportBox';
 
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
   accentVariant?: 'amber' | 'purple' | 'sky' | 'indigo' | 'rose' | 'emerald';
   centered?: boolean;
 }
 
-export default function Modal({ isOpen, onClose, title, children, accentVariant = 'amber', centered = false }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, footer, accentVariant = 'amber', centered = false }: ModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  const viewportBox = useVisualViewportBox(isOpen);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -94,9 +97,26 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
     emerald: 'border-emerald-200'
   }[accentVariant];
 
+  const handleBodyFocusCapture = (event: React.FocusEvent<HTMLDivElement>) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.matches('input, textarea, select')) return;
+    window.requestAnimationFrame(() => {
+      target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  };
+
+  const overlayViewportStyle: React.CSSProperties | undefined = viewportBox
+    ? { top: `${viewportBox.offsetTop}px`, height: `${viewportBox.height}px`, bottom: 'auto' }
+    : undefined;
+  const sheetViewportStyle: React.CSSProperties | undefined = viewportBox
+    ? { maxHeight: `${Math.max(220, viewportBox.height - 16)}px` }
+    : undefined;
+
   const modalNode = (
     <div 
         className={`modal-backdrop-layer fixed inset-0 z-[99999] flex justify-center bg-slate-900/65 backdrop-blur-sm${centered ? ' modal-backdrop-layer--centered' : ''}`}
+        style={overlayViewportStyle}
     >
       {/* Click outside to close */}
       <div 
@@ -112,6 +132,7 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
         aria-modal="true"
         aria-labelledby={titleId}
         tabIndex={-1}
+        style={sheetViewportStyle}
         className={`modal-sheet-container relative z-[100000] max-w-lg flex flex-col overflow-hidden ${centered ? 'w-full border rounded-2xl' : 'w-full border-t sm:border rounded-t-3xl sm:rounded-2xl'} ${accentBorder} text-[#172033] dark:text-slate-100 dark:bg-[#1E293B] dark:border-slate-700 max-h-[88dvh] sm:my-auto`}
         onClick={(e) => e.stopPropagation()}
       >
@@ -121,12 +142,12 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
         </div>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-[#e5e3dd] dark:border-slate-800 bg-[#fffdfa]/95 dark:bg-[#1E293B]/95 backdrop-blur sticky top-0 z-20 shrink-0 min-w-0">
+        <div className="modal-sheet-header flex items-center justify-between px-6 py-4 border-b border-[#e5e3dd] dark:border-slate-800 bg-[#fffdfa]/95 dark:bg-[#1E293B]/95 backdrop-blur sticky top-0 z-20 shrink-0 min-w-0">
           <h2 id={titleId} className="hounigo-title text-lg dark:text-slate-100 truncate break-words min-w-0 mr-3">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-[#172033] dark:hover:text-slate-200 hover:bg-[#f1eee7] dark:hover:bg-slate-800 transition-all cursor-pointer"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-slate-400 hover:text-[#172033] dark:hover:text-slate-200 hover:bg-[#f1eee7] dark:hover:bg-slate-800 transition-all cursor-pointer shrink-0"
             aria-label="Chiudi"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -138,6 +159,7 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
         {/* Scrollable Body con safe area scrolling */}
         <div 
           className="modal-sheet-body space-y-4"
+          onFocusCapture={handleBodyFocusCapture}
           style={{
             flex: '1 1 auto',
             minHeight: 0,
@@ -147,6 +169,12 @@ export default function Modal({ isOpen, onClose, title, children, accentVariant 
         >
           {children}
         </div>
+
+        {footer && (
+          <div className="modal-sheet-footer shrink-0 px-6 py-3 border-t border-[#e5e3dd] dark:border-slate-800 bg-[#fffdfa]/95 dark:bg-[#1E293B]/95">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
