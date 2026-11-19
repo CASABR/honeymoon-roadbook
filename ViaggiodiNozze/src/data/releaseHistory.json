@@ -4,7 +4,7 @@
     {
       "version": "1.6.32",
       "publishedAt": "2026-11-19",
-      "sourceCommit": "9b101d2",
+      "sourceCommit": "ca0355a",
       "changes": [
         "Resi accessibili su iPad mini 6 campo di testo, allegati e pulsanti di SmartInsertModal anche con tastiera aperta",
         "Ottimizzati Modal e fogli informativi con layout flex/dvh, adattamento visualViewport e scroll interno sopra la tastiera senza alterare iPhone e desktop"
