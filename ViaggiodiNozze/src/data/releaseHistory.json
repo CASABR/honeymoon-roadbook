@@ -4,7 +4,7 @@
     {
       "version": "1.6.31",
       "publishedAt": "2026-11-19",
-      "sourceCommit": "caf95d2",
+      "sourceCommit": "adc9803",
       "changes": [
         "Migliorata la barra laterale su iPad mini orizzontale con larghezza compatta e scorrimento evidente per raggiungere tutte le sezioni",
         "Ottimizzata l'area Prenotazioni su schermi medi a 2 colonne con filtri e titoli leggibili senza alterare iPhone e desktop"
