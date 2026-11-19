@@ -4,7 +4,7 @@
     {
       "version": "1.6.30",
       "publishedAt": "2026-11-19",
-      "sourceCommit": "e37bc70",
+      "sourceCommit": "51a1a66",
       "changes": [
         "Riportati gli orari di tutte e 6 le categorie nell'header superiore delle card, rimuovendo la duplicazione accanto al titolo",
         "Migliorata la leggibilità degli header lunghi su iPhone e iPad e consolidati i vincoli anti-regressione su card, Alloggi e swipe Oggi"
