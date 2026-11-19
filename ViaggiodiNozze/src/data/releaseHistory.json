@@ -4,7 +4,7 @@
     {
       "version": "1.6.28",
       "publishedAt": "2026-11-19",
-      "sourceCommit": "6baa481",
+      "sourceCommit": "6caa2f6",
       "changes": [
         "Unificate e deduplicate le verifiche di stato delle notifiche push con single-flight, cache TTL e montaggio modale on-demand",
         "Migliorata la gestione delle risposte Worker distinguendo gli errori temporanei 503 dalle negazioni di accesso reali"
