@@ -4,7 +4,7 @@
     {
       "version": "1.6.29",
       "publishedAt": "2026-11-19",
-      "sourceCommit": "f996205",
+      "sourceCommit": "a86470d",
       "changes": [
         "Ripristinata la ripresa automatica del GPS LIVE alla riapertura della PWA su iPhone gestendo stato prompt iOS e consenso pregresso senza richiedere clic nell’app",
         "Aggiunta sincronizzazione ottimistica della lease al rinnovo preservando Pausa/Stop volontari, delega Copilota e rifiuto di sistema OS"
