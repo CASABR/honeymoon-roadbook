@@ -20,6 +20,7 @@ const LAST_KNOWN_LOC_PREFIX = 'hounigo_live_last_known_loc_';
 
 const MIN_WATCH_PUBLISH_INTERVAL_MS = 16_000;
 const MIN_RESUME_LOCATION_INTERVAL_MS = 12_000;
+const OPTIMISTIC_LEASE_HOURS = 18;
 
 export const LIVE_GPS_CONTINUITY_SYNC_EVENT = 'hounigo_gps_continuity_sync';
 
@@ -88,6 +89,7 @@ let lastPublishAt = 0;
 let lastResumeAttemptAt = 0;
 let inFlightResumePromise: Promise<boolean> | null = null;
 const locationContextByTrip = new Map<string, { city?: string; country?: string }>();
+const sessionPromptAttemptedTrips = new Set<string>();
 
 let continuityState: LiveGpsContinuityState = {
   tripId: null,
@@ -166,16 +168,20 @@ export function readSharingFlags(tripId: string): {
   sharingPaused: boolean;
   sharingStopped: boolean;
   browserGeoGranted: boolean;
+  browserGeoDeniedExplicitly: boolean;
 } {
+  const geoRaw = safeGetStorage(`${BROWSER_GEO_GRANTED_PREFIX}${tripId}`);
   return {
     sharingEnabled: safeGetStorage(`${SHARING_ENABLED_PREFIX}${tripId}`) === 'true',
     sharingPaused: safeGetStorage(`${SHARING_PAUSED_PREFIX}${tripId}`) === 'true',
     sharingStopped: safeGetStorage(`${SHARING_STOPPED_PREFIX}${tripId}`) === 'true',
-    browserGeoGranted: safeGetStorage(`${BROWSER_GEO_GRANTED_PREFIX}${tripId}`) === 'true',
+    browserGeoGranted: geoRaw === 'true',
+    browserGeoDeniedExplicitly: geoRaw === 'false',
   };
 }
 
 export function markSharingOptedIn(tripId: string): void {
+  sessionPromptAttemptedTrips.delete(tripId);
   safeSetStorage(`${SHARING_ENABLED_PREFIX}${tripId}`, 'true');
   safeRemoveStorage(`${SHARING_PAUSED_PREFIX}${tripId}`);
   safeRemoveStorage(`${SHARING_STOPPED_PREFIX}${tripId}`);
@@ -187,6 +193,7 @@ export function markSharingPaused(tripId: string): void {
 }
 
 export function markSharingStopped(tripId: string): void {
+  sessionPromptAttemptedTrips.delete(tripId);
   safeRemoveStorage(`${SHARING_ENABLED_PREFIX}${tripId}`);
   safeRemoveStorage(`${SHARING_PAUSED_PREFIX}${tripId}`);
   safeSetStorage(`${SHARING_STOPPED_PREFIX}${tripId}`, 'true');
@@ -195,9 +202,44 @@ export function markSharingStopped(tripId: string): void {
 
 export function setBrowserGeoPermissionCache(tripId: string, granted: boolean): void {
   if (granted) {
+    sessionPromptAttemptedTrips.delete(tripId);
     safeSetStorage(`${BROWSER_GEO_GRANTED_PREFIX}${tripId}`, 'true');
   } else {
-    safeRemoveStorage(`${BROWSER_GEO_GRANTED_PREFIX}${tripId}`);
+    safeSetStorage(`${BROWSER_GEO_GRANTED_PREFIX}${tripId}`, 'false');
+  }
+}
+
+export function syncOptimisticActiveLease(
+  tripId: string,
+  holderUid: string,
+  holderDeviceId: string,
+  expiresAt?: Date
+): void {
+  if (continuityState.tripId && continuityState.tripId !== tripId) return;
+  const now = new Date();
+  const nextLease: LiveGpsLease = {
+    holderUid,
+    holderDeviceId,
+    status: 'active',
+    updatedAt: now,
+    expiresAt:
+      expiresAt && expiresAt.getTime() > Date.now()
+        ? expiresAt
+        : new Date(Date.now() + OPTIMISTIC_LEASE_HOURS * 60 * 60 * 1000),
+  };
+  emitStateUpdate({
+    tripId,
+    remoteGpsLease: nextLease,
+    leaseLoaded: true,
+    gpsError: null,
+  });
+}
+
+export function clearSessionGeoPromptAttempt(tripId?: string): void {
+  if (tripId) {
+    sessionPromptAttemptedTrips.delete(tripId);
+  } else {
+    sessionPromptAttemptedTrips.clear();
   }
 }
 
@@ -328,7 +370,8 @@ export function evaluateLiveGpsContinuityDecision(
   if (
     remoteGpsLease?.holderUid === currentUid &&
     remoteGpsLease.holderDeviceId &&
-    remoteGpsLease.holderDeviceId !== deviceId
+    remoteGpsLease.holderDeviceId !== deviceId &&
+    remoteGpsLease.holderDeviceId !== `delegated_pending_${currentUid}`
   ) {
     return {
       shouldRun: false,
@@ -401,34 +444,94 @@ export function evaluateLiveGpsContinuityDecision(
   };
 }
 
-/**
- * Verifica in modo rigoroso se il permesso di geolocalizzazione del browser è già concesso.
- * Ritorna false sia su 'denied' che su 'prompt' per evitare popup automatici non richiesti.
- */
-export async function hasGrantedBrowserGeolocationPermission(
-  tripId: string
-): Promise<boolean> {
-  if (typeof navigator === 'undefined' || !navigator.geolocation) return false;
+export type BrowserGeolocationPermissionState =
+  | 'granted'
+  | 'prompt'
+  | 'denied'
+  | 'unsupported';
 
+export interface BrowserGeolocationPermissionReport {
+  state: BrowserGeolocationPermissionState;
+  canResume: boolean;
+}
+
+async function queryRawBrowserGeolocationPermission(): Promise<BrowserGeolocationPermissionState> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) return 'denied';
   if (navigator.permissions?.query) {
     try {
       const perm = await navigator.permissions.query({
         name: 'geolocation' as PermissionName,
       });
-      if (perm.state === 'granted') {
-        setBrowserGeoPermissionCache(tripId, true);
-        return true;
+      if (perm.state === 'granted' || perm.state === 'prompt' || perm.state === 'denied') {
+        return perm.state;
       }
-      if (perm.state === 'denied') {
-        setBrowserGeoPermissionCache(tripId, false);
-      }
-      return false;
     } catch {
       // Alcuni browser legacy o WebKit rigettano permissions.query su geolocation
     }
   }
+  return 'unsupported';
+}
 
-  return readSharingFlags(tripId).browserGeoGranted;
+/**
+ * Distingue in modo rigoroso permesso OS ('granted' | 'prompt' | 'denied' | 'unsupported')
+ * e consenso precedentemente salvato per questo viaggio:
+ * - 'denied' (o rifiuto esplicito in cache): blocca sempre qualsiasi chiamata GPS.
+ * - 'granted': ripresa silenziosa garantita.
+ * - 'prompt' (tipico riapertura PWA iOS): consente un solo tentativo per sessione solo se
+ *   la condivisione e il consenso browser erano già attivi prima della chiusura.
+ */
+export async function inspectBrowserGeolocationPermission(
+  tripId: string,
+  options: { hasActiveSameDeviceLease?: boolean } = {}
+): Promise<BrowserGeolocationPermissionReport> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return { state: 'denied', canResume: false };
+  }
+
+  const rawState = await queryRawBrowserGeolocationPermission();
+  const flags = readSharingFlags(tripId);
+
+  if (rawState === 'denied') {
+    setBrowserGeoPermissionCache(tripId, false);
+    return { state: 'denied', canResume: false };
+  }
+
+  if (rawState === 'granted') {
+    setBrowserGeoPermissionCache(tripId, true);
+    return { state: 'granted', canResume: true };
+  }
+
+  if (flags.browserGeoDeniedExplicitly) {
+    return { state: rawState, canResume: false };
+  }
+
+  const hasPriorConsent =
+    flags.browserGeoGranted ||
+    (flags.sharingEnabled &&
+      !flags.sharingPaused &&
+      !flags.sharingStopped &&
+      Boolean(options.hasActiveSameDeviceLease));
+
+  if (!hasPriorConsent) {
+    return { state: rawState, canResume: false };
+  }
+
+  if (rawState === 'prompt' && sessionPromptAttemptedTrips.has(tripId)) {
+    return { state: 'prompt', canResume: false };
+  }
+
+  return { state: rawState, canResume: true };
+}
+
+/**
+ * Compatibilità: verifica se il permesso di geolocalizzazione del browser risulta concesso.
+ * Ritorna false su 'denied' o 'prompt' privo di conferma.
+ */
+export async function hasGrantedBrowserGeolocationPermission(
+  tripId: string
+): Promise<boolean> {
+  const report = await inspectBrowserGeolocationPermission(tripId);
+  return report.state === 'granted' || (report.state === 'unsupported' && report.canResume);
 }
 
 /**
@@ -623,9 +726,25 @@ export async function resumeLiveGpsIfEligible(params?: {
   }
 
   const run = async (): Promise<boolean> => {
+    const deviceId = liveGpsService.getDeviceId();
+    const hasActiveSameDeviceLease = Boolean(
+      remoteGpsLease?.status === 'active' &&
+      remoteGpsLease.holderUid === currentUid &&
+      remoteGpsLease.holderDeviceId === deviceId
+    );
+    let permReport: BrowserGeolocationPermissionReport | null = null;
     try {
-      const granted = await hasGrantedBrowserGeolocationPermission(tripId);
-      if (!granted) {
+      permReport = await inspectBrowserGeolocationPermission(tripId, {
+        hasActiveSameDeviceLease,
+      });
+      if (permReport.state === 'denied') {
+        clearSingleGpsWatcher(tripId);
+        emitStateUpdate({
+          gpsError: 'Attiva la posizione nelle impostazioni del browser e riprova.',
+        });
+        return false;
+      }
+      if (!permReport.canResume) {
         clearSingleGpsWatcher(tripId);
         return false;
       }
@@ -644,12 +763,60 @@ export async function resumeLiveGpsIfEligible(params?: {
         return false;
       }
 
-      const deviceId = liveGpsService.getDeviceId();
-      if (preStartDecision.needsLeaseRenewal && cloudRole === 'owner') {
-        await liveGpsService.assignGuide(tripId, currentUid, deviceId);
-        persistDeviceSession(tripId, 'guida').catch(() => {});
+      const ensureOwnerLeaseActive = async (needsRenewal: boolean) => {
+        if (needsRenewal && cloudRole === 'owner') {
+          await liveGpsService.assignGuide(tripId, currentUid, deviceId);
+          syncOptimisticActiveLease(tripId, currentUid, deviceId);
+          persistDeviceSession(tripId, 'guida').catch(() => {});
+        }
+      };
+
+      // Su iOS WebKit la Permissions API può restituire 'prompt' alla riapertura della PWA:
+      // eseguiamo una sola rilevazione standard prima di avviare watchPosition e prima di rinnovare la lease,
+      // così un eventuale rifiuto del dialog OS blocca subito senza aggiramenti né loop di popup.
+      if (permReport.state !== 'granted') {
+        if (permReport.state === 'prompt') {
+          sessionPromptAttemptedTrips.add(tripId);
+        }
+        lastResumeAttemptAt = Date.now();
+        const detected = await updateRealLocation({
+          enableHighAccuracy: true,
+          timeout: 10_000,
+          maximumAge: 15_000,
+        });
+        const postGeoSnap = continuityState;
+        const postDecision = evaluateCurrentRuntimeDecision({
+          tripId,
+          currentUid,
+          cloudRole,
+          isExternalLive,
+          remoteGpsLease: postGeoSnap.tripId === tripId ? postGeoSnap.remoteGpsLease : remoteGpsLease,
+          leaseLoaded: postGeoSnap.tripId === tripId ? postGeoSnap.leaseLoaded : leaseLoaded,
+        });
+        if (!postDecision.shouldRun) {
+          if (postDecision.shouldClearWatcher) clearSingleGpsWatcher(tripId);
+          return false;
+        }
+        setBrowserGeoPermissionCache(tripId, true);
+        await ensureOwnerLeaseActive(postDecision.needsLeaseRenewal);
+        setTripLocationContext(tripId, {
+          city: detected.city,
+          country: detected.country,
+        });
+        emitStateUpdate({ liveGpsState: detected, gpsError: null });
+        startSingleGpsWatcher(tripId);
+        await liveGpsService.publishLocation(tripId, {
+          lat: detected.coords.lat,
+          lng: detected.coords.lng,
+          accuracy: detected.accuracy,
+          city: detected.city,
+          country: detected.country,
+        });
+        syncPublishedGpsTimestamp(Date.now());
+        return true;
       }
 
+      await ensureOwnerLeaseActive(preStartDecision.needsLeaseRenewal);
       startSingleGpsWatcher(tripId);
 
       const elapsedSincePublish = Date.now() - lastPublishAt;
@@ -694,6 +861,35 @@ export async function resumeLiveGpsIfEligible(params?: {
       if (code === 1) {
         setBrowserGeoPermissionCache(tripId, false);
         clearSingleGpsWatcher(tripId);
+        emitStateUpdate({ gpsError: describeLiveGpsStartError(err) });
+      } else if (permReport && permReport.state !== 'granted') {
+        const postErrState = await queryRawBrowserGeolocationPermission();
+        if (postErrState === 'denied') {
+          setBrowserGeoPermissionCache(tripId, false);
+          clearSingleGpsWatcher(tripId);
+          emitStateUpdate({ gpsError: describeLiveGpsStartError(err) });
+        } else if (
+          postErrState === 'granted' ||
+          (postErrState === 'unsupported' && readSharingFlags(tripId).browserGeoGranted)
+        ) {
+          const latestSnap = continuityState;
+          const postErrDecision = evaluateCurrentRuntimeDecision({
+            tripId,
+            currentUid,
+            cloudRole,
+            isExternalLive,
+            remoteGpsLease: latestSnap.tripId === tripId ? latestSnap.remoteGpsLease : remoteGpsLease,
+            leaseLoaded: latestSnap.tripId === tripId ? latestSnap.leaseLoaded : leaseLoaded,
+          });
+          if (postErrDecision.shouldRun) {
+            if (postErrDecision.needsLeaseRenewal && cloudRole === 'owner') {
+              await liveGpsService.assignGuide(tripId, currentUid, deviceId).catch(() => {});
+              syncOptimisticActiveLease(tripId, currentUid, deviceId);
+            }
+            startSingleGpsWatcher(tripId);
+            return true;
+          }
+        }
       }
       console.warn('[LiveGpsContinuity] Auto-resume GPS non riuscito (silenzioso):', err);
       return false;
@@ -784,6 +980,7 @@ function acquireCoordinator(
   }
   if (typeof window !== 'undefined') {
     window.addEventListener('focus', handleForegroundOrOnline);
+    window.addEventListener('pageshow', handleForegroundOrOnline);
     window.addEventListener('online', handleForegroundOrOnline);
     window.addEventListener(LIVE_GPS_CONTINUITY_SYNC_EVENT, handleForegroundOrOnline);
   }
@@ -795,6 +992,7 @@ function acquireCoordinator(
     }
     if (typeof window !== 'undefined') {
       window.removeEventListener('focus', handleForegroundOrOnline);
+      window.removeEventListener('pageshow', handleForegroundOrOnline);
       window.removeEventListener('online', handleForegroundOrOnline);
       window.removeEventListener(LIVE_GPS_CONTINUITY_SYNC_EVENT, handleForegroundOrOnline);
     }

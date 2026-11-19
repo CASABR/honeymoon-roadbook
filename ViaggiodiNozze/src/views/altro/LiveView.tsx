@@ -90,6 +90,7 @@ import {
   setContinuityLiveGpsState,
   setTripLocationContext,
   startSingleGpsWatcher,
+  syncOptimisticActiveLease,
   syncPublishedGpsTimestamp,
   useLiveGpsContinuity
 } from '../../services/liveGpsContinuity';
@@ -426,11 +427,13 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       if (cloudRole === 'owner') {
         if (!ownsLease || remoteGpsLease?.status !== 'active' || remoteGpsLease?.holderDeviceId !== deviceId) {
           await liveGpsService.assignGuide(activeTripId, currentUid, deviceId);
+          syncOptimisticActiveLease(activeTripId, currentUid, deviceId);
           persistDeviceSession(activeTripId, 'guida').catch(() => {});
         }
       } else if (isDelegatedToCurrentUser && remoteGpsLease) {
         if (remoteGpsLease.status !== 'active' || remoteGpsLease.holderDeviceId !== deviceId) {
           await liveGpsService.claimOrResumeDelegatedGuide(activeTripId, currentUid, deviceId, remoteGpsLease.expiresAt);
+          syncOptimisticActiveLease(activeTripId, currentUid, deviceId, remoteGpsLease.expiresAt);
         }
       } else {
         throw new Error('L’Organizzatore deve prima delegare la Guida GPS a questo profilo Copilota.');
