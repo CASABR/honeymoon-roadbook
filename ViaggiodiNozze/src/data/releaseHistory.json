@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.28",
+      "publishedAt": "2026-11-19",
+      "sourceCommit": "6baa481",
+      "changes": [
+        "Unificate e deduplicate le verifiche di stato delle notifiche push con single-flight, cache TTL e montaggio modale on-demand",
+        "Migliorata la gestione delle risposte Worker distinguendo gli errori temporanei 503 dalle negazioni di accesso reali"
+      ],
+      "publishedAtIso": "2026-11-19T08:10:00.000Z"
+    },
+    {
       "version": "1.6.27",
       "publishedAt": "2026-11-18",
       "sourceCommit": "ab98bb4",
@@ -252,16 +262,6 @@
         "Gestione condivisa di checkPendingRedirectResult al rientro dal login OAuth"
       ],
       "publishedAtIso": "2026-11-11T17:11:26+01:00"
-    },
-    {
-      "version": "1.6.3",
-      "publishedAt": "2026-11-11",
-      "sourceCommit": "d8db2a0",
-      "changes": [
-        "Risolto blocco primo avvio PWA iPhone con card onboarding visibile sopra la piega",
-        "Aggiunto test automatico di primo accesso con storage vuoto e controllo anti-regressione"
-      ],
-      "publishedAtIso": "2026-11-11T16:04:15+01:00"
     }
   ]
 }

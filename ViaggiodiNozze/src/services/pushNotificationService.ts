@@ -143,6 +143,7 @@ async function callPush<T>(action: string, payload: Record<string, unknown>): Pr
       errMessage = `Limite anti-spam attivo: attendi ancora ${retrySeconds} secondi prima di richiedere un'altra notifica di prova.`;
     }
     const err: any = new Error(errMessage);
+    err.status = response.status;
     err.code = isRateLimited ? 'PUSH_RATE_LIMITED' : (result.error || 'PUSH_ERROR');
     err.retryAfter = retrySeconds;
     throw err;

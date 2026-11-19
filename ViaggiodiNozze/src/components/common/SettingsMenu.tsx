@@ -417,7 +417,9 @@ export default function SettingsMenu() {
         />
       )}
 
-      <PushNotificationModal isOpen={showPushModal} onClose={() => setShowPushModal(false)} />
+      {showPushModal && (
+        <PushNotificationModal isOpen={showPushModal} onClose={() => setShowPushModal(false)} />
+      )}
 
       {/* Toast Feedback */}
       {toast && (

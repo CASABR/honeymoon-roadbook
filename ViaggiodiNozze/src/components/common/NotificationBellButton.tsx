@@ -64,10 +64,12 @@ export default function NotificationBellButton() {
       </button>
 
       {/* Modale con dettagli e Riprova attivazione */}
-      <PushNotificationModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
+      {isModalOpen && (
+        <PushNotificationModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
     </>
   );
 }
