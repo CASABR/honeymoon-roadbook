@@ -4,7 +4,7 @@
     {
       "version": "1.6.34",
       "publishedAt": "2026-11-19",
-      "sourceCommit": "0a2b8da",
+      "sourceCommit": "4861a3c",
       "changes": [
         "Ottimizzato il layout responsive della vista LIVE su iPad mini 6 orizzontale evitando colonne interne troppo strette senza modificare GPS, dati o vista iPhone"
       ],
