@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.31",
+      "publishedAt": "2026-11-19",
+      "sourceCommit": "caf95d2",
+      "changes": [
+        "Migliorata la barra laterale su iPad mini orizzontale con larghezza compatta e scorrimento evidente per raggiungere tutte le sezioni",
+        "Ottimizzata l'area Prenotazioni su schermi medi a 2 colonne con filtri e titoli leggibili senza alterare iPhone e desktop"
+      ],
+      "publishedAtIso": "2026-11-19T10:51:23.528Z"
+    },
+    {
       "version": "1.6.30",
       "publishedAt": "2026-11-19",
       "sourceCommit": "51a1a66",
@@ -251,17 +261,6 @@
         "Preservata scheda informativa per visualizzatori ed editing isolato su viaggi locali"
       ],
       "publishedAtIso": "2026-11-17T11:15:00.000Z"
-    },
-    {
-      "version": "1.6.6",
-      "publishedAt": "2026-11-16",
-      "sourceCommit": "91b28fc",
-      "changes": [
-        "Cartella preferita e selezione documenti Google Drive con scope minimo drive.file",
-        "Card compatte, orari a due campi, piattaforma e tasto Duplica desktop con retro mobile",
-        "Restyling LIVE con hero map, ripresa automatica GPS Owner e menu Altro riorganizzato in griglia 2x2"
-      ],
-      "publishedAtIso": "2026-11-16T12:54:56.442Z"
     }
   ]
 }

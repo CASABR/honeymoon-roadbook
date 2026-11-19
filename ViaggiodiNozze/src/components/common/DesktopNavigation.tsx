@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type { TripConfig } from '../../utils/tripConfig';
 import { useDeviceRole } from '../../utils/useDeviceRole';
 import { useAuthIdentity } from '../../utils/useAuthIdentity';
@@ -45,6 +45,38 @@ export default function DesktopNavigation({
 
   // Ascolta orologio/sync per stato realtime
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const navScrollRef = useRef<HTMLElement>(null);
+  const [navCanScrollUp, setNavCanScrollUp] = useState(false);
+  const [navCanScrollDown, setNavCanScrollDown] = useState(false);
+
+  const updateNavScrollCue = useCallback(() => {
+    const el = navScrollRef.current;
+    if (!el) return;
+    const maxScroll = el.scrollHeight - el.clientHeight;
+    setNavCanScrollUp(el.scrollTop > 6);
+    setNavCanScrollDown(maxScroll > 8 && el.scrollTop < maxScroll - 6);
+  }, []);
+
+  useEffect(() => {
+    updateNavScrollCue();
+    const el = navScrollRef.current;
+    let ro: ResizeObserver | null = null;
+    if (el && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(updateNavScrollCue);
+      ro.observe(el);
+    }
+    window.addEventListener('resize', updateNavScrollCue);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', updateNavScrollCue);
+    };
+  }, [updateNavScrollCue]);
+
+  const handleScrollNavDown = () => {
+    const el = navScrollRef.current;
+    if (!el) return;
+    el.scrollBy({ top: Math.max(160, Math.round(el.clientHeight * 0.65)), behavior: 'smooth' });
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -140,10 +172,10 @@ export default function DesktopNavigation({
     : '👁️ Partecipante';
 
   return (
-    <aside className="app-desktop-navigation w-full h-screen sticky top-0 flex flex-col justify-between overflow-x-hidden overflow-y-hidden bg-[#fffdfa] dark:bg-slate-900 border-r border-[#e5e3dd] dark:border-slate-800 shadow-[4px_0_24px_rgba(23,32,51,0.035)] select-none">
+    <aside className="app-desktop-navigation w-full h-[100dvh] sticky top-0 flex flex-col justify-between overflow-x-hidden overflow-y-hidden bg-[#fffdfa] dark:bg-slate-900 border-r border-[#e5e3dd] dark:border-slate-800 shadow-[4px_0_24px_rgba(23,32,51,0.035)] select-none">
       
       {/* ─── LOGO & TRIP INFO ─────────────────────────────────────────── */}
-      <div className="px-4 pt-4 pb-2 space-y-3 shrink-0">
+      <div className="px-3 pt-3 pb-1.5 space-y-2 xl:px-4 xl:pt-4 xl:pb-2 xl:space-y-3 shrink-0">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0">
             <div className="dark:hidden">
@@ -153,7 +185,7 @@ export default function DesktopNavigation({
               <HounigoLogo variant="onDark" size={30} />
             </div>
           </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1 xl:gap-1.5 shrink-0">
             <AppInfoButton />
             <NotificationBellButton />
             <DarkModeToggle />
@@ -162,7 +194,7 @@ export default function DesktopNavigation({
         </div>
 
         {/* Card Info Viaggio Attivo */}
-        <div className="hounigo-panel-muted dark:bg-slate-800/80 p-3 rounded-2xl dark:border-slate-700/60 min-w-0">
+        <div className="hounigo-panel-muted dark:bg-slate-800/80 p-2.5 xl:p-3 rounded-2xl dark:border-slate-700/60 min-w-0">
           <div className="flex items-center justify-between gap-1 mb-1">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 truncate">
               Viaggio Attivo
@@ -210,45 +242,70 @@ export default function DesktopNavigation({
       </div>
 
       {/* ─── VOCI DI NAVIGAZIONE SCORREVOLI ───────────────────────────── */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 space-y-1">
-        <div className="px-3 pb-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-          Area di Lavoro
-        </div>
-        {navItems.map(item => {
-          const isActive = currentSection === item.id;
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onSelectSection(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer text-left min-w-0 ${
-                isActive
-                  ? item.isPrimary
-                    ? 'bg-[#FF6B5F] text-white shadow-md shadow-[#FF6B5F]/20'
-                    : 'bg-[#172033] text-white dark:bg-white dark:text-[#172033] shadow-sm'
-                  : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/60'
-              }`}
-            >
-              <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                <span className="text-base shrink-0">{item.icon}</span>
-                <span className="truncate">{item.label}</span>
-              </div>
-              {item.badge !== undefined && (
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ml-1.5 ${
+      <div className="relative flex-1 min-h-0 flex flex-col">
+        {navCanScrollUp && (
+          <div className="xl:hidden pointer-events-none absolute top-0 left-0 right-2 h-4 bg-gradient-to-b from-[#fffdfa] dark:from-slate-900 to-transparent z-10" />
+        )}
+        <nav
+          ref={navScrollRef}
+          onScroll={updateNavScrollCue}
+          aria-label="Sezioni area di lavoro"
+          className="app-desktop-nav-list flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-2.5 py-1.5 space-y-0.5 xl:px-3 xl:py-2 xl:space-y-1 overscroll-contain"
+          style={{ WebkitOverflowScrolling: 'touch' }}
+        >
+          <div className="px-2.5 xl:px-3 pb-1 text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+            Area di Lavoro
+          </div>
+          {navItems.map(item => {
+            const isActive = currentSection === item.id;
+            return (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => onSelectSection(item.id)}
+                className={`w-full flex items-center justify-between px-2.5 py-2 xl:px-3 xl:py-2.5 rounded-xl font-bold text-xs transition-all cursor-pointer text-left min-w-0 ${
                   isActive
-                    ? 'bg-white/20 text-white'
-                    : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
-                }`}>
-                  {item.badge}
-                </span>
-              )}
+                    ? item.isPrimary
+                      ? 'bg-[#FF6B5F] text-white shadow-md shadow-[#FF6B5F]/20'
+                      : 'bg-[#172033] text-white dark:bg-white dark:text-[#172033] shadow-sm'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100/80 dark:hover:bg-slate-800/60'
+                }`}
+              >
+                <div className="flex items-center gap-2 xl:gap-2.5 min-w-0 flex-1">
+                  <span className="text-base shrink-0">{item.icon}</span>
+                  <span className="truncate">{item.label}</span>
+                </div>
+                {item.badge !== undefined && (
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ml-1.5 ${
+                    isActive
+                      ? 'bg-white/20 text-white'
+                      : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                  }`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+          <div className="h-6 xl:hidden" aria-hidden="true" />
+        </nav>
+        {navCanScrollDown && (
+          <div className="xl:hidden pointer-events-none absolute bottom-0 left-0 right-2 h-11 bg-gradient-to-t from-[#fffdfa] via-[#fffdfa]/92 dark:from-slate-900 dark:via-slate-900/92 to-transparent flex items-end justify-center pb-1 z-10">
+            <button
+              type="button"
+              onClick={handleScrollNavDown}
+              data-testid="desktop-nav-scroll-cue"
+              aria-label="Scorri altre sezioni"
+              className="pointer-events-auto inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold text-slate-600 dark:text-slate-200 bg-white/95 dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 shadow-xs cursor-pointer hover:border-[#FF6B5F]/50"
+            >
+              <span>Altre sezioni ↓</span>
             </button>
-          );
-        })}
+          </div>
+        )}
       </div>
 
       {/* ─── FOOTER UTENTE E RUOLO (Semplificato, non affollato) ─────────── */}
-      <div className="p-3.5 border-t border-[#e5e3dd] dark:border-slate-800 bg-[#f1eee7]/50 dark:bg-slate-900/50 space-y-2 shrink-0">
+      <div className="p-2.5 xl:p-3.5 border-t border-[#e5e3dd] dark:border-slate-800 bg-[#f1eee7]/50 dark:bg-slate-900/50 space-y-2 shrink-0">
         <div className="flex items-center justify-between gap-2 min-w-0">
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <span className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-xs shrink-0">

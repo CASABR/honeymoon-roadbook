@@ -841,7 +841,7 @@ export default function App() {
 
       {/* ─── DESKTOP SIDEBAR NAVIGATION (Schermi md+ e solo se non in vista mobile forzata) ─── */}
       {!isForcedMobileView && (
-        <div className="hidden md:block shrink-0 w-72 lg:w-80">
+        <div className="hidden md:block shrink-0 w-64 xl:w-80">
           <DesktopNavigation
             currentSection={desktopSection}
             onSelectSection={handleSelectDesktopSection}

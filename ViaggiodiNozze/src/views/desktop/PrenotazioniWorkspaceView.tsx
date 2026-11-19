@@ -546,7 +546,7 @@ export default function PrenotazioniWorkspaceView({
           </div>
 
           {/* Filtri Temporali e Documenti */}
-          <div className="flex items-center gap-2 w-full md:w-auto overflow-x-auto no-scrollbar">
+          <div className="flex items-center gap-2 w-full md:w-auto flex-wrap md:flex-nowrap overflow-x-auto no-scrollbar">
             <select
               value={timeFilter}
               onChange={e => setTimeFilter(e.target.value as any)}
@@ -573,7 +573,7 @@ export default function PrenotazioniWorkspaceView({
         </div>
 
         {/* Pillole Categorie */}
-        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-1">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar md:flex-wrap xl:flex-nowrap md:overflow-visible xl:overflow-x-auto pt-1">
           <button
             type="button"
             onClick={() => setSelectedCategory('tutte')}
@@ -704,7 +704,7 @@ export default function PrenotazioniWorkspaceView({
               </div>
 
               {/* Grid Card Desktop / Tablet */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
                 {items.map(item => {
                   const meta = BOOKING_CATEGORY_META[item.category];
 
@@ -727,7 +727,7 @@ export default function PrenotazioniWorkspaceView({
                             <span className={`inline-block px-2 py-0.2 rounded-full text-[9px] font-extrabold uppercase tracking-wider border mb-1 ${meta.badgeBg} ${meta.badgeText} ${meta.badgeBorder}`}>
                               {meta.label}
                             </span>
-                            <h3 className="font-extrabold text-[#172033] dark:text-white text-xs sm:text-sm leading-tight truncate group-hover:text-[#FF6B5F] transition-colors">
+                            <h3 className="font-extrabold text-[#172033] dark:text-white text-xs sm:text-sm leading-snug line-clamp-2 break-words xl:block xl:truncate group-hover:text-[#FF6B5F] transition-colors">
                               {item.title}
                             </h3>
                           </div>
