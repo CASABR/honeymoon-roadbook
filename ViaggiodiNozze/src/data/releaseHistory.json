@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.33",
+      "publishedAt": "2026-11-19",
+      "sourceCommit": "cc26bf6",
+      "changes": [
+        "Evitata la sovrapposizione tra la freccia sinistra e la pillola TUTTI in DayPickerStrip mostrando le frecce solo in presenza di scorrimento",
+        "Aggiunti indicatori di scorrimento laterale con sfumatura e pulsanti sulle barre filtri orizzontali di TrasportiView su iPad, iPhone e desktop"
+      ],
+      "publishedAtIso": "2026-11-19T12:49:02.766Z"
+    },
+    {
       "version": "1.6.32",
       "publishedAt": "2026-11-19",
       "sourceCommit": "ca0355a",
@@ -249,17 +259,6 @@
         "Risoluzione blocco Google OAuth su iPhone PWA con gestione popup sincrono ed errore diagnostico push"
       ],
       "publishedAtIso": "2026-11-17T12:35:00.000Z"
-    },
-    {
-      "version": "1.6.8",
-      "publishedAt": "2026-11-17",
-      "sourceCommit": "615b57d",
-      "changes": [
-        "Hotfix card: ripristinato canEdit immediato e apertura form di modifica per Owner e Copilota",
-        "Hotfix notifiche: eliminato fallback anonimo distruttivo, ripristino sicuro identità e gestione retry server",
-        "Pieno supporto schema ownerId/ownerUid e tolleranza disconnessioni transitorie mobile"
-      ],
-      "publishedAtIso": "2026-11-17T11:45:00.000Z"
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { TRIP_DAYS, type TripDayItem, generateTripDays, calculateEarliestTripDate } from '../../utils/tripDates';
+import { useHorizontalScrollCue } from '../../hooks/useHorizontalScrollCue';
 
 interface DayPickerStripProps {
   selectedDate: string | 'tutte';
@@ -25,6 +26,7 @@ export default function DayPickerStrip({
 
   // Se non fornito, calcola dinamicamente l'inizio considerando le date presenti in itemCounts
   const dynamicDays = propTripDays || propDays || (itemCounts ? generateTripDays(calculateEarliestTripDate(Object.keys(itemCounts))) : TRIP_DAYS);
+  const { canScrollLeft, canScrollRight, scrollByDirection } = useHorizontalScrollCue(containerRef, dynamicDays.length);
 
   // Auto-centratura automatica dello scroll sul giorno selezionato
   useEffect(() => {
@@ -48,45 +50,32 @@ export default function DayPickerStrip({
     return () => clearTimeout(timer);
   }, [selectedDate, dynamicDays]);
 
-  const handleScrollLeft = () => {
-    if (containerRef.current) {
-      containerRef.current.scrollBy({ left: -260, behavior: 'smooth' });
-    }
-  };
-
-  const handleScrollRight = () => {
-    if (containerRef.current) {
-      containerRef.current.scrollBy({ left: 260, behavior: 'smooth' });
-    }
-  };
-
   return (
-    <div className="-mx-1 mb-4 relative group">
-      {/* Frecce di scorrimento desktop */}
-      <button
-        type="button"
-        onClick={handleScrollLeft}
-        className="hidden md:flex absolute -left-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white/95 dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 shadow-md items-center justify-center text-slate-700 dark:text-slate-200 hover:scale-110 active:scale-95 transition-all cursor-pointer opacity-80 hover:opacity-100"
-        aria-label="Scorri giorni indietro"
-        title="Scorri indietro"
-      >
-        <span className="text-xs font-bold">◀</span>
-      </button>
+    <div className="flex items-center gap-1.5 -mx-1 mb-4">
+      {/* Freccia sinistra esterna al tracciato: visibile solo se si puo' scorrere indietro, senza coprire TUTTI */}
+      {canScrollLeft && (
+        <button
+          type="button"
+          onClick={() => scrollByDirection('left', 260)}
+          className="hidden md:flex shrink-0 mb-2 w-7 h-7 rounded-full bg-white/95 dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 shadow-sm items-center justify-center text-slate-700 dark:text-slate-200 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          aria-label="Scorri giorni indietro"
+          title="Scorri indietro"
+        >
+          <span className="text-[11px] font-bold leading-none">◀</span>
+        </button>
+      )}
 
-      <button
-        type="button"
-        onClick={handleScrollRight}
-        className="hidden md:flex absolute -right-2.5 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-white/95 dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 shadow-md items-center justify-center text-slate-700 dark:text-slate-200 hover:scale-110 active:scale-95 transition-all cursor-pointer opacity-80 hover:opacity-100"
-        aria-label="Scorri giorni avanti"
-        title="Scorri avanti"
-      >
-        <span className="text-xs font-bold">▶</span>
-      </button>
-
-      <div 
-        ref={containerRef}
-        className="flex gap-2 overflow-x-auto pb-2 px-1 scrollbar-none snap-x items-center scroll-smooth"
-      >
+      <div className="relative flex-1 min-w-0">
+        {canScrollLeft && (
+          <div
+            className="pointer-events-none absolute left-0 top-0 bottom-2 w-4 bg-gradient-to-r from-[#F8F7F3] dark:from-slate-950 to-transparent z-10"
+            aria-hidden="true"
+          />
+        )}
+        <div
+          ref={containerRef}
+          className="flex gap-2 overflow-x-auto pb-2 pt-0.5 px-1 scrollbar-none snap-x items-center scroll-smooth"
+        >
         {/* Chip compatta 'Tutti' fissa a sinistra come UNICO primo elemento */}
         <button
           type="button"
@@ -153,7 +142,26 @@ export default function DayPickerStrip({
             </button>
           );
         })}
+        </div>
+        {canScrollRight && (
+          <div
+            className="pointer-events-none absolute right-0 top-0 bottom-2 w-5 bg-gradient-to-l from-[#F8F7F3] dark:from-slate-950 to-transparent z-10"
+            aria-hidden="true"
+          />
+        )}
       </div>
+
+      {canScrollRight && (
+        <button
+          type="button"
+          onClick={() => scrollByDirection('right', 260)}
+          className="hidden md:flex shrink-0 mb-2 w-7 h-7 rounded-full bg-white/95 dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 shadow-sm items-center justify-center text-slate-700 dark:text-slate-200 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+          aria-label="Scorri giorni avanti"
+          title="Scorri avanti"
+        >
+          <span className="text-[11px] font-bold leading-none">▶</span>
+        </button>
+      )}
     </div>
   );
 }

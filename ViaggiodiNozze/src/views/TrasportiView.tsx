@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import type { Trasporto } from '../types';
 import { storageService } from '../storage/storageService';
 import TrasportoCard from '../components/cards/TrasportoCard';
@@ -8,6 +8,7 @@ import ConfirmDialog from '../components/common/ConfirmDialog';
 import EmptyState from '../components/EmptyState';
 import SwipeToDelete from '../components/common/SwipeToDelete';
 import { useDeviceRole } from '../utils/useDeviceRole';
+import { useHorizontalScrollCue } from '../hooks/useHorizontalScrollCue';
 
 import TimeCollisionModal, { type TimeCollision } from '../components/modals/TimeCollisionModal';
 import {
@@ -34,6 +35,75 @@ const detectCountry = (t: Trasporto): string => {
 
 type FilterType = 'tutti' | 'volo' | 'treno' | 'metro' | 'traghetto' | 'auto_camper' | 'transfer' | 'taxi';
 type CountryFilterType = 'tutti' | '🇳🇿 Nuova Zelanda' | '🇦🇺 Australia' | '🇵🇭 Filippine' | '✈️ Intercontinentali' | '🌍 Altro';
+
+interface ScrollableFilterRowProps {
+  children: ReactNode;
+  ariaLabel: string;
+  depsKey: string | number;
+  className?: string;
+}
+
+/**
+ * Wraps a horizontal filter pill bar with edge fades and flanking scroll buttons
+ * whenever the pills overflow horizontally on phone, iPad, or desktop.
+ */
+function ScrollableFilterRow({ children, ariaLabel, depsKey, className = '' }: ScrollableFilterRowProps) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { canScrollLeft, canScrollRight, scrollByDirection } = useHorizontalScrollCue(scrollRef, depsKey);
+
+  return (
+    <div className={`-mx-1 flex items-center gap-1.5 ${className}`}>
+      {canScrollLeft && (
+        <button
+          type="button"
+          onClick={() => scrollByDirection('left', 180)}
+          aria-label={`Scorri ${ariaLabel} indietro`}
+          title={`Scorri ${ariaLabel} indietro`}
+          className="shrink-0 w-7 h-7 rounded-full bg-white/95 dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center justify-center text-slate-600 dark:text-slate-200 hover:text-slate-900 hover:border-slate-300 active:scale-95 transition-all cursor-pointer"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+      )}
+
+      <div className="relative flex-1 min-w-0">
+        {canScrollLeft && (
+          <div
+            className="pointer-events-none absolute left-0 top-0 bottom-0 w-5 bg-gradient-to-r from-[#F8F7F3] dark:from-slate-950 to-transparent z-10"
+            aria-hidden="true"
+          />
+        )}
+        <div
+          ref={scrollRef}
+          className="flex items-center gap-2 overflow-x-auto py-1 px-1 scrollbar-none snap-x scroll-smooth"
+        >
+          {children}
+        </div>
+        {canScrollRight && (
+          <div
+            className="pointer-events-none absolute right-0 top-0 bottom-0 w-7 bg-gradient-to-l from-[#F8F7F3] via-[#F8F7F3]/90 dark:from-slate-950 dark:via-slate-950/90 to-transparent z-10"
+            aria-hidden="true"
+          />
+        )}
+      </div>
+
+      {canScrollRight && (
+        <button
+          type="button"
+          onClick={() => scrollByDirection('right', 180)}
+          aria-label={`Scorri ${ariaLabel} avanti`}
+          title={`Scorri ${ariaLabel} avanti`}
+          className="shrink-0 w-7 h-7 rounded-full bg-white/95 dark:bg-slate-800/95 border border-slate-200 dark:border-slate-700 shadow-xs flex items-center justify-center text-slate-600 dark:text-slate-200 hover:text-slate-900 hover:border-slate-300 active:scale-95 transition-all cursor-pointer"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5l7 7-7 7" />
+          </svg>
+        </button>
+      )}
+    </div>
+  );
+}
 
 export default function TrasportiView() {
   const { canEdit } = useDeviceRole();
@@ -328,60 +398,64 @@ export default function TrasportiView() {
 
       {/* Chips Filter Horizontal Bar - Types */}
       {transports.length > 0 && (
-        <div className="-mx-1 mb-2">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 px-1 scrollbar-none snap-x">
-            {filterChips.map((chip) => {
-              const isActive = activeFilter === chip.id;
-              return (
-                <button
-                  key={chip.id}
-                  type="button"
-                  onClick={() => setActiveFilter(chip.id)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all snap-start cursor-pointer border ${
-                    isActive
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
-                      : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+        <ScrollableFilterRow
+          ariaLabel="filtri categoria"
+          depsKey={`${transports.length}-${filterChips.map((c) => c.count).join(',')}`}
+          className="mb-1.5"
+        >
+          {filterChips.map((chip) => {
+            const isActive = activeFilter === chip.id;
+            return (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setActiveFilter(chip.id)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all snap-start cursor-pointer border ${
+                  isActive
+                    ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
+                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <span>{chip.icon}</span>
+                <span>{chip.label}</span>
+                <span
+                  className={`ml-0.5 px-1.5 py-0.2 text-[10px] rounded-full font-mono ${
+                    isActive ? 'bg-white/20 text-white font-bold' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
-                  <span>{chip.icon}</span>
-                  <span>{chip.label}</span>
-                  <span
-                    className={`ml-0.5 px-1.5 py-0.2 text-[10px] rounded-full font-mono ${
-                      isActive ? 'bg-white/20 text-white font-bold' : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {chip.count}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                  {chip.count}
+                </span>
+              </button>
+            );
+          })}
+        </ScrollableFilterRow>
       )}
 
       {/* Chips Filter Horizontal Bar - Countries */}
       {transports.length > 0 && (
-        <div className="-mx-1 mb-5">
-          <div className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 px-1 scrollbar-none snap-x">
-            {countryChips.map((chip) => {
-              const isActive = activeCountryFilter === chip.id;
-              return (
-                <button
-                  key={chip.id}
-                  type="button"
-                  onClick={() => setActiveCountryFilter(chip.id)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all snap-start cursor-pointer border ${
-                    isActive
-                      ? 'bg-slate-800 text-white border-slate-800 shadow-md shadow-slate-800/20'
-                      : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-                  }`}
-                >
-                  <span>{chip.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+        <ScrollableFilterRow
+          ariaLabel="filtri paese"
+          depsKey={`${transports.length}-${countryChips.length}`}
+          className="mb-4"
+        >
+          {countryChips.map((chip) => {
+            const isActive = activeCountryFilter === chip.id;
+            return (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={() => setActiveCountryFilter(chip.id)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all snap-start cursor-pointer border ${
+                  isActive
+                    ? 'bg-slate-800 text-white border-slate-800 shadow-md shadow-slate-800/20'
+                    : 'bg-white border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                }`}
+              >
+                <span>{chip.label}</span>
+              </button>
+            );
+          })}
+        </ScrollableFilterRow>
       )}
 
       {/* Empty State */}
