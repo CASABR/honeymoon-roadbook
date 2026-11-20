@@ -28,6 +28,7 @@ import { withTimeout } from './utils/withTimeout';
 import { storageService } from './storage/storageService';
 import { useAuthIdentity } from './utils/useAuthIdentity';
 import { useLiveGpsContinuity } from './services/liveGpsContinuity';
+import { useLiveNextTransportPublisher } from './hooks/useLiveNextTransportPublisher';
 import { auth } from './firebase';
 import UiScrollDebugOverlay, { bumpUiDebugCounter, isUiDebugEnabled, UI_DEBUG_CHANGED_EVENT } from './components/dev/UiScrollDebugOverlay';
 import { onAuthStateChanged, type User } from 'firebase/auth';
@@ -145,6 +146,20 @@ export default function App() {
     currentUid,
     cloudRole,
     isExternalLive
+  });
+  useLiveNextTransportPublisher({
+    enabled: Boolean(
+      isAuthenticated &&
+      tripConfig?.id &&
+      currentUid &&
+      !isExternalLive &&
+      !isAdminRoute &&
+      (cloudRole === 'owner' || cloudRole === 'copilota')
+    ),
+    tripId: tripConfig?.id || null,
+    tripTitle: tripConfig?.title,
+    currentUid,
+    cloudRole,
   });
   const [uiDebugActive, setUiDebugActive] = useState<boolean>(() => isUiDebugEnabled());
 

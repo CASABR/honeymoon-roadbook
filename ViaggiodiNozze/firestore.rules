@@ -1014,15 +1014,67 @@ service cloud.firestore {
     // =========================================================================
     // 3. LIVE FEEDS (PUBBLICO)
     // =========================================================================
+    function validPublicNextTransport(data) {
+      return data is map
+             && data.keys().hasOnly([
+               'type',
+               'fromLabel',
+               'toLabel',
+               'date',
+               'departureTime',
+               'timeZone',
+               'departureUtcMs',
+               'serviceNumber'
+             ])
+             && data.type in ['volo', 'treno', 'traghetto']
+             && data.fromLabel is string && data.fromLabel.size() <= 100
+             && data.toLabel is string && data.toLabel.size() <= 100
+             && data.date is string && data.date.size() == 10
+             && data.departureTime is string && data.departureTime.size() <= 5
+             && data.timeZone is string && data.timeZone.size() <= 64
+             && data.departureUtcMs is number && data.departureUtcMs > 0
+             && (!('serviceNumber' in data) || (data.serviceNumber is string && data.serviceNumber.size() <= 32));
+    }
+
+    function validPublicTransportToken(item) {
+      return item is string
+             && item.size() <= 360
+             && item.matches('^(volo|treno|traghetto)\\|[^|\\r\\n]{1,100}\\|[^|\\r\\n]{1,100}\\|[0-9]{4}-[0-9]{2}-[0-9]{2}\\|[0-9]{1,2}:[0-9]{2}\\|[A-Za-z0-9/_+-]{1,64}\\|[0-9]{10,15}\\|[A-Za-z0-9 .-]{0,32}$')
+             && !item.matches('.*(?i)\\b(pnr|booking|codice|ticket|eticket|passport|passaporto|secret)\\b.*');
+    }
+
+    function validPublicUpcomingSlot(items, idx) {
+      return items.size() <= idx || validPublicTransportToken(items[idx]);
+    }
+
+    function validPublicUpcomingTransports(items) {
+      return items is list
+             && items.size() <= 12
+             && validPublicUpcomingSlot(items, 0)
+             && validPublicUpcomingSlot(items, 1)
+             && validPublicUpcomingSlot(items, 2)
+             && validPublicUpcomingSlot(items, 3)
+             && validPublicUpcomingSlot(items, 4)
+             && validPublicUpcomingSlot(items, 5)
+             && validPublicUpcomingSlot(items, 6)
+             && validPublicUpcomingSlot(items, 7)
+             && validPublicUpcomingSlot(items, 8)
+             && validPublicUpcomingSlot(items, 9)
+             && validPublicUpcomingSlot(items, 10)
+             && validPublicUpcomingSlot(items, 11);
+    }
+
     function validFeedHeader(data) {
-      return data.keys().hasOnly(['title', 'coverPhotoUrl', 'status', 'currentCity', 'lastUpdateAt', 'statusMessage', 'statusUpdatedAt'])
+      return data.keys().hasOnly(['title', 'coverPhotoUrl', 'status', 'currentCity', 'lastUpdateAt', 'statusMessage', 'statusUpdatedAt', 'nextTransport', 'upcomingTransports'])
              && (!('status' in data) || data.status in ['in_corso', 'completato'])
              && (!('title' in data) || (data.title is string && data.title.size() <= 120))
              && (!('coverPhotoUrl' in data) || (data.coverPhotoUrl is string && data.coverPhotoUrl.size() <= 2048))
              && (!('currentCity' in data) || (data.currentCity is string && data.currentCity.size() <= 120))
              && (!('statusMessage' in data) || (data.statusMessage is string && data.statusMessage.size() <= 1000))
              && (!('lastUpdateAt' in data) || data.lastUpdateAt is number)
-             && (!('statusUpdatedAt' in data) || data.statusUpdatedAt is number);
+             && (!('statusUpdatedAt' in data) || data.statusUpdatedAt is number)
+             && (!('nextTransport' in data) || data.nextTransport == null || validPublicNextTransport(data.nextTransport))
+             && (!('upcomingTransports' in data) || data.upcomingTransports == null || validPublicUpcomingTransports(data.upcomingTransports));
     }
 
     function validLiveUpdate(data) {

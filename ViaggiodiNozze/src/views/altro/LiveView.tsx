@@ -4,6 +4,11 @@ import { createPortal } from 'react-dom';
 import { storageService } from '../../storage/storageService';
 import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa, DeviceRole, Attivita } from '../../types';
 import { deriveLiveIntelligence, type LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
+import {
+  deriveNextImportantTransport,
+  deriveNextPublicTransportFromFeedHeader,
+  type PublicNextTransportFeedProjection,
+} from '../../utils/liveNextTransport';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
 import { generateTripDays, getTripDateRange, formatDateTimeIT, formatDateIT } from '../../utils/tripDates';
 import { lookupKnownCoordinate } from '../../services/routingService';
@@ -139,6 +144,10 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   // Live Feed Data from Firestore
   const [liveUpdates, setLiveUpdates] = useState<LiveUpdate[]>([]);
+  const [liveFeedTransports, setLiveFeedTransports] = useState<{
+    nextTransport: PublicNextTransportFeedProjection | null;
+    upcomingTransports: Array<PublicNextTransportFeedProjection | string> | null;
+  }>({ nextTransport: null, upcomingTransports: null });
   const [guestMessages, setGuestMessages] = useState<LiveGuestMessage[]>([]);
   const [localReactions, setLocalReactions] = useState<Record<string, string>>(() => {
     if (typeof window !== 'undefined') {
@@ -167,6 +176,10 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   useEffect(() => {
     if (!activeTripId) return;
     const unsubHeader = liveService.subscribeToLiveHeader(activeTripId, (header) => {
+      setLiveFeedTransports({
+        nextTransport: header?.nextTransport ?? null,
+        upcomingTransports: header?.upcomingTransports ?? null,
+      });
       if (header?.statusMessage) {
         setStatusMessage(header.statusMessage);
       }
@@ -1319,6 +1332,18 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     });
   }, [days, activities, tappe, accommodations, transports, now, tripRange, remoteGpsLocation, liveGpsState, isStandaloneExternal, plannedTimeZone]);
 
+  const nextImportantTransport = useMemo(
+    () =>
+      isStandaloneExternal
+        ? deriveNextPublicTransportFromFeedHeader(
+            liveFeedTransports.upcomingTransports,
+            liveFeedTransports.nextTransport,
+            now
+          )
+        : deriveNextImportantTransport(transports, now),
+    [isStandaloneExternal, liveFeedTransports, transports, now]
+  );
+
   const realCoords = useMemo(() => {
     if (remoteGpsLocation) return { lat: remoteGpsLocation.lat, lng: remoteGpsLocation.lng };
     return null;
@@ -1894,6 +1919,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
         if (currentUid) return handleTransferGps(currentUid, liveGpsService.getDeviceId());
       }}
       liveIntelligence={liveIntelligence}
+      nextImportantTransport={nextImportantTransport}
       mapCenterMode={mapCenterMode}
       onChangeMapCenterMode={setMapCenterMode}
       realMarkerOffset={realMarkerOffset}

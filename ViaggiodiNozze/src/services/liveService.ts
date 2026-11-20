@@ -1,6 +1,13 @@
 import { collection, doc, getDoc, writeBatch, onSnapshot, query, orderBy, where, setDoc, limit, updateDoc, deleteDoc, deleteField } from 'firebase/firestore';
 import { db, auth } from '../firebase';
 import { FEATURE_FLAGS } from '../config/featureFlags';
+import {
+  toPublicUpcomingTransportsFeedProjection,
+  toPublicUpcomingTransportTokens,
+  serializePublicUpcomingTransportsProjection,
+  type PublicNextTransportInfo,
+  type PublicNextTransportFeedProjection,
+} from '../utils/liveNextTransport';
 
 /**
  * Feed pubblico: /live_feeds/{tripId} (testata) e /live_feeds/{tripId}/updates/{updateId}.
@@ -17,6 +24,8 @@ export interface LiveFeedHeader {
   statusMessage?: string;
   statusUpdatedAt?: number;
   lastUpdateAt?: number;
+  nextTransport?: PublicNextTransportFeedProjection | null;
+  upcomingTransports?: Array<PublicNextTransportFeedProjection | string> | null;
 }
 
 export interface LiveUpdate {
@@ -163,6 +172,26 @@ const sanitizeHeader = (input: LiveFeedHeaderInput = {}) => {
   return out;
 };
 
+async function verifyPrivilegedLivePublisher(
+  tripId: string,
+  uid: string
+): Promise<{ isMember: boolean; tripTitle?: string }> {
+  const tripSnap = await getDoc(doc(db, 'trips', tripId));
+  const tripData = tripSnap.exists() ? tripSnap.data() : null;
+  const isOwner = tripData?.ownerUid === uid || tripData?.ownerId === uid;
+  let isMember = isOwner;
+  if (!isMember) {
+    const memberDoc = await getDoc(doc(db, 'trips', tripId, 'members', uid)).catch(() => null);
+    if (memberDoc?.exists() && ['owner', 'copilota'].includes(memberDoc.data()?.role)) {
+      isMember = true;
+    }
+  }
+  return {
+    isMember,
+    tripTitle: typeof tripData?.title === 'string' ? tripData.title : undefined,
+  };
+}
+
 export const liveService = {
   /**
    * Pubblica un aggiornamento nel feed pubblico del viaggio.
@@ -177,16 +206,7 @@ export const liveService = {
     if (!tripId) throw new Error('Viaggio non configurato.');
 
     // 1. Verifica membership (difesa client; l'enforcement reale è nelle Firestore rules)
-    const tripSnap = await getDoc(doc(db, 'trips', tripId));
-    const tripData = tripSnap.exists() ? tripSnap.data() : null;
-    const isOwner = tripData?.ownerUid === user.uid || tripData?.ownerId === user.uid;
-    let isMember = isOwner;
-    if (!isMember) {
-      const memberDoc = await getDoc(doc(db, 'trips', tripId, 'members', user.uid)).catch(() => null);
-      if (memberDoc?.exists() && ['owner', 'copilota'].includes(memberDoc.data()?.role)) {
-        isMember = true;
-      }
-    }
+    const { isMember, tripTitle } = await verifyPrivilegedLivePublisher(tripId, user.uid);
     if (!isMember) {
       throw new Error('Solo i membri del viaggio possono pubblicare nel Live.');
     }
@@ -202,7 +222,7 @@ export const liveService = {
     const feedSnap = await getDoc(feedRef);
     const headerPatch: Record<string, unknown> = { ...sanitizeHeader(header), lastUpdateAt: now };
     if (!feedSnap.exists()) {
-      headerPatch.title = headerPatch.title || cleanString(tripData?.title, MAX_TITLE) || 'Il nostro viaggio';
+      headerPatch.title = headerPatch.title || cleanString(tripTitle, MAX_TITLE) || 'Il nostro viaggio';
       headerPatch.status = headerPatch.status || 'in_corso';
       headerPatch.coverPhotoUrl = headerPatch.coverPhotoUrl || '';
     }
@@ -252,6 +272,62 @@ export const liveService = {
     } else {
        await updateDoc(feedRef, { statusMessage: safeMsg, statusUpdatedAt: Date.now() });
     }
+  },
+
+  /**
+   * Proietta esclusivamente i campi pubblici sanificati dei prossimi spostamenti importanti
+   * nella testata `/live_feeds/{tripId}` (nessun PNR, prenotazione o dato privato) così il LIVE
+   * pubblico avanza automaticamente anche a PWA Owner chiusa senza mostrare voli già passati.
+   */
+  async syncNextTransportProjection(
+    tripId: string,
+    nextTransports: PublicNextTransportInfo[] | PublicNextTransportInfo | null,
+    options: { title?: string } = {}
+  ): Promise<boolean> {
+    const user = auth?.currentUser;
+    if (!user || !tripId) return false;
+    if (typeof navigator !== 'undefined' && !navigator.onLine) return false;
+
+    const { isMember, tripTitle } = await verifyPrivilegedLivePublisher(tripId, user.uid);
+    if (!isMember) return false;
+
+    const projectedList = toPublicUpcomingTransportsFeedProjection(nextTransports);
+    const projectedNext = projectedList[0] ?? null;
+    const projectedTokens = toPublicUpcomingTransportTokens(nextTransports);
+    const feedRef = doc(db, 'live_feeds', tripId);
+    const feedSnap = await getDoc(feedRef);
+
+    if (!feedSnap.exists() && projectedTokens.length === 0) {
+      return false;
+    }
+
+    if (feedSnap.exists()) {
+      const data = feedSnap.data() as LiveFeedHeader | undefined;
+      const currentSingle = (data?.nextTransport ?? null) as PublicNextTransportFeedProjection | null;
+      const currentList = (data?.upcomingTransports ?? null) as Array<PublicNextTransportFeedProjection | string> | null;
+      if (
+        serializePublicUpcomingTransportsProjection(currentList, currentSingle) ===
+        serializePublicUpcomingTransportsProjection(projectedTokens, projectedNext)
+      ) {
+        return false;
+      }
+      await setDoc(feedRef, { nextTransport: projectedNext, upcomingTransports: projectedTokens }, { merge: true });
+      return true;
+    }
+
+    await setDoc(
+      feedRef,
+      {
+        title: cleanString(options.title || tripTitle, MAX_TITLE) || 'Il nostro viaggio',
+        status: 'in_corso',
+        coverPhotoUrl: '',
+        lastUpdateAt: Date.now(),
+        nextTransport: projectedNext,
+        upcomingTransports: projectedTokens,
+      },
+      { merge: true }
+    );
+    return true;
   },
 
   getVisitorId(): string {
@@ -380,16 +456,7 @@ export const liveService = {
 
     if (db) {
       // 1. Verifica autorizzazione con supporto a ownerUid, ownerId e subcollection members
-      const tripSnap = await getDoc(doc(db, 'trips', tripId));
-      const tripData = tripSnap.exists() ? tripSnap.data() : null;
-      const isOwner = tripData?.ownerUid === user.uid || tripData?.ownerId === user.uid;
-      let isMember = isOwner;
-      if (!isMember) {
-        const memberDoc = await getDoc(doc(db, 'trips', tripId, 'members', user.uid)).catch(() => null);
-        if (memberDoc?.exists() && ['owner', 'copilota'].includes(memberDoc.data()?.role)) {
-          isMember = true;
-        }
-      }
+      const { isMember } = await verifyPrivilegedLivePublisher(tripId, user.uid);
       if (!isMember) {
         throw new Error('Solo i membri autorizzati possono eliminare gli aggiornamenti.');
       }

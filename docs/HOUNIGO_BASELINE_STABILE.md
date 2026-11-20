@@ -1,8 +1,8 @@
 # HOUNIGO — BASELINE STABILE
 
-**Aggiornato:** 19 novembre 2026  
+**Aggiornato:** 20 novembre 2026  
 **Repository:** `CASABR/honeymoon-roadbook` • **App:** `ViaggiodiNozze/`  
-**Produzione:** GitHub Pages + GitHub Actions su `main` • **Versione online:** `1.6.34` (con 8 file locali preesistenti preservati fuori commit: `useCardAutoSave.ts`, `shoppingSave.ts`, `ShoppingForm.tsx`, `ShoppingView.tsx`, `OggiView.tsx`, `push-sw.js`, `AdminNotificationsPanel.tsx`, `deploy-actions.ps1`)  
+**Produzione:** GitHub Pages + GitHub Actions su `main` • **Versione in rilascio:** `1.6.35` (8 file locali preesistenti preservati fuori commit: `useCardAutoSave.ts`, `shoppingSave.ts`, `ShoppingForm.tsx`, `ShoppingView.tsx`, `OggiView.tsx`, `push-sw.js`, `AdminNotificationsPanel.tsx`, `deploy-actions.ps1`)  
 **Firebase:** `app-viaggio-di-nozze` (produzione ufficiale, ruleset live verificato byte-for-byte con `firestore.rules`).
 
 ## Regola fondamentale
@@ -30,6 +30,7 @@ Distinguere SEMPRE **implementato**, **test automatici superati**, **pubblicato*
 | GPS LIVE (`1.6.29`) | **Pubblicato (`e37bc70`):** ripresa automatica LIVE al rientro/riapertura tramite `liveGpsContinuity.ts` + `LiveView.tsx`, rispettando Pausa/Stop manuale, consenso iOS, singolo `watchPosition` e delega Copilota (test automatici superati; verifica iPhone reale in uso). | Non alterare senza richiesta esplicita. |
 | UI Card & Swipe Oggi (`1.6.30`) | **Pubblicato v1.6.30 (`test_card_ui_invariants.cjs` 13/13):** orari delle 6 categorie in `.hounigo-ds-header-top` (`CardHeaderTimeBadge.tsx`), nessuna duplicazione accanto al titolo `<h3>`, fronte `AlloggioCard` senza inviti al check-in (`checkInDone` solo a stato attivo), swipe `OggiView` dedicato al cambio giorno. | Vincolo permanente di regressione: vietato modificare senza richiesta esplicita. |
 | Responsive iPad mini 6 (`1.6.31`–`1.6.34`) | **Pubblicato fino a `1.6.34` (`4861a3c` / `d597b90`, Playwright 4 viewport OK):** sidebar/Workspace (`1.6.31`), modali/tastiera (`1.6.32`), calendario `TUTTI`/filtri Trasporti (`1.6.33`) e LIVE 2 colonne a `1133×744` (`1.6.34`, `LiveEditorialExperience.tsx`), senza alterare iPhone `393×852` o desktop `1280×800`. | Verificare visivamente su iPad/iPhone reali; preservare layout approvati. |
+| Mini-card LIVE prossimo spostamento (`1.6.35`) | **Preparato/testato (`1.6.35` + Rules `validFeedHeader`):** `LiveNextTransportCard` + `useLiveNextTransportPublisher` + `upcomingTransports` (`<= 12` tratte sanificate in `live_feeds/{tripId}`): test Emulator (`test_p0_security_emulator.cjs` `13/13`, rollover offline Owner `PASS`) e Playwright (`test_live_next_transport.cjs` `PASS`, `test_card_ui_invariants.cjs` `13/13`, privacy bundle `0` leak). | Mai esporre PNR/prenotazioni né aprire collezioni private agli ospiti esterni. |
 | Autosalvataggio Shopping | **NO-GO tecnico confermato (escluso da `1.6.34`, rinviato post-rientro):** `SyncService.emitSyncStatus()` emette solo eventi globali viaggio mentre l'accodamento IndexedDB è asincrono; salvare manualmente (`Salva/Aggiorna Shopping`) resta prioritario. | Non pubblicare senza refactoring dedicato post-viaggio. |
 
 ## P0 Hobbiton Movie Set Tour — Risolto su dispositivo Owner (18/11/2026)
@@ -71,6 +72,8 @@ Distinguere SEMPRE **implementato**, **test automatici superati**, **pubblicato*
 7. **RINVIABILE (NO-GO pre-partenza) — Autosalvataggio Shopping (`useCardAutoSave.ts` / `shoppingSave.ts`):** restano in locale come pilota non pubblicato; salvataggio manuale invariato e prioritario fino a eventuale redesign per-mutation in `syncService.ts` dopo il rientro.
 8. **P2 — LIVE & Manutenzione (rinviabili):** mantenere protezione foto/messaggi LIVE senza accessi pubblici insicuri e riallineare post-rientro le suite statiche/test obsoleti (`test_auth_local_permissions_suite.cjs`, selettore Drive in `test_desktop_live_and_altro_ux.cjs`, `test_unified_identity_cases.cjs`, `test_release_160_rules.cjs` check 9) + warning `oxlint`.
 9. **POST-VIAGGIO OBBLIGATORIO — Revoca chiave push `f87b106d`:** al rientro eliminare la chiave `f87b106d` su `hounigo-push-reader@app-viaggio-di-nozze.iam.gserviceaccount.com` in GCP IAM, rimuovere binding/SA e azzerare `FIREBASE_SERVICE_ACCOUNT_*` su Cloudflare Worker.
+10. **P1 — Notifiche non ricevute 60 minuti prima degli eventi con orario confermato:** in coda, DA FARE (non implementare ancora).
+11. **P2 — Card attiva e auto-focus giorno corrente durante il viaggio:** evidenziare la card attiva e, all'apertura dell'app durante il viaggio, selezionare il giorno corrente e scorrere automaticamente fino ad essa; prima dell'inizio viaggio, non cambiare giorno (in coda, non implementare ancora).
 
 ## Verifiche Safe Area iPhone / Dynamic Island (18/11/2026 — v1.6.21 pubblicata)
 

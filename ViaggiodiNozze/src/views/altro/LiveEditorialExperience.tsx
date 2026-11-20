@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import type { LiveUpdate, LiveGuestMessage } from '../../services/liveService';
 import { GPS_STALE_THRESHOLD_MS, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation } from '../../services/liveGpsService';
 import type { LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
+import type { PublicNextTransportInfo } from '../../utils/liveNextTransport';
+import LiveNextTransportCard from './LiveNextTransportCard';
 import { getTripConfig } from '../../utils/tripConfig';
 import { IMAGE_FILE_ACCEPT, isSupportedImageFile } from '../../utils/fileAttachment';
 import { FEATURE_FLAGS } from '../../config/featureFlags';
@@ -54,6 +56,7 @@ export interface LiveEditorialExperienceProps {
   onTransferGps?: (uid: string, deviceId?: string) => Promise<void> | void;
   onRevokeGps?: () => Promise<void> | void;
   liveIntelligence?: LiveIntelligenceState | null;
+  nextImportantTransport?: PublicNextTransportInfo | null;
   mapCenterMode?: 'both' | 'real' | 'planned';
   onChangeMapCenterMode?: (mode: 'both' | 'real' | 'planned') => void;
   realMarkerOffset?: { dx: number; dy: number } | null;
@@ -521,6 +524,8 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           </button>
         </div>
       </header>
+
+      <LiveNextTransportCard item={props.nextImportantTransport} />
 
       {/* ───────────────────────────────────────────────────────────── */}
       {/* BANNER DESKTOP ELEGANTE (SOLO VISTA PUBBLICA OSPITI, SOLO DESKTOP) */}
