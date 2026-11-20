@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.6.37 — 2026-11-20
+
+- Note Copilota indipendenti per ciascun giorno del viaggio.
+- LIVE riordinata con mappa in evidenza e diario più leggibile.
+
 ## 1.6.7 — 2026-11-17
 
 - Apertura immediata del form di modifica al clic sulle card per ruoli autorizzati
