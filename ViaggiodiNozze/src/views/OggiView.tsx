@@ -48,6 +48,7 @@ import { getLocalIsoDate } from '../utils/reliableTimeZone';
 import { getEffectiveDeadlineStatus, isDeadlineReminderActive } from '../utils/deadlines';
 import TimePickerInput from '../components/common/TimePickerInput';
 import { lookupKnownCoordinate } from '../utils/geoCoordinatesHelper';
+import { buildDailyCopilotSavePayload, resolveDailyCopilotNoteForDate } from '../utils/dailyCopilot';
 
 
 interface OggiViewProps {
@@ -106,14 +107,22 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [copilotPopoverActivity, setCopilotPopoverActivity] = useState<Attivita | null>(null);
   const [copilotPopoverText, setCopilotPopoverText] = useState('');
   const [isSavingCopilotNote, setIsSavingCopilotNote] = useState(false);
-  const [isGlobalCopilotOpen, setIsGlobalCopilotOpen] = useState(false);
-  const [globalCopilotNoteStr, setGlobalCopilotNoteStr] = useState('');
-  const [globalCopilotNoteId, setGlobalCopilotNoteId] = useState<string | null>(null);
+  const [isDailyCopilotOpen, setIsDailyCopilotOpen] = useState(false);
+  const [dailyCopilotState, setDailyCopilotState] = useState<{ date: string; id: string | null; text: string }>({
+    date: '',
+    id: null,
+    text: ''
+  });
 
   const [tripDays, setTripDays] = useState<TripDayItem[]>(() => generateTripDays());
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return getDefaultSelectedDate(tripConfig?.startDate, tripConfig?.endDate, tripConfig?.id);
   });
+  const selectedDateRef = useRef(selectedDate);
+  selectedDateRef.current = selectedDate;
+  const dailyCopilotReqSeqRef = useRef(0);
+  const dailyCopilotNoteStr = dailyCopilotState.date === selectedDate ? dailyCopilotState.text : '';
+  const hasDailyCopilotNote = dailyCopilotNoteStr.trim().length > 0;
   const [tripDateBounds, setTripDateBounds] = useState<{ startDate: string; endDate: string }>(() => {
     const todayStr = getLocalIsoDate();
     const startDate = tripConfig?.startDate || (isMasterTrip ? TRIP_START_DATE : todayStr);
@@ -486,23 +495,28 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     }
   }, [selectedDate]);
 
-  const fetchGlobalCopilotNote = useCallback(async () => {
+  const fetchDailyCopilotNote = useCallback(async (dateOverride?: string) => {
+    const targetDate = (dateOverride ?? selectedDateRef.current).trim();
+    const requestSeq = ++dailyCopilotReqSeqRef.current;
     try {
       const allNotes = await storageService.getNote();
-      const targetId = 'copilota_' + selectedDate;
-      const dailyNote = allNotes.find(n => n.id === targetId || ((n as any).date === selectedDate && n.title === 'Note Copilota di Giornata'));
-      if (dailyNote) {
-        setGlobalCopilotNoteId(dailyNote.id);
-        setGlobalCopilotNoteStr(dailyNote.content || '');
-      } else {
-        setGlobalCopilotNoteId(null);
-        setGlobalCopilotNoteStr('');
+      if (requestSeq !== dailyCopilotReqSeqRef.current || selectedDateRef.current !== targetDate) {
+        return;
       }
-    } catch (err) {}
-  }, [selectedDate]);
+      const resolved = resolveDailyCopilotNoteForDate(allNotes, targetDate);
+      setDailyCopilotState({
+        date: resolved.date,
+        id: resolved.noteId,
+        text: resolved.text
+      });
+    } catch {
+      if (requestSeq === dailyCopilotReqSeqRef.current && selectedDateRef.current === targetDate) {
+        setDailyCopilotState({ date: targetDate, id: null, text: '' });
+      }
+    }
+  }, []);
 
   const loadData = useCallback(async (isInitial = false) => {
-    fetchGlobalCopilotNote();
     try {
       if (isInitial && daysData.length === 0) {
         setLoading(true);
@@ -656,6 +670,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     fetchTimeline();
   }, [fetchTimeline]);
 
+  useEffect(() => {
+    void fetchDailyCopilotNote(selectedDate);
+  }, [selectedDate, fetchDailyCopilotNote]);
+
   const tripDaysSignature = useMemo(
     () => tripDays.map(d => d.dateStr).join('|'),
     [tripDays]
@@ -690,6 +708,9 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       } else {
         fetchTimeline();
       }
+      if (!customEvt.detail?.entityType || customEvt.detail.entityType === 'note') {
+        void fetchDailyCopilotNote(selectedDateRef.current);
+      }
       loadData(false);
     };
 
@@ -700,6 +721,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
     const handleCloudSynced = () => {
       fetchTimeline();
+      void fetchDailyCopilotNote(selectedDateRef.current);
       loadData(false);
     };
 
@@ -711,7 +733,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       window.removeEventListener('activity_updated', handleActivityUpdated);
       window.removeEventListener('roadbook_cloud_synced', handleCloudSynced);
     };
-  }, [fetchTimeline, loadData]);
+  }, [fetchTimeline, fetchDailyCopilotNote, loadData]);
 
   const handleDuplicateItem = (item: TimelineItem) => {
     setDetailItem(null);
@@ -1090,7 +1112,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const hasOpenDayOverlay = () => Boolean(
     isHeroEditOpen ||
     copilotPopoverActivity ||
-    isGlobalCopilotOpen ||
+    isDailyCopilotOpen ||
     isQuickExpenseOpen ||
     detailItem ||
     editingActivityItem ||
@@ -1804,18 +1826,27 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setIsGlobalCopilotOpen(true)}
-              title={globalCopilotNoteStr ? "Note Copilota di giornata presenti" : "Aggiungi note copilota di giornata"}
+              onClick={() => setIsDailyCopilotOpen(true)}
+              title={
+                hasDailyCopilotNote
+                  ? `Note Copilota di giornata (${formatDateHuman(selectedDate)}) presenti`
+                  : canEdit
+                  ? `Aggiungi note copilota per ${formatDateHuman(selectedDate)}`
+                  : `Nessuna nota copilota per ${formatDateHuman(selectedDate)}`
+              }
               className={`relative w-8 h-8 flex items-center justify-center rounded-full transition-colors border cursor-pointer active:scale-95 shadow-xs ${
-                globalCopilotNoteStr
+                hasDailyCopilotNote
                   ? 'bg-purple-100 hover:bg-purple-200 dark:bg-purple-900/40 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border-purple-300 dark:border-purple-700'
                   : 'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700'
               }`}
               aria-label="Note Copilota di giornata"
             >
               <span className="text-sm select-none" aria-hidden="true">📝</span>
-              {globalCopilotNoteStr && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-purple-500 rounded-full ring-2 ring-white dark:ring-slate-900" />
+              {hasDailyCopilotNote && (
+                <span
+                  data-testid="daily-copilot-active-dot"
+                  className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-purple-500 rounded-full ring-2 ring-white dark:ring-slate-900"
+                />
               )}
             </button>
 
@@ -3054,46 +3085,38 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         document.body
       )}
 
-      {/* Modal Copilota Globale della giornata */}
+      {/* Modal Copilota Giornaliero (vincolato alla singola data selezionata) */}
       <UniversalCopilotaModal
-        isOpen={isGlobalCopilotOpen}
-        onClose={() => setIsGlobalCopilotOpen(false)}
+        key={`daily-copilot-${selectedDate}`}
+        isOpen={isDailyCopilotOpen}
+        onClose={() => setIsDailyCopilotOpen(false)}
         title={`Giornata del ${selectedDate}`}
-        noteCopilota={globalCopilotNoteStr}
+        noteCopilota={dailyCopilotNoteStr}
         canEdit={canEdit}
         onSave={async (notes) => {
+          const saveDate = selectedDate;
           try {
-            const noteId = globalCopilotNoteId || ('copilota_' + selectedDate);
             const allNotes = await storageService.getNote();
-            const existing = allNotes.find(n => n.id === noteId || ((n as any).date === selectedDate && n.title === 'Note Copilota di Giornata'));
-            if (existing) {
-              await storageService.saveNota({
-                ...existing,
-                id: noteId,
-                title: 'Note Copilota di Giornata',
-                content: notes.trim(),
-                date: selectedDate,
-                recordKind: 'nota',
-                updatedAt: Date.now()
-              } as any);
-            } else {
-              await storageService.saveNota({
-                id: noteId,
-                title: 'Note Copilota di Giornata',
-                content: notes.trim(),
-                date: selectedDate,
-                type: 'info',
-                recordKind: 'nota',
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-              } as any);
+            const result = buildDailyCopilotSavePayload({
+              selectedDate: saveDate,
+              notesText: notes,
+              existingNotes: allNotes
+            });
+            if (result.action === 'save') {
+              await storageService.saveNota(result.payload);
             }
-            setGlobalCopilotNoteId(noteId);
-            setGlobalCopilotNoteStr(notes.trim());
-            await fetchGlobalCopilotNote();
-            setIsGlobalCopilotOpen(false);
+            if (selectedDateRef.current === saveDate) {
+              const savedText = result.action === 'save' ? result.payload.content : '';
+              setDailyCopilotState({
+                date: saveDate,
+                id: result.action === 'save' ? result.noteId : null,
+                text: savedText
+              });
+              await fetchDailyCopilotNote(saveDate);
+            }
+            setIsDailyCopilotOpen(false);
           } catch (err) {
-            console.error('Errore salvataggio nota copilota globale', err);
+            console.error('Errore salvataggio nota copilota di giornata', err);
           }
         }}
       />

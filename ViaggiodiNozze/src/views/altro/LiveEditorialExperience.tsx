@@ -475,12 +475,12 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   const visiblePhotos = showAllPhotos ? displayPhotos : displayPhotos.slice(0, 5);
 
   const renderUpdateCard = (update: LiveUpdate) => (
-    <article key={update.id} className="border-b border-slate-200 py-3.5 last:border-0 dark:border-slate-800">
+    <article key={update.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-2xs dark:border-slate-800 dark:bg-slate-900/70 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <time className="text-[11px] font-semibold text-slate-400">{formatUpdateDate(update.timestamp)}</time>
+          <time className="text-xs font-medium text-slate-500 dark:text-slate-400">{formatUpdateDate(update.timestamp)}</time>
           <h3 className="mt-0.5 text-base font-extrabold leading-snug text-[#172033] dark:text-white">{update.title}</h3>
-          {update.locationName && <p className="mt-0.5 truncate text-xs font-semibold text-[#FF6B5F]">⌖ {update.locationName}</p>}
+          {update.locationName && <p className="mt-1 break-words text-xs font-semibold text-[#C83E31] dark:text-[#FF8C82]">⌖ {update.locationName}</p>}
         </div>
         {props.canPublish && !props.isExternal && props.onDeleteUpdate && (
           <button
@@ -493,7 +493,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           </button>
         )}
       </div>
-      {update.text && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700 dark:text-slate-200">{update.text}</p>}
+      {update.text && <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700 dark:text-slate-200">{update.text}</p>}
       {update.photoUrl && (
         <button
           type="button"
@@ -503,10 +503,10 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           }}
           className="mt-2.5 block w-full overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-900"
         >
-          <img src={update.photoUrl} alt={update.title} className="max-h-[420px] w-full object-contain" loading="lazy" />
+          <img src={update.photoUrl} alt={update.title} className="max-h-[420px] min-h-32 w-full object-contain" loading="lazy" />
         </button>
       )}
-      <div className="mt-2.5 flex flex-wrap gap-2" aria-label="Reazioni">
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3 dark:border-slate-800" aria-label="Reazioni">
         {REACTIONS.map(emoji => {
           const selected = props.reactions[update.id] === emoji;
           const count = update.reactionCounts?.[emoji] || 0;
@@ -516,7 +516,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
               type="button"
               disabled={!isOnline}
               onClick={() => props.onReaction(update.id, emoji)}
-              className={`min-h-10 rounded-full border px-3 text-sm transition motion-reduce:transition-none disabled:opacity-40 ${selected ? 'border-[#FF6B5F] bg-[#FFF0ED] text-[#172033]' : 'border-slate-200 bg-transparent text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}
+              className={`min-h-11 min-w-11 rounded-full border px-3 text-sm transition motion-reduce:transition-none disabled:opacity-40 ${selected ? 'border-[#FF6B5F] bg-[#FFF0ED] text-[#172033]' : 'border-slate-200 bg-transparent text-slate-600 dark:border-slate-700 dark:text-slate-300'}`}
               aria-pressed={selected}
               aria-label={`Reazione ${emoji}${count ? `, ${count}` : ''}`}
             >
@@ -529,180 +529,43 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   );
 
   return (
-    <div className="hounigo-live-entry mx-auto w-full max-w-5xl lg:max-w-7xl overflow-x-hidden px-3 pb-[calc(4.5rem+env(safe-area-inset-bottom))] text-slate-900 dark:text-slate-100 sm:px-6">
-      <header className="border-b border-slate-200 pb-2.5 dark:border-slate-800 sm:pb-3">
-        <div className="flex items-start justify-between gap-3">
+    <div className="hounigo-live-entry mx-auto w-full max-w-5xl lg:max-w-7xl overflow-x-hidden px-3 pb-6 sm:pb-8 text-slate-900 dark:text-slate-100 sm:px-6">
+      {/* A. INTESTAZIONE ESSENZIALE + ORARI ITALIA / LOCALE */}
+      <header
+        data-testid="live-section-header"
+        className="border-b border-slate-200 pb-3 dark:border-slate-800"
+      >
+        <div className="flex items-start justify-between gap-2.5">
           <div className="flex min-w-0 items-start gap-2.5">
             {!props.isExternal && props.onBack && (
-              <button type="button" onClick={props.onBack} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg dark:bg-slate-800" aria-label="Torna ad Altro">←</button>
+              <button type="button" onClick={props.onBack} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-lg dark:bg-slate-800 cursor-pointer" aria-label="Torna ad Altro">←</button>
             )}
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="text-xs font-black tracking-[0.18em] text-[#FF6B5F]">LIVE</span>
                 <span className={`inline-flex items-center gap-1.5 text-xs font-bold ${gpsVisualState.tone}`}>
                   <span className={`h-2 w-2 rounded-full ${gpsVisualState.dot}`} />
                   {gpsVisualState.label}
                 </span>
               </div>
-              <h1 className="mt-0.5 truncate text-xl font-black tracking-tight text-[#172033] dark:text-white sm:text-2xl">{tripTitle}</h1>
-              <p className="text-xs text-slate-500">Il viaggio, mentre accade.</p>
+              <h1 className="mt-1 break-words text-xl font-black leading-tight tracking-tight text-[#172033] dark:text-white sm:text-2xl">{tripTitle}</h1>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">Il viaggio, mentre accade.</p>
             </div>
           </div>
-          <button type="button" onClick={props.onShare} className="min-h-10 shrink-0 rounded-full bg-[#172033] px-3.5 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">
+          <button type="button" onClick={props.onShare} className="min-h-10 shrink-0 rounded-full bg-[#172033] px-3.5 text-xs font-bold text-white dark:bg-white dark:text-[#172033] cursor-pointer">
             {props.copiedLink ? 'Copiato ✓' : 'Condividi'}
           </button>
-        </div>
-      </header>
-
-      <LiveNextTransportCard item={props.nextImportantTransport} items={props.upcomingTransports} />
-
-      {/* ───────────────────────────────────────────────────────────── */}
-      {/* BANNER DESKTOP ELEGANTE (SOLO VISTA PUBBLICA OSPITI, SOLO DESKTOP) */}
-      {/* Su smartphone e tablet: hidden, zero spazio */}
-      {/* ───────────────────────────────────────────────────────────── */}
-      {props.isExternal && (
-        <div data-testid="desktop-live-banner" className="hidden lg:block mt-3 mb-1 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#172033] p-4 shadow-xs relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-[#FF6B5F]/10 via-[#FFF0ED]/40 to-transparent dark:from-[#FF6B5F]/10 dark:via-transparent rounded-full blur-3xl pointer-events-none -mr-20 -mt-20" />
-          
-          <div className="relative z-10">
-            <div className="flex items-start justify-between gap-6">
-              <div className="min-w-0 max-w-2xl">
-                <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 text-[#FF6B5F] text-[11px] font-black uppercase tracking-widest mb-1.5">
-                  <span className="w-2 h-2 rounded-full bg-[#FF6B5F] animate-ping" />
-                  Segui il viaggio in diretta
-                </div>
-                <h2 className="text-xl xl:text-2xl font-black text-[#172033] dark:text-white tracking-tight">
-                  {tripTitle}
-                </h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
-                  Tappe, posizione e ricordi del viaggio in tempo reale.
-                </p>
-              </div>
-
-              {/* Statistiche rapide del Live */}
-              <div className="flex items-center gap-2.5 shrink-0">
-                <div className="px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700 text-center min-w-[74px]">
-                  <p className="text-lg font-black text-[#172033] dark:text-white">{sortedUpdates.length}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ricordi</p>
-                </div>
-                <div className="px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700 text-center min-w-[74px]">
-                  <p className="text-lg font-black text-[#172033] dark:text-white">{displayPhotos.length}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Foto</p>
-                </div>
-                <div className="px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700 text-center min-w-[74px]">
-                  <p className="text-lg font-black text-[#172033] dark:text-white">{reactionTotal}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Reazioni</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Tre schede con distinzione chiara fra i 3 stati */}
-            <div className="grid grid-cols-3 gap-3 mt-3.5 pt-3.5 border-t border-slate-100 dark:border-slate-800/80">
-              {/* 1. Posizione Attuale */}
-              <div className="rounded-2xl p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className={`w-2 h-2 rounded-full ${hasRealLocation && !isStaleGps ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
-                      Posizione Attuale
-                    </p>
-                  </div>
-                  <p className="text-sm font-extrabold text-[#172033] dark:text-white truncate">
-                    {hasRealLocation && !isStaleGps
-                      ? (props.remoteGpsLocation?.city || 'In diretta')
-                      : 'Non attiva'}
-                  </p>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  {hasRealLocation && !isStaleGps && positionAgeLabel ? positionAgeLabel : 'Posizione non in diretta'}
-                </p>
-              </div>
-
-              {/* 2. Ultima Posizione Nota */}
-              <div className="rounded-2xl p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
-                      Ultima Posizione Nota
-                    </p>
-                  </div>
-                  <p className="text-sm font-extrabold text-[#172033] dark:text-white truncate">
-                    {hasRealLocation
-                      ? (props.remoteGpsLocation?.city || 'Posizione salvata')
-                      : 'Nessun segnale'}
-                  </p>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  {hasRealLocation && lastDetectedDate
-                    ? (positionAgeLabel || formatLastDetectedTimestamp(lastDetectedDate))
-                    : 'Nessun rilevamento recente'}
-                </p>
-              </div>
-
-              {/* 3. Itinerario Previsto */}
-              <div className="rounded-2xl p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center gap-1.5 mb-0.5">
-                    <span className="w-2 h-2 rounded-full bg-sky-500" />
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
-                      Itinerario Previsto
-                    </p>
-                  </div>
-                  <p className="text-sm font-extrabold text-[#172033] dark:text-white truncate">
-                    {plannedLocation?.title || 'Da itinerario'}
-                  </p>
-                </div>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  {plannedLocation?.coords ? 'Da programma' : 'Da itinerario'}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <nav className="sticky app-sticky-subheader z-20 -mx-3 grid grid-cols-3 border-b border-slate-200 bg-[#F8F7F3]/95 px-3 py-1.5 backdrop-blur dark:border-slate-800 dark:bg-[#172033]/95 sm:-mx-6 sm:px-6" aria-label="Sezioni LIVE">
-        <a href="#live-position" className="min-h-9 rounded-full px-2 py-1.5 text-center text-xs font-bold hover:bg-white dark:hover:bg-slate-800">Posizione</a>
-        <a href="#live-diary" className="min-h-9 rounded-full px-2 py-1.5 text-center text-xs font-bold hover:bg-white dark:hover:bg-slate-800">Diario</a>
-        <a href="#live-interactions" className="min-h-9 rounded-full px-2 py-1.5 text-center text-xs font-bold hover:bg-white dark:hover:bg-slate-800">Interazioni</a>
-      </nav>
-
-      {!isOnline && (
-        <div className="mt-2.5 flex items-center gap-2 border-l-2 border-amber-500 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/30 dark:text-amber-200" role="status">
-          <span>Offline.</span><span>Diario disponibile; LIVE in pausa.</span>
-        </div>
-      )}
-
-      {/* Wrapper panoramico Desktop (2 colonne affiancate su lg:, flusso verticale su mobile/tablet) */}
-      <div className="lg:grid lg:grid-cols-12 lg:gap-5 xl:gap-8 lg:items-start mt-1.5">
-        {/* Colonna Sinistra Desktop: Mappa in evidenza & Info Posizione */}
-        <div className="lg:col-span-7 min-w-0 space-y-4 lg:sticky lg:top-14">
-          <section id="live-position" aria-labelledby="live-position-title" className="scroll-mt-16 py-3 lg:py-1.5">
-        <div className="mb-2.5 flex items-end justify-between gap-2">
-          <div>
-            <p className="text-xs font-bold text-[#FF6B5F]">Posizione</p>
-            <h2 id="live-position-title" className="text-xl sm:text-2xl font-black tracking-tight text-[#172033] dark:text-white">Dove siamo</h2>
-          </div>
-          {positionAgeLabel && lastDetectedDate && (
-            <time
-              data-testid="live-gps-updated-ago"
-              className="text-right text-[11px] font-semibold text-slate-500 dark:text-slate-400"
-            >
-              {positionAgeLabel}
-            </time>
-          )}
         </div>
 
         {/* Orari compatti: Ora locale viaggio + Ora italiana con indicatore giorno/notte e cambio data */}
         <div
           data-testid="live-dual-clock"
-          className="mb-2.5 grid grid-cols-2 gap-2"
+          className="mt-3 grid grid-cols-2 gap-2 sm:max-w-lg"
           aria-label="Orario locale del viaggio e orario italiano"
         >
           <div
             data-testid="live-clock-travel"
-            className="min-w-0 rounded-2xl border border-slate-200/80 bg-white px-3 py-2 shadow-2xs dark:border-slate-800 dark:bg-slate-900/70"
+            className="min-w-0 rounded-2xl border border-slate-200/80 bg-white px-2.5 py-1.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/70 sm:px-3 sm:py-2"
           >
             <div className="flex items-center justify-between gap-1.5">
               <span className="truncate text-[11px] font-bold text-slate-500 dark:text-slate-400">
@@ -723,13 +586,13 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
               <>
                 <p
                   data-testid="live-clock-travel-time"
-                  className="mt-0.5 font-mono text-xl font-black tracking-tight text-[#172033] tabular-nums dark:text-white sm:text-2xl"
+                  className="mt-0.5 font-mono text-lg font-black tracking-tight text-[#172033] tabular-nums dark:text-white sm:text-xl"
                 >
                   {dualClock.travel.timeStr}
                 </p>
                 <p
                   data-testid="live-clock-travel-date"
-                  className="mt-0.5 truncate text-[11px] font-medium text-slate-500 dark:text-slate-400"
+                  className="truncate text-[11px] font-medium text-slate-500 dark:text-slate-400"
                 >
                   <span className="capitalize">{dualClock.travel.dateStr}</span>
                   {dualClock.offsetLabel && dualClock.offsetLabel !== '0h' ? (
@@ -751,7 +614,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
           <div
             data-testid="live-clock-italy"
-            className="min-w-0 rounded-2xl border border-slate-200/80 bg-white px-3 py-2 shadow-2xs dark:border-slate-800 dark:bg-slate-900/70"
+            className="min-w-0 rounded-2xl border border-slate-200/80 bg-white px-2.5 py-1.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/70 sm:px-3 sm:py-2"
           >
             <div className="flex items-center justify-between gap-1.5">
               <span className="truncate text-[11px] font-bold text-slate-500 dark:text-slate-400">
@@ -768,20 +631,60 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             </div>
             <p
               data-testid="live-clock-italy-time"
-              className="mt-0.5 font-mono text-xl font-black tracking-tight text-[#172033] tabular-nums dark:text-white sm:text-2xl"
+              className="mt-0.5 font-mono text-lg font-black tracking-tight text-[#172033] tabular-nums dark:text-white sm:text-xl"
             >
               {dualClock.italy.timeStr}
             </p>
             <p
               data-testid="live-clock-italy-date"
-              className="mt-0.5 truncate text-[11px] font-medium capitalize text-slate-500 dark:text-slate-400"
+              className="truncate text-[11px] font-medium capitalize text-slate-500 dark:text-slate-400"
             >
               {dualClock.italy.dateStr}
             </p>
           </div>
         </div>
+      </header>
 
-        <div className="relative min-h-[260px] overflow-hidden rounded-[1.75rem] bg-slate-200 dark:bg-slate-900 sm:min-h-[330px]">
+      {/* B. MINI-CARD PROSSIMO TRASPORTO CON FRECCE */}
+      <LiveNextTransportCard item={props.nextImportantTransport} items={props.upcomingTransports} />
+
+      {/* Navigazione rapida sezioni nel flusso naturale (non sticky per non coprire mai i contenuti) */}
+      <nav
+        className="mt-2.5 grid grid-cols-3 gap-1 border-b border-slate-200 pb-2 dark:border-slate-800"
+        aria-label="Sezioni LIVE"
+      >
+        <a href="#live-position" className="min-h-9 rounded-xl px-2 py-1.5 text-center text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">Posizione</a>
+        <a href="#live-diary" className="min-h-9 rounded-xl px-2 py-1.5 text-center text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">Diario</a>
+        <a href="#live-interactions" className="min-h-9 rounded-xl px-2 py-1.5 text-center text-xs font-bold text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800">Interazioni</a>
+      </nav>
+
+      {!isOnline && (
+        <div className="mt-2.5 flex items-center gap-2 border-l-2 border-amber-500 bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900 dark:bg-amber-950/30 dark:text-amber-200" role="status">
+          <span>Offline.</span><span>Diario disponibile; LIVE in pausa.</span>
+        </div>
+      )}
+
+      {/* C + D: Griglia 2 colonne su Desktop / iPad mini landscape (lg:), flusso verticale C -> D su mobile e tablet */}
+      <div className="mt-3 lg:grid lg:grid-cols-12 lg:gap-6 xl:gap-8 lg:items-start">
+        {/* C. MAPPA LIVE + ULTIMA POSIZIONE GPS RILEVATA */}
+        <div className="lg:col-span-7 min-w-0">
+          <section id="live-position" data-testid="live-section-position" aria-labelledby="live-position-title" className="scroll-mt-20 md:scroll-mt-4">
+        <div className="mb-2 flex items-end justify-between gap-2">
+          <div>
+            <p className="text-xs font-bold text-[#FF6B5F]">Posizione</p>
+            <h2 id="live-position-title" className="text-xl sm:text-2xl font-black tracking-tight text-[#172033] dark:text-white">Dove siamo</h2>
+          </div>
+          {positionAgeLabel && lastDetectedDate && (
+            <time
+              data-testid="live-gps-updated-ago"
+              className="text-right text-[11px] font-semibold text-slate-500 dark:text-slate-400"
+            >
+              {positionAgeLabel}
+            </time>
+          )}
+        </div>
+
+        <div className="relative min-h-[340px] overflow-hidden rounded-3xl border border-slate-200 bg-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:min-h-[440px] lg:min-h-[480px]">
           {!props.isExternal && (hasRealLocation || hasPlannedLocation) && (
             <div className="absolute left-3 right-3 top-3 z-20 grid grid-cols-3 gap-1 rounded-full bg-[#172033]/90 p-1 text-[10px] font-bold text-white backdrop-blur" role="group" aria-label="Centra mappa">
               {(['both', 'real', 'planned'] as const).map(mode => (
@@ -888,7 +791,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           </div>
         </div>
 
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2.5">
+        <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2.5">
           <div className={`border-l-3 pl-3 py-0.5 rounded-r-xl transition ${isFreshGps ? 'border-[#FF6B5F] bg-[#FFF0ED]/20 dark:bg-slate-900/40' : isStaleGps ? 'border-amber-500 bg-amber-50/20 dark:bg-amber-950/10' : 'border-slate-300 dark:border-slate-700'}`}>
             <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               {isFreshGps ? 'Posizione attuale (GPS Live)' : isStaleGps ? 'Ultima posizione conosciuta' : 'Posizione reale'}
@@ -913,139 +816,12 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             <p className="mt-0.5 text-xs text-slate-500">{plannedLocation?.coords ? 'Da itinerario · fuso locale' : 'Nessuna coordinata'}</p>
           </div>
         </div>
-
-        {!props.isExternal && props.liveIntelligence && (
-          <div className="mt-3 grid gap-2.5 border-y border-slate-200 py-2.5 dark:border-slate-800 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-            <div>
-              <p className="text-[11px] font-bold text-[#FF6B5F]">Adesso</p>
-              <p className="mt-0.5 text-sm font-extrabold">{props.liveIntelligence.currentEvent?.title || (props.liveIntelligence.tripStatus === 'pre_trip' ? 'In attesa della partenza' : props.liveIntelligence.tripStatus === 'post_trip' ? 'Viaggio concluso' : 'Tempo libero')}</p>
-              {props.liveIntelligence.currentEvent?.timeRange && <p className="mt-0.5 text-xs text-slate-500">{props.liveIntelligence.currentEvent.timeRange}</p>}
-            </div>
-            <div>
-              <p className="text-[11px] font-bold text-slate-400">Prossima tappa</p>
-              <p className="mt-0.5 text-sm font-extrabold">{props.liveIntelligence.nextEvent?.title || 'Nessun altro appuntamento'}</p>
-              {props.liveIntelligence.nextEvent && <p className="mt-0.5 text-xs text-slate-500">{props.liveIntelligence.nextEvent.time}{props.liveIntelligence.nextEvent.locationName ? ` · ${props.liveIntelligence.nextEvent.locationName}` : ''}</p>}
-            </div>
-          </div>
-        )}
-
-        {!props.isExternal && (props.isOwner || props.isCopilota) && (
-          <div className="mt-3.5 border-b border-slate-200 pb-3.5 dark:border-slate-800">
-            <div className="flex flex-wrap items-center justify-between gap-2.5">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">
-                  Guida GPS
-                </p>
-                <p className={`flex items-center gap-2 text-sm font-extrabold ${gpsVisualState.tone}`}>
-                  <span className={`h-2 w-2 rounded-full ${gpsVisualState.dot}`} />
-                  {isLeaseActive ? `Ora ${currentGuideName} condivide la posizione` : gpsVisualState.label}
-                </p>
-                <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
-                  Organizzatore: <strong>{props.ownerName || 'Organizzatore'}</strong> · Guida: <strong>{currentGuideName}</strong>
-                </p>
-                {lastDetectedDate && (
-                  <p className="mt-0.5 text-[11px] text-slate-500">
-                    {formatGpsPositionAge(lastDetectedDate, effectiveNowMs)} · {formatLastDetectedTimestamp(lastDetectedDate)}
-                    {isStaleGps ? ' · ⚠️ Oltre 15 min' : ''}
-                  </p>
-                )}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(props.isOwner || props.isDesignatedGuide) && (
-                  <button type="button" onClick={props.onStartGps} disabled={props.isDetectingGps || !isOnline} className="min-h-10 rounded-full bg-[#FF6B5F] px-3.5 text-xs font-bold text-white disabled:opacity-40 cursor-pointer">
-                    {permissionDenied || isLeaseExpired || isLeaseActive ? 'Aggiorna GPS' : 'Condividi GPS'}
-                  </button>
-                )}
-                {isLeaseActive && (props.isGpsHolder || props.isDesignatedGuide) && (
-                  <>
-                    <button type="button" onClick={props.onPauseGps} disabled={!isOnline} className="min-h-10 rounded-full border border-amber-300 px-3.5 text-xs font-bold text-amber-800 dark:border-amber-800 dark:text-amber-200 cursor-pointer">Pausa</button>
-                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-10 rounded-full border border-rose-300 px-3.5 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300 cursor-pointer">Ferma</button>
-                  </>
-                )}
-                {isLeaseActive && props.isOwner && !props.isGpsHolder && !props.isDesignatedGuide && (
-                  <>
-                    <button type="button" onClick={props.onRevokeGps} disabled={!isOnline} className="min-h-10 rounded-full bg-[#172033] px-3.5 text-xs font-bold text-white dark:bg-white dark:text-[#172033] cursor-pointer">Riprendi guida</button>
-                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-10 rounded-full border border-rose-300 px-3.5 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300 cursor-pointer">Ferma</button>
-                  </>
-                )}
-                {isLeasePaused && (props.isOwner || props.isDesignatedGuide) && (
-                  <>
-                    <button type="button" onClick={props.onResumeGps} disabled={!isOnline} className="min-h-10 rounded-full bg-[#FF6B5F] px-3.5 text-xs font-bold text-white cursor-pointer">Riprendi GPS</button>
-                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-10 rounded-full border border-rose-300 px-3.5 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300 cursor-pointer">Interrompi</button>
-                  </>
-                )}
-              </div>
-            </div>
-            {props.gpsFeedback && <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300" role="status">✓ {props.gpsFeedback}</p>}
-            {props.gpsError && <p className="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-300" role="alert">{props.gpsError}</p>}
-            <p className="mt-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-              ℹ️ Su iPhone/PWA il GPS si aggiorna ad app aperta.
-            </p>
-            <button type="button" onClick={() => setIsGuideControlsOpen(open => !open)} className="mt-2 min-h-9 text-xs font-bold text-slate-600 underline underline-offset-4 dark:text-slate-300 cursor-pointer" aria-expanded={isGuideControlsOpen}>Delega guida GPS {isGuideControlsOpen ? '−' : '+'}</button>
-
-            {isGuideControlsOpen && (
-              <div className="mt-2 space-y-2.5 rounded-2xl bg-white p-3 dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800">
-                <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
-                  Trasmette un dispositivo alla volta. L&apos;<strong>Organizzatore ({props.ownerName || 'Owner'})</strong> può passare o riprendere la guida.
-                </p>
-                {props.isOwner && (
-                  <div className="space-y-2">
-                    {props.remoteGpsLease?.holderUid && props.remoteGpsLease.holderUid !== props.ownerUid && (
-                      <button type="button" disabled={isHandoverLoading || !isOnline} onClick={() => props.onRevokeGps && runHandover(props.onRevokeGps, 'Guida GPS riportata all’Organizzatore.')} className="min-h-10 rounded-full border border-slate-300 px-3.5 text-xs font-bold dark:border-slate-700 cursor-pointer">Riprendi la guida</button>
-                    )}
-                    {copilots.map(copilot => {
-                      const isCurrent = props.remoteGpsLease?.holderUid === copilot.uid;
-                      return (
-                        <div key={copilot.uid} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2 dark:border-slate-800">
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-bold">{copilot.name}</p>
-                            <p className="text-[11px] text-slate-500">
-                              {isCurrent ? '🟢 Guida attiva' : copilot.deviceId ? 'Dispositivo registrato' : 'Copilota verificato'}
-                            </p>
-                          </div>
-                          {!isCurrent && (
-                            <button
-                              type="button"
-                              disabled={isHandoverLoading || !isOnline}
-                              onClick={() => props.onTransferGps && runHandover(() => props.onTransferGps?.(copilot.uid, copilot.deviceId), `Ora ${copilot.name} condivide la posizione.`)}
-                              aria-label={`Delega Guida GPS a ${copilot.name}`}
-                              title="Delega Guida GPS"
-                              className="min-h-9 shrink-0 rounded-full bg-[#172033] px-3 text-[11px] font-bold text-white disabled:opacity-35 dark:bg-white dark:text-[#172033] cursor-pointer"
-                            >
-                              Passa a {copilot.name}
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {!copilots.length && <p className="text-xs text-slate-500">Nessun copilota disponibile.</p>}
-                  </div>
-                )}
-                {props.isCopilota && (
-                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                    {props.isDesignatedGuide
-                      ? '🟢 Hai la guida GPS attiva su questo telefono.'
-                      : 'L’Organizzatore può delegarti la guida GPS.'}
-                  </p>
-                )}
-                {handoverFeedback && <p className="text-xs font-semibold text-slate-700 dark:text-slate-200" role="status">{handoverFeedback}</p>}
-              </div>
-            )}
-          </div>
-        )}
-
-        {props.isExternal && (
-          <details className="mt-2.5 border-b border-slate-200 pb-2.5 text-xs dark:border-slate-800">
-            <summary className="min-h-9 cursor-pointer py-1.5 font-bold">Privacy posizione</summary>
-            <p className="leading-5 text-slate-500">Vedi solo la posizione condivisa dai viaggiatori; quando termina, il marker scompare.</p>
-          </details>
-        )}
       </section>
     </div>
 
-    {/* Colonna Destra Desktop: Diario, Fotografie, Interazioni */}
-    <div className="lg:col-span-5 min-w-0 space-y-5">
-      <section id="live-diary" aria-labelledby="live-diary-title" className="scroll-mt-16 border-t border-slate-200 py-4 dark:border-slate-800 lg:border-t-0 lg:py-1.5">
+    {/* D. DIARIO DI VIAGGIO E INTERAZIONI DEGLI OSPITI */}
+    <div data-testid="live-section-diary-interactions" className="lg:col-span-5 min-w-0 space-y-5 mt-5 lg:mt-0">
+      <section id="live-diary" aria-labelledby="live-diary-title" className="scroll-mt-20 md:scroll-mt-4 border-t border-slate-200 pt-4 dark:border-slate-800 lg:border-t-0 lg:pt-0">
         <div className="flex items-end justify-between gap-3">
           <div>
             <p className="text-xs font-bold text-[#FF6B5F]">Diario</p>
@@ -1054,7 +830,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           {props.canPublish && !props.isExternal && <button type="button" onClick={() => setIsComposerOpen(open => !open)} className="min-h-10 rounded-full bg-[#FF6B5F] px-3.5 text-xs font-bold text-white">Nuovo ricordo</button>}
         </div>
 
-        <article className="mt-3.5 border-l-2 border-[#FF6B5F] pl-3.5">
+        <article className="mt-3.5 rounded-2xl border border-slate-200 border-l-[3px] border-l-[#FF6B5F] bg-white p-3.5 dark:border-slate-800 dark:border-l-[#FF6B5F] dark:bg-slate-900/70">
           <div className="flex items-center justify-between gap-3">
             <p className="text-[11px] font-bold text-slate-400">Dagli organizzatori</p>
             {props.canPublish && !props.isExternal && <button type="button" onClick={props.onToggleStatusEdit} className="min-h-9 text-xs font-bold text-[#FF6B5F]">{props.isEditingStatus ? 'Annulla' : 'Modifica'}</button>}
@@ -1066,7 +842,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             </div>
           ) : (
             <>
-              <p className="mt-0.5 text-sm sm:text-base font-semibold leading-snug text-[#172033] dark:text-white">{props.statusMessage}</p>
+              <p className="mt-1 break-words text-sm sm:text-base font-semibold leading-relaxed text-[#172033] dark:text-white">{props.statusMessage}</p>
               {props.statusUpdatedAt && (
                 <time className="mt-1 block text-[11px] text-slate-400">
                   {typeof props.statusUpdatedAt === 'string'
@@ -1099,14 +875,15 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
         {displayPhotos.length ? (
           <div className="mt-2.5">
-            <div key={`photo-grid-${photoRevealVersion}`} className={`grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 ${photoRevealVersion > 0 ? 'hounigo-photo-saved-reveal' : ''}`}>
-              {visiblePhotos.map((photo, index) => {
+            <div key={`photo-grid-${photoRevealVersion}`} className={`grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 ${photoRevealVersion > 0 ? 'hounigo-photo-saved-reveal' : ''}`}>
+              {visiblePhotos.map((photo) => {
                 const fullIndex = displayPhotos.findIndex(item => item.id === photo.id);
                 return (
-                  <figure key={photo.id} className={`group relative overflow-hidden rounded-2xl bg-slate-200 dark:bg-slate-900 ${index === 0 ? 'col-span-2 aspect-[16/10]' : 'aspect-[4/5]'}`}>
-                    <button type="button" onClick={() => setActiveLightboxIndex(fullIndex)} className="absolute inset-0 h-full w-full"><img src={photo.url} alt={photo.caption || 'Foto del viaggio'} className="h-full w-full object-cover" loading="lazy" onError={event => { event.currentTarget.style.display = 'none'; }} /></button>
-                    <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 bg-[#172033]/75 p-2.5 text-white backdrop-blur-sm"><p className="truncate text-xs font-bold">{photo.caption || 'Momento dal viaggio'}</p><p className="mt-0.5 truncate text-[10px] text-white/70">{photo.location ? `${photo.location} · ` : ''}{formatRelativeTime(new Date(photo.timestamp), effectiveNowMs)}</p></figcaption>
+                  <figure key={photo.id} className="group min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                    <div className="relative aspect-[4/3] bg-slate-100 dark:bg-slate-950"><button type="button" onClick={() => setActiveLightboxIndex(fullIndex)} className="h-full w-full"><img src={photo.url} alt={photo.caption || 'Foto del viaggio'} className="h-full w-full object-cover" loading="lazy" onError={event => { event.currentTarget.style.display = 'none'; }} /></button>
                     {props.canPublish && !props.isExternal && props.onDeletePhoto && <button type="button" onClick={() => window.confirm('Eliminare questa foto dal dispositivo?') && props.onDeletePhoto?.(photo.id)} className="absolute right-2 top-2 min-h-9 rounded-full bg-black/65 px-2.5 text-[11px] font-bold text-white" aria-label="Elimina foto">Elimina</button>}
+                    </div>
+                    <figcaption className="p-2.5"><p className="break-words text-xs font-bold leading-5">{photo.caption || 'Momento dal viaggio'}</p><p className="mt-1 break-words text-[11px] leading-4 text-slate-500 dark:text-slate-400">{photo.location ? `${photo.location} · ` : ''}<time title={formatUpdateDate(photo.timestamp)}>{formatRelativeTime(new Date(photo.timestamp), effectiveNowMs)}</time></p></figcaption>
                   </figure>
                 );
               })}
@@ -1123,7 +900,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
           </div>
         )}
 
-        <div className="mt-5 border-t border-slate-200 dark:border-slate-800">
+        <div className="mt-5 space-y-3">
           {sortedUpdates.length === 0 ? (
             <div className="py-5 text-center"><p className="text-sm font-bold">Il diario è ancora vuoto.</p><p className="mt-0.5 text-xs text-slate-500">Gli aggiornamenti pubblici compariranno qui.</p></div>
           ) : (
@@ -1137,7 +914,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         </div>
       </section>
 
-      <section id="live-interactions" aria-labelledby="live-interactions-title" className="scroll-mt-16 border-t border-slate-200 py-4 dark:border-slate-800">
+      <section id="live-interactions" aria-labelledby="live-interactions-title" className="scroll-mt-20 md:scroll-mt-4 border-t border-slate-200 pt-4 dark:border-slate-800">
         <p className="text-xs font-bold text-[#FF6B5F]">Interazioni</p>
         <h2 id="live-interactions-title" className="text-xl sm:text-2xl font-black tracking-tight text-[#172033] dark:text-white">Vicini, anche da lontano</h2>
         <div className="mt-3 grid grid-cols-3 gap-2 xl:gap-4 border-y border-slate-200 py-2.5 dark:border-slate-800">
@@ -1221,9 +998,9 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                       : 'border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1 basis-40">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="text-xs font-extrabold text-[#172033] dark:text-white">{msg.authorName}</span>
                         <span className="text-[10px] text-slate-400">{formatUpdateDate(msg.createdAt)}</span>
                         {msg.hidden && (
@@ -1237,11 +1014,11 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                       </p>
                     </div>
                     {!props.isExternal && (props.isOwner || props.isCopilota) && props.onModerateGuestMessage && (
-                      <div className="flex shrink-0 items-center gap-1.5">
+                      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
                         <button
                           type="button"
                           onClick={() => props.onModerateGuestMessage?.(msg.id, msg.hidden ? 'unhide' : 'hide')}
-                          className="rounded-lg border border-slate-200 px-2 py-1 text-[10px] font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                          className="min-h-11 rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
                         >
                           {msg.hidden ? 'Mostra' : 'Nascondi'}
                         </button>
@@ -1252,7 +1029,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
                               props.onModerateGuestMessage?.(msg.id, 'delete');
                             }
                           }}
-                          className="rounded-lg border border-rose-200 px-2 py-1 text-[10px] font-bold text-rose-600 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400"
+                          className="min-h-11 rounded-lg border border-rose-200 px-2.5 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50 dark:border-rose-900/60 dark:text-rose-400"
                         >
                           Elimina
                         </button>
@@ -1266,12 +1043,250 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             <p className="text-xs text-slate-500">Nessun messaggio dagli ospiti per ora.</p>
           )}
         </div>
-
-        <button type="button" onClick={props.onShare} className="mt-4 min-h-10 rounded-full bg-[#172033] px-4 text-xs font-bold text-white dark:bg-white dark:text-[#172033]">{props.copiedLink ? 'Link copiato ✓' : 'Condividi link ospiti'}</button>
-        <details className="mt-2.5 text-xs"><summary className="min-h-9 cursor-pointer py-1.5 font-bold">Cosa vedono gli ospiti</summary><p className="max-w-xl leading-5 text-slate-500">Posizione condivisa, ricordi pubblici, reazioni e auguri. Itinerario, documenti, spese e contatti restano privati.</p></details>
       </section>
     </div>
   </div>
+
+      {/* E. INFORMAZIONI SECONDARIE E CONTROLLI LIVE */}
+      <section
+        data-testid="live-section-secondary"
+        aria-label="Informazioni secondarie e controlli LIVE"
+        className="mt-5 space-y-3.5 border-t border-slate-200 pt-4 dark:border-slate-800"
+      >
+        {!props.isExternal && props.liveIntelligence && (
+          <div className="grid gap-3 rounded-2xl border border-slate-200/80 bg-white/80 p-3.5 dark:border-slate-800 dark:bg-slate-900/60 sm:grid-cols-2">
+            <div>
+              <p className="text-[11px] font-bold text-[#FF6B5F]">Adesso</p>
+              <p className="mt-0.5 text-sm font-extrabold">{props.liveIntelligence.currentEvent?.title || (props.liveIntelligence.tripStatus === 'pre_trip' ? 'In attesa della partenza' : props.liveIntelligence.tripStatus === 'post_trip' ? 'Viaggio concluso' : 'Tempo libero')}</p>
+              {props.liveIntelligence.currentEvent?.timeRange && <p className="mt-0.5 text-xs text-slate-500">{props.liveIntelligence.currentEvent.timeRange}</p>}
+            </div>
+            <div>
+              <p className="text-[11px] font-bold text-slate-400">Prossima tappa</p>
+              <p className="mt-0.5 text-sm font-extrabold">{props.liveIntelligence.nextEvent?.title || 'Nessun altro appuntamento'}</p>
+              {props.liveIntelligence.nextEvent && <p className="mt-0.5 text-xs text-slate-500">{props.liveIntelligence.nextEvent.time}{props.liveIntelligence.nextEvent.locationName ? ` · ${props.liveIntelligence.nextEvent.locationName}` : ''}</p>}
+            </div>
+          </div>
+        )}
+
+        {!props.isExternal && (props.isOwner || props.isCopilota) && (
+          <div className="rounded-2xl border border-slate-200/80 bg-white/85 p-3.5 dark:border-slate-800 dark:bg-slate-900/65">
+            <div className="flex flex-wrap items-center justify-between gap-2.5">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-0.5">
+                  Guida GPS
+                </p>
+                <p className={`flex items-center gap-2 text-sm font-extrabold ${gpsVisualState.tone}`}>
+                  <span className={`h-2 w-2 rounded-full ${gpsVisualState.dot}`} />
+                  {isLeaseActive ? `Ora ${currentGuideName} condivide la posizione` : gpsVisualState.label}
+                </p>
+                <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
+                  Organizzatore: <strong>{props.ownerName || 'Organizzatore'}</strong> · Guida: <strong>{currentGuideName}</strong>
+                </p>
+                {lastDetectedDate && (
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    {formatGpsPositionAge(lastDetectedDate, effectiveNowMs)} · {formatLastDetectedTimestamp(lastDetectedDate)}
+                    {isStaleGps ? ' · ⚠️ Oltre 15 min' : ''}
+                  </p>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(props.isOwner || props.isDesignatedGuide) && (
+                  <button type="button" onClick={props.onStartGps} disabled={props.isDetectingGps || !isOnline} className="min-h-10 rounded-full bg-[#FF6B5F] px-3.5 text-xs font-bold text-white disabled:opacity-40 cursor-pointer">
+                    {permissionDenied || isLeaseExpired || isLeaseActive ? 'Aggiorna GPS' : 'Condividi GPS'}
+                  </button>
+                )}
+                {isLeaseActive && (props.isGpsHolder || props.isDesignatedGuide) && (
+                  <>
+                    <button type="button" onClick={props.onPauseGps} disabled={!isOnline} className="min-h-10 rounded-full border border-amber-300 px-3.5 text-xs font-bold text-amber-800 dark:border-amber-800 dark:text-amber-200 cursor-pointer">Pausa</button>
+                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-10 rounded-full border border-rose-300 px-3.5 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300 cursor-pointer">Ferma</button>
+                  </>
+                )}
+                {isLeaseActive && props.isOwner && !props.isGpsHolder && !props.isDesignatedGuide && (
+                  <>
+                    <button type="button" onClick={props.onRevokeGps} disabled={!isOnline} className="min-h-10 rounded-full bg-[#172033] px-3.5 text-xs font-bold text-white dark:bg-white dark:text-[#172033] cursor-pointer">Riprendi guida</button>
+                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-10 rounded-full border border-rose-300 px-3.5 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300 cursor-pointer">Ferma</button>
+                  </>
+                )}
+                {isLeasePaused && (props.isOwner || props.isDesignatedGuide) && (
+                  <>
+                    <button type="button" onClick={props.onResumeGps} disabled={!isOnline} className="min-h-10 rounded-full bg-[#FF6B5F] px-3.5 text-xs font-bold text-white cursor-pointer">Riprendi GPS</button>
+                    <button type="button" onClick={props.onStopGps} disabled={!isOnline} className="min-h-10 rounded-full border border-rose-300 px-3.5 text-xs font-bold text-rose-700 dark:border-rose-800 dark:text-rose-300 cursor-pointer">Interrompi</button>
+                  </>
+                )}
+              </div>
+            </div>
+            {props.gpsFeedback && <p className="mt-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300" role="status">✓ {props.gpsFeedback}</p>}
+            {props.gpsError && <p className="mt-2 text-xs font-semibold text-rose-700 dark:text-rose-300" role="alert">{props.gpsError}</p>}
+            <p className="mt-2 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+              ℹ️ Su iPhone/PWA il GPS si aggiorna ad app aperta.
+            </p>
+            <button type="button" onClick={() => setIsGuideControlsOpen(open => !open)} className="mt-2 min-h-9 text-xs font-bold text-slate-600 underline underline-offset-4 dark:text-slate-300 cursor-pointer" aria-expanded={isGuideControlsOpen}>Delega guida GPS {isGuideControlsOpen ? '−' : '+'}</button>
+
+            {isGuideControlsOpen && (
+              <div className="mt-2 space-y-2.5 rounded-2xl bg-slate-50 p-3 dark:bg-slate-950/60 border border-slate-200/70 dark:border-slate-800">
+                <p className="text-xs leading-5 text-slate-600 dark:text-slate-300">
+                  Trasmette un dispositivo alla volta. L&apos;<strong>Organizzatore ({props.ownerName || 'Owner'})</strong> può passare o riprendere la guida.
+                </p>
+                {props.isOwner && (
+                  <div className="space-y-2">
+                    {props.remoteGpsLease?.holderUid && props.remoteGpsLease.holderUid !== props.ownerUid && (
+                      <button type="button" disabled={isHandoverLoading || !isOnline} onClick={() => props.onRevokeGps && runHandover(props.onRevokeGps, 'Guida GPS riportata all’Organizzatore.')} className="min-h-10 rounded-full border border-slate-300 px-3.5 text-xs font-bold dark:border-slate-700 cursor-pointer">Riprendi la guida</button>
+                    )}
+                    {copilots.map(copilot => {
+                      const isCurrent = props.remoteGpsLease?.holderUid === copilot.uid;
+                      return (
+                        <div key={copilot.uid} className="flex items-center justify-between gap-3 border-t border-slate-100 pt-2 dark:border-slate-800">
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-bold">{copilot.name}</p>
+                            <p className="text-[11px] text-slate-500">
+                              {isCurrent ? '🟢 Guida attiva' : copilot.deviceId ? 'Dispositivo registrato' : 'Copilota verificato'}
+                            </p>
+                          </div>
+                          {!isCurrent && (
+                            <button
+                              type="button"
+                              disabled={isHandoverLoading || !isOnline}
+                              onClick={() => props.onTransferGps && runHandover(() => props.onTransferGps?.(copilot.uid, copilot.deviceId), `Ora ${copilot.name} condivide la posizione.`)}
+                              aria-label={`Delega Guida GPS a ${copilot.name}`}
+                              title="Delega Guida GPS"
+                              className="min-h-9 shrink-0 rounded-full bg-[#172033] px-3 text-[11px] font-bold text-white disabled:opacity-35 dark:bg-white dark:text-[#172033] cursor-pointer"
+                            >
+                              Passa a {copilot.name}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {!copilots.length && <p className="text-xs text-slate-500">Nessun copilota disponibile.</p>}
+                  </div>
+                )}
+                {props.isCopilota && (
+                  <p className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                    {props.isDesignatedGuide
+                      ? '🟢 Hai la guida GPS attiva su questo telefono.'
+                      : 'L’Organizzatore può delegarti la guida GPS.'}
+                  </p>
+                )}
+                {handoverFeedback && <p className="text-xs font-semibold text-slate-700 dark:text-slate-200" role="status">{handoverFeedback}</p>}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Banner riepilogativo desktop per vista ospiti (posizionato in E per non spingere in basso mappa e diario) */}
+        {props.isExternal && (
+          <div data-testid="desktop-live-banner" className="hidden lg:block rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-[#172033] p-4 shadow-xs relative overflow-hidden">
+            <div className="relative z-10">
+              <div className="flex items-start justify-between gap-6">
+                <div className="min-w-0 max-w-2xl">
+                  <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-[#FFF0ED] dark:bg-[#FF6B5F]/20 text-[#FF6B5F] text-[11px] font-black uppercase tracking-widest mb-1">
+                    <span className="w-2 h-2 rounded-full bg-[#FF6B5F]" />
+                    Segui il viaggio in diretta
+                  </div>
+                  <h2 className="text-lg xl:text-xl font-black text-[#172033] dark:text-white tracking-tight">
+                    {tripTitle}
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+                    Tappe, posizione e ricordi del viaggio in tempo reale.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2.5 shrink-0">
+                  <div className="px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700 text-center min-w-[74px]">
+                    <p className="text-lg font-black text-[#172033] dark:text-white">{sortedUpdates.length}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Ricordi</p>
+                  </div>
+                  <div className="px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700 text-center min-w-[74px]">
+                    <p className="text-lg font-black text-[#172033] dark:text-white">{displayPhotos.length}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Foto</p>
+                  </div>
+                  <div className="px-3.5 py-2 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700 text-center min-w-[74px]">
+                    <p className="text-lg font-black text-[#172033] dark:text-white">{reactionTotal}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Reazioni</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-3 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80">
+                <div className="rounded-2xl p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className={`w-2 h-2 rounded-full ${hasRealLocation && !isStaleGps ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                        Posizione Attuale
+                      </p>
+                    </div>
+                    <p className="text-sm font-extrabold text-[#172033] dark:text-white truncate">
+                      {hasRealLocation && !isStaleGps
+                        ? (props.remoteGpsLocation?.city || 'In diretta')
+                        : 'Non attiva'}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    {hasRealLocation && !isStaleGps && positionAgeLabel ? positionAgeLabel : 'Posizione non in diretta'}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                        Ultima Posizione Nota
+                      </p>
+                    </div>
+                    <p className="text-sm font-extrabold text-[#172033] dark:text-white truncate">
+                      {hasRealLocation
+                        ? (props.remoteGpsLocation?.city || 'Posizione salvata')
+                        : 'Nessun segnale'}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    {hasRealLocation && lastDetectedDate
+                      ? (positionAgeLabel || formatLastDetectedTimestamp(lastDetectedDate))
+                      : 'Nessun rilevamento recente'}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="w-2 h-2 rounded-full bg-sky-500" />
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-400">
+                        Itinerario Previsto
+                      </p>
+                    </div>
+                    <p className="text-sm font-extrabold text-[#172033] dark:text-white truncate">
+                      {plannedLocation?.title || 'Da itinerario'}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                    {plannedLocation?.coords ? 'Da programma' : 'Da itinerario'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1.5 text-xs">
+            {props.isExternal && (
+              <details>
+                <summary className="min-h-9 cursor-pointer py-1 font-bold text-slate-700 dark:text-slate-200">Privacy posizione</summary>
+                <p className="max-w-xl leading-5 text-slate-500">Vedi solo la posizione condivisa dai viaggiatori; quando termina, il marker scompare.</p>
+              </details>
+            )}
+            <details>
+              <summary className="min-h-9 cursor-pointer py-1 font-bold text-slate-700 dark:text-slate-200">Cosa vedono gli ospiti</summary>
+              <p className="max-w-xl leading-5 text-slate-500">Posizione condivisa, ricordi pubblici, reazioni e auguri. Itinerario, documenti, spese e contatti restano privati.</p>
+            </details>
+          </div>
+          <button type="button" onClick={props.onShare} className="min-h-10 shrink-0 rounded-full bg-[#172033] px-4 text-xs font-bold text-white dark:bg-white dark:text-[#172033] cursor-pointer">
+            {props.copiedLink ? 'Link copiato ✓' : 'Condividi link ospiti'}
+          </button>
+        </div>
+      </section>
 
       {pendingUploadItems.length > 0 && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[9998] flex items-end justify-center bg-black/70 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label="Aggiungi fotografie">

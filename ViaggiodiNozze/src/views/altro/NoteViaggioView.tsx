@@ -129,6 +129,7 @@ export default function NoteViaggioView({ onBack }: NoteViaggioViewProps) {
     setIsSaving(true);
     try {
       const item: NotaViaggio = {
+        ...(editingNota || {}),
         id: editingNota?.id || ('nota_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6)),
         title: formTitle.trim() || undefined,
         content: formContent.trim(),

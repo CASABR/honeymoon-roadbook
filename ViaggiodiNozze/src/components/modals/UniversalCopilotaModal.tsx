@@ -76,7 +76,7 @@ export default function UniversalCopilotaModal({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             disabled={!canEdit || isSaving}
-            placeholder="es. Parcheggio gratuito a sinistra dopo il ponte. Attenzione al fondo sterrato."
+            placeholder={canEdit ? 'es. Parcheggio gratuito a sinistra dopo il ponte. Attenzione al fondo sterrato.' : 'Nessuna nota copilota registrata.'}
             className="w-full p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl text-[#172033] dark:text-white text-sm focus:outline-none focus:border-[#FF6B5F] focus:ring-1 focus:ring-[#FF6B5F] resize-none min-h-[150px] shadow-inner"
           />
         </div>
