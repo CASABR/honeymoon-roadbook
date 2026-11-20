@@ -4,7 +4,7 @@
     {
       "version": "1.6.36",
       "publishedAt": "2026-11-20",
-      "sourceCommit": "4e1a16b",
+      "sourceCommit": "ae30cf2",
       "changes": [
         "Notifiche Push: promemoria automatici 60 min prima degli eventi confermati con fusi IANA attendibili, eventi imminenti e backfill idempotente",
         "Agenda Oggi: evidenziazione della card attiva e selezione automatica una-tantum del giorno locale durante il viaggio",
