@@ -1701,6 +1701,12 @@ html.dark .hounigo-ds-pay-dasaldare {
   z-index: 20;
 }
 
+.hounigo-card-active-now {
+  position: relative;
+  border-radius: 1.5rem;
+  box-shadow: 0 0 0 2px rgba(255, 107, 95, 0.34), 0 10px 22px -14px rgba(255, 107, 95, 0.35);
+}
+
 /* ============================================================================
    SAFARI iOS / WEBKIT DATE INPUT OVERFLOW FIX
    Prevents WebKit native date & time picker controls from exceeding container

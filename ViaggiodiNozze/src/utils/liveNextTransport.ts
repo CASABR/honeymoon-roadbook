@@ -628,6 +628,40 @@ export function hydratePublicNextTransportFromFeed(
 }
 
 /**
+ * Restituisce lato ospite esterno tutti gli spostamenti futuri disponibili nel feed pubblico
+ * ordinati cronologicamente (sanificati, senza PNR né nuove letture), con ID deterministico.
+ */
+export function deriveUpcomingPublicTransportsFromFeedHeader(
+  upcomingRaw: unknown,
+  fallbackSingleRaw?: unknown,
+  now: Date = new Date()
+): PublicNextTransportInfo[] {
+  const candidatesRaw = Array.isArray(upcomingRaw) && upcomingRaw.length > 0
+    ? upcomingRaw
+    : (fallbackSingleRaw ? [fallbackSingleRaw] : []);
+
+  const hydrated: PublicNextTransportInfo[] = [];
+  const seenKeys = new Set<string>();
+  for (let i = 0; i < candidatesRaw.length; i += 1) {
+    const item = hydratePublicNextTransportFromFeed(candidatesRaw[i], now);
+    if (!item) continue;
+    const stableKey = `${item.type}|${item.departureUtcMs}|${item.fromLabel}|${item.toLabel}`;
+    if (seenKeys.has(stableKey)) continue;
+    seenKeys.add(stableKey);
+    hydrated.push({ ...item, id: `live-feed-${stableKey}` });
+  }
+
+  hydrated.sort((a, b) => {
+    if (a.departureUtcMs !== b.departureUtcMs) return a.departureUtcMs - b.departureUtcMs;
+    const prioDiff = KIND_PRIORITY[a.type] - KIND_PRIORITY[b.type];
+    if (prioDiff !== 0) return prioDiff;
+    return a.id.localeCompare(b.id);
+  });
+
+  return hydrated;
+}
+
+/**
  * Seleziona lato ospite esterno il prossimo spostamento ancora futuro da `upcomingTransports`
  * (o dal fallback `nextTransport`), avanzando automaticamente alle tratte successive anche a PWA Owner chiusa.
  */
@@ -636,24 +670,5 @@ export function deriveNextPublicTransportFromFeedHeader(
   fallbackSingleRaw?: unknown,
   now: Date = new Date()
 ): PublicNextTransportInfo | null {
-  const candidatesRaw = Array.isArray(upcomingRaw) && upcomingRaw.length > 0
-    ? upcomingRaw
-    : (fallbackSingleRaw ? [fallbackSingleRaw] : []);
-
-  const hydrated: PublicNextTransportInfo[] = [];
-  for (let i = 0; i < candidatesRaw.length; i += 1) {
-    const item = hydratePublicNextTransportFromFeed(candidatesRaw[i], now);
-    if (item) {
-      hydrated.push({ ...item, id: `live-feed-next-${i}` });
-    }
-  }
-
-  if (hydrated.length === 0) return null;
-
-  hydrated.sort((a, b) => {
-    if (a.departureUtcMs !== b.departureUtcMs) return a.departureUtcMs - b.departureUtcMs;
-    return KIND_PRIORITY[a.type] - KIND_PRIORITY[b.type];
-  });
-
-  return hydrated[0];
+  return deriveUpcomingPublicTransportsFromFeedHeader(upcomingRaw, fallbackSingleRaw, now)[0] ?? null;
 }

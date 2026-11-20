@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.36",
+      "publishedAt": "2026-11-20",
+      "sourceCommit": "4e1a16b",
+      "changes": [
+        "Notifiche Push: promemoria automatici 60 min prima degli eventi confermati con fusi IANA attendibili, eventi imminenti e backfill idempotente",
+        "Agenda Oggi: evidenziazione della card attiva e selezione automatica una-tantum del giorno locale durante il viaggio",
+        "Vista LIVE: frecce nella mini-card trasporti, eta reale GPS in minuti, doppio orologio Italia/locale sole-luna e layout compatto"
+      ],
+      "publishedAtIso": "2026-11-20T12:15:00.000Z"
+    },
+    {
       "version": "1.6.35",
       "publishedAt": "2026-11-20",
       "sourceCommit": "e823577",
@@ -245,17 +256,6 @@
         "LIVE & Foto: vista mappa combinata reale/programmata, bacheca ospiti esterna protetta in sola lettura e limiti di spazio localStorage per le foto locali"
       ],
       "publishedAtIso": "2026-11-17T13:55:00.000Z"
-    },
-    {
-      "version": "1.6.11",
-      "publishedAt": "2026-11-17",
-      "sourceCommit": "ce91afa",
-      "changes": [
-        "Fase 1 Affidabilita Dati: rilevamento sovrapposizioni basato su intervalli temporali effettivi (nessun falso conflitto per orari diversi nello stesso giorno)",
-        "Persistenza sincronizzata e deterministica della scelta 'Mantieni entrambe' (chiavi indipendenti dall'ordine, cache locale e sincronizzazione Cloud)",
-        "Protezione integrita dati e tombstones: eliminato il rischio di resurrezione di record cancellati tramite firma esplicita e filtro reattivo"
-      ],
-      "publishedAtIso": "2026-11-17T13:20:00.000Z"
     }
   ]
 }

@@ -6,6 +6,7 @@ import {
   readStoredPushRegistration,
   registerPushOnServer,
   sendPushTestOnServer,
+  syncPushRemindersFromStorage,
   unregisterPushOnServer,
   type PushPreferences,
 } from '../services/pushNotificationService';
@@ -264,6 +265,7 @@ async function executeRefreshStatus(force: boolean): Promise<void> {
       setPreferences(nextPreferences);
       setState('active');
       setDiagnostic('Subscription confermata dal server per questo viaggio e dispositivo.');
+      void syncPushRemindersFromStorage({ preferences: nextPreferences });
     } else {
       lastVerifiedKey = '';
       lastVerifiedAt = 0;
@@ -342,13 +344,29 @@ function attachSharedListeners(): void {
     void refreshStatusShared(true);
   };
 
+  const handleRemindersBackfillTrigger = (event?: Event) => {
+    if (event?.type === 'houni_cloud_role_changed') {
+      const role = (event as CustomEvent<{ cloudRole?: string }>).detail?.cloudRole;
+      if (role !== 'owner' && role !== 'copilota') return;
+    }
+    if (snapshot.state === 'active') {
+      void syncPushRemindersFromStorage({ preferences: snapshot.preferences });
+    } else {
+      void refreshStatusShared(false);
+    }
+  };
+
   window.addEventListener('focus', handleResumeRefresh);
   window.addEventListener('trip_config_changed', handleTripConfigChanged);
+  window.addEventListener('roadbook_cloud_synced', handleRemindersBackfillTrigger);
+  window.addEventListener('houni_cloud_role_changed', handleRemindersBackfillTrigger);
   document.addEventListener('visibilitychange', handleVisibilityChange);
 
   detachGlobalListeners = () => {
     window.removeEventListener('focus', handleResumeRefresh);
     window.removeEventListener('trip_config_changed', handleTripConfigChanged);
+    window.removeEventListener('roadbook_cloud_synced', handleRemindersBackfillTrigger);
+    window.removeEventListener('houni_cloud_role_changed', handleRemindersBackfillTrigger);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     detachGlobalListeners = null;
   };
@@ -411,6 +429,7 @@ export function usePushNotifications() {
       setBrowserSubscription(subscription);
       setState('active');
       setDiagnostic(`Subscription confermata per il viaggio ${stored.tripId}.`);
+      void syncPushRemindersFromStorage({ force: true, preferences });
       return subscription;
     } catch (error) {
       if (createdSubscription) await createdSubscription.unsubscribe().catch(() => false);
@@ -479,6 +498,7 @@ export function usePushNotifications() {
       setPreferences(next);
       setState('active');
       setDiagnostic('Preferenze e promemoria confermati dal server.');
+      void syncPushRemindersFromStorage({ force: true, preferences: next });
     } finally {
       setIsSubscribing(false);
     }

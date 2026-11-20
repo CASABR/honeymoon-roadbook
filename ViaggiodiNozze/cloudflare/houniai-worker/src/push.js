@@ -209,6 +209,86 @@ async function sendPush(subscription, payload, env) {
   return webpush.sendNotification(subscription, JSON.stringify(payload), { TTL: 3600, urgency: 'high' });
 }
 
+function canonicalEntityType(entityType) {
+  const clean = String(entityType || '').trim().toLowerCase();
+  if (clean === 'trasporto' || clean === 'trasporti' || clean === 'transport' || clean === 'transports') return 'trasporti';
+  if (clean === 'attivita' || clean === 'attività' || clean === 'activity' || clean === 'activities') return 'attivita';
+  if (clean === 'alloggio' || clean === 'alloggi' || clean === 'accommodation' || clean === 'accommodations') return 'alloggi';
+  if (clean === 'ristorante' || clean === 'ristoranti' || clean === 'restaurant' || clean === 'restaurants') return 'ristoranti';
+  if (clean === 'tappa' || clean === 'tappe' || clean === 'stage' || clean === 'stages') return 'tappe';
+  if (clean === 'nota' || clean === 'note' || clean === 'notes' || clean === 'scadenza' || clean === 'scadenze') return 'note';
+  if (clean === 'shopping') return 'shopping';
+  return clean;
+}
+
+async function sentReminderDispatchKey(subscriberId, entityKey, kind, eventAt) {
+  return (await sha256(`sent-rem|${subscriberId}|${entityKey}|${kind}|${Number(eventAt)}`)).slice(0, 56);
+}
+
+async function runD1Statements(database, statements) {
+  if (!statements.length) return;
+  if (typeof database.batch === 'function') {
+    for (let i = 0; i < statements.length; i += 80) {
+      await database.batch(statements.slice(i, i + 80));
+    }
+    return;
+  }
+  for (const stmt of statements) {
+    await stmt.run();
+  }
+}
+
+async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, existingJobsMap, sentKeysSet, pendingStatements, now, env }) {
+  let scheduledCount = 0;
+  let skippedAlreadySentCount = 0;
+  const desiredJobIds = new Set();
+
+  for (const subscriber of subscribers) {
+    const preferences = normalizePreferences(JSON.parse(subscriber.preferences_json));
+    for (const reminder of reminders) {
+      if (!preferenceAllows(preferences, reminder.kind)) continue;
+      const eventAt = Number(reminder.eventAt);
+      if (eventAt <= now) continue;
+      const leadMinutes = reminder.kind === 'deadline_due'
+        ? Math.max(0, Math.min(Number(reminder.leadMinutes || 0), 43_200))
+        : preferences.reminderMinutes;
+      const dueAt = Math.max(now, eventAt - leadMinutes * 60_000);
+      const sentKey = await sentReminderDispatchKey(subscriber.subscriber_id, entityKey, reminder.kind, eventAt);
+      const alreadySent = sentKeysSet
+        ? sentKeysSet.has(sentKey)
+        : Boolean(await env.RATE_LIMITS.prepare('SELECT dispatch_key FROM push_dispatches WHERE dispatch_key = ?1')
+          .bind(sentKey).first());
+      const jobId = (await sha256(`reminder|${subscriber.subscriber_id}|${entityKey}|${reminder.kind}`)).slice(0, 56);
+      if (alreadySent) {
+        skippedAlreadySentCount += 1;
+        continue;
+      }
+      desiredJobIds.add(jobId);
+
+      const existing = existingJobsMap?.get(jobId);
+      if (
+        existing
+        && Number(existing.event_at) === eventAt
+        && Number(existing.lead_minutes) === leadMinutes
+        && (Number(existing.due_at) === dueAt || Number(existing.attempts || 0) > 0)
+      ) {
+        continue;
+      }
+
+      const stmt = env.RATE_LIMITS.prepare(`
+        INSERT OR REPLACE INTO push_jobs
+          (job_id, trip_id, subscriber_id, actor_uid, entity_key, kind, event_at, lead_minutes, due_at, attempts, created_at)
+        VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7, ?8, 0, ?9)
+      `).bind(jobId, tripId, subscriber.subscriber_id, entityKey, reminder.kind, eventAt, leadMinutes, dueAt, now);
+      if (pendingStatements) pendingStatements.push(stmt);
+      else await stmt.run();
+      scheduledCount += 1;
+    }
+  }
+
+  return { desiredJobIds, scheduledCount, skippedAlreadySentCount };
+}
+
 async function scheduleMutationJobs(uid, tripId, payload, env) {
   const entityType = String(payload.entityType || '');
   const action = String(payload.action || '');
@@ -225,8 +305,8 @@ async function scheduleMutationJobs(uid, tripId, payload, env) {
   `).bind(dispatchKey, tripId, Date.now()).first();
   if (!accepted) return { accepted: true, duplicate: true };
 
-  const entityKey = `${entityType}:${entityId}`;
-  await env.RATE_LIMITS.prepare('DELETE FROM push_jobs WHERE trip_id = ?1 AND entity_key = ?2')
+  const entityKey = `${canonicalEntityType(entityType)}:${entityId}`;
+  await env.RATE_LIMITS.prepare("DELETE FROM push_jobs WHERE trip_id = ?1 AND entity_key = ?2 AND kind <> 'collaboration'")
     .bind(tripId, entityKey).run();
 
   if (action === 'save') {
@@ -234,23 +314,14 @@ async function scheduleMutationJobs(uid, tripId, payload, env) {
     const subscribers = await env.RATE_LIMITS.prepare(
       'SELECT subscriber_id, preferences_json FROM push_subscriptions WHERE trip_id = ?1 AND enabled = 1 LIMIT 20'
     ).bind(tripId).all();
-    for (const subscriber of subscribers.results || []) {
-      const preferences = normalizePreferences(JSON.parse(subscriber.preferences_json));
-      for (const reminder of reminders) {
-        if (!preferenceAllows(preferences, reminder.kind)) continue;
-        const leadMinutes = reminder.kind === 'deadline_due'
-          ? Math.max(0, Math.min(Number(reminder.leadMinutes || 0), 43_200))
-          : preferences.reminderMinutes;
-        const dueAt = Number(reminder.eventAt) - leadMinutes * 60_000;
-        if (dueAt <= Date.now()) continue;
-        const jobId = (await sha256(`reminder|${subscriber.subscriber_id}|${entityKey}|${reminder.kind}`)).slice(0, 56);
-        await env.RATE_LIMITS.prepare(`
-          INSERT OR REPLACE INTO push_jobs
-            (job_id, trip_id, subscriber_id, actor_uid, entity_key, kind, event_at, lead_minutes, due_at, attempts, created_at)
-          VALUES (?1, ?2, ?3, NULL, ?4, ?5, ?6, ?7, ?8, 0, ?9)
-        `).bind(jobId, tripId, subscriber.subscriber_id, entityKey, reminder.kind, Number(reminder.eventAt), leadMinutes, dueAt, Date.now()).run();
-      }
-    }
+    await upsertReminderJobs({
+      tripId,
+      entityKey,
+      reminders,
+      subscribers: subscribers.results || [],
+      now: Date.now(),
+      env,
+    });
   }
 
   const collaborationId = (await sha256(`collaboration|${tripId}`)).slice(0, 56);
@@ -260,6 +331,72 @@ async function scheduleMutationJobs(uid, tripId, payload, env) {
     ON CONFLICT(job_id) DO UPDATE SET due_at = MIN(push_jobs.created_at + 300000, excluded.due_at)
   `).bind(collaborationId, tripId, uid, entityKey, Date.now() + 90_000, Date.now()).run();
   return { accepted: true, duplicate: false };
+}
+
+async function syncTripReminders(tripId, payload, env) {
+  const rawItems = Array.isArray(payload?.items) ? payload.items : null;
+  if (!rawItems || rawItems.length > 200) throw new Error('INVALID_REMINDER_SYNC');
+
+  const now = Date.now();
+  const subscribersRes = await env.RATE_LIMITS.prepare(
+    'SELECT subscriber_id, preferences_json FROM push_subscriptions WHERE trip_id = ?1 AND enabled = 1 LIMIT 20'
+  ).bind(tripId).all();
+  const subscribers = subscribersRes.results || [];
+  if (subscribers.length === 0) {
+    return { synced: true, scheduledCount: 0, skippedAlreadySentCount: 0, removedCount: 0 };
+  }
+
+  const [existingRes, sentRes] = await Promise.all([
+    env.RATE_LIMITS.prepare(
+      "SELECT job_id, entity_key, kind, event_at, lead_minutes, due_at, attempts FROM push_jobs WHERE trip_id = ?1 AND kind <> 'collaboration'"
+    ).bind(tripId).all(),
+    env.RATE_LIMITS.prepare(
+      'SELECT dispatch_key FROM push_dispatches WHERE trip_id = ?1'
+    ).bind(tripId).all(),
+  ]);
+  const existingJobsMap = new Map((existingRes.results || []).map(row => [row.job_id, row]));
+  const sentKeysSet = new Set((sentRes.results || []).map(row => row.dispatch_key));
+
+  const desiredAll = new Set();
+  const pendingStatements = [];
+  let scheduledCount = 0;
+  let skippedAlreadySentCount = 0;
+
+  for (const item of rawItems) {
+    const entityType = String(item?.entityType || '');
+    const entityId = String(item?.entityId || '');
+    if (!COLLABORATION_ENTITIES.has(entityType) || !/^[A-Za-z0-9_.:-]{1,200}$/.test(entityId)) continue;
+    const reminders = Array.isArray(item?.reminders) ? item.reminders.filter(validReminder).slice(0, 3) : [];
+    const entityKey = `${canonicalEntityType(entityType)}:${entityId}`;
+    const res = await upsertReminderJobs({
+      tripId,
+      entityKey,
+      reminders,
+      subscribers,
+      existingJobsMap,
+      sentKeysSet,
+      pendingStatements,
+      now,
+      env,
+    });
+    res.desiredJobIds.forEach(id => desiredAll.add(id));
+    scheduledCount += res.scheduledCount;
+    skippedAlreadySentCount += res.skippedAlreadySentCount;
+  }
+
+  let removedCount = 0;
+  if (payload?.pruneRemoved !== false) {
+    for (const [jobId] of existingJobsMap) {
+      if (!desiredAll.has(jobId)) {
+        pendingStatements.push(env.RATE_LIMITS.prepare('DELETE FROM push_jobs WHERE job_id = ?1').bind(jobId));
+        removedCount += 1;
+      }
+    }
+  }
+
+  await runD1Statements(env.RATE_LIMITS, pendingStatements);
+
+  return { synced: true, scheduledCount, skippedAlreadySentCount, removedCount };
 }
 
 export async function handlePushRequest(path, uid, tripId, payload, env) {
@@ -284,13 +421,14 @@ export async function handlePushRequest(path, uid, tripId, payload, env) {
     `).bind(subscriberId, tripId, uid, deviceId, endpointHash, JSON.stringify(payload.subscription), JSON.stringify(preferences), Date.now()).run();
     await env.RATE_LIMITS.prepare(`
       UPDATE push_jobs
-      SET due_at = event_at - (?2 * 60000), lead_minutes = ?2
+      SET due_at = MAX(?3, event_at - (?2 * 60000)), lead_minutes = ?2
       WHERE subscriber_id = ?1 AND kind <> 'deadline_due' AND event_at IS NOT NULL
-    `).bind(subscriberId, preferences.reminderMinutes).run();
+    `).bind(subscriberId, preferences.reminderMinutes, Date.now()).run();
     return { active: true, subscriberId, endpointHash };
   }
 
   if (path === '/v1/push/mutation') return scheduleMutationJobs(uid, tripId, payload, env);
+  if (path === '/v1/push/sync-reminders') return syncTripReminders(tripId, payload, env);
 
   if (path === '/v1/push/admin-send') {
     const title = String(payload.title || '').trim().slice(0, 100);
@@ -409,6 +547,9 @@ export async function handlePushRequest(path, uid, tripId, payload, env) {
 }
 
 async function processJob(job, env, membershipCache) {
+  if (job.kind !== 'collaboration' && job.event_at != null && Number(job.event_at) <= Date.now()) {
+    return;
+  }
   const subscribers = job.subscriber_id
     ? { results: [await env.RATE_LIMITS.prepare('SELECT * FROM push_subscriptions WHERE subscriber_id = ?1 AND enabled = 1').bind(job.subscriber_id).first()].filter(Boolean) }
     : await env.RATE_LIMITS.prepare('SELECT * FROM push_subscriptions WHERE trip_id = ?1 AND enabled = 1 LIMIT 20').bind(job.trip_id).all();
@@ -428,6 +569,11 @@ async function processJob(job, env, membershipCache) {
       await sendPush(JSON.parse(subscriber.subscription_json), {
         ...genericPayload(job.kind), tag: `hounigo-${job.kind}-${job.job_id}`,
       }, env);
+      if (job.kind !== 'collaboration' && job.event_at != null && job.entity_key) {
+        const sentKey = await sentReminderDispatchKey(subscriber.subscriber_id, job.entity_key, job.kind, Number(job.event_at));
+        await env.RATE_LIMITS.prepare('INSERT OR IGNORE INTO push_dispatches (dispatch_key, trip_id, created_at) VALUES (?1, ?2, ?3)')
+          .bind(sentKey, job.trip_id, Date.now()).run();
+      }
     } catch (error) {
       if (error?.statusCode === 404 || error?.statusCode === 410) {
         await env.RATE_LIMITS.prepare('DELETE FROM push_subscriptions WHERE subscriber_id = ?1').bind(subscriber.subscriber_id).run();

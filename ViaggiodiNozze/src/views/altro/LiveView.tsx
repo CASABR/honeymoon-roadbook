@@ -5,10 +5,11 @@ import { storageService } from '../../storage/storageService';
 import type { TimelineItem, Alloggio, Giorno, Trasporto, Tappa, DeviceRole, Attivita } from '../../types';
 import { deriveLiveIntelligence, type LiveIntelligenceState } from '../../utils/liveIntelligenceHelper';
 import {
-  deriveNextImportantTransport,
-  deriveNextPublicTransportFromFeedHeader,
+  deriveUpcomingImportantTransports,
+  deriveUpcomingPublicTransportsFromFeedHeader,
   type PublicNextTransportFeedProjection,
 } from '../../utils/liveNextTransport';
+import { resolveLiveTravelTimeZone } from '../../utils/liveTimeClock';
 import { resolveMapUrl, openMapLink } from '../../utils/mapsHelper';
 import { generateTripDays, getTripDateRange, formatDateTimeIT, formatDateIT } from '../../utils/tripDates';
 import { lookupKnownCoordinate } from '../../services/routingService';
@@ -147,7 +148,8 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [liveFeedTransports, setLiveFeedTransports] = useState<{
     nextTransport: PublicNextTransportFeedProjection | null;
     upcomingTransports: Array<PublicNextTransportFeedProjection | string> | null;
-  }>({ nextTransport: null, upcomingTransports: null });
+    currentCity: string | null;
+  }>({ nextTransport: null, upcomingTransports: null, currentCity: null });
   const [guestMessages, setGuestMessages] = useState<LiveGuestMessage[]>([]);
   const [localReactions, setLocalReactions] = useState<Record<string, string>>(() => {
     if (typeof window !== 'undefined') {
@@ -179,6 +181,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       setLiveFeedTransports({
         nextTransport: header?.nextTransport ?? null,
         upcomingTransports: header?.upcomingTransports ?? null,
+        currentCity: typeof header?.currentCity === 'string' ? header.currentCity : null,
       });
       if (header?.statusMessage) {
         setStatusMessage(header.statusMessage);
@@ -1332,17 +1335,56 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     });
   }, [days, activities, tappe, accommodations, transports, now, tripRange, remoteGpsLocation, liveGpsState, isStandaloneExternal, plannedTimeZone]);
 
-  const nextImportantTransport = useMemo(
+  const upcomingImportantTransports = useMemo(
     () =>
       isStandaloneExternal
-        ? deriveNextPublicTransportFromFeedHeader(
+        ? deriveUpcomingPublicTransportsFromFeedHeader(
             liveFeedTransports.upcomingTransports,
             liveFeedTransports.nextTransport,
             now
           )
-        : deriveNextImportantTransport(transports, now),
+        : deriveUpcomingImportantTransports(transports, now),
     [isStandaloneExternal, liveFeedTransports, transports, now]
   );
+
+  const nextImportantTransport = upcomingImportantTransports[0] ?? null;
+
+  const travelClockResolution = useMemo(() => {
+    const isStoppedClock = Boolean(
+      remoteGpsLease?.status === 'stopped' ||
+      remoteGpsLocation?.status === 'stopped' ||
+      lastKnownLocation?.status === 'stopped'
+    );
+    const activeReal = isStoppedClock ? null : (remoteGpsLocation || lastKnownLocation || null);
+    return resolveLiveTravelTimeZone({
+      isExternal: isStandaloneExternal,
+      realLocation: activeReal
+        ? {
+            lat: activeReal.lat,
+            lng: activeReal.lng,
+            city: activeReal.city,
+            country: activeReal.country,
+          }
+        : null,
+      publicCurrentCity: liveFeedTransports.currentCity,
+      plannedLocation: isStandaloneExternal ? null : liveIntelligence?.plannedLocation,
+      fallbackLocationTexts: isStandaloneExternal
+        ? []
+        : [currentDay?.location, currentTappa?.titolo, currentAccommodation?.location],
+      tripStatus: liveIntelligence?.tripStatus,
+    });
+  }, [
+    isStandaloneExternal,
+    remoteGpsLease?.status,
+    remoteGpsLocation,
+    lastKnownLocation,
+    liveFeedTransports.currentCity,
+    liveIntelligence?.plannedLocation,
+    liveIntelligence?.tripStatus,
+    currentDay?.location,
+    currentTappa?.titolo,
+    currentAccommodation?.location,
+  ]);
 
   const realCoords = useMemo(() => {
     if (remoteGpsLocation) return { lat: remoteGpsLocation.lat, lng: remoteGpsLocation.lng };
@@ -1920,6 +1962,9 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       }}
       liveIntelligence={liveIntelligence}
       nextImportantTransport={nextImportantTransport}
+      upcomingTransports={upcomingImportantTransports}
+      travelTimeZoneResolution={travelClockResolution}
+      nowMs={now.getTime()}
       mapCenterMode={mapCenterMode}
       onChangeMapCenterMode={setMapCenterMode}
       realMarkerOffset={realMarkerOffset}

@@ -3,7 +3,12 @@ import { auth } from '../firebase';
 import { getOrCreateDeviceId } from '../utils/deviceSession';
 import { getTripConfig } from '../utils/tripConfig';
 import { BACKGROUND_PUSH_ENABLED, PUSH_WORKER_URL } from '../config/freeArchitecture';
-import { buildClientPushReminders } from '../utils/pushReminders';
+import {
+  buildClientPushReminders,
+  buildDayLocationsMap,
+  collectTripPushReminderItems,
+  type ClientPushSyncItem,
+} from '../utils/pushReminders';
 import { isCloudAuthorized } from '../utils/useAuthIdentity';
 
 export interface PushPreferences {
@@ -227,6 +232,20 @@ export async function sendPushTestOnServer(subscriberId: string) {
   });
 }
 
+const REMINDER_SYNC_STORAGE_PREFIX = 'hounigo_push_reminders_sync_v1_';
+const REMINDER_SYNC_TTL_MS = 12 * 60 * 60 * 1000;
+let inFlightReminderSync: Promise<void> | null = null;
+
+async function buildMutationDayLocationsMap(): Promise<Record<string, string>> {
+  try {
+    const { storageService } = await import('../storage/storageService');
+    const days = await storageService.getDays();
+    return buildDayLocationsMap(days as unknown as Array<Record<string, unknown>>);
+  } catch {
+    return {};
+  }
+}
+
 export async function recordPushMutation(input: {
   tripId: string;
   entityType: string;
@@ -241,8 +260,97 @@ export async function recordPushMutation(input: {
     console.warn(`[PushService] Mutazione push ignorata per ${input.entityType}: permessi di scrittura assenti per viaggio ${input.tripId}.`);
     return;
   }
+  const dayLocationsByDate = input.action === 'save' && input.data
+    ? await buildMutationDayLocationsMap()
+    : undefined;
   const reminders = input.action === 'save' && input.data
-    ? buildClientPushReminders(input.entityType, input.data)
+    ? buildClientPushReminders(input.entityType, input.data, { dayLocationsByDate })
     : [];
   await callPush('mutation', { ...input, reminders });
+}
+
+export async function collectLocalTripPushSyncItems(): Promise<ClientPushSyncItem[]> {
+  const { storageService } = await import('../storage/storageService');
+  const [giorni, trasporti, attivita, alloggi, ristoranti, tappe, shopping, scadenze] = await Promise.all([
+    storageService.getDays(),
+    storageService.getTransports(),
+    storageService.getActivities(),
+    storageService.getAccommodations(),
+    storageService.getRistoranti(),
+    storageService.getTappe(),
+    storageService.getShopping(),
+    storageService.getScadenze(),
+  ]);
+  return collectTripPushReminderItems({
+    giorni: giorni as unknown as Array<Record<string, unknown>>,
+    trasporti: trasporti as unknown as Array<Record<string, unknown>>,
+    attivita: attivita as unknown as Array<Record<string, unknown>>,
+    alloggi: alloggi as unknown as Array<Record<string, unknown>>,
+    ristoranti: ristoranti as unknown as Array<Record<string, unknown>>,
+    tappe: tappe as unknown as Array<Record<string, unknown>>,
+    shopping: shopping as unknown as Array<Record<string, unknown>>,
+    note: scadenze as unknown as Array<Record<string, unknown>>,
+  });
+}
+
+export async function syncPushRemindersFromStorage(options: {
+  force?: boolean;
+  preferences?: PushPreferences;
+} = {}): Promise<void> {
+  if (!BACKGROUND_PUSH_ENABLED || typeof localStorage === 'undefined') return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  const stored = readStoredPushRegistration();
+  if (!stored) return;
+  const tripId = getTripConfig()?.id?.trim() || stored.tripId || '0000';
+  if (!auth.currentUser || auth.currentUser.isAnonymous || !isCloudAuthorized(tripId)) return;
+
+  if (inFlightReminderSync) return inFlightReminderSync;
+
+  inFlightReminderSync = (async () => {
+    try {
+      const items = await collectLocalTripPushSyncItems();
+      const prefs = options.preferences || stored.preferences || DEFAULT_PUSH_PREFERENCES;
+      const fingerprintPayload = JSON.stringify({
+        tripId,
+        subscriberId: stored.subscriberId,
+        prefs: {
+          transports: prefs.transports,
+          activities: prefs.activities,
+          lodging: prefs.lodging,
+          deadlines: prefs.deadlines,
+          reminderMinutes: prefs.reminderMinutes,
+        },
+        items,
+      });
+      const fingerprint = await sha256(fingerprintPayload);
+      const cacheKey = `${REMINDER_SYNC_STORAGE_PREFIX}${tripId}_${stored.subscriberId}`;
+      if (!options.force) {
+        try {
+          const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null') as { fingerprint?: string; syncedAt?: number } | null;
+          if (cached && cached.fingerprint === fingerprint && Date.now() - Number(cached.syncedAt || 0) < REMINDER_SYNC_TTL_MS) {
+            return;
+          }
+        } catch {
+          // cache assente o non leggibile: prosegui con la sincronizzazione
+        }
+      }
+      await callPush('sync-reminders', {
+        tripId,
+        subscriberId: stored.subscriberId,
+        items: items.slice(0, 200),
+        pruneRemoved: true,
+      });
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({ fingerprint, syncedAt: Date.now() }));
+      } catch {
+        // quota storage ignorabile
+      }
+    } catch {
+      // Backfill non bloccante per non disturbare offline o rate-limit
+    }
+  })().finally(() => {
+    inFlightReminderSync = null;
+  });
+
+  return inFlightReminderSync;
 }

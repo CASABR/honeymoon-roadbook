@@ -41,8 +41,10 @@ import {
 } from '../utils/overlapDetection';
 import { useDeviceRole } from '../utils/useDeviceRole';
 import { formatDateIT } from '../utils/tripDates';
-import { compareTimelineItems, isPhysicalTimelineItem, timelineMinutes } from '../utils/timelineOrdering';
-import { computeDayFocalEvent } from '../utils/dayFocusPriority';
+import { compareTimelineItems, isPhysicalTimelineItem } from '../utils/timelineOrdering';
+import { computeDayFocalEvent, resolveTripActiveCard } from '../utils/dayFocusPriority';
+import { buildDayLocationsMap } from '../utils/pushReminders';
+import { getLocalIsoDate } from '../utils/reliableTimeZone';
 import { getEffectiveDeadlineStatus, isDeadlineReminderActive } from '../utils/deadlines';
 import TimePickerInput from '../components/common/TimePickerInput';
 import { lookupKnownCoordinate } from '../utils/geoCoordinatesHelper';
@@ -88,7 +90,7 @@ const TRIP_END_DATE = '2027-01-10';
 
 function getDefaultSelectedDate(startDate?: string, endDate?: string, tripId?: string): string {
   const isMasterTrip = !tripId || tripId === '0000';
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalIsoDate();
   const start = startDate || (isMasterTrip ? TRIP_START_DATE : todayStr);
   const end = endDate || (isMasterTrip ? TRIP_END_DATE : start);
   if (todayStr >= start && todayStr <= end) return todayStr;
@@ -112,6 +114,20 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [selectedDate, setSelectedDate] = useState<string>(() => {
     return getDefaultSelectedDate(tripConfig?.startDate, tripConfig?.endDate, tripConfig?.id);
   });
+  const [tripDateBounds, setTripDateBounds] = useState<{ startDate: string; endDate: string }>(() => {
+    const todayStr = getLocalIsoDate();
+    const startDate = tripConfig?.startDate || (isMasterTrip ? TRIP_START_DATE : todayStr);
+    const endDate = tripConfig?.endDate || (isMasterTrip ? TRIP_END_DATE : startDate);
+    return { startDate, endDate };
+  });
+  const [timelineLoadedDate, setTimelineLoadedDate] = useState<string | null>(null);
+  const [nowTickMs, setNowTickMs] = useState<number>(() => Date.now());
+  const hasUserSelectedDateRef = useRef(false);
+  const hasAutoFocusedOnOpenRef = useRef(false);
+  const selectDateManually = useCallback((nextDate: string) => {
+    hasUserSelectedDateRef.current = true;
+    setSelectedDate(nextDate);
+  }, []);
 
   bumpUiDebugCounter('oggiRenders');
   useEffect(() => {
@@ -141,7 +157,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     const handleSelectDate = (e: Event) => {
       const targetDate = (e as CustomEvent)?.detail?.date;
       if (targetDate && typeof targetDate === 'string') {
-        setSelectedDate(targetDate);
+        selectDateManually(targetDate);
       }
     };
     window.addEventListener('online', handleOnline);
@@ -152,11 +168,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('roadbook_select_date', handleSelectDate);
     };
-  }, []);
+  }, [selectDateManually]);
 
   // Calcolo dinamico Countdown rispetto alla partenza reale
   const calculateCountdown = () => {
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getLocalIsoDate();
     const startDate = tripConfig?.startDate || tripDays[0]?.dateStr || (isMasterTrip ? '2026-11-28' : todayStr);
     const target = new Date(`${startDate}T00:00:00`);
     const now = new Date();
@@ -270,7 +286,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         amount: parseFloat(quickEur.toFixed(2)),
         category: 'altro',
         status: 'saldato',
-        date: now.toISOString().split('T')[0],
+        date: getLocalIsoDate(now),
         notes: quickExpenseCurrency !== 'EUR' ? `${quickAmountNum} ${quickExpenseCurrency}` : undefined
       });
       setQuickExpenseTitle('');
@@ -376,38 +392,11 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     };
   }, [closeInsertMenu, insertMenuAfterId]);
 
-  const scrollToCurrentEvent = useCallback(() => {
-    if (!timeline || timeline.length === 0) return;
-    const now = new Date();
-    const currentMin = now.getHours() * 60 + now.getMinutes();
-
-    let closestId = timeline[0]?.id;
-    let minDiff = Infinity;
-
-    timeline.forEach(item => {
-      const itemMin = timelineMinutes(item.time);
-      if (itemMin !== null) {
-        const diff = Math.abs(itemMin - currentMin);
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestId = item.id;
-        }
-      }
-    });
-
-    if (closestId && timelineItemRefs.current[closestId]) {
-      timelineItemRefs.current[closestId]?.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center'
-      });
-    }
-  }, [timeline]);
-
   const getTomorrowDateStr = (dateStr: string): string => {
     try {
       const d = new Date(`${dateStr}T12:00:00`);
       d.setDate(d.getDate() + 1);
-      return d.toISOString().split('T')[0];
+      return getLocalIsoDate(d);
     } catch {
       return '';
     }
@@ -423,6 +412,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     const filteredItems = items;
 
     setTimeline(prev => (JSON.stringify(prev) === JSON.stringify(filteredItems) ? prev : filteredItems));
+    setTimelineLoadedDate(target);
 
     // Rilevamento collisioni orarie mediante motore intervalli temporali
     try {
@@ -495,27 +485,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       setTomorrowTimeline(prev => (prev.length === 0 ? prev : []));
     }
   }, [selectedDate]);
-
-  const hasInitialScrolledRef = useRef<string | null>(null);
-
-  // Auto-scroll cronologico alla tappa/evento più vicino all'orario attuale solo al cambio data iniziale
-  // e solo se l'utente non ha già iniziato a scorrere manualmente la schermata
-  useEffect(() => {
-    const todayStr = new Date().toISOString().split('T')[0];
-    if (selectedDate === todayStr || selectedDate === (tripDays[0]?.dateStr || '2026-11-29')) {
-      if (hasInitialScrolledRef.current !== selectedDate && timeline.length > 0) {
-        hasInitialScrolledRef.current = selectedDate;
-        const timer = setTimeout(() => {
-          const mainEl = document.querySelector<HTMLElement>('[data-main-scroll-container]');
-          const verticalOffset = Math.max(window.scrollY || 0, mainEl?.scrollTop || 0);
-          if (verticalOffset < 40) {
-            scrollToCurrentEvent();
-          }
-        }, 350);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [selectedDate, timeline.length, scrollToCurrentEvent, tripDays]);
 
   const fetchGlobalCopilotNote = useCallback(async () => {
     try {
@@ -644,14 +613,28 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
         return dynamicDays;
       });
 
-      // Data selezionata: per 0000 usa periodo storico, per altri viaggi usa le date del viaggio o oggi
-      const todayStr = new Date().toISOString().split('T')[0];
-      const configStartDate = tripConfig?.startDate || (isMasterTrip ? '2026-11-28' : todayStr);
-      const configEndDate = tripConfig?.endDate || (isMasterTrip ? '2027-01-10' : configStartDate);
-      
+      // Data selezionata: per 0000 usa periodo storico, per altri viaggi usa le date del viaggio o oggi (locale)
+      const todayStr = getLocalIsoDate();
+      const configStartDate = tripConfig?.startDate || (isMasterTrip ? TRIP_START_DATE : todayStr);
+      const configEndDate = tripConfig?.endDate || (isMasterTrip ? TRIP_END_DATE : configStartDate);
+      setTripDateBounds(prev => (
+        prev.startDate === configStartDate && prev.endDate === configEndDate
+          ? prev
+          : { startDate: configStartDate, endDate: configEndDate }
+      ));
+
       const forcedDate = getDefaultSelectedDate(configStartDate, configEndDate, tripConfig?.id);
-      
+
       setSelectedDate(prev => {
+        if (hasUserSelectedDateRef.current) {
+          if (prev && dynamicDays.some((d: { dateStr: string }) => d.dateStr === prev)) {
+            return prev;
+          }
+          return forcedDate;
+        }
+        if (todayStr >= configStartDate && todayStr <= configEndDate && dynamicDays.some((d: { dateStr: string }) => d.dateStr === todayStr)) {
+          return todayStr;
+        }
         if (prev && dynamicDays.some((d: { dateStr: string }) => d.dateStr === prev)) {
           return prev;
         }
@@ -1071,10 +1054,25 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     storageService.saveSetting('hero_bg_image', null);
   };
 
+  const dayLocationsByDate = useMemo(
+    () => buildDayLocationsMap(daysData as unknown as Array<Record<string, unknown>>),
+    [daysData]
+  );
+
   // ─── LIVELLO 1: Calcolo deterministico evento focale della giornata (FASE 1) ───
   const focalResult = useMemo(() => {
-    return computeDayFocalEvent(timeline, selectedDate, new Date());
-  }, [timeline, selectedDate]);
+    return computeDayFocalEvent(timeline, selectedDate, new Date(nowTickMs));
+  }, [timeline, selectedDate, nowTickMs]);
+
+  const activeTimelineFocus = useMemo(() => {
+    return resolveTripActiveCard(timeline, selectedDate, {
+      now: new Date(nowTickMs),
+      tripStartDate: tripDateBounds.startDate,
+      tripEndDate: tripDateBounds.endDate,
+      dayLocation: currentDayData?.location,
+      dayLocationsByDate,
+    });
+  }, [timeline, selectedDate, nowTickMs, tripDateBounds.startDate, tripDateBounds.endDate, currentDayData?.location, dayLocationsByDate]);
 
   const nextEventItem = focalResult.focalItem;
 
@@ -1107,6 +1105,47 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     activeCollision ||
     (typeof document !== 'undefined' && document.querySelector('[role="dialog"][aria-modal="true"], .modal-backdrop-layer'))
   );
+
+  useEffect(() => {
+    if (!activeTimelineFocus.isDuringTrip || !activeTimelineFocus.isCurrentDay) return;
+    const syncClock = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+      setNowTickMs(Date.now());
+    };
+    const interval = window.setInterval(syncClock, 60_000);
+    document.addEventListener('visibilitychange', syncClock);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener('visibilitychange', syncClock);
+    };
+  }, [activeTimelineFocus.isDuringTrip, activeTimelineFocus.isCurrentDay]);
+
+  // Scorrimento una sola volta all'apertura dell'app durante il viaggio verso la card pertinente
+  useEffect(() => {
+    if (hasAutoFocusedOnOpenRef.current) return;
+    if (!activeTimelineFocus.isDuringTrip || !activeTimelineFocus.isCurrentDay) return;
+    if (hasUserSelectedDateRef.current) return;
+    if (timelineLoadedDate !== selectedDate) return;
+    const targetId = activeTimelineFocus.scrollItemId;
+    if (!targetId) return;
+    if (hasOpenDayOverlay()) return;
+
+    const timer = window.setTimeout(() => {
+      if (hasAutoFocusedOnOpenRef.current || hasUserSelectedDateRef.current || hasOpenDayOverlay()) return;
+      const targetEl =
+        timelineItemRefs.current[targetId] ||
+        document.getElementById(`timeline-card-${targetId}`);
+      if (!targetEl) return;
+      const mainEl = document.querySelector<HTMLElement>('[data-main-scroll-container]');
+      const verticalOffset = Math.max(window.scrollY || 0, mainEl?.scrollTop || 0);
+      hasAutoFocusedOnOpenRef.current = true;
+      if (verticalOffset < 40) {
+        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [activeTimelineFocus, selectedDate, timelineLoadedDate]);
 
   const handleDaySwipeStart = (event: React.TouchEvent<HTMLDivElement>) => {
     if (event.touches.length !== 1 || hasOpenDayOverlay()) {
@@ -1155,11 +1194,13 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
     if (direction === 'right') {
       if (currentIndex > 0) {
+        hasUserSelectedDateRef.current = true;
         setSelectedDate(tripDays[currentIndex - 1].dateStr);
       }
       return;
     }
     if (currentIndex >= 0 && currentIndex < tripDays.length - 1) {
+      hasUserSelectedDateRef.current = true;
       setSelectedDate(tripDays[currentIndex + 1].dateStr);
     }
   };
@@ -1232,7 +1273,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           <button
             type="button"
             disabled={currentIndex <= 0}
-            onClick={() => currentIndex > 0 && setSelectedDate(tripDays[currentIndex - 1].dateStr)}
+            onClick={() => currentIndex > 0 && selectDateManually(tripDays[currentIndex - 1].dateStr)}
             className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 transition hover:border-[#FF6B5F] hover:text-[#FF6B5F] disabled:cursor-not-allowed disabled:opacity-35"
             aria-label="Giorno precedente"
           >
@@ -1241,7 +1282,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           <button
             type="button"
             disabled={currentIndex < 0 || currentIndex >= tripDays.length - 1}
-            onClick={() => currentIndex >= 0 && currentIndex < tripDays.length - 1 && setSelectedDate(tripDays[currentIndex + 1].dateStr)}
+            onClick={() => currentIndex >= 0 && currentIndex < tripDays.length - 1 && selectDateManually(tripDays[currentIndex + 1].dateStr)}
             className="rounded-xl border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-200 transition hover:border-[#FF6B5F] hover:text-[#FF6B5F] disabled:cursor-not-allowed disabled:opacity-35"
             aria-label="Giorno successivo"
           >
@@ -1287,7 +1328,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               {/* Indicatore Stato o Countdown */}
               <div className="shrink-0">
                 {(() => {
-                  const todayStr = new Date().toISOString().split('T')[0];
+                  const todayStr = getLocalIsoDate();
                   const startDateStr = tripConfig?.startDate || tripDays[0]?.dateStr || '2026-11-28';
                   const isFuture = todayStr < startDateStr;
                   const isToday = selectedDate === todayStr;
@@ -1373,10 +1414,10 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
               </div>
 
               {/* Scorciatoia "Torna a Oggi" se l'utente sta consultando un'altra data */}
-              {selectedDate !== new Date().toISOString().split('T')[0] && (
+              {selectedDate !== getLocalIsoDate() && (
                 <button
                   type="button"
-                  onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+                  onClick={() => selectDateManually(getLocalIsoDate())}
                   className="shrink-0 px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-[#FFF0ED] text-[#FF6B5F] dark:bg-rose-950/40 dark:text-rose-300 border border-[#FF6B5F]/30 hover:bg-[#FFE2DE] transition-colors cursor-pointer"
                 >
                   Torna a Oggi ➔
@@ -1390,7 +1431,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
         {/* ─── LIVELLO 1: HERO PROSSIMA ATTIVITÀ / FOCUS TEMPORALE REALE ─── */}
         {(() => {
-          const todayStr = new Date().toISOString().split('T')[0];
+          const todayStr = getLocalIsoDate();
           const startDateStr = tripConfig?.startDate || tripDays[0]?.dateStr || (isMasterTrip ? '2026-11-28' : todayStr);
           const endDateStr = tripConfig?.endDate || (isMasterTrip ? '2027-01-10' : startDateStr);
           const isViewingOtherDate = selectedDate !== todayStr;
@@ -1479,7 +1520,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                   </span>
                   <button
                     type="button"
-                    onClick={() => setSelectedDate(startDateStr)}
+                    onClick={() => selectDateManually(startDateStr)}
                     className="px-2.5 py-1 rounded-lg text-[11px] font-bold text-[#FF6B5F] bg-[#FFF0ED] dark:bg-rose-950/40 hover:bg-[#FFE2DE] border border-[#FF6B5F]/30 transition-colors cursor-pointer"
                   >
                     Giorno 1 ({formatDateHuman(startDateStr)}) ➔
@@ -1788,7 +1829,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 min={tripDays.length > 0 ? tripDays[0]?.dateStr : undefined}
                 max={tripDays.length > 0 ? tripDays[tripDays.length - 1]?.dateStr : undefined}
                 onChange={(e) => {
-                  if (e.target.value) setSelectedDate(e.target.value);
+                  if (e.target.value) selectDateManually(e.target.value);
                 }}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 aria-label="Scegli data dal calendario"
@@ -1816,7 +1857,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 key={item.dateStr}
                 ref={isSelected ? selectedDayBtnRef : undefined}
                 type="button"
-                onClick={() => setSelectedDate(item.dateStr)}
+                onClick={() => selectDateManually(item.dateStr)}
                 className={`snap-start shrink-0 flex flex-col items-center justify-center w-14 py-2.5 rounded-2xl transition-all duration-200 cursor-pointer ${
                   isSelected
                     ? 'bg-[#172033] text-white dark:bg-white dark:text-[#172033] font-bold shadow-xs scale-[1.03]'
@@ -1844,7 +1885,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
               {(() => {
-                const todayStr = new Date().toISOString().split('T')[0];
+                const todayStr = getLocalIsoDate();
                 const startDateStr = tripDays[0]?.dateStr || '2026-11-29';
                 if (todayStr < startDateStr) {
                   return selectedDate === startDateStr ? 'Prima Tappa in Programma' : 'Itinerario Programmato';
@@ -1884,7 +1925,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
         {/* Sequenza Unificata: timeline con sezioni chiare + alloggio fisso in fondo */}
         {(() => {
-          const todayStr = new Date().toISOString().split('T')[0];
+          const todayStr = getLocalIsoDate();
           // Prepara gli elementi di percorso sequenziali
           const dayItems: {
             id: string;
@@ -2127,15 +2168,26 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                     const isRistorante = item.type === 'ristorante';
                     const isShopping = item.type === 'shopping';
                     const isAttivita = item.type === 'attivita';
+                    const isActiveNow = activeTimelineFocus.activeItemId === item.id;
 
                     return (
                       <div
                         key={item.id}
                         id={`timeline-card-${item.id}`}
                         ref={(el) => { timelineItemRefs.current[item.id] = el; }}
+                        data-active-card={isActiveNow ? 'true' : undefined}
                         className={`hounigo-timeline-item transition-colors duration-200 ${highlightedCardId === item.id ? 'hounigo-card-highlighted' : ''}`}
                         style={{ animationDelay: `${Math.min(idx * 28, 168)}ms` }}
                       >
+                        {isActiveNow && (
+                          <div className="mb-1 flex items-center gap-1.5 px-1">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FFF0ED] dark:bg-rose-950/60 border border-[#FF6B5F]/35 px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider text-[#E11D48] dark:text-[#FF6B5F]">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#FF6B5F]" aria-hidden="true" />
+                              {activeTimelineFocus.reason === 'ongoing_or_imminent' ? 'Attiva adesso' : 'Prossima ora'}
+                            </span>
+                          </div>
+                        )}
+                        <div className={isActiveNow ? 'hounigo-card-active-now' : undefined}>
                         {isCheckinCallout ? (
                           /* Tappa informativa rapida per check-in */
                           <div
@@ -2251,6 +2303,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                             {item.title}
                           </div>
                         )}
+                        </div>
 
                         {canEdit && nextItem && (
                           <div className="group relative hidden min-h-7 items-center justify-center lg:flex">
@@ -2475,7 +2528,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           {nextDayMeta && (
             <button
               type="button"
-              onClick={() => setSelectedDate(nextDayMeta.dateStr)}
+              onClick={() => selectDateManually(nextDayMeta.dateStr)}
               className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 transition-colors cursor-pointer px-2.5 py-1 rounded-xl bg-blue-50 dark:bg-blue-950/40 hover:bg-blue-100 dark:hover:bg-blue-900/50"
             >
               Vedi giornata ➔
@@ -2505,7 +2558,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                 <div
                   key={`${item.id}-${idx}`}
                   onClick={() => {
-                    if (nextDayMeta) setSelectedDate(nextDayMeta.dateStr);
+                    if (nextDayMeta) selectDateManually(nextDayMeta.dateStr);
                   }}
                   className="min-w-[200px] max-w-[240px] bg-white dark:bg-slate-800/90 rounded-xl p-3 border border-slate-200/80 dark:border-slate-700 shadow-xs shrink-0 snap-start flex flex-col justify-between hover:border-slate-300 dark:hover:border-slate-600 transition-all cursor-pointer active:scale-[0.98]"
                 >
