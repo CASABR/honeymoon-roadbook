@@ -4,7 +4,7 @@
     {
       "version": "1.6.35",
       "publishedAt": "2026-11-20",
-      "sourceCommit": "d597b90",
+      "sourceCommit": "e823577",
       "changes": [
         "Aggiunta mini-card compatta Prossimo Spostamento nella vista LIVE interna ed esterna per voli, treni a lunga percorrenza e traghetti con link Flightradar24 solo sui voli",
         "Proiettati nel feed LIVE pubblico i soli campi pubblici delle tratte future (zero PNR o dati privati) con avanzamento automatico anche a PWA Owner chiusa"
