@@ -2,6 +2,12 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.6.38 ? 2026-11-21
+
+- Spese e Budget: caricamenti affidabili, importi originali e riepilogo multivaluta.
+- Allegati PDF: messaggio chiaro quando il documento non e disponibile.
+- Piattaforma di prenotazione ricercabile, con nomi personalizzati.
+
 ## 1.6.37 — 2026-11-20
 
 - Note Copilota indipendenti per ciascun giorno del viaggio.

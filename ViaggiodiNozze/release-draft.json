@@ -1,9 +1,0 @@
-{
-  "version": "1.6.38",
-  "preparedAt": "2026-11-21",
-  "changes": [
-    "Spese e Budget: caricamenti affidabili, importi originali e riepilogo multivaluta.",
-    "Allegati PDF: messaggio chiaro quando il documento non e disponibile.",
-    "Piattaforma di prenotazione ricercabile, con nomi personalizzati."
-  ]
-}

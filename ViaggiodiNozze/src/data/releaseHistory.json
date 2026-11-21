@@ -2,6 +2,17 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.38",
+      "publishedAt": "2026-11-21",
+      "sourceCommit": "d86abd5ec97d6edc02e87c0ef43ad746dc06b44a",
+      "changes": [
+        "Spese e Budget: caricamenti affidabili, importi originali e riepilogo multivaluta.",
+        "Allegati PDF: messaggio chiaro quando il documento non e disponibile.",
+        "Piattaforma di prenotazione ricercabile, con nomi personalizzati."
+      ],
+      "publishedAtIso": "2026-11-21T15:34:59.607Z"
+    },
+    {
       "version": "1.6.37",
       "publishedAt": "2026-11-20",
       "sourceCommit": "491fdc5ec20baddb9cad50473aee1e890d6856e0",
@@ -244,17 +255,6 @@
         "Apertura immediata allegati offline con chip interattivi sulle card e nella galleria touch"
       ],
       "publishedAtIso": "2026-11-17T16:15:00.000Z"
-    },
-    {
-      "version": "1.6.13",
-      "publishedAt": "2026-11-17",
-      "sourceCommit": "3b4c085",
-      "changes": [
-        "HouniAI: importazione multipla simultanea di PDF, screenshot e conferme con supporto fino a 6 file",
-        "Deduplicazione intelligente nel batch e anteprima sequenziale con salvataggio confermato per card",
-        "Supporto unificato categorie con integrazione acquisti shopping e arricchimento allegati"
-      ],
-      "publishedAtIso": "2026-11-17T15:10:00.000Z"
     }
   ]
 }

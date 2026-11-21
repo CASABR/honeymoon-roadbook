@@ -1,10 +1,10 @@
 {
   "$schema": "./hounigo-deploy-request.schema.json",
-  "requestId": "req-init-20261117-001",
-  "requestedAt": "2026-11-17T10:30:00Z",
+  "requestId": "release-1.6.38-1795275316126",
+  "requestedAt": "2026-11-21T15:35:16.126Z",
   "requestedBy": "CASABR",
-  "action": "dry-run",
+  "action": "deploy",
   "ref": "main",
-  "confirm": "",
-  "note": "Configurazione iniziale pipeline trigger per richieste da ChatGPT"
+  "confirm": "CONFERMA",
+  "note": "Release 1.6.38: selezione GO verificata, Shopping autosave escluso."
 }
