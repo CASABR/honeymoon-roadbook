@@ -1,0 +1,8 @@
+{
+  "version": "1.6.39",
+  "preparedAt": "2026-11-21",
+  "changes": [
+    "LIVE: centratura automatica al primo GPS valido, una sola volta per apertura.",
+    "Navigazione manuale, ricentratura GPS e vista ospiti preservate."
+  ]
+}

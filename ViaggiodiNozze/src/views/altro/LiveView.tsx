@@ -1,3 +1,4 @@
+import { useLiveMapInitialCenter } from '../../hooks/useLiveMapInitialCenter';
 import { compressLivePhotoToDataUrl } from '../../utils/livePhotoImage';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
@@ -128,7 +129,6 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   const [transports, setTransports] = useState<Trasporto[]>([]);
   const [tappe, setTappe] = useState<Tappa[]>([]);
   const [activities, setActivities] = useState<Attivita[]>([]);
-  const [mapCenterMode, setMapCenterMode] = useState<'both' | 'real' | 'planned'>('both');
   const [loading, setLoading] = useState(true);
   const [isOnline, setIsOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine);
 
@@ -1395,17 +1395,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
     return liveIntelligence?.plannedLocation?.coords || null;
   }, [liveIntelligence]);
 
-  const effectiveMapCenter = useMemo(() => {
-    if (mapCenterMode === 'real') return realCoords || null;
-    if (mapCenterMode === 'planned') return plannedCoords || realCoords || null;
-    if (mapCenterMode === 'both' && realCoords && plannedCoords) {
-      return {
-        lat: (realCoords.lat + plannedCoords.lat) / 2,
-        lng: (realCoords.lng + plannedCoords.lng) / 2
-      };
-    }
-    return realCoords || plannedCoords || null;
-  }, [mapCenterMode, realCoords, plannedCoords]);
+  const { mapCenterMode, setMapCenterMode, effectiveMapCenter } = useLiveMapInitialCenter(realCoords, plannedCoords);
 
   const effectiveMapZoom = useMemo(() => {
     if (mapCenterMode !== 'both' || !realCoords || !plannedCoords) return mapZoom;
@@ -1656,7 +1646,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
   // Griglia dinamica 3x3 di Tile per la mappa interattiva (Esri ArcGIS World Street Map)
   const tileGrid = useMemo(() => {
     const center = effectiveMapCenter;
-    if (!center || !center.lat || !center.lng) {
+    if (!center || !Number.isFinite(center.lat) || !Number.isFinite(center.lng)) {
       return null;
     }
     const { lat, lng } = center;
