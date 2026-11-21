@@ -18,10 +18,8 @@ export interface DetectedCurrencyValue {
 const RATES_CACHE_KEY = 'hounigo_ecb_rates_v1';
 const RATES_CACHE_TTL_MS = 12 * 60 * 60 * 1000;
 
-const KNOWN_CURRENCIES = new Set([
-  'EUR', 'AUD', 'NZD', 'PHP', 'USD', 'GBP', 'CHF', 'JPY',
-  'CNY', 'RMB', 'TWD', 'CAD', 'SGD', 'THB', 'MYR', 'IDR', 'KRW', 'HKD'
-]);
+export const SUPPORTED_CURRENCIES = ['EUR', 'NZD', 'AUD', 'PHP', 'CNY', 'TWD', 'USD', 'GBP', 'CHF', 'JPY', 'CAD', 'SGD', 'THB', 'MYR', 'IDR', 'KRW', 'HKD'] as const;
+const KNOWN_CURRENCIES = new Set<string>([...SUPPORTED_CURRENCIES, 'RMB']);
 
 export function roundEur(val: number): number {
   if (!Number.isFinite(val)) return 0;
@@ -149,6 +147,18 @@ function readCachedEcbRates(allowExpired = false): CachedRatesPayload | null {
   }
 }
 
+/** Read a verified cached quote without network access; used by the Budget offline projection. */
+export function getCachedEcbExchangeRate(currency: string, allowExpired = false): ExchangeRateQuote | null {
+  const code = currency.trim().toUpperCase();
+  const cache = readCachedEcbRates(allowExpired);
+  const rate = cache?.rates[code];
+  if (!cache || typeof rate !== 'number' || !Number.isFinite(rate) || rate <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(cache.date)) return null;
+  const day = new Date(cache.date + 'T00:00:00Z');
+  if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== cache.date || day.getTime() > Date.now()) return null;
+  const expired = Date.now() - cache.fetchedAt > RATES_CACHE_TTL_MS;
+  return { currency: code, rate, date: cache.date, source: expired ? 'BCE (Frankfurter; cache non aggiornata)' : 'BCE (Frankfurter; cache)' };
+}
+
 export async function fetchEcbExchangeRate(currency: string): Promise<ExchangeRateQuote | null> {
   const code = currency.trim().toUpperCase();
   if (!code || code === 'EUR') {
@@ -221,6 +231,7 @@ export async function fetchEcbExchangeRate(currency: string): Promise<ExchangeRa
 export async function normalizeFinancialFieldsToEur(params: {
   costRaw?: string | number | null;
   depositRaw?: string | number | null;
+  exchangeRateResolver?: (currency: string) => Promise<ExchangeRateQuote | null>;
 }): Promise<Record<string, any>> {
   const costInfo = detectCurrencyFromValue(params.costRaw);
   const depInfo = detectCurrencyFromValue(params.depositRaw);
@@ -257,14 +268,17 @@ export async function normalizeFinancialFieldsToEur(params: {
       cost: eurCost,
       depositPaid: eurDep,
       acconto: eurDep,
-      currencyUncertain: false
+      currencyUncertain: false,
+      ...(costInfo.isExplicitEur ? { originalCurrency: 'EUR', originalCost: costInfo.amount } : {}),
+      ...(depInfo.isExplicitEur ? { originalDepositCurrency: 'EUR', originalDepositPaid: depInfo.amount } : {}),
     };
   }
 
+  const getQuote = params.exchangeRateResolver || fetchEcbExchangeRate;
   // Each input has its own currency. Never apply the cost rate to a different deposit.
   const [costQuote, depositQuote] = await Promise.all([
-    costInfo.isForeign ? fetchEcbExchangeRate(costInfo.currency!) : Promise.resolve(null),
-    depInfo.isForeign ? fetchEcbExchangeRate(depInfo.currency!) : Promise.resolve(null),
+    costInfo.isForeign ? getQuote(costInfo.currency!) : Promise.resolve(null),
+    depInfo.isForeign ? getQuote(depInfo.currency!) : Promise.resolve(null),
   ]);
   const unresolved = (costInfo.isForeign && !costQuote) || (depInfo.isForeign && !depositQuote);
   const costEur = costInfo.hasValue && !unresolved
@@ -322,8 +336,7 @@ export async function buildEurSavePatch(params: {
     output.depositConversionType = unchanged ? ex.depositConversionType : 'definitiva';
   }
   // A numeric legacy amount explicitly flagged uncertain needs an explicit EUR declaration.
-  if (ex.currencyUncertain && !cost.isExplicitEur && !cost.isForeign
-      && roundEur(cost.amount) === roundEur(parseRawNumericAmount(ex.cost ?? ex.budget ?? ex.amount))) {
+  if (ex.currencyUncertain && !cost.isExplicitEur && !cost.isForeign) {
     output.currencyUncertain = true;
   }
   return output;

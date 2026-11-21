@@ -1,3 +1,6 @@
+import BookingPlatformInput from '../common/BookingPlatformInput';
+import { formatDraftBalance } from '../../utils/budgetDisplay';
+import CurrencyAmountInput from '../common/CurrencyAmountInput';
 import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress, extractMapsUrlFromText, isGoogleMapsUrl } from '../../utils/mapsHelper';
@@ -188,7 +191,7 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
       setHikingHours(walkingMinutes ? Math.floor(walkingMinutes / 60).toString() : '');
       setHikingMinutes(walkingMinutes ? (walkingMinutes % 60).toString() : '');
       setRouteType(initialData.routeType || '');
-      setCurrency(initialData.currency || 'EUR');
+      setCurrency((initialData as { originalCurrency?: string }).originalCurrency ? 'EUR' : initialData.currency || 'EUR');
       setDifficulty(initialData.difficulty || '');
       setLightWindow(initialData.lightWindow || 'qualsiasi');
       setPhotoSubject(initialData.photoSubject || '');
@@ -617,8 +620,8 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
           </div>
           <label className="text-xs font-bold text-slate-700 dark:text-slate-200"><span className="block uppercase tracking-wider mb-1.5">Punto di partenza</span><input type="text" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Parcheggio, trailhead o indirizzo" className="w-full h-11 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
           <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
-            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Prezzo</span><input type="number" min="0" step="0.01" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="Facoltativo" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
-            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Valuta</span><input type="text" maxLength={3} value={currency} onChange={(e) => setCurrency(e.target.value.toUpperCase())} className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm uppercase" /></label>
+            <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Prezzo</span><CurrencyAmountInput type="number" min="0" step="0.01" inputMode="decimal" value={cost} onValueChange={(value) => setCost(value)} placeholder="Facoltativo" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" uncertain={Boolean((initialData as { currencyUncertain?: boolean } | null | undefined)?.currencyUncertain)} currencyLabel="Valuta costo" currency={isTrekking ? currency : undefined} onCurrencyChange={isTrekking ? setCurrency : undefined} /></label>
+            <p className="self-center text-[11px] text-slate-500">Scegli la valuta accanto al prezzo.</p>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label className="text-[11px] font-bold text-slate-600 dark:text-slate-300"><span className="block mb-1">Link percorso o traccia</span><input type="url" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://…" className="w-full h-10 px-3 hounigo-card-subtle rounded-xl text-sm" /></label>
@@ -919,30 +922,30 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
         
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Costo Totale (€)</label>
-            <input
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Costo totale e valuta</label>
+            <CurrencyAmountInput
               type="text"
               placeholder="es. 180"
               value={cost}
-              onChange={(e) => setCost(e.target.value)}
+              onValueChange={(value) => setCost(value)}
               className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-            />
+            uncertain={Boolean((initialData as { currencyUncertain?: boolean } | null | undefined)?.currencyUncertain)} currencyLabel="Valuta costo" currency={isTrekking ? currency : undefined} onCurrencyChange={isTrekking ? setCurrency : undefined} />
           </div>
           <div>
-            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Acconto Versato (€)</label>
-            <input
+            <label className="block text-[11px] font-semibold text-slate-600 mb-1">Acconto versato e valuta</label>
+            <CurrencyAmountInput
               type="text"
               placeholder="es. 50"
               value={acconto}
-              onChange={(e) => setAcconto(e.target.value)}
+              onValueChange={(value) => setAcconto(value)}
               className="w-full h-10 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-            />
+            uncertain={Boolean((initialData as { currencyUncertain?: boolean } | null | undefined)?.currencyUncertain)} currencyLabel="Valuta acconto" />
           </div>
         </div>
 
         <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-200">
           <div className="text-xs font-semibold text-slate-600">
-            Saldo Rimanente: <span className={`font-bold ${saldo > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{saldo > 0 ? saldo.toFixed(2) : '0.00'} €</span>
+            Saldo Rimanente: <span className={`font-bold ${saldo > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>{formatDraftBalance(cost, acconto)}</span>
           </div>
           <div className="flex items-center gap-2">
             <label htmlFor="saldato-toggle" className="text-xs font-bold text-slate-700 cursor-pointer">Saldato</label>
@@ -971,11 +974,10 @@ function StandardAttivitaForm({ selectedDayId, defaultTime, initialData, onSave,
           <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
             Piattaforma di prenotazione
           </label>
-          <input
+          <BookingPlatformInput
             type="text"
-            placeholder="es. GetYourGuide, Klook, Tiqets, sito ufficiale"
             value={platform}
-            onChange={(e) => setPlatform(e.target.value)}
+            onValueChange={setPlatform}
             aria-label="Piattaforma di prenotazione"
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#FF6B5F]"
           />

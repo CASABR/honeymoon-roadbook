@@ -16,6 +16,8 @@ import { compareTimelineItems } from '../utils/timelineOrdering';
 import { sortDeadlines } from '../utils/deadlines';
 import { lookupKnownCoordinate } from '../utils/geoCoordinatesHelper';
 
+export interface TripBudgetGoal { amount: number; updatedAt: number; originalCurrency?: string; originalCost?: number; exchangeRate?: number; exchangeRateDate?: string; exchangeRateSource?: string; conversionType?: 'definitiva' | 'stimata' }
+
 export const SEED_FLAG_KEY = 'honeymoon_roadbook_seeded_v1';
 
 /**
@@ -1402,22 +1404,22 @@ class StorageService {
     notifyDataChanged('spese', 'delete', { id });
   }
 
-  async getTripBudget(): Promise<{ amount: number; updatedAt: number } | null> {
+  async getTripBudget(): Promise<TripBudgetGoal | null> {
     try {
-      const setting = await idbGet<{ id: string; amount: number; updatedAt: number }>(STORES.SETTINGS, 'trip_budget_goal');
+      const setting = await idbGet<TripBudgetGoal & { id: string }>(STORES.SETTINGS, 'trip_budget_goal');
       if (!setting || typeof setting.amount !== 'number') return null;
-      return { amount: setting.amount, updatedAt: setting.updatedAt || Date.now() };
+      return { ...setting, amount: setting.amount, updatedAt: setting.updatedAt || Date.now() };
     } catch {
       return null;
     }
   }
 
-  async saveTripBudget(amount: number | null): Promise<void> {
+  async saveTripBudget(amount: number | null, originalMoney: Partial<TripBudgetGoal> = {}): Promise<void> {
     try {
       if (amount === null) {
         await idbDelete(STORES.SETTINGS, 'trip_budget_goal');
       } else {
-        await idbPut(STORES.SETTINGS, { id: 'trip_budget_goal', amount, updatedAt: Date.now() });
+        await idbPut(STORES.SETTINGS, { ...originalMoney, id: 'trip_budget_goal', amount, updatedAt: Date.now() });
       }
       notifyDataChanged('settings', 'save', { key: 'trip_budget_goal', amount });
     } catch (err) {

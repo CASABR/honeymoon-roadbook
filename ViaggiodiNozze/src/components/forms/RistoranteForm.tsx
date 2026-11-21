@@ -1,3 +1,4 @@
+import CurrencyAmountInput from '../common/CurrencyAmountInput';
 import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import { getCoordinatesFromAddress } from '../../utils/mapsHelper';
@@ -331,7 +332,7 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
         <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
           Budget / Prezzo medio
         </label>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {BUDGET_OPTIONS.map((opt) => (
             <button
               key={opt}
@@ -346,13 +347,13 @@ export default function RistoranteForm({ initialData, defaultDate, defaultTime, 
               {opt}
             </button>
           ))}
-          <input
+          <CurrencyAmountInput
             type="text"
             placeholder="o inserisci testo libero (es. 35€)"
             value={!BUDGET_OPTIONS.includes(budget) ? budget : ''}
-            onChange={(e) => setBudget(e.target.value)}
+            onValueChange={(value) => setBudget(value)}
             className="flex-1 h-10 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-[#172033] transition-colors placeholder:text-slate-400"
-          />
+          uncertain={Boolean((initialData as { currencyUncertain?: boolean } | null | undefined)?.currencyUncertain)} containerClassName="min-w-40" currencyLabel="Valuta budget" />
         </div>
       </div>
 

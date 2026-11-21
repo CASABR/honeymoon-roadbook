@@ -1,3 +1,4 @@
+import CurrencyAmountInput from '../common/CurrencyAmountInput';
 import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import type { Shopping, TimeStatus } from '../../types';
@@ -319,15 +320,15 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Budget indicativo (€)
+              Budget indicativo e valuta
             </label>
-            <input
+            <CurrencyAmountInput
               type="text"
               placeholder="es. 100"
               value={budget}
-              onChange={(e) => setBudget(e.target.value)}
+              onValueChange={(value) => setBudget(value)}
               className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors placeholder:text-slate-400"
-            />
+            uncertain={Boolean((initialData as { currencyUncertain?: boolean } | null | undefined)?.currencyUncertain)} currencyLabel="Valuta budget" />
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">

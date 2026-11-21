@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, useRef } from "react";
-import { storageService, notifyDataChanged } from "../../storage/storageService";
+import CurrencyAmountInput from '../../components/common/CurrencyAmountInput';
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { storageService, notifyDataChanged, type TripBudgetGoal } from "../../storage/storageService";
 import type { Spesa, StatoSpesa, CategoriaSpesa } from "../../types";
 import { Search, ChevronRight } from "lucide-react";
 import Modal from "../../components/common/Modal";
@@ -7,6 +8,10 @@ import Modal from "../../components/common/Modal";
 import { formatDate } from '../../utils/tripDates';
 import { resolvePaymentInfo, resolveCauzioneInfo } from '../../utils/priceHelper';
 import { buildEurSavePatch, normalizeFinancialFieldsToEur, roundEur } from '../../services/currencyService';
+import { prepareBudgetCurrencySnapshot } from '../../utils/budgetCurrency';
+import { getActiveTripId } from '../../storage/indexedDB';
+import { SUPPORTED_CURRENCIES, type ExchangeRateQuote } from '../../services/currencyService';
+import { buildDisplayLedger, currencyUnits, displayPayment, getDisplayExchangeRate } from '../../utils/budgetDisplay';
 
 // ============================================================================
 // TIPI & COSTANTI
@@ -27,6 +32,8 @@ export interface UnifiedExpense {
   isCurrencyUnresolved?: boolean;
   unverifiedRawText?: string;
   rawItem: any;
+  currencyProjection?: any;
+  currencyIssue?: string;
 }
 
 export const CATEGORY_CONFIG: Record<
@@ -113,9 +120,13 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
   const [drillDownCategory, setDrillDownCategory] = useState<CategoriaSpesa | "shopping" | null>(null);
 
   // Target Budget
-  const [targetBudget, setTargetBudget] = useState<{ amount: number; updatedAt: number } | null>(null);
+  const [targetBudget, setTargetBudget] = useState<TripBudgetGoal | null>(null);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [budgetInput, setBudgetInput] = useState("");
+  const [budgetSaveError, setBudgetSaveError] = useState("");
+  const [displayCurrency, setDisplayCurrency] = useState<string>('EUR');
+  const [displayQuote, setDisplayQuote] = useState<ExchangeRateQuote | null>(null);
+  const [displayRateLoading, setDisplayRateLoading] = useState(false);
 
   // Nuova Spesa
   const [isNewExpenseModalOpen, setIsNewExpenseModalOpen] = useState(false);
@@ -136,41 +147,97 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
   // ============================================================================
   // CARICAMENTO E AUTO-FIX
   // ============================================================================
-  const loadAllData = async () => {
-    setSpese(await storageService.getSpese());
-    let tList = await storageService.getTransports();
-    
-    setTrasporti(tList);
-    setAlloggi(await storageService.getAccommodations());
-    setAttivita(await storageService.getActivities());
-    
-    const r = storageService.getRistoranti ? await storageService.getRistoranti() : [];
-    setRistoranti(r);
-    
-    const s = (storageService as any).getShoppingItems ? await (storageService as any).getShoppingItems() : (storageService as any).getShopping ? await (storageService as any).getShopping() : [];
-    setShoppingItemsList(s);
+  const [isLoadingExpenses, setIsLoadingExpenses] = useState(true);
+  const [expenseLoadFailed, setExpenseLoadFailed] = useState(false);
+  const [hasLoadedExpenses, setHasLoadedExpenses] = useState(false);
+  const [isOffline, setIsOffline] = useState(() => typeof navigator !== 'undefined' && !navigator.onLine);
+  const [cloudSyncFailed, setCloudSyncFailed] = useState(false);
+  const expenseLoadSequence = useRef(0);
+  const isExpenseSummaryPending = isLoadingExpenses || expenseLoadFailed || !hasLoadedExpenses;
+  const displayReady = displayCurrency === 'EUR' || (!displayRateLoading && displayQuote?.currency === displayCurrency);
+  const displayRate = displayCurrency === 'EUR' ? 1 : displayReady ? displayQuote!.rate : 0;
+  const formatDisplayValue = (amount: number) => displayReady ? new Intl.NumberFormat('it-IT', { style: 'currency', currency: displayCurrency }).format(amount) : '—';
+  const convertDisplay = (amount: number) => currencyUnits(amount * displayRate, displayCurrency);
+  const formatSummary = (amount: number) => isExpenseSummaryPending ? '…' : formatDisplayValue(amount);
+  useEffect(() => {
+    let cancelled = false;
+    if (displayCurrency === 'EUR') { setDisplayRateLoading(false);setDisplayQuote(null);return; }
+    setDisplayRateLoading(true);
+    getDisplayExchangeRate(displayCurrency, isOffline).then(quote => { if (!cancelled) { setDisplayQuote(quote);setDisplayRateLoading(false); } });
+    return () => { cancelled = true; };
+  }, [displayCurrency, isOffline]);
 
-    const bg = await storageService.getTripBudget();
-    setTargetBudget(bg);
-  };
+  const loadAllData = useCallback(async () => {
+    const sequence = ++expenseLoadSequence.current;
+    setIsLoadingExpenses(true);
+    setExpenseLoadFailed(false);
+    try {
+      const [expenses, transports, accommodations, activities, restaurants, shopping, budget] = await Promise.all([
+        storageService.getSpese(),
+        storageService.getTransports(),
+        storageService.getAccommodations(),
+        storageService.getActivities(),
+        storageService.getRistoranti ? storageService.getRistoranti() : Promise.resolve([]),
+        (storageService as any).getShoppingItems ? (storageService as any).getShoppingItems() : (storageService as any).getShopping ? (storageService as any).getShopping() : Promise.resolve([]),
+        storageService.getTripBudget(),
+      ]);
+      if (sequence !== expenseLoadSequence.current) return;
+      const eur = await prepareBudgetCurrencySnapshot({ spese: expenses, trasporti: transports, alloggi: accommodations, attivita: activities, ristoranti: restaurants, shopping }, { tripId: getActiveTripId() });
+      if (sequence !== expenseLoadSequence.current) return;
+      setSpese(eur.spese);
+      setTrasporti(eur.trasporti);
+      setAlloggi(eur.alloggi);
+      setAttivita(eur.attivita);
+      setRistoranti(eur.ristoranti);
+      setShoppingItemsList(eur.shopping);
+      setTargetBudget(budget);
+      setHasLoadedExpenses(true);
+    } catch {
+      if (sequence === expenseLoadSequence.current) setExpenseLoadFailed(true);
+    } finally {
+      if (sequence === expenseLoadSequence.current) setIsLoadingExpenses(false);
+    }
+  }, []);
 
   useEffect(() => {
-    loadAllData();
-    let timeoutId: any;
+    void loadAllData();
+    let timeoutId: ReturnType<typeof setTimeout>;
     const handleStorageChange = () => {
+      // Invalidate immediately: an older read must not publish during the debounce.
+      expenseLoadSequence.current += 1;
       clearTimeout(timeoutId);
-      timeoutId = setTimeout(() => loadAllData(), 250);
+      setIsLoadingExpenses(true);
+      timeoutId = setTimeout(() => { void loadAllData(); }, 250);
     };
-    window.addEventListener("storage", handleStorageChange);
-    window.addEventListener("roadbook_data_mutated", handleStorageChange);
-    window.addEventListener("roadbook_cloud_synced", handleStorageChange);
+    const handleCloudSynced = () => {
+      setCloudSyncFailed(false);
+      handleStorageChange();
+    };
+    const handleCloudSyncError = () => setCloudSyncFailed(true);
+    const handleOffline = () => setIsOffline(true);
+    const handleOnline = () => {
+      setIsOffline(false);
+      handleStorageChange();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('roadbook_data_mutated', handleStorageChange);
+    window.addEventListener('roadbook_cloud_synced', handleCloudSynced);
+    window.addEventListener('roadbook_cloud_sync_idle', handleCloudSynced);
+    window.addEventListener('roadbook_cloud_sync_error', handleCloudSyncError);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
     return () => {
+      expenseLoadSequence.current += 1;
       clearTimeout(timeoutId);
-      window.removeEventListener("storage", handleStorageChange);
-      window.removeEventListener("roadbook_data_mutated", handleStorageChange);
-      window.removeEventListener("roadbook_cloud_synced", handleStorageChange);
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('roadbook_data_mutated', handleStorageChange);
+      window.removeEventListener('roadbook_cloud_synced', handleCloudSynced);
+      window.removeEventListener('roadbook_cloud_sync_idle', handleCloudSynced);
+      window.removeEventListener('roadbook_cloud_sync_error', handleCloudSyncError);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
     };
-  }, []);
+  }, [loadAllData]);
 
   // ============================================================================
   // MAPPATURA CENTRALIZZATA (UnifiedExpense)
@@ -263,8 +330,10 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             paid: false,
             isCurrencyUnresolved: true,
             unverifiedRawText: paymentInfo.unverifiedRawText,
-            conversionSummary: paymentInfo.conversionSummary,
-            rawItem: item,
+            conversionSummary: item.__budgetConversionSummary || paymentInfo.conversionSummary,
+            rawItem: item.__budgetOriginalItem || item,
+            currencyProjection: item.__budgetOriginalItem ? item : undefined,
+            currencyIssue: item.__budgetCurrencyIssue,
           });
           return;
         }
@@ -281,7 +350,9 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             cost: 0,
             paidAmount: 0,
             paid: true,
-            rawItem: item,
+            rawItem: item.__budgetOriginalItem || item,
+            currencyProjection: item.__budgetOriginalItem ? item : undefined,
+            currencyIssue: item.__budgetCurrencyIssue,
           });
           return;
         }
@@ -302,8 +373,10 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             paidAmount: paidAmount,
             paid: isPaid,
             isEstimatedConversion: paymentInfo.isEstimatedConversion,
-            conversionSummary: paymentInfo.conversionSummary,
-            rawItem: item,
+            conversionSummary: item.__budgetConversionSummary || paymentInfo.conversionSummary,
+            rawItem: item.__budgetOriginalItem || item,
+            currencyProjection: item.__budgetOriginalItem ? item : undefined,
+            currencyIssue: item.__budgetCurrencyIssue,
           });
         }
       });
@@ -358,8 +431,10 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           paid: false,
           isCurrencyUnresolved: true,
           unverifiedRawText: paymentInfo.unverifiedRawText,
-          conversionSummary: paymentInfo.conversionSummary,
-          rawItem: t,
+          conversionSummary: t.__budgetConversionSummary || paymentInfo.conversionSummary,
+          rawItem: t.__budgetOriginalItem || t,
+          currencyProjection: t.__budgetOriginalItem ? t : undefined,
+          currencyIssue: t.__budgetCurrencyIssue,
         });
         return;
       }
@@ -379,7 +454,9 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           cost: 0,
           paidAmount: 0,
           paid: true,
-          rawItem: t,
+          rawItem: t.__budgetOriginalItem || t,
+          currencyProjection: t.__budgetOriginalItem ? t : undefined,
+          currencyIssue: t.__budgetCurrencyIssue,
         });
         return;
       }
@@ -399,8 +476,10 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           paidAmount: acconto,
           paid: isPaid,
           isEstimatedConversion: paymentInfo.isEstimatedConversion,
-          conversionSummary: paymentInfo.conversionSummary,
-          rawItem: t,
+          conversionSummary: t.__budgetConversionSummary || paymentInfo.conversionSummary,
+          rawItem: t.__budgetOriginalItem || t,
+          currencyProjection: t.__budgetOriginalItem ? t : undefined,
+          currencyIssue: t.__budgetCurrencyIssue,
         });
       }
     });
@@ -526,6 +605,9 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
     return { totSaldato, totDaSaldare, totGenerale, catStats, maxCategoryTotal, estimatedCount };
   }, [resolvedEurExpenses]);
 
+  const displayStats = useMemo(() => displayCurrency === 'EUR' || !displayReady ? stats : buildDisplayLedger(resolvedEurExpenses, displayCurrency, displayRate), [displayCurrency, displayReady, displayRate, resolvedEurExpenses, stats]);
+  const displayBudget = targetBudget ? convertDisplay(targetBudget.amount) : 0;
+
   // ============================================================================
   // HANDLERS CENTRALIZZATI
   // ============================================================================
@@ -544,7 +626,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
       const normalized = await buildEurSavePatch({
         costRaw: newCostStr ? newCostStr : (raw.cost || raw.budget || raw.amount),
         depositRaw: newPaidStr ? newPaidStr : '0',
-        existingItem: raw
+        existingItem: e.currencyProjection || raw
       });
       const { cost: normCost, depositPaid: normDep, acconto: _normAcc, ...normMeta } = normalized;
       const formattedCost = normCost || (newCostStr ? `${newCostStr} €` : raw.cost || raw.budget || raw.amount);
@@ -656,6 +738,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
 
   const handleOpenBudgetModal = () => {
     setBudgetInput(targetBudget ? String(targetBudget.amount) : "");
+    setBudgetSaveError('');
     setIsBudgetModalOpen(true);
   };
 
@@ -665,11 +748,13 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
       await storageService.saveTripBudget(null);
       setTargetBudget(null);
     } else {
-      const num = parseFloat(trimmed.replace(",", "."));
-      if (!isNaN(num) && num >= 0) {
-        await storageService.saveTripBudget(num);
-        setTargetBudget({ amount: num, updatedAt: Date.now() });
-      }
+      const normalized = await buildEurSavePatch({ costRaw: trimmed, existingItem: targetBudget ? { ...targetBudget, cost: String(targetBudget.amount) } : undefined });
+      const num = Number(normalized.cost);
+      if (normalized.currencyUncertain || !Number.isFinite(num) || num < 0) { setBudgetSaveError('Cambio non disponibile o importo non valido: il budget precedente è stato conservato.');return; }
+      const { originalCurrency, originalCost, exchangeRate, exchangeRateDate, exchangeRateSource, conversionType } = normalized;
+      const metadata = { originalCurrency, originalCost, exchangeRate, exchangeRateDate, exchangeRateSource, conversionType };
+      await storageService.saveTripBudget(num, metadata);
+      setTargetBudget({ amount: num, updatedAt: Date.now(), ...metadata });
     }
     setIsBudgetModalOpen(false);
   };
@@ -681,14 +766,12 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
   };
 
   const handleSaveNewExpense = async () => {
-    if (!newExpenseTitle.trim() || !newExpenseAmount.trim()) return;
-    const normalized = await normalizeFinancialFieldsToEur({
-      costRaw: newExpenseAmount.trim()
-    });
-      const num = normalized.cost ? Number(normalized.cost) : NaN;
-    if (isNaN(num) && !normalized.currencyUncertain) return;
+    if (!newExpenseTitle.trim() || !newExpenseAmount.trim() || isSavingExpense) return;
     setIsSavingExpense(true);
     try {
+      const normalized = await normalizeFinancialFieldsToEur({ costRaw: newExpenseAmount.trim() });
+      const num = normalized.cost ? Number(normalized.cost) : NaN;
+      if (isNaN(num) && !normalized.currencyUncertain) return;
       const now = Date.now();
       const spesaItem: Spesa = {
         id: `spesa_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -722,6 +805,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
     
     const actuallyPaid = item.paidAmount || (item.paid ? item.cost : 0);
     const remaining = Math.max(0, item.cost - actuallyPaid);
+    const rowDisplay = displayPayment(item, displayCurrency, displayRate);
     const isPartiallyPaid = actuallyPaid > 0 && remaining > 0;
     const isFullyPaid = item.paid || remaining === 0;
 
@@ -773,10 +857,10 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
               ) : isPartiallyPaid ? (
                 <div className="flex items-center gap-2 text-[10px] font-bold">
                   <span onClick={(ev) => handleTogglePaidStatus(item, ev)} className="text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded-full cursor-pointer hover:bg-emerald-100 transition-colors shadow-xs hover:shadow-sm">
-                    🟢 Saldato: {formatEuro(actuallyPaid)}
+                    🟢 Saldato: {formatDisplayValue(rowDisplay.paid)}
                   </span>
                   <span onClick={(ev) => handleTogglePaidStatus(item, ev)} className="text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full cursor-pointer hover:bg-amber-100 transition-colors shadow-xs hover:shadow-sm">
-                    ⏳ Da saldare: {formatEuro(remaining)}
+                    ⏳ Da saldare: {formatDisplayValue(rowDisplay.remaining)}
                   </span>
                 </div>
               ) : (
@@ -790,7 +874,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           <div className="flex flex-col items-end shrink-0 gap-2">
             <div className="text-right">
               <span className={`text-sm font-black ${config.text.replace('text-', 'text-').replace('600', '950')} font-mono block`}>
-                {formatEuro(item.cost)}
+                {formatDisplayValue(rowDisplay.cost)}
               </span>
             </div>
             {canEdit && (
@@ -830,11 +914,11 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={`block text-[10px] font-bold ${config.text} mb-1`}>Totale Spesa (€)</label>
-                <input ref={inlineInputRef} type="number" inputMode="decimal" step="0.01" min="0" value={editingItemCost} onChange={e => setEditingItemCost(e.target.value)} placeholder="0.00" className={`w-full px-2.5 py-1.5 rounded-lg border ${config.border} text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white`} />
+                <CurrencyAmountInput ref={inlineInputRef} type="number" inputMode="decimal" step="0.01" min="0" value={editingItemCost} onValueChange={(value) => setEditingItemCost(value)} placeholder="0.00" className={`w-full px-2.5 py-1.5 rounded-lg border ${config.border} text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white`} currencyLabel="Valuta costo modificato" />
               </div>
               <div>
                 <label className={`block text-[10px] font-bold ${config.text} mb-1`}>Già Pagato (€)</label>
-                <input type="number" inputMode="decimal" step="0.01" min="0" value={editingItemPaidAmount} onChange={e => setEditingItemPaidAmount(e.target.value)} placeholder="0.00" className={`w-full px-2.5 py-1.5 rounded-lg border ${config.border} text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white`} />
+                <CurrencyAmountInput type="number" inputMode="decimal" step="0.01" min="0" value={editingItemPaidAmount} onValueChange={(value) => setEditingItemPaidAmount(value)} placeholder="0.00" className={`w-full px-2.5 py-1.5 rounded-lg border ${config.border} text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white`} currencyLabel="Valuta saldato" />
               </div>
               <div className="col-span-2">
                 <label className={`block text-[10px] font-bold ${config.text} mb-1`}>Stato Principale</label>
@@ -891,6 +975,27 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             </button>
           )}
         </header>
+        <p role="status" aria-live="polite" className="text-xs leading-5 text-slate-500 dark:text-slate-400">
+          {isLoadingExpenses
+            ? 'Caricamento importi… I totali non sono ancora completi.'
+            : expenseLoadFailed
+              ? 'Caricamento non completato. Gli eventuali importi mostrati sono quelli già disponibili nel dispositivo.'
+              : isOffline
+                ? 'Offline: totali dei dati salvati nel dispositivo, non verificati con il cloud.'
+                : cloudSyncFailed
+                  ? 'Sincronizzazione non completata: i totali si riferiscono solo ai dati locali disponibili.'
+                  : 'Totali dei dati locali disponibili. Si aggiornano con la sincronizzazione.'}
+        </p>
+
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-800">
+          <label htmlFor="budget-display-currency" className="text-xs font-bold">Mostra riepilogo in</label>
+          <select id="budget-display-currency" value={displayCurrency} onChange={event => setDisplayCurrency(event.target.value)} className="min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold dark:border-slate-600 dark:bg-slate-900">
+            {SUPPORTED_CURRENCIES.map(code => <option key={code} value={code}>{code}</option>)}
+          </select>
+          <p data-testid="budget-display-rate-status" aria-live="polite" className="w-full text-xs leading-5 text-slate-500 dark:text-slate-400">
+            {displayCurrency === 'EUR' ? 'EUR è la valuta contabile. La scelta del riepilogo non modifica importi o pagamenti.' : displayRateLoading ? 'Caricamento cambio…' : displayReady ? `Visualizzazione stimata: 1 EUR = ${displayQuote!.rate} ${displayCurrency} · ${displayQuote!.date} · ${displayQuote!.source}. Base contabile EUR: ${formatEuro(stats.totGenerale)}.` : `Cambio ${displayCurrency} non disponibile. Seleziona EUR per leggere i totali verificabili.`}
+          </p>
+        </div>
 
         {/* Card 1: Budget Obiettivo Viaggio (Distinto da totale spese) */}
         <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden">
@@ -910,7 +1015,9 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             )}
           </div>
 
-          {targetBudget === null ? (
+          {!hasLoadedExpenses && targetBudget === null ? (
+            <p className="py-2 text-sm text-slate-500 dark:text-slate-400">{expenseLoadFailed ? 'Budget non disponibile: caricamento non completato.' : 'Caricamento budget…'}</p>
+          ) : targetBudget === null ? (
             <div className="py-2">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🎯</span>
@@ -924,25 +1031,25 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             <div className="space-y-2 pt-1">
               <div className="flex items-baseline justify-between gap-2">
                 <div className="text-2xl font-black text-slate-900 dark:text-white font-mono tracking-tight">
-                  {formatEuro(targetBudget.amount)}
+                  {formatDisplayValue(displayBudget)}
                 </div>
                 {targetBudget.amount === 0 ? (
                   <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">
-                    Fissato a 0 €
+                    Fissato a {formatDisplayValue(0)}
                   </span>
                 ) : (
-                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${targetBudget.amount >= stats.totGenerale ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-200' : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-200'}`}>
-                    {targetBudget.amount >= stats.totGenerale
-                      ? `Rimanenti ${formatEuro(targetBudget.amount - stats.totGenerale)}`
-                      : `Superato di ${formatEuro(stats.totGenerale - targetBudget.amount)}`}
+                  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${displayBudget >= displayStats.totGenerale ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-200' : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-200'}`}>
+                    {isExpenseSummaryPending ? 'Aggiornamento…' : displayBudget >= displayStats.totGenerale
+                      ? `Rimanenti ${formatDisplayValue(displayBudget - displayStats.totGenerale)}`
+                      : `Superato di ${formatDisplayValue(displayStats.totGenerale - displayBudget)}`}
                   </span>
                 )}
               </div>
-              {targetBudget.amount > 0 && (
+              {displayReady && displayBudget > 0 && (
                 <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
                   <div
-                    className={`h-full transition-all duration-500 ${stats.totGenerale > targetBudget.amount ? 'bg-rose-500' : 'bg-[#FF6B5F]'}`}
-                    style={{ width: `${Math.min(100, (stats.totGenerale / targetBudget.amount) * 100)}%` }}
+                    className={`h-full transition-all duration-500 ${displayStats.totGenerale > displayBudget ? 'bg-rose-500' : 'bg-[#FF6B5F]'}`}
+                    style={{ width: `${Math.min(100, (displayStats.totGenerale / displayBudget) * 100)}%` }}
                   />
                 </div>
               )}
@@ -950,40 +1057,46 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           )}
         </div>
 
+        {hasLoadedExpenses && targetBudget !== null && (
+          <p data-testid="budget-local-persistence" className="px-1 text-xs leading-5 text-slate-500 dark:text-slate-400">Il budget obiettivo è salvato in questo dispositivo. Non è ancora condiviso tra dispositivi.</p>
+        )}
+
         {/* Card 2: Totale Spese Registrate */}
-        <div className="bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden">
+        <div data-testid="budget-summary" aria-busy={isLoadingExpenses} className="bg-white dark:bg-slate-800 rounded-3xl p-5 shadow-sm border border-slate-100 dark:border-slate-700 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50 dark:bg-indigo-950/30 rounded-full blur-3xl -mr-10 -mt-10 opacity-60"></div>
           <div className="relative">
             <h2 className="text-sm font-bold text-slate-500 dark:text-slate-400 mb-1">Totale Spese Registrate</h2>
             <div className="text-3xl font-black text-slate-900 dark:text-white tracking-tight font-mono mb-4">
-              {formatEuro(stats.totGenerale)}
+              {formatSummary(displayStats.totGenerale)}
             </div>
             <div className="flex gap-2">
               <div className="flex-1 bg-emerald-50/50 dark:bg-emerald-950/40 rounded-2xl p-3 border border-emerald-100/50 dark:border-emerald-800/40">
                 <div className="text-[10px] font-bold text-emerald-600 dark:text-emerald-300 uppercase tracking-wider mb-0.5">Già Saldato</div>
-                <div className="text-sm font-black text-emerald-700 dark:text-emerald-200 font-mono">{formatEuro(stats.totSaldato)}</div>
+                <div className="text-sm font-black text-emerald-700 dark:text-emerald-200 font-mono">{formatSummary(displayStats.totSaldato)}</div>
               </div>
               <div className="flex-1 bg-amber-50/50 dark:bg-amber-950/40 rounded-2xl p-3 border border-amber-100/50 dark:border-amber-800/40">
                 <div className="text-[10px] font-bold text-amber-600 dark:text-amber-300 uppercase tracking-wider mb-0.5">Da Saldare</div>
-                <div className="text-sm font-black text-amber-700 dark:text-amber-200 font-mono">{formatEuro(stats.totDaSaldare)}</div>
+                <div className="text-sm font-black text-amber-700 dark:text-amber-200 font-mono">{formatSummary(displayStats.totDaSaldare)}</div>
               </div>
             </div>
             
             {/* ProgressBar Generale */}
             <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden flex">
-              <div className="h-full bg-emerald-400" style={{ width: `${stats.totGenerale > 0 ? (stats.totSaldato / stats.totGenerale) * 100 : 0}%` }} />
-              <div className="h-full bg-amber-400" style={{ width: `${stats.totGenerale > 0 ? (stats.totDaSaldare / stats.totGenerale) * 100 : 0}%` }} />
+              <div className="h-full bg-emerald-400" style={{ width: `${displayStats.totGenerale > 0 ? (displayStats.totSaldato / displayStats.totGenerale) * 100 : 0}%` }} />
+              <div className="h-full bg-amber-400" style={{ width: `${displayStats.totGenerale > 0 ? (displayStats.totDaSaldare / displayStats.totGenerale) * 100 : 0}%` }} />
             </div>
 
-            {stats.estimatedCount > 0 && (
+            {displayStats.estimatedCount > 0 && (
               <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2.5">
-                Include {stats.estimatedCount} {stats.estimatedCount === 1 ? 'voce convertita a cambio stimato' : 'voci convertite a cambio stimato'} (~ Stima BCE).
+                Include {displayStats.estimatedCount} {displayStats.estimatedCount === 1 ? 'voce convertita a cambio stimato' : 'voci convertite a cambio stimato'} (~ Stima BCE).
               </p>
             )}
 
-            {unresolvedExpenses.length > 0 && (
-              <div className="mt-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200 font-semibold">
-                ⚠️ Totale incompleto: {unresolvedExpenses.length} {unresolvedExpenses.length === 1 ? 'voce ha' : 'voci hanno'} valuta incerta o non convertita ed {unresolvedExpenses.length === 1 ? 'è esclusa' : 'sono escluse'} dalla somma in EUR.
+            {!isExpenseSummaryPending && (
+              <div data-testid="budget-exclusions" className="mt-3 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 px-3 py-2 text-[11px] text-amber-800 dark:text-amber-200">
+                <p className="font-semibold">{unresolvedExpenses.length > 0 ? 'Totale incompleto. ' : ''}Esclusioni dal totale EUR:</p>
+                <p>Valuta incerta: {unresolvedExpenses.length} {unresolvedExpenses.length === 1 ? 'voce' : 'voci'}. Cauzioni/preautorizzazioni: {cauzioniList.length} {cauzioniList.length === 1 ? 'voce' : 'voci'}.</p>
+                <p className="mt-1">Le cauzioni sono distinte dai costi delle prenotazioni. Le due categorie possono riferirsi alla stessa voce.</p>
               </div>
             )}
           </div>
@@ -994,10 +1107,10 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-3 px-1">Spese per Categoria</h3>
           <div className="flex flex-col gap-2">
             {(Object.entries(CATEGORY_CONFIG) as [CategoriaSpesa | "shopping", any][]).map(([catKey, config]) => {
-              const catStats = stats.catStats[catKey];
+              const catStats = displayStats.catStats[catKey];
               const count = resolvedEurExpenses.filter(e => e.category === catKey).length;
               
-              const barWidth = stats.maxCategoryTotal > 0 ? (catStats.total / stats.maxCategoryTotal) * 100 : 0;
+              const barWidth = displayStats.maxCategoryTotal > 0 ? (catStats.total / displayStats.maxCategoryTotal) * 100 : 0;
 
               return (
                 <div 
@@ -1017,7 +1130,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
                           <span className="text-[9px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-full">{count}</span>
                         )}
                       </div>
-                      <span className="text-xs font-black text-slate-900 font-mono">{formatEuro(catStats.total)}</span>
+                      <span className="text-xs font-black text-slate-900 font-mono">{formatSummary(catStats.total)}</span>
                     </div>
                     
                     <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden flex items-center relative">
@@ -1056,6 +1169,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
                     <div className="min-w-0">
                       <div className="text-xs font-bold text-slate-900 dark:text-white truncate">{cfg.icon} {u.title}</div>
                       <div className="text-[10px] text-slate-500">{cfg.label}{u.date ? ` · ${formatDate(u.date)}` : ''}</div>
+                      {u.currencyIssue && <p className="mt-1 text-[11px] leading-4 text-amber-800 dark:text-amber-300">{u.currencyIssue}</p>}
                     </div>
                     <span className="text-xs font-black font-mono text-amber-700 dark:text-amber-300 shrink-0">
                       {u.unverifiedRawText || 'Da verificare'}
@@ -1071,7 +1185,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           <div className="bg-slate-50 dark:bg-slate-800/60 rounded-3xl p-4 border border-slate-200/80 dark:border-slate-700 space-y-2.5">
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-xs font-extrabold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                🛡️ Cauzioni &amp; Preautorizzazioni (escluse dal totale)
+                🛡️ Cauzioni &amp; Preautorizzazioni ({cauzioniList.length} escluse dal totale)
               </h3>
             </div>
             <div className="space-y-2">
@@ -1145,14 +1259,14 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           </div>
 
           <div className="mt-4 space-y-3">
-            {resolvedEurExpenses.length === 0 ? (
+            {isLoadingExpenses || (!hasLoadedExpenses && expenseLoadFailed) ? (<p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">{expenseLoadFailed ? 'Voci non disponibili: caricamento non completato.' : 'Caricamento voci…'}</p>) : resolvedEurExpenses.length === 0 ? (
               <div className="text-center py-12 px-4 rounded-3xl border border-dashed border-slate-200 bg-white/50">
                 <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-3xl">
                   💳
                 </div>
                 <h4 className="text-sm font-extrabold text-slate-900 mb-1">Nessuna spesa registrata</h4>
                 <p className="text-xs text-slate-500 max-w-xs mx-auto mb-4">
-                  Il totale delle spese è attualmente 0 €. Aggiungi la tua prima spesa per monitorare il viaggio.
+                  Il totale delle spese è attualmente {formatDisplayValue(0)}. Aggiungi la tua prima spesa per monitorare il viaggio.
                 </p>
                 {canEdit && (
                   <button
@@ -1189,7 +1303,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
       >
         {drillDownCategory && (() => {
           const catConfig = CATEGORY_CONFIG[drillDownCategory];
-          const catStats = stats.catStats[drillDownCategory];
+          const catStats = displayStats.catStats[drillDownCategory];
           const items = resolvedEurExpenses.filter(e => e.category === drillDownCategory);
 
           return (
@@ -1198,17 +1312,17 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
                 <div className="flex justify-between items-end mb-3">
                   <div className="flex flex-col">
                     <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Subtotale {catConfig.label}</span>
-                    <span className={`text-xl font-black ${catConfig.text} font-mono leading-none`}>{formatEuro(catStats.total)}</span>
+                    <span className={`text-xl font-black ${catConfig.text} font-mono leading-none`}>{formatSummary(catStats.total)}</span>
                   </div>
                 </div>
                 <div className="flex gap-2 mb-3">
                   <div className="flex-1 bg-white/70 rounded-xl p-2.5 border border-white">
                     <div className="text-[9px] font-bold text-slate-500 mb-0.5">Saldato</div>
-                    <div className="text-sm font-black text-emerald-700 font-mono">{formatEuro(catStats.saldato)}</div>
+                    <div className="text-sm font-black text-emerald-700 font-mono">{formatSummary(catStats.saldato)}</div>
                   </div>
                   <div className="flex-1 bg-white/70 rounded-xl p-2.5 border border-white">
                     <div className="text-[9px] font-bold text-slate-500 mb-0.5">Da saldare</div>
-                    <div className="text-sm font-black text-amber-700 font-mono">{formatEuro(catStats.daSaldare)}</div>
+                    <div className="text-sm font-black text-amber-700 font-mono">{formatSummary(catStats.daSaldare)}</div>
                   </div>
                 </div>
 
@@ -1227,10 +1341,11 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
                   if (!subStatsMap[sName]) {
                     subStatsMap[sName] = { total: 0, saldato: 0, daSaldare: 0, icon: sIcon, count: 0 };
                   }
-                  subStatsMap[sName].total += e.cost;
-                  const paid = e.paidAmount || (e.paid ? e.cost : 0);
+                  const converted = displayPayment(e, displayCurrency, displayRate);
+                  subStatsMap[sName].total += converted.cost;
+                  const paid = converted.paid;
                   subStatsMap[sName].saldato += paid;
-                  subStatsMap[sName].daSaldare += Math.max(0, e.cost - paid);
+                  subStatsMap[sName].daSaldare += converted.remaining;
                   subStatsMap[sName].count += 1;
                 });
 
@@ -1264,10 +1379,10 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
                           </div>
                           <div className="flex items-baseline justify-between mt-0.5">
                             <span className="text-xs font-black text-slate-900 font-mono">
-                              {formatEuro(sData.total)}
+                              {formatDisplayValue(sData.total)}
                             </span>
                             <span className={`text-[10px] font-bold ${sData.daSaldare > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                              {sData.daSaldare > 0 ? `da sald. ${formatEuro(sData.daSaldare)}` : 'Saldato'}
+                              {sData.daSaldare > 0 ? `da sald. ${formatDisplayValue(sData.daSaldare)}` : 'Saldato'}
                             </span>
                           </div>
                         </div>
@@ -1307,6 +1422,7 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
         onClose={() => setIsBudgetModalOpen(false)}
         title="Budget Obiettivo del Viaggio"
       >
+        {budgetSaveError && <p role="alert" className="text-xs text-rose-600">{budgetSaveError}</p>}
         <div className="space-y-4">
           <p className="text-xs text-slate-500">
             Fissa un tetto massimo di spesa per il viaggio. Questo valore rimarrà associato esclusivamente a questo viaggio.
@@ -1315,15 +1431,15 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
               Importo massimo (€)
             </label>
-            <input
+            <CurrencyAmountInput
               type="number"
               step="any"
               min="0"
               placeholder="es. 3500 oppure 0"
               value={budgetInput}
-              onChange={(e) => setBudgetInput(e.target.value)}
+              onValueChange={(value) => setBudgetInput(value)}
               className="w-full px-3 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] bg-slate-50"
-            />
+            currencyLabel="Valuta budget obiettivo" />
           </div>
           <div className="flex gap-2 pt-2">
             {targetBudget !== null && (
@@ -1374,17 +1490,17 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
           </div>
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">
-              Importo (€) *
+              Importo e valuta *
             </label>
-            <input
+            <CurrencyAmountInput
               type="number"
               step="any"
               min="0"
               placeholder="es. 45.00"
               value={newExpenseAmount}
-              onChange={(e) => setNewExpenseAmount(e.target.value)}
+              onValueChange={(value) => setNewExpenseAmount(value)}
               className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B5F] bg-slate-50"
-            />
+            currencyLabel="Valuta nuova spesa" />
           </div>
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1">

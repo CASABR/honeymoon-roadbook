@@ -155,6 +155,7 @@ export default function LightboxCarousel({
               type="button"
               onClick={handleOpenExternal}
               className="px-3 py-1.5 rounded-full bg-sky-500/30 hover:bg-sky-500/50 border border-sky-400/40 text-sky-200 text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+              disabled={!currentBlobUrl}
               title="Apri a schermo intero in una nuova scheda"
             >
               <span>Apri a schermo intero</span>
@@ -163,7 +164,7 @@ export default function LightboxCarousel({
               </svg>
             </button>
           )}
-          <a
+          {currentBlobUrl && <a
             href={currentItem.dataUrl}
             download={currentItem.name}
             className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer"
@@ -173,7 +174,7 @@ export default function LightboxCarousel({
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-          </a>
+          </a>}
           <button
             type="button"
             onClick={onClose}
@@ -204,7 +205,9 @@ export default function LightboxCarousel({
 
         {/* Visualizzatore: PDF incorporato o Immagine ad alta risoluzione */}
         <div className="w-full h-full max-h-[calc(100dvh-var(--app-safe-top)-var(--app-safe-bottom)-10rem)] bg-slate-900/90 rounded-2xl sm:rounded-3xl shadow-2xl flex items-center justify-center overflow-hidden border border-white/10 p-1 sm:p-2">
-          {isPdf ? (
+          {isPdf && !currentBlobUrl ? (
+            <p role="alert" className="max-w-md px-6 text-center text-sm leading-6 text-white">File non disponibile su questo dispositivo. Il riferimento non contiene un PDF apribile: verifica l’allegato originale sul dispositivo che lo conserva.</p>
+          ) : isPdf ? (
             <div className="w-full h-full flex flex-col items-center justify-center relative">
               <iframe
                 key={currentItem.id}

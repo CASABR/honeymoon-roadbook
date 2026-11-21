@@ -99,7 +99,7 @@ export default function TrasportoTicketsModal({
   };
 
   const handleOpenPdf = (dataUrl: string, fileName: string) => {
-    openAttachmentInNewTab(dataUrl, fileName);
+    if (!dataUrl || !openAttachmentInNewTab(dataUrl, fileName)) setErrorMessage('File non disponibile: il riferimento non contiene il PDF. Nessun documento è stato sostituito.');
   };
 
   return (

@@ -1,3 +1,4 @@
+import BookingPlatformInput from '../common/BookingPlatformInput';
 import { verifySingleTappa, parseTappaSequence, parseRawMultiLineTappe, parseMixedTappaAndActivity } from '../../services/tappaVerificationService';
 import { createPortal } from 'react-dom';
 import { useState, useEffect, useRef } from 'react';
@@ -1992,11 +1993,10 @@ export default function SmartInsertModal({ isOpen, onClose, onSaved, mode = 'man
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-0">
                       <div>
                         <label className="text-xs font-semibold text-slate-600 mb-1 block">Piattaforma di prenotazione</label>
-                        <input
+                        <BookingPlatformInput
                           type="text"
                           value={editData.platform || ''}
-                          onChange={(e) => setEditData({ ...editData, platform: e.target.value })}
-                          placeholder="es. GetYourGuide, Klook, Tiqets, sito ufficiale"
+                          onValueChange={(platform) => setEditData({ ...editData, platform })}
                           className="w-full bg-[#F8F7F3] text-[#172033] border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#FF6B5F]"
                         />
                       </div>

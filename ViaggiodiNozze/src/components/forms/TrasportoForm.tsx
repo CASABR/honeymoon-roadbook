@@ -1,3 +1,5 @@
+import { formatDraftBalance } from '../../utils/budgetDisplay';
+import CurrencyAmountInput from '../common/CurrencyAmountInput';
 import React, { useState, useEffect, useRef } from 'react';
 import { usePresence } from '../../hooks/usePresence';
 import type { Trasporto, TipoTrasporto, StatoTrasporto } from '../../types';
@@ -157,10 +159,10 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
   }, [defaultDate, defaultTime, initialData]);
 
   useEffect(() => {
-    if (isSaldato && cost) {
+    if (isSaldato && cost && !initialData?.depositPaid && !initialData?.acconto) {
       setDepositPaid(cost);
     }
-  }, [isSaldato, cost]);
+  }, [isSaldato, cost, initialData?.depositPaid, initialData?.acconto]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -522,30 +524,30 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    Costo Totale (€)
+                    Costo totale e valuta
                   </label>
-                  <input
+                  <CurrencyAmountInput
                     type="text"
                     placeholder="es. 150.00"
                     value={cost}
-                    onChange={(e) => setCost(e.target.value)}
+                    onValueChange={(value) => setCost(value)}
                     className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm font-bold focus:outline-none focus:border-[#FF6B5F]"
-                  />
+                  uncertain={Boolean((initialData as { currencyUncertain?: boolean } | null | undefined)?.currencyUncertain)} currencyLabel="Valuta costo" />
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    Acconto Versato (€)
+                    Acconto versato e valuta
                   </label>
-                  <input
+                  <CurrencyAmountInput
                     type="text"
                     placeholder="es. 50.00"
                     value={depositPaid}
-                    onChange={(e) => {
-                      setDepositPaid(e.target.value);
+                    onValueChange={(value) => {
+                      setDepositPaid(value);
                       setIsSaldato(false);
                     }}
                     className="w-full h-11 px-3 bg-white border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:border-[#FF6B5F]"
-                  />
+                  uncertain={Boolean((initialData as { currencyUncertain?: boolean } | null | undefined)?.currencyUncertain)} currencyLabel="Valuta acconto" />
                 </div>
               </div>
               
@@ -571,7 +573,7 @@ export default function TrasportoForm({ initialData, defaultDate, defaultTime, o
                   <div className="text-right">
                     <span className="text-[10px] uppercase text-slate-500 font-bold block">Saldo Rimanente</span>
                     <span className={`text-sm font-extrabold ${getSaldo() > 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
-                      {getSaldo().toFixed(2)} €
+                      {formatDraftBalance(cost, depositPaid)}
                     </span>
                   </div>
                 )}
