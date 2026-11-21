@@ -2,6 +2,11 @@
 
 Questo file contiene esclusivamente versioni di cui è verificabile la pubblicazione. Le release preparate ma non ancora pubblicate restano fuori dalla cronologia visibile nell’app.
 
+## 1.6.39 ? 2026-11-21
+
+- LIVE: centratura automatica al primo GPS valido, una sola volta per apertura.
+- Navigazione manuale, ricentratura GPS e vista ospiti preservate.
+
 ## 1.6.38 ? 2026-11-21
 
 - Spese e Budget: caricamenti affidabili, importi originali e riepilogo multivaluta.

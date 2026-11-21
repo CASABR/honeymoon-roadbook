@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.39",
+      "publishedAt": "2026-11-21",
+      "sourceCommit": "cc2c866f373d5e7634dccd37d3cbdde375d591f2",
+      "changes": [
+        "LIVE: centratura automatica al primo GPS valido, una sola volta per apertura.",
+        "Navigazione manuale, ricentratura GPS e vista ospiti preservate."
+      ],
+      "publishedAtIso": "2026-11-21T15:53:55.833Z"
+    },
+    {
       "version": "1.6.38",
       "publishedAt": "2026-11-21",
       "sourceCommit": "d86abd5ec97d6edc02e87c0ef43ad746dc06b44a",
@@ -244,17 +254,6 @@
         "Sincronizzazione cancellazioni pendenti autorizzate preservando la coda locale senza perdita di dati"
       ],
       "publishedAtIso": "2026-11-17T17:20:00.000Z"
-    },
-    {
-      "version": "1.6.14",
-      "publishedAt": "2026-11-17",
-      "sourceCommit": "b5aed85",
-      "changes": [
-        "Documenti e Polizze: reattivita istantanea su ricezione dati cloud e risoluzione schede vuote",
-        "Protezione segnaposto e ripristino affidabile polizza con fallback ID master e supporto Google Drive",
-        "Apertura immediata allegati offline con chip interattivi sulle card e nella galleria touch"
-      ],
-      "publishedAtIso": "2026-11-17T16:15:00.000Z"
     }
   ]
 }

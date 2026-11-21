@@ -1,10 +1,10 @@
 {
   "$schema": "./hounigo-deploy-request.schema.json",
-  "requestId": "release-1.6.38-1795275316126",
-  "requestedAt": "2026-11-21T15:35:16.126Z",
+  "requestId": "release-1.6.39-1795276436016",
+  "requestedAt": "2026-11-21T15:53:56.016Z",
   "requestedBy": "CASABR",
   "action": "deploy",
   "ref": "main",
   "confirm": "CONFERMA",
-  "note": "Release 1.6.38: selezione GO verificata, Shopping autosave escluso."
+  "note": "Release 1.6.39 GPS LIVE: centratura unica verificata, file locali esclusi preservati."
 }
