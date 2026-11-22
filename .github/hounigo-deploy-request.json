@@ -1,10 +1,10 @@
 {
   "$schema": "./hounigo-deploy-request.schema.json",
-  "requestId": "release-1.6.40-202611220731",
-  "requestedAt": "2026-11-22T07:31:00.000Z",
+  "requestId": "release-1.6.41-202611220835",
+  "requestedAt": "2026-11-22T08:35:00.000Z",
   "requestedBy": "CASABR",
   "action": "deploy",
   "ref": "main",
   "confirm": "CONFERMA",
-  "note": "Release 1.6.40 Budget privato (pulito senza file Shopping/Push/deploy locali esclusi)."
+  "note": "Release 1.6.41 Foto LIVE KV Free + Nuova UX LIVE 4 tab (esclusi file Shopping/Push/deploy locali)."
 }

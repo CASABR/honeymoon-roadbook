@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.6.41",
+      "publishedAt": "2026-11-22",
+      "sourceCommit": "8d75d696f22d05a3ed4d95a899ed7f34ce0e0574",
+      "changes": [
+        "Foto LIVE: attivato archivio gratuito Cloudflare KV Free con privacy ospiti e blocco EXIF.",
+        "Nuova UX LIVE a 4 tab (Mappa, Foto, Diario, Messaggi) con ultima foto sfogliabile e indicatori novità."
+      ],
+      "publishedAtIso": "2026-11-22T08:36:00.291Z"
+    },
+    {
       "version": "1.6.40",
       "publishedAt": "2026-11-22",
       "sourceCommit": "96d60139f78fb310e82cf130e297ab7849a90b36",
