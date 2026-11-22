@@ -16,7 +16,15 @@ import { compareTimelineItems } from '../utils/timelineOrdering';
 import { sortDeadlines } from '../utils/deadlines';
 import { lookupKnownCoordinate } from '../utils/geoCoordinatesHelper';
 
-export interface TripBudgetGoal { amount: number; updatedAt: number; originalCurrency?: string; originalCost?: number; exchangeRate?: number; exchangeRateDate?: string; exchangeRateSource?: string; conversionType?: 'definitiva' | 'stimata' }
+export interface TripBudgetGoal { amount: number; updatedAt: number; originalCurrency?: string; originalCost?: number; exchangeRate?: number; exchangeRateDate?: string; exchangeRateSource?: string; conversionType?: 'definitiva' | 'stimata'; syncScope?: 'device' | 'private' }
+const PRIVATE_TRIP_BUDGET_ID = '__hounigo_trip_budget_goal_v1';
+interface PrivateTripBudgetRecord extends Omit<TripBudgetGoal, 'amount' | 'syncScope'> {
+  id: string;
+  recordKind: 'budget_goal';
+  amount: number | null;
+  createdAt: number;
+  baseUpdatedAt?: number;
+}
 
 export const SEED_FLAG_KEY = 'honeymoon_roadbook_seeded_v1';
 
@@ -1406,32 +1414,44 @@ class StorageService {
 
   async getTripBudget(): Promise<TripBudgetGoal | null> {
     try {
+      // Notes already use a privileged, trip-scoped collection and the persistent Sync queue.
+      const shared = await idbGet<PrivateTripBudgetRecord>(STORES.NOTE, PRIVATE_TRIP_BUDGET_ID);
+      if (shared?.recordKind === 'budget_goal') {
+        if (shared.amount === null) return null; // Explicit clear must override legacy device caches.
+        if (!Number.isFinite(shared.amount) || shared.amount < 0) throw new Error('Invalid private budget');
+        return { ...shared, amount: shared.amount, syncScope: 'private' };
+      }
       const setting = await idbGet<TripBudgetGoal & { id: string }>(STORES.SETTINGS, 'trip_budget_goal');
       if (!setting || typeof setting.amount !== 'number') return null;
-      return { ...setting, amount: setting.amount, updatedAt: setting.updatedAt || Date.now() };
+      // Reading a legacy budget never migrates it or writes to the cloud.
+      return { ...setting, amount: setting.amount, updatedAt: setting.updatedAt || Date.now(), syncScope: 'device' };
     } catch {
       return null;
     }
   }
 
   async saveTripBudget(amount: number | null, originalMoney: Partial<TripBudgetGoal> = {}): Promise<void> {
-    try {
-      if (amount === null) {
-        await idbDelete(STORES.SETTINGS, 'trip_budget_goal');
-      } else {
-        await idbPut(STORES.SETTINGS, { ...originalMoney, id: 'trip_budget_goal', amount, updatedAt: Date.now() });
-      }
-      notifyDataChanged('settings', 'save', { key: 'trip_budget_goal', amount });
-    } catch (err) {
-      console.error('[StorageService] Errore salvataggio budget target:', err);
-    }
+    assertCanMutate('note');
+    if (amount !== null && (!Number.isFinite(amount) || amount < 0)) throw new Error('Budget non valido');
+    const existing = await idbGet<PrivateTripBudgetRecord>(STORES.NOTE, PRIVATE_TRIP_BUDGET_ID);
+    const { updatedAt, baseUpdatedAt } = computeMonotonicUpdatedAt(existing);
+    const { originalCurrency, originalCost, exchangeRate, exchangeRateDate, exchangeRateSource, conversionType } = originalMoney;
+    const record: PrivateTripBudgetRecord = {
+      id: PRIVATE_TRIP_BUDGET_ID, recordKind: 'budget_goal', amount,
+      originalCurrency, originalCost, exchangeRate, exchangeRateDate, exchangeRateSource, conversionType,
+      createdAt: existing?.createdAt || Date.now(), updatedAt, baseUpdatedAt,
+    };
+    await idbPut(STORES.NOTE, record);
+    notifyDataChanged('note', 'save', record);
+    // Do not silently republish the legacy cache after an explicit clear or privilege change.
+    await idbDelete(STORES.SETTINGS, 'trip_budget_goal');
   }
 
   // --- NOTE DI VIAGGIO (Post-it) ---
   async getNote(): Promise<NotaViaggio[]> {
     try {
-      const records = await idbGetAll<NotaViaggio | Scadenza>(STORES.NOTE);
-      const items = records.filter((item): item is NotaViaggio => item.recordKind !== 'scadenza');
+      const records = await idbGetAll<NotaViaggio | Scadenza | PrivateTripBudgetRecord>(STORES.NOTE);
+      const items = records.filter((item): item is NotaViaggio => item.id !== PRIVATE_TRIP_BUDGET_ID && item.recordKind !== 'scadenza' && item.recordKind !== 'budget_goal');
       return items.sort((a, b) => {
         const orderA = Number.isFinite(a.order) ? Number(a.order) : null;
         const orderB = Number.isFinite(b.order) ? Number(b.order) : null;

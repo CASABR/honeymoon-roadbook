@@ -744,25 +744,33 @@ export default function SpeseBudgetView({ onBack: _onBack }: Props) {
 
   const handleSaveBudget = async () => {
     const trimmed = budgetInput.trim();
-    if (trimmed === "") {
-      await storageService.saveTripBudget(null);
-      setTargetBudget(null);
-    } else {
-      const normalized = await buildEurSavePatch({ costRaw: trimmed, existingItem: targetBudget ? { ...targetBudget, cost: String(targetBudget.amount) } : undefined });
-      const num = Number(normalized.cost);
-      if (normalized.currencyUncertain || !Number.isFinite(num) || num < 0) { setBudgetSaveError('Cambio non disponibile o importo non valido: il budget precedente è stato conservato.');return; }
-      const { originalCurrency, originalCost, exchangeRate, exchangeRateDate, exchangeRateSource, conversionType } = normalized;
-      const metadata = { originalCurrency, originalCost, exchangeRate, exchangeRateDate, exchangeRateSource, conversionType };
-      await storageService.saveTripBudget(num, metadata);
-      setTargetBudget({ amount: num, updatedAt: Date.now(), ...metadata });
+    try {
+      if (trimmed === "") {
+        await storageService.saveTripBudget(null);
+        setTargetBudget(null);
+      } else {
+        const normalized = await buildEurSavePatch({ costRaw: trimmed, existingItem: targetBudget ? { ...targetBudget, cost: String(targetBudget.amount) } : undefined });
+        const num = Number(normalized.cost);
+        if (normalized.currencyUncertain || !Number.isFinite(num) || num < 0) { setBudgetSaveError('Cambio non disponibile o importo non valido: il budget precedente è stato conservato.');return; }
+        const { originalCurrency, originalCost, exchangeRate, exchangeRateDate, exchangeRateSource, conversionType } = normalized;
+        const metadata = { originalCurrency, originalCost, exchangeRate, exchangeRateDate, exchangeRateSource, conversionType };
+        await storageService.saveTripBudget(num, metadata);
+        setTargetBudget({ amount: num, updatedAt: Date.now(), ...metadata, syncScope: 'private' });
+      }
+      setIsBudgetModalOpen(false);
+    } catch (err) {
+      setBudgetSaveError(err instanceof Error ? err.message : 'Salvataggio budget non riuscito.');
     }
-    setIsBudgetModalOpen(false);
   };
 
   const handleClearBudget = async () => {
-    await storageService.saveTripBudget(null);
-    setTargetBudget(null);
-    setIsBudgetModalOpen(false);
+    try {
+      await storageService.saveTripBudget(null);
+      setTargetBudget(null);
+      setIsBudgetModalOpen(false);
+    } catch (err) {
+      setBudgetSaveError(err instanceof Error ? err.message : 'Rimozione budget non riuscita.');
+    }
   };
 
   const handleSaveNewExpense = async () => {
