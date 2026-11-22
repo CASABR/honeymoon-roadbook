@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.0",
+      "publishedAt": "2026-11-22",
+      "sourceCommit": "666f79bfd55e1e23b988c55aed76d58c2c49ee96",
+      "changes": [
+        "LIVE 4 tab completi (Mappa, Foto, Diario, Messaggi) con icone ed etichette sempre leggibili.",
+        "Foto separate dal Diario e commenti per singola foto con moderazione Owner."
+      ],
+      "publishedAtIso": "2026-11-22T09:05:17.989Z"
+    },
+    {
       "version": "1.6.41",
       "publishedAt": "2026-11-22",
       "sourceCommit": "8d75d696f22d05a3ed4d95a899ed7f34ce0e0574",
