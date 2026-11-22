@@ -50,23 +50,49 @@ function preferenceAllows(preferences, kind) {
   return preferences.transports;
 }
 
-function genericPayload(kind) {
+function formatActualLeadText(eventAt, now = Date.now()) {
+  const numEventAt = Number(eventAt);
+  if (!Number.isFinite(numEventAt)) return '';
+  const remainingMin = Math.max(0, Math.round((numEventAt - now) / 60_000));
+  if (remainingMin <= 1) return 'Adesso';
+  if (remainingMin < 50) return `Tra ${remainingMin} min`;
+  if (remainingMin <= 70) return 'Tra circa 1 ora';
+  if (remainingMin < 1410) return `Tra ${Math.max(2, Math.round(remainingMin / 60))} ore`;
+  const days = Math.max(1, Math.round(remainingMin / 1440));
+  return days === 1 ? 'Tra circa 1 giorno' : `Tra ${days} giorni`;
+}
+
+function sanitizeEventLabel(raw) {
+  if (typeof raw !== 'string') return '';
+  return raw.replace(/\b(pnr|booking\s*code|ticket\s*id)\b/gi, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+}
+
+function genericPayload(kind, context = {}) {
   if (kind === 'collaboration') return {
     title: 'Viaggio aggiornato', body: 'Il roadbook condiviso contiene un aggiornamento.',
     url: `${BASE_PATH}?pushView=oggi`, type: kind,
   };
+  const cleanTitle = sanitizeEventLabel(context?.title);
+  const localTime = typeof context?.localTime === 'string' && /^\d{2}:\d{2}$/.test(context.localTime.trim())
+    ? context.localTime.trim()
+    : '';
+  const leadText = context?.eventAt != null ? formatActualLeadText(context.eventAt, context?.now) : '';
+  const detailParts = [localTime ? `Alle ${localTime}` : '', leadText].filter(Boolean);
+  const detailLine = detailParts.join(' · ');
+
   if (kind === 'deadline_due') return {
-    title: 'Scadenza del viaggio', body: 'Hai un promemoria da controllare in HOUNIGO.',
+    title: cleanTitle ? `Scadenza: ${cleanTitle}` : 'Scadenza del viaggio',
+    body: detailLine || 'Hai un promemoria da controllare in HOUNIGO.',
     url: `${BASE_PATH}?pushView=scadenze`, type: 'reminder',
   };
   const labels = {
-    transport_departure: ['Trasporto in programma', 'Controlla orario e dettagli in HOUNIGO.'],
-    rental_return: ['Riconsegna noleggio', 'Controlla orario e luogo di riconsegna in HOUNIGO.'],
-    activity_start: ['Attività in programma', 'L’attività inizierà a breve: controlla i dettagli.'],
-    lodging_checkin: ['Check-in in programma', 'Controlla orario e indirizzo in HOUNIGO.'],
-    lodging_checkout: ['Check-out in programma', 'Il check-out si avvicina: verifica i dettagli.'],
+    transport_departure: [cleanTitle ? `Partenza: ${cleanTitle}` : 'Trasporto in programma', detailLine || 'Controlla orario e dettagli in HOUNIGO.'],
+    rental_return: [cleanTitle ? `Riconsegna: ${cleanTitle}` : 'Riconsegna noleggio', detailLine || 'Controlla orario e luogo di riconsegna in HOUNIGO.'],
+    activity_start: [cleanTitle ? `In programma: ${cleanTitle}` : 'Attività in programma', detailLine || 'Controlla orario e dettagli in HOUNIGO.'],
+    lodging_checkin: [cleanTitle ? `Check-in: ${cleanTitle}` : 'Check-in in programma', detailLine || 'Controlla orario e indirizzo in HOUNIGO.'],
+    lodging_checkout: [cleanTitle ? `Check-out: ${cleanTitle}` : 'Check-out in programma', detailLine || 'Verifica orario e dettagli in HOUNIGO.'],
   };
-  const [title, body] = labels[kind] || ['Promemoria HOUNIGO', 'Apri HOUNIGO per i dettagli.'];
+  const [title, body] = labels[kind] || ['Promemoria HOUNIGO', detailLine || 'Apri HOUNIGO per i dettagli.'];
   return { title, body, url: `${BASE_PATH}?pushView=oggi`, type: 'reminder' };
 }
 
@@ -249,10 +275,23 @@ async function upsertReminderJobs({ tripId, entityKey, reminders, subscribers, e
       if (!preferenceAllows(preferences, reminder.kind)) continue;
       const eventAt = Number(reminder.eventAt);
       if (eventAt <= now) continue;
-      const leadMinutes = reminder.kind === 'deadline_due'
+      let leadMinutes = reminder.kind === 'deadline_due'
         ? Math.max(0, Math.min(Number(reminder.leadMinutes || 0), 43_200))
         : preferences.reminderMinutes;
-      const dueAt = Math.max(now, eventAt - leadMinutes * 60_000);
+      let dueAt = eventAt - leadMinutes * 60_000;
+      if (dueAt <= now) {
+        if (reminder.kind === 'deadline_due') {
+          const fallbackDueAt = eventAt - 60 * 60_000;
+          if (fallbackDueAt > now) {
+            dueAt = fallbackDueAt;
+            leadMinutes = 60;
+          } else {
+            continue;
+          }
+        } else {
+          continue;
+        }
+      }
       const sentKey = await sentReminderDispatchKey(subscriber.subscriber_id, entityKey, reminder.kind, eventAt);
       const alreadySent = sentKeysSet
         ? sentKeysSet.has(sentKey)
@@ -419,11 +458,16 @@ export async function handlePushRequest(path, uid, tripId, payload, env) {
         (subscriber_id, trip_id, uid, device_id, endpoint_hash, subscription_json, preferences_json, enabled, updated_at)
       VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, 1, ?8)
     `).bind(subscriberId, tripId, uid, deviceId, endpointHash, JSON.stringify(payload.subscription), JSON.stringify(preferences), Date.now()).run();
+    const nowReg = Date.now();
+    await env.RATE_LIMITS.prepare(`
+      DELETE FROM push_jobs
+      WHERE subscriber_id = ?1 AND kind <> 'deadline_due' AND event_at IS NOT NULL AND event_at - (?2 * 60000) <= ?3
+    `).bind(subscriberId, preferences.reminderMinutes, nowReg).run();
     await env.RATE_LIMITS.prepare(`
       UPDATE push_jobs
-      SET due_at = MAX(?3, event_at - (?2 * 60000)), lead_minutes = ?2
+      SET due_at = event_at - (?2 * 60000), lead_minutes = ?2
       WHERE subscriber_id = ?1 AND kind <> 'deadline_due' AND event_at IS NOT NULL
-    `).bind(subscriberId, preferences.reminderMinutes, Date.now()).run();
+    `).bind(subscriberId, preferences.reminderMinutes).run();
     return { active: true, subscriberId, endpointHash };
   }
 
@@ -567,7 +611,12 @@ async function processJob(job, env, membershipCache) {
     }
     try {
       await sendPush(JSON.parse(subscriber.subscription_json), {
-        ...genericPayload(job.kind), tag: `hounigo-${job.kind}-${job.job_id}`,
+        ...genericPayload(job.kind, {
+          eventAt: job.event_at,
+          title: job.event_title,
+          localTime: job.local_time,
+        }),
+        tag: `hounigo-${job.kind}-${job.job_id}`,
       }, env);
       if (job.kind !== 'collaboration' && job.event_at != null && job.entity_key) {
         const sentKey = await sentReminderDispatchKey(subscriber.subscriber_id, job.entity_key, job.kind, Number(job.event_at));
@@ -612,6 +661,8 @@ export const pushTestHelpers = {
   validSubscription,
   validReminder,
   genericPayload,
+  formatActualLeadText,
+  upsertReminderJobs,
   parseServiceAccountConfig,
   safeCronErrorReason,
   stillAuthorized,

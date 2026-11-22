@@ -34,8 +34,8 @@ const read = rel => fs.readFileSync(path.join(root, rel), 'utf8');
   // 3. Distinzione accettato dal server vs ricevuto su device
   test('Distingue invio accettato dal server da ricezione effettiva', () => {
     const modalCode = read('src/components/modals/PushNotificationModal.tsx');
-    assert.ok(modalCode.includes('Invio accettato. Conferma la ricezione sul dispositivo.'));
-    assert.ok(modalCode.includes('Su iPhone le push richiedono la PWA aggiunta alla schermata Home.'));
+    assert.ok(modalCode.includes('Invio accettato dal server. La notifica è stata trasmessa al servizio push;'));
+    assert.ok(modalCode.includes('Su iPhone e iPad le notifiche push richiedono che HOUNIGO sia aggiunta alla schermata Home'));
     const pushCode = read('cloudflare/houniai-worker/src/push.js');
     assert.ok(pushCode.includes("accepted: true, deliveryConfirmed: false, status: 'accepted'"));
   });

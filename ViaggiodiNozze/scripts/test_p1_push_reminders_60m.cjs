@@ -343,22 +343,21 @@ class InMemoryD1 {
       }, simNow);
       assert.equal(items.length, 3);
 
-      // First backfill
+      // First backfill: act_imminent (+25m) ha -60m e -30m gia passati -> nessun job retroattivo
       const sync1 = await workerPush.handlePushRequest('/v1/push/sync-reminders', uidOwner, tripId, { tripId, items }, env);
       assert.equal(sync1.synced, true);
-      assert.equal(sync1.scheduledCount, 6); // 3 card x 2 subscriber
+      assert.equal(sync1.scheduledCount, 4); // 2 card future x 2 subscriber (nessun job retroattivo per act_imminent)
       assert.equal(db.jobs.filter(j => j.kind === 'collaboration').length, 0, 'Backfill non deve generare notifiche collaborazione');
 
       const ownerDinnerJob = db.jobs.find(j => j.subscriber_id === subOwner && j.entity_key === 'ristoranti:rist_synth_1');
       const ownerImminentJob = db.jobs.find(j => j.subscriber_id === subOwner && j.entity_key === 'attivita:act_imminent');
       assert.equal(ownerDinnerJob.due_at, dinnerAt - 60 * 60_000);
-      assert.equal(ownerImminentJob.due_at, simNow, 'Evento imminente entro -60m schedulato subito');
-      assert.equal(ownerImminentJob.event_at, imminentAt);
+      assert.equal(ownerImminentJob, undefined, 'Evento con preavviso gia passato non crea job immediato retroattivo');
 
       // Idempotenza: secondo backfill identico non riscrive ne duplica
       const sync2 = await workerPush.handlePushRequest('/v1/push/sync-reminders', uidOwner, tripId, { tripId, items }, env);
       assert.equal(sync2.scheduledCount, 0);
-      assert.equal(db.jobs.length, 6);
+      assert.equal(db.jobs.length, 4);
 
       // Simula cron invio a T0: parte SOLO l'evento imminente, NON la cena alle 19:30
       const https = require('node:https');
@@ -394,19 +393,12 @@ class InMemoryD1 {
       const usageDay = new Date().toISOString().slice(0, 10);
       try {
         await workerPush.dispatchDuePushJobs(env);
-        assert.equal(db.dailyUsage.get(usageDay), 2, 'Imminente inviato a entrambi i device');
-        assert.equal(db.jobs.filter(j => j.entity_key === 'attivita:act_imminent').length, 0);
-
-        // Risincronizza dopo l'invio dell'imminente (che inizia ancora tra 20 min): non deve reinviare!
-        simNow += 5 * 60_000;
-        const sync3 = await workerPush.handlePushRequest('/v1/push/sync-reminders', uidOwner, tripId, { tripId, items }, env);
-        assert.equal(sync3.skippedAlreadySentCount, 2);
-        assert.equal(sync3.scheduledCount, 0);
+        assert.equal(db.dailyUsage.get(usageDay) || 0, 0, 'Nessuna push immediata a T0 per evento con preavviso gia passato');
 
         // Tick esattamente a -60m per Owner sulla cena (05:30 UTC): parte SOLO Owner (60m), non Copilota (30m)
         simNow = dinnerAt - 60 * 60_000;
         await workerPush.dispatchDuePushJobs(env);
-        assert.equal(db.dailyUsage.get(usageDay), 3, 'Cena notificata esattamente a -60m per Owner');
+        assert.equal(db.dailyUsage.get(usageDay), 1, 'Cena notificata esattamente a -60m per Owner');
 
         // Salta DOPO l'inizio di act_stale_later (19:45 NZDT > 19:40 NZDT) senza essere passato a -60m -> NON manda retroattiva
         simNow = staleEventAt + 5 * 60_000;
