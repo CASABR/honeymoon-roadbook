@@ -15,8 +15,7 @@ import TrasportoForm from '../components/forms/TrasportoForm';
 import TappaForm from '../components/forms/TappaForm';
 import AlloggioForm from '../components/forms/AlloggioForm';
 import RistoranteForm from '../components/forms/RistoranteForm';
-import ShoppingForm, { type ShoppingFormHandle } from '../components/forms/ShoppingForm';
-import { persistExistingShoppingEdit, type ShoppingSavePayload } from '../utils/shoppingSave';
+import ShoppingForm from '../components/forms/ShoppingForm';
 import RouteBadge from '../components/common/RouteBadge';
 import TrasportoCard from '../components/cards/TrasportoCard';
 import AttivitaCard from '../components/cards/AttivitaCard';
@@ -347,8 +346,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
   const [editingAlloggioItem, setEditingAlloggioItem] = useState<Alloggio | null>(null);
   const [editingRistoranteItem, setEditingRistoranteItem] = useState<Ristorante | null>(null);
   const [editingShoppingItem, setEditingShoppingItem] = useState<Shopping | null>(null);
-  const [isDuplicatingShopping, setIsDuplicatingShopping] = useState(false);
-  const shoppingFormActionsRef = useRef<ShoppingFormHandle | null>(null);
   const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false);
   const [creatingCategory, setCreatingCategory] = useState<InsertCategory | null>(null);
   const [insertMenuAfterId, setInsertMenuAfterId] = useState<string | null>(null);
@@ -753,7 +750,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       } else if (prepared.type === 'ristorante') {
         setEditingRistoranteItem(prepared.data as Ristorante);
       } else if (prepared.type === 'shopping') {
-        setIsDuplicatingShopping(true);
         setEditingShoppingItem(prepared.data as Shopping);
       }
     } catch (e) {
@@ -774,7 +770,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     } else if (item.type === 'ristorante') {
       setEditingRistoranteItem(item.originalData as Ristorante);
     } else if (item.type === 'shopping') {
-      setIsDuplicatingShopping(false);
       setEditingShoppingItem(item.originalData as Shopping);
     }
   };
@@ -957,35 +952,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
     showFeedbackBanner('Ristorante aggiornato con successo ✓');
   };
 
-  const isExistingShoppingEdit = Boolean(
-    editingShoppingItem?.id && !isDuplicatingShopping && creatingCategory !== 'shopping'
-  );
-
-  const closeShoppingModalImmediate = () => {
-    setEditingShoppingItem(null);
-    setIsDuplicatingShopping(false);
-    closeCreateForm();
-  };
-
-  const handleAttemptCloseShoppingModal = async () => {
-    const canClose = await shoppingFormActionsRef.current?.requestClose();
-    if (canClose === false) return;
-    closeShoppingModalImmediate();
-  };
-
-  const handleCompleteAutoSaveShoppingClose = () => {
-    closeShoppingModalImmediate();
-    showFeedbackBanner('Shopping aggiornato con successo ✓');
-  };
-
-  const handleAutoSaveShopping = async (data: ShoppingSavePayload): Promise<Shopping> => {
-    const saved = await persistExistingShoppingEdit(editingShoppingItem, data);
-    setEditingShoppingItem(saved);
-    await loadData(false);
-    await fetchTimeline(selectedDate);
-    return saved;
-  };
-
   const handleSaveShopping = async (data: Omit<Shopping, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => {
     const shoppingToSave: Shopping = {
       ...data,
@@ -994,7 +960,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       updatedAt: Date.now()
     };
     await storageService.saveShopping(shoppingToSave);
-    closeShoppingModalImmediate();
+    setEditingShoppingItem(null);
+    setCreatingCategory(null);
     setInsertDraftTime('');
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('roadbook_data_mutated', {
@@ -2327,10 +2294,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
                           <ShoppingCard
                             shopping={item.originalData}
                             onDetail={() => setDetailItem(item as TimelineItem)}
-                            onEdit={() => {
-                              setIsDuplicatingShopping(false);
-                              setEditingShoppingItem(item.originalData);
-                            }}
+                            onEdit={() => setEditingShoppingItem(item.originalData)}
                             onDuplicate={canEdit ? () => handleDuplicateItem(item as TimelineItem) : undefined}
                             onDelete={async () => {
                               await storageService.deleteShopping(item.originalData?.id || '');
@@ -2764,8 +2728,8 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
       {/* Modale Form Shopping */}
       <Modal
         isOpen={Boolean(editingShoppingItem) || creatingCategory === 'shopping'}
-        onClose={handleAttemptCloseShoppingModal}
-        title={isDuplicatingShopping ? 'Nuovo Shopping (Copia)' : (editingShoppingItem ? 'Modifica Shopping' : 'Nuovo Shopping')}
+        onClose={() => { setEditingShoppingItem(null); closeCreateForm(); }}
+        title={editingShoppingItem ? 'Modifica Shopping' : 'Nuovo Shopping'}
         accentVariant="rose"
       >
         <ShoppingForm
@@ -2773,11 +2737,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           defaultDate={creatingCategory === 'shopping' ? selectedDate : undefined}
           defaultTime={creatingCategory === 'shopping' ? insertDraftTime : undefined}
           onSave={handleSaveShopping}
-          onAutoSave={isExistingShoppingEdit ? handleAutoSaveShopping : undefined}
-          onAutoSaveCompleteClose={handleCompleteAutoSaveShoppingClose}
-          onDiscardInvalidClose={closeShoppingModalImmediate}
-          formActionsRef={shoppingFormActionsRef}
-          onCancel={handleAttemptCloseShoppingModal}
+          onCancel={() => { setEditingShoppingItem(null); closeCreateForm(); }}
         />
       </Modal>
 
@@ -2832,7 +2792,7 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
 
       {/* Modale Rilevamento Sovrapposizione Oraria */}
       <TimeCollisionModal
-        collision={editingShoppingItem ? null : activeCollision}
+        collision={activeCollision}
         onKeepBoth={() => {
           if (activeCollision) {
             const rawA = activeCollision.itemA.originalData || activeCollision.itemA;
@@ -2997,7 +2957,6 @@ export default function OggiView({ onNavigateTab }: OggiViewProps) {
           } else if (item.type === 'tappa' && item.originalData) {
             setEditingTappaItem(item.originalData);
           } else if (item.type === 'shopping' && item.originalData) {
-            setIsDuplicatingShopping(false);
             setEditingShoppingItem(item.originalData);
           }
           setActiveCollision(null);

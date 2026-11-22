@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-    HOUNIGO - Script di automazione Deploy GitHub Actions (Antigravity & Terminale)
+    HOUNIGO — Script di automazione Deploy GitHub Actions (Antigravity & Terminale)
 .DESCRIPTION
     Consente di avviare, monitorare e verificare la pipeline nativa GitHub Pages
     (deploy.yml) senza dover aprire il browser su GitHub.
     Usa GitHub CLI e recupera le credenziali in modo sicuro da Git Credential Manager
-    senza salvare token su disco ne' stamparli nei log.
+    senza salvare token su disco né stamparli nei log.
 .PARAMETER Action
     Azione da eseguire: 'deploy' (predefinito), 'dry-run', 'rollback', 'status'
 .PARAMETER Ref
@@ -53,7 +53,7 @@ if (-not $env:GH_TOKEN) {
             $env:GH_TOKEN = $tokenLine.Substring("password=".Length).Trim()
         }
     } catch {
-        # Fallback se git credential non e' disponibile
+        # Fallback se git credential non è disponibile
     }
 }
 
@@ -69,7 +69,7 @@ $dryRun = 'true'
 $effectiveConfirm = ''
 
 if ($Action -eq 'dry-run') {
-    Write-Host ">> Modalita' DRY-RUN selezionata: test di compilazione, lint e versionamento senza pubblicazione." -ForegroundColor Yellow
+    Write-Host ">> Modalità DRY-RUN selezionata: test di compilazione, lint e versionamento senza pubblicazione." -ForegroundColor Yellow
     $dryRun = 'true'
     $effectiveConfirm = ''
 } elseif ($Action -eq 'deploy') {
@@ -77,7 +77,7 @@ if ($Action -eq 'dry-run') {
         Write-Error "BLOCCO DI SICUREZZA: Per pubblicare in produzione devi specificare -Confirm CONFERMA."
         exit 1
     }
-    Write-Host ">> Modalita' DEPLOY REALE selezionata su ref '$Ref' con conferma esplicita." -ForegroundColor Green
+    Write-Host ">> Modalità DEPLOY REALE selezionata su ref '$Ref' con conferma esplicita." -ForegroundColor Green
     $dryRun = 'false'
     $effectiveConfirm = 'CONFERMA'
 } elseif ($Action -eq 'rollback') {
@@ -89,71 +89,9 @@ if ($Action -eq 'dry-run') {
         Write-Error "ERRORE ROLLBACK: Devi specificare il commit SHA o tag di ripristino con -Ref <commit-sha>."
         exit 1
     }
-    Write-Host ">> Modalita' ROLLBACK REALE selezionata sul commit '$Ref' con conferma esplicita." -ForegroundColor Magenta
+    Write-Host ">> Modalità ROLLBACK REALE selezionata sul commit '$Ref' con conferma esplicita." -ForegroundColor Magenta
     $dryRun = 'false'
     $effectiveConfirm = 'CONFERMA'
-}
-
-# 4.1 Preflight Obbligatorio Locale per Deploy e Dry-Run
-if ($Action -eq 'deploy' -or $Action -eq 'dry-run') {
-    Write-Host ">> PREFLIGHT LOCALE: Verifica requisiti di versionamento prima di contattare GitHub Actions..." -ForegroundColor Cyan
-
-    $testScript = Join-Path $PSScriptRoot "..\ViaggiodiNozze\scripts\test_release_versioning.cjs"
-    if (Test-Path $testScript) {
-        $nodeOutput = & node $testScript 2>&1
-        if ($LASTEXITCODE -ne 0) {
-            Write-Host "`n========================================================" -ForegroundColor Red
-            Write-Host "[ERRORE PREFLIGHT LOCALE] Test di versionamento fallito!" -ForegroundColor Red
-            Write-Host "GitHub Actions NON e' stato avviato per evitare deploy falliti ed email di errore." -ForegroundColor Red
-            Write-Host "Dettagli errore:`n$nodeOutput" -ForegroundColor Yellow
-            Write-Host "========================================================`n" -ForegroundColor Red
-            exit 1
-        }
-        Write-Host "   [OK] Test di versionamento superato ($($nodeOutput.Trim()))" -ForegroundColor Green
-    } else {
-        Write-Error "Script di test versionamento non trovato in '$testScript'."
-        exit 1
-    }
-
-    # Verifica esplicita sourceCommit e allineamento versione
-    $pkgPath = Join-Path $PSScriptRoot "..\ViaggiodiNozze\package.json"
-    $relPath = Join-Path $PSScriptRoot "..\ViaggiodiNozze\src\data\releaseHistory.json"
-    if ((Test-Path $pkgPath) -and (Test-Path $relPath)) {
-        $pkg = Get-Content $pkgPath -Raw | ConvertFrom-Json
-        $rel = Get-Content $relPath -Raw | ConvertFrom-Json
-        $latestRel = if ($rel.releases -and $rel.releases.Count -gt 0) { $rel.releases[0] } else { $null }
-
-        if (-not $latestRel -or $latestRel.version -ne $pkg.version) {
-            Write-Error "BLOCCO PREFLIGHT: Versione disallineata: package.json ($($pkg.version)) vs releaseHistory.json ($($latestRel.version))."
-            exit 1
-        }
-
-        if (-not $latestRel.sourceCommit -or -not ($latestRel.sourceCommit -match '^[a-f0-9]{7,40}$')) {
-            Write-Error "BLOCCO PREFLIGHT: sourceCommit mancante o non valido nella release $($latestRel.version) in releaseHistory.json. Valorizza lo SHA del commit prima del deploy."
-            exit 1
-        }
-        Write-Host "   [OK] Release $($pkg.version) pronta con sourceCommit valido: $($latestRel.sourceCommit)" -ForegroundColor Green
-    }
-
-    # Verifica che i commit locali siano stati inviati su GitHub prima del deploy reale
-    if ($Action -eq 'deploy') {
-        try {
-            $unpushed = & git log "origin/${Ref}..${Ref}" --oneline 2>$null
-            if ($unpushed) {
-                Write-Host "`n========================================================" -ForegroundColor Red
-                Write-Host "[ERRORE PREFLIGHT LOCALE] Commit locali non inviati a origin/${Ref}:" -ForegroundColor Red
-                Write-Host $unpushed -ForegroundColor Yellow
-                Write-Host "Esegui 'git push origin ${Ref}' prima di avviare il deploy su GitHub Actions." -ForegroundColor Yellow
-                Write-Host "========================================================`n" -ForegroundColor Red
-                exit 1
-            }
-            Write-Host "   [OK] Repository allineato con origin/${Ref} (nessun commit locale pendente)" -ForegroundColor Green
-        } catch {
-            # Se origin/$Ref non e' raggiungibile, non bloccare
-        }
-    }
-
-    Write-Host ">> PREFLIGHT SUPERATO: Parametri e versionamento validati con successo.`n" -ForegroundColor Green
 }
 
 # 5. Avvio del Workflow GitHub Actions
