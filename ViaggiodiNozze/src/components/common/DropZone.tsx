@@ -142,10 +142,10 @@ export default function DropZone({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={handleClick}
-        className={`w-full py-3.5 px-4 rounded-2xl border-2 border-dashed transition-all cursor-pointer flex items-center justify-center gap-2.5 text-xs font-bold select-none ${
+        className={`w-full py-2.5 px-3 rounded-xl border border-dashed transition-colors cursor-pointer flex items-center justify-center gap-2 text-xs font-semibold select-none ${
           isDragOver
-            ? 'border-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 scale-[1.01] shadow-md ring-2 ring-indigo-400/40'
-            : 'border-slate-300 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 bg-slate-50/60 dark:bg-slate-800/40 hover:bg-slate-100/70 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200'
+            ? 'border-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 ring-2 ring-indigo-400/30'
+            : 'border-slate-300 dark:border-slate-700 hover:border-indigo-400 dark:hover:border-indigo-500 bg-slate-50/60 dark:bg-slate-800/40 hover:bg-slate-100/80 dark:hover:bg-slate-800/70 text-slate-600 dark:text-slate-300'
         } ${className}`}
       >
         <input
@@ -157,15 +157,17 @@ export default function DropZone({
           className="hidden"
           disabled={disabled || isUploading}
         />
-        <span className="text-lg transition-transform duration-200 group-hover:scale-110">
-          {isDragOver ? '📥' : '➕'}
+        <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M12 4v16m8-8H4" />
+        </svg>
+        <span className="truncate">
+          {isDragOver ? 'Rilascia per caricare' : (title || 'Aggiungi file')}
         </span>
-        <div className="flex flex-col sm:flex-row items-center gap-1 text-center">
-          <span>{isDragOver ? 'Rilascia per caricare subito!' : (title || 'Trascina qui altri file')}</span>
-          <span className="text-[11px] font-normal text-slate-400 dark:text-slate-500">
-            {subtitle || 'oppure clicca per selezionare'}
+        {subtitle && !isDragOver && (
+          <span className="hidden sm:inline text-[11px] font-normal text-slate-400 dark:text-slate-500 truncate">
+            • {subtitle}
           </span>
-        </div>
+        )}
       </div>
     );
   }

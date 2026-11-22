@@ -3,8 +3,8 @@ import type { TransportAttachment } from '../../types';
 import Modal from '../common/Modal';
 import LightboxCarousel from '../common/LightboxCarousel';
 import DropZone from '../common/DropZone';
-import { processFileForAttachment, formatFileSize, openAttachmentInNewTab } from '../../utils/fileAttachment';
-import { Trash2, Download, FileText } from 'lucide-react';
+import { processFileForAttachment, openAttachmentInNewTab } from '../../utils/fileAttachment';
+import AttachmentListRow from '../common/AttachmentListRow';
 
 interface UniversalAttachmentModalProps {
   isOpen: boolean;
@@ -123,51 +123,16 @@ export default function UniversalAttachmentModal({
     }
 
     return (
-      <div className="space-y-4">
-        <div className="grid grid-cols-1 gap-3">
+      <div className="space-y-3">
+        <div className="space-y-2">
           {attachments.map((att, attIdx) => (
-            <div key={att.id} className="flex items-center justify-between p-3 bg-white dark:bg-[#1E293B] border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm">
-              <div 
-                className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer group"
-                onClick={() => handleOpenAttachment(att, attIdx)}
-              >
-                <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-xl flex items-center justify-center shrink-0 border border-slate-200 dark:border-slate-700 overflow-hidden group-hover:border-[#DDF4F5] transition-colors">
-                  {att.type === 'image' ? (
-                    <img src={att.dataUrl} alt={att.name} className="w-full h-full object-cover" />
-                  ) : (
-                    <FileText className="w-6 h-6 text-[#FF6B5F]" />
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-[#172033] dark:text-white text-sm truncate">{att.name}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">{att.type}</span>
-                    <span className="text-[10px] text-slate-400">•</span>
-                    <span className="text-[10px] text-slate-500 font-medium">{formatFileSize(att.size)}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-1 ml-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => handleOpenAttachment(att, attIdx)}
-                  className="px-2 py-1 text-xs font-bold text-sky-600 hover:text-sky-700 hover:bg-sky-50 dark:hover:bg-slate-700 rounded-lg transition-colors cursor-pointer"
-                >
-                  Sfoglia
-                </button>
-                {att.type === 'pdf' && (
-                  <button onClick={() => handleOpenAttachment(att, attIdx)} className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-[#172033] dark:hover:text-white bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-colors cursor-pointer" title="Apri / Scarica">
-                    <Download className="w-4 h-4" />
-                  </button>
-                )}
-                {canEdit && (
-                  <button onClick={() => handleDelete(att.id)} className="w-8 h-8 flex items-center justify-center text-rose-500 hover:text-white hover:bg-rose-500 rounded-full transition-colors ml-1 cursor-pointer" title="Elimina">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </div>
+            <AttachmentListRow
+              key={att.id}
+              attachment={att}
+              onView={() => handleOpenAttachment(att, attIdx)}
+              onOpenExternal={att.dataUrl ? () => handleOpenPdf(att.dataUrl, att.name) : undefined}
+              onDelete={canEdit ? () => handleDelete(att.id) : undefined}
+            />
           ))}
         </div>
 
@@ -177,8 +142,8 @@ export default function UniversalAttachmentModal({
             onFilesSelected={handleFilesBatch}
             isUploading={isUploading}
             uploadProgressText={uploadProgressText}
-            title="Trascina qui altri voucher o QR code"
-            subtitle="oppure clicca per aggiungere file"
+            title="Aggiungi voucher o QR code"
+            subtitle="PDF o immagini"
           />
         )}
       </div>
