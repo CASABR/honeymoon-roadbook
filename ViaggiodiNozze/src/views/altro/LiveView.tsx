@@ -84,7 +84,7 @@ interface CustomLivePhoto {
 import { liveService, type LiveUpdate, type LiveGuestMessage } from '../../services/liveService';
 import { getTripConfig } from '../../utils/tripConfig';
 import { auth } from '../../firebase';
-import LiveEditorialExperience, { type LiveGalleryPhotoItem } from './LiveEditorialExperience';
+import LiveEditorialExperience, { type LiveGalleryPhotoItem, type LivePhotoComment } from './LiveEditorialExperience';
 import { describeLiveGpsStartError, liveGpsService, type LiveGpsDevice, type LiveGpsLease, type LiveGpsLocation, type TripMemberInfo } from '../../services/liveGpsService';
 import {
   clearSingleGpsWatcher,
@@ -145,6 +145,7 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
 
   // Live Feed Data from Firestore
   const [liveUpdates, setLiveUpdates] = useState<LiveUpdate[]>([]);
+  const [photoComments, setPhotoComments] = useState<Record<string, LivePhotoComment[]>>({});
   const [liveFeedTransports, setLiveFeedTransports] = useState<{
     nextTransport: PublicNextTransportFeedProjection | null;
     upcomingTransports: Array<PublicNextTransportFeedProjection | string> | null;
@@ -1997,6 +1998,21 @@ export default function LiveView({ onBack, isStandaloneExternal = false, tripId 
       onModerateGuestMessage={async (messageId, action) => {
         if (!activeTripId) return;
         await liveService.moderateGuestMessage(activeTripId, messageId, action);
+      }}
+      photoComments={photoComments}
+      onSubscribePhotoComments={(photoId) => {
+        if (!activeTripId) return;
+        return liveService.subscribeToPhotoComments(activeTripId, photoId, (comments) => {
+          setPhotoComments(prev => ({ ...prev, [photoId]: comments }));
+        });
+      }}
+      onAddPhotoComment={async (photoId, authorName, text) => {
+        if (!activeTripId) return;
+        await liveService.addPhotoComment(activeTripId, photoId, authorName, text);
+      }}
+      onDeletePhotoComment={async (photoId, commentId) => {
+        if (!activeTripId) return;
+        await liveService.deletePhotoComment(activeTripId, photoId, commentId);
       }}
     />
   );

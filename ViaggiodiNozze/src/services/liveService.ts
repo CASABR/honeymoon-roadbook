@@ -639,6 +639,116 @@ export const liveService = {
         deletedBy: user.uid,
       });
     }
+  },
+
+  subscribeToPhotoComments(
+    tripId: string,
+    photoId: string,
+    callback: (comments: Array<{ id: string; photoId: string; authorName: string; text: string; createdAt: number }>) => void
+  ) {
+    if (!db || !tripId || !photoId) {
+      callback([]);
+      return () => {};
+    }
+    const base = collection(db, 'live_feeds', tripId, 'updates', photoId, 'comments');
+    const q = query(
+      base,
+      where('publicSchemaVersion', '==', 2),
+      where('deleted', '==', false),
+      orderBy('createdAt', 'asc'),
+      limit(50)
+    );
+    return onSnapshot(
+      q,
+      (snap) => {
+        const list: Array<{ id: string; photoId: string; authorName: string; text: string; createdAt: number }> = [];
+        snap.forEach((docSnap) => {
+          const data = docSnap.data() as any;
+          if (data.deleted === true) return;
+          if (typeof data.authorName !== 'string' || typeof data.text !== 'string') return;
+          list.push({
+            id: docSnap.id,
+            photoId,
+            authorName: data.authorName,
+            text: data.text,
+            createdAt: typeof data.createdAt === 'number' ? data.createdAt : Date.now(),
+          });
+        });
+        callback(list);
+      },
+      (err) => {
+        console.warn('[LiveService] Errore sottoscrizione commenti foto:', err);
+        callback([]);
+      }
+    );
+  },
+
+  async addPhotoComment(tripId: string, photoId: string, authorName: string, text: string): Promise<void> {
+    if (!tripId || !photoId) throw new Error('Foto non valida.');
+    const cleanAuthor = cleanString(authorName, 40);
+    const cleanText = cleanString(text, 280);
+    if (!cleanAuthor || !cleanText) throw new Error('Inserisci nome e commento.');
+    if (/[<>]|javascript:|data:text\/html/i.test(cleanAuthor) || /[<>]|javascript:|data:text\/html/i.test(cleanText)) {
+      throw new Error('Caratteri non consentiti nel commento.');
+    }
+    if (typeof window !== 'undefined') {
+      try {
+        const lastTs = Number(localStorage.getItem(`hounigo_photo_comment_ts_${tripId}_${photoId}`) || '0');
+        if (lastTs > 0 && Date.now() - lastTs < 10_000) {
+          throw new Error('Attendi qualche secondo prima di inviare un altro commento.');
+        }
+      } catch (e: any) {
+        if (e?.message?.includes('Attendi')) throw e;
+      }
+    }
+
+    const user = auth?.currentUser;
+    const now = Date.now();
+    if (user && !user.isAnonymous) {
+      const { isMember } = await verifyPrivilegedLivePublisher(tripId, user.uid);
+      if (isMember) {
+        const commentRef = doc(collection(db, 'live_feeds', tripId, 'updates', photoId, 'comments'));
+        await setDoc(commentRef, {
+          authorName: cleanAuthor,
+          text: cleanText,
+          createdAt: now,
+          deleted: false,
+          publicSchemaVersion: 2,
+        });
+        if (typeof window !== 'undefined') {
+          try { localStorage.setItem(`hounigo_photo_comment_ts_${tripId}_${photoId}`, String(now)); } catch {}
+        }
+        return;
+      }
+    }
+
+    const { LIVE_PHOTO_ORIGIN } = await import('./liveStorageService');
+    if (!LIVE_PHOTO_ORIGIN) throw new Error('Commenti pubblici non disponibili.');
+    const res = await fetch(`${LIVE_PHOTO_ORIGIN}/v1/live-photos/${encodeURIComponent(tripId)}/comments`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ postId: photoId, authorName: cleanAuthor, text: cleanText }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body?.error || 'Impossibile inviare il commento.');
+    if (typeof window !== 'undefined') {
+      try { localStorage.setItem(`hounigo_photo_comment_ts_${tripId}_${photoId}`, String(now)); } catch {}
+    }
+  },
+
+  async deletePhotoComment(tripId: string, photoId: string, commentId: string): Promise<void> {
+    const user = auth?.currentUser;
+    if (!user || user.isAnonymous) throw new Error('Autenticazione richiesta per eliminare i commenti.');
+    if (!tripId || !photoId || !commentId) return;
+    const { isMember } = await verifyPrivilegedLivePublisher(tripId, user.uid);
+    if (!isMember) throw new Error('Solo Owner e Copilota possono eliminare i commenti.');
+    const commentRef = doc(db, 'live_feeds', tripId, 'updates', photoId, 'comments', commentId);
+    await updateDoc(commentRef, {
+      deleted: true,
+      text: '[Rimosso]',
+      deletedAt: Date.now(),
+      deletedBy: user.uid,
+    });
   }
 };
 

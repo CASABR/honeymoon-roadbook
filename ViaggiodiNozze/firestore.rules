@@ -1183,6 +1183,25 @@ service cloud.firestore {
                         && request.resource.data.keys().hasOnly(['type', 'visitorId', 'timestamp']);
           allow delete: if false;
         }
+
+        match /comments/{commentId} {
+          allow get, list: if isTripPrivilegedMember(tripId)
+                           || (resource.data.publicSchemaVersion == 2 && resource.data.deleted == false);
+          allow create: if isSignedIn() && isTripPrivilegedMember(tripId)
+                        && request.resource.data.publicSchemaVersion == 2
+                        && request.resource.data.deleted == false
+                        && request.resource.data.authorName is string
+                        && request.resource.data.authorName.size() >= 1
+                        && request.resource.data.authorName.size() <= 40
+                        && request.resource.data.text is string
+                        && request.resource.data.text.size() >= 1
+                        && request.resource.data.text.size() <= 280
+                        && request.resource.data.createdAt is int
+                        && request.resource.data.keys().hasOnly(['authorName', 'text', 'createdAt', 'deleted', 'publicSchemaVersion']);
+          allow update: if isTripPrivilegedMember(tripId)
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deleted', 'text', 'deletedAt', 'deletedBy']);
+          allow delete: if isTripPrivilegedMember(tripId) && tripId != '0000';
+        }
       }
 
       match /guest_messages/{msgId} {

@@ -129,7 +129,7 @@ function safeCronErrorReason(error) {
   return String(error?.name || 'CRON_ERROR').slice(0, 40);
 }
 
-async function getServiceAccountToken(env) {
+export async function getServiceAccountToken(env) {
   const { email, der } = parseServiceAccountConfig(env);
   if (firebaseAccessToken && firebaseAccessTokenEmail === email && firebaseAccessTokenExpiresAt > Date.now() + 60_000) {
     return firebaseAccessToken;

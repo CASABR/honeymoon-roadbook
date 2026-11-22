@@ -28,6 +28,14 @@ export interface LiveGalleryPhotoItem {
   userId?: string;
 }
 
+export interface LivePhotoComment {
+  id: string;
+  photoId: string;
+  authorName: string;
+  text: string;
+  createdAt: number;
+}
+
 export interface LiveEditorialExperienceProps {
   isExternal: boolean;
   onBack?: () => void;
@@ -98,6 +106,10 @@ export interface LiveEditorialExperienceProps {
   guestMessages?: LiveGuestMessage[];
   onSendGuestMessage?: (authorName: string, message: string) => Promise<void>;
   onModerateGuestMessage?: (messageId: string, action: 'hide' | 'unhide' | 'delete') => Promise<void>;
+  photoComments?: Record<string, LivePhotoComment[]>;
+  onSubscribePhotoComments?: (photoId: string) => (() => void) | void;
+  onAddPhotoComment?: (photoId: string, authorName: string, text: string) => Promise<void>;
+  onDeletePhotoComment?: (photoId: string, commentId: string) => Promise<void>;
 }
 
 const REACTIONS = ['❤️', '😍', '😂', '👋'];
@@ -150,7 +162,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
 
   const tripConfig = getTripConfig();
   const tripTitle = props.isExternal
-    ? 'Diario di viaggio'
+    ? 'Il nostro viaggio'
     : tripConfig?.title || props.location?.city || 'Il nostro viaggio';
   const isOnline = props.isOnline ?? (typeof navigator === 'undefined' || navigator.onLine);
   // Rispetta la scelta dell'utente: se la condivisione è interrotta manualmente (stopped), non mostrare alcuna posizione
@@ -332,6 +344,9 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   const [isSendingGuestMsg, setIsSendingGuestMsg] = useState(false);
   const [guestMsgError, setGuestMsgError] = useState<string | null>(null);
   const [guestMsgSuccess, setGuestMsgSuccess] = useState<string | null>(null);
+  const [photoCommentInput, setPhotoCommentInput] = useState('');
+  const [isSendingPhotoComment, setIsSendingPhotoComment] = useState(false);
+  const [photoCommentError, setPhotoCommentError] = useState<string | null>(null);
 
   type LiveSectionTab = 'mappa' | 'foto' | 'diario' | 'messaggi';
   const [activeTab, setActiveTab] = useState<LiveSectionTab>('mappa');
@@ -389,11 +404,15 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
     }
   }, [showRealMarker, currentRealMarkerDx, currentRealMarkerDy]);
 
-  const totalDiaryPages = Math.max(1, Math.ceil(sortedUpdates.length / PAGE_SIZE));
+  const diaryUpdates = useMemo(
+    () => sortedUpdates.filter(u => !u.photoUrl || !u.photoUrl.trim()),
+    [sortedUpdates]
+  );
+  const totalDiaryPages = Math.max(1, Math.ceil(diaryUpdates.length / PAGE_SIZE));
   const paginatedUpdates = useMemo(() => {
     const start = (diaryPage - 1) * PAGE_SIZE;
-    return sortedUpdates.slice(start, start + PAGE_SIZE);
-  }, [sortedUpdates, diaryPage]);
+    return diaryUpdates.slice(start, start + PAGE_SIZE);
+  }, [diaryUpdates, diaryPage]);
 
   useEffect(() => {
     if (activeLightboxIndex === null && pendingUploadItems.length === 0) return;
@@ -415,6 +434,43 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
       }
     };
   }, [activeLightboxIndex, displayPhotos.length, pendingUploadItems.length]);
+
+  const activeLightboxPhoto = activeLightboxIndex !== null ? displayPhotos[activeLightboxIndex] || null : null;
+  const activeLightboxPhotoId = activeLightboxPhoto?.id || null;
+  const activeLightboxIsPublic = Boolean(activeLightboxPhoto && !activeLightboxPhoto.isCustom && !activeLightboxPhoto.pendingSync);
+
+  useEffect(() => {
+    setPhotoCommentError(null);
+    if (!activeLightboxPhotoId || !activeLightboxIsPublic || !props.onSubscribePhotoComments) return;
+    const unsub = props.onSubscribePhotoComments(activeLightboxPhotoId);
+    return () => {
+      if (typeof unsub === 'function') unsub();
+    };
+  }, [activeLightboxPhotoId, activeLightboxIsPublic, props.onSubscribePhotoComments]);
+
+  const handlePhotoCommentSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!activeLightboxPhotoId || !activeLightboxIsPublic || !props.onAddPhotoComment || isSendingPhotoComment) return;
+    const cleanAuthor = guestAuthorInput.trim();
+    const cleanText = photoCommentInput.trim();
+    if (!cleanAuthor || !cleanText) {
+      setPhotoCommentError('Inserisci il tuo nome e un commento.');
+      return;
+    }
+    setPhotoCommentError(null);
+    setIsSendingPhotoComment(true);
+    try {
+      await props.onAddPhotoComment(activeLightboxPhotoId, cleanAuthor, cleanText);
+      if (typeof window !== 'undefined') {
+        try { localStorage.setItem('hounigo_guest_author_name', cleanAuthor); } catch {}
+      }
+      setPhotoCommentInput('');
+    } catch (err: any) {
+      setPhotoCommentError(err?.message || 'Impossibile inviare il commento.');
+    } finally {
+      setIsSendingPhotoComment(false);
+    }
+  };
 
   useEffect(() => {
     if (props.messageSuccess) setIsComposerOpen(false);
@@ -492,9 +548,9 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
   const latestSignals = useMemo<Record<LiveSectionTab, string>>(() => ({
     mappa: lastDetectedDate ? String(lastDetectedDate.getTime()) : '',
     foto: latestPhoto ? `${latestPhoto.id}:${latestPhoto.timestamp}` : '',
-    diario: sortedUpdates[0] ? `${sortedUpdates[0].id}:${sortedUpdates[0].timestamp || 0}` : '',
+    diario: diaryUpdates[0] ? `${diaryUpdates[0].id}:${diaryUpdates[0].timestamp || 0}` : '',
     messaggi: visibleGuestMessages[0] ? `${visibleGuestMessages[0].id}:${visibleGuestMessages[0].createdAt || 0}` : ''
-  }), [lastDetectedDate, latestPhoto, sortedUpdates, visibleGuestMessages]);
+  }), [lastDetectedDate, latestPhoto, diaryUpdates, visibleGuestMessages]);
 
   const markTabSeen = (tab: LiveSectionTab) => {
     const latest = latestSignals[tab];
@@ -716,14 +772,14 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
               aria-selected={isActive}
               data-testid={`live-tab-${tab.id}`}
               onClick={() => handleSelectTab(tab.id)}
-              className={`relative flex min-h-11 items-center justify-center gap-1.5 rounded-xl px-2 py-1.5 text-xs font-bold transition cursor-pointer ${
+              className={`relative flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 transition cursor-pointer ${
                 isActive
                   ? 'bg-[#172033] text-white shadow-xs dark:bg-white dark:text-[#172033]'
                   : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800'
               }`}
             >
-              <span aria-hidden="true" className="text-sm leading-none">{tab.icon}</span>
-              <span className="truncate">{tab.label}</span>
+              <span aria-hidden="true" className="text-base leading-none">{tab.icon}</span>
+              <span className="whitespace-nowrap text-[11px] sm:text-xs font-bold leading-tight">{tab.label}</span>
               {showDot && (
                 <span
                   data-testid={`live-tab-dot-${tab.id}`}
@@ -1043,13 +1099,13 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         )}
 
         <div className="mt-5 space-y-3">
-          {sortedUpdates.length === 0 ? (
+          {diaryUpdates.length === 0 ? (
             <div className="py-5 text-center"><p className="text-sm font-bold">Il diario è ancora vuoto.</p><p className="mt-0.5 text-xs text-slate-500">Gli aggiornamenti pubblici compariranno qui.</p></div>
           ) : (
             <>
               {paginatedUpdates[0] && renderUpdateCard(paginatedUpdates[0])}
               {(isArchiveOpen || diaryPage > 1) && paginatedUpdates.slice(1).map(renderUpdateCard)}
-              {paginatedUpdates.length > 1 && diaryPage === 1 && <button type="button" onClick={() => setIsArchiveOpen(open => !open)} className="min-h-10 w-full border-t border-slate-200 text-xs font-bold text-[#FF6B5F] dark:border-slate-800">{isArchiveOpen ? 'Chiudi archivio' : `Altri ricordi (${sortedUpdates.length - 1})`}</button>}
+              {paginatedUpdates.length > 1 && diaryPage === 1 && <button type="button" onClick={() => setIsArchiveOpen(open => !open)} className="min-h-10 w-full border-t border-slate-200 text-xs font-bold text-[#FF6B5F] dark:border-slate-800">{isArchiveOpen ? 'Chiudi archivio' : `Altri ricordi (${diaryUpdates.length - 1})`}</button>}
               {totalDiaryPages > 1 && <div className="mt-3 flex items-center justify-between gap-3"><button type="button" disabled={diaryPage === 1} onClick={() => setDiaryPage(page => Math.max(1, page - 1))} className="min-h-10 px-2 text-xs font-bold disabled:opacity-30">← Prima</button><span className="text-xs text-slate-500">{diaryPage} / {totalDiaryPages}</span><button type="button" disabled={diaryPage === totalDiaryPages} onClick={() => setDiaryPage(page => Math.min(totalDiaryPages, page + 1))} className="min-h-10 px-2 text-xs font-bold disabled:opacity-30">Dopo →</button></div>}
             </>
           )}
@@ -1065,7 +1121,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
         <h2 id="live-interactions-title" className="text-xl sm:text-2xl font-black tracking-tight text-[#172033] dark:text-white">Vicini, anche da lontano</h2>
         <div className="mt-3 grid grid-cols-3 gap-2 xl:gap-4 border-y border-slate-200 py-2.5 dark:border-slate-800">
           <div className="min-w-0"><p className="text-lg xl:text-2xl font-black">{reactionTotal}</p><p className="text-xs text-slate-500">Reazioni</p></div>
-          <div className="min-w-0"><p className="text-lg xl:text-2xl font-black">{sortedUpdates.length}</p><p className="text-xs text-slate-500">Ricordi</p></div>
+          <div className="min-w-0"><p className="text-lg xl:text-2xl font-black">{diaryUpdates.length}</p><p className="text-xs text-slate-500">Ricordi</p></div>
           <div className="min-w-0"><p className="text-lg xl:text-2xl font-black">{(props.guestMessages || []).filter(m => !m.hidden).length}</p><p className="text-xs text-slate-500">Messaggi</p></div>
         </div>
 
@@ -1515,7 +1571,7 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
               src={displayPhotos[activeLightboxIndex].url}
               alt={displayPhotos[activeLightboxIndex].caption || 'Foto del viaggio'}
               onClick={event => event.stopPropagation()}
-              className="block h-auto w-auto max-h-[calc(100dvh-9.5rem)] max-w-[calc(100vw-1.5rem)] sm:max-w-[calc(100vw-8rem)] mx-auto my-auto object-contain rounded-xl shadow-2xl"
+              className="block h-auto w-auto max-h-[calc(100dvh-19rem)] max-w-[calc(100vw-1.5rem)] sm:max-w-[calc(100vw-8rem)] mx-auto my-auto object-contain rounded-xl shadow-2xl"
             />
 
             <button
@@ -1532,10 +1588,72 @@ export default function LiveEditorialExperience(props: LiveEditorialExperiencePr
             </button>
           </div>
 
-          <div className="relative z-10 shrink-0 text-center px-4" onClick={event => event.stopPropagation()}>
-            <p className="text-sm font-bold">{displayPhotos[activeLightboxIndex].caption || 'Momento dal viaggio'}</p>
-            {displayPhotos[activeLightboxIndex].location && (
-              <p className="mt-1 text-xs text-white/65">{displayPhotos[activeLightboxIndex].location}</p>
+          <div className="relative z-10 shrink-0 mx-auto w-full max-w-xl px-4 pb-3" onClick={event => event.stopPropagation()}>
+            <div className="text-center">
+              <p className="text-sm font-bold">{displayPhotos[activeLightboxIndex].caption || 'Momento dal viaggio'}</p>
+              {displayPhotos[activeLightboxIndex].location && (
+                <p className="mt-0.5 text-xs text-white/65">{displayPhotos[activeLightboxIndex].location}</p>
+              )}
+            </div>
+
+            {activeLightboxIsPublic && props.onAddPhotoComment && (
+              <div data-testid="live-photo-comments-panel" className="mt-2.5 rounded-2xl bg-white/10 p-2.5 backdrop-blur-md">
+                <div className="max-h-28 space-y-1.5 overflow-y-auto pr-1 text-left">
+                  {(props.photoComments?.[displayPhotos[activeLightboxIndex].id] || []).length === 0 ? (
+                    <p className="text-[11px] text-white/60">Nessun commento ancora su questa foto.</p>
+                  ) : (
+                    (props.photoComments?.[displayPhotos[activeLightboxIndex].id] || []).map(comment => (
+                      <div key={comment.id} className="flex items-start justify-between gap-2 rounded-xl bg-black/30 px-2.5 py-1.5 text-xs">
+                        <div className="min-w-0">
+                          <span className="font-bold text-white">{comment.authorName}: </span>
+                          <span className="break-words text-white/90">{comment.text}</span>
+                        </div>
+                        {props.canPublish && !props.isExternal && props.onDeletePhotoComment && (
+                          <button
+                            type="button"
+                            onClick={() => props.onDeletePhotoComment?.(displayPhotos[activeLightboxIndex].id, comment.id)}
+                            className="shrink-0 text-[11px] font-bold text-rose-300 hover:text-rose-200 cursor-pointer"
+                            aria-label={`Elimina commento di ${comment.authorName}`}
+                          >
+                            Elimina
+                          </button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <form onSubmit={handlePhotoCommentSubmit} className="mt-2 flex flex-wrap gap-1.5">
+                  <input
+                    type="text"
+                    maxLength={40}
+                    required
+                    value={guestAuthorInput}
+                    onChange={e => setGuestAuthorInput(e.target.value)}
+                    placeholder="Tuo nome"
+                    aria-label="Il tuo nome"
+                    className="min-h-9 w-28 shrink-0 rounded-xl bg-white/15 px-2.5 text-xs text-white placeholder:text-white/55 focus:outline-none focus:ring-1 focus:ring-white/40"
+                  />
+                  <input
+                    type="text"
+                    maxLength={280}
+                    required
+                    value={photoCommentInput}
+                    onChange={e => setPhotoCommentInput(e.target.value)}
+                    placeholder="Scrivi un commento…"
+                    aria-label="Scrivi un commento"
+                    className="min-h-9 min-w-0 flex-1 rounded-xl bg-white/15 px-2.5 text-xs text-white placeholder:text-white/55 focus:outline-none focus:ring-1 focus:ring-white/40"
+                  />
+                  <button
+                    type="submit"
+                    disabled={isSendingPhotoComment || !isOnline}
+                    className="min-h-9 shrink-0 rounded-xl bg-[#FF6B5F] px-3 text-xs font-bold text-white disabled:opacity-40 cursor-pointer"
+                  >
+                    {isSendingPhotoComment ? '…' : 'Invia'}
+                  </button>
+                </form>
+                {photoCommentError && <p className="mt-1 text-[11px] font-semibold text-rose-300" role="alert">{photoCommentError}</p>}
+              </div>
             )}
           </div>
         </div>,

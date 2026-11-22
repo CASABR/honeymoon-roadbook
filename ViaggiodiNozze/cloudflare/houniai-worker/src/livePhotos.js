@@ -87,7 +87,8 @@ export async function handleLivePhotoRequest(request, env, security) {
     }
     const url = new URL(request.url), segments = url.pathname.split('/').filter(Boolean);
     const tripId = validateTripId(segments[2]), id = segments[3], action = segments[4];
-    if (!tripId || (id && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish')) throw error(404, 'Foto non disponibile.');
+    const isCommentPost = request.method === 'POST' && id === 'comments' && !action;
+    if (!tripId || (id && !isCommentPost && !ID.test(id)) || segments.length > 5 || (action && action !== 'publish')) throw error(404, 'Foto non disponibile.');
     if (request.method === 'OPTIONS') {
       if (origin !== env.ALLOWED_ORIGIN) throw error(403, 'Origine non autorizzata.');
       return new Response(null, { status: 204, headers });
@@ -115,6 +116,44 @@ export async function handleLivePhotoRequest(request, env, security) {
       const current = await database.prepare('SELECT status FROM live_photo_objects WHERE id=?1 AND trip_id=?2').bind(id, tripId).first();
       if (current?.status !== 'published') throw error(404, 'Foto non disponibile.');
       return new Response(data, { headers: { ...headers, 'Content-Type': 'image/jpeg' } });
+    }
+    if (isCommentPost) {
+      await gate(database, `comment_day:${day}`, 500, now + 172800000);
+      await gate(database, `comment_ip:${Math.floor(now / 60000)}:${ip}`, 5, now + 120000);
+      const rawText = await request.text();
+      if (!rawText || rawText.length > 2048) throw error(400, 'Richiesta commento non valida.');
+      let body;
+      try { body = JSON.parse(rawText); } catch { throw error(400, 'JSON non valido.'); }
+      const postId = validateTripId(body?.postId);
+      const cleanAuthor = String(body?.authorName || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+      const cleanText = String(body?.text || '').trim().replace(/\s+/g, ' ').slice(0, 280);
+      if (!postId || !cleanAuthor || !cleanText || /[<>]|javascript:|data:text\/html/i.test(`${cleanAuthor} ${cleanText}`)) {
+        throw error(400, 'Nome o commento non validi.');
+      }
+      if (typeof security.getServiceAccountToken !== 'function') throw error(503, 'Servizio commenti non configurato.');
+      const saToken = await security.getServiceAccountToken(env);
+      const post = await security.getFirestoreDocument(`live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(postId)}`, saToken, env);
+      const postData = readFirestoreFields(post?.fields || {});
+      if (postData.publicSchemaVersion !== 2 || postData.deleted === true || !postData.photoUrl) {
+        throw error(404, 'Foto pubblica non trovata.');
+      }
+      const fsUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(env.FIREBASE_PROJECT_ID)}/databases/(default)/documents/live_feeds/${encodeURIComponent(tripId)}/updates/${encodeURIComponent(postId)}/comments`;
+      const fsRes = await fetch(fsUrl, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${saToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fields: {
+            authorName: { stringValue: cleanAuthor },
+            text: { stringValue: cleanText },
+            createdAt: { integerValue: String(now) },
+            deleted: { booleanValue: false },
+            publicSchemaVersion: { integerValue: '2' }
+          }
+        })
+      });
+      if (!fsRes.ok) throw error(503, 'Salvataggio commento non riuscito.');
+      const created = await fsRes.json();
+      return reply(201, { id: created.name?.split('/').at(-1) || '', createdAt: now });
     }
     const token = (request.headers.get('Authorization') || '').replace(/^Bearer /, '');
     if (!token || token.length > 8192) throw error(401, 'Sessione Firebase non valida.');
