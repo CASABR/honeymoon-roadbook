@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.2",
+      "publishedAt": "2026-11-22",
+      "sourceCommit": "278a2086d714bb0ea9719a8d27057f7740550185",
+      "changes": [
+        "Finestra allegati compatta con miniature uniformi, badge Offline discreto e azioni Visualizza, Apri ed Elimina distinte.",
+        "Visualizzatore a schermo intero con contatore orizzontale, zoom naturale, frecce esterne al QR e supporto Dynamic Island."
+      ],
+      "publishedAtIso": "2026-11-22T11:37:30.000Z"
+    },
+    {
       "version": "1.7.1",
       "publishedAt": "2026-11-22",
       "sourceCommit": "c20285e9928f36b956aa0f32ece1462b6ecc814a",

@@ -1,10 +1,10 @@
 {
   "$schema": "./hounigo-deploy-request.schema.json",
-  "requestId": "release-1.7.1-202611221047",
-  "requestedAt": "2026-11-22T10:47:00.000Z",
+  "requestId": "release-1.7.2-202611221137",
+  "requestedAt": "2026-11-22T11:37:30.000Z",
   "requestedBy": "CASABR",
   "action": "deploy",
   "ref": "main",
   "confirm": "CONFERMA",
-  "note": "Release 1.7.1 Shopping local draft sync-safe & manual save (esclusi file locali estranei)."
+  "note": "Release 1.7.2 restyling allegati compatti e visualizzatore fullscreen (esclusi file locali estranei)."
 }
