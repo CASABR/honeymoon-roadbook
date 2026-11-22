@@ -1,10 +1,10 @@
 {
   "$schema": "./hounigo-deploy-request.schema.json",
-  "requestId": "release-1.6.40-202611220726",
-  "requestedAt": "2026-11-22T07:26:10.000Z",
+  "requestId": "release-1.6.40-202611220731",
+  "requestedAt": "2026-11-22T07:31:00.000Z",
   "requestedBy": "CASABR",
   "action": "deploy",
   "ref": "main",
   "confirm": "CONFERMA",
-  "note": "Release 1.6.40 Budget privato: sync note/__hounigo_trip_budget_goal_v1 verificato, file locali esclusi preservati."
+  "note": "Release 1.6.40 Budget privato (pulito senza file Shopping/Push/deploy locali esclusi)."
 }
