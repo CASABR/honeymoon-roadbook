@@ -1,44 +1,164 @@
 import CurrencyAmountInput from '../common/CurrencyAmountInput';
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback, useImperativeHandle } from 'react';
 import { usePresence } from '../../hooks/usePresence';
-import type { Shopping, TimeStatus } from '../../types';
+import type { Shopping } from '../../types';
 import { extractFromText } from '../../services/aiExtractor';
 import TimePickerInput from '../common/TimePickerInput';
-import { buildEurSavePatch } from '../../services/currencyService';
+import { auth } from '../../firebase';
+import { getActiveTripId } from '../../storage/indexedDB';
+import { isCloudAuthorized } from '../../utils/useAuthIdentity';
+import { hasPendingMutation } from '../../storage/localMutationQueue';
+import {
+  clearShoppingDraft,
+  readShoppingDraft,
+  writeShoppingDraft,
+  type ShoppingDraftFields,
+  type ShoppingDraftScope
+} from '../../utils/shoppingLocalDraft';
+import {
+  buildShoppingFormInitialState,
+  buildShoppingSavePayload,
+  serializeShoppingDraftFingerprint,
+  SHOPPING_SUBCATEGORIES,
+  validateShoppingDraft,
+  type CachedMoneyPatch,
+  type ShoppingSavePayload
+} from '../../utils/shoppingSave';
+
+export interface ShoppingFormHandle {
+  requestClose: () => Promise<boolean>;
+}
 
 interface ShoppingFormProps {
   initialData?: Shopping | null;
   defaultDate?: string;
   defaultTime?: string;
-  onSave: (data: Omit<Shopping, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }) => void;
+  onSave: (data: ShoppingSavePayload) => Promise<void> | void;
+  onAutoSave?: (data: ShoppingSavePayload) => Promise<Shopping | void>;
+  onAutoSaveCompleteClose?: () => void;
+  onDiscardInvalidClose?: () => void;
+  formActionsRef?: React.Ref<ShoppingFormHandle>;
   onCancel: () => void;
 }
 
-export default function ShoppingForm({ initialData, defaultDate, defaultTime, onSave, onCancel }: ShoppingFormProps) {
-  const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
+type ShoppingSaveUiStatus =
+  | 'idle'
+  | 'bozza_sul_dispositivo'
+  | 'bozza_non_salvata'
+  | 'saving'
+  | 'saved_pending_sync'
+  | 'synced';
 
-  const [sottocategoria, setSottocategoria] = useState('');
-  const [nome, setNome] = useState('');
-  const [scopo, setScopo] = useState('');
-  const [data, setData] = useState('');
-  const [orario, setOrario] = useState('');
-  const [timeStatus, setTimeStatus] = useState<TimeStatus>(initialData?.timeStatus || 'confermato');
-  const [indirizzo, setIndirizzo] = useState('');
-  const [budget, setBudget] = useState('');
-  const [link, setLink] = useState('');
-  const [noteCopilota, setNoteCopilota] = useState('');
-  const [copilota, setCopilota] = useState(false);
-  
+const SHOPPING_SAVE_LABELS: Record<ShoppingSaveUiStatus, { text: string; tone: string } | null> = {
+  idle: null,
+  bozza_sul_dispositivo: { text: 'Bozza sul dispositivo', tone: 'text-amber-700' },
+  bozza_non_salvata: { text: 'Bozza non salvata: usa Salva', tone: 'text-rose-600' },
+  saving: { text: 'Salvataggio in corso', tone: 'text-sky-700' },
+  saved_pending_sync: { text: 'Salvato nel viaggio; sincronizzazione da verificare', tone: 'text-amber-700' },
+  synced: { text: '✓ Sincronizzato', tone: 'text-emerald-700' },
+};
+
+export default function ShoppingForm({
+  initialData,
+  defaultDate,
+  defaultTime,
+  onSave,
+  onAutoSave,
+  onAutoSaveCompleteClose,
+  onDiscardInvalidClose,
+  formActionsRef,
+  onCancel
+}: ShoppingFormProps) {
+  const { isLockedByOther, lockedBy } = usePresence(initialData?.id);
+  const tripId = getActiveTripId() || '';
+  const editorId = auth.currentUser?.uid || '';
+  const canUseLocalDraft = Boolean(tripId && editorId && isCloudAuthorized(tripId));
+  const draftEntityId = initialData?.id || `new:${defaultDate || 'draft'}`;
+  const sourceUpdatedAt = typeof initialData?.updatedAt === 'number' ? initialData.updatedAt : null;
+
+  const draftScope: ShoppingDraftScope | null = useMemo(
+    () => (canUseLocalDraft ? { tripId, editorId, entityId: draftEntityId } : null),
+    [canUseLocalDraft, tripId, editorId, draftEntityId]
+  );
+
+  const baseDraft: ShoppingDraftFields = useMemo(() => {
+    const raw = buildShoppingFormInitialState(initialData, defaultDate, defaultTime);
+    return {
+      ...raw,
+      timeStatus: raw.timeStatus === 'confermato' ? 'confermato' : 'indicativo',
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialData?.id, defaultDate, defaultTime]);
+  const baselineFingerprint = useMemo(
+    () => serializeShoppingDraftFingerprint(baseDraft),
+    [baseDraft]
+  );
+
+  const initialRecovery = useMemo(() => {
+    if (!draftScope) {
+      return { fields: baseDraft, hasRestoredDraft: false, conflictFields: null as ShoppingDraftFields | null };
+    }
+    const stored = readShoppingDraft(draftScope, { sourceUpdatedAt });
+    if (!stored) {
+      return { fields: baseDraft, hasRestoredDraft: false, conflictFields: null as ShoppingDraftFields | null };
+    }
+    if (stored.conflict) {
+      return { fields: baseDraft, hasRestoredDraft: false, conflictFields: stored.fields };
+    }
+    if (serializeShoppingDraftFingerprint(stored.fields) !== baselineFingerprint) {
+      return { fields: stored.fields, hasRestoredDraft: true, conflictFields: null as ShoppingDraftFields | null };
+    }
+    return { fields: baseDraft, hasRestoredDraft: false, conflictFields: null as ShoppingDraftFields | null };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftScope, initialData?.id, baselineFingerprint]);
+
+  const [sottocategoria, setSottocategoria] = useState(initialRecovery.fields.sottocategoria);
+  const [nome, setNome] = useState(initialRecovery.fields.nome);
+  const [scopo, setScopo] = useState(initialRecovery.fields.scopo);
+  const [data, setData] = useState(initialRecovery.fields.data);
+  const [orario, setOrario] = useState(initialRecovery.fields.orario);
+  const [timeStatus, setTimeStatus] = useState<'indicativo' | 'confermato'>(initialRecovery.fields.timeStatus);
+  const [indirizzo, setIndirizzo] = useState(initialRecovery.fields.indirizzo);
+  const [budget, setBudget] = useState(initialRecovery.fields.budget);
+  const [link, setLink] = useState(initialRecovery.fields.link);
+  const [noteCopilota, setNoteCopilota] = useState(initialRecovery.fields.noteCopilota);
+  const [copilota, setCopilota] = useState(initialRecovery.fields.copilota);
+
+  const [pendingConflictDraft, setPendingConflictDraft] = useState<ShoppingDraftFields | null>(
+    initialRecovery.conflictFields
+  );
   const [error, setError] = useState('');
-  
+  const [showInvalidCloseActions, setShowInvalidCloseActions] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<ShoppingSaveUiStatus>(() =>
+    initialRecovery.hasRestoredDraft ? 'bozza_sul_dispositivo' : 'idle'
+  );
+
   // AI State
   const [showAiBox, setShowAiBox] = useState(false);
   const [aiText, setAiText] = useState('');
   const [isExtracting, setIsExtracting] = useState(false);
 
-  const SOTTOCATEGORIE = ['Abbigliamento', 'Souvenir', 'Alimentari', 'Elettronica', 'Carburante', 'Altro'];
+  const SOTTOCATEGORIE = SHOPPING_SUBCATEGORIES;
 
-  const initializedIdRef = useRef<string | null | undefined>(undefined);
+  const initializedIdRef = useRef<string | null | undefined>(initialData?.id || '__new__');
+  const latestInitialDataRef = useRef<Shopping | null | undefined>(initialData);
+  latestInitialDataRef.current = initialData;
+  const cachedMoneyRef = useRef<CachedMoneyPatch | null>(null);
+
+  const applyDraftFieldsToState = useCallback((fields: ShoppingDraftFields) => {
+    setSottocategoria(fields.sottocategoria);
+    setNome(fields.nome);
+    setScopo(fields.scopo);
+    setData(fields.data);
+    setOrario(fields.orario);
+    setTimeStatus(fields.timeStatus);
+    setIndirizzo(fields.indirizzo);
+    setBudget(fields.budget);
+    setLink(fields.link);
+    setNoteCopilota(fields.noteCopilota);
+    setCopilota(fields.copilota);
+  }, []);
 
   useEffect(() => {
     const currentId = initialData?.id || '__new__';
@@ -46,34 +166,190 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       return;
     }
     initializedIdRef.current = currentId;
-
-    if (initialData) {
-      setSottocategoria(initialData.sottocategoria || '');
-      setNome(initialData.nome || '');
-      setScopo(initialData.scopo || '');
-      setData(initialData.data || (initialData as any).date || '');
-      setOrario(initialData.orario || (initialData as any).time || '');
-      setTimeStatus(initialData.timeStatus || 'indicativo');
-      setIndirizzo(initialData.indirizzo || '');
-      setBudget(initialData.budget || (initialData as any).cost || '');
-      setLink(initialData.link || '');
-      const existingNotes = [initialData.noteCopilota, initialData.nota, (initialData as any).notes].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join('\n\n');
-      setNoteCopilota(existingNotes);
-      setCopilota(Boolean(existingNotes.trim()) || initialData.copilota || false);
+    cachedMoneyRef.current = null;
+    const rawNextBase = buildShoppingFormInitialState(initialData, defaultDate, defaultTime);
+    const nextBase: ShoppingDraftFields = {
+      ...rawNextBase,
+      timeStatus: rawNextBase.timeStatus === 'confermato' ? 'confermato' : 'indicativo',
+    };
+    const nextBaseFp = serializeShoppingDraftFingerprint(nextBase);
+    const stored = draftScope ? readShoppingDraft(draftScope, { sourceUpdatedAt }) : null;
+    if (stored && stored.conflict) {
+      applyDraftFieldsToState(nextBase);
+      setPendingConflictDraft(stored.fields);
+      setSaveStatus('idle');
+    } else if (stored && serializeShoppingDraftFingerprint(stored.fields) !== nextBaseFp) {
+      applyDraftFieldsToState(stored.fields);
+      setPendingConflictDraft(null);
+      setSaveStatus('bozza_sul_dispositivo');
     } else {
-      setSottocategoria('');
-      setNome('');
-      setScopo('');
-      setData(defaultDate || '');
-      setOrario(defaultTime || '');
-      setTimeStatus('indicativo');
-      setIndirizzo('');
-      setBudget('');
-      setLink('');
-      setNoteCopilota('');
-      setCopilota(false);
+      applyDraftFieldsToState(nextBase);
+      setPendingConflictDraft(null);
+      setSaveStatus('idle');
     }
-  }, [defaultDate, defaultTime, initialData]);
+    setError('');
+    setShowInvalidCloseActions(false);
+  }, [defaultDate, defaultTime, initialData, draftScope, sourceUpdatedAt, applyDraftFieldsToState]);
+
+  const isAutoSaveEnabled = Boolean(initialData?.id && onAutoSave);
+  const currentDraft: ShoppingDraftFields = useMemo(
+    () => ({
+      sottocategoria,
+      nome,
+      scopo,
+      data,
+      orario,
+      timeStatus,
+      indirizzo,
+      budget,
+      link,
+      noteCopilota,
+      copilota,
+    }),
+    [sottocategoria, nome, scopo, data, orario, timeStatus, indirizzo, budget, link, noteCopilota, copilota]
+  );
+  const draftFingerprint = useMemo(
+    () => serializeShoppingDraftFingerprint(currentDraft),
+    [currentDraft]
+  );
+  const validationError = useMemo(
+    () => validateShoppingDraft(currentDraft),
+    [currentDraft]
+  );
+
+  const savedBaselineRef = useRef<string>(baselineFingerprint);
+  const inFlightSubmitRef = useRef<boolean>(false);
+  const lastSavedEntityIdRef = useRef<string | undefined>(initialData?.id);
+  const lastSaveStartedAtRef = useRef<number>(0);
+  const latestDraftRef = useRef<ShoppingDraftFields>(currentDraft);
+  const latestDraftFingerprintRef = useRef(draftFingerprint);
+  latestDraftRef.current = currentDraft;
+  latestDraftFingerprintRef.current = draftFingerprint;
+
+  useEffect(() => {
+    savedBaselineRef.current = baselineFingerprint;
+  }, [baselineFingerprint]);
+
+  const persistDraftSynchronously = useCallback(
+    (nextFields: ShoppingDraftFields) => {
+      const nextFp = serializeShoppingDraftFingerprint(nextFields);
+      const dirty = nextFp !== savedBaselineRef.current;
+      if (!dirty) {
+        if (draftScope) clearShoppingDraft(draftScope);
+        setSaveStatus(prev =>
+          prev === 'bozza_sul_dispositivo' || prev === 'bozza_non_salvata' ? 'idle' : prev
+        );
+        return;
+      }
+      if (!draftScope) {
+        setSaveStatus(prev => (prev === 'saving' ? prev : 'bozza_non_salvata'));
+        return;
+      }
+      const res = writeShoppingDraft(draftScope, nextFields, { sourceUpdatedAt });
+      setSaveStatus(prev => (prev === 'saving' ? prev : res.status));
+    },
+    [draftScope, sourceUpdatedAt]
+  );
+
+  const updateDraftFields = useCallback(
+    (patch: Partial<ShoppingDraftFields>) => {
+      const nextFields: ShoppingDraftFields = { ...latestDraftRef.current, ...patch };
+      latestDraftRef.current = nextFields;
+      latestDraftFingerprintRef.current = serializeShoppingDraftFingerprint(nextFields);
+      if (patch.sottocategoria !== undefined) setSottocategoria(patch.sottocategoria);
+      if (patch.nome !== undefined) setNome(patch.nome);
+      if (patch.scopo !== undefined) setScopo(patch.scopo);
+      if (patch.data !== undefined) setData(patch.data);
+      if (patch.orario !== undefined) setOrario(patch.orario);
+      if (patch.timeStatus !== undefined) setTimeStatus(patch.timeStatus);
+      if (patch.indirizzo !== undefined) setIndirizzo(patch.indirizzo);
+      if (patch.budget !== undefined) setBudget(patch.budget);
+      if (patch.link !== undefined) setLink(patch.link);
+      if (patch.noteCopilota !== undefined) setNoteCopilota(patch.noteCopilota);
+      if (patch.copilota !== undefined) setCopilota(patch.copilota);
+      persistDraftSynchronously(nextFields);
+    },
+    [persistDraftSynchronously]
+  );
+
+  const flushLocalDraftNow = useCallback(() => {
+    persistDraftSynchronously(latestDraftRef.current);
+  }, [persistDraftSynchronously]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden') flushLocalDraftNow();
+    };
+    window.addEventListener('pagehide', flushLocalDraftNow);
+    window.addEventListener('beforeunload', flushLocalDraftNow);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      window.removeEventListener('pagehide', flushLocalDraftNow);
+      window.removeEventListener('beforeunload', flushLocalDraftNow);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [flushLocalDraftNow]);
+
+  const evaluateCloudProof = useCallback(async (entityId?: string, startedAt?: number) => {
+    const targetId = entityId || lastSavedEntityIdRef.current;
+    const saveTs = startedAt || lastSaveStartedAtRef.current;
+    if (!saveTs) return;
+    const online = typeof navigator === 'undefined' ? true : Boolean(navigator.onLine);
+    const activeTripId = getActiveTripId() || tripId;
+    if (!online || !activeTripId || !isCloudAuthorized(activeTripId) || !targetId) {
+      setSaveStatus('saved_pending_sync');
+      return;
+    }
+    try {
+      const stillPending = await hasPendingMutation(activeTripId, 'shopping', targetId);
+      setSaveStatus(stillPending ? 'saved_pending_sync' : 'synced');
+    } catch {
+      setSaveStatus('saved_pending_sync');
+    }
+  }, [tripId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleCloudSynced = (ev: Event) => {
+      const detail = (ev as CustomEvent)?.detail;
+      const activeTripId = getActiveTripId() || tripId;
+      if (activeTripId && detail?.tripId && detail.tripId !== activeTripId) return;
+      if (lastSaveStartedAtRef.current > 0 && latestDraftFingerprintRef.current === savedBaselineRef.current) {
+        void evaluateCloudProof();
+      }
+    };
+    const handleOffline = () => {
+      if (saveStatus === 'synced' && lastSaveStartedAtRef.current > 0) return;
+      setSaveStatus(prev => (prev === 'saving' ? 'saved_pending_sync' : prev));
+    };
+    window.addEventListener('roadbook_cloud_synced', handleCloudSynced);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('roadbook_cloud_synced', handleCloudSynced);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [tripId, evaluateCloudProof, saveStatus]);
+
+  useEffect(() => {
+    if (!validationError && showInvalidCloseActions) {
+      setShowInvalidCloseActions(false);
+    }
+    if (!validationError && error) {
+      setError('');
+    }
+  }, [validationError, showInvalidCloseActions, error]);
+
+  useImperativeHandle(
+    formActionsRef,
+    () => ({
+      requestClose: async () => {
+        flushLocalDraftNow();
+        return true;
+      },
+    }),
+    [flushLocalDraftNow]
+  );
 
   const handleAiExtraction = async () => {
     if (!aiText.trim()) return;
@@ -84,16 +360,18 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
       const res = await extractFromText(aiText, 'Nuovo inserimento Shopping', 'import');
       if (res.success && res.entityType === 'shopping' && res.data?.type === 'shopping') {
         const d = res.data;
-        if (d.nome) setNome(d.nome);
-        if (d.indirizzo) setIndirizzo(d.indirizzo);
-        if (d.data) setData(d.data);
-        if (d.orario) setOrario(d.orario);
-        if (d.budget) setBudget(d.budget);
+        const aiPatch: Partial<ShoppingDraftFields> = {};
+        if (d.nome) aiPatch.nome = d.nome;
+        if (d.indirizzo) aiPatch.indirizzo = d.indirizzo;
+        if (d.data) aiPatch.data = d.data;
+        if (d.orario) aiPatch.orario = d.orario;
+        if (d.budget) aiPatch.budget = d.budget;
         const extNote = (d as any).noteCopilota || d.nota || (d as any).notes;
-        if (extNote) setNoteCopilota(extNote);
-        if (d.sottocategoria && SOTTOCATEGORIE.includes(d.sottocategoria)) {
-          setSottocategoria(d.sottocategoria);
+        if (extNote) aiPatch.noteCopilota = extNote;
+        if (d.sottocategoria && (SOTTOCATEGORIE as readonly string[]).includes(d.sottocategoria)) {
+          aiPatch.sottocategoria = d.sottocategoria;
         }
+        updateDraftFields(aiPatch);
         setShowAiBox(false);
         setAiText('');
       } else {
@@ -108,40 +386,56 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nome.trim()) {
-      setError('Il nome del negozio o centro commerciale è obbligatorio.');
+    if (inFlightSubmitRef.current) return;
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
+    inFlightSubmitRef.current = true;
+    setIsSubmitting(true);
+    setSaveStatus('saving');
     setError('');
-    const normalizedMoney = await buildEurSavePatch({
-      costRaw: budget.trim() || undefined,
-      existingItem: initialData
-    });
-    const { cost: normCost, depositPaid: _dp, acconto: _ac, ...normMeta } = normalizedMoney;
-    const finalBudget = normCost ?? (budget.trim() || undefined);
+    setShowInvalidCloseActions(false);
+    const startedAt = Date.now();
+    lastSaveStartedAtRef.current = startedAt;
 
-    onSave({
-      id: initialData?.id,
-      sottocategoria: sottocategoria || undefined,
-      nome: nome.trim(),
-      scopo: scopo.trim() || undefined,
-      data: data || undefined,
-      date: data || undefined,
-      orario: orario || undefined,
-      time: orario || undefined,
-      timeStatus: orario ? timeStatus : undefined,
-      indirizzo: indirizzo.trim() || undefined,
-      ...normMeta,
-      budget: finalBudget,
-      cost: finalBudget,
-      link: link.trim() || undefined,
-      coordinate: initialData?.coordinate,
-      noteCopilota: noteCopilota.trim() || undefined,
-      nota: noteCopilota.trim() || undefined,
-      notes: noteCopilota.trim() || undefined,
-      copilota: Boolean(noteCopilota.trim()) || copilota || undefined
-    } as any);
+    try {
+      const { payload, moneyCache } = await buildShoppingSavePayload({
+        draft: currentDraft,
+        initialData: latestInitialDataRef.current,
+        cachedMoney: cachedMoneyRef.current,
+      });
+      cachedMoneyRef.current = moneyCache;
+
+      if (isAutoSaveEnabled && onAutoSave) {
+        const saved = await onAutoSave(payload);
+        if (saved) {
+          latestInitialDataRef.current = saved;
+          lastSavedEntityIdRef.current = saved.id;
+        }
+        savedBaselineRef.current = draftFingerprint;
+        if (draftScope) clearShoppingDraft(draftScope);
+        await evaluateCloudProof(saved?.id || initialData?.id, startedAt);
+        (onAutoSaveCompleteClose || onCancel)();
+      } else {
+        await onSave(payload);
+        savedBaselineRef.current = draftFingerprint;
+        if (draftScope) clearShoppingDraft(draftScope);
+        await evaluateCloudProof(initialData?.id, startedAt);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Errore durante il salvataggio Shopping.');
+      if (draftScope) {
+        const res = writeShoppingDraft(draftScope, currentDraft, { sourceUpdatedAt });
+        setSaveStatus(res.status);
+      } else {
+        setSaveStatus('bozza_non_salvata');
+      }
+    } finally {
+      inFlightSubmitRef.current = false;
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -197,9 +491,64 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
           </div>
         )}
 
+        {pendingConflictDraft && (
+          <div
+            data-testid="shopping-draft-conflict"
+            className="p-3 text-xs rounded-xl bg-amber-50 border border-amber-200 text-amber-900 space-y-2"
+          >
+            <div className="font-bold">
+              Bozza precedente trovata su questo dispositivo (il record condiviso è stato aggiornato).
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const conflictFields = pendingConflictDraft;
+                  applyDraftFieldsToState(conflictFields);
+                  latestDraftRef.current = conflictFields;
+                  latestDraftFingerprintRef.current = serializeShoppingDraftFingerprint(conflictFields);
+                  setPendingConflictDraft(null);
+                  persistDraftSynchronously(conflictFields);
+                }}
+                className="px-3 py-1.5 rounded-lg bg-amber-600 text-white font-bold hover:bg-amber-500 transition-colors cursor-pointer"
+              >
+                Ripristina bozza
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (draftScope) clearShoppingDraft(draftScope);
+                  setPendingConflictDraft(null);
+                  setSaveStatus('idle');
+                }}
+                className="px-3 py-1.5 rounded-lg bg-white border border-amber-300 text-amber-800 font-bold hover:bg-amber-100 transition-colors cursor-pointer"
+              >
+                Scarta bozza
+              </button>
+            </div>
+          </div>
+        )}
+
         {error && (
-          <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
-            {error}
+          <div className="p-3 text-xs rounded-xl bg-rose-50 border border-rose-200 text-rose-700 space-y-2">
+            <div>{error}</div>
+            {showInvalidCloseActions && isAutoSaveEnabled && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (draftScope) clearShoppingDraft(draftScope);
+                    setSaveStatus('idle');
+                    setShowInvalidCloseActions(false);
+                    setError('');
+                    (onDiscardInvalidClose || onCancel)();
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-white border border-rose-300 text-rose-700 font-bold hover:bg-rose-100 transition-colors cursor-pointer"
+                >
+                  Scarta modifiche e chiudi
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -213,7 +562,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
               <button
                 key={cat}
                 type="button"
-                onClick={() => setSottocategoria(cat)}
+                onClick={() => updateDraftFields({ sottocategoria: cat })}
                 className={`px-3 py-1.5 rounded-full text-xs font-semibold transition-all border ${
                   sottocategoria === cat 
                     ? 'bg-slate-800 text-white border-slate-800 shadow-md' 
@@ -235,7 +584,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
             type="text"
             placeholder="es. Queenstown Mall, Harrods, Conad..."
             value={nome}
-            onChange={(e) => setNome(e.target.value)}
+            onChange={(e) => updateDraftFields({ nome: e.target.value })}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors placeholder:text-slate-400"
             required
           />
@@ -250,7 +599,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
             type="text"
             placeholder="es. Souvenir, Rifornimento, Spesa..."
             value={scopo}
-            onChange={(e) => setScopo(e.target.value)}
+            onChange={(e) => updateDraftFields({ scopo: e.target.value })}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors placeholder:text-slate-400"
           />
         </div>
@@ -264,7 +613,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
             <input
               type="date"
               value={data}
-              onChange={(e) => setData(e.target.value)}
+              onChange={(e) => updateDraftFields({ data: e.target.value })}
               className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors"
             />
           </div>
@@ -276,7 +625,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
               <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-700 p-0.5 bg-slate-50 dark:bg-slate-800 text-[10px] font-bold">
                 <button
                   type="button"
-                  onClick={() => setTimeStatus('confermato')}
+                  onClick={() => updateDraftFields({ timeStatus: 'confermato' })}
                   className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
                     timeStatus === 'confermato'
                       ? 'bg-white dark:bg-slate-900 text-[#E11D48] dark:text-[#FF6B5F] shadow-xs font-extrabold'
@@ -287,7 +636,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTimeStatus('indicativo')}
+                  onClick={() => updateDraftFields({ timeStatus: 'indicativo' })}
                   className={`px-2 py-0.5 rounded-md transition-colors cursor-pointer ${
                     timeStatus === 'indicativo'
                       ? 'bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-xs'
@@ -298,7 +647,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
                 </button>
               </div>
             </div>
-            <TimePickerInput value={orario} onChange={setOrario} ariaLabel="Orario shopping" />
+            <TimePickerInput value={orario} onChange={(val) => updateDraftFields({ orario: val })} ariaLabel="Orario shopping" />
           </div>
         </div>
 
@@ -311,7 +660,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
             type="text"
             placeholder="es. The Rocks, Sydney o link Google Maps"
             value={indirizzo}
-            onChange={(e) => setIndirizzo(e.target.value)}
+            onChange={(e) => updateDraftFields({ indirizzo: e.target.value })}
             className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors placeholder:text-slate-400"
           />
         </div>
@@ -326,7 +675,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
               type="text"
               placeholder="es. 100"
               value={budget}
-              onValueChange={(value) => setBudget(value)}
+              onValueChange={(value) => updateDraftFields({ budget: value })}
               className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors placeholder:text-slate-400"
             uncertain={Boolean((initialData as { currencyUncertain?: boolean } | null | undefined)?.currencyUncertain)} currencyLabel="Valuta budget" />
           </div>
@@ -338,7 +687,7 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
               type="url"
               placeholder="https://..."
               value={link}
-              onChange={(e) => setLink(e.target.value)}
+              onChange={(e) => updateDraftFields({ link: e.target.value })}
               className="w-full h-11 px-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-sm focus:outline-none focus:bg-slate-100 focus:border-rose-500 transition-colors placeholder:text-slate-400"
             />
           </div>
@@ -355,12 +704,21 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
             value={noteCopilota}
             onChange={(e) => {
               const val = e.target.value;
-              setNoteCopilota(val);
-              if (val.trim()) setCopilota(true);
+              updateDraftFields(val.trim() ? { noteCopilota: val, copilota: true } : { noteCopilota: val });
             }}
             className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 text-xs focus:outline-none focus:bg-slate-100 focus:border-rose-500 placeholder:text-slate-400 resize-none"
           />
         </div>
+
+        {SHOPPING_SAVE_LABELS[saveStatus] && (
+          <div
+            data-testid="shopping-autosave-status"
+            data-autosave-status={saveStatus}
+            className={`text-[11px] font-semibold text-right pt-1 ${SHOPPING_SAVE_LABELS[saveStatus]?.tone || 'text-slate-400'}`}
+          >
+            {SHOPPING_SAVE_LABELS[saveStatus]?.text}
+          </div>
+        )}
 
         <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
           <button
@@ -368,13 +726,14 @@ export default function ShoppingForm({ initialData, defaultDate, defaultTime, on
             onClick={onCancel}
             className="min-h-[44px] px-4 rounded-xl text-sm font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 transition-all cursor-pointer"
           >
-            Annulla
+            {isAutoSaveEnabled ? 'Chiudi' : 'Annulla'}
           </button>
           <button
             type="submit"
-            className="min-h-[44px] px-6 rounded-xl text-sm font-bold bg-rose-500 hover:bg-rose-400 active:scale-95 text-white shadow-md shadow-rose-500/20 transition-all cursor-pointer"
+            disabled={isSubmitting}
+            className="min-h-[44px] px-6 rounded-xl text-sm font-bold bg-rose-500 hover:bg-rose-400 active:scale-95 disabled:opacity-60 text-white shadow-md shadow-rose-500/20 transition-all cursor-pointer"
           >
-            {initialData ? 'Aggiorna Shopping' : 'Salva Shopping'}
+            {isSubmitting ? 'Salvataggio…' : initialData ? 'Aggiorna Shopping' : 'Salva Shopping'}
           </button>
         </div>
       </form>
