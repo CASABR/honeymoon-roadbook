@@ -1,10 +1,10 @@
 {
   "$schema": "./hounigo-deploy-request.schema.json",
-  "requestId": "release-1.7.0-202611220905",
-  "requestedAt": "2026-11-22T09:05:00.000Z",
+  "requestId": "release-1.7.1-202611221047",
+  "requestedAt": "2026-11-22T10:47:00.000Z",
   "requestedBy": "CASABR",
   "action": "deploy",
   "ref": "main",
   "confirm": "CONFERMA",
-  "note": "Release 1.7.0 LIVE 4 tab completi, separazione Foto/Diario e commenti per singola foto (esclusi file Shopping/Push/deploy locali)."
+  "note": "Release 1.7.1 Shopping local draft sync-safe & manual save (esclusi file locali estranei)."
 }

@@ -2,6 +2,16 @@
   "schemaVersion": 1,
   "releases": [
     {
+      "version": "1.7.1",
+      "publishedAt": "2026-11-22",
+      "sourceCommit": "c20285e9928f36b956aa0f32ece1462b6ecc814a",
+      "changes": [
+        "Shopping: salvataggio automatico locale della bozza sul dispositivo con recupero conflitti manuale.",
+        "Salvataggio manuale esplicito senza falsi stati Sincronizzato né duplicazione delle spese."
+      ],
+      "publishedAtIso": "2026-11-22T10:47:00.000Z"
+    },
+    {
       "version": "1.7.0",
       "publishedAt": "2026-11-22",
       "sourceCommit": "666f79bfd55e1e23b988c55aed76d58c2c49ee96",
